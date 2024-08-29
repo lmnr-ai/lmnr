@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 
+    --background: 240 8% 10%;
+    --foreground: 240 8% 80%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 240 8% 10%;
+    --popover-foreground: 240 8% 80%;
+
+    --primary: 240 5% 19%;
+    --primary-foreground: 240 5% 19%;
+
+    --secondary: 210 8% 12.5%;
+    --secondary-foreground: 240 8% 70%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 240 8% 16%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 240 6% 17%;
+    --input: 240 6% 17%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem; */
+
+    --background: 240 8% 10%;
+    --foreground: 240 8% 88%;
+
+    --card: 240 8% 10%;
+    --card-foreground: 240 8% 80%;
+
+    --popover: 240 8% 10%;
+    --popover-foreground: 240 8% 80%;
+
+    --primary: 16 83% 59%;
+    --primary-foreground: 16 0% 91%;
+
+    --secondary: 232 9% 17%;
+    --secondary-foreground: 240 8% 70%;
+
+    --muted: 232 9% 17%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 232 9% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 240 6% 20%;
+    --input: 240 6% 20%;
+    --ring: 212 96% 78%;
+
+    --radius: 0.5rem;
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    /* line numers styling in ReactAce Editor */
+    .ace_gutter {
+      background-color: hsl(var(--background-secondary) / 0.9);
+      color: hsl(var(--foreground) / 0.5);
+    }
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+}

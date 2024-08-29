@@ -1,0 +1,127 @@
+syntax = "proto3";
+package semantic_search_grpc;
+
+// When new model is added, don't forget to modify delete_collections function accordingly
+enum Model {
+    GTE_BASE = 0;
+    COHERE_MULTILINGUAL = 1;
+}
+
+message IndexRequest {
+
+    message Datapoint {
+        string content = 1;
+        string datasource_id = 2;
+        map<string, string> data = 3;
+        string id = 4;
+    }
+
+    repeated Datapoint datapoints = 1;
+    string collection_name = 2;
+    Model model = 3;
+}
+
+message IndexResponse {
+    string status = 1;
+}
+
+message DeleteEmbeddingsRequest {
+    repeated RequestPayload payloads = 1;
+    string collection_name = 2;
+    Model model = 3;
+}
+
+message DeleteEmbeddingsResponse {
+    string status = 1;
+}
+
+message RequestPayload {
+    map<string, string> payload = 1;
+}
+
+message QueryRequest {
+    string query = 1;
+    uint32 limit = 2;
+    float threshold = 3;
+    repeated RequestPayload payloads = 4;
+    string collection_name = 5;
+    Model model = 6;
+}
+
+message QueryResponse {
+    message QueryPoint {
+        float score = 1;
+        string content = 2;
+        string datasource_id = 3;
+        map<string, string> data = 4;
+    }
+
+    repeated QueryPoint results = 1;
+}
+
+message GenerateEmbeddingsRequest {
+    repeated string contents = 1;
+    Model model = 2;
+}
+
+message GenerateEmbeddingsResponse {
+    message Embeddings {
+        repeated float values = 1;
+    }
+
+    repeated Embeddings embeddings = 1;
+}
+
+message CalculateSimilarityScoresRequest {
+    message ComparedContents {
+        string first = 1;
+        string second = 2;
+    }
+
+    repeated ComparedContents contents = 1;
+    Model model = 2;
+}
+
+message CalculateSimilarityScoresResponse {
+    repeated float scores = 1;
+}
+
+message CreateCollectionRequest {
+    string collection_name = 1;
+    Model model = 2;
+}
+
+message CreateCollectionResponse {
+    string status = 1;
+}
+
+message DeleteCollectionsRequest {
+    string collection_name = 1;
+}
+
+message DeleteCollectionsResponse {
+    string status = 1;
+}
+
+service SemanticSearch {
+    // Embeds datapoints and adds them to the storage.
+    rpc Index(IndexRequest) returns (IndexResponse);
+
+    // Deletes the embeddings
+    rpc DeleteEmbeddings(DeleteEmbeddingsRequest) returns (DeleteEmbeddingsResponse);
+
+    // Queries the index for similar text.
+    rpc Query(QueryRequest) returns (QueryResponse);
+
+    // Creates a new collection.
+    rpc CreateCollection(CreateCollectionRequest) returns (CreateCollectionResponse);
+
+    // Delete collection.
+    rpc DeleteCollections(DeleteCollectionsRequest) returns (DeleteCollectionsResponse);
+
+    // Generates embeddings for provided texts
+    rpc GenerateEmbeddings(GenerateEmbeddingsRequest) returns (GenerateEmbeddingsResponse);
+
+    // Calculate similarity score for pairs of texts
+    rpc CalculateSimilarityScores(CalculateSimilarityScoresRequest) returns (CalculateSimilarityScoresResponse);
+}
