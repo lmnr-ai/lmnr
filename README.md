@@ -2,10 +2,8 @@
 
 Open-source observability for LLM agents. Read the [docs](https://docs.lmnr.ai).
 
-<a href="https://github.com/lmnr-ai/laminar/blob/main/LICENSE.md">![Static Badge](https://img.shields.io/badge/License-Apache_2.0-D22128.svg)</a>
-
 <a href="https://www.ycombinator.com/companies/laminar-ai">![Static Badge](https://img.shields.io/badge/Y%20Combinator-S24-orange)</a>
-<a href="https://x.com/Laminar_Ai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/Laminar_Ai)</a>
+<a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/Laminar_Ai)</a>
  <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
  ## 🚧 WORK IN PROGRESS 🚧
