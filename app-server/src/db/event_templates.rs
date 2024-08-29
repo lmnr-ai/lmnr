@@ -114,7 +114,7 @@ pub async fn create_or_update_event_template(
     name: String,
     project_id: Uuid,
     description: Option<String>,
-    instruction: String,
+    instruction: Option<String>,
     event_type: EventType,
 ) -> Result<EventTemplate> {
     let event_template = sqlx::query_as!(
@@ -142,7 +142,7 @@ pub async fn update_event_template(
     id: Uuid,
     project_id: Uuid,
     description: Option<String>,
-    instruction: String,
+    instruction: Option<String>,
     event_type: EventType,
 ) -> Result<EventTemplate> {
     let event_template = sqlx::query_as!(

@@ -28,7 +28,8 @@ struct CreateEventTemplateRequest {
     name: String,
     #[serde(default)]
     description: Option<String>,
-    instruction: String,
+    #[serde(default)]
+    instruction: Option<String>,
     event_type: db::event_templates::EventType,
 }
 
