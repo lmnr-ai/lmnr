@@ -55,7 +55,7 @@ tiktoken-rs = "0.5.9"
 handlebars = { version = "5.1.2", features = ["script_helper"] }
 handlebars_misc_helpers = { version = "0.16.3", features = ["json"] }
 aws-sdk-bedrockruntime = "1.37.0"
-aws-config = "1.5.3"
+aws-config = "1.5.5"
 aws-credential-types = "1.2.0"
 actix-web-actors = "4.3.0"
 actix = "0.13.5"
