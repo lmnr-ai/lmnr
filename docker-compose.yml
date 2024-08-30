@@ -19,10 +19,14 @@ services:
       - "8080:8080"
     depends_on:
       - qdrant
+    environment:
+      - PORT=8080
   
   app-server:
     build:
       context: ./app-server
+      args:
+        DATABASE_URL: ${DATABASE_URL}
     container_name: app-server
     ports:
       - "8000:8000"
@@ -30,6 +34,7 @@ services:
       - semantic-search-service
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - PORT=8000
 
   frontend:
     build:
@@ -37,6 +42,8 @@ services:
     container_name: frontend
     ports:
       - "3000:3000"
+    environment:
+      - PORT=3000
   
 volumes:
   qdrant-data:

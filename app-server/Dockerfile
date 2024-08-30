@@ -24,6 +24,7 @@ COPY . .
 EXPOSE 8000
 ARG DATABASE_URL
 ENV DATABASE_URL=${DATABASE_URL}
+ENV SQLX_OFFLINE=true
 RUN cargo build --release --all
 
 CMD ["./target/release/app-server"]
