@@ -11,12 +11,6 @@ services:
         source: qdrant-data
         target: /data
 
-  db-schema:
-    image: alpine:latest
-    container_name: db-schema
-    command: >
-      sh db-schema.sh
-
   semantic-search-service:
     build:
       context: ./semantic-search-service
@@ -33,7 +27,6 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db-schema
       - semantic-search-service
     environment:
       - DATABASE_URL=${DATABASE_URL}
