@@ -3,7 +3,6 @@ use sqlx::PgPool;
 pub mod api_keys;
 pub mod datapoints;
 pub mod datasets;
-pub mod evaluations;
 pub mod event_templates;
 pub mod events;
 pub mod limits;

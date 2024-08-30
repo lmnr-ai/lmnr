@@ -34,7 +34,6 @@ mod chunk;
 mod datasets;
 mod db;
 mod engine;
-mod evaluations;
 mod files;
 mod language_model;
 mod pipeline;
