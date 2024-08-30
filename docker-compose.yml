@@ -19,17 +19,26 @@ services:
       - "8080:8080"
     depends_on:
       - qdrant
+    environment:
+      - PORT=8080
+      - QDRANT_URL=http://localhost:6334
+      - COHERE_ENDPOINT=https://api.cohere.ai/v1/embed
+      - COHERE_API_KEY=${COHERE_API_KEY}
   
   app-server:
     build:
       context: ./app-server
+      args:
+        DATABASE_URL: ${DATABASE_URL}
     container_name: app-server
     ports:
       - "8000:8000"
     depends_on:
       - semantic-search-service
     environment:
+      - PORT=8000
       - DATABASE_URL=${DATABASE_URL}
+      - SEMANTIC_SEARCH_URL=http://semantic-search-service:8080
 
   frontend:
     build:
@@ -37,6 +46,9 @@ services:
     container_name: frontend
     ports:
       - "3000:3000"
+    environment:
+      - PORT=3000
+      - BACKEND_URL=http://app-server:8000
   
 volumes:
   qdrant-data:
