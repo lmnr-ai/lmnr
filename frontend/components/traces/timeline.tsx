@@ -59,7 +59,9 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
     const orderedSpans: SpanPreview[] = []
     const topLevelSpans = spans.filter(span => span.parentSpanId === null)
 
-    traverse(topLevelSpans[0], childSpans, orderedSpans)
+    for (const span of topLevelSpans) {
+      traverse(span, childSpans, orderedSpans)
+    }
 
     let startTime = null
     let endTime = null

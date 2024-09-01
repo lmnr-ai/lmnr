@@ -56,6 +56,17 @@ impl Error {
         }
     }
 
+    pub fn no_target_pipeline(pipeline_name: &String) -> Self {
+        Self::RequestError {
+            error_code: "api.noTargetPipeline".to_string(),
+            error_message: Some(Value::String(
+                format!("Pipeline has no target pipeline. There is no pipeline '{pipeline_name}', or it does not have a target version.
+            
+Set the target version for the pipeline in the pipeline builder."),
+            )),
+        }
+    }
+
     pub fn graph_running_error(trace: EngineOutput, run_id: Uuid) -> Self {
         Self::RequestError {
             error_code: "api.GraphRunningError".to_string(),

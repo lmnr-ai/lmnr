@@ -7,7 +7,7 @@ import PipelineHeader from './pipeline-header'
 import { ProjectContext } from '@/contexts/project-context'
 import useStore from '@/lib/flow/store'
 import { Label } from '../ui/label'
-import { InputVariable, Pipeline, PipelineExecutionMode, PipelineVersion } from '@/lib/pipeline/types'
+import { InputVariable, Pipeline as PipelineType, PipelineExecutionMode, PipelineVersion } from '@/lib/pipeline/types'
 import { FlowContextProvider } from '@/contexts/pipeline-version-context'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { ImperativePanelHandle } from 'react-resizable-panels'
@@ -36,7 +36,7 @@ import * as Y from 'yjs'
 import eventEmitter from '@/lib/pipeline/eventEmitter'
 
 interface PipelineProps {
-  pipeline: Pipeline;
+  pipeline: PipelineType;
   defaultSelectedVersion?: PipelineVersion;
 }
 

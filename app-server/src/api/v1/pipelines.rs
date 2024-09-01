@@ -35,8 +35,7 @@ struct GraphRequest {
     pipeline: String,
     inputs: HashMap<String, NodeInput>,
     /// If None, new trace will be generated
-    #[serde(default)]
-    #[serde(flatten)]
+    #[serde(default, flatten)]
     current_trace_and_span: Option<CurrentTraceAndSpan>,
     env: HashMap<String, String>,
     #[serde(default)]
@@ -76,7 +75,10 @@ async fn run_pipeline_graph(
     }
 
     let pipeline_version =
-        query_target_pipeline_version(db.clone(), cache.clone(), project_id, req.pipeline).await?;
+        query_target_pipeline_version(db.clone(), cache.clone(), project_id, req.pipeline.clone()).await?;
+    let Some(pipeline_version) = pipeline_version else {
+        return Err(error::Error::no_target_pipeline(&req.pipeline));
+    };
     let pipeline_version_id = pipeline_version.id;
 
     let run_id = Uuid::new_v4(); // used to uniquely identify the related log or run trace

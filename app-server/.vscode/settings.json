@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true
+}

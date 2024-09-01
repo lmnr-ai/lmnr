@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { Metadata } from 'next';
 import Evaluations from '@/components/evaluations/evaluations';
 import { fetcherJSON } from '@/lib/utils';
-import { EvaluationWithPipelineInfo } from '@/lib/evaluation/types';
+import { Evaluation } from '@/lib/evaluation/types';
 
 export const metadata: Metadata = {
   title: 'Evaluations',
@@ -28,7 +28,7 @@ export default async function EvaluationsPage({
     headers: {
       Authorization: `Bearer ${user.apiKey}`
     }
-  }) as EvaluationWithPipelineInfo[];
+  }) as Evaluation[];
 
   return (
     <Evaluations evaluations={evaluations} />

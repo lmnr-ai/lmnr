@@ -168,6 +168,6 @@ pub fn to_env_with_provided_env_vars(
     env
 }
 
-pub fn get_pipeline_version_cache_key(project_id: &str, pipeline_name: &str) -> String {
+pub fn get_target_pipeline_version_cache_key(project_id: &str, pipeline_name: &str) -> String {
     format!("{}:{}", project_id, pipeline_name)
 }

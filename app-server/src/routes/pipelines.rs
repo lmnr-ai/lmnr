@@ -13,7 +13,7 @@ use crate::db::pipelines::pipeline_version::PipelineVersionInfo;
 use crate::db::workspace::WorkspaceError;
 use crate::pipeline::nodes::Message;
 use crate::pipeline::trace::RunTrace;
-use crate::pipeline::utils::{get_pipeline_version_cache_key, to_env_with_provided_env_vars};
+use crate::pipeline::utils::{get_target_pipeline_version_cache_key, to_env_with_provided_env_vars};
 use crate::{
     cache::Cache,
     db::{
@@ -239,21 +239,6 @@ async fn create_pipeline(
     Ok(HttpResponse::Ok().json(pipeline))
 }
 
-#[get("{pipeline_id}")]
-async fn get_public_pipeline_by_id(params: web::Path<Uuid>, db: web::Data<DB>) -> ResponseResult {
-    let pipeline_id = params.into_inner();
-
-    let pipeline = db::pipelines::get_pipeline_by_id(&db.pool, &pipeline_id).await?;
-
-    if pipeline.visibility != "PUBLIC" {
-        return Err(error::Error::invalid_request(Some(
-            "Only public pipelines are accessible",
-        )));
-    }
-
-    Ok(HttpResponse::Ok().json(pipeline))
-}
-
 #[get("pipelines/{pipeline_id}")]
 async fn get_pipeline_by_id(params: web::Path<(Uuid, Uuid)>, db: web::Data<DB>) -> ResponseResult {
     let (_project_id, pipeline_id) = params.into_inner();
@@ -278,7 +263,7 @@ async fn update_pipeline(
     pipeline.project_id = project_id;
 
     let old_pipeline = db::pipelines::pipeline::get_pipeline_by_id(&db.pool, &pipeline_id).await?;
-    let cache_key = get_pipeline_version_cache_key(&project_id.to_string(), &old_pipeline.name);
+    let cache_key = get_target_pipeline_version_cache_key(&project_id.to_string(), &old_pipeline.name);
     let _ = cache.remove::<PipelineVersion>(&cache_key).await;
 
     // TODO: Don't allow to make pipelines public if they don't contain commits
@@ -334,7 +319,7 @@ async fn update_target_pipeline_version(
         )
         .await?;
 
-    let cache_key = get_pipeline_version_cache_key(
+    let cache_key = get_target_pipeline_version_cache_key(
         &project_id.to_string(),
         &pipeline_version.pipeline_name,
     );
@@ -392,18 +377,6 @@ async fn get_pipeline_versions(
     Ok(HttpResponse::Ok().json(versions))
 }
 
-#[get("versions-info")]
-async fn get_public_pipeline_versions_info(
-    db: web::Data<DB>,
-    params: web::Path<Uuid>,
-) -> ResponseResult {
-    let pipeline_id = params.into_inner();
-
-    // Only show committed and immutable pipeline versions publicly
-    let versions = db::pipelines::get_commit_pipeline_versions_info(&db.pool, &pipeline_id).await?;
-    Ok(HttpResponse::Ok().json(versions))
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PipelineVersionsInfoResponse {
@@ -437,16 +410,6 @@ async fn get_pipeline_versions_info(
         commit_versions,
         workshop_version,
     }))
-}
-
-#[get("versions/{version_id}")]
-async fn get_public_pipeline_version(
-    db: web::Data<DB>,
-    params: web::Path<(Uuid, Uuid)>,
-) -> ResponseResult {
-    let (_pipeline_id, version_id) = params.into_inner();
-    let version = db::pipelines::get_pipeline_version(&db.pool, &version_id).await?;
-    Ok(HttpResponse::Ok().json(version))
 }
 
 #[get("pipelines/{pipeline_id}/versions/{version_id}")]

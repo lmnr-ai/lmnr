@@ -22,6 +22,7 @@ pub async fn create_events(
     db: Arc<DB>,
     event_payloads: Vec<EventObservation>,
     event_source: EventSource,
+    project_id: Uuid,
 ) -> Result<()> {
     let event_types = db::event_templates::get_template_types(
         &db.pool,
@@ -29,61 +30,92 @@ pub async fn create_events(
             .iter()
             .map(|o| o.template_name.clone())
             .collect(),
+        project_id,
     )
     .await?;
-    let events = event_payloads
-        .into_iter()
-        .filter(|o| {
-            let event_type = event_types.get(&o.template_name).unwrap();
-            match event_type {
-                EventType::BOOLEAN => {
-                    let Some(value) = o.value.clone() else {
-                        log::warn!("Skipping BOOLEAN event without value: {:?}", o);
-                        return false;
-                    };
-                    let _bool_value = match serde_json::from_value::<bool>(value) {
-                        Ok(v) => v,
-                        Err(_) => {
-                            log::warn!("Skipping BOOLEAN event with non-boolean value: {:?}", o);
-                            return false;
-                        }
-                    };
-                    // TODO: return `_bool_value`?
-                    true
-                }
-                EventType::STRING => {
-                    let Some(value) = o.value.clone() else {
-                        log::warn!("Skipping STRING event without value: {:?}", o);
-                        return false;
-                    };
-                    if serde_json::from_value::<String>(value).is_err() {
-                        log::warn!("Skipping STRING event with non-string value: {:?}", o);
-                        return false;
-                    };
-                    true
-                }
-                EventType::NUMBER => {
-                    let Some(value) = o.value.clone() else {
-                        log::warn!("Skipping SCORE event without value: {:?}", o);
-                        return false;
-                    };
-                    if serde_json::from_value::<f64>(value).is_err() {
-                        log::warn!("Skipping NUMBER event with non-numeric value: {:?}", o);
-                        return false;
-                    };
-                    true
-                }
+
+    let mut events = vec![];
+
+    for mut event_payload in event_payloads.into_iter() {
+        let event_type = event_types
+            .get(&event_payload.template_name)
+            .map(|et| et.to_owned());
+
+        let event_type = match event_type {
+            Some(event_type) => event_type,
+            None => {
+                let id = Uuid::new_v4();
+                // If the user wants to use events for simply logging, create a boolean event, if there's no template for such event
+                let event_template = db::event_templates::create_or_update_event_template(
+                    &db.pool,
+                    id,
+                    event_payload.template_name.clone(),
+                    project_id,
+                    None,
+                    None,
+                    EventType::BOOLEAN,
+                )
+                .await?;
+                event_template.event_type
             }
-        })
-        .collect();
+        };
+
+        match event_type {
+            EventType::BOOLEAN => {
+                let value = match event_payload.value.clone() {
+                    Some(v) => v,
+                    None => Value::Bool(true), // IMPORTANT: Default to true for boolean events
+                };
+                event_payload.value = Some(value.clone());
+                let _bool_value = match serde_json::from_value::<bool>(value) {
+                    Ok(v) => v,
+                    Err(_) => {
+                        log::warn!(
+                            "Skipping BOOLEAN event with non-boolean value: {:?}",
+                            event_payload
+                        );
+                        continue;
+                    }
+                };
+                events.push(event_payload);
+            }
+            EventType::STRING => {
+                let Some(value) = event_payload.value.clone() else {
+                    log::warn!("Skipping STRING event without value: {:?}", event_payload);
+                    continue;
+                };
+                if serde_json::from_value::<String>(value).is_err() {
+                    log::warn!(
+                        "Skipping STRING event with non-string value: {:?}",
+                        event_payload
+                    );
+                    continue;
+                };
+                events.push(event_payload);
+            }
+            EventType::NUMBER => {
+                let Some(value) = event_payload.value.clone() else {
+                    log::warn!("Skipping NUMBER event without value: {:?}", event_payload);
+                    continue;
+                };
+                if serde_json::from_value::<f64>(value).is_err() {
+                    log::warn!(
+                        "Skipping NUMBER event with non-numeric value: {:?}",
+                        event_payload
+                    );
+                    continue;
+                };
+                events.push(event_payload);
+            }
+        }
+    }
+
     db::events::create_events_by_template_name(db, events, event_source).await
 }
 
 pub struct EvaluateEventResponse {
     reasoning: String,
     value: Value,
-    should_record_event: bool,
-    should_record_value: bool,
 }
 
 pub async fn evaluate_event(
@@ -92,84 +124,22 @@ pub async fn evaluate_event(
     event_template: EventTemplate,
 ) -> Result<EvaluateEventResponse> {
     let event_instruction = event_template.instruction.unwrap_or_default();
-    match event_template.event_type {
-        EventType::STRING => {
-            let (reasoning, class) = evaluate_class_event(
-                data,
-                language_model_runner,
-                event_template.name,
-                event_instruction,
-                // classes,
-            )
-            .await?;
+    let event_type = event_template.event_type;
+    let event_name = event_template.name;
 
-            Ok(EvaluateEventResponse {
-                reasoning,
-                value: Value::String(class),
-                should_record_event: true,
-                should_record_value: true,
-            })
-        }
-        EventType::BOOLEAN => {
-            let (reasoning, decision) = evaluate_tag_event(
-                data,
-                language_model_runner,
-                event_template.name,
-                event_instruction,
-            )
-            .await?;
-
-            if decision == "YES" {
-                return Ok(EvaluateEventResponse {
-                    reasoning,
-                    value: Value::String("YES".to_string()),
-                    should_record_event: true,
-                    should_record_value: false,
-                });
-            }
-
-            Ok(EvaluateEventResponse {
-                reasoning,
-                value: Value::String("NO".to_string()),
-                should_record_event: false,
-                should_record_value: false,
-            })
-        }
-        EventType::NUMBER => {
-            let (reasoning, score) = evaluate_score_event(
-                data,
-                language_model_runner,
-                event_template.name,
-                event_instruction,
-                // min,
-                // max,
-            )
-            .await?;
-
-            Ok(EvaluateEventResponse {
-                reasoning,
-                value: Value::Number(score.into()),
-                should_record_event: true,
-                should_record_value: true,
-            })
-        }
-    }
-}
-
-async fn evaluate_class_event(
-    data: String,
-    language_model_runner: Arc<LanguageModelRunner>,
-    event_name: String,
-    event_instruction: String,
-    // classes: Vec<String>,
-) -> Result<(String, String)> {
     let model = format!(
         "{}:gpt-4o-2024-08-06",
         LanguageModelProviderName::OpenAI.to_str()
     );
 
+    let output_type = match event_type {
+        db::event_templates::EventType::STRING => "string",
+        db::event_templates::EventType::BOOLEAN => "boolean",
+        db::event_templates::EventType::NUMBER => "number",
+    };
+
     let prompt = format!(
-        r#"You are a smart classifier. Your goal is to classify the input according to the event description.
+        r#"You are a smart analyst. Your goal is to follow the instruction and provide reasoning for your answer.
 
 Think clearly and provide reasoning for your answer.
 
@@ -181,9 +151,9 @@ Think clearly and provide reasoning for your answer.
 {}
 </event_name>
 
-<description>
+<instruction>
 {}
-</description>
+</instruction>
 "#,
         data, event_name, event_instruction
     );
@@ -203,190 +173,12 @@ Think clearly and provide reasoning for your answer.
                     "properties": {
                         "reasoning": {
                             "type": "string"
-                        }
-                        // ,
-                        // "class": {
-                        //     "type": "string",
-                        //     "enum": classes
-                        // }
-                    },
-                    "required": ["reasoning", "class"]
-                }
-            }
-        }
-    });
-
-    let openai_api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
-    let env = HashMap::from([(String::from("OPENAI_API_KEY"), openai_api_key)]);
-
-    // TODO: Get rid of this
-    let random_uuid = Uuid::new_v4();
-    let node_info = NodeInfo {
-        id: random_uuid,
-        node_id: random_uuid,
-        node_name: "TODO".to_string(),
-        node_type: "TODO".to_string(),
-    };
-
-    let completion = language_model_runner
-        .chat_completion(&model, &messages, &params, &env, None, &node_info)
-        .await?;
-
-    let text = completion.text_message();
-
-    let structured_output = serde_json::from_str::<HashMap<String, String>>(&text)?;
-    let reasoning = structured_output
-        .get("reasoning")
-        .expect("Reasoning must be provided");
-    let class = structured_output
-        .get("class")
-        .expect("Class must be provided");
-
-    Ok((reasoning.clone(), class.clone()))
-}
-
-async fn evaluate_tag_event(
-    data: String,
-    language_model_runner: Arc<LanguageModelRunner>,
-    event_name: String,
-    event_instruction: String,
-) -> Result<(String, String)> {
-    let model = format!(
-        "{}:gpt-4o-2024-08-06",
-        LanguageModelProviderName::OpenAI.to_str()
-    );
-
-    let prompt = format!(
-        r#"You are a smart analyst. Your goal is to decide whether to assign the tag to the input according to the event description.
-
-Think clearly and provide reasoning for your answer.
-
-<input>
-{}
-</input>
-
-<event_name>
-{}
-</event_name>
-
-<description>
-{}
-</description>
-"#,
-        data, event_name, event_instruction
-    );
-
-    let messages = vec![ChatMessage {
-        role: "user".to_string(),
-        content: ChatMessageContent::Text(prompt),
-    }];
-    let params = serde_json::json!({
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "result",
-                "description": "Result of tag assignment and reasoning",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "reasoning": {
-                            "type": "string"
                         },
-                        "decision": {
-                            "type": "string",
-                            "description": "Whether to assign the tag or not",
-                            "enum": ["YES", "NO"]
+                        "result": {
+                            "type": output_type
                         }
                     },
-                    "required": ["reasoning", "decision"]
-                }
-            }
-        }
-    });
-
-    let openai_api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
-    let env = HashMap::from([(String::from("OPENAI_API_KEY"), openai_api_key)]);
-
-    // TODO: Get rid of this
-    let random_uuid = Uuid::new_v4();
-    let node_info = NodeInfo {
-        id: random_uuid,
-        node_id: random_uuid,
-        node_name: "TODO".to_string(),
-        node_type: "TODO".to_string(),
-    };
-
-    let completion = language_model_runner
-        .chat_completion(&model, &messages, &params, &env, None, &node_info)
-        .await?;
-
-    let text = completion.text_message();
-
-    let structured_output = serde_json::from_str::<HashMap<String, String>>(&text)?;
-    let reasoning = structured_output
-        .get("reasoning")
-        .expect("Reasoning must be provided");
-    let decision = structured_output
-        .get("decision")
-        .expect("assignment decision must be provided");
-
-    Ok((reasoning.clone(), decision.clone()))
-}
-
-async fn evaluate_score_event(
-    data: String,
-    language_model_runner: Arc<LanguageModelRunner>,
-    event_name: String,
-    event_instruction: String,
-    // min: usize,
-    // max: usize,
-) -> Result<(String, usize)> {
-    let model = format!(
-        "{}:gpt-4o-2024-08-06",
-        LanguageModelProviderName::OpenAI.to_str()
-    );
-
-    let prompt = format!(
-        r#"You are a smart analyst. Your goal is to decide what score to assign to the input according to the event description. 
-
-Think clearly and provide reasoning for your answer.
-
-<input>
-{}
-</input>
-
-<event_name>
-{}
-</event_name>
-
-<description>
-{}
-</description>
-"#,
-        data, event_name, event_instruction
-    );
-
-    let messages = vec![ChatMessage {
-        role: "user".to_string(),
-        content: ChatMessageContent::Text(prompt),
-    }];
-    let params = serde_json::json!({
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "result",
-                "description": "Result of tag assignment and reasoning",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "reasoning": {
-                            "type": "string"
-                        },
-                        "score": {
-                            "type": "number",
-                        }
-                    },
-                    "required": ["reasoning", "score"]
+                    "required": ["reasoning", "result"]
                 }
             }
         }
@@ -411,20 +203,23 @@ Think clearly and provide reasoning for your answer.
     let text = completion.text_message();
 
     let structured_output = serde_json::from_str::<HashMap<String, Value>>(&text)?;
-
     let reasoning = structured_output
         .get("reasoning")
         .expect("Reasoning must be provided")
         .as_str()
         .unwrap_or_default()
         .to_string();
-    let score = structured_output
-        .get("score")
-        .expect("assignment score must be provided")
-        .as_i64()
-        .unwrap_or_default();
 
-    Ok((reasoning, score as usize))
+    // TODO: Validate the output type
+    let result = structured_output
+        .get("result")
+        .expect("Result must be provided")
+        .clone();
+
+    Ok(EvaluateEventResponse {
+        reasoning,
+        value: result,
+    })
 }
 
 pub async fn check_and_record_event(
@@ -446,16 +241,6 @@ pub async fn check_and_record_event(
 
     match evaluate_event(data.clone(), language_model_runner, event_template).await {
         Ok(res) => {
-            if !res.should_record_event {
-                return Ok(());
-            }
-
-            let value = if res.should_record_value {
-                Some(res.value)
-            } else {
-                None
-            };
-
             db::events::create_event(
                 &db.pool,
                 span_id,
@@ -465,7 +250,7 @@ pub async fn check_and_record_event(
                 Some(serde_json::json!({
                     "reasoning": res.reasoning,
                 })),
-                value,
+                res.value,
                 Some(data),
             )
             .await?;

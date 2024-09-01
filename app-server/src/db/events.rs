@@ -63,7 +63,7 @@ pub async fn create_event(
     template_id: Uuid,
     source: EventSource,
     metadata: Option<Value>,
-    value: Option<Value>,
+    value: Value,
     data: Option<String>,
 ) -> Result<()> {
     sqlx::query!(
@@ -169,7 +169,8 @@ pub async fn get_events_for_span(
             e.data
         FROM events e
         JOIN event_templates ON e.template_id = event_templates.id
-        WHERE span_id = $1"#,
+        WHERE span_id = $1
+        ORDER BY e.timestamp ASC"#,
         span_id,
     )
     .fetch_all(pool)

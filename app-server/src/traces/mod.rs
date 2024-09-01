@@ -63,7 +63,7 @@ pub async fn span_listener(
 
         // Record events only after all spans are recorded
         let add_instrumentation_events_res =
-            create_events(db.clone(), event_payloads, EventSource::CODE).await;
+            create_events(db.clone(), event_payloads, EventSource::CODE, project_id).await;
         if let Err(e) = add_instrumentation_events_res {
             log::error!("Failed to add instrumentation events: {:?}", e);
         }

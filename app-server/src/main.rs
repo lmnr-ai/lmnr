@@ -4,11 +4,9 @@ use actix_web::{
     web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use auth::PublicPipelineValidate;
 use dashmap::DashMap;
 use db::{
-    api_keys::ProjectApiKey, limits::RunCountLimitExceeded,
-    pipelines::PipelineVersion, user::User,
+    api_keys::ProjectApiKey, limits::RunCountLimitExceeded, pipelines::PipelineVersion, user::User,
 };
 use files::FileManager;
 use traces::span_listener;
@@ -154,10 +152,10 @@ async fn main() -> std::io::Result<()> {
 
     let interrupt_senders = Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
-
     HttpServer::new(move || {
         let auth = HttpAuthentication::bearer(auth::validator);
         let project_auth = HttpAuthentication::bearer(auth::project_validator);
+        let shared_secret_auth = HttpAuthentication::bearer(auth::shared_secret_validator);
 
         let (tx, rx) = mpsc::channel(LOG_CHANNEL_SIZE);
         tokio::task::spawn(log_listener(db.clone(), cache.clone(), rx));
@@ -192,14 +190,21 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(language_model_runner.clone()))
             .app_data(web::Data::new(observation_tx.clone()))
             // Scopes with specific auth or no auth
-            .service(web::scope("api/v1/auth").service(routes::auth::signin))
+            .service(
+                web::scope("api/v1/auth")
+                    .wrap(shared_secret_auth)
+                    .service(routes::auth::signin),
+            )
             .service(
                 web::scope("/v1")
                     .wrap(project_auth.clone())
                     .service(api::v1::pipelines::run_pipeline_graph)
                     .service(api::v1::pipelines::ping_healthcheck)
                     .service(api::v1::traces::upload_traces)
-                    .service(api::v1::traces::get_events_for_session),
+                    .service(api::v1::traces::get_events_for_session)
+                    .service(api::v1::evaluations::create_evaluation)
+                    .service(api::v1::evaluations::upload_evaluation_datapoints)
+                    .service(api::v1::evaluations::update_evaluation),
             )
             // Scopes with generic auth
             .service(
@@ -290,6 +295,10 @@ async fn main() -> std::io::Result<()> {
                             .service(routes::datasets::delete_datapoints)
                             .service(routes::datasets::delete_all_datapoints)
                             .service(routes::datasets::index_dataset)
+                            .service(routes::evaluations::get_evaluations)
+                            .service(routes::evaluations::get_finished_evaluation_infos)
+                            .service(routes::evaluations::get_evaluation)
+                            .service(routes::evaluations::get_evaluation_datapoint)
                             .service(routes::traces::get_traces)
                             .service(routes::traces::get_single_trace)
                             .service(routes::traces::get_single_span)
@@ -301,16 +310,6 @@ async fn main() -> std::io::Result<()> {
                             .service(routes::events::get_events_by_template_id)
                             .service(routes::events::get_events_metrics)
                             .service(routes::metrics::get_traces_metrics),
-                    ),
-            )
-            .service(
-                web::scope("/api/v1/public/pipelines")
-                    .service(routes::pipelines::get_public_pipeline_by_id)
-                    .service(
-                        web::scope("/{pipeline_id}")
-                            .wrap(PublicPipelineValidate)
-                            .service(routes::pipelines::get_public_pipeline_version)
-                            .service(routes::pipelines::get_public_pipeline_versions_info),
                     ),
             )
     })

@@ -28,26 +28,10 @@ function DatapointWithTraces({ datapoint, executorTrace, evaluatorTrace }: { dat
         <div className="flex-grow flex flex-col space-y-4 p-4 h-full">
           <Label className="">Data</Label>
           <Ide mode="json" value={JSON.stringify(datapoint.data, null, 2)} readOnly maxLines={Infinity} className="min-h-2" />
-          {datapoint.executorTrace && executorTrace && (
-            <>
-              <Label>Executor trace</Label>
-              <div className="h-96 border rounded">
-                {/* <TraceCards
-                  runTrace={executorTrace!}
-                /> */}
-              </div>
-            </>
-          )}
-          {datapoint.evaluatorTrace && evaluatorTrace && (
-            <>
-              <Label>Evaluator trace</Label>
-              <div className="h-96 border rounded">
-                {/* <TraceCards
-                  runTrace={evaluatorTrace!}
-                /> */}
-              </div>
-            </>
-          )}
+          <Label className="">Target</Label>
+          <Ide mode="json" value={JSON.stringify(datapoint.target, null, 2)} readOnly maxLines={Infinity} className="min-h-2" />
+          <Label className="">Executor Output</Label>
+          <Ide mode="json" value={JSON.stringify(datapoint.executorOutput, null, 2)} readOnly maxLines={Infinity} className="min-h-2" />
           {
             !!datapoint.error && (
               <EvaluationDatapointErr datapoint={datapoint} />
@@ -129,15 +113,6 @@ export default function EvaluationPanel({ datapointPreview, onClose }: Evaluatio
         <DatapointWithTraces datapoint={comparedDatapoint} executorTrace={comparedExecutorTrace} evaluatorTrace={comparedEvaluatorTrace} />
       )}
 
-      {
-        comparedDatapoint && (!comparedExecutorTrace) && (!comparedEvaluatorTrace) && (
-          <div className="flex-grow w-full p-4 space-y-2">
-            <Skeleton className="h-8" />
-            <Skeleton className="h-8" />
-            <Skeleton className="h-8" />
-          </div>
-        )
-      }
     </div>
   </div>
   )

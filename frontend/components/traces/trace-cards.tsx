@@ -15,12 +15,11 @@ import { cn } from '@/lib/utils'
 
 interface TraceCardsProps {
   trace: TraceWithSpanPreviews
-  enableFeedback?: boolean
   onTraceHover?: (nodeId?: string) => void
 }
 
 
-export default function TraceCards({ trace, enableFeedback, onTraceHover }: TraceCardsProps) {
+export default function TraceCards({ trace, onTraceHover }: TraceCardsProps) {
   const spans = trace.spans
 
   const childSpans = {} as { [key: string]: SpanPreview[] }
@@ -117,7 +116,7 @@ export default function TraceCards({ trace, enableFeedback, onTraceHover }: Trac
                           <Label className='text-secondary-foreground text-sm'>{trace.cost?.toFixed(5)}$</Label>
                         </div>
                       </div>
-                      <div className='flex flex-col px-2'>
+                      <div className='flex flex-col px-2 pt-1'>
                         {
                           topLevelSpans.map((span, index) => (
                             <div

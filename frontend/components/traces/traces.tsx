@@ -24,6 +24,7 @@ interface TracesProps {
   pageNumber: number;
   defaultSelectedid?: string;
   pastHours: string;
+  totalInProject: number | null;
 }
 
 export default function Traces({
@@ -34,6 +35,7 @@ export default function Traces({
   pageNumber,
   defaultSelectedid,
   pastHours,
+  totalInProject,
 }: TracesProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const [sidebarWidth, setSidebarWidth] = useState<number>(500);
@@ -152,6 +154,11 @@ export default function Traces({
   useEffect(() => {
     setTraces(defaultTraces ?? [])
   }, [defaultTraces]);
+
+
+  if (totalTracesCount === 0 && totalInProject === 0) {
+    return <TracesPagePlaceholder />
+  }
 
   return (
     <div className="h-full flex flex-col">

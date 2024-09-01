@@ -1,32 +1,13 @@
-import { RunTrace, TracePreview, TraceMessages } from "../traces/types";
+import { TracePreview } from "../traces/types";
 
-
-export type EvaluationWithPipelineInfo = {
-  id: string;
-  createdAt: string;
-  name: string;
-  status: string;
-  projectId: string;
-  evaluatorPipelineVersionId: string;
-  evaluatorPipelineVersionName: String;
-  evaluatorPipelineId: string;
-  evaluatorPipelineName: string;
-  executorPipelineVersionId?: string;
-  executorPipelineVersionName?: String;
-  executorPipelineId?: string;
-  executorPipelineName?: string;
-  datasetId: string;
-  matcherMetadata?: Record<string, any>;
-}
 
 export type Evaluation = {
   id: string,
+  createdAt: string,
   name: string,
   status: 'Started' | 'Finished' | 'Error',
   projectId: string,
-  createdAt: string,
-  evaluatorPipelineVersionId: string,
-  executorPipelineVersionId?: string,
+  metadata: Record<string, any> | null,
 }
 
 export type EvaluationDatapoint = {
@@ -45,17 +26,19 @@ export type EvaluationDatapoint = {
 export type EvaluationDatapointPreview = {
   id: string;
   evaluationId: string;
+  createdAt: string;
   status: string;
-  score?: number;
+  scores?: Record<string, any>;
   data: Record<string, any>;
   target: Record<string, any>;
   executorOutput: Record<string, any>;
+  error?: any;
 }
 
 export type EvaluationDatapointPreviewWithCompared = {
   comparedId?: string;
   comparedEvaluationId?: string;
-  comparedScore?: number;
+  comparedScores?: Record<string, any>;
 } & EvaluationDatapointPreview
 
 export type EvaluationStats = {

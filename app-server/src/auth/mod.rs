@@ -1,23 +1,18 @@
 use anyhow::Result;
+use std::env;
 use std::future::{ready, Ready};
 use std::sync::Arc;
-use uuid::Uuid;
 
 use actix_web::dev::Payload;
 use actix_web::dev::ServiceRequest;
 use actix_web::web;
-use actix_web::{
-    dev::{forward_ready, Service, ServiceResponse, Transform},
-    Error,
-};
+use actix_web::Error;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
-use futures_util::future::LocalBoxFuture;
 
 use crate::cache::Cache;
 use crate::db::api_keys::{get_api_key, ProjectApiKey};
-use crate::db::pipelines::get_pipeline_by_id;
 use crate::db::user::{get_user_from_api_key, User};
 use crate::db::DB;
 
@@ -113,63 +108,20 @@ pub async fn project_validator(
     }
 }
 
-pub struct PublicPipelineValidate;
+pub async fn shared_secret_validator(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    let config = req
+        .app_data::<Config>()
+        .map(|data| data.clone())
+        .unwrap_or_else(Default::default);
 
-impl<S, B> Transform<S, ServiceRequest> for PublicPipelineValidate
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = PublicPipelineValidateMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(PublicPipelineValidateMiddleware { service }))
-    }
-}
-
-pub struct PublicPipelineValidateMiddleware<S> {
-    service: S,
-}
-
-impl<S, B> Service<ServiceRequest> for PublicPipelineValidateMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    forward_ready!(service);
-
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let db = req
-            .app_data::<web::Data<DB>>()
-            .cloned()
-            .unwrap()
-            .into_inner();
-
-        let pipeline_id = Uuid::parse_str(req.match_info().get("pipeline_id").unwrap()).unwrap();
-        let fut = self.service.call(req);
-
-        Box::pin(async move {
-            let pipeline = get_pipeline_by_id(&db.pool, &pipeline_id).await;
-            match pipeline {
-                Ok(pipeline) => {
-                    if pipeline.visibility == "PUBLIC" {
-                        Ok(fut.await?)
-                    } else {
-                        Err(actix_web::error::ErrorUnauthorized("Unauthorized"))
-                    }
-                }
-                Err(_) => Err(actix_web::error::ErrorNotFound("Pipeline not found")),
-            }
-        })
+    if credentials.token().to_string()
+        == env::var("FRONTEND_SHARED_SECRET").expect("FRONTEND_SHARED_SECRET must be set")
+    {
+        Ok(req)
+    } else {
+        Err((AuthenticationError::from(config).into(), req))
     }
 }

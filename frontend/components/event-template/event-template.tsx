@@ -1,6 +1,6 @@
 'use client';
 
-import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo, EvaluationWithPipelineInfo } from "@/lib/evaluation/types";
+import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo, Evaluation } from "@/lib/evaluation/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "../ui/datatable";

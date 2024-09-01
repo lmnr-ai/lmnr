@@ -32,7 +32,6 @@ export default function LogEditor({ onClose, traceId }: LogEditorProps) {
     return (
       <TraceCards
         trace={rowInfo as TraceWithSpanPreviews}
-        enableFeedback
       />
     )
   }

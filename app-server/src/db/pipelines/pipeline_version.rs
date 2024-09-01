@@ -339,7 +339,7 @@ pub async fn get_target_pipeline_version_by_pipeline_name(
     pool: &PgPool,
     project_id: Uuid,
     pipeline_name: &str,
-) -> Result<PipelineVersion> {
+) -> Result<Option<PipelineVersion>> {
     let version = sqlx::query_as!(
         PipelineVersion,
         "SELECT
@@ -365,7 +365,7 @@ pub async fn get_target_pipeline_version_by_pipeline_name(
         project_id,
         pipeline_name,
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
     Ok(version)

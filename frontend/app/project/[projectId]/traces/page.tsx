@@ -84,7 +84,6 @@ export default async function TracesPage({
 
   const res = await getTraces(session, projectId, pageNumber, pageSize, filter, pastHours);
 
-  const traces = res?.traces ?? [];
   const pageCount = res?.totalEntries ? Math.ceil(res?.totalEntries / pageSize) : 1;
 
   return (
@@ -92,10 +91,11 @@ export default async function TracesPage({
       <Header path={"traces"} />
       <Suspense>
         <TracesDashboard
-          defaultTraces={traces}
+          defaultTraces={res?.traces ?? []}
           totalTracesCount={res?.totalEntries ?? 0}
           pageCount={pageCount}
           pageSize={pageSize}
+          totalInProject={res?.totalInProject}
           pastHours={pastHours?.toString() ?? "24"}
           pageNumber={Math.min(pageNumber, pageCount - 1)}
         />
