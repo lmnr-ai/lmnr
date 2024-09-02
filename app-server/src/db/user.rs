@@ -9,6 +9,13 @@ use uuid::Uuid;
 
 use crate::cache::Cache;
 
+#[derive(Serialize, FromRow)]
+pub struct UserInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub email: String,
+}
+
 #[derive(Default, Debug, Clone, Deserialize, Serialize, FromRow)]
 pub struct User {
     pub id: Uuid,

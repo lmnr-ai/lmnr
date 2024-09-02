@@ -1,6 +1,6 @@
 use actix_web::{post, web, HttpResponse};
 use log::info;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     db::{
@@ -19,6 +19,13 @@ struct SignInParams {
     email: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SignInResponse {
+    api_key: String,
+    is_new_user_created: bool,
+}
+
 #[post("signin")]
 async fn signin(params: web::Json<SignInParams>, db: web::Data<DB>) -> ResponseResult {
     let params = params.into_inner();
@@ -26,14 +33,18 @@ async fn signin(params: web::Json<SignInParams>, db: web::Data<DB>) -> ResponseR
     let name = params.name;
 
     if let Some(api_key) = get_api_key_for_user_from_email(&db.pool, &email).await {
-        return Ok(HttpResponse::Ok().json(api_key));
+        let res = SignInResponse {
+            api_key,
+            is_new_user_created: false,
+        };
+        return Ok(HttpResponse::Ok().json(res));
     }
 
     let user_id = uuid::Uuid::new_v4();
     let user = User {
         id: user_id,
         name: name.to_owned(),
-        email: email,
+        email,
         ..Default::default()
     };
 
@@ -41,10 +52,11 @@ async fn signin(params: web::Json<SignInParams>, db: web::Data<DB>) -> ResponseR
 
     let api_key = ApiKey {
         api_key: generate_random_key(),
-        user_id: user_id,
+        user_id,
         name: String::from("default"),
     };
 
+    // TODO: Validate email before creating user
     write_user(&db.pool, &user.id, &user.email, &user.name).await?;
     write_api_key(&db.pool, &api_key.api_key, &api_key.user_id, &api_key.name).await?;
 
@@ -58,5 +70,9 @@ async fn signin(params: web::Json<SignInParams>, db: web::Data<DB>) -> ResponseR
     db::workspace::add_owner_to_workspace(&db.pool, &user_id, &workspace.id).await?;
     info!("Added user to workspace: {:?}", workspace);
 
-    Ok(HttpResponse::Ok().json(api_key.api_key))
+    let res = SignInResponse {
+        api_key: api_key.api_key,
+        is_new_user_created: true,
+    };
+    Ok(HttpResponse::Ok().json(res))
 }

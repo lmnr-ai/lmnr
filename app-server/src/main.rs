@@ -9,7 +9,7 @@ use db::{
     api_keys::ProjectApiKey, limits::RunCountLimitExceeded, pipelines::PipelineVersion, user::User,
 };
 use files::FileManager;
-use traces::span_listener;
+use traces::{observation_collector, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE};
 
 use cache::{cache::CacheTrait, Cache};
 use chunk::{
@@ -17,8 +17,13 @@ use chunk::{
     runner::{Chunker, ChunkerRunner, ChunkerType},
 };
 use language_model::{LanguageModelProvider, LanguageModelProviderName};
+use lapin::{
+    options::{ExchangeDeclareOptions, QueueDeclareOptions},
+    types::FieldTable,
+    Connection, ConnectionProperties,
+};
 use moka::future::Cache as MokaCache;
-use pipeline::trace::log_listener;
+use pipeline::trace::pipeline_trace_listener;
 use routes::pipelines::GraphInterruptMessage;
 use semantic_search::semantic_search_grpc::semantic_search_client::SemanticSearchClient;
 use std::{any::TypeId, collections::HashMap, env, sync::Arc};
@@ -152,19 +157,44 @@ async fn main() -> std::io::Result<()> {
 
     let interrupt_senders = Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
+    let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
+    let rabbitmq_connection = Arc::new(
+        Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+            .await
+            .unwrap(),
+    );
+
+    // declare the exchange
+    let channel = rabbitmq_connection.create_channel().await.unwrap();
+    channel
+        .exchange_declare(
+            OBSERVATIONS_EXCHANGE,
+            lapin::ExchangeKind::Fanout,
+            ExchangeDeclareOptions::default(),
+            FieldTable::default(),
+        )
+        .await
+        .unwrap();
+
+    channel
+        .queue_declare(
+            OBSERVATIONS_QUEUE,
+            QueueDeclareOptions::default(),
+            FieldTable::default(),
+        )
+        .await
+        .unwrap();
+
     HttpServer::new(move || {
         let auth = HttpAuthentication::bearer(auth::validator);
         let project_auth = HttpAuthentication::bearer(auth::project_validator);
-        let shared_secret_auth = HttpAuthentication::bearer(auth::shared_secret_validator);
 
         let (tx, rx) = mpsc::channel(LOG_CHANNEL_SIZE);
-        tokio::task::spawn(log_listener(db.clone(), cache.clone(), rx));
-
-        let (observation_tx, observation_rx) = mpsc::channel(LOG_CHANNEL_SIZE);
-        tokio::task::spawn(span_listener(
+        tokio::task::spawn(pipeline_trace_listener(
             db.clone(),
-            observation_rx,
-            language_model_runner.clone(),
+            cache.clone(),
+            rx,
+            rabbitmq_connection.clone(),
         ));
 
         // tx is cloned to the pipeline runner, so that main keeps another reference
@@ -178,6 +208,15 @@ async fn main() -> std::io::Result<()> {
             tx.clone(),
         ));
 
+        // let (observation_tx, observation_rx) = mpsc::channel(LOG_CHANNEL_SIZE);
+        tokio::task::spawn(observation_collector(
+            pipeline_runner.clone(),
+            db.clone(),
+            cache.clone(),
+            language_model_runner.clone(),
+            rabbitmq_connection.clone(),
+        ));
+
         App::new()
             .wrap(Logger::default())
             .wrap(NormalizePath::trim())
@@ -188,19 +227,16 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(semantic_search.clone()))
             .app_data(web::Data::new(interrupt_senders.clone()))
             .app_data(web::Data::new(language_model_runner.clone()))
-            .app_data(web::Data::new(observation_tx.clone()))
+            // .app_data(web::Data::new(observation_tx.clone()))
+            .app_data(web::Data::new(rabbitmq_connection.clone()))
             // Scopes with specific auth or no auth
-            .service(
-                web::scope("api/v1/auth")
-                    .wrap(shared_secret_auth)
-                    .service(routes::auth::signin),
-            )
+            .service(web::scope("api/v1/auth").service(routes::auth::signin))
             .service(
                 web::scope("/v1")
                     .wrap(project_auth.clone())
                     .service(api::v1::pipelines::run_pipeline_graph)
                     .service(api::v1::pipelines::ping_healthcheck)
-                    .service(api::v1::traces::upload_traces)
+                    .service(api::v1::traces::upload_observations)
                     .service(api::v1::traces::get_events_for_session)
                     .service(api::v1::evaluations::create_evaluation)
                     .service(api::v1::evaluations::upload_evaluation_datapoints)
@@ -274,15 +310,12 @@ async fn main() -> std::io::Result<()> {
                             .service(routes::pipelines::create_template)
                             .service(routes::pipelines::run_pipeline_interrupt_graph)
                             .service(routes::pipelines::update_target_pipeline_version)
-                            .service(routes::trace_analytics::get_endpoint_trace_analytics)
-                            .service(routes::trace_analytics::get_project_trace_analytics)
-                            .service(routes::trace_tags::get_tag_types)
-                            .service(routes::trace_tags::create_tag_type)
-                            .service(routes::trace_tags::update_trace_tag)
-                            .service(routes::trace_tags::get_trace_tags)
                             .service(routes::api_keys::create_project_api_key)
                             .service(routes::api_keys::get_api_keys_for_project)
                             .service(routes::api_keys::revoke_project_api_key)
+                            .service(routes::evaluations::get_evaluation)
+                            .service(routes::evaluations::delete_evaluation)
+                            .service(routes::evaluations::get_evaluation_datapoint)
                             .service(routes::datasets::get_datasets)
                             .service(routes::datasets::create_dataset)
                             .service(routes::datasets::get_dataset)
@@ -309,6 +342,7 @@ async fn main() -> std::io::Result<()> {
                             .service(routes::events::delete_event_template)
                             .service(routes::events::get_events_by_template_id)
                             .service(routes::events::get_events_metrics)
+                            .service(routes::events::get_events)
                             .service(routes::metrics::get_traces_metrics),
                     ),
             )

@@ -7,7 +7,7 @@ import { DataTable } from "../ui/datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { useUserContext } from "@/contexts/user-context";
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/const";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, USE_REALTIME } from "@/lib/const";
 import EvaluationPanel from "./evaluation-panel";
 import EvaluationStats from "./evaluation-stats";
 import { mutate } from "swr";
@@ -130,24 +130,28 @@ export default function Evaluation({
   }
 
   const { supabaseAccessToken } = useUserContext()
-  const supabase = useMemo(() => createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-    {
-      global: {
-        headers: {
-          Authorization: `Bearer ${supabaseAccessToken}`,
-        },
-      },
-    }
-  ), [])
+  const supabase = useMemo(() => {
+    return USE_REALTIME
+      ? createClient(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY,
+        {
+          global: {
+            headers: {
+              Authorization: `Bearer ${supabaseAccessToken}`,
+            },
+          },
+        }
+      )
+      : null
+  }, [])
 
-  supabase.realtime.setAuth(supabaseAccessToken)
+  supabase?.realtime.setAuth(supabaseAccessToken)
 
   useEffect(() => {
     if (evaluation.status !== 'Finished') {
       supabase
-        .channel('table-db-changes')
+        ?.channel('table-db-changes')
         .on(
           'postgres_changes',
           {
@@ -188,7 +192,7 @@ export default function Evaluation({
 
     // remove all channels on unmount
     return () => {
-      supabase.removeAllChannels()
+      supabase?.removeAllChannels()
     }
   }, [])
 

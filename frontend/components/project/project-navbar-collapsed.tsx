@@ -49,7 +49,7 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
     // },
     {
       name: 'events',
-      href: `/project/${projectId}/event-templates`,
+      href: `/project/${projectId}/events`,
       icon: ArrowBigUp,
       current: false
     },

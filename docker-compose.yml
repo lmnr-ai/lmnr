@@ -10,6 +10,19 @@ services:
       - type: volume
         source: qdrant-data
         target: /data
+    
+  rabbitmq:
+    image: rabbitmq
+    ports:
+      - "5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 5s
+      retries: 3
 
   semantic-search-service:
     build:
@@ -21,24 +34,42 @@ services:
       - qdrant
     environment:
       - PORT=8080
-      - QDRANT_URL=http://localhost:6334
+      - QDRANT_URL=http://qdrant:6334
       - COHERE_ENDPOINT=https://api.cohere.ai/v1/embed
       - COHERE_API_KEY=${COHERE_API_KEY}
-  
+
+  postgres:
+    build:
+      context: ./postgres
+      args:
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        POSTGRES_DB: ${POSTGRES_DB}
+    container_name: postgres
+    ports:
+      - "5432:5432"
+
   app-server:
     build:
       context: ./app-server
       args:
-        DATABASE_URL: ${DATABASE_URL}
+        DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     container_name: app-server
     ports:
       - "8000:8000"
     depends_on:
-      - semantic-search-service
+      semantic-search-service:
+        condition: service_started
+      postgres:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
     environment:
       - PORT=8000
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SEMANTIC_SEARCH_URL=http://semantic-search-service:8080
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
+      - FRONTEND_SHARED_SECRET=${SHARED_SECRET}
 
   frontend:
     build:
@@ -46,9 +77,11 @@ services:
     container_name: frontend
     ports:
       - "3000:3000"
+    env_file: ./frontend/.env.local.example
     environment:
       - PORT=3000
       - BACKEND_URL=http://app-server:8000
-  
+      - BACKEND_SHARED_SECRET=${SHARED_SECRET}
+
 volumes:
   qdrant-data:

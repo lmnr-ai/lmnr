@@ -1,4 +1,3 @@
-
 use super::ResponseResult;
 use crate::db::{
     self,
@@ -13,7 +12,6 @@ use serde_json::Value;
 use uuid::Uuid;
 
 const DEFAULT_PAGE_SIZE: usize = 50;
-
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]

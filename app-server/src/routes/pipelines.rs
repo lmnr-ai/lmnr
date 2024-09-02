@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use actix_web::{delete, get, post, web, HttpResponse};
 use dashmap::DashMap;
@@ -13,7 +13,9 @@ use crate::db::pipelines::pipeline_version::PipelineVersionInfo;
 use crate::db::workspace::WorkspaceError;
 use crate::pipeline::nodes::Message;
 use crate::pipeline::trace::RunTrace;
-use crate::pipeline::utils::{get_target_pipeline_version_cache_key, to_env_with_provided_env_vars};
+use crate::pipeline::utils::{
+    get_target_pipeline_version_cache_key,
+};
 use crate::{
     cache::Cache,
     db::{
@@ -110,7 +112,6 @@ async fn run_pipeline_graph(
     interrupt_senders.insert(run_id, interrupt_tx);
 
     let mut env = params.env;
-    env = to_env_with_provided_env_vars(&env, &graph); // Quick hack
     env.insert("collection_name".to_string(), project_id.to_string());
 
     graph
@@ -263,7 +264,8 @@ async fn update_pipeline(
     pipeline.project_id = project_id;
 
     let old_pipeline = db::pipelines::pipeline::get_pipeline_by_id(&db.pool, &pipeline_id).await?;
-    let cache_key = get_target_pipeline_version_cache_key(&project_id.to_string(), &old_pipeline.name);
+    let cache_key =
+        get_target_pipeline_version_cache_key(&project_id.to_string(), &old_pipeline.name);
     let _ = cache.remove::<PipelineVersion>(&cache_key).await;
 
     // TODO: Don't allow to make pipelines public if they don't contain commits
@@ -297,6 +299,7 @@ async fn update_target_pipeline_version(
 ) -> ResponseResult {
     let req = req.into_inner();
     let (project_id, pipeline_id) = params.into_inner();
+    let cache = cache.into_inner();
     let pipeline_version_id = req.pipeline_version_id;
 
     let pipeline_version =
@@ -374,6 +377,18 @@ async fn get_pipeline_versions(
     let (_, pipeline_id) = params.into_inner();
 
     let versions = db::pipelines::get_pipeline_versions(&db.pool, &pipeline_id).await?;
+    Ok(HttpResponse::Ok().json(versions))
+}
+
+#[get("versions-info")]
+async fn get_public_pipeline_versions_info(
+    db: web::Data<DB>,
+    params: web::Path<Uuid>,
+) -> ResponseResult {
+    let pipeline_id = params.into_inner();
+
+    // Only show committed and immutable pipeline versions publicly
+    let versions = db::pipelines::get_commit_pipeline_versions_info(&db.pool, &pipeline_id).await?;
     Ok(HttpResponse::Ok().json(versions))
 }
 

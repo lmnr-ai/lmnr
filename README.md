@@ -6,11 +6,33 @@ Open-source observability and analytics for complex LLM apps. Read the [docs](ht
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
 <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
- ## 🚧 WORK IN PROGRESS 🚧
+## 🚧 WORK IN PROGRESS 🚧
 
- This is a work in progress repo. This repo will be constantly and frequently updated.
+This is a work in progress repo. It be constantly and frequently updated.
 
 ## Getting started
+
+### Self-hosted
+
+```sh
+git clone git@github.com:lmnr-ai/lmnr
+cd lmnr
+docker compose up
+```
+
+This will spin up the following containers:
+- app-server – the core app logic, backend, and the LLM proxies
+- rabbitmq – message queue for sending the traces and observations reliably
+- qdrant – vector database
+- semantic-search-service – service for interacting with qdrant and embeddings
+- frontend – the visual front-end dashboard for interacting with traces
+- postgres – the database for all the application data
+
+### Managed solution
+
+Alternatively, use our managed solution at http://www.lmnr.ai
+
+## Sending traces and events
 
 First, create a project and generate a Project API Key. Then prepare the client package side.
 
@@ -57,19 +79,6 @@ if __name__ == "__main__":
     print(poem_writer(topic="laminar flow"))
 ```
 
-### Sending events
-
-You can send a pre-defined event or ask Laminar to evaluate a more open-ended event.
-Learn more about setting up events in [docs](https://docs.lmnr.ai/events/introduction).
-
-```python
-    if topic in poem:
-        # send an event with a pre-defined name
-        lmnr_context.event("topic_alignment", "good")
-    
-    # to trigger an automatic check for a possible event do:
-    lmnr_context.evaluate_event("excessive_wordiness", poem)
-```
 
 ## Learn more
 

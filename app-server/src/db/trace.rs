@@ -9,7 +9,10 @@ use uuid::Uuid;
 
 use crate::{
     db::modifiers::DateRange,
-    pipeline::{nodes::Message, trace::MetaLog},
+    pipeline::{
+        nodes::{Message, NodeInput},
+        trace::MetaLog,
+    },
     traces::attributes::{
         GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_TOKENS, GEN_AI_RESPONSE_MODEL, GEN_AI_TOTAL_TOKENS,
         GEN_AI_USAGE_COST,
@@ -173,7 +176,7 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(Deserialize, Serialize, sqlx::FromRow, Clone)]
+#[derive(Deserialize, Serialize, sqlx::FromRow, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Trace {
     pub id: Uuid,
@@ -195,8 +198,9 @@ pub struct Trace {
     cost: f64,
     #[serde(default = "default_true")]
     success: bool,
-    #[serde(skip_deserializing)]
-    project_id: Uuid,
+    // Project id is default because it's added later based on the ProjectApiKey
+    #[serde(default)]
+    pub project_id: Uuid,
 }
 
 impl Trace {
@@ -245,26 +249,25 @@ pub struct TraceAttributes {
     id: Uuid,
     start_time: Option<DateTime<Utc>>,
     end_time: Option<DateTime<Utc>>,
-    total_token_count: i64,
-    cost: f64,
-    success: bool,
+    total_token_count: Option<i64>,
+    cost: Option<f64>,
+    success: Option<bool>,
 }
 
 impl TraceAttributes {
     pub fn new(trace_id: Uuid) -> Self {
         Self {
             id: trace_id,
-            success: true,
             ..Default::default()
         }
     }
 
     pub fn add_tokens(&mut self, tokens: i64) {
-        self.total_token_count += tokens;
+        self.total_token_count = Some(self.total_token_count.unwrap_or(0) + tokens);
     }
 
     pub fn add_cost(&mut self, cost: f64) {
-        self.cost += cost;
+        self.cost = Some(self.cost.unwrap_or(0.0) + cost);
     }
 
     pub fn update_start_time(&mut self, start_time: DateTime<Utc>) {
@@ -284,9 +287,9 @@ impl TraceAttributes {
             id,
             start_time: Some(run_trace.run_stats.start_time),
             end_time: Some(run_trace.run_stats.end_time),
-            total_token_count: run_trace.run_stats.total_token_count,
-            cost: run_trace.run_stats.approximate_cost.unwrap_or_default(),
-            success: run_trace.success,
+            total_token_count: Some(run_trace.run_stats.total_token_count),
+            cost: Some(run_trace.run_stats.approximate_cost.unwrap_or_default()),
+            success: Some(run_trace.success),
         }
     }
 }
@@ -374,6 +377,18 @@ impl Span {
             })
             .collect()
     }
+
+    pub fn to_span_with_empty_checks_and_events(
+        &self,
+        project_id: &Uuid,
+    ) -> SpanWithChecksAndEvents {
+        SpanWithChecksAndEvents {
+            span: self.clone(),
+            evaluate_events: vec![],
+            events: vec![],
+            project_id: project_id.clone(),
+        }
+    }
 }
 
 fn span_attributes_from_meta_log(meta_log: Option<MetaLog>) -> Value {
@@ -398,24 +413,28 @@ fn span_metadata_from_meta_log(meta_log: Option<MetaLog>) -> Value {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EvaluateEventRequest {
     pub name: String,
-    pub data: String,
+    pub data: HashMap<String, NodeInput>,
+    pub evaluator: String,
     #[serde(default)]
     pub timestamp: Option<DateTime<Utc>>,
+    pub env: HashMap<String, String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SpanWithChecksAndEvents {
     #[serde(flatten)]
     pub span: Span,
     // List of unique string names, where each name is a unique tag type's name
     pub evaluate_events: Vec<EvaluateEventRequest>,
-    #[serde(default, skip_serializing)]
     pub events: Vec<EventObservation>,
+    // Project id is default because it's added later based on the ProjectApiKey
+    #[serde(default)]
+    pub project_id: Uuid,
 }
 
 #[derive(Serialize)]
@@ -432,7 +451,7 @@ pub struct SpanPreview {
     attributes: Value,
     metadata: Option<Value>,
     span_type: SpanType,
-    // Using Option<Value> instead of Vec<Value> because of Coalesce
+    // Using Option<Value> instead of Value (Value::Arrray) because of Coalesce
     events: Option<Value>,
 }
 
@@ -441,352 +460,9 @@ struct TotalCount {
     total_count: i64,
 }
 
-pub async fn write_messages(pool: &PgPool, run_id: &Uuid, messages: &Vec<Message>) -> Result<()> {
-    let mut ids = Vec::new();
-    let mut values = Vec::new();
-    let mut input_message_ids = Vec::new();
-    let mut start_times = Vec::new();
-    let mut end_times = Vec::new();
-    let mut node_ids = Vec::new();
-    let mut node_names = Vec::new();
-    let mut node_types = Vec::new();
-    let mut meta_logs = Vec::new();
-
-    for message in messages {
-        ids.push(message.id);
-        values.push(serde_json::to_value(message.value.clone()).unwrap());
-        input_message_ids.push(serde_json::to_value(message.input_message_ids.clone()).unwrap());
-        start_times.push(message.start_time);
-        end_times.push(message.end_time);
-        node_ids.push(message.node_id);
-        node_names.push(message.node_name.clone());
-        node_types.push(message.node_type.clone());
-        meta_logs.push(serde_json::to_value(message.meta_log.clone()).unwrap());
-    }
-
-    sqlx::query!(
-        "INSERT INTO messages
-            (id,
-            run_id,
-            node_id,
-            node_name,
-            node_type,
-            input_message_ids,
-            start_time,
-            end_time,
-            value,
-            meta_log)
-        SELECT
-            unnest($1::uuid[]),
-            $2,
-            unnest($3::uuid[]),
-            unnest($4::text[]),
-            unnest($5::text[]),
-            unnest($6::jsonb[]),
-            unnest($7::timestamptz[]),
-            unnest($8::timestamptz[]),
-            unnest($9::jsonb[]),
-            unnest($10::jsonb[])",
-        &ids,
-        run_id,
-        &node_ids,
-        &node_names,
-        &node_types,
-        &input_message_ids,
-        &start_times,
-        &end_times,
-        &values,
-        &meta_logs,
-    )
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
-pub async fn write_trace(
-    pool: &PgPool,
-    run_id: &Uuid,
-    pipeline_version_id: &Uuid,
-    run_type: &str,
-    success: bool,
-    output_message_ids: &Value,
-    start_time: &DateTime<Utc>,
-    end_time: &DateTime<Utc>,
-    total_token_count: i64,
-    approximate_cost: Option<f64>,
-    metadata: &Value,
-) -> Result<DBRunTrace> {
-    let result = sqlx::query_as!(
-        DBRunTrace,
-        "INSERT INTO traces
-            (run_id,
-            pipeline_version_id,
-            run_type,
-            success,
-            output_message_ids,
-            start_time,
-            end_time,
-            total_token_count,
-            approximate_cost,
-            metadata)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING
-            run_id,
-            created_at,
-            pipeline_version_id,
-            run_type,
-            success,
-            output_message_ids,
-            start_time,
-            end_time,
-            total_token_count,
-            approximate_cost,
-            metadata
-        ",
-        run_id,
-        pipeline_version_id,
-        run_type,
-        success,
-        output_message_ids,
-        start_time,
-        end_time,
-        total_token_count,
-        approximate_cost,
-        metadata,
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    result.ok_or(anyhow::anyhow!("error writing trace"))
-}
-
-#[derive(Serialize, FromRow)]
-pub struct EndpointTraceAnalyticDatapoint {
-    pub time: DateTime<Utc>,
-    pub avg_token_count: Option<f64>,
-    pub total_approximate_cost: Option<f64>,
-    pub avg_latency: Option<f64>,
-    pub run_count: Option<f64>,
-}
-
-pub async fn get_trace_analytics(
-    pool: &PgPool,
-    date_range: &DateRange,
-    group_by_interval: &str,
-    endpoint_id: &Option<Uuid>,
-    project_id: &Option<Uuid>,
-) -> Result<Vec<EndpointTraceAnalyticDatapoint>> {
-    let mut query = match date_range {
-        DateRange::Relative(interval) => QueryBuilder::<Postgres>::new(format!(
-            "WITH time_series AS (
-                SELECT 
-                    time_interval
-                FROM 
-                generate_series(
-                    NOW() - interval '{} hours',
-                    NOW(),
-                    '1 {}')
-                AS time_interval
-                )",
-            interval.past_hours, group_by_interval
-        )),
-        DateRange::Absolute(interval) => {
-            let mut query = QueryBuilder::<Postgres>::new(
-                "
-            WITH time_series AS (
-                SELECT 
-                    time_interval
-                FROM 
-                generate_series(
-             ",
-            );
-            query
-                .push_bind(interval.start_date)
-                .push(", ")
-                .push_bind(interval.end_date)
-                .push(format!(", '1 {group_by_interval}') AS time_interval)"));
-            query
-        }
-    };
-    query.push(
-        ", data(run_id, created_at, total_token_count, approximate_cost, start_time, end_time, pipeline_version_id) AS (
-        SELECT run_id, traces.created_at, total_token_count, approximate_cost, start_time, end_time, pipeline_version_id
-        FROM traces
-        LEFT JOIN pipeline_versions pv ON pv.id = traces.pipeline_version_id "
-    );
-    if let Some(endpoint_id) = endpoint_id {
-        query.push(
-            " WHERE run_type = 'ENDPOINT'
-                AND pipeline_version_id in (
-                    SELECT pipeline_version_id
-                    FROM endpoint_pipeline_versions
-                    WHERE endpoint_id = ",
-        );
-        query.push_bind(endpoint_id.clone()).push(")");
-    } else if let Some(project_id) = project_id {
-        query.push(
-            " WHERE pipeline_version_id in (
-                    SELECT id
-                    FROM pipeline_versions
-                    WHERE pipeline_id in (
-                        SELECT id
-                        FROM pipelines
-                        WHERE project_id = ",
-        );
-        query.push_bind(project_id.clone()).push("))");
-    }
-    query.push(format!(") 
-        SELECT
-            COALESCE(AVG(total_token_count), 0)::float8 as avg_token_count,
-            COALESCE(SUM(approximate_cost), 0)::float8 as total_approximate_cost,
-            COALESCE(
-                AVG(
-                    (extract(epoch from end_time) - extract(epoch from start_time))
-                ),
-                0
-            )::float8 as avg_latency, -- seconds
-            COUNT(distinct(run_id))::float8 as run_count,
-            date_trunc('{group_by_interval}', time_series.time_interval) as time
-        FROM time_series
-        LEFT JOIN data on date_trunc('{group_by_interval}', data.created_at) = date_trunc('{group_by_interval}', time_series.time_interval)
-        GROUP BY time order by time ASC"
-    ));
-
-    let res = query
-        .build_query_as::<'_, EndpointTraceAnalyticDatapoint>()
-        .fetch_all(pool)
-        .await?;
-
-    Ok(res)
-}
-
-#[derive(FromRow, Debug)]
-struct RunOutputs {
-    run_id: Uuid,
-    outputs: Value, // Vec of all messages
-    tags: Value,    // HashMap<String, Value> from tag type name to tag value
-}
-
-/// returns map from run_id to map from node_name to output value + from tag_name to tag_value
-pub async fn get_all_node_outputs(
-    pool: &PgPool,
-    run_ids: &Vec<Uuid>,
-    node_ids: &Option<Vec<Uuid>>,
-) -> Result<HashMap<Uuid, HashMap<String, Value>>> {
-    let mut query = QueryBuilder::<Postgres>::new(
-        "
-        WITH grouped_tags AS (
-            SELECT
-                trace_tags.run_id,
-                JSONB_OBJECT_AGG(tag_types.name, trace_tags.value) as tags
-            FROM trace_tags
-            JOIN tag_types ON trace_tags.type_id = tag_types.id
-            GROUP BY trace_tags.run_id
-            
-        ),
-        grouped_messages AS (
-            SELECT
-                messages.run_id,
-                jsonb_agg(messages.* order by messages.start_time ASC) as outputs
-            FROM messages
-            WHERE 1=1 ",
-    );
-    if let Some(node_ids) = node_ids {
-        query
-            .push(" AND messages.node_id = ANY(")
-            .push_bind(node_ids.clone())
-            .push(")");
-    }
-    query.push(
-        "
-            GROUP BY messages.run_id
-        )
-        SELECT
-            grouped_messages.run_id,
-            grouped_messages.outputs,
-            COALESCE(grouped_tags.tags, '{}'::jsonb) as tags
-        FROM grouped_messages
-        LEFT JOIN grouped_tags ON grouped_messages.run_id = grouped_tags.run_id
-        WHERE grouped_messages.run_id = ANY(",
-    );
-    query.push_bind(run_ids.clone()).push(")");
-
-    let traces = query
-        .build_query_as::<'_, RunOutputs>()
-        .fetch_all(pool)
-        .await?;
-
-    let res = traces
-        .iter()
-        .map(|messages| {
-            let run_id = messages.run_id;
-            let ordered_messages =
-                serde_json::from_value::<Vec<DBMessage>>(messages.outputs.clone()).unwrap();
-            let mut outputs = HashMap::new();
-            ordered_messages.into_iter().for_each(|message| {
-                let mut key = message.node_name.clone();
-                let mut index = 1;
-                while outputs.contains_key(&key) {
-                    key = format!("{key}_{index}");
-                    index += 1;
-                }
-                outputs.insert(key, message.value);
-            });
-            let tags = serde_json::from_value::<HashMap<String, Value>>(messages.tags.clone())
-                .unwrap_or_default();
-            tags.into_iter().for_each(|(tag_name, tag_value)| {
-                let mut key = tag_name.clone();
-                let mut index = 1;
-                while outputs.contains_key(&key) {
-                    key = format!("{}_{index}", tag_name.clone());
-                    index += 1;
-                }
-                outputs.insert(key, tag_value);
-            });
-
-            (run_id, outputs)
-        })
-        .collect();
-
-    Ok(res)
-}
-
-pub async fn create_trace_if_none(pool: &PgPool, project_id: Uuid, id: Uuid) -> Result<()> {
-    sqlx::query!(
-        "INSERT INTO new_traces
-            (id,
-            start_time,
-            end_time,
-            version,
-            release,
-            user_id,
-            session_id,
-            metadata,
-            project_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT(id) DO NOTHING",
-        id,
-        Utc::now(),
-        &None as &Option<DateTime<Utc>>,
-        DEFAULT_VERSION,
-        &None as &Option<String>,
-        &None as &Option<String>,
-        Uuid::new_v4().to_string(),
-        &None as &Option<Value>,
-        project_id,
-    )
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
 pub async fn record_trace(pool: &PgPool, project_id: Uuid, trace: Trace) -> Result<()> {
-    // EXCLUDED is a special table name in postgres ON CONFLICT DO UPDATE
-    // to capture the value of the conflicting row
-    sqlx::query!(
-        "INSERT INTO new_traces
+    sqlx::query(
+        "INSERT INTO traces
             (id,
             start_time,
             end_time,
@@ -799,79 +475,70 @@ pub async fn record_trace(pool: &PgPool, project_id: Uuid, trace: Trace) -> Resu
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT(id) DO
             UPDATE SET
-            version = EXCLUDED.version,
-            release = EXCLUDED.release,
-            user_id = EXCLUDED.user_id,
-            session_id = EXCLUDED.session_id,
-            metadata = EXCLUDED.metadata",
-        &trace.id,
-        &trace.start_time as &Option<DateTime<Utc>>,
-        &trace.end_time as &Option<DateTime<Utc>>,
-        &trace.version,
-        &trace.release as &Option<String>,
-        &trace.user_id as &Option<String>,
-        &trace.session_id,
-        &trace.metadata as &Option<Value>,
-        project_id,
+            version = $4,
+            release = $5,
+            user_id = $6,
+            session_id = $7,
+            metadata = $8",
     )
+    .bind(&trace.id)
+    .bind(&trace.start_time as &Option<DateTime<Utc>>)
+    .bind(&trace.end_time as &Option<DateTime<Utc>>)
+    .bind(&trace.version)
+    .bind(&trace.release as &Option<String>)
+    .bind(&trace.user_id as &Option<String>)
+    .bind(&trace.session_id)
+    .bind(&trace.metadata as &Option<Value>)
+    .bind(project_id)
     .execute(pool)
     .await?;
 
     Ok(())
 }
 
-pub async fn update_trace_attributes(pool: &PgPool, attributes: &TraceAttributes) -> Result<()> {
-    sqlx::query!(
-        "UPDATE new_traces
+pub async fn update_trace_attributes(
+    pool: &PgPool,
+    project_id: &Uuid,
+    attributes: &TraceAttributes,
+) -> Result<()> {
+    sqlx::query(
+        "
+        INSERT INTO traces (
+            id,
+            project_id,
+            total_token_count,
+            cost,
+            success,
+            start_time,
+            end_time,
+            version,
+            session_id
+        )
+        VALUES ($1, $2, COALESCE($3, 0::int8), COALESCE($4, 0::float8), COALESCE($5, true), $6, $7, $8, $9)
+        ON CONFLICT(id) DO
+        UPDATE
         SET 
-            total_token_count = total_token_count + $2,
-            cost = cost + $3,
-            success = $4,
-            start_time = CASE WHEN start_time IS NULL OR start_time > $5 THEN $5 ELSE start_time END,
-            end_time = CASE WHEN end_time IS NULL OR end_time < $6 THEN $6 ELSE end_time END
-        WHERE id = $1",
-        attributes.id,
-        attributes.total_token_count,
-        attributes.cost,
-        attributes.success,
-        attributes.start_time,
-        attributes.end_time,
+            total_token_count = traces.total_token_count + COALESCE($3, 0),
+            cost = traces.cost + COALESCE($4, 0),
+            success = CASE WHEN $5 IS NULL THEN traces.success ELSE $5 END,
+            start_time = CASE WHEN traces.start_time IS NULL OR traces.start_time > $6 THEN $6 ELSE traces.start_time END,
+            end_time = CASE WHEN traces.end_time IS NULL OR traces.end_time < $7 THEN $7 ELSE traces.end_time END"
     )
+    .bind(attributes.id)
+    .bind(project_id)
+    .bind(attributes.total_token_count)
+    .bind(attributes.cost)
+    .bind(attributes.success)
+    .bind(attributes.start_time)
+    .bind(attributes.end_time)
+    .bind(DEFAULT_VERSION)
+    .bind(Uuid::new_v4().to_string())
     .execute(pool)
     .await?;
-
     Ok(())
 }
 
-pub async fn record_spans(pool: &PgPool, spans: Vec<Span>) -> Result<()> {
-    let mut ids = Vec::new();
-    let mut start_times = Vec::new();
-    let mut end_times = Vec::new();
-    let mut versions = Vec::new();
-    let mut trace_ids = Vec::new();
-    let mut parent_span_ids = Vec::new();
-    let mut names = Vec::new();
-    let mut attributes_list = Vec::new();
-    let mut metadatas = Vec::new();
-    let mut inputs = Vec::new();
-    let mut outputs = Vec::new();
-    let mut span_types = Vec::new();
-
-    for span in spans {
-        ids.push(span.id);
-        start_times.push(span.start_time);
-        end_times.push(span.end_time);
-        versions.push(span.version);
-        trace_ids.push(span.trace_id);
-        parent_span_ids.push(span.parent_span_id);
-        names.push(span.name);
-        attributes_list.push(span.attributes);
-        metadatas.push(span.metadata);
-        inputs.push(span.input);
-        outputs.push(span.output);
-        span_types.push(span.span_type);
-    }
-
+pub async fn record_span(pool: &PgPool, span: Span) -> Result<()> {
     sqlx::query!(
         "INSERT INTO spans
             (id,
@@ -886,32 +553,32 @@ pub async fn record_spans(pool: &PgPool, spans: Vec<Span>) -> Result<()> {
             input,
             output,
             span_type)
-        SELECT
-            unnest($1::uuid[]),
-            unnest($2::timestamptz[]),
-            unnest($3::timestamptz[]),
-            unnest($4::text[]),
-            unnest($5::uuid[]),
-            unnest($6::uuid[]),
-            unnest($7::text[]),
-            unnest($8::jsonb[]),
-            unnest($9::jsonb[]),
-            unnest($10::jsonb[]),
-            unnest($11::jsonb[]),
-            unnest($12::span_type[])
-        ",
-        &ids,
-        &start_times,
-        &end_times,
-        &versions,
-        &trace_ids,
-        &parent_span_ids.as_slice() as &[Option<Uuid>],
-        &names,
-        &attributes_list,
-        &metadatas,
-        &inputs.as_slice() as &[Option<Value>],
-        &outputs.as_slice() as &[Option<Value>],
-        &span_types.as_slice() as &[SpanType],
+        VALUES(
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12
+        )",
+        &span.id,
+        &span.start_time,
+        &span.end_time,
+        &span.version,
+        &span.trace_id,
+        &span.parent_span_id as &Option<Uuid>,
+        &span.name,
+        &span.attributes,
+        &span.metadata,
+        &span.input as &Option<Value>,
+        &span.output as &Option<Value>,
+        &span.span_type as &SpanType,
     )
     .execute(pool)
     .await?;
@@ -955,7 +622,7 @@ pub fn add_traces_info_expression<'a>(
             t.success,
             EXTRACT(EPOCH FROM (t.end_time - t.start_time)),
             CASE WHEN t.success = true THEN 'Success' ELSE 'Failed' END as status
-        FROM new_traces t
+        FROM traces t
         WHERE start_time IS NOT NULL AND end_time IS NOT NULL ",
     );
 
@@ -986,7 +653,7 @@ pub fn add_traces_info_expression<'a>(
 const TRACE_EVENTS_EXPRESSION: &str = "
     trace_events AS (
         SELECT
-            new_traces.id as trace_id,
+            traces.id as trace_id,
             jsonb_agg(
                 jsonb_build_object(
                     'id', events.id,
@@ -998,9 +665,9 @@ const TRACE_EVENTS_EXPRESSION: &str = "
         FROM events
         JOIN event_templates ON events.template_id = event_templates.id
         JOIN spans ON spans.id = events.span_id
-        JOIN new_traces ON new_traces.id = spans.trace_id
-        WHERE new_traces.start_time IS NOT NULL AND new_traces.end_time IS NOT NULL
-        GROUP BY new_traces.id
+        JOIN traces ON traces.id = spans.trace_id
+        WHERE traces.start_time IS NOT NULL AND traces.end_time IS NOT NULL
+        GROUP BY traces.id
     )";
 
 fn add_filters_to_traces_query<'a>(
@@ -1137,22 +804,20 @@ pub async fn count_traces(
 /// This function is a simpler version of `count_traces` that only counts the traces without any additional information
 /// and is more efficient.
 pub async fn count_all_traces_in_project(pool: &PgPool, project_id: Uuid) -> Result<i64> {
-    let count = sqlx::query!(
+    let count = sqlx::query_as::<_, TotalCount>(
         "SELECT COUNT(*) as total_count
-        FROM new_traces
+        FROM traces
         WHERE project_id = $1",
-        project_id,
     )
+    .bind(project_id)
     .fetch_one(pool)
-    .await?
-    .total_count;
+    .await?;
 
-    Ok(count.unwrap_or_default())
+    Ok(count.total_count)
 }
 
 pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
-    let trace = sqlx::query_as!(
-        Trace,
+    let trace = sqlx::query_as::<_, Trace>(
         "SELECT
             id,
             start_time,
@@ -1166,11 +831,11 @@ pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
             total_token_count,
             cost,
             success
-        FROM new_traces
+        FROM traces
         WHERE id = $1
         AND start_time IS NOT NULL AND end_time IS NOT NULL",
-        id,
     )
+    .bind(id)
     .fetch_one(pool)
     .await?;
 
@@ -1190,6 +855,7 @@ pub async fn get_span_previews(pool: &PgPool, trace_id: Uuid) -> Result<Vec<Span
                         'timestamp', events.timestamp,
                         'templateId', events.template_id,
                         'templateName', event_templates.name,
+                        'templateEventType', event_templates.event_type,
                         'source', events.source
                     )
                 ) AS events

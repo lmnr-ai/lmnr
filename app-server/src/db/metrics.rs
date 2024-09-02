@@ -258,7 +258,7 @@ pub async fn get_trace_metrics(
                 time_interval
             FROM 
             generate_series(
-                COALESCE((SELECT MIN(start_time) FROM new_traces WHERE project_id = ",
+                COALESCE((SELECT MIN(start_time) FROM traces WHERE project_id = ",
             );
             query
                 .push_bind(project_id)
@@ -310,7 +310,7 @@ pub async fn get_trace_metrics(
     query.push(&column_names.join(", "));
 
     query.push(
-        " FROM new_traces WHERE start_time IS NOT NULL AND end_time IS NOT NULL AND project_id = ",
+        " FROM traces WHERE start_time IS NOT NULL AND end_time IS NOT NULL AND project_id = ",
     );
     query.push_bind(project_id).push(")");
 

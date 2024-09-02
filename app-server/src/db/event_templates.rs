@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-#[derive(sqlx::Type, Deserialize, Serialize, Debug, Clone)]
+#[derive(sqlx::Type, Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[sqlx(type_name = "event_type")]
 pub enum EventType {
     BOOLEAN,
@@ -60,7 +60,7 @@ pub async fn get_event_template_by_name(
     pool: &PgPool,
     name: &str,
     project_id: Uuid,
-) -> Result<EventTemplate> {
+) -> Result<Option<EventTemplate>> {
     let event_template = sqlx::query_as!(
         EventTemplate,
         r#"SELECT
@@ -79,10 +79,7 @@ pub async fn get_event_template_by_name(
     .fetch_optional(pool)
     .await?;
 
-    match event_template {
-        Some(event_template) => Ok(event_template),
-        None => Err(anyhow::anyhow!("Event template not found for name: {}", name)),
-    }
+    Ok(event_template)
 }
 
 pub async fn get_event_template_by_id(pool: &PgPool, id: &Uuid) -> Result<EventTemplate> {
@@ -177,7 +174,7 @@ pub async fn get_template_types(
     project_id: Uuid,
 ) -> Result<HashMap<String, EventType>> {
     let records = sqlx::query!(
-        r#"SELECT name, event_type as "event_type!: EventType" FROM event_templates WHERE name = ANY($1) AND project_id = $2"#,
+        r#"SELECT name, event_type as "event_type!: EventType" FROM event_templates WHERE name = ANY($1) and project_id = $2"#,
         names,
         project_id,
     )

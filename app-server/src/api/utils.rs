@@ -91,3 +91,13 @@ pub async fn update_project_run_count_exceeded(
 
     Ok(())
 }
+
+pub async fn remove_project_run_count_exceeded_from_cache(
+    cache: Arc<Cache>,
+    project_id: &Uuid,
+) -> anyhow::Result<()> {
+    let _ = cache
+        .remove::<RunCountLimitExceeded>(&project_id.to_string())
+        .await?;
+    Ok(())
+}

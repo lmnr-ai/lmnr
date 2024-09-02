@@ -127,7 +127,6 @@ pub async fn get_limits_by_project_id(
     Ok(tier.into())
 }
 
-
 #[derive(Debug, FromRow, Clone)]
 pub struct RunCount {
     pub _workspace_id: Uuid,

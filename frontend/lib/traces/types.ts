@@ -83,7 +83,7 @@ export type TracePreview = {
   outputMessageIds: string[];
 }
 
-export type TraceMetricAnalytics = {
+export type TraceMetricDatapoint = {
   // epoch seconds
   time: number;
   value: number;

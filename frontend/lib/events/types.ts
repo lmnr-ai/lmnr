@@ -20,7 +20,9 @@ export type Event = {
   timestamp: string;
   templateId: string;
   templateName: string;
+  templateEventType: EventType;
   source: string;
   value: string | number | null;
   metadata: Record<string, string> | null;
+  inputs: Record<string, any> | null;
 }

@@ -1,5 +1,5 @@
 use crate::{
-    api::utils::update_project_run_count_exceeded,
+    api::{utils::update_project_run_count_exceeded, v1::traces::Observation},
     cache::Cache,
     db::{
         self,
@@ -9,11 +9,13 @@ use crate::{
     },
     engine::engine::EngineOutput,
     pipeline::RunType,
+    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
 };
 
 use anyhow::Result;
 use backoff::{exponential::ExponentialBackoff, SystemClock};
 use chrono::{DateTime, Utc};
+use lapin::{options::BasicPublishOptions, BasicProperties, Connection};
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
@@ -95,12 +97,24 @@ impl RunTrace {
     }
 }
 
-// This function is more like background message processing, not only logging
-// For example, it increases run count
-pub async fn log_listener(db: Arc<DB>, cache: Arc<Cache>, mut rx: Receiver<RunTrace>) {
+// For now, receives the pipeline trace via in-memory queue, converts to Trace and Span,
+// and writes to rabbitmq. In the future, this should be replaced by a direct write to rabbitmq.
+pub async fn pipeline_trace_listener(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    mut rx: Receiver<RunTrace>,
+    rabbitmq_connection: Arc<Connection>,
+) {
     loop {
         if let Some(trace) = rx.recv().await {
-            if let Err(e) = handle_graph_trace(db.clone(), cache.clone(), &trace).await {
+            if let Err(e) = handle_graph_trace(
+                db.clone(),
+                cache.clone(),
+                &trace,
+                rabbitmq_connection.clone(),
+            )
+            .await
+            {
                 error!("Terminal error handling log: {}", e);
             }
         } else {
@@ -110,163 +124,88 @@ pub async fn log_listener(db: Arc<DB>, cache: Arc<Cache>, mut rx: Receiver<RunTr
     }
 }
 
-pub async fn handle_graph_trace(db: Arc<DB>, cache: Arc<Cache>, trace: &RunTrace) -> Result<()> {
+pub async fn handle_graph_trace(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    run_trace: &RunTrace,
+    rabbitmq_connection: Arc<Connection>,
+) -> Result<()> {
     let pool = &db.pool;
-    let pipeline_version_id = trace.pipeline_version_id;
+    let pipeline_version_id = run_trace.pipeline_version_id;
 
-    if trace.run_type.should_write_traces() {
-        backoff::future::retry(ExponentialBackoff::<SystemClock>::default(), || async {
-            db::trace::write_trace(
-                pool,
-                &trace.run_id,
-                &pipeline_version_id,
-                &trace.run_type.to_string(),
-                trace.success,
-                &serde_json::to_value(trace.run_output.output_message_ids.clone()).unwrap(),
-                &trace.run_stats.start_time,
-                &trace.run_stats.end_time,
-                trace.run_stats.total_token_count,
-                trace.run_stats.approximate_cost,
-                &serde_json::to_value(trace.metadata.clone()).unwrap(),
-            )
-            .await
-            .map_err(|anyhow_error| {
-                log::error!(
-                    "Error writing trace to db. May retry according to the backoff policy. Error: {}",
-                    anyhow_error
-                );
-                backoff::Error::Transient {
-                    err: anyhow_error,
-                    retry_after: None,
-                }
-            })
-        }).await?;
+    if run_trace.run_type.should_write_traces() {
+        // TODO: Trace should be constructed with project_id, not pipeline_version_id
+        let pipeline =
+            db::pipelines::get_pipeline_by_version_id(pool, &run_trace.pipeline_version_id).await?;
+        let project_id = pipeline.project_id;
 
-        backoff::future::retry(ExponentialBackoff::<SystemClock>::default(), || async {
-            // TODO: Once this is the default option, trace should be constructed with project_id, not pipeline_version_id
-            let pipeline = db::pipelines::get_pipeline_by_version_id(pool, &trace.pipeline_version_id).await.map_err(|anyhow_error| {
-                log::error!(
-                    "Error getting project_id. May retry according to the backoff policy. Error: {}",
-                    anyhow_error
-                );
-                backoff::Error::Transient {
-                    err: anyhow_error,
-                    retry_after: None,
-                }
-            })?;
-            let project_id = pipeline.project_id;
-            // create new trace only if this run is not a part of an existing trace
-            if let Some(trace_id) = trace.trace_id {
-                db::trace::create_trace_if_none(pool, project_id, trace_id).await.map_err(|anyhow_error| {
-                    log::error!(
-                        "Error creating trace if none. May retry according to the backoff policy. Error: {}",
-                        anyhow_error
-                    );
-                    backoff::Error::Transient {
-                        err: anyhow_error,
-                        retry_after: None,
-                    }
-                })?;
-                let attributes = &db::trace::TraceAttributes::from_run_trace(trace_id, trace);
-                db::trace::update_trace_attributes(pool, attributes).await.map_err(|anyhow_error| {
-                    log::error!(
-                        "Error increasing trace attributes. May retry according to the backoff policy. Error: {}",
-                        anyhow_error
-                    );
-                    backoff::Error::Transient {
-                        err: anyhow_error,
-                        retry_after: None,
-                    }
-                })
-            } else {
-                let new_trace = Trace::from_run_trace(trace, project_id);
-                db::trace::record_trace(pool, project_id, new_trace.clone()).await.map_err(|anyhow_error| {
-                    log::error!(
-                        "Error recording trace to db. May retry according to the backoff policy. Error: {}",
-                        anyhow_error
-                    );
-                    backoff::Error::Transient {
-                        err: anyhow_error,
-                        retry_after: None,
-                    }
-                })?;
-                let attributes = &db::trace::TraceAttributes::from_run_trace(new_trace.id, trace);
-                db::trace::update_trace_attributes(pool, attributes).await.map_err(|anyhow_error| {
-                    log::error!(
-                        "Error increasing trace attributes. May retry according to the backoff policy. Error: {}",
-                        anyhow_error
-                    );
-                    backoff::Error::Transient {
-                        err: anyhow_error,
-                        retry_after: None,
-                    }
-                })
-            }
-        }).await?;
+        let channel = rabbitmq_connection.create_channel().await?;
 
-        let messages = &trace.run_output.messages.values().cloned().collect();
-
-        backoff::future::retry(ExponentialBackoff::<SystemClock>::default(), || async {
-            db::trace::write_messages(
-                pool,
-                &trace.run_id,
-                &messages,
-            )
-            .await
-            .map_err(|anyhow_error| {
-                log::error!(
-                    "Error writing messages to db. May retry according to the backoff policy. Error: {}",
-                    anyhow_error
-                );
-                backoff::Error::Transient {
-                    err: anyhow_error,
-                    retry_after: None,
-                }
-            })?;
-
-            let trace_id = trace.trace_id.unwrap_or(trace.run_id);
-            let spans = if let Some(parent_span_id) = trace.parent_span_id {
-                Span::from_messages(
-                    &trace.run_output.messages,
-                    trace_id,
-                    parent_span_id,
+        // create new trace only if this run is not a part of an existing trace
+        let trace_id = if let Some(existing_trace_id) = run_trace.trace_id {
+            existing_trace_id
+        } else {
+            // only needed to upate what `update_trace_attributes` does not, i.e. metadata
+            let trace = Trace::from_run_trace(run_trace, project_id);
+            let payload = serde_json::to_string(&Observation::Trace(trace)).unwrap();
+            let payload = payload.as_bytes();
+            channel
+                .basic_publish(
+                    OBSERVATIONS_EXCHANGE,
+                    OBSERVATIONS_ROUTING_KEY,
+                    BasicPublishOptions::default(),
+                    payload,
+                    BasicProperties::default(),
                 )
-            } else {
-                // TODO: Once this is the default option, trace should be constructed with pipeline_version_name, not pipeline_version_id
-                let pipeline_version = db::pipelines::get_pipeline_version(pool, &trace.pipeline_version_id).await.map_err(|anyhow_error| {
-                    log::error!(
-                        "Error getting pipeline_version. May retry according to the backoff policy. Error: {}",
-                        anyhow_error
-                    );
-                    backoff::Error::Transient {
-                        err: anyhow_error,
-                        retry_after: None,
-                    }
-                })?;
-                let parent_span = Span::create_parent_span_in_run_trace(trace.run_id, trace, &pipeline_version.name);
-                let mut spans = Span::from_messages(
-                    &trace.run_output.messages,
-                    trace_id,
-                    parent_span.id,
-                );
-                spans.push(parent_span);
-                spans
-            };
-            
-            db::trace::record_spans(pool, spans).await.map_err(|anyhow_error| {
-                log::error!(
-                    "Error writing spans to db. May retry according to the backoff policy. Error: {}",
-                    anyhow_error
-                );
-                backoff::Error::Transient {
-                    err: anyhow_error,
-                    retry_after: None,
-                }
-            })
-        }).await?;
+                .await
+                .expect("Failed to publish pipeline trace")
+                .await
+                .expect("Failed to ack on publish pipeline trace");
+            run_trace.run_id
+        };
+
+        let attributes = &db::trace::TraceAttributes::from_run_trace(trace_id, run_trace);
+        db::trace::update_trace_attributes(pool, &project_id, attributes).await?;
+
+        let spans = if let Some(parent_span_id) = run_trace.parent_span_id {
+            Span::from_messages(&run_trace.run_output.messages, trace_id, parent_span_id)
+        } else {
+            // TODO: Trace should be constructed with pipeline_version_name, not pipeline_version_id
+            let pipeline_version =
+                db::pipelines::get_pipeline_version(pool, &run_trace.pipeline_version_id).await?;
+            let parent_span = Span::create_parent_span_in_run_trace(
+                run_trace.run_id,
+                run_trace,
+                &pipeline_version.name,
+            );
+            let mut spans =
+                Span::from_messages(&run_trace.run_output.messages, trace_id, parent_span.id);
+            spans.push(parent_span);
+            spans
+        };
+
+        for span in spans {
+            let payload = serde_json::to_string(&Observation::Span(
+                span.to_span_with_empty_checks_and_events(&project_id),
+            ))
+            .unwrap();
+            let payload = payload.as_bytes();
+            channel
+                .basic_publish(
+                    OBSERVATIONS_EXCHANGE,
+                    OBSERVATIONS_ROUTING_KEY,
+                    BasicPublishOptions::default(),
+                    payload,
+                    BasicProperties::default(),
+                )
+                .await
+                .expect("Failed to publish pipeline trace")
+                .await
+                .expect("Failed to ack on publish pipeline trace");
+        }
     }
 
-    if trace.run_type.should_increment_run_count() {
+    if run_trace.run_type.should_increment_run_count() {
         backoff::future::retry(ExponentialBackoff::<SystemClock>::default(), || async {
             inc_count_for_workspace_using_pipeline_version_id(pool, &pipeline_version_id)
                 .await
@@ -285,7 +224,7 @@ pub async fn handle_graph_trace(db: Arc<DB>, cache: Arc<Cache>, trace: &RunTrace
             update_project_run_count_exceeded(
                 db.clone(),
                 cache.clone(),
-                &trace.pipeline_version_id
+                &run_trace.pipeline_version_id
             )
                 .await
                 .map_err(|anyhow_error| {

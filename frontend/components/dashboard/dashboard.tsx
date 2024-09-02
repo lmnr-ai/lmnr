@@ -17,7 +17,7 @@ import {
 import { cn, formatTimestampFromSeconds } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useProjectContext } from "@/contexts/project-context";
-import { TraceMetricAnalytics } from "@/lib/traces/types";
+import { TraceMetricDatapoint } from "@/lib/traces/types";
 import RangeSelect from "./range-select";
 
 const TRACE_METRICS = [{
@@ -110,10 +110,10 @@ export default function Dashboard({ }: DashboardProps) {
   const [pastHours, setPastHours] = useState<number | null>(null);
   const [groupByInterval, setGroupByInterval] = useState<string | null>(null);
 
-  const [tokenCounts, setTokenCounts] = useState<TraceMetricAnalytics[]>([]);
-  const [latencies, setLatencies] = useState<TraceMetricAnalytics[]>([]);
-  const [runCounts, setRunCounts] = useState<TraceMetricAnalytics[]>([]);
-  const [approximateCosts, setApproximateCosts] = useState<TraceMetricAnalytics[]>([]);
+  const [tokenCounts, setTokenCounts] = useState<TraceMetricDatapoint[]>([]);
+  const [latencies, setLatencies] = useState<TraceMetricDatapoint[]>([]);
+  const [runCounts, setRunCounts] = useState<TraceMetricDatapoint[]>([]);
+  const [approximateCosts, setApproximateCosts] = useState<TraceMetricDatapoint[]>([]);
   const [eventMetrics, setEventMetrics] = useState<any[]>([]);
 
   useEffect(() => {

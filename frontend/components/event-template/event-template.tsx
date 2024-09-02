@@ -1,13 +1,11 @@
 'use client';
 
-import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo, Evaluation } from "@/lib/evaluation/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "../ui/datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { useUserContext } from "@/contexts/user-context";
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/const";
 import EvaluationPanel from "../evaluation/evaluation-panel";
 import EvaluationStats from "../evaluation/evaluation-stats";
 import { mutate } from "swr";

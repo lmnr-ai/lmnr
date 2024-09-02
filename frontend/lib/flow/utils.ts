@@ -272,7 +272,8 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
           name: 'output',
           type: NodeHandleType.ANY
         }],
-        outputs: []
+        outputs: [],
+        outputCastType: null
       } as GenericNode
     case NodeType.ERROR:
       return {
@@ -643,31 +644,4 @@ export const getDuration = (startTime: string, endTime: string) => {
   const start = new Date(startTime)
   const end = new Date(endTime)
   return (end.getTime() - start.getTime())
-}
-
-/**
- * Quick hack to remove OPENAI_API_KEY for cases where we provide the API keys by ourselves.
- * 
- * NOTE: Use it only for pipeline runs, not for other components such as PipelineEnv, UseAPI, etc.
- */
-export const filterRunRequiredEnvVars = (requiredEnvVars: Set<string>, nodes: GenericNode[]): Set<string> => {
-  const filteredEnvVars = new Set(requiredEnvVars);
-
-  let removeOpenaiAPIKey = false;
-  for (const node of nodes) {
-    if (node.type === NodeType.LLM && (node as LLMNode).model?.startsWith('openai:')) {
-      if ((node as LLMNode).model?.startsWith('openai:gpt-3.5') || (node as LLMNode).model === 'openai:gpt-4o-mini') {
-        removeOpenaiAPIKey = true;
-      } else {
-        removeOpenaiAPIKey = false;
-        break;
-      }
-    }
-  }
-
-  if (removeOpenaiAPIKey) {
-    filteredEnvVars.delete('OPENAI_API_KEY');
-  }
-
-  return filteredEnvVars;
 }

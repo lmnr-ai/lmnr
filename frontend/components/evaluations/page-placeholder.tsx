@@ -46,7 +46,7 @@ e.run();
         <div className="flex-col p-4 space-y-4 w-[650px]">
           <h2 className="text-secondary-foreground">
             You don{"'"}t have any evaluations in this project yet.
-            To start sending traces, instrument your code like this.
+            To run an evaluation follow the example below.
             <a href="https://docs.lmnr.ai/evaluations/introduction" className="text-primary"> Read the docs.</a>
           </h2>
           <Code className='text-xs bg-background' code={tsString} language='typescript' />

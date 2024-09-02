@@ -122,7 +122,7 @@ export function SpanView({ spanPreview, onCloseClick }: SpanViewProps) {
             forceMount
             hidden={selectedTab !== 'events'}
           >
-            <div className='flex h-full w-full'>
+            <div className='flex h-full w-full relative'>
               <SpanEvents span={span} />
             </div>
           </TabsContent>

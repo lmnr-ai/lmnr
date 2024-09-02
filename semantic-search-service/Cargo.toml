@@ -12,15 +12,11 @@ prost = "0.11"
 tokio = { version = "1.24", features = ["macros", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 futures = "0.3"
-tonic-reflection = "0.6.0"
-ort = { version = "1.16", features = ["load-dynamic"] }
 qdrant-client = "1.11.1"
 rayon = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 serde = "1"
 simsimd = "3.9.0"
-tokenizers = "0.20"
-ndarray = "0.15"
 serde_json = "1.0.105"
 log = "0.4.20"
 dotenv = "0.15.0"

@@ -84,10 +84,7 @@ impl RunnableNode for SubpipelineNode {
         let mut graph = serde_json::from_value::<Graph>(self.runnable_graph.clone())?;
         graph.setup(&inputs, &env, &context.metadata, &context.run_type)?;
         // TODO: Add streaming and websocket streaming here so that subpipelines can stream and use external functions.
-        let run_result = context
-            .pipeline_runner
-            .run(graph, context.tx.clone())
-            .await;
+        let run_result = context.pipeline_runner.run(graph, context.tx.clone()).await;
 
         let graph_trace = RunTrace::from_runner_result(
             run_id,

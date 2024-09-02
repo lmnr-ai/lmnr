@@ -1,17 +1,21 @@
 use std::collections::HashMap;
 
 use actix_web::{delete, get, post, web, HttpResponse};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::db::{
     self,
+    events::EventWithTemplateName,
     metrics::EventMetricsDatapoint,
-    modifiers::{DateRange, GroupByInterval},
+    modifiers::{DateRange, Filter, GroupByInterval},
     DB,
 };
 
-use super::{trace_analytics::AnalyticTimeValue, ResponseResult};
+use super::{metrics::MetricTimeValue, ResponseResult};
+
+const DEFAULT_PAGE_SIZE: usize = 50;
 
 #[get("event-templates")]
 pub async fn get_event_templates(path: web::Path<Uuid>, db: web::Data<DB>) -> ResponseResult {
@@ -162,14 +166,14 @@ pub async fn get_events_metrics(
 /// but it can be extended with converting other metrics too
 fn convert_event_metrics_response(
     db_datapoints: &Vec<EventMetricsDatapoint>,
-) -> HashMap<String, Vec<AnalyticTimeValue>> {
-    let mut points = HashMap::<String, Vec<AnalyticTimeValue>>::new();
+) -> HashMap<String, Vec<MetricTimeValue>> {
+    let mut points = HashMap::<String, Vec<MetricTimeValue>>::new();
 
     let counts = db_datapoints.iter().map(|point| {
         let time = point.time;
         let count = point.count;
 
-        AnalyticTimeValue {
+        MetricTimeValue {
             time: time.timestamp(),
             value: Some(count as f64),
         }
@@ -177,4 +181,64 @@ fn convert_event_metrics_response(
 
     points.insert("count".to_string(), counts.collect());
     points
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetEventsQueryParams {
+    /// page number starting from 0
+    #[serde(default)]
+    page_number: usize,
+    page_size: Option<usize>,
+    #[serde(default)]
+    filter: Value,
+    #[serde(default)]
+    #[serde(flatten)]
+    pub date_range: Option<DateRange>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GetEventsResponse {
+    total_entries: i64,
+    events: Vec<EventWithTemplateName>,
+    total_in_project: Option<i64>,
+}
+
+#[get("events")]
+pub async fn get_events(
+    path: web::Path<Uuid>,
+    db: web::Data<DB>,
+    query_params: web::Query<GetEventsQueryParams>,
+) -> ResponseResult {
+    let project_id = path.into_inner();
+    let query_params = query_params.into_inner();
+    let limit = query_params.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
+    let offset = limit * (query_params.page_number);
+    let filters = Filter::from_url_params(query_params.filter);
+    let date_range = query_params.date_range;
+
+    let events = db::events::get_events(
+        &db.pool,
+        project_id,
+        limit,
+        offset,
+        filters.clone(),
+        date_range.as_ref(),
+    )
+    .await?;
+    let total_entries =
+        db::events::count_events(&db.pool, project_id, filters, date_range.as_ref()).await?;
+    let total_in_project = if total_entries == 0 {
+        Some(db::events::count_all_events_in_project(&db.pool, project_id).await?)
+    } else {
+        None
+    };
+    let response = GetEventsResponse {
+        total_entries,
+        events,
+        total_in_project,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }

@@ -2,7 +2,7 @@ import { authOptions } from '@/lib/auth';
 import { Session, getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 
-import TracesDashboard from '@/components/traces/traces';
+import EventsDashboard from '@/components/events/events';
 import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { fetcherJSON } from '@/lib/utils';
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: 'Traces',
 }
 
-const getTraces = async (
+const getEvents = async (
   session: Session,
   projectId: string,
   pageNumber: number,
@@ -22,7 +22,7 @@ const getTraces = async (
   pastHours: number | null  // if null, show traces for all time
 ) => {
   const user = session.user;
-  let url = `/projects/${projectId}/traces?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+  let url = `/projects/${projectId}/events?pageNumber=${pageNumber}&pageSize=${pageSize}`;
   if (pastHours !== null) {
     url += `&pastHours=${pastHours}`;
   }
@@ -42,7 +42,7 @@ const getTraces = async (
 }
 
 
-export default async function TracesPage({
+export default async function EventsPage({
   params,
   searchParams,
 }: {
@@ -82,7 +82,7 @@ export default async function TracesPage({
     redirect('/sign-in');
   }
 
-  const res = await getTraces(session, projectId, pageNumber, pageSize, filter, pastHours);
+  const res = await getEvents(session, projectId, pageNumber, pageSize, filter, pastHours);
 
   const pageCount = res?.totalEntries ? Math.ceil(res?.totalEntries / pageSize) : 1;
 
@@ -90,13 +90,12 @@ export default async function TracesPage({
     <>
       <Header path={"traces"} />
       <Suspense>
-        <TracesDashboard
-          defaultTraces={res?.traces ?? []}
-          totalTracesCount={res?.totalEntries ?? 0}
+        <EventsDashboard
+          defaultEvents={res?.events ?? []}
+          totalEventsCount={res?.totalEntries ?? 0}
           pageCount={pageCount}
           pageSize={pageSize}
           totalInProject={res?.totalInProject}
-          pastHours={pastHours?.toString() ?? "720"}
           pageNumber={Math.min(pageNumber, pageCount - 1)}
         />
       </Suspense>

@@ -75,7 +75,9 @@ async fn run_pipeline_graph(
     }
 
     let pipeline_version =
-        query_target_pipeline_version(db.clone(), cache.clone(), project_id, req.pipeline.clone()).await?;
+        query_target_pipeline_version(db.clone(), cache.clone(), project_id, req.pipeline.clone())
+            .await?;
+
     let Some(pipeline_version) = pipeline_version else {
         return Err(error::Error::no_target_pipeline(&req.pipeline));
     };

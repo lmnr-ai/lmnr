@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::language_model::{ChatMessage, ChatMessageContent, ChatMessageContentPart};
+use crate::language_model::ChatMessage;
+use crate::language_model::{ChatMessageContent, ChatMessageContentPart};
 
 use super::runner::PipelineRunnerError;
 use super::trace::{MetaLog, RunTrace};
@@ -34,6 +35,7 @@ use anyhow::Error;
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(untagged)]
 pub enum NodeInput {
+    Boolean(bool),
     String(String),
     StringList(Vec<String>),
     ChatMessageList(Vec<ChatMessage>),
@@ -96,6 +98,7 @@ impl Into<Value> for NodeInput {
 impl Into<String> for NodeInput {
     fn into(self) -> String {
         match self {
+            NodeInput::Boolean(b) => b.to_string(),
             NodeInput::String(s) => s,
             NodeInput::StringList(strings) => format!("[{}]", strings.join(", ")),
             NodeInput::ChatMessageList(messages) => messages
@@ -131,6 +134,9 @@ impl TryInto<Vec<ChatMessage>> for NodeInput {
 
     fn try_into(self) -> Result<Vec<ChatMessage>, Self::Error> {
         match self {
+            NodeInput::Boolean(_b) => Err(anyhow::anyhow!(
+                "Cannot convert GraphInput::Boolean to Vec<ChatMessage>"
+            )),
             NodeInput::String(_s) => Err(anyhow::anyhow!(
                 "Cannot convert GraphInput::String to Vec<ChatMessage>"
             )),
@@ -153,6 +159,9 @@ impl TryInto<ConditionedValue> for NodeInput {
 
     fn try_into(self) -> Result<ConditionedValue, Self::Error> {
         match self {
+            NodeInput::Boolean(_b) => Err(anyhow::anyhow!(
+                "Cannot convert GraphInput::Boolean to ConditionedValue"
+            )),
             NodeInput::String(_s) => Err(anyhow::anyhow!(
                 "Cannot convert GraphInput::String to ConditionedValue"
             )),
@@ -213,7 +222,6 @@ pub enum HandleType {
     Float,
     Any,
 }
-
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct Handle {
@@ -383,12 +391,3 @@ pub struct GraphRunOutput {
     pub outputs: HashMap<String, GraphOutput>,
     pub run_id: Uuid,
 }
-
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct LLMFunctionCall {
-    pub name: String,
-    #[serde(default)]
-    pub arguments: Option<String>, // must be a parsable JSON string
-}
-

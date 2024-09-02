@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use actix_web::{post, web, HttpResponse};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -15,7 +15,11 @@ use crate::{
     routes::ResponseResult,
 };
 
-use super::trace_analytics::AnalyticTimeValue;
+#[derive(Serialize)]
+pub struct MetricTimeValue {
+    pub time: i64,
+    pub value: Option<f64>,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,8 +60,8 @@ pub async fn get_traces_metrics(
 fn convert_trace_metrics_response(
     metrics: Vec<Metric>,
     db_datapoints: &Vec<TraceMetricValue>,
-) -> HashMap<String, Vec<AnalyticTimeValue>> {
-    let mut points = HashMap::<String, Vec<AnalyticTimeValue>>::new();
+) -> HashMap<String, Vec<MetricTimeValue>> {
+    let mut points = HashMap::<String, Vec<MetricTimeValue>>::new();
 
     let obj_datapoints: Vec<_> = db_datapoints
         .into_iter()
@@ -78,7 +82,7 @@ fn convert_trace_metrics_response(
             let time = dp["time"].as_i64().unwrap();
             let value = dp[&metric_key].as_f64();
 
-            values.push(AnalyticTimeValue { time, value });
+            values.push(MetricTimeValue { time, value });
         }
 
         points.insert(metric_key, values);

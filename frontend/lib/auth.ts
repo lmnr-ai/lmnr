@@ -45,15 +45,8 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt'
   },
   callbacks: {
-    async jwt({ token, profile, trigger }) {
-      // if (profile) {
-      //   token.id = profile.sub
-      //   token.image = profile.image
-      //   token.email = profile.email!
-      // }
-
+    async jwt({ token, trigger }) {
       if (trigger === 'signIn') {
-        // const name = profile?.name ? profile?.name : profile?.login
         const name = token.name;
 
         const res = await fetcher('/auth/signin', {
@@ -65,7 +58,6 @@ export const authOptions: NextAuthOptions = {
           body: JSON.stringify({
             name,
             email: token?.email
-            // email: profile?.email
           })
         })
 
@@ -75,7 +67,7 @@ export const authOptions: NextAuthOptions = {
           throw err
         }
 
-        token.apiKey = await res.json()
+        token.apiKey = (await res.json()).apiKey
       }
 
       return token

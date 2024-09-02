@@ -12,8 +12,6 @@ use crate::pipeline::GraphError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Internal Error")]
-    InternalError,
     #[error("{0}")]
     InternalAnyhowError(#[from] anyhow::Error),
     #[error("{0}")]
@@ -149,7 +147,7 @@ pub fn pipeline_runner_to_http_error(e: PipelineRunnerError, run_id: Uuid) -> Er
 impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match &self {
-            Self::InternalError | Self::InternalAnyhowError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::InternalAnyhowError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::MultipartError(_) => StatusCode::BAD_REQUEST,
             Self::RequestError { .. } => StatusCode::BAD_REQUEST,
         }

@@ -110,7 +110,7 @@ export default function StructuredOutputFields({ className, editable = true, dat
             }}
           />
           <Label className="text-gray-500">Read more about BAML syntax at&nbsp;
-            <Link href="https://docs.boundaryml.com/docs/syntax/class" className="text-primary" target="blank">https://docs.boundaryml.com/docs/syntax/class</Link>
+            <Link href="https://docs.boundaryml.com/docs/snippets/class" className="text-primary" target="blank">https://docs.boundaryml.com/docs/snippets/class</Link>
           </Label>
           <Label>Target for schema</Label>
           <Select

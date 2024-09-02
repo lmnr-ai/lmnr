@@ -4,81 +4,122 @@ use attributes::{
     GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_TOKENS, GEN_AI_REQUEST_IS_STREAM, GEN_AI_REQUEST_MODEL,
     GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_TOKENS, GEN_AI_USAGE_COST,
 };
-use events::{auto_check_and_record_events, create_events};
+use events::{create_events, evaluate_and_record_events};
+use futures::StreamExt;
+use lapin::{options::BasicConsumeOptions, options::*, types::FieldTable, Connection};
 use serde_json::Value;
-use tokio::sync::mpsc::Receiver;
-use uuid::Uuid;
 
 use crate::{
+    api::v1::traces::Observation,
+    cache::Cache,
     db::{
-        events::{EventObservation, EventSource},
-        trace::{self, Span, SpanWithChecksAndEvents, Trace, TraceAttributes},
+        events::EventSource,
+        trace::{self, Span, SpanType, TraceAttributes},
         DB,
     },
     language_model::{
         providers::openai, ChatMessage, ExecuteChatCompletion, LanguageModelProvider,
         LanguageModelProviderName, LanguageModelRunner,
     },
+    pipeline::runner::PipelineRunner,
 };
 
 pub mod attributes;
 pub mod events;
 
-pub struct BatchObservations {
-    pub project_id: Uuid,
-    pub traces: Vec<Trace>,
-    pub spans_with_checks: Vec<SpanWithChecksAndEvents>,
-    pub event_payloads: Vec<EventObservation>,
-    pub cumulative_trace_attributes: HashMap<Uuid, TraceAttributes>,
-}
+pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
+pub const OBSERVATIONS_EXCHANGE: &str = "observations_exchange";
+pub const OBSERVATIONS_ROUTING_KEY: &str = "observations_routing_key";
 
-pub async fn span_listener(
+pub async fn observation_collector(
+    pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
-    mut rx: Receiver<BatchObservations>,
+    cache: Arc<Cache>,
     language_model_runner: Arc<LanguageModelRunner>,
+    rabbitmq_connection: Arc<Connection>,
 ) {
-    while let Some(batch) = rx.recv().await {
-        let BatchObservations {
-            project_id,
-            traces,
-            spans_with_checks,
-            event_payloads,
-            cumulative_trace_attributes,
-        } = batch;
-        // First, need to record all traces, because spans reference traces through foreign key
-        // TODO: Sort trace updates by update timestamp (for single-threaded front-end this isn't an issue)
-        for trace in traces.into_iter() {
-            let _ = trace::record_trace(&db.pool, project_id, trace).await;
-        }
+    let channel = rabbitmq_connection.create_channel().await.unwrap();
 
-        // Update trace attributes
-        for trace_attributes in cumulative_trace_attributes.values() {
-            let _ = trace::update_trace_attributes(&db.pool, trace_attributes).await;
-        }
-
-        // TODO: exponential backoff on span updates
-        // Spans don't reference themselves in parent_span_id, so can be recorded in any order
-        let spans = spans_with_checks.iter().map(|s| s.span.clone()).collect();
-        let _ = trace::record_spans(&db.pool, spans).await;
-
-        // Record events only after all spans are recorded
-        let add_instrumentation_events_res =
-            create_events(db.clone(), event_payloads, EventSource::CODE, project_id).await;
-        if let Err(e) = add_instrumentation_events_res {
-            log::error!("Failed to add instrumentation events: {:?}", e);
-        }
-
-        let tag_res = auto_check_and_record_events(
-            spans_with_checks,
-            db.clone(),
-            language_model_runner.clone(),
-            project_id,
+    channel
+        .queue_bind(
+            OBSERVATIONS_QUEUE,
+            OBSERVATIONS_EXCHANGE,
+            OBSERVATIONS_ROUTING_KEY,
+            QueueBindOptions::default(),
+            FieldTable::default(),
         )
-        .await;
-        if let Err(e) = tag_res {
-            log::error!("Failed to tag and record spans: {:?}", e);
+        .await
+        .unwrap();
+
+    let mut consumer = channel
+        .basic_consume(
+            OBSERVATIONS_QUEUE,
+            OBSERVATIONS_ROUTING_KEY,
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
+        )
+        .await
+        .unwrap();
+
+    while let Some(delivery) = consumer.next().await {
+        let delivery = delivery.unwrap();
+
+        let payload = String::from_utf8(delivery.data.clone()).unwrap();
+        let observation: Observation = serde_json::from_str(&payload).unwrap();
+
+        match observation {
+            Observation::Trace(trace) => {
+                let project_id = trace.project_id;
+                let _ = trace::record_trace(&db.pool, project_id, trace).await;
+            }
+            Observation::Span(span) => {
+                let span_id = span.span.id;
+                let span_end_time = span.span.end_time.clone();
+                let mut trace_attributes = TraceAttributes::new(span.span.trace_id);
+                let span_usage =
+                    get_llm_usage_for_span(&span.span, language_model_runner.clone()).unwrap();
+                trace_attributes.update_start_time(span.span.start_time);
+                trace_attributes.update_end_time(span.span.end_time);
+                if span.span.span_type == SpanType::LLM {
+                    trace_attributes.add_cost(span_usage.approximate_cost.unwrap_or(0.0));
+                    trace_attributes.add_tokens(span_usage.total_tokens.unwrap_or(0) as i64);
+                }
+
+                let _ =
+                    trace::update_trace_attributes(&db.pool, &span.project_id, &trace_attributes)
+                        .await;
+                let record_spans_res = trace::record_span(&db.pool, span.span).await;
+                if let Err(e) = record_spans_res {
+                    log::error!("Failed to record spans: {:?}", e);
+                }
+
+                // Record evaluated events and ordinary events only after all their are recorded
+                let eval_res = evaluate_and_record_events(
+                    span.evaluate_events,
+                    span_id,
+                    span_end_time,
+                    pipeline_runner.clone(),
+                    db.clone(),
+                    cache.clone(),
+                    span.project_id,
+                )
+                .await;
+                if let Err(e) = eval_res {
+                    log::error!("Failed to evaluate and record events: {:?}", e);
+                }
+
+                let add_instrumentation_events_res =
+                    create_events(db.clone(), span.events, EventSource::CODE, span.project_id)
+                        .await;
+                if let Err(e) = add_instrumentation_events_res {
+                    log::error!("Failed to add instrumentation events: {:?}", e);
+                }
+            }
         }
+
+        delivery.ack(BasicAckOptions::default()).await.unwrap();
     }
+
     log::info!("Shutting down span listener");
 }
 

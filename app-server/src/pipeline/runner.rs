@@ -1,7 +1,4 @@
-use std::{
-    collections::HashSet,
-    sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     engine::{engine::EngineOutput, Engine},
@@ -15,7 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     chunk::runner::ChunkerRunner, language_model::LanguageModelRunner,
-    semantic_search::SemanticSearch,
+    semantic_search::SemanticSearch
 };
 
 use super::{
@@ -87,20 +84,6 @@ impl Serialize for PipelineRunnerError {
     }
 }
 
-impl PipelineRunnerError {
-    pub fn variant_name(&self) -> &'static str {
-        match self {
-            PipelineRunnerError::GraphError(_) => "GraphError",
-            PipelineRunnerError::DeserializationError(_) => "DeserializationError",
-            PipelineRunnerError::RunningError(_) => "RunningError",
-            PipelineRunnerError::UnhandledError(_) => "UnhandledError",
-            PipelineRunnerError::MissingEnvVarsError(_) => "MissingEnvVarsError",
-            PipelineRunnerError::TraceWritingError(_) => "TraceWritingError",
-            PipelineRunnerError::InvalidSchemasError(_) => "InvalidSchemasError",
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
@@ -140,6 +123,7 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
+            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
@@ -147,7 +131,6 @@ impl PipelineRunner {
             run_type: graph.run_type.clone(),
             pipeline_runner: self.clone(),
             baml_schemas: validated_schemas,
-            
         };
 
         let tasks = parse_graph(graph)?;
@@ -182,6 +165,7 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
+            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),

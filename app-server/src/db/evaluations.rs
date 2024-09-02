@@ -130,6 +130,7 @@ pub async fn get_evaluations(pool: &PgPool, project_id: Uuid) -> Result<Vec<Eval
 
     Ok(evaluations)
 }
+
 pub async fn get_finished_evaluation_infos(
     pool: &PgPool,
     project_id: Uuid,
@@ -150,7 +151,6 @@ pub async fn get_finished_evaluation_infos(
     Ok(evaluations)
 }
 
-
 pub async fn update_evaluation_status_by_name(
     pool: &PgPool,
     evaluation_name: String,
@@ -170,6 +170,7 @@ pub async fn update_evaluation_status_by_name(
 
     Ok(())
 }
+
 /// Record evaluation results in the database.
 ///
 /// Each target data may contain an empty JSON file, if there is no target data.
@@ -234,6 +235,7 @@ pub async fn set_evaluation_results(
     if let Err(e) = res {
         log::error!("Error inserting evaluation results: {}", e);
     }
+
     Ok(())
 }
 
@@ -263,6 +265,7 @@ pub async fn get_evaluation_results(
 
     Ok(results)
 }
+
 pub async fn get_evaluation_datapoint(
     pool: &PgPool,
     evaluation_result_id: Uuid,

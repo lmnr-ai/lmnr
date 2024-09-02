@@ -64,7 +64,7 @@ export default function PipelineHistory({ pipelineVersion, onTraceHover }: Pipel
 
   const columns = TRACE_COLUMNS
 
-  const { data, mutate } = useSWR(`/api/projects/${projectId}/traces/workshop/${pipelineVersion.id}`, swrFetcher)
+  // const { data, mutate } = useSWR(`/api/projects/${projectId}/traces/workshop/${pipelineVersion.id}`, swrFetcher)
   const [selectedRunTrace, setSelectedRunTrace] = useState<TracePreview | null>(null)
   const [fullTrace, setFullTrace] = useState<RunTrace | null>(null)
   // useEffect(() => {
@@ -76,9 +76,9 @@ export default function PipelineHistory({ pipelineVersion, onTraceHover }: Pipel
   //   })
   // }, [selectedRunTrace])
 
-  useEffect(() => {
-    mutate()
-  }, [])
+  // useEffect(() => {
+  //   mutate()
+  // }, [])
 
   if (!pipelineVersion.id) {
     return (

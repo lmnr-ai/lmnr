@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -6,15 +6,19 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     db::{
         self,
-        event_templates::{EventTemplate, EventType},
+        event_templates::EventType,
         events::{EventObservation, EventSource},
-        trace::{Span, SpanWithChecksAndEvents},
+        trace::EvaluateEventRequest,
         DB,
     },
-    language_model::{
-        ChatMessage, ChatMessageContent, LanguageModelProviderName, LanguageModelRunner, NodeInfo,
+    pipeline::{
+        nodes::{Node, NodeInput},
+        runner::PipelineRunner,
+        trace::RunTrace,
+        Graph, RunType,
     },
 };
 
@@ -45,6 +49,21 @@ pub async fn create_events(
             Some(event_type) => event_type,
             None => {
                 let id = Uuid::new_v4();
+                let event_type = match event_payload.value {
+                    None => EventType::BOOLEAN,
+                    Some(ref value) => match value {
+                        Value::Number(_) => EventType::NUMBER,
+                        Value::String(_) => EventType::STRING,
+                        Value::Bool(_) => EventType::BOOLEAN,
+                        _ => {
+                            log::warn!(
+                                "Skipping event with unsupported value type: {:?}",
+                                event_payload
+                            );
+                            continue;
+                        }
+                    },
+                };
                 // If the user wants to use events for simply logging, create a boolean event, if there's no template for such event
                 let event_template = db::event_templates::create_or_update_event_template(
                     &db.pool,
@@ -53,7 +72,7 @@ pub async fn create_events(
                     project_id,
                     None,
                     None,
-                    EventType::BOOLEAN,
+                    event_type,
                 )
                 .await?;
                 event_template.event_type
@@ -110,148 +129,218 @@ pub async fn create_events(
         }
     }
 
-    db::events::create_events_by_template_name(db, events, event_source).await
-}
-
-pub struct EvaluateEventResponse {
-    reasoning: String,
-    value: Value,
+    db::events::create_events_by_template_name(db, events, event_source, project_id).await
 }
 
 pub async fn evaluate_event(
-    data: String,
-    language_model_runner: Arc<LanguageModelRunner>,
-    event_template: EventTemplate,
-) -> Result<EvaluateEventResponse> {
-    let event_instruction = event_template.instruction.unwrap_or_default();
-    let event_type = event_template.event_type;
-    let event_name = event_template.name;
+    evaluate_event: EvaluateEventRequest,
+    span_id: Uuid,
+    pipeline_runner: Arc<PipelineRunner>,
+    db: Arc<DB>,
+    _cache: Arc<Cache>,
+    project_id: Uuid,
+) -> Result<Value> {
+    // TODO: Use cache to query target_pipeline_version
+    let pipeline_version =
+        db::pipelines::pipeline_version::get_target_pipeline_version_by_pipeline_name(
+            &db.pool,
+            project_id,
+            &evaluate_event.evaluator,
+        )
+        .await;
 
-    let model = format!(
-        "{}:gpt-4o-2024-08-06",
-        LanguageModelProviderName::OpenAI.to_str()
-    );
-
-    let output_type = match event_type {
-        db::event_templates::EventType::STRING => "string",
-        db::event_templates::EventType::BOOLEAN => "boolean",
-        db::event_templates::EventType::NUMBER => "number",
+    let Ok(pipeline_version) = pipeline_version else {
+        return Err(anyhow::anyhow!("Error when searching for pipeline version"));
+    };
+    let Some(pipeline_version) = pipeline_version else {
+        return Err(anyhow::anyhow!("Pipeline not found for event evaluation"));
     };
 
-    let prompt = format!(
-        r#"You are a smart analyst. Your goal is to follow the instruction and provide reasoning for your answer.
+    let pipeline_version_id = pipeline_version.id;
 
-Think clearly and provide reasoning for your answer.
+    let run_id = Uuid::new_v4(); // used to uniquely identify the related log or run trace
+    let run_type = RunType::EventEvaluation;
+    let mut graph = serde_json::from_value::<Graph>(pipeline_version.runnable_graph)?;
 
-<input>
-{}
-</input>
+    // TODO: Figure out how to use this metadata and link it to the evaluation event
+    let metadata = HashMap::from([("span_id".to_string(), span_id.to_string())]);
+    let parent_span_id = None;
+    let trace_id = None;
 
-<event_name>
-{}
-</event_name>
-
-<instruction>
-{}
-</instruction>
-"#,
-        data, event_name, event_instruction
-    );
-
-    let messages = vec![ChatMessage {
-        role: "user".to_string(),
-        content: ChatMessageContent::Text(prompt),
-    }];
-    let params = serde_json::json!({
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "result",
-                "description": "Classification result and reasoning",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "reasoning": {
-                            "type": "string"
-                        },
-                        "result": {
-                            "type": output_type
-                        }
-                    },
-                    "required": ["reasoning", "result"]
-                }
+    let inputs = evaluate_event
+        .data
+        .into_iter()
+        .map(|(k, v)| {
+            if let NodeInput::Float(f) = v {
+                (k, NodeInput::String(f.to_string()))
+            } else {
+                (k, v)
             }
+        })
+        .collect();
+
+    graph.setup(&inputs, &evaluate_event.env, &metadata, &run_type)?;
+
+    // Get first output node, expect graph to contain only one output node
+    let output_node = graph
+        .nodes
+        .iter()
+        .find(|(_, node)| node.node_type() == "Output")
+        .map(|(_, node)| node.clone())
+        .unwrap();
+    let output_node = match output_node {
+        Node::Output(output_node) => output_node,
+        _ => {
+            return Err(anyhow::anyhow!("Failed to find output node"));
         }
-    });
-
-    let openai_api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
-    let env = HashMap::from([(String::from("OPENAI_API_KEY"), openai_api_key)]);
-
-    // TODO: Get rid of this
-    let random_uuid = Uuid::new_v4();
-    let node_info = NodeInfo {
-        id: random_uuid,
-        node_id: random_uuid,
-        node_name: "TODO".to_string(),
-        node_type: "TODO".to_string(),
     };
 
-    let completion = language_model_runner
-        .chat_completion(&model, &messages, &params, &env, None, &node_info)
-        .await?;
+    let run_result = pipeline_runner.run(graph, None).await;
+    let graph_trace = RunTrace::from_runner_result(
+        run_id,
+        pipeline_version_id,
+        run_type,
+        &run_result,
+        metadata,
+        parent_span_id,
+        trace_id,
+    );
 
-    let text = completion.text_message();
+    if let Some(trace) = graph_trace {
+        let _ = pipeline_runner.send_trace(trace).await;
+    }
 
-    let structured_output = serde_json::from_str::<HashMap<String, Value>>(&text)?;
-    let reasoning = structured_output
-        .get("reasoning")
-        .expect("Reasoning must be provided")
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
+    if let Err(e) = run_result {
+        return Err(anyhow::anyhow!("Failed to run pipeline: {}", e));
+    }
+    let run_result = run_result.unwrap();
 
-    // TODO: Validate the output type
-    let result = structured_output
-        .get("result")
-        .expect("Result must be provided")
-        .clone();
-
-    Ok(EvaluateEventResponse {
-        reasoning,
-        value: result,
-    })
+    let value = run_result.output_values().get(&output_node.name).cloned();
+    match value {
+        Some(value) => {
+            let casted_value = match value {
+                NodeInput::Float(f) => Value::Number(serde_json::Number::from_f64(f).unwrap()),
+                NodeInput::String(s) => Value::String(s),
+                NodeInput::Boolean(b) => Value::Bool(b),
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "Unsupported value type for event evaluation: {:?}",
+                        value
+                    ));
+                }
+            };
+            Ok(casted_value)
+        }
+        None => Err(anyhow::anyhow!("No output from event evaluation")),
+    }
 }
 
-pub async fn check_and_record_event(
-    span: Span,
+pub async fn evaluate_and_record_single_event(
+    evaluated_event: EvaluateEventRequest,
+    span_id: Uuid,
+    span_end_time: DateTime<Utc>,
+    pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
-    language_model_runner: Arc<LanguageModelRunner>,
-    event_template_name: String,
-    data: String,
-    timestamp: Option<DateTime<Utc>>,
+    cache: Arc<Cache>,
     project_id: Uuid,
 ) -> Result<()> {
-    let event_template =
-        db::event_templates::get_event_template_by_name(&db.pool, &event_template_name, project_id)
-            .await?;
+    let mut event_template = db::event_templates::get_event_template_by_name(
+        &db.pool,
+        &evaluated_event.name,
+        project_id,
+    )
+    .await?;
 
-    let span_id = span.id;
-    let event_type_id = event_template.id;
-    let timestamp = timestamp.unwrap_or(span.end_time);
+    let timestamp = evaluated_event.timestamp.unwrap_or(span_end_time);
+    let data = evaluated_event.data.clone();
+    let evaluated_event_name = evaluated_event.name.clone();
 
-    match evaluate_event(data.clone(), language_model_runner, event_template).await {
+    match evaluate_event(
+        evaluated_event,
+        span_id,
+        pipeline_runner,
+        db.clone(),
+        cache,
+        project_id,
+    )
+    .await
+    {
         Ok(res) => {
+            if let Some(event_template) = &event_template {
+                // Validating the output value
+                match res {
+                    Value::Number(_) => {
+                        if event_template.event_type != EventType::NUMBER {
+                            return Err(anyhow::anyhow!(
+                                "Received number, but event template {} is not of type NUMBER, project_id: {}",
+                                event_template.name,
+                                project_id
+                            ));
+                        }
+                    }
+                    Value::String(_) => {
+                        if event_template.event_type != EventType::STRING {
+                            return Err(anyhow::anyhow!(
+                                "Received string, but event template {} is not of type STRING, project_id: {}",
+                                event_template.name,
+                                project_id
+                            ));
+                        }
+                    }
+                    Value::Bool(_) => {
+                        if event_template.event_type != EventType::BOOLEAN {
+                            return Err(anyhow::anyhow!(
+                                "Received boolean, but event template {} is not of type BOOLEAN, project_id: {}",
+                                event_template.name,
+                                project_id
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(anyhow::anyhow!(
+                            "Received unsupported value type for {}, project_id: {}",
+                            res,
+                            project_id
+                        ));
+                    }
+                }
+            } else {
+                let id = Uuid::new_v4();
+                let event_type = match res {
+                    Value::Number(_) => EventType::NUMBER,
+                    Value::String(_) => EventType::STRING,
+                    Value::Bool(_) => EventType::BOOLEAN,
+                    _ => {
+                        return Err(anyhow::anyhow!(
+                            "Received unsupported value type for {}, project_id: {}",
+                            res,
+                            project_id
+                        ));
+                    }
+                };
+                event_template = Some(
+                    db::event_templates::create_or_update_event_template(
+                        &db.pool,
+                        id,
+                        evaluated_event_name,
+                        project_id,
+                        None,
+                        None,
+                        event_type,
+                    )
+                    .await?,
+                );
+            }
+            let event_template = event_template.unwrap();
+
             db::events::create_event(
                 &db.pool,
                 span_id,
                 timestamp,
-                event_type_id,
+                event_template.id,
                 db::events::EventSource::AUTO,
-                Some(serde_json::json!({
-                    "reasoning": res.reasoning,
-                })),
-                res.value,
-                Some(data),
+                res,
+                serde_json::to_value(data).ok(),
             )
             .await?;
         }
@@ -264,34 +353,36 @@ pub async fn check_and_record_event(
 }
 
 /// Classifies if events happened in the spans and records to the database.
-pub async fn auto_check_and_record_events(
-    spans_with_checks: Vec<SpanWithChecksAndEvents>,
+pub async fn evaluate_and_record_events(
+    evaluated_events: Vec<EvaluateEventRequest>,
+    span_id: Uuid,
+    span_end_time: DateTime<Utc>,
+    pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
-    language_model_runner: Arc<LanguageModelRunner>,
+    cache: Arc<Cache>,
     project_id: Uuid,
 ) -> Result<()> {
     let mut tasks = vec![];
 
-    for span_with_checks in spans_with_checks {
-        for evaluate_event in span_with_checks.evaluate_events {
-            let span = span_with_checks.span.clone();
-            let db = db.clone();
-            let language_model_runner = language_model_runner.clone();
-            let task = tokio::spawn(async move {
-                check_and_record_event(
-                    span,
-                    db,
-                    language_model_runner,
-                    evaluate_event.name,
-                    evaluate_event.data,
-                    evaluate_event.timestamp,
-                    project_id,
-                )
-                .await
-            });
+    for evaluated_event in evaluated_events {
+        let span_end_time = span_end_time.clone();
+        let pipeline_runner = pipeline_runner.clone();
+        let db = db.clone();
+        let cache = cache.clone();
+        let task = tokio::spawn(async move {
+            evaluate_and_record_single_event(
+                evaluated_event,
+                span_id,
+                span_end_time,
+                pipeline_runner,
+                db.clone(),
+                cache,
+                project_id,
+            )
+            .await
+        });
 
-            tasks.push(task);
-        }
+        tasks.push(task);
     }
 
     let join_res = futures::future::try_join_all(tasks).await?;

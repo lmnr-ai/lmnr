@@ -19,7 +19,7 @@ import { createClient } from '@supabase/supabase-js'
 import { useUserContext } from '@/contexts/user-context'
 import { Skeleton } from '../ui/skeleton'
 import PipelineBottomPanel from './pipeline-bottom-panel'
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const'
+import { SUPABASE_ANON_KEY, SUPABASE_URL, USE_REALTIME } from '@/lib/const'
 import { PresenceUser } from '@/lib/user/types'
 import { v4 as uuidv4 } from 'uuid'
 import PipelineSheet from './pipeline-sheet'
@@ -95,19 +95,25 @@ export default function Pipeline({ pipeline }: PipelineProps) {
 
   const { supabaseAccessToken, username, imageUrl } = useUserContext()
 
-  const supabase = useMemo(() => createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-    {
-      global: {
-        headers: {
-          Authorization: `Bearer ${supabaseAccessToken}`,
-        },
-      },
-    }
-  ), [])
+  
 
-  supabase.realtime.setAuth(supabaseAccessToken)
+  const supabase = useMemo(() => {
+    return USE_REALTIME
+    ? createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${supabaseAccessToken}`,
+          },
+        },
+      }
+    )
+    : null
+  }, [])
+
+  supabase?.realtime.setAuth(supabaseAccessToken)
 
   useEffect(() => {
     document.title = `${pipeline.name}`
@@ -126,7 +132,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
 
     // remove all channels on unmount
     return () => {
-      supabase.removeAllChannels()
+      supabase?.removeAllChannels()
       setFocusedNodeId(null)
     }
   }, [])
@@ -249,9 +255,9 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     }
 
     // setting up listener for changes on selected pipeline version
-    const newChannel = supabase.channel('pipeline_versions_' + selectedPipelineVersion.id!)
+    const newChannel = supabase?.channel('pipeline_versions_' + selectedPipelineVersion.id!)
     channel.current = newChannel
-      .on('presence', { event: 'sync' }, () => {
+      ?.on('presence', { event: 'sync' }, () => {
         const newState = channel.current.presenceState();
         const presenceUsers = Object.values(newState).map((u: any) => ({ id: u[0].id, username: u[0].username, imageUrl: u[0].imageUrl })).filter((user) => {
           return user.id != currentPresenceUser.id;
@@ -281,7 +287,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
 
     return () => {
 
-      newChannel.unsubscribe()
+      newChannel?.unsubscribe()
       ydoc.off('update', handleDocUpdate)
     }
 
@@ -509,7 +515,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
           pipeline={pipeline}
           unsavedChanges={unsavedChanges}
           onPipelineVersionSelect={(version) => {
-            supabase.removeAllChannels()
+            supabase?.removeAllChannels()
             updateSelectedPipelineVersion(version.id)
           }}
           onPipelineVersionSave={() => {
