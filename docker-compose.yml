@@ -24,6 +24,28 @@ services:
       timeout: 5s
       retries: 3
 
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    ports:
+      - "8123:8123"
+    volumes:
+      - type: volume
+        source: clickhouse-data
+        target: /var/lib/clickhouse/
+      - type: volume
+        source: clickhouse-logs
+        target: /var/log/clickhouse-server/
+    cap_add:
+      - SYS_NICE
+      - NET_ADMIN
+      - IPC_LOCK
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+
+
   semantic-search-service:
     build:
       context: ./semantic-search-service
@@ -64,12 +86,16 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
+      clickhouse:
+        condition: service_started
     environment:
       - PORT=8000
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SEMANTIC_SEARCH_URL=http://semantic-search-service:8080
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
       - FRONTEND_SHARED_SECRET=${SHARED_SECRET}
+      - CLICKHOUSE_URL=${CLICKHOUSE_URL}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
 
   frontend:
     build:
@@ -85,3 +111,5 @@ services:
 
 volumes:
   qdrant-data:
+  clickhouse-data:
+  clickhouse-logs:
