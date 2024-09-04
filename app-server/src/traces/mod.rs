@@ -1,26 +1,19 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use attributes::{
-    GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_TOKENS, GEN_AI_REQUEST_IS_STREAM, GEN_AI_REQUEST_MODEL,
-    GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_TOKENS, GEN_AI_USAGE_COST,
-};
 use events::{create_events, evaluate_and_record_events};
 use futures::StreamExt;
 use lapin::{options::BasicConsumeOptions, options::*, types::FieldTable, Connection};
-use serde_json::Value;
 
 use crate::{
-    api::v1::traces::Observation,
+    api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
+    ch::{self, spans::CHSpan},
     db::{
         events::EventSource,
-        trace::{self, Span, SpanType, TraceAttributes},
+        trace::{self, Span, SpanAttributes, SpanType, TraceAttributes},
         DB,
     },
-    language_model::{
-        providers::openai, ChatMessage, ExecuteChatCompletion, LanguageModelProvider,
-        LanguageModelProviderName, LanguageModelRunner,
-    },
+    language_model::{ExecuteChatCompletion, LanguageModelProviderName, LanguageModelRunner},
     pipeline::runner::PipelineRunner,
 };
 
@@ -37,6 +30,7 @@ pub async fn observation_collector(
     cache: Arc<Cache>,
     language_model_runner: Arc<LanguageModelRunner>,
     rabbitmq_connection: Arc<Connection>,
+    clickhouse: clickhouse::Client,
 ) {
     let channel = rabbitmq_connection.create_channel().await.unwrap();
 
@@ -65,56 +59,72 @@ pub async fn observation_collector(
         let delivery = delivery.unwrap();
 
         let payload = String::from_utf8(delivery.data.clone()).unwrap();
-        let observation: Observation = serde_json::from_str(&payload).unwrap();
 
-        match observation {
-            Observation::Trace(trace) => {
-                let project_id = trace.project_id;
-                let _ = trace::record_trace(&db.pool, project_id, trace).await;
-            }
-            Observation::Span(span) => {
-                let span_id = span.span.id;
-                let span_end_time = span.span.end_time.clone();
-                let mut trace_attributes = TraceAttributes::new(span.span.trace_id);
-                let span_usage =
-                    get_llm_usage_for_span(&span.span, language_model_runner.clone()).unwrap();
-                trace_attributes.update_start_time(span.span.start_time);
-                trace_attributes.update_end_time(span.span.end_time);
-                if span.span.span_type == SpanType::LLM {
-                    trace_attributes.add_cost(span_usage.approximate_cost.unwrap_or(0.0));
-                    trace_attributes.add_tokens(span_usage.total_tokens.unwrap_or(0) as i64);
-                }
+        let rabbitmq_span_message: RabbitMqSpanMessage = serde_json::from_str(&payload).unwrap();
 
-                let _ =
-                    trace::update_trace_attributes(&db.pool, &span.project_id, &trace_attributes)
-                        .await;
-                let record_spans_res = trace::record_span(&db.pool, span.span).await;
-                if let Err(e) = record_spans_res {
-                    log::error!("Failed to record spans: {:?}", e);
-                }
+        let span: Span = rabbitmq_span_message.span;
 
-                // Record evaluated events and ordinary events only after all their are recorded
-                let eval_res = evaluate_and_record_events(
-                    span.evaluate_events,
-                    span_id,
-                    span_end_time,
-                    pipeline_runner.clone(),
-                    db.clone(),
-                    cache.clone(),
-                    span.project_id,
-                )
-                .await;
-                if let Err(e) = eval_res {
-                    log::error!("Failed to evaluate and record events: {:?}", e);
-                }
+        let mut trace_attributes = TraceAttributes::new(span.trace_id);
+        let span_usage =
+            get_llm_usage_for_span(&span.get_attributes(), language_model_runner.clone());
+        trace_attributes.update_start_time(span.start_time);
+        trace_attributes.update_end_time(span.end_time);
 
-                let add_instrumentation_events_res =
-                    create_events(db.clone(), span.events, EventSource::CODE, span.project_id)
-                        .await;
-                if let Err(e) = add_instrumentation_events_res {
-                    log::error!("Failed to add instrumentation events: {:?}", e);
-                }
-            }
+        let span_attributes = span.get_attributes();
+
+        trace_attributes.update_user_id(span_attributes.user_id());
+        trace_attributes.update_session_id(span_attributes.session_id());
+
+        if span.span_type == SpanType::LLM {
+            trace_attributes.add_cost(span_usage.total_cost);
+            trace_attributes.add_tokens(span_usage.total_tokens);
+        }
+
+        let update_attrs_res = trace::update_trace_attributes(
+            &db.pool,
+            &rabbitmq_span_message.project_id,
+            &trace_attributes,
+        )
+        .await;
+        if let Err(e) = update_attrs_res {
+            log::error!("Failed to update trace attributes: {:?}", e);
+        }
+
+        let record_spans_res = trace::record_span(&db.pool, &span).await;
+        if let Err(e) = record_spans_res {
+            log::error!("Failed to record spans: {:?}", e);
+        }
+
+        let ch_span = CHSpan::from_db_span(&span, span_usage, rabbitmq_span_message.project_id);
+        // TODO: Queue batches on client-side and send them every 1-2 seconds
+        let insert_span_res = ch::spans::insert_span(clickhouse.clone(), &ch_span).await;
+        if let Err(e) = insert_span_res {
+            log::error!("Failed to insert span into Clickhouse: {:?}", e);
+        }
+
+        // Record evaluated events and ordinary events only after all their are recorded
+        let eval_res = evaluate_and_record_events(
+            rabbitmq_span_message.evaluate_events,
+            span.span_id,
+            pipeline_runner.clone(),
+            db.clone(),
+            cache.clone(),
+            rabbitmq_span_message.project_id,
+        )
+        .await;
+        if let Err(e) = eval_res {
+            log::error!("Failed to evaluate and record events: {:?}", e);
+        }
+
+        let add_instrumentation_events_res = create_events(
+            db.clone(),
+            rabbitmq_span_message.events,
+            EventSource::CODE,
+            rabbitmq_span_message.project_id,
+        )
+        .await;
+        if let Err(e) = add_instrumentation_events_res {
+            log::error!("Failed to add instrumentation events: {:?}", e);
         }
 
         delivery.ack(BasicAckOptions::default()).await.unwrap();
@@ -124,83 +134,58 @@ pub async fn observation_collector(
 }
 
 pub struct SpanUsage {
-    pub total_tokens: Option<u32>,
-    pub approximate_cost: Option<f64>,
+    pub prompt_tokens: i64,
+    pub completion_tokens: i64,
+    pub total_tokens: i64,
+    pub input_cost: f64,
+    pub output_cost: f64,
+    pub total_cost: f64,
+    pub model: Option<String>,
+    pub provider_name: Option<String>,
 }
 
+/// Calculate usage for both default and LLM spans
 pub fn get_llm_usage_for_span(
-    span: &Span,
+    attributes: &SpanAttributes,
     language_model_runner: Arc<LanguageModelRunner>,
-) -> anyhow::Result<SpanUsage> {
-    let attributes = serde_json::from_value::<HashMap<String, Value>>(span.attributes.clone())?;
+) -> SpanUsage {
+    let prompt_tokens = attributes.prompt_tokens();
+    let completion_tokens = attributes.completion_tokens();
+    let total_tokens = prompt_tokens + completion_tokens;
 
-    let mut total_tokens = attributes
-        .get(GEN_AI_TOTAL_TOKENS)
-        .and_then(|v| serde_json::from_value::<u32>(v.clone()).ok());
-    let mut approximate_cost = attributes
-        .get(GEN_AI_USAGE_COST)
-        .and_then(|v| serde_json::from_value::<f64>(v.clone()).ok());
+    let mut input_cost: f64 = 0.0;
+    let mut output_cost: f64 = 0.0;
+    let mut total_cost: f64 = 0.0;
 
-    let input_tokens = attributes
-        .get(GEN_AI_INPUT_TOKENS)
-        .and_then(|v| serde_json::from_value::<u32>(v.clone()).ok());
-    let output_tokens = attributes
-        .get(GEN_AI_OUTPUT_TOKENS)
-        .and_then(|v| serde_json::from_value::<u32>(v.clone()).ok());
-
-    let stream = attributes
-        .get(GEN_AI_REQUEST_IS_STREAM)
-        .and_then(|v| serde_json::from_value::<bool>(v.clone()).ok())
-        .unwrap_or_default();
-    let response_model = attributes
-        .get(GEN_AI_RESPONSE_MODEL)
-        .and_then(|v| serde_json::from_value::<String>(v.clone()).ok());
-    let model_name = response_model.or(attributes
-        .get(GEN_AI_REQUEST_MODEL)
-        .and_then(|v| serde_json::from_value::<String>(v.clone()).ok()));
-    let provider_name = attributes
-        .get(GEN_AI_SYSTEM)
-        .and_then(|v| serde_json::from_value::<String>(v.clone()).ok());
+    let response_model = attributes.response_model();
+    let model_name = response_model.or(attributes.request_model());
+    let provider_name = attributes.provider_name();
     let provider = provider_name
-        .and_then(|v| LanguageModelProviderName::from_str(&v).ok())
+        .clone()
+        .and_then(|v| LanguageModelProviderName::from_str(&v.to_lowercase()).ok())
         .and_then(|name| language_model_runner.models.get(&name).cloned());
 
-    let messages = span
-        .input
-        .clone()
-        .and_then(|inp| serde_json::from_value::<Vec<ChatMessage>>(inp).ok())
-        .unwrap_or_default();
-
-    if approximate_cost.is_none() {
-        if let Some(model) = model_name.as_deref() {
-            if let Some(provider) = provider {
-                if let Some(input_tokens) = input_tokens {
-                    if let Some(output_tokens) = output_tokens {
-                        approximate_cost =
-                            provider.estimate_cost(model, output_tokens, input_tokens);
-                        if total_tokens.is_none() {
-                            total_tokens = Some(input_tokens + output_tokens);
-                        }
-                    }
-                } else if let Some(output_tokens) = output_tokens {
-                    if matches!(provider, LanguageModelProvider::OpenAI(_)) && stream {
-                        // OpenAI doesn't provide input token count when streaming, so try and tokenize our side
-                        let input_tokens =
-                            openai::num_tokens_from_messages(model, &messages).unwrap();
-
-                        approximate_cost =
-                            provider.estimate_cost(model, output_tokens, input_tokens);
-                        if total_tokens.is_none() {
-                            total_tokens = Some(input_tokens + output_tokens);
-                        }
-                    }
-                }
-            }
+    // TODO: Think about it. Maybe first see if prices are present in the attributes.
+    if let Some(model) = model_name.as_deref() {
+        if let Some(provider) = provider {
+            input_cost = provider
+                .estimate_input_cost(model, prompt_tokens as u32)
+                .unwrap_or(0.0);
+            output_cost = provider
+                .estimate_output_cost(model, completion_tokens as u32)
+                .unwrap_or(0.0);
+            total_cost = input_cost + output_cost;
         }
     }
 
-    Ok(SpanUsage {
+    SpanUsage {
+        prompt_tokens,
+        completion_tokens,
         total_tokens,
-        approximate_cost,
-    })
+        input_cost,
+        output_cost,
+        total_cost,
+        model: model_name,
+        provider_name,
+    }
 }

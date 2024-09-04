@@ -19,13 +19,6 @@ pub fn get_required_env_vars_for_model(model: &str) -> HashSet<String> {
     }
 }
 
-pub fn total_cost(
-    input_tokens: u32,
-    output_tokens: u32,
-    input_price_per_million_tokens: f64,
-    output_price_per_million_tokens: f64,
-) -> f64 {
-    let total_price = (input_tokens as f64 / 1_000_000.0) * input_price_per_million_tokens
-        + (output_tokens as f64 / 1_000_000.0) * output_price_per_million_tokens;
-    total_price
+pub fn calculate_cost(tokens: u32, price_per_million_tokens: f64) -> f64 {
+    (tokens as f64 / 1_000_000.0) * price_per_million_tokens
 }

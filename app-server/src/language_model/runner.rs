@@ -31,7 +31,7 @@ pub enum LanguageModelProviderName {
 }
 
 #[derive(Clone, Debug)]
-#[enum_dispatch(ExecuteChatCompletion)]
+#[enum_dispatch]
 pub enum LanguageModelProvider {
     Anthropic(Anthropic),
     Gemini(Gemini),
@@ -42,7 +42,7 @@ pub enum LanguageModelProvider {
     Bedrock(AnthropicBedrock),
 }
 
-#[enum_dispatch]
+#[enum_dispatch(LanguageModelProvider)]
 pub trait ExecuteChatCompletion {
     async fn chat_completion(
         &self,
@@ -54,6 +54,10 @@ pub trait ExecuteChatCompletion {
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
     ) -> Result<ChatCompletion>;
+
+    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64>;
+
+    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64>;
 
     fn estimate_cost(&self, model: &str, completion_tokens: u32, prompt_tokens: u32)
         -> Option<f64>;
@@ -73,7 +77,7 @@ impl LanguageModelProviderName {
         }
     }
 
-    pub fn to_str(&self) -> &str {
+    pub fn _to_str(&self) -> &str {
         match self {
             Self::Anthropic => "anthropic",
             Self::Mistral => "mistral",

@@ -20,7 +20,7 @@ use crate::language_model::{
 use crate::language_model::runner::ExecuteChatCompletion;
 use crate::pipeline::nodes::{NodeStreamChunk, StreamChunk};
 
-use super::utils::total_cost;
+use crate::language_model::providers::utils::calculate_cost;
 
 #[derive(Clone, Debug)]
 pub struct OpenAI {
@@ -388,23 +388,44 @@ impl ExecuteChatCompletion for OpenAI {
         }
     }
 
+    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
+        let model = model.to_lowercase();
+        if model.starts_with("gpt-3.5") {
+            Some(calculate_cost(prompt_tokens, 0.5))
+        } else if model.starts_with("gpt-4-turbo") {
+            Some(calculate_cost(prompt_tokens, 10.0))
+        } else if model.starts_with("gpt-4o-mini") {
+            Some(calculate_cost(prompt_tokens, 0.15))
+        } else if model.starts_with("gpt-4o") {
+            Some(calculate_cost(prompt_tokens, 5.0))
+        } else {
+            None
+        }
+    }
+
+    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
+        let model = model.to_lowercase();
+        if model.starts_with("gpt-3.5") {
+            Some(calculate_cost(completion_tokens, 1.5))
+        } else if model.starts_with("gpt-4-turbo") {
+            Some(calculate_cost(completion_tokens, 30.0))
+        } else if model.starts_with("gpt-4o-mini") {
+            Some(calculate_cost(completion_tokens, 0.6))
+        } else if model.starts_with("gpt-4o") {
+            Some(calculate_cost(completion_tokens, 15.0))
+        } else {
+            None
+        }
+    }
+
     fn estimate_cost(
         &self,
         model: &str,
         completion_tokens: u32,
         prompt_tokens: u32,
     ) -> Option<f64> {
-        let model = model.to_lowercase();
-        if model.starts_with("gpt-3.5") {
-            Some(total_cost(prompt_tokens, completion_tokens, 0.5, 1.5))
-        } else if model.starts_with("gpt-4-turbo") {
-            Some(total_cost(prompt_tokens, completion_tokens, 10.0, 30.0))
-        } else if model.starts_with("gpt-4o-mini") {
-            Some(total_cost(prompt_tokens, completion_tokens, 0.15, 0.6))
-        } else if model.starts_with("gpt-4o") {
-            Some(total_cost(prompt_tokens, completion_tokens, 5.0, 15.0))
-        } else {
-            None
-        }
+        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
+        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
+        Some(input_cost + output_cost)
     }
 }

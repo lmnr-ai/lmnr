@@ -8,14 +8,10 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::ResponseResult;
-use crate::api::utils::query_project_run_count_exceeded;
 use crate::db::pipelines::pipeline_version::PipelineVersionInfo;
-use crate::db::workspace::WorkspaceError;
 use crate::pipeline::nodes::Message;
-use crate::pipeline::trace::RunTrace;
-use crate::pipeline::utils::{
-    get_target_pipeline_version_cache_key,
-};
+use crate::pipeline::trace::{RunTrace, RunTraceStats};
+use crate::pipeline::utils::get_target_pipeline_version_cache_key;
 use crate::{
     cache::Cache,
     db::{
@@ -83,8 +79,6 @@ async fn run_pipeline_graph(
     project_id: web::Path<Uuid>,
     pipeline_runner: web::Data<Arc<PipelineRunner>>,
     params: web::Json<GraphRunRequest>,
-    db: web::Data<DB>,
-    cache: web::Data<Cache>,
     interrupt_senders: web::Data<Arc<DashMap<Uuid, mpsc::Sender<GraphInterruptMessage>>>>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
@@ -94,19 +88,9 @@ async fn run_pipeline_graph(
     let pipeline_version_id = params.pipeline_version_id;
     let run_id = params.run_id;
     let run_type = RunType::Workshop;
-    let cache = cache.into_inner();
-    let db = db.into_inner();
     let prefilled_messages = params.prefilled_messages;
     let start_task_id = params.start_task_id;
     let breakpoint_task_ids = params.breakpoint_task_ids;
-
-    let exceeded = query_project_run_count_exceeded(db.clone(), cache.clone(), &project_id).await?;
-
-    if exceeded.exceeded {
-        return Err(error::workspace_error_to_http_error(
-            WorkspaceError::RunLimitReached,
-        ));
-    }
 
     let (interrupt_tx, interrupt_rx) = mpsc::channel::<GraphInterruptMessage>(1);
     interrupt_senders.insert(run_id, interrupt_tx);
@@ -132,21 +116,25 @@ async fn run_pipeline_graph(
                     interrupt_rx,
                 ).await;
 
-            let graph_trace = RunTrace::from_runner_result(
-                run_id,
-                pipeline_version_id,
-                run_type,
-                &run_result,
-                HashMap::new(),
-                None,
-                None,
-            );
-
+            let trace = PipelineRunner::get_trace_from_result(&run_result);
 
             // Both successful and failed runs have trace
-            if let Some(trace) = graph_trace {
-                let _ = pipeline_runner.send_trace(trace.clone()).await;
-                let output_chunk = StreamChunk::RunTrace(trace);
+            if let Some(trace) = trace {
+                // TODO: record spans/traces if needed
+                let run_stats = RunTraceStats::from_messages(&trace.messages);
+                let run_trace = RunTrace {
+                    run_id,
+                    pipeline_version_id,
+                    success: true,
+                    run_type,
+                    run_stats,
+                    run_output: trace.clone(),
+                    metadata: HashMap::new(),
+                    parent_span_id: None,
+                    trace_id: None,
+                };
+
+                let output_chunk = StreamChunk::RunTrace(run_trace);
                 let _ = tx.send(output_chunk).await;
             } else if let Err(e) = run_result {
                 let _ = tx.send(StreamChunk::Error(e)).await;

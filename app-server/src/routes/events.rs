@@ -13,7 +13,7 @@ use crate::db::{
     DB,
 };
 
-use super::{metrics::MetricTimeValue, ResponseResult};
+use super::ResponseResult;
 
 const DEFAULT_PAGE_SIZE: usize = 50;
 
@@ -30,10 +30,6 @@ pub async fn get_event_templates(path: web::Path<Uuid>, db: web::Data<DB>) -> Re
 #[serde(rename_all = "camelCase")]
 struct CreateEventTemplateRequest {
     name: String,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    instruction: Option<String>,
     event_type: db::event_templates::EventType,
 }
 
@@ -46,19 +42,11 @@ pub async fn create_event_template(
     let project_id = path.into_inner();
     let req = req.into_inner();
     let name = req.name;
-    let description = req.description;
-    let instruction = req.instruction;
     let event_type = req.event_type;
 
     let id = Uuid::new_v4();
     let event_template = db::event_templates::create_or_update_event_template(
-        &db.pool,
-        id,
-        name,
-        project_id,
-        description,
-        instruction,
-        event_type,
+        &db.pool, id, name, project_id, event_type,
     )
     .await?;
 
@@ -90,8 +78,6 @@ pub async fn update_event_template(
         &db.pool,
         template_id,
         project_id,
-        req.description,
-        req.instruction,
         req.event_type,
     )
     .await?;
@@ -160,6 +146,12 @@ pub async fn get_events_metrics(
     .await?;
 
     Ok(HttpResponse::Ok().json(convert_event_metrics_response(&metrics)))
+}
+
+#[derive(Serialize)]
+pub struct MetricTimeValue {
+    pub time: i64,
+    pub value: Option<f64>,
 }
 
 /// For now, this function simply converts db_datapoints to response datapoints,

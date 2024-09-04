@@ -201,13 +201,7 @@ impl Graph {
 }
 
 impl RunType {
-    fn should_write_traces(&self) -> bool {
-        match self {
-            Self::Workshop | Self::EventEvaluation | Self::Endpoint => true,
-        }
-    }
-
-    fn should_increment_run_count(&self) -> bool {
+    fn _should_write_traces(&self) -> bool {
         match self {
             Self::Workshop | Self::EventEvaluation | Self::Endpoint => true,
         }

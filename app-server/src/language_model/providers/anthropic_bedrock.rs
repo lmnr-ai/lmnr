@@ -16,7 +16,7 @@ use itertools::Itertools;
 use serde_json::Value;
 use tokio::sync::mpsc::Sender;
 
-use super::utils::total_cost;
+use super::utils::calculate_cost;
 
 pub const AWS_REGION: &str = "AWS_REGION";
 pub const AWS_ACCESS_KEY_ID: &str = "AWS_ACCESS_KEY_ID";
@@ -271,22 +271,43 @@ impl ExecuteChatCompletion for AnthropicBedrock {
         }
     }
 
+    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
+        if model.contains("claude-3-haiku") {
+            Some(calculate_cost(prompt_tokens, 0.25))
+        } else if model.contains("claude-3-sonnet") {
+            Some(calculate_cost(prompt_tokens, 3.0))
+        } else if model.contains("claude-3-opus") {
+            Some(calculate_cost(prompt_tokens, 15.0))
+        } else if model.contains("claude-3-5-sonnet") {
+            Some(calculate_cost(prompt_tokens, 3.0))
+        } else {
+            None
+        }
+    }
+
+    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
+        if model.contains("claude-3-haiku") {
+            Some(calculate_cost(completion_tokens, 1.25))
+        } else if model.contains("claude-3-sonnet") {
+            Some(calculate_cost(completion_tokens, 15.0))
+        } else if model.contains("claude-3-opus") {
+            Some(calculate_cost(completion_tokens, 75.0))
+        } else if model.contains("claude-3-5-sonnet") {
+            Some(calculate_cost(completion_tokens, 15.0))
+        } else {
+            None
+        }
+    }
+
     fn estimate_cost(
         &self,
         model: &str,
         completion_tokens: u32,
         prompt_tokens: u32,
     ) -> Option<f64> {
-        if model.contains("claude-3-haiku") {
-            Some(total_cost(prompt_tokens, completion_tokens, 0.25, 1.25))
-        } else if model.contains("claude-3-sonnet") {
-            Some(total_cost(prompt_tokens, completion_tokens, 3.0, 15.0))
-        } else if model.contains("claude-3-opus") {
-            Some(total_cost(prompt_tokens, completion_tokens, 15.0, 75.0))
-        } else if model.contains("claude-3-5-sonnet") {
-            Some(total_cost(prompt_tokens, completion_tokens, 3.0, 15.0))
-        } else {
-            None
-        }
+        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
+        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
+
+        Some(input_cost + output_cost)
     }
 }

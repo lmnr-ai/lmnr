@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -10,14 +9,12 @@ use crate::{
     db::{
         self,
         event_templates::EventType,
-        events::{EventObservation, EventSource},
-        trace::EvaluateEventRequest,
+        events::{EvaluateEventRequest, EventObservation, EventSource},
         DB,
     },
     pipeline::{
         nodes::{Node, NodeInput},
         runner::PipelineRunner,
-        trace::RunTrace,
         Graph, RunType,
     },
 };
@@ -70,8 +67,6 @@ pub async fn create_events(
                     id,
                     event_payload.template_name.clone(),
                     project_id,
-                    None,
-                    None,
                     event_type,
                 )
                 .await?;
@@ -156,9 +151,6 @@ pub async fn evaluate_event(
         return Err(anyhow::anyhow!("Pipeline not found for event evaluation"));
     };
 
-    let pipeline_version_id = pipeline_version.id;
-
-    let run_id = Uuid::new_v4(); // used to uniquely identify the related log or run trace
     let run_type = RunType::EventEvaluation;
     let mut graph = serde_json::from_value::<Graph>(pipeline_version.runnable_graph)?;
 
@@ -196,19 +188,15 @@ pub async fn evaluate_event(
     };
 
     let run_result = pipeline_runner.run(graph, None).await;
-    let graph_trace = RunTrace::from_runner_result(
-        run_id,
-        pipeline_version_id,
-        run_type,
-        &run_result,
-        metadata,
-        parent_span_id,
-        trace_id,
-    );
-
-    if let Some(trace) = graph_trace {
-        let _ = pipeline_runner.send_trace(trace).await;
-    }
+    pipeline_runner
+        .record_observations(
+            &run_result,
+            &project_id,
+            &pipeline_version.name,
+            parent_span_id,
+            trace_id,
+        )
+        .await?;
 
     if let Err(e) = run_result {
         return Err(anyhow::anyhow!("Failed to run pipeline: {}", e));
@@ -238,7 +226,6 @@ pub async fn evaluate_event(
 pub async fn evaluate_and_record_single_event(
     evaluated_event: EvaluateEventRequest,
     span_id: Uuid,
-    span_end_time: DateTime<Utc>,
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -251,7 +238,7 @@ pub async fn evaluate_and_record_single_event(
     )
     .await?;
 
-    let timestamp = evaluated_event.timestamp.unwrap_or(span_end_time);
+    let timestamp = evaluated_event.timestamp;
     let data = evaluated_event.data.clone();
     let evaluated_event_name = evaluated_event.name.clone();
 
@@ -324,8 +311,6 @@ pub async fn evaluate_and_record_single_event(
                         id,
                         evaluated_event_name,
                         project_id,
-                        None,
-                        None,
                         event_type,
                     )
                     .await?,
@@ -356,7 +341,6 @@ pub async fn evaluate_and_record_single_event(
 pub async fn evaluate_and_record_events(
     evaluated_events: Vec<EvaluateEventRequest>,
     span_id: Uuid,
-    span_end_time: DateTime<Utc>,
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -365,7 +349,6 @@ pub async fn evaluate_and_record_events(
     let mut tasks = vec![];
 
     for evaluated_event in evaluated_events {
-        let span_end_time = span_end_time.clone();
         let pipeline_runner = pipeline_runner.clone();
         let db = db.clone();
         let cache = cache.clone();
@@ -373,7 +356,6 @@ pub async fn evaluate_and_record_events(
             evaluate_and_record_single_event(
                 evaluated_event,
                 span_id,
-                span_end_time,
                 pipeline_runner,
                 db.clone(),
                 cache,

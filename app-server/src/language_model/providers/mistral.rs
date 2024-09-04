@@ -9,7 +9,7 @@ use json_value_merge::Merge;
 use serde_json::{json, Value};
 use tokio::sync::mpsc::Sender;
 
-use super::utils::total_cost;
+use crate::language_model::providers::utils::calculate_cost;
 
 #[derive(Clone, Debug)]
 pub struct Mistral {
@@ -68,18 +68,34 @@ impl ExecuteChatCompletion for Mistral {
         Ok(res_body)
     }
 
+    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
+        match model.to_lowercase().as_str() {
+            "mistral-tiny" => Some((prompt_tokens) as f64 / 4e6), // 0.25/Mtok
+            "mistral-small" => Some(calculate_cost(prompt_tokens, 1.0)),
+            "mistral-medium" => Some(calculate_cost(prompt_tokens, 2.7)),
+            "mistral-large" => Some(calculate_cost(prompt_tokens, 4.0)),
+            _ => None,
+        }
+    }
+
+    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
+        match model.to_lowercase().as_str() {
+            "mistral-tiny" => Some((completion_tokens) as f64 / 4e6), // 0.25/Mtok
+            "mistral-small" => Some(calculate_cost(completion_tokens, 3.0)),
+            "mistral-medium" => Some(calculate_cost(completion_tokens, 8.1)),
+            "mistral-large" => Some(calculate_cost(completion_tokens, 12.0)),
+            _ => None,
+        }
+    }
+
     fn estimate_cost(
         &self,
         model: &str,
         completion_tokens: u32,
         prompt_tokens: u32,
     ) -> Option<f64> {
-        match model.to_lowercase().as_str() {
-            "mistral-tiny" => Some((completion_tokens + prompt_tokens) as f64 / 4e6), // 0.25/Mtok
-            "mistral-small" => Some(total_cost(prompt_tokens, completion_tokens, 1.0, 3.0)),
-            "mistral-medium" => Some(total_cost(prompt_tokens, completion_tokens, 2.7, 8.1)),
-            "mistral-large" => Some(total_cost(prompt_tokens, completion_tokens, 4.0, 12.0)),
-            _ => None,
-        }
+        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
+        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
+        Some(input_cost + output_cost)
     }
 }

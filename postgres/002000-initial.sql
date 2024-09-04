@@ -5,7 +5,7 @@
 -- Dumped from database version 15.1 (Ubuntu 15.1-1.pgdg20.04+1)
 -- Dumped by pg_dump version 16.3
 
--- Started on 2024-09-01 16:43:13 PDT
+-- Started on 2024-09-04 10:00:29 PDT
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -29,7 +29,7 @@ CREATE SCHEMA IF NOT EXISTS public; -- manually updated with IF NOT EXISTS
 ALTER SCHEMA public OWNER TO pg_database_owner;
 
 --
--- TOC entry 4198 (class 0 OID 0)
+-- TOC entry 4200 (class 0 OID 0)
 -- Dependencies: 24
 -- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: pg_database_owner
 --
@@ -38,7 +38,7 @@ COMMENT ON SCHEMA public IS 'standard public schema';
 
 
 --
--- TOC entry 1460 (class 1247 OID 29118)
+-- TOC entry 1464 (class 1247 OID 29118)
 -- Name: checkjobstatus; Type: TYPE; Schema: public; Owner: postgres
 --
 
@@ -53,7 +53,7 @@ CREATE TYPE public.checkjobstatus AS ENUM (
 ALTER TYPE public.checkjobstatus OWNER TO postgres;
 
 --
--- TOC entry 1304 (class 1247 OID 1295761)
+-- TOC entry 1305 (class 1247 OID 1295761)
 -- Name: evaluation_job_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
@@ -67,8 +67,8 @@ CREATE TYPE public.evaluation_job_status AS ENUM (
 ALTER TYPE public.evaluation_job_status OWNER TO postgres;
 
 --
--- TOC entry 4200 (class 0 OID 0)
--- Dependencies: 1304
+-- TOC entry 4202 (class 0 OID 0)
+-- Dependencies: 1305
 -- Name: TYPE evaluation_job_status; Type: COMMENT; Schema: public; Owner: postgres
 --
 
@@ -76,7 +76,7 @@ COMMENT ON TYPE public.evaluation_job_status IS 'Status of an evaluation job';
 
 
 --
--- TOC entry 1373 (class 1247 OID 1295859)
+-- TOC entry 1377 (class 1247 OID 1295859)
 -- Name: evaluation_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
@@ -89,8 +89,8 @@ CREATE TYPE public.evaluation_status AS ENUM (
 ALTER TYPE public.evaluation_status OWNER TO postgres;
 
 --
--- TOC entry 4201 (class 0 OID 0)
--- Dependencies: 1373
+-- TOC entry 4203 (class 0 OID 0)
+-- Dependencies: 1377
 -- Name: TYPE evaluation_status; Type: COMMENT; Schema: public; Owner: postgres
 --
 
@@ -98,7 +98,7 @@ COMMENT ON TYPE public.evaluation_status IS 'Status of an evaluation datapoint r
 
 
 --
--- TOC entry 1347 (class 1247 OID 599805)
+-- TOC entry 1348 (class 1247 OID 599805)
 -- Name: event_source; Type: TYPE; Schema: public; Owner: postgres
 --
 
@@ -112,7 +112,7 @@ CREATE TYPE public.event_source AS ENUM (
 ALTER TYPE public.event_source OWNER TO postgres;
 
 --
--- TOC entry 1379 (class 1247 OID 827293)
+-- TOC entry 1383 (class 1247 OID 827293)
 -- Name: event_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
@@ -126,7 +126,7 @@ CREATE TYPE public.event_type AS ENUM (
 ALTER TYPE public.event_type OWNER TO postgres;
 
 --
--- TOC entry 1445 (class 1247 OID 496779)
+-- TOC entry 1449 (class 1247 OID 496779)
 -- Name: span_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
@@ -139,7 +139,7 @@ CREATE TYPE public.span_type AS ENUM (
 ALTER TYPE public.span_type OWNER TO postgres;
 
 --
--- TOC entry 1341 (class 1247 OID 120632)
+-- TOC entry 1342 (class 1247 OID 120632)
 -- Name: workspace_role; Type: TYPE; Schema: public; Owner: postgres
 --
 
@@ -152,7 +152,7 @@ CREATE TYPE public.workspace_role AS ENUM (
 ALTER TYPE public.workspace_role OWNER TO postgres;
 
 --
--- TOC entry 672 (class 1255 OID 29151)
+-- TOC entry 673 (class 1255 OID 29151)
 -- Name: api_key(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -170,7 +170,7 @@ $$;
 ALTER FUNCTION public.api_key() OWNER TO postgres;
 
 --
--- TOC entry 639 (class 1255 OID 353164)
+-- TOC entry 640 (class 1255 OID 353164)
 -- Name: is_endpoint_id_accessible_for_api_key(text, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -194,7 +194,7 @@ select _endpoint_id in (select id from endpoint_ids)$$;
 ALTER FUNCTION public.is_endpoint_id_accessible_for_api_key(_api_key text, _endpoint_id uuid) OWNER TO postgres;
 
 --
--- TOC entry 638 (class 1255 OID 62127)
+-- TOC entry 639 (class 1255 OID 62127)
 -- Name: is_evaluation_id_accessible_for_api_key(text, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -218,7 +218,7 @@ select _evaluation_id in (select id from evaluation_ids)$$;
 ALTER FUNCTION public.is_evaluation_id_accessible_for_api_key(_api_key text, _evaluation_id uuid) OWNER TO postgres;
 
 --
--- TOC entry 659 (class 1255 OID 29152)
+-- TOC entry 660 (class 1255 OID 29152)
 -- Name: is_pipeline_id_accessible_for_api_key(text, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -279,7 +279,7 @@ CREATE TABLE public.dataset_datapoints (
 ALTER TABLE public.dataset_datapoints OWNER TO postgres;
 
 --
--- TOC entry 4207 (class 0 OID 0)
+-- TOC entry 4209 (class 0 OID 0)
 -- Dependencies: 377
 -- Name: COLUMN dataset_datapoints.indexed_on; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -288,7 +288,7 @@ COMMENT ON COLUMN public.dataset_datapoints.indexed_on IS 'Name of column on whi
 
 
 --
--- TOC entry 4208 (class 0 OID 0)
+-- TOC entry 4210 (class 0 OID 0)
 -- Dependencies: 377
 -- Name: COLUMN dataset_datapoints.index_in_batch; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -336,7 +336,7 @@ CREATE TABLE public.evaluation_results (
 ALTER TABLE public.evaluation_results OWNER TO postgres;
 
 --
--- TOC entry 4211 (class 0 OID 0)
+-- TOC entry 4213 (class 0 OID 0)
 -- Dependencies: 415
 -- Name: COLUMN evaluation_results.index_in_batch; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -362,7 +362,7 @@ CREATE TABLE public.evaluations (
 ALTER TABLE public.evaluations OWNER TO postgres;
 
 --
--- TOC entry 4213 (class 0 OID 0)
+-- TOC entry 4215 (class 0 OID 0)
 -- Dependencies: 416
 -- Name: COLUMN evaluations.metadata; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -389,7 +389,7 @@ CREATE TABLE public.event_templates (
 ALTER TABLE public.event_templates OWNER TO postgres;
 
 --
--- TOC entry 4215 (class 0 OID 0)
+-- TOC entry 4217 (class 0 OID 0)
 -- Dependencies: 412
 -- Name: TABLE event_templates; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -419,7 +419,7 @@ CREATE TABLE public.events (
 ALTER TABLE public.events OWNER TO postgres;
 
 --
--- TOC entry 4217 (class 0 OID 0)
+-- TOC entry 4219 (class 0 OID 0)
 -- Dependencies: 411
 -- Name: COLUMN events.data; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -499,7 +499,7 @@ CREATE TABLE public.pipelines (
 ALTER TABLE public.pipelines OWNER TO postgres;
 
 --
--- TOC entry 4222 (class 0 OID 0)
+-- TOC entry 4224 (class 0 OID 0)
 -- Dependencies: 385
 -- Name: COLUMN pipelines.visibility; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -556,36 +556,27 @@ CREATE TABLE public.run_count (
 ALTER TABLE public.run_count OWNER TO postgres;
 
 --
--- TOC entry 410 (class 1259 OID 495702)
+-- TOC entry 417 (class 1259 OID 1784874)
 -- Name: spans; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.spans (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    start_time timestamp with time zone NOT NULL,
-    end_time timestamp with time zone NOT NULL,
-    version text NOT NULL,
-    trace_id uuid NOT NULL,
+    span_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
     parent_span_id uuid,
     name text NOT NULL,
     attributes jsonb NOT NULL,
-    metadata jsonb NOT NULL,
     input jsonb,
     output jsonb,
-    span_type public.span_type NOT NULL
+    span_type public.span_type NOT NULL,
+    start_time timestamp with time zone NOT NULL,
+    end_time timestamp with time zone NOT NULL,
+    trace_id uuid NOT NULL,
+    version text NOT NULL
 );
 
 
 ALTER TABLE public.spans OWNER TO postgres;
-
---
--- TOC entry 4227 (class 0 OID 0)
--- Dependencies: 410
--- Name: COLUMN spans.version; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.spans.version IS 'Laminar''s version of span implementation';
-
 
 --
 -- TOC entry 394 (class 1259 OID 49776)
@@ -610,7 +601,7 @@ CREATE TABLE public.subscription_tiers (
 ALTER TABLE public.subscription_tiers OWNER TO postgres;
 
 --
--- TOC entry 4229 (class 0 OID 0)
+-- TOC entry 4230 (class 0 OID 0)
 -- Dependencies: 394
 -- Name: COLUMN subscription_tiers.storage_mib; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -658,7 +649,7 @@ CREATE TABLE public.traces (
     version text NOT NULL,
     release text,
     user_id text,
-    session_id text NOT NULL,
+    session_id text,
     metadata jsonb,
     project_id uuid NOT NULL,
     end_time timestamp with time zone,
@@ -673,7 +664,7 @@ CREATE TABLE public.traces (
 ALTER TABLE public.traces OWNER TO postgres;
 
 --
--- TOC entry 4233 (class 0 OID 0)
+-- TOC entry 4234 (class 0 OID 0)
 -- Dependencies: 409
 -- Name: COLUMN traces.version; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -682,7 +673,7 @@ COMMENT ON COLUMN public.traces.version IS 'Version of Laminar''s trace format';
 
 
 --
--- TOC entry 4234 (class 0 OID 0)
+-- TOC entry 4235 (class 0 OID 0)
 -- Dependencies: 409
 -- Name: COLUMN traces.release; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -691,7 +682,7 @@ COMMENT ON COLUMN public.traces.release IS 'User''s release version';
 
 
 --
--- TOC entry 4235 (class 0 OID 0)
+-- TOC entry 4236 (class 0 OID 0)
 -- Dependencies: 409
 -- Name: COLUMN traces.user_id; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -716,7 +707,7 @@ CREATE TABLE public.user_limits (
 ALTER TABLE public.user_limits OWNER TO postgres;
 
 --
--- TOC entry 4237 (class 0 OID 0)
+-- TOC entry 4238 (class 0 OID 0)
 -- Dependencies: 408
 -- Name: TABLE user_limits; Type: COMMENT; Schema: public; Owner: postgres
 --
@@ -756,7 +747,7 @@ CREATE TABLE public.workspaces (
 ALTER TABLE public.workspaces OWNER TO postgres;
 
 --
--- TOC entry 3933 (class 2606 OID 29352)
+-- TOC entry 3937 (class 2606 OID 29352)
 -- Name: api_keys api_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -765,7 +756,7 @@ ALTER TABLE ONLY public.api_keys
 
 
 --
--- TOC entry 3937 (class 2606 OID 29356)
+-- TOC entry 3941 (class 2606 OID 29356)
 -- Name: datasets datasets_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -774,7 +765,7 @@ ALTER TABLE ONLY public.datasets
 
 
 --
--- TOC entry 3990 (class 2606 OID 1295676)
+-- TOC entry 3991 (class 2606 OID 1295676)
 -- Name: evaluation_results evaluation_results_pkey1; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -783,7 +774,7 @@ ALTER TABLE ONLY public.evaluation_results
 
 
 --
--- TOC entry 3992 (class 2606 OID 1295694)
+-- TOC entry 3993 (class 2606 OID 1295694)
 -- Name: evaluations evaluations_pkey1; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -792,7 +783,7 @@ ALTER TABLE ONLY public.evaluations
 
 
 --
--- TOC entry 3981 (class 2606 OID 609800)
+-- TOC entry 3982 (class 2606 OID 609800)
 -- Name: event_templates event_types_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -801,7 +792,7 @@ ALTER TABLE ONLY public.event_templates
 
 
 --
--- TOC entry 3979 (class 2606 OID 577209)
+-- TOC entry 3980 (class 2606 OID 577209)
 -- Name: events events_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -810,7 +801,7 @@ ALTER TABLE ONLY public.events
 
 
 --
--- TOC entry 3939 (class 2606 OID 29374)
+-- TOC entry 3943 (class 2606 OID 29374)
 -- Name: members_of_workspaces members_of_organizations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -819,7 +810,7 @@ ALTER TABLE ONLY public.members_of_workspaces
 
 
 --
--- TOC entry 3942 (class 2606 OID 29376)
+-- TOC entry 3946 (class 2606 OID 29376)
 -- Name: members_of_workspaces members_of_workspaces_user_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -828,7 +819,16 @@ ALTER TABLE ONLY public.members_of_workspaces
 
 
 --
--- TOC entry 3973 (class 2606 OID 494851)
+-- TOC entry 3996 (class 2606 OID 1784927)
+-- Name: spans new_spans_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.spans
+    ADD CONSTRAINT new_spans_pkey PRIMARY KEY (span_id);
+
+
+--
+-- TOC entry 3977 (class 2606 OID 494851)
 -- Name: traces new_traces_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -837,7 +837,7 @@ ALTER TABLE ONLY public.traces
 
 
 --
--- TOC entry 3963 (class 2606 OID 29382)
+-- TOC entry 3967 (class 2606 OID 29382)
 -- Name: workspaces organizations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -846,7 +846,7 @@ ALTER TABLE ONLY public.workspaces
 
 
 --
--- TOC entry 3967 (class 2606 OID 41936)
+-- TOC entry 3971 (class 2606 OID 41936)
 -- Name: pipeline_templates pipeline_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -855,7 +855,7 @@ ALTER TABLE ONLY public.pipeline_templates
 
 
 --
--- TOC entry 3944 (class 2606 OID 29388)
+-- TOC entry 3948 (class 2606 OID 29388)
 -- Name: pipeline_versions pipeline_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -864,7 +864,7 @@ ALTER TABLE ONLY public.pipeline_versions
 
 
 --
--- TOC entry 3947 (class 2606 OID 29392)
+-- TOC entry 3951 (class 2606 OID 29392)
 -- Name: pipelines pipelines_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -873,7 +873,7 @@ ALTER TABLE ONLY public.pipelines
 
 
 --
--- TOC entry 3952 (class 2606 OID 29394)
+-- TOC entry 3956 (class 2606 OID 29394)
 -- Name: project_api_keys project_api_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -882,7 +882,7 @@ ALTER TABLE ONLY public.project_api_keys
 
 
 --
--- TOC entry 3954 (class 2606 OID 29396)
+-- TOC entry 3958 (class 2606 OID 29396)
 -- Name: projects projects_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -891,7 +891,7 @@ ALTER TABLE ONLY public.projects
 
 
 --
--- TOC entry 3957 (class 2606 OID 29398)
+-- TOC entry 3961 (class 2606 OID 29398)
 -- Name: run_count run_count_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -900,7 +900,7 @@ ALTER TABLE ONLY public.run_count
 
 
 --
--- TOC entry 3959 (class 2606 OID 29400)
+-- TOC entry 3963 (class 2606 OID 29400)
 -- Name: run_count run_count_workspace_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -909,16 +909,7 @@ ALTER TABLE ONLY public.run_count
 
 
 --
--- TOC entry 3976 (class 2606 OID 495713)
--- Name: spans spans_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.spans
-    ADD CONSTRAINT spans_pkey PRIMARY KEY (id);
-
-
---
--- TOC entry 3969 (class 2606 OID 49787)
+-- TOC entry 3973 (class 2606 OID 49787)
 -- Name: subscription_tiers subscription_tiers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -927,7 +918,7 @@ ALTER TABLE ONLY public.subscription_tiers
 
 
 --
--- TOC entry 3985 (class 2606 OID 661485)
+-- TOC entry 3986 (class 2606 OID 661485)
 -- Name: target_pipeline_versions target_pipeline_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -936,7 +927,7 @@ ALTER TABLE ONLY public.target_pipeline_versions
 
 
 --
--- TOC entry 3935 (class 2606 OID 29406)
+-- TOC entry 3939 (class 2606 OID 29406)
 -- Name: dataset_datapoints tmp_dataset_datapoints_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -945,7 +936,7 @@ ALTER TABLE ONLY public.dataset_datapoints
 
 
 --
--- TOC entry 3983 (class 2606 OID 610207)
+-- TOC entry 3984 (class 2606 OID 610207)
 -- Name: event_templates unique_name_project_id; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -954,7 +945,7 @@ ALTER TABLE ONLY public.event_templates
 
 
 --
--- TOC entry 3987 (class 2606 OID 662890)
+-- TOC entry 3988 (class 2606 OID 662890)
 -- Name: target_pipeline_versions unique_pipeline_id; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -963,7 +954,7 @@ ALTER TABLE ONLY public.target_pipeline_versions
 
 
 --
--- TOC entry 3950 (class 2606 OID 664745)
+-- TOC entry 3954 (class 2606 OID 664745)
 -- Name: pipelines unique_project_id_pipeline_name; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -972,7 +963,7 @@ ALTER TABLE ONLY public.pipelines
 
 
 --
--- TOC entry 3971 (class 2606 OID 351521)
+-- TOC entry 3975 (class 2606 OID 351521)
 -- Name: user_limits user_limits_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -981,7 +972,7 @@ ALTER TABLE ONLY public.user_limits
 
 
 --
--- TOC entry 3961 (class 2606 OID 29412)
+-- TOC entry 3965 (class 2606 OID 29412)
 -- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -990,7 +981,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- TOC entry 3965 (class 2606 OID 29414)
+-- TOC entry 3969 (class 2606 OID 29414)
 -- Name: workspaces workspaces_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -999,7 +990,7 @@ ALTER TABLE ONLY public.workspaces
 
 
 --
--- TOC entry 3988 (class 1259 OID 1295677)
+-- TOC entry 3989 (class 1259 OID 1295677)
 -- Name: evaluation_results_evaluation_id_idx1; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -1007,7 +998,7 @@ CREATE INDEX evaluation_results_evaluation_id_idx1 ON public.evaluation_results 
 
 
 --
--- TOC entry 3940 (class 1259 OID 106902)
+-- TOC entry 3944 (class 1259 OID 106902)
 -- Name: members_of_workspaces_user_id_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -1015,7 +1006,7 @@ CREATE INDEX members_of_workspaces_user_id_idx ON public.members_of_workspaces U
 
 
 --
--- TOC entry 3974 (class 1259 OID 1067346)
+-- TOC entry 3978 (class 1259 OID 1067346)
 -- Name: new_traces_session_id_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -1023,7 +1014,7 @@ CREATE INDEX new_traces_session_id_idx ON public.traces USING btree (session_id)
 
 
 --
--- TOC entry 3945 (class 1259 OID 664722)
+-- TOC entry 3949 (class 1259 OID 664722)
 -- Name: pipelines_name_project_id_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -1031,7 +1022,7 @@ CREATE INDEX pipelines_name_project_id_idx ON public.pipelines USING btree (name
 
 
 --
--- TOC entry 3948 (class 1259 OID 106909)
+-- TOC entry 3952 (class 1259 OID 106909)
 -- Name: pipelines_project_id_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -1039,7 +1030,7 @@ CREATE INDEX pipelines_project_id_idx ON public.pipelines USING btree (project_i
 
 
 --
--- TOC entry 3955 (class 1259 OID 106908)
+-- TOC entry 3959 (class 1259 OID 106908)
 -- Name: projects_workspace_id_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -1047,15 +1038,7 @@ CREATE INDEX projects_workspace_id_idx ON public.projects USING btree (workspace
 
 
 --
--- TOC entry 3977 (class 1259 OID 497718)
--- Name: spans_trace_id_idx; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX spans_trace_id_idx ON public.spans USING btree (trace_id);
-
-
---
--- TOC entry 3993 (class 1259 OID 1297172)
+-- TOC entry 3994 (class 1259 OID 1297172)
 -- Name: unique_evaluation_name_project_id; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -1063,7 +1046,7 @@ CREATE UNIQUE INDEX unique_evaluation_name_project_id ON public.evaluations USIN
 
 
 --
--- TOC entry 3994 (class 2606 OID 29416)
+-- TOC entry 3997 (class 2606 OID 29416)
 -- Name: api_keys api_keys_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1072,7 +1055,7 @@ ALTER TABLE ONLY public.api_keys
 
 
 --
--- TOC entry 4013 (class 2606 OID 1295792)
+-- TOC entry 4014 (class 2606 OID 1295792)
 -- Name: evaluation_results evaluation_results_evaluation_id_fkey1; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1081,7 +1064,7 @@ ALTER TABLE ONLY public.evaluation_results
 
 
 --
--- TOC entry 4014 (class 2606 OID 1295695)
+-- TOC entry 4015 (class 2606 OID 1295695)
 -- Name: evaluations evaluations_project_id_fkey1; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1090,7 +1073,7 @@ ALTER TABLE ONLY public.evaluations
 
 
 --
--- TOC entry 4010 (class 2606 OID 609801)
+-- TOC entry 4011 (class 2606 OID 609801)
 -- Name: event_templates event_types_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1099,16 +1082,7 @@ ALTER TABLE ONLY public.event_templates
 
 
 --
--- TOC entry 4008 (class 2606 OID 577210)
--- Name: events events_span_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.events
-    ADD CONSTRAINT events_span_id_fkey FOREIGN KEY (span_id) REFERENCES public.spans(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
--- TOC entry 4009 (class 2606 OID 680136)
+-- TOC entry 4010 (class 2606 OID 680136)
 -- Name: events events_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1117,7 +1091,7 @@ ALTER TABLE ONLY public.events
 
 
 --
--- TOC entry 3997 (class 2606 OID 29426)
+-- TOC entry 4000 (class 2606 OID 29426)
 -- Name: members_of_workspaces members_of_organizations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1126,7 +1100,16 @@ ALTER TABLE ONLY public.members_of_workspaces
 
 
 --
--- TOC entry 4006 (class 2606 OID 494852)
+-- TOC entry 4016 (class 2606 OID 1788751)
+-- Name: spans new_spans_trace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.spans
+    ADD CONSTRAINT new_spans_trace_id_fkey FOREIGN KEY (trace_id) REFERENCES public.traces(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- TOC entry 4009 (class 2606 OID 494852)
 -- Name: traces new_traces_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1135,7 +1118,7 @@ ALTER TABLE ONLY public.traces
 
 
 --
--- TOC entry 3999 (class 2606 OID 29441)
+-- TOC entry 4002 (class 2606 OID 29441)
 -- Name: pipeline_versions pipeline_versions_pipeline_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1144,7 +1127,7 @@ ALTER TABLE ONLY public.pipeline_versions
 
 
 --
--- TOC entry 4000 (class 2606 OID 29446)
+-- TOC entry 4003 (class 2606 OID 29446)
 -- Name: pipelines pipelines_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1153,7 +1136,7 @@ ALTER TABLE ONLY public.pipelines
 
 
 --
--- TOC entry 4002 (class 2606 OID 29451)
+-- TOC entry 4005 (class 2606 OID 29451)
 -- Name: projects projects_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1162,7 +1145,7 @@ ALTER TABLE ONLY public.projects
 
 
 --
--- TOC entry 3996 (class 2606 OID 29456)
+-- TOC entry 3999 (class 2606 OID 29456)
 -- Name: datasets public_datasets_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1171,7 +1154,7 @@ ALTER TABLE ONLY public.datasets
 
 
 --
--- TOC entry 3998 (class 2606 OID 29516)
+-- TOC entry 4001 (class 2606 OID 29516)
 -- Name: members_of_workspaces public_members_of_workspaces_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1180,7 +1163,7 @@ ALTER TABLE ONLY public.members_of_workspaces
 
 
 --
--- TOC entry 4001 (class 2606 OID 29526)
+-- TOC entry 4004 (class 2606 OID 29526)
 -- Name: project_api_keys public_project_api_keys_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1189,7 +1172,7 @@ ALTER TABLE ONLY public.project_api_keys
 
 
 --
--- TOC entry 4003 (class 2606 OID 29531)
+-- TOC entry 4006 (class 2606 OID 29531)
 -- Name: run_count public_run_count_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1198,7 +1181,7 @@ ALTER TABLE ONLY public.run_count
 
 
 --
--- TOC entry 3995 (class 2606 OID 29541)
+-- TOC entry 3998 (class 2606 OID 29541)
 -- Name: dataset_datapoints public_tmp_dataset_datapoints_dataset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1207,16 +1190,7 @@ ALTER TABLE ONLY public.dataset_datapoints
 
 
 --
--- TOC entry 4007 (class 2606 OID 495714)
--- Name: spans spans_trace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.spans
-    ADD CONSTRAINT spans_trace_id_fkey FOREIGN KEY (trace_id) REFERENCES public.traces(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
--- TOC entry 4011 (class 2606 OID 661486)
+-- TOC entry 4012 (class 2606 OID 661486)
 -- Name: target_pipeline_versions target_pipeline_versions_pipeline_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1225,7 +1199,7 @@ ALTER TABLE ONLY public.target_pipeline_versions
 
 
 --
--- TOC entry 4012 (class 2606 OID 661491)
+-- TOC entry 4013 (class 2606 OID 661491)
 -- Name: target_pipeline_versions target_pipeline_versions_pipeline_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1234,7 +1208,7 @@ ALTER TABLE ONLY public.target_pipeline_versions
 
 
 --
--- TOC entry 4005 (class 2606 OID 351522)
+-- TOC entry 4008 (class 2606 OID 351522)
 -- Name: user_limits user_limits_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1243,7 +1217,7 @@ ALTER TABLE ONLY public.user_limits
 
 
 --
--- TOC entry 4004 (class 2606 OID 51199)
+-- TOC entry 4007 (class 2606 OID 51199)
 -- Name: users users_tier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1252,7 +1226,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- TOC entry 4185 (class 3256 OID 29551)
+-- TOC entry 4187 (class 3256 OID 29551)
 -- Name: api_keys Enable insert for authenticated users only; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -1260,7 +1234,7 @@ CREATE POLICY "Enable insert for authenticated users only" ON public.api_keys TO
 
 
 --
--- TOC entry 4186 (class 3256 OID 29553)
+-- TOC entry 4188 (class 3256 OID 29553)
 -- Name: users Enable insert for authenticated users only; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -1268,7 +1242,7 @@ CREATE POLICY "Enable insert for authenticated users only" ON public.users FOR I
 
 
 --
--- TOC entry 4187 (class 3256 OID 29554)
+-- TOC entry 4189 (class 3256 OID 29554)
 -- Name: pipeline_versions all_actions_by_next_api_key; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -1276,7 +1250,7 @@ CREATE POLICY all_actions_by_next_api_key ON public.pipeline_versions TO authent
 
 
 --
--- TOC entry 4164 (class 0 OID 29153)
+-- TOC entry 4166 (class 0 OID 29153)
 -- Dependencies: 376
 -- Name: api_keys; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1284,7 +1258,7 @@ CREATE POLICY all_actions_by_next_api_key ON public.pipeline_versions TO authent
 ALTER TABLE public.api_keys ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4165 (class 0 OID 29160)
+-- TOC entry 4167 (class 0 OID 29160)
 -- Dependencies: 377
 -- Name: dataset_datapoints; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1292,7 +1266,7 @@ ALTER TABLE public.api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dataset_datapoints ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4166 (class 0 OID 29167)
+-- TOC entry 4168 (class 0 OID 29167)
 -- Dependencies: 378
 -- Name: datasets; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1300,7 +1274,7 @@ ALTER TABLE public.dataset_datapoints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.datasets ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4183 (class 0 OID 1295668)
+-- TOC entry 4184 (class 0 OID 1295668)
 -- Dependencies: 415
 -- Name: evaluation_results; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1308,7 +1282,7 @@ ALTER TABLE public.datasets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.evaluation_results ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4184 (class 0 OID 1295683)
+-- TOC entry 4185 (class 0 OID 1295683)
 -- Dependencies: 416
 -- Name: evaluations; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1316,7 +1290,7 @@ ALTER TABLE public.evaluation_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.evaluations ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4181 (class 0 OID 609790)
+-- TOC entry 4182 (class 0 OID 609790)
 -- Dependencies: 412
 -- Name: event_templates; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1324,7 +1298,7 @@ ALTER TABLE public.evaluations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.event_templates ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4180 (class 0 OID 577200)
+-- TOC entry 4181 (class 0 OID 577200)
 -- Dependencies: 411
 -- Name: events; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1332,7 +1306,7 @@ ALTER TABLE public.event_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4167 (class 0 OID 29260)
+-- TOC entry 4169 (class 0 OID 29260)
 -- Dependencies: 383
 -- Name: members_of_workspaces; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1340,7 +1314,7 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.members_of_workspaces ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4175 (class 0 OID 41923)
+-- TOC entry 4177 (class 0 OID 41923)
 -- Dependencies: 391
 -- Name: pipeline_templates; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1348,7 +1322,7 @@ ALTER TABLE public.members_of_workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pipeline_templates ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4168 (class 0 OID 29289)
+-- TOC entry 4170 (class 0 OID 29289)
 -- Dependencies: 384
 -- Name: pipeline_versions; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1356,7 +1330,7 @@ ALTER TABLE public.pipeline_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pipeline_versions ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4169 (class 0 OID 29296)
+-- TOC entry 4171 (class 0 OID 29296)
 -- Dependencies: 385
 -- Name: pipelines; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1364,7 +1338,7 @@ ALTER TABLE public.pipeline_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pipelines ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4170 (class 0 OID 29303)
+-- TOC entry 4172 (class 0 OID 29303)
 -- Dependencies: 386
 -- Name: project_api_keys; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1372,7 +1346,7 @@ ALTER TABLE public.pipelines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_api_keys ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4171 (class 0 OID 29309)
+-- TOC entry 4173 (class 0 OID 29309)
 -- Dependencies: 387
 -- Name: projects; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1380,7 +1354,7 @@ ALTER TABLE public.project_api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4172 (class 0 OID 29316)
+-- TOC entry 4174 (class 0 OID 29316)
 -- Dependencies: 388
 -- Name: run_count; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1388,7 +1362,7 @@ ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.run_count ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4188 (class 3256 OID 1303626)
+-- TOC entry 4190 (class 3256 OID 1303626)
 -- Name: evaluation_results select_by_next_api_key; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -1396,7 +1370,7 @@ CREATE POLICY select_by_next_api_key ON public.evaluation_results FOR SELECT TO 
 
 
 --
--- TOC entry 4189 (class 3256 OID 1303688)
+-- TOC entry 4191 (class 3256 OID 1303688)
 -- Name: evaluations select_by_next_api_key; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -1404,15 +1378,15 @@ CREATE POLICY select_by_next_api_key ON public.evaluations FOR SELECT TO authent
 
 
 --
--- TOC entry 4179 (class 0 OID 495702)
--- Dependencies: 410
+-- TOC entry 4186 (class 0 OID 1784874)
+-- Dependencies: 417
 -- Name: spans; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
 ALTER TABLE public.spans ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4176 (class 0 OID 49776)
+-- TOC entry 4178 (class 0 OID 49776)
 -- Dependencies: 394
 -- Name: subscription_tiers; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1420,7 +1394,7 @@ ALTER TABLE public.spans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subscription_tiers ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4182 (class 0 OID 661476)
+-- TOC entry 4183 (class 0 OID 661476)
 -- Dependencies: 413
 -- Name: target_pipeline_versions; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1428,7 +1402,7 @@ ALTER TABLE public.subscription_tiers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.target_pipeline_versions ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4178 (class 0 OID 494840)
+-- TOC entry 4180 (class 0 OID 494840)
 -- Dependencies: 409
 -- Name: traces; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1436,7 +1410,7 @@ ALTER TABLE public.target_pipeline_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.traces ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4177 (class 0 OID 351510)
+-- TOC entry 4179 (class 0 OID 351510)
 -- Dependencies: 408
 -- Name: user_limits; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1444,7 +1418,7 @@ ALTER TABLE public.traces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_limits ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4173 (class 0 OID 29337)
+-- TOC entry 4175 (class 0 OID 29337)
 -- Dependencies: 389
 -- Name: users; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1452,7 +1426,7 @@ ALTER TABLE public.user_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4174 (class 0 OID 29344)
+-- TOC entry 4176 (class 0 OID 29344)
 -- Dependencies: 390
 -- Name: workspaces; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
@@ -1460,7 +1434,7 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY;
 
 --
--- TOC entry 4199 (class 0 OID 0)
+-- TOC entry 4201 (class 0 OID 0)
 -- Dependencies: 24
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: pg_database_owner
 --
@@ -1472,8 +1446,8 @@ GRANT USAGE ON SCHEMA public TO service_role;
 
 
 --
--- TOC entry 4202 (class 0 OID 0)
--- Dependencies: 672
+-- TOC entry 4204 (class 0 OID 0)
+-- Dependencies: 673
 -- Name: FUNCTION api_key(); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -1483,8 +1457,8 @@ GRANT ALL ON FUNCTION public.api_key() TO service_role;
 
 
 --
--- TOC entry 4203 (class 0 OID 0)
--- Dependencies: 639
+-- TOC entry 4205 (class 0 OID 0)
+-- Dependencies: 640
 -- Name: FUNCTION is_endpoint_id_accessible_for_api_key(_api_key text, _endpoint_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -1494,8 +1468,8 @@ GRANT ALL ON FUNCTION public.is_endpoint_id_accessible_for_api_key(_api_key text
 
 
 --
--- TOC entry 4204 (class 0 OID 0)
--- Dependencies: 638
+-- TOC entry 4206 (class 0 OID 0)
+-- Dependencies: 639
 -- Name: FUNCTION is_evaluation_id_accessible_for_api_key(_api_key text, _evaluation_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -1505,8 +1479,8 @@ GRANT ALL ON FUNCTION public.is_evaluation_id_accessible_for_api_key(_api_key te
 
 
 --
--- TOC entry 4205 (class 0 OID 0)
--- Dependencies: 659
+-- TOC entry 4207 (class 0 OID 0)
+-- Dependencies: 660
 -- Name: FUNCTION is_pipeline_id_accessible_for_api_key(_api_key text, _pipeline_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -1516,7 +1490,7 @@ GRANT ALL ON FUNCTION public.is_pipeline_id_accessible_for_api_key(_api_key text
 
 
 --
--- TOC entry 4206 (class 0 OID 0)
+-- TOC entry 4208 (class 0 OID 0)
 -- Dependencies: 376
 -- Name: TABLE api_keys; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1527,7 +1501,7 @@ GRANT ALL ON TABLE public.api_keys TO service_role;
 
 
 --
--- TOC entry 4209 (class 0 OID 0)
+-- TOC entry 4211 (class 0 OID 0)
 -- Dependencies: 377
 -- Name: TABLE dataset_datapoints; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1538,7 +1512,7 @@ GRANT ALL ON TABLE public.dataset_datapoints TO service_role;
 
 
 --
--- TOC entry 4210 (class 0 OID 0)
+-- TOC entry 4212 (class 0 OID 0)
 -- Dependencies: 378
 -- Name: TABLE datasets; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1549,7 +1523,7 @@ GRANT ALL ON TABLE public.datasets TO service_role;
 
 
 --
--- TOC entry 4212 (class 0 OID 0)
+-- TOC entry 4214 (class 0 OID 0)
 -- Dependencies: 415
 -- Name: TABLE evaluation_results; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1560,7 +1534,7 @@ GRANT ALL ON TABLE public.evaluation_results TO service_role;
 
 
 --
--- TOC entry 4214 (class 0 OID 0)
+-- TOC entry 4216 (class 0 OID 0)
 -- Dependencies: 416
 -- Name: TABLE evaluations; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1571,7 +1545,7 @@ GRANT ALL ON TABLE public.evaluations TO service_role;
 
 
 --
--- TOC entry 4216 (class 0 OID 0)
+-- TOC entry 4218 (class 0 OID 0)
 -- Dependencies: 412
 -- Name: TABLE event_templates; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1582,7 +1556,7 @@ GRANT ALL ON TABLE public.event_templates TO service_role;
 
 
 --
--- TOC entry 4218 (class 0 OID 0)
+-- TOC entry 4220 (class 0 OID 0)
 -- Dependencies: 411
 -- Name: TABLE events; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1593,7 +1567,7 @@ GRANT ALL ON TABLE public.events TO service_role;
 
 
 --
--- TOC entry 4219 (class 0 OID 0)
+-- TOC entry 4221 (class 0 OID 0)
 -- Dependencies: 383
 -- Name: TABLE members_of_workspaces; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1604,7 +1578,7 @@ GRANT ALL ON TABLE public.members_of_workspaces TO service_role;
 
 
 --
--- TOC entry 4220 (class 0 OID 0)
+-- TOC entry 4222 (class 0 OID 0)
 -- Dependencies: 391
 -- Name: TABLE pipeline_templates; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1615,7 +1589,7 @@ GRANT ALL ON TABLE public.pipeline_templates TO service_role;
 
 
 --
--- TOC entry 4221 (class 0 OID 0)
+-- TOC entry 4223 (class 0 OID 0)
 -- Dependencies: 384
 -- Name: TABLE pipeline_versions; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1626,7 +1600,7 @@ GRANT ALL ON TABLE public.pipeline_versions TO service_role;
 
 
 --
--- TOC entry 4223 (class 0 OID 0)
+-- TOC entry 4225 (class 0 OID 0)
 -- Dependencies: 385
 -- Name: TABLE pipelines; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1637,7 +1611,7 @@ GRANT ALL ON TABLE public.pipelines TO service_role;
 
 
 --
--- TOC entry 4224 (class 0 OID 0)
+-- TOC entry 4226 (class 0 OID 0)
 -- Dependencies: 386
 -- Name: TABLE project_api_keys; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1648,7 +1622,7 @@ GRANT ALL ON TABLE public.project_api_keys TO service_role;
 
 
 --
--- TOC entry 4225 (class 0 OID 0)
+-- TOC entry 4227 (class 0 OID 0)
 -- Dependencies: 387
 -- Name: TABLE projects; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1659,7 +1633,7 @@ GRANT ALL ON TABLE public.projects TO service_role;
 
 
 --
--- TOC entry 4226 (class 0 OID 0)
+-- TOC entry 4228 (class 0 OID 0)
 -- Dependencies: 388
 -- Name: TABLE run_count; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1670,8 +1644,8 @@ GRANT ALL ON TABLE public.run_count TO service_role;
 
 
 --
--- TOC entry 4228 (class 0 OID 0)
--- Dependencies: 410
+-- TOC entry 4229 (class 0 OID 0)
+-- Dependencies: 417
 -- Name: TABLE spans; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -1681,7 +1655,7 @@ GRANT ALL ON TABLE public.spans TO service_role;
 
 
 --
--- TOC entry 4230 (class 0 OID 0)
+-- TOC entry 4231 (class 0 OID 0)
 -- Dependencies: 394
 -- Name: TABLE subscription_tiers; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1692,7 +1666,7 @@ GRANT ALL ON TABLE public.subscription_tiers TO service_role;
 
 
 --
--- TOC entry 4231 (class 0 OID 0)
+-- TOC entry 4232 (class 0 OID 0)
 -- Dependencies: 395
 -- Name: SEQUENCE subscription_tiers_id_seq; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1703,7 +1677,7 @@ GRANT ALL ON SEQUENCE public.subscription_tiers_id_seq TO service_role;
 
 
 --
--- TOC entry 4232 (class 0 OID 0)
+-- TOC entry 4233 (class 0 OID 0)
 -- Dependencies: 413
 -- Name: TABLE target_pipeline_versions; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1714,7 +1688,7 @@ GRANT ALL ON TABLE public.target_pipeline_versions TO service_role;
 
 
 --
--- TOC entry 4236 (class 0 OID 0)
+-- TOC entry 4237 (class 0 OID 0)
 -- Dependencies: 409
 -- Name: TABLE traces; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1725,7 +1699,7 @@ GRANT ALL ON TABLE public.traces TO service_role;
 
 
 --
--- TOC entry 4238 (class 0 OID 0)
+-- TOC entry 4239 (class 0 OID 0)
 -- Dependencies: 408
 -- Name: TABLE user_limits; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1736,7 +1710,7 @@ GRANT ALL ON TABLE public.user_limits TO service_role;
 
 
 --
--- TOC entry 4239 (class 0 OID 0)
+-- TOC entry 4240 (class 0 OID 0)
 -- Dependencies: 389
 -- Name: TABLE users; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1747,7 +1721,7 @@ GRANT ALL ON TABLE public.users TO service_role;
 
 
 --
--- TOC entry 4240 (class 0 OID 0)
+-- TOC entry 4241 (class 0 OID 0)
 -- Dependencies: 390
 -- Name: TABLE workspaces; Type: ACL; Schema: public; Owner: postgres
 --
@@ -1758,7 +1732,7 @@ GRANT ALL ON TABLE public.workspaces TO service_role;
 
 
 --
--- TOC entry 2739 (class 826 OID 16484)
+-- TOC entry 2743 (class 826 OID 16484)
 -- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: postgres
 --
 
@@ -1769,7 +1743,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENC
 
 
 --
--- TOC entry 2710 (class 826 OID 16485)
+-- TOC entry 2714 (class 826 OID 16485)
 -- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: supabase_admin
 --
 
@@ -1780,7 +1754,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON S
 
 
 --
--- TOC entry 2740 (class 826 OID 16483)
+-- TOC entry 2744 (class 826 OID 16483)
 -- Name: DEFAULT PRIVILEGES FOR FUNCTIONS; Type: DEFAULT ACL; Schema: public; Owner: postgres
 --
 
@@ -1791,7 +1765,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIO
 
 
 --
--- TOC entry 2712 (class 826 OID 16487)
+-- TOC entry 2716 (class 826 OID 16487)
 -- Name: DEFAULT PRIVILEGES FOR FUNCTIONS; Type: DEFAULT ACL; Schema: public; Owner: supabase_admin
 --
 
@@ -1802,7 +1776,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON F
 
 
 --
--- TOC entry 2741 (class 826 OID 16482)
+-- TOC entry 2745 (class 826 OID 16482)
 -- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: postgres
 --
 
@@ -1813,7 +1787,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES 
 
 
 --
--- TOC entry 2711 (class 826 OID 16486)
+-- TOC entry 2715 (class 826 OID 16486)
 -- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: supabase_admin
 --
 
@@ -1823,7 +1797,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON T
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON TABLES TO service_role;
 
 
--- Completed on 2024-09-01 16:43:24 PDT
+-- Completed on 2024-09-04 10:00:40 PDT
 
 --
 -- PostgreSQL database dump complete

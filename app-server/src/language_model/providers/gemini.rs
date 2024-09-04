@@ -16,7 +16,7 @@ use crate::{
     pipeline::nodes::{NodeStreamChunk, StreamChunk},
 };
 
-use super::utils::total_cost;
+use crate::language_model::providers::utils::calculate_cost;
 
 #[derive(Clone, Debug)]
 pub struct Gemini {
@@ -295,48 +295,62 @@ impl ExecuteChatCompletion for Gemini {
         }
     }
 
+    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
+        let input_price_per_million_tokens = match model.to_lowercase().as_str() {
+            "gemini-1.5-flash" => {
+                if prompt_tokens <= 128_000 {
+                    0.35
+                } else {
+                    0.70
+                }
+            }
+            "gemini-1.5-pro" => {
+                if prompt_tokens <= 128_000 {
+                    3.5
+                } else {
+                    7.0
+                }
+            }
+            _ => return None,
+        };
+        Some(calculate_cost(
+            prompt_tokens,
+            input_price_per_million_tokens,
+        ))
+    }
+
+    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
+        let output_price_per_million_tokens = match model.to_lowercase().as_str() {
+            "gemini-1.5-flash" => {
+                if completion_tokens <= 128_000 {
+                    1.05
+                } else {
+                    2.10
+                }
+            }
+            "gemini-1.5-pro" => {
+                if completion_tokens <= 128_000 {
+                    10.50
+                } else {
+                    21.00
+                }
+            }
+            _ => return None,
+        };
+        Some(calculate_cost(
+            completion_tokens,
+            output_price_per_million_tokens,
+        ))
+    }
+
     fn estimate_cost(
         &self,
         model: &str,
         completion_tokens: u32,
         prompt_tokens: u32,
     ) -> Option<f64> {
-        match model.to_lowercase().as_str() {
-            "gemini-1.5-flash" => {
-                let input_price_per_million_tokens =
-                    if prompt_tokens <= 128_000 { 0.35 } else { 0.70 };
-
-                let output_price_per_million_tokens = if completion_tokens <= 128_000 {
-                    1.05
-                } else {
-                    2.10
-                };
-
-                Some(total_cost(
-                    prompt_tokens,
-                    completion_tokens,
-                    input_price_per_million_tokens,
-                    output_price_per_million_tokens,
-                ))
-            }
-            "gemini-1.5-pro" => {
-                let input_price_per_million_tokens =
-                    if prompt_tokens <= 128_000 { 3.5 } else { 7.0 };
-
-                let output_price_per_million_tokens = if completion_tokens <= 128_000 {
-                    10.50
-                } else {
-                    21.00
-                };
-
-                Some(total_cost(
-                    prompt_tokens,
-                    completion_tokens,
-                    input_price_per_million_tokens,
-                    output_price_per_million_tokens,
-                ))
-            }
-            _ => None,
-        }
+        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
+        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
+        Some(input_cost + output_cost)
     }
 }

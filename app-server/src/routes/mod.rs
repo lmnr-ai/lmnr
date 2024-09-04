@@ -5,7 +5,6 @@ pub mod error;
 pub mod evaluations;
 pub mod events;
 pub mod limits;
-pub mod metrics;
 pub mod pipelines;
 pub mod projects;
 pub mod traces;

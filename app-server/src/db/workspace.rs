@@ -25,8 +25,6 @@ pub enum WorkspaceError {
         limit: i64,
         usage: i64,
     },
-    #[error("Run limit reached")]
-    RunLimitReached,
 }
 
 #[derive(Debug, Serialize)]

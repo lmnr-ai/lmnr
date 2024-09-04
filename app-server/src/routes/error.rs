@@ -103,9 +103,6 @@ pub fn workspace_error_to_http_error(e: WorkspaceError) -> Error {
             "Limit reached for {}. Limit: {}. Current {}: {}",
             entity, limit, entity, usage
         )),
-        WorkspaceError::RunLimitReached => {
-            Error::limit_error("Run limit reached. See https://www.lmnr.ai/profile/usage")
-        }
     }
 }
 

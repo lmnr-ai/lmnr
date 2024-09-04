@@ -1,15 +1,21 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
+use crate::{
+    opentelemetry::opentelemetry_proto_trace_v1::span::Event as OtelEvent,
+    pipeline::nodes::NodeInput,
+};
+
 use super::{
     event_templates::EventType,
     modifiers::{DateRange, Filter},
+    utils::convert_any_value_to_json_value,
     DB,
 };
 
@@ -29,6 +35,73 @@ pub struct EventObservation {
     /// Unique type name
     pub template_name: String,
     pub value: Option<Value>,
+}
+
+impl EventObservation {
+    pub fn from_otel(event: OtelEvent, span_id: Uuid) -> Self {
+        let attributes = event
+            .attributes
+            .into_iter()
+            .map(|kv| (kv.key, convert_any_value_to_json_value(kv.value)))
+            .collect::<serde_json::Map<String, serde_json::Value>>();
+
+        let value = attributes.get("lmnr.event.value").cloned();
+
+        Self {
+            span_id,
+            timestamp: Utc.timestamp_nanos(event.time_unix_nano as i64),
+            template_name: event.name,
+            value,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct EvaluateEventRequest {
+    pub name: String,
+    pub data: HashMap<String, NodeInput>,
+    pub evaluator: String,
+    #[serde(default)]
+    pub timestamp: DateTime<Utc>,
+    pub env: HashMap<String, String>,
+}
+
+impl EvaluateEventRequest {
+    pub fn try_from_otel(event: OtelEvent) -> Result<Self> {
+        let attributes = event
+            .attributes
+            .into_iter()
+            .map(|kv| (kv.key, convert_any_value_to_json_value(kv.value)))
+            .collect::<serde_json::Map<String, serde_json::Value>>();
+
+        let serde_json::Value::String(evaluator) =
+            attributes.get("lmnr.event.evaluator").unwrap().clone()
+        else {
+            return Err(anyhow::anyhow!("Failed to get evaluator"));
+        };
+
+        let serde_json::Value::String(string_data) = attributes.get("lmnr.event.data").unwrap()
+        else {
+            return Err(anyhow::anyhow!("Failed to get data"));
+        };
+
+        let data = serde_json::from_str::<HashMap<String, NodeInput>>(&string_data).unwrap();
+
+        let serde_json::Value::String(env) = attributes.get("lmnr.event.env").unwrap() else {
+            return Err(anyhow::anyhow!("Failed to get env"));
+        };
+
+        let env = serde_json::from_str::<HashMap<String, String>>(env).unwrap();
+
+        Ok(Self {
+            name: event.name,
+            data,
+            evaluator,
+            timestamp: Utc.timestamp_nanos(event.time_unix_nano as i64),
+            env,
+        })
+    }
 }
 
 #[derive(sqlx::FromRow, Serialize)]

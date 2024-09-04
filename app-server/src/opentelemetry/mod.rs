@@ -1,0 +1,4 @@
+pub mod opentelemetry_collector_trace_v1;
+pub mod opentelemetry_proto_common_v1;
+pub mod opentelemetry_proto_resource_v1;
+pub mod opentelemetry_proto_trace_v1;

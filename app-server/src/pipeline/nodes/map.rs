@@ -13,7 +13,7 @@ use crate::{
     pipeline::{
         context::Context,
         runner::{PipelineRunner, PipelineRunnerError},
-        trace::{MetaLog, RunTrace},
+        trace::{MetaLog, RunTraceStats},
         Graph,
     },
 };
@@ -60,7 +60,6 @@ impl PipelineRunner {
     pub async fn batch_run_with_metadata(
         &self,
         graph: Graph,
-        pipeline_version_id: Uuid,
         inputs_vec: &Vec<HashMap<String, NodeInput>>,
         context: Arc<Context>,
     ) -> Vec<SubpipelineRunResult> {
@@ -72,8 +71,6 @@ impl PipelineRunner {
 
         let run_calls = inputs_vec.iter().map(|inputs| {
             let permits = permits.clone();
-
-            let run_id = Uuid::new_v4();
 
             let mut graph = graph.clone();
             let env = context.env.clone();
@@ -95,24 +92,14 @@ impl PipelineRunner {
                 } else {
                     let run_result = self.run(graph, None).await;
 
-                    let graph_trace = RunTrace::from_runner_result(
-                        run_id,
-                        pipeline_version_id,
-                        run_type,
-                        &run_result,
-                        metadata,
-                        None,
-                        None,
-                    );
+                    let trace = PipelineRunner::get_trace_from_result(&run_result);
 
-                    // Note that whether logs are recorded depend on the RunType
-                    if let Some(trace) = graph_trace.clone() {
-                        let _ = self.send_trace(trace).await;
-                    }
+                    // TODO: record logs if needed
 
-                    if let Some(trace) = graph_trace {
-                        total_token_count = trace.run_stats.total_token_count;
-                        approximate_cost = trace.run_stats.approximate_cost;
+                    if let Some(trace) = trace {
+                        let run_stats = RunTraceStats::from_messages(&trace.messages);
+                        total_token_count = run_stats.total_token_count;
+                        approximate_cost = run_stats.approximate_cost;
                     }
 
                     SubpipelineRunResult {
@@ -161,7 +148,6 @@ impl RunnableNode for MapNode {
         if self.pipeline_version_id.is_none() {
             return Err(anyhow::anyhow!("Pipeline version id is required"));
         }
-        let pipeline_version_id = self.pipeline_version_id.unwrap();
 
         let graph = serde_json::from_value::<Graph>(self.runnable_graph.clone())?;
         let input_node_names = graph.get_input_node_names();
@@ -189,12 +175,7 @@ impl RunnableNode for MapNode {
 
             let run_results = context
                 .pipeline_runner
-                .batch_run_with_metadata(
-                    graph.clone(),
-                    pipeline_version_id,
-                    &inputs_vec,
-                    context.clone(),
-                )
+                .batch_run_with_metadata(graph.clone(), &inputs_vec, context.clone())
                 .await;
 
             for res in run_results {
