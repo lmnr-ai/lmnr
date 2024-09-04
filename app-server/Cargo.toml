@@ -22,8 +22,6 @@ tokio-stream = { version = "0.1", features = ["net"] }
 futures = "0.3"
 rayon = "1"
 enum_dispatch = "0.3.12"
-html2md = "0.2.14"
-boilerpipe = "0.6.0"
 reqwest = { version = "0.12.0", default-features = false, features = ["rustls-tls", "json", "stream", "multipart"] }
 serde = "1.0"
 serde_json = "1.0.105"
@@ -57,10 +55,13 @@ handlebars_misc_helpers = { version = "0.16.3", features = ["json"] }
 aws-sdk-bedrockruntime = "1.37.0"
 aws-config = "1.5.5"
 aws-credential-types = "1.2.0"
-actix-web-actors = "4.3.0"
-actix = "0.13.5"
 backoff = { version = "0.4.0", features = ["tokio"] }
 lmnr-baml = { git = "https://github.com/lmnr-ai/lmnr-baml", branch = "rust" }
+lapin = "2.5.0"
+bytes = "1.7.1"
+clickhouse = { version = "0.12.2", features = ["rustls-tls", "uuid"] }
+time = "0.3.36"
+rustls = "0.23.12"
 
 [build-dependencies]
 tonic-build = "0.8"

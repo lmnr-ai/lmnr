@@ -1,4 +1,4 @@
-import { RunTrace, TracePreview, TraceWithSpanPreviews } from '@/lib/traces/types';
+import { RunTrace, TracePreview, TraceWithSpans } from '@/lib/traces/types';
 import { ChevronsRight } from 'lucide-react';
 import TraceCards from './trace-cards';
 import useSWR from 'swr';
@@ -29,10 +29,10 @@ export default function LogEditor({ onClose, traceId }: LogEditorProps) {
     if (error) return <div className='m-2 text-rose-900'>Error fetching trace. Please try again</div>;
     if (!rowInfo) return <div className='m-2 text-rose-900'>No trace found for this run id</div>;
 
+
     return (
       <TraceCards
-        trace={rowInfo as TraceWithSpanPreviews}
-        enableFeedback
+        trace={rowInfo as TraceWithSpans}
       />
     )
   }

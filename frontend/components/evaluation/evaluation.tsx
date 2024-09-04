@@ -1,13 +1,13 @@
 'use client';
 
-import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo, EvaluationWithPipelineInfo } from "@/lib/evaluation/types";
+import { Evaluation as EvaluationType, EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "../ui/datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { useUserContext } from "@/contexts/user-context";
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/const";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, USE_REALTIME } from "@/lib/const";
 import EvaluationPanel from "./evaluation-panel";
 import EvaluationStats from "./evaluation-stats";
 import { mutate } from "swr";
@@ -19,6 +19,7 @@ import { mergeOriginalWithComparedDatapoints } from "@/lib/evaluation/utils";
 import { ArrowRight, MoveHorizontal, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "@/lib/utils";
+import ClientTimestampFormatter from "../client-timestamp-formatter";
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId',
@@ -27,7 +28,7 @@ const URL_QUERY_PARAMS = {
 interface EvaluationProps {
   evaluationInfo: EvaluationResultsInfo;
   comparedEvaluationInfo?: EvaluationResultsInfo;
-  evaluations: EvaluationWithPipelineInfo[];
+  evaluations: EvaluationType[];
 }
 
 export default function Evaluation({
@@ -48,19 +49,35 @@ export default function Evaluation({
   const [comparedEvaluation, setComparedEvaluation] = useState(comparedEvaluationInfo?.evaluation);
 
   let defaultResults = evaluationInfo.results as EvaluationDatapointPreviewWithCompared[];
+  let scoreColumns = new Set<string>();
+  for (const row of evaluationInfo.results) {
+    for (const key of Object.keys(row.scores ?? {})) {
+      scoreColumns.add(key);
+    }
+  }
   if (comparedEvaluationInfo) {
     defaultResults = mergeOriginalWithComparedDatapoints(evaluationInfo.results, comparedEvaluationInfo.results);
+    for (const row of comparedEvaluationInfo?.results ?? []) {
+      for (const key of Object.keys(row.scores ?? {})) {
+        scoreColumns.add(key);
+      }
+    }
   }
   const [results, setResults] = useState(defaultResults);
 
   let columns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = []
 
-  if (comparedEvaluation) {
 
+  if (comparedEvaluation) {
     columns = [
       {
         accessorKey: "status",
         header: "Status",
+      },
+      {
+        accessorFn: (row) => row.createdAt,
+        header: "Created At",
+        cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
       },
       {
         accessorFn: (row) => JSON.stringify(row.data),
@@ -70,22 +87,28 @@ export default function Evaluation({
         accessorFn: (row) => row.target ? JSON.stringify(row.target) : "-",
         header: "Target",
       },
-      {
-        header: "Score",
-        cell: (row) => {
-          return <div className="flex flex-row items-center space-x-2">
-            <div className="text-secondary-foreground">{row.row.original.comparedScore ?? "-"}</div>
-            <ArrowRight className="font-bold" size={12} />
-            <div className={comparedEvaluation && "text-blue-300"}>{row.row.original.score ?? "-"}</div>
-          </div>
-        }
-      },
     ];
+    columns = columns.concat(Array.from(scoreColumns).map((scoreColumn) => ({
+      header: scoreColumn,
+      cell: (row) => {
+        return <div className="flex flex-row items-center space-x-2">
+          <div className="text-secondary-foreground">{row.row.original.comparedScores?.[scoreColumn] ?? "-"}</div>
+          <ArrowRight className="font-bold" size={12} />
+          <div className={comparedEvaluation && "text-blue-300"}>{row.row.original.scores?.[scoreColumn] ?? "-"}</div>
+        </div>
+      },
+    })));
+
   } else {
     columns = [
       {
         accessorKey: "status",
         header: "Status",
+      },
+      {
+        accessorFn: (row) => row.createdAt,
+        header: "Created At",
+        cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
       },
       {
         accessorFn: (row) => JSON.stringify(row.data),
@@ -99,32 +122,36 @@ export default function Evaluation({
         accessorFn: (row) => row.executorOutput ? JSON.stringify(row.executorOutput) : "-",
         header: "Output",
       },
-      {
-        accessorKey: "score",
-        header: "Score",
-      },
     ];
+    columns = columns.concat(Array.from(scoreColumns).map((scoreColumn) => ({
+      header: scoreColumn,
+      accessorFn: (row) => row.scores?.[scoreColumn] ?? "-",
+    })));
   }
 
   const { supabaseAccessToken } = useUserContext()
-  const supabase = useMemo(() => createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-    {
-      global: {
-        headers: {
-          Authorization: `Bearer ${supabaseAccessToken}`,
-        },
-      },
-    }
-  ), [])
+  const supabase = useMemo(() => {
+    return USE_REALTIME
+      ? createClient(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY,
+        {
+          global: {
+            headers: {
+              Authorization: `Bearer ${supabaseAccessToken}`,
+            },
+          },
+        }
+      )
+      : null
+  }, [])
 
-  supabase.realtime.setAuth(supabaseAccessToken)
+  supabase?.realtime.setAuth(supabaseAccessToken)
 
   useEffect(() => {
     if (evaluation.status !== 'Finished') {
       supabase
-        .channel('table-db-changes')
+        ?.channel('table-db-changes')
         .on(
           'postgres_changes',
           {
@@ -141,7 +168,7 @@ export default function Evaluation({
                 return acc;
               }, {});
 
-              mutate(key => key === `/api/projects/${projectId}/evaluations/${evaluation.id}/stats`);
+              // mutate(key => key === `/api/projects/${projectId}/evaluations/${evaluation.id}/stats`);
               setResults((prev) => [...prev, camelCasePayload as EvaluationDatapointPreview]);
             }
           }
@@ -165,7 +192,7 @@ export default function Evaluation({
 
     // remove all channels on unmount
     return () => {
-      supabase.removeAllChannels()
+      supabase?.removeAllChannels()
     }
   }, [])
 
@@ -179,6 +206,7 @@ export default function Evaluation({
       .then(res => res.json())
       .then((comparedEvaluation) => {
         setComparedEvaluation(comparedEvaluation.evaluation);
+        setIsSidePanelOpen(false);
         // evaluationInfo.results are always fixed, but the compared results (comparedEvaluation.results) change
         setResults(mergeOriginalWithComparedDatapoints(evaluationInfo.results, comparedEvaluation.results));
       })
@@ -226,6 +254,8 @@ export default function Evaluation({
                       variant={'secondary'}
                       onClick={() => {
                         setComparedEvaluation(undefined);
+                        setIsSidePanelOpen(false);
+                        setResults(evaluationInfo.results);
                         searchParams.delete(URL_QUERY_PARAMS.COMPARE_EVAL_ID);
                         router.push(`${pathName}?${searchParams.toString()}`);
                       }}
@@ -247,9 +277,9 @@ export default function Evaluation({
                 />
               </div>
             </div>
-            {!selectedDatapoint &&
+            {/* {!selectedDatapoint &&
               <EvaluationStats evaluationId={evaluation.id} comparedEvaluationId={comparedEvaluation?.id} />
-            }
+            } */}
           </div>
         </ResizablePanel>
         <ResizableHandle />

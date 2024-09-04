@@ -88,90 +88,12 @@ pub async fn get_limits_for_workspace(
     Ok(tier.into())
 }
 
-pub async fn get_limits_by_project_id(
-    pool: &PgPool,
-    project_id: &Uuid,
-) -> anyhow::Result<SubscriptionLimits> {
-    #[allow(non_snake_case)]
-    let tier = sqlx::query_as!(
-        SubscriptionLimits,
-        r#"SELECT
-            subscription_tiers.name as _name,
-            subscription_tiers.pipeline_runs_per_month,
-            subscription_tiers.storage_mib as _storage_mib,
-            subscription_tiers.log_retention_days as _log_retention_days,
-            subscription_tiers.members_per_workspace,
-            subscription_tiers.num_workspaces,
-            subscription_tiers.pipeline_pulls_per_month,
-            user_limits.additional_seats as "additional_seats?",
-            user_limits.code_services as "code_services?"
-        FROM
-            users
-        JOIN subscription_tiers ON subscription_tiers.id = users.tier_id
-        LEFT JOIN user_limits ON user_limits.user_id = users.id
-        WHERE users.id = (
-            SELECT
-                user_id
-            FROM
-                members_of_workspaces
-            WHERE
-                workspace_id = (SELECT workspace_id from projects where id = $1)
-                AND member_role = 'owner'::workspace_role
-            LIMIT 1
-        )"#,
-        project_id
-    )
-    .fetch_one(pool)
-    .await?;
-
-    Ok(tier.into())
-}
-
-
 #[derive(Debug, FromRow, Clone)]
 pub struct RunCount {
     pub _workspace_id: Uuid,
     pub _total_count: i64,
     pub count_since_reset: i64,
     pub _reset_time: DateTime<Utc>,
-}
-
-// FromRow is a requirement for caching
-#[derive(Clone, FromRow)]
-pub struct RunCountLimitExceeded {
-    pub exceeded: bool,
-}
-
-pub async fn get_run_count_by_project_id(
-    pool: &PgPool,
-    project_id: &Uuid,
-) -> anyhow::Result<RunCount> {
-    #[allow(non_snake_case)]
-    let counts = sqlx::query_as!(
-        RunCount,
-        "SELECT
-            workspace_id as _workspace_id,
-            total_count as _total_count,
-            count_since_reset,
-            reset_time as _reset_time
-        FROM
-            run_count
-        WHERE
-            workspace_id = (
-                SELECT
-                    workspace_id
-                FROM
-                    projects
-                WHERE
-                    id = $1
-                LIMIT 1
-            )",
-        project_id
-    )
-    .fetch_one(pool)
-    .await?;
-
-    Ok(counts)
 }
 
 #[derive(Debug, FromRow, Serialize)]

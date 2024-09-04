@@ -19,7 +19,7 @@ const getTraces = async (
   pageNumber: number,
   pageSize: number,
   filter: string | string[] | undefined,
-  pastHours: number | null  // if null, show traces for all time
+  pastHours: string | null | undefined   // if null, show traces for all time
 ) => {
   const user = session.user;
   let url = `/projects/${projectId}/traces?pageNumber=${pageNumber}&pageSize=${pageSize}`;
@@ -47,7 +47,7 @@ export default async function TracesPage({
   searchParams,
 }: {
   params: { projectId: string },
-  searchParams?: { [key: string]: string | string[] | undefined }
+  searchParams: { [key: string]: string | string[] | undefined }
 }) {
   const parseNumericSearchParam = (key: string, defaultValue: number): number => {
     const param = searchParams?.[key];
@@ -75,7 +75,21 @@ export default async function TracesPage({
   const pageNumber = parseNumericSearchParam('pageNumber', 0);
   const pageSize = parseNumericSearchParam('pageSize', 50);
   const filter = searchParams?.filter;
-  const pastHours = parseNullableNumericSearchParam('pastHours');
+
+  let pastHours = searchParams?.pastHours as string;
+
+  if (!pastHours) {
+
+    const sp = new URLSearchParams();
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (key !== 'pastHours') {
+        sp.set(key, value as string);
+      }
+    }
+    sp.set('pastHours', '24');
+    redirect(`?${sp.toString()}`);
+  }
+
 
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -84,7 +98,6 @@ export default async function TracesPage({
 
   const res = await getTraces(session, projectId, pageNumber, pageSize, filter, pastHours);
 
-  const traces = res?.traces ?? [];
   const pageCount = res?.totalEntries ? Math.ceil(res?.totalEntries / pageSize) : 1;
 
   return (
@@ -92,11 +105,12 @@ export default async function TracesPage({
       <Header path={"traces"} />
       <Suspense>
         <TracesDashboard
-          defaultTraces={traces}
+          defaultTraces={res?.traces ?? []}
           totalTracesCount={res?.totalEntries ?? 0}
           pageCount={pageCount}
           pageSize={pageSize}
-          pastHours={pastHours?.toString() ?? "24"}
+          totalInProject={res?.totalInProject}
+          pastHours={pastHours?.toString() ?? "720"}
           pageNumber={Math.min(pageNumber, pageCount - 1)}
         />
       </Suspense>

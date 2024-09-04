@@ -5,13 +5,12 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    api::utils::{query_project_run_count_exceeded, query_target_pipeline_version},
+    api::utils::query_target_pipeline_version,
     cache::Cache,
-    db::{api_keys::ProjectApiKey, workspace::WorkspaceError, DB},
+    db::{api_keys::ProjectApiKey, DB},
     pipeline::{
         nodes::{GraphOutput, GraphRunOutput, NodeInput, RunEndpointEventError, StreamChunk},
         runner::{PipelineRunner, PipelineRunnerError},
-        trace::RunTrace,
         Graph, RunType,
     },
     routes::{
@@ -35,8 +34,7 @@ struct GraphRequest {
     pipeline: String,
     inputs: HashMap<String, NodeInput>,
     /// If None, new trace will be generated
-    #[serde(default)]
-    #[serde(flatten)]
+    #[serde(default, flatten)]
     current_trace_and_span: Option<CurrentTraceAndSpan>,
     env: HashMap<String, String>,
     #[serde(default)]
@@ -67,17 +65,14 @@ async fn run_pipeline_graph(
     let trace_id = req.current_trace_and_span.map(|t| t.trace_id);
     env.insert("collection_name".to_string(), project_id.to_string());
 
-    let exceeded = query_project_run_count_exceeded(db.clone(), cache.clone(), &project_id).await?;
-
-    if exceeded.exceeded {
-        return Err(error::workspace_error_to_http_error(
-            WorkspaceError::RunLimitReached,
-        ));
-    }
-
     let pipeline_version =
-        query_target_pipeline_version(db.clone(), cache.clone(), project_id, req.pipeline).await?;
-    let pipeline_version_id = pipeline_version.id;
+        query_target_pipeline_version(db.clone(), cache.clone(), project_id, req.pipeline.clone())
+            .await?;
+
+    let Some(pipeline_version) = pipeline_version else {
+        return Err(error::Error::no_target_pipeline(&req.pipeline));
+    };
+    let pipeline_version_name = pipeline_version.name.clone();
 
     let run_id = Uuid::new_v4(); // used to uniquely identify the related log or run trace
     let run_type = RunType::Endpoint;
@@ -95,19 +90,17 @@ async fn run_pipeline_graph(
             tokio::spawn(async move {
                 let run_result = pipeline_runner.run(graph, Some(tx.clone())).await;
                 // write the trace
-                let graph_trace = RunTrace::from_runner_result(
-                    run_id,
-                    pipeline_version_id,
-                    run_type,
+                pipeline_runner.record_observations(
                     &run_result,
-                    metadata,
+                    &project_id,
+                    &pipeline_version_name,
                     parent_span_id,
-                    trace_id,
-                );
+                    trace_id
+                )
+                .await
+                .expect("Failed to record observations from pipeline output");
 
-                if let Some(trace) = graph_trace {
-                    let _ = pipeline_runner.send_trace(trace).await;
-                }
+
                 // communicate the end result to the client
                 match run_result {
                     Ok(outputs) => {
@@ -159,19 +152,15 @@ async fn run_pipeline_graph(
     } else {
         let run_result = pipeline_runner.run(graph, None).await;
 
-        let graph_trace = RunTrace::from_runner_result(
-            run_id,
-            pipeline_version_id,
-            run_type,
-            &run_result,
-            metadata,
-            parent_span_id,
-            trace_id,
-        );
-
-        if let Some(trace) = graph_trace {
-            let _ = pipeline_runner.send_trace(trace).await;
-        }
+        pipeline_runner
+            .record_observations(
+                &run_result,
+                &project_id,
+                &pipeline_version.name,
+                parent_span_id,
+                trace_id,
+            )
+            .await?;
 
         let run_result = run_result.map_err(|e| pipeline_runner_to_http_error(e, run_id))?;
         let outputs = run_result

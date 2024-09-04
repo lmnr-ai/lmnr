@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::language_model::chat_message::{ChatChoice, ChatCompletion, ChatMessage, ChatUsage};
+use crate::language_model::providers::utils::calculate_cost;
 use crate::language_model::runner::ExecuteChatCompletion;
 use crate::language_model::{
     ChatMessageContent, ChatMessageContentPart, LanguageModelProviderName, NodeInfo,
@@ -13,8 +14,6 @@ use reqwest_eventsource::{Event, EventSource};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::mpsc::Sender;
-
-use super::utils::total_cost;
 
 #[derive(Clone, Debug)]
 pub struct Anthropic {
@@ -318,23 +317,44 @@ impl ExecuteChatCompletion for Anthropic {
         }
     }
 
+    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
+        let model = String::from(model).to_lowercase();
+        if model.starts_with("claude-3-haiku") {
+            Some(calculate_cost(prompt_tokens, 0.25))
+        } else if model.starts_with("claude-3-sonnet") {
+            Some(calculate_cost(prompt_tokens, 3.0))
+        } else if model.starts_with("claude-3-opus") {
+            Some(calculate_cost(prompt_tokens, 15.0))
+        } else if model.starts_with("claude-3-5-sonnet") {
+            Some(calculate_cost(prompt_tokens, 3.0))
+        } else {
+            None
+        }
+    }
+
+    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
+        let model = String::from(model).to_lowercase();
+        if model.starts_with("claude-3-haiku") {
+            Some(calculate_cost(completion_tokens, 1.25))
+        } else if model.starts_with("claude-3-sonnet") {
+            Some(calculate_cost(completion_tokens, 15.0))
+        } else if model.starts_with("claude-3-opus") {
+            Some(calculate_cost(completion_tokens, 75.0))
+        } else if model.starts_with("claude-3-5-sonnet") {
+            Some(calculate_cost(completion_tokens, 15.0))
+        } else {
+            None
+        }
+    }
+
     fn estimate_cost(
         &self,
         model: &str,
         completion_tokens: u32,
         prompt_tokens: u32,
     ) -> Option<f64> {
-        let model = String::from(model).to_lowercase();
-        if model.starts_with("claude-3-haiku") {
-            Some(total_cost(prompt_tokens, completion_tokens, 0.25, 1.25))
-        } else if model.starts_with("claude-3-sonnet") {
-            Some(total_cost(prompt_tokens, completion_tokens, 3.0, 15.0))
-        } else if model.starts_with("claude-3-opus") {
-            Some(total_cost(prompt_tokens, completion_tokens, 15.0, 75.0))
-        } else if model.starts_with("claude-3-5-sonnet") {
-            Some(total_cost(prompt_tokens, completion_tokens, 3.0, 15.0))
-        } else {
-            None
-        }
+        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
+        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
+        Some(input_cost + output_cost)
     }
 }

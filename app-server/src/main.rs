@@ -4,14 +4,10 @@ use actix_web::{
     web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use auth::PublicPipelineValidate;
 use dashmap::DashMap;
-use db::{
-    api_keys::ProjectApiKey, limits::RunCountLimitExceeded,
-    pipelines::PipelineVersion, user::User,
-};
+use db::{api_keys::ProjectApiKey, pipelines::PipelineVersion, user::User};
 use files::FileManager;
-use traces::span_listener;
+use traces::{observation_collector, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE};
 
 use cache::{cache::CacheTrait, Cache};
 use chunk::{
@@ -19,37 +15,43 @@ use chunk::{
     runner::{Chunker, ChunkerRunner, ChunkerType},
 };
 use language_model::{LanguageModelProvider, LanguageModelProviderName};
+use lapin::{
+    options::{ExchangeDeclareOptions, QueueDeclareOptions},
+    types::FieldTable,
+    Connection, ConnectionProperties,
+};
 use moka::future::Cache as MokaCache;
-use pipeline::trace::log_listener;
 use routes::pipelines::GraphInterruptMessage;
 use semantic_search::semantic_search_grpc::semantic_search_client::SemanticSearchClient;
 use std::{any::TypeId, collections::HashMap, env, sync::Arc};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+
 mod api;
 mod auth;
 mod cache;
+mod ch;
 mod chunk;
 mod datasets;
 mod db;
 mod engine;
 mod files;
 mod language_model;
+mod opentelemetry;
 mod pipeline;
 mod routes;
 mod semantic_search;
 mod traces;
 
-// ideally this quantity must be dynamically tuned based on the load.
-// Higher numbers are good not to slowdown many small requests, but
-// if traces are large this can quickly go out of control and take all
-// the memory.
-const LOG_CHANNEL_SIZE: usize = 1024; // messages
 const DEFAULT_CACHE_SIZE: u64 = 100; // entries
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     dotenv::dotenv().ok();
 
     std::env::set_var("RUST_LOG", "info");
@@ -79,12 +81,7 @@ async fn main() -> std::io::Result<()> {
     let pipeline_version_cache: Arc<MokaCache<String, PipelineVersion>> =
         Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
     caches.insert(TypeId::of::<PipelineVersion>(), pipeline_version_cache);
-    let project_limit_exceeded_cache: Arc<MokaCache<String, RunCountLimitExceeded>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(
-        TypeId::of::<RunCountLimitExceeded>(),
-        project_limit_exceeded_cache,
-    );
+
     let cache = Cache::new(caches);
     let cache = Arc::new(cache);
 
@@ -145,7 +142,7 @@ async fn main() -> std::io::Result<()> {
     let document_client = reqwest::Client::new();
     let mut chunkers = HashMap::new();
     let character_split_chunker = CharacterSplitChunker {};
-    chunkers.insert(
+    chunkers.insert(    
         ChunkerType::CharacterSplit,
         Chunker::CharacterSplit(character_split_chunker),
     );
@@ -154,30 +151,70 @@ async fn main() -> std::io::Result<()> {
 
     let interrupt_senders = Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
+    let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
+    let rabbitmq_connection = Arc::new(
+        Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+            .await
+            .unwrap(),
+    );
+
+    let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+        let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+        let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+        // https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts -> Create client which will wait for async inserts
+        // For now, we're not waiting for inserts to finish, but later need to add queue and batch on client-side
+        let mut clickhouse = clickhouse::Client::default()
+            .with_url(clickhouse_url)
+            .with_user(clickhouse_user)
+            .with_database("default")
+            .with_option("async_insert", "1")
+            .with_option("wait_for_async_insert", "0");
+        if let Ok(clickhouse_password) = clickhouse_password {
+            clickhouse = clickhouse.with_password(clickhouse_password);
+        } else {
+            log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+        }
+
+    // declare the exchange
+    let channel = rabbitmq_connection.create_channel().await.unwrap();
+    channel
+        .exchange_declare(
+            OBSERVATIONS_EXCHANGE,
+            lapin::ExchangeKind::Fanout,
+            ExchangeDeclareOptions::default(),
+            FieldTable::default(),
+        )
+        .await
+        .unwrap();
+
+    channel
+        .queue_declare(
+            OBSERVATIONS_QUEUE,
+            QueueDeclareOptions::default(),
+            FieldTable::default(),
+        )
+        .await
+        .unwrap();
 
     HttpServer::new(move || {
         let auth = HttpAuthentication::bearer(auth::validator);
         let project_auth = HttpAuthentication::bearer(auth::project_validator);
+        let shared_secret_auth = HttpAuthentication::bearer(auth::shared_secret_validator);
 
-        let (tx, rx) = mpsc::channel(LOG_CHANNEL_SIZE);
-        tokio::task::spawn(log_listener(db.clone(), cache.clone(), rx));
-
-        let (observation_tx, observation_rx) = mpsc::channel(LOG_CHANNEL_SIZE);
-        tokio::task::spawn(span_listener(
-            db.clone(),
-            observation_rx,
-            language_model_runner.clone(),
-        ));
-
-        // tx is cloned to the pipeline runner, so that main keeps another reference
-        // to tx, as an additional measure to prevent the channel from being closed.
-        // this is done in an attempt to prevent the server from ceasing to write logs
-        // after some usage
         let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
             language_model_runner.clone(),
             chunker_runner.clone(),
             semantic_search.clone(),
-            tx.clone(),
+            rabbitmq_connection.clone(),
+        ));
+
+        tokio::task::spawn(observation_collector(
+            pipeline_runner.clone(),
+            db.clone(),
+            cache.clone(),
+            language_model_runner.clone(),
+            rabbitmq_connection.clone(),
+            clickhouse.clone(),
         ));
 
         App::new()
@@ -190,16 +227,25 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(semantic_search.clone()))
             .app_data(web::Data::new(interrupt_senders.clone()))
             .app_data(web::Data::new(language_model_runner.clone()))
-            .app_data(web::Data::new(observation_tx.clone()))
+            .app_data(web::Data::new(rabbitmq_connection.clone()))
+            .app_data(web::Data::new(clickhouse.clone()))
             // Scopes with specific auth or no auth
-            .service(web::scope("api/v1/auth").service(routes::auth::signin))
+            .service(
+                web::scope("api/v1/auth")
+                .wrap(shared_secret_auth)
+                .service(routes::auth::signin)
+            )
             .service(
                 web::scope("/v1")
                     .wrap(project_auth.clone())
                     .service(api::v1::pipelines::run_pipeline_graph)
                     .service(api::v1::pipelines::ping_healthcheck)
-                    .service(api::v1::traces::upload_traces)
-                    .service(api::v1::traces::get_events_for_session),
+                    .service(api::v1::traces::get_events_for_session)
+                    .service(api::v1::evaluations::create_evaluation)
+                    .service(api::v1::evaluations::upload_evaluation_datapoints)
+                    .service(api::v1::evaluations::update_evaluation)
+                    .service(api::v1::traces::process_traces)
+                    .service(api::v1::metrics::process_metrics),
             )
             // Scopes with generic auth
             .service(
@@ -269,15 +315,12 @@ async fn main() -> std::io::Result<()> {
                             .service(routes::pipelines::create_template)
                             .service(routes::pipelines::run_pipeline_interrupt_graph)
                             .service(routes::pipelines::update_target_pipeline_version)
-                            .service(routes::trace_analytics::get_endpoint_trace_analytics)
-                            .service(routes::trace_analytics::get_project_trace_analytics)
-                            .service(routes::trace_tags::get_tag_types)
-                            .service(routes::trace_tags::create_tag_type)
-                            .service(routes::trace_tags::update_trace_tag)
-                            .service(routes::trace_tags::get_trace_tags)
                             .service(routes::api_keys::create_project_api_key)
                             .service(routes::api_keys::get_api_keys_for_project)
                             .service(routes::api_keys::revoke_project_api_key)
+                            .service(routes::evaluations::get_evaluation)
+                            .service(routes::evaluations::delete_evaluation)
+                            .service(routes::evaluations::get_evaluation_datapoint)
                             .service(routes::datasets::get_datasets)
                             .service(routes::datasets::create_dataset)
                             .service(routes::datasets::get_dataset)
@@ -290,27 +333,21 @@ async fn main() -> std::io::Result<()> {
                             .service(routes::datasets::delete_datapoints)
                             .service(routes::datasets::delete_all_datapoints)
                             .service(routes::datasets::index_dataset)
+                            .service(routes::evaluations::get_evaluations)
+                            .service(routes::evaluations::get_finished_evaluation_infos)
+                            .service(routes::evaluations::get_evaluation)
+                            .service(routes::evaluations::get_evaluation_datapoint)
                             .service(routes::traces::get_traces)
                             .service(routes::traces::get_single_trace)
                             .service(routes::traces::get_single_span)
                             .service(routes::events::get_event_templates)
-                            .service(routes::events::create_event_template)
                             .service(routes::events::get_event_template)
                             .service(routes::events::update_event_template)
                             .service(routes::events::delete_event_template)
                             .service(routes::events::get_events_by_template_id)
                             .service(routes::events::get_events_metrics)
-                            .service(routes::metrics::get_traces_metrics),
-                    ),
-            )
-            .service(
-                web::scope("/api/v1/public/pipelines")
-                    .service(routes::pipelines::get_public_pipeline_by_id)
-                    .service(
-                        web::scope("/{pipeline_id}")
-                            .wrap(PublicPipelineValidate)
-                            .service(routes::pipelines::get_public_pipeline_version)
-                            .service(routes::pipelines::get_public_pipeline_versions_info),
+                            .service(routes::events::get_events)
+                            .service(routes::traces::get_traces_metrics),
                     ),
             )
     })

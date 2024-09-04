@@ -21,9 +21,9 @@ export type TraceTag = {
 
 export type TraceTagWithTypeName = TraceTag & { typeName: string }
 
-export type SpanPreview = {
+export type Span = {
   version: string
-  id: string
+  spanId: string
   success: boolean
   parentSpanId?: string | null
   traceId: string
@@ -32,16 +32,14 @@ export type SpanPreview = {
   endTime: string
   attributes: any
   metadata: any | null
+  input: any | null
+  output: any | null
   spanType: string
   events: Event[]
 }
 
-export type Span = SpanPreview & {
-  input: any | null
-  output: any | null
-}
 
-export type TraceWithSpanPreviews = {
+export type TraceWithSpans = {
   id: string;
   startTime: string;
   endTime: string;
@@ -50,7 +48,7 @@ export type TraceWithSpanPreviews = {
   cost: number | null;
   metadata: Record<string, string> | null;
   projectId: string;
-  spans: SpanPreview[];
+  spans: Span[];
 }
 
 export type Trace = {
@@ -83,7 +81,7 @@ export type TracePreview = {
   outputMessageIds: string[];
 }
 
-export type TraceMetricAnalytics = {
+export type TraceMetricDatapoint = {
   // epoch seconds
   time: number;
   value: number;

@@ -30,15 +30,15 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
     //   current: false
     // },
     {
-      name: 'pipelines',
-      href: `/project/${projectId}/pipelines`,
-      icon: Cable,
-      current: false
-    },
-    {
       name: 'traces',
       href: `/project/${projectId}/traces`,
       icon: Rows4,
+      current: false
+    },
+    {
+      name: 'pipelines',
+      href: `/project/${projectId}/pipelines`,
+      icon: Cable,
       current: false
     },
     // {
@@ -47,16 +47,16 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
     //   icon: Database,
     //   current: false
     // },
-    // {
-    //   name: 'evaluations',
-    //   href: `/project/${projectId}/evaluations`,
-    //   icon: Gauge,
-    //   current: false
-    // },
     {
       name: 'events',
-      href: `/project/${projectId}/event-templates`,
+      href: `/project/${projectId}/events`,
       icon: ArrowBigUp,
+      current: false
+    },
+    {
+      name: 'evaluations',
+      href: `/project/${projectId}/evaluations`,
+      icon: Gauge,
       current: false
     },
     {

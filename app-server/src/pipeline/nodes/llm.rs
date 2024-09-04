@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::engine::{RunOutput, RunnableNode};
+use crate::language_model::providers::utils::get_provider;
 use crate::language_model::{ChatCompletion, ChatMessageContent, NodeInfo};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -78,6 +79,7 @@ pub struct LLMNodeMetaLog {
     pub model: String,
     #[serde(default)]
     pub approximate_cost: Option<f64>,
+    pub provider: String,
 }
 
 #[async_trait]
@@ -177,6 +179,7 @@ impl RunnableNode for LLMNode {
             (_, Some(model)) => model.clone().into(),
             _ => return Err(anyhow::anyhow!("Model not found in LLM node {}", self.id)),
         };
+        let provider_name = get_provider(&model).unwrap_or_default();
         loop {
             let completion = context
                 .language_model
@@ -204,6 +207,7 @@ impl RunnableNode for LLMNode {
                         input_chat_messages,
                         enable_chat_message_output,
                         node_chunk_id,
+                        provider_name,
                     ));
                 } else if retry_counter
                     >= self.structured_output_params.structured_output_max_retries
@@ -239,6 +243,7 @@ impl RunnableNode for LLMNode {
                     input_chat_messages,
                     enable_chat_message_output,
                     node_chunk_id,
+                    provider_name,
                 ));
             }
         }
@@ -256,6 +261,7 @@ impl LLMNode {
         input_messages: Vec<ChatMessage>,
         enable_chat_message_output: bool,
         node_chunk_id: Uuid,
+        provider_name: &str,
     ) -> RunOutput {
         let usage = completion.usage();
         let input_message_count = messages
@@ -271,6 +277,7 @@ impl LLMNode {
             output_token_count: usage.completion_tokens as i64,
             total_token_count: usage.total_tokens as i64,
             approximate_cost: usage.approximate_cost,
+            provider: String::from(provider_name),
         };
 
         if enable_chat_message_output {

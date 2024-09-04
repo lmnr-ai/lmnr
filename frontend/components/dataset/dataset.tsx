@@ -1,6 +1,6 @@
 'use client'
 
-import { Datapoint, Dataset } from "@/lib/dataset/types";
+import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import AddDatapointsDialog from "./add-datapoints-dialog";
@@ -17,7 +17,7 @@ import { useProjectContext } from "@/contexts/project-context";
 
 interface DatasetProps {
   defaultDatapoints: Datapoint[];
-  dataset: Dataset;
+  dataset: DatasetType;
   pageCount: number;
   pageSize: number;
   pageNumber: number;

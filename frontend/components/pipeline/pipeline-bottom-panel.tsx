@@ -3,7 +3,6 @@ import { useState } from "react"
 import { Maximize2, Minimize2 } from "lucide-react"
 import PipelineOutputs from "./pipeline-outputs"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import PipelineHistory from "./pipeline-history"
 import { PipelineVersion } from "@/lib/pipeline/types"
 import { Skeleton } from "../ui/skeleton"
 
@@ -51,17 +50,6 @@ export default function PipelineBottomPanel({ pipelineVersion, onTraceHover }: P
           <div className="absolute inset-0">
             <PipelineOutputs pipelineVersion={pipelineVersion} />
           </div>
-        </TabsContent>
-        <TabsContent
-          value="history"
-          className="h-full m-0 relative w-max-0"
-          forceMount
-          hidden={selectedTab !== "history"}
-        >
-          {pipelineVersion?.id ? (<div className="absolute inset-0">
-            <PipelineHistory pipelineVersion={pipelineVersion} onTraceHover={onTraceHover} />
-          </div>) : <Skeleton className="w-full h-full" />
-          }
         </TabsContent>
       </div>
     </Tabs >

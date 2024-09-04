@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use actix_web::{delete, get, post, web, HttpResponse};
 use dashmap::DashMap;
@@ -8,12 +8,10 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::ResponseResult;
-use crate::api::utils::query_project_run_count_exceeded;
 use crate::db::pipelines::pipeline_version::PipelineVersionInfo;
-use crate::db::workspace::WorkspaceError;
 use crate::pipeline::nodes::Message;
-use crate::pipeline::trace::RunTrace;
-use crate::pipeline::utils::{get_pipeline_version_cache_key, to_env_with_provided_env_vars};
+use crate::pipeline::trace::{RunTrace, RunTraceStats};
+use crate::pipeline::utils::get_target_pipeline_version_cache_key;
 use crate::{
     cache::Cache,
     db::{
@@ -81,8 +79,6 @@ async fn run_pipeline_graph(
     project_id: web::Path<Uuid>,
     pipeline_runner: web::Data<Arc<PipelineRunner>>,
     params: web::Json<GraphRunRequest>,
-    db: web::Data<DB>,
-    cache: web::Data<Cache>,
     interrupt_senders: web::Data<Arc<DashMap<Uuid, mpsc::Sender<GraphInterruptMessage>>>>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
@@ -92,25 +88,14 @@ async fn run_pipeline_graph(
     let pipeline_version_id = params.pipeline_version_id;
     let run_id = params.run_id;
     let run_type = RunType::Workshop;
-    let cache = cache.into_inner();
-    let db = db.into_inner();
     let prefilled_messages = params.prefilled_messages;
     let start_task_id = params.start_task_id;
     let breakpoint_task_ids = params.breakpoint_task_ids;
-
-    let exceeded = query_project_run_count_exceeded(db.clone(), cache.clone(), &project_id).await?;
-
-    if exceeded.exceeded {
-        return Err(error::workspace_error_to_http_error(
-            WorkspaceError::RunLimitReached,
-        ));
-    }
 
     let (interrupt_tx, interrupt_rx) = mpsc::channel::<GraphInterruptMessage>(1);
     interrupt_senders.insert(run_id, interrupt_tx);
 
     let mut env = params.env;
-    env = to_env_with_provided_env_vars(&env, &graph); // Quick hack
     env.insert("collection_name".to_string(), project_id.to_string());
 
     graph
@@ -131,21 +116,25 @@ async fn run_pipeline_graph(
                     interrupt_rx,
                 ).await;
 
-            let graph_trace = RunTrace::from_runner_result(
-                run_id,
-                pipeline_version_id,
-                run_type,
-                &run_result,
-                HashMap::new(),
-                None,
-                None,
-            );
-
+            let trace = PipelineRunner::get_trace_from_result(&run_result);
 
             // Both successful and failed runs have trace
-            if let Some(trace) = graph_trace {
-                let _ = pipeline_runner.send_trace(trace.clone()).await;
-                let output_chunk = StreamChunk::RunTrace(trace);
+            if let Some(trace) = trace {
+                // TODO: record spans/traces if needed
+                let run_stats = RunTraceStats::from_messages(&trace.messages);
+                let run_trace = RunTrace {
+                    run_id,
+                    pipeline_version_id,
+                    success: true,
+                    run_type,
+                    run_stats,
+                    run_output: trace.clone(),
+                    metadata: HashMap::new(),
+                    parent_span_id: None,
+                    trace_id: None,
+                };
+
+                let output_chunk = StreamChunk::RunTrace(run_trace);
                 let _ = tx.send(output_chunk).await;
             } else if let Err(e) = run_result {
                 let _ = tx.send(StreamChunk::Error(e)).await;
@@ -239,21 +228,6 @@ async fn create_pipeline(
     Ok(HttpResponse::Ok().json(pipeline))
 }
 
-#[get("{pipeline_id}")]
-async fn get_public_pipeline_by_id(params: web::Path<Uuid>, db: web::Data<DB>) -> ResponseResult {
-    let pipeline_id = params.into_inner();
-
-    let pipeline = db::pipelines::get_pipeline_by_id(&db.pool, &pipeline_id).await?;
-
-    if pipeline.visibility != "PUBLIC" {
-        return Err(error::Error::invalid_request(Some(
-            "Only public pipelines are accessible",
-        )));
-    }
-
-    Ok(HttpResponse::Ok().json(pipeline))
-}
-
 #[get("pipelines/{pipeline_id}")]
 async fn get_pipeline_by_id(params: web::Path<(Uuid, Uuid)>, db: web::Data<DB>) -> ResponseResult {
     let (_project_id, pipeline_id) = params.into_inner();
@@ -278,7 +252,8 @@ async fn update_pipeline(
     pipeline.project_id = project_id;
 
     let old_pipeline = db::pipelines::pipeline::get_pipeline_by_id(&db.pool, &pipeline_id).await?;
-    let cache_key = get_pipeline_version_cache_key(&project_id.to_string(), &old_pipeline.name);
+    let cache_key =
+        get_target_pipeline_version_cache_key(&project_id.to_string(), &old_pipeline.name);
     let _ = cache.remove::<PipelineVersion>(&cache_key).await;
 
     // TODO: Don't allow to make pipelines public if they don't contain commits
@@ -312,6 +287,7 @@ async fn update_target_pipeline_version(
 ) -> ResponseResult {
     let req = req.into_inner();
     let (project_id, pipeline_id) = params.into_inner();
+    let cache = cache.into_inner();
     let pipeline_version_id = req.pipeline_version_id;
 
     let pipeline_version =
@@ -334,7 +310,7 @@ async fn update_target_pipeline_version(
         )
         .await?;
 
-    let cache_key = get_pipeline_version_cache_key(
+    let cache_key = get_target_pipeline_version_cache_key(
         &project_id.to_string(),
         &pipeline_version.pipeline_name,
     );
@@ -437,16 +413,6 @@ async fn get_pipeline_versions_info(
         commit_versions,
         workshop_version,
     }))
-}
-
-#[get("versions/{version_id}")]
-async fn get_public_pipeline_version(
-    db: web::Data<DB>,
-    params: web::Path<(Uuid, Uuid)>,
-) -> ResponseResult {
-    let (_pipeline_id, version_id) = params.into_inner();
-    let version = db::pipelines::get_pipeline_version(&db.pool, &version_id).await?;
-    Ok(HttpResponse::Ok().json(version))
 }
 
 #[get("pipelines/{pipeline_id}/versions/{version_id}")]

@@ -10,7 +10,6 @@ use self::nodes::{Node, NodeInput};
 use crate::language_model::providers::utils::get_required_env_vars_for_model;
 
 pub mod context;
-mod evals;
 pub mod nodes;
 pub mod runner;
 pub mod templates;
@@ -41,7 +40,7 @@ pub enum GraphError {
 pub enum RunType {
     Workshop,
     Endpoint,
-    Evaluation,
+    EventEvaluation,
 }
 
 impl Serialize for RunType {
@@ -72,7 +71,6 @@ impl Graph {
         metadata: &HashMap<String, String>,
         run_type: &RunType,
     ) -> Result<(), GraphError> {
-
         self.setup_inputs(inputs)?;
         self.env = env.clone();
         self.metadata = metadata.clone();
@@ -203,30 +201,24 @@ impl Graph {
 }
 
 impl RunType {
-    fn should_write_traces(&self) -> bool {
+    fn _should_write_traces(&self) -> bool {
         match self {
-            Self::Workshop | Self::Endpoint | Self::Evaluation => true,
-        }
-    }
-
-    fn should_increment_run_count(&self) -> bool {
-        match self {
-            Self::Endpoint | Self::Workshop | Self::Evaluation => true,
+            Self::Workshop | Self::EventEvaluation | Self::Endpoint => true,
         }
     }
 
     fn do_local_stream(&self) -> bool {
         match self {
             Self::Workshop => true,
-            Self::Endpoint | Self::Evaluation => false,
+            Self::Endpoint | Self::EventEvaluation => false,
         }
     }
 
     fn to_string(&self) -> String {
         match self {
             Self::Workshop => "WORKSHOP".to_string(),
+            Self::EventEvaluation => "EVENT_EVALUATION".to_string(),
             Self::Endpoint => "ENDPOINT".to_string(),
-            Self::Evaluation => "EVALUATION".to_string(),
         }
     }
 }

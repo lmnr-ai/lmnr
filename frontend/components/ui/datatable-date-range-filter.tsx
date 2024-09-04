@@ -4,29 +4,29 @@ import { useState } from "react";
 
 type DateRange = {
   name: string;
-  value: number | null;
+  value: string;
 }
 
 const RANGES: DateRange[] = [
   {
     name: "1h",
-    value: 1
+    value: "1"
   },
   {
     name: "24h",
-    value: 24
+    value: "24"
   },
   {
     name: "7d",
-    value: 24 * 7
+    value: (24 * 7).toString()
   },
   {
     name: "30d",
-    value: 24 * 30
+    value: (24 * 30).toString()
   },
   {
     name: "All",
-    value: null
+    value: "all"
   },
 ]
 
@@ -42,7 +42,7 @@ export default function DateRangeFilter({ }: DateRangeFilterProps) {
   let defaultSelectedRange: DateRange;
   if (pastHours !== null) {
     // TODO: Allow the user to pass any amount of pastHours, not just from the ranges
-    defaultSelectedRange = RANGES.find((range) => range.value === parseInt(pastHours)) ?? RANGES[1];
+    defaultSelectedRange = RANGES.find((range) => range.value === pastHours) ?? RANGES[1];
   } else {
     defaultSelectedRange = RANGES[1]; // default to 24h
   }
@@ -57,11 +57,8 @@ export default function DateRangeFilter({ }: DateRangeFilterProps) {
               key={index}
               className={cn("h-full items-center flex px-2 cursor-pointer", range.value === selectedRange.value ? "bg-secondary/80" : "hover:bg-secondary/80")}
               onClick={() => {
-                if (range.value === null) {
-                  searchParams.delete('pastHours');
-                } else {
-                  searchParams.set('pastHours', range.value.toString());
-                }
+
+                searchParams.set('pastHours', range.value);
                 router.push(`${pathName}?${searchParams.toString()}`);
 
                 setSelectedRange(range);

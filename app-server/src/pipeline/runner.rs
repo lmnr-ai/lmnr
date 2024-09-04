@@ -1,15 +1,16 @@
-use std::{
-    collections::HashSet,
-    sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc};
 
 use crate::{
+    api::v1::traces::RabbitMqSpanMessage,
+    db::trace::Span,
     engine::{engine::EngineOutput, Engine},
     routes::pipelines::GraphInterruptMessage,
+    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
 };
+use anyhow::Result;
 use itertools::Itertools;
+use lapin::{options::BasicPublishOptions, BasicProperties, Connection};
 use serde::Serialize;
-use std::result::Result;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
@@ -21,7 +22,7 @@ use crate::{
 use super::{
     context::Context,
     nodes::{Message, StreamChunk},
-    trace::RunTrace,
+    trace::{RunTrace, RunTraceStats},
     utils::parse_graph,
     Graph, GraphError, InvalidSchemasError,
 };
@@ -87,26 +88,12 @@ impl Serialize for PipelineRunnerError {
     }
 }
 
-impl PipelineRunnerError {
-    pub fn variant_name(&self) -> &'static str {
-        match self {
-            PipelineRunnerError::GraphError(_) => "GraphError",
-            PipelineRunnerError::DeserializationError(_) => "DeserializationError",
-            PipelineRunnerError::RunningError(_) => "RunningError",
-            PipelineRunnerError::UnhandledError(_) => "UnhandledError",
-            PipelineRunnerError::MissingEnvVarsError(_) => "MissingEnvVarsError",
-            PipelineRunnerError::TraceWritingError(_) => "TraceWritingError",
-            PipelineRunnerError::InvalidSchemasError(_) => "InvalidSchemasError",
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
     chunker_runner: Arc<ChunkerRunner>,
     semantic_search: Arc<SemanticSearch>,
-    log_transmitter: Sender<RunTrace>,
+    rabbitmq_connection: Arc<Connection>,
 }
 
 impl PipelineRunner {
@@ -114,13 +101,13 @@ impl PipelineRunner {
         language_model: Arc<LanguageModelRunner>,
         chunker_runner: Arc<ChunkerRunner>,
         semantic_search: Arc<SemanticSearch>,
-        log_transmitter: Sender<RunTrace>,
+        rabbitmq_connection: Arc<Connection>,
     ) -> Self {
         Self {
             language_model,
             chunker_runner,
             semantic_search,
-            log_transmitter,
+            rabbitmq_connection,
         }
     }
 
@@ -140,6 +127,7 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
+            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
@@ -147,7 +135,6 @@ impl PipelineRunner {
             run_type: graph.run_type.clone(),
             pipeline_runner: self.clone(),
             baml_schemas: validated_schemas,
-            
         };
 
         let tasks = parse_graph(graph)?;
@@ -182,6 +169,7 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
+            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
@@ -212,10 +200,85 @@ impl PipelineRunner {
         }
     }
 
-    pub async fn send_trace(&self, trace: RunTrace) -> Result<(), PipelineRunnerError> {
-        self.log_transmitter.send(trace).await.map_err(|e| {
-            log::error!("error sending run trace: {}", e);
-            e.into()
-        })
+    pub async fn record_observations(
+        &self,
+        run_output: &Result<EngineOutput, PipelineRunnerError>,
+        project_id: &Uuid,
+        pipeline_version_name: &String,
+        parent_span_id: Option<Uuid>,
+        trace_id: Option<Uuid>,
+    ) -> Result<()> {
+        let engine_output = match run_output {
+            Ok(engine_output) => engine_output,
+            Err(PipelineRunnerError::RunningError(e)) => &e.partial_trace,
+            _ => return Ok(()), // nothing to record
+        };
+        let run_stats = RunTraceStats::from_messages(&engine_output.messages);
+        let parent_span = Span::create_parent_span_in_run_trace(
+            trace_id.unwrap_or_else(Uuid::new_v4),
+            &run_stats,
+            parent_span_id,
+            pipeline_version_name,
+        );
+
+        let message_spans = Span::from_messages(
+            &engine_output.messages,
+            parent_span.trace_id,
+            parent_span.span_id,
+        );
+        let parent_span_mq_message = RabbitMqSpanMessage {
+            project_id: *project_id,
+            span: parent_span,
+            events: vec![],
+            evaluate_events: vec![],
+        };
+
+        let channel = self.rabbitmq_connection.create_channel().await?;
+        let payload = serde_json::to_string(&parent_span_mq_message)?;
+        let payload = payload.as_bytes();
+        channel
+            .basic_publish(
+                OBSERVATIONS_EXCHANGE,
+                OBSERVATIONS_ROUTING_KEY,
+                BasicPublishOptions::default(),
+                payload,
+                BasicProperties::default(),
+            )
+            .await?
+            .await?;
+
+        for message_span in message_spans {
+            let message_mq_message = RabbitMqSpanMessage {
+                project_id: *project_id,
+                span: message_span,
+                events: vec![],
+                evaluate_events: vec![],
+            };
+
+            let payload = serde_json::to_string(&message_mq_message)?;
+            let payload = payload.as_bytes();
+            channel
+                .basic_publish(
+                    OBSERVATIONS_EXCHANGE,
+                    OBSERVATIONS_ROUTING_KEY,
+                    BasicPublishOptions::default(),
+                    payload,
+                    BasicProperties::default(),
+                )
+                .await?
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    pub fn get_trace_from_result(
+        res: &Result<EngineOutput, PipelineRunnerError>,
+    ) -> Option<EngineOutput> {
+        match res {
+            Ok(engine_output) => Some(engine_output.clone()),
+            Err(PipelineRunnerError::RunningError(e)) => Some(e.partial_trace.clone()),
+            _ => None,
+        }
     }
 }

@@ -6,7 +6,6 @@ import { UserContextProvider } from '@/contexts/user-context';
 import WorkspacesNavbar from '@/components/projects/workspaces-navbar';
 import { Metadata } from 'next';
 import ProfileHeader from '@/components/profile/profile-header';
-import Usage from '@/components/profile/usage';
 
 export const metadata: Metadata = {
   title: 'Profile | Laminar',
@@ -25,7 +24,6 @@ export default async function ProfileUsagePage() {
       <WorkspacesNavbar />
       <div className="flex flex-col min-h-screen flex-grow overflow-auto ml-64">
         <ProfileHeader />
-        <Usage />
       </div>
     </UserContextProvider >
   )

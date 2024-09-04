@@ -1,93 +1,102 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use actix_web::{get, post, web, HttpResponse};
-use serde::Deserialize;
-use tokio::sync::mpsc::Sender;
+use bytes::Bytes;
+use lapin::{options::BasicPublishOptions, BasicProperties, Connection};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     db::{
         api_keys::ProjectApiKey,
-        events::{self},
-        trace::{SpanType, SpanWithChecksAndEvents, Trace, TraceAttributes},
+        events::{self, EvaluateEventRequest, EventObservation},
+        trace::Span,
+        utils::convert_any_value_to_json_value,
         DB,
     },
-    language_model::LanguageModelRunner,
+    opentelemetry::opentelemetry_collector_trace_v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    traces::{get_llm_usage_for_span, BatchObservations},
+    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
 };
+use prost::Message;
 
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum Observation {
-    Trace(Trace),
-    Span(SpanWithChecksAndEvents),
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct UploadTracesRequest {
-    pub traces: Vec<Observation>,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RabbitMqSpanMessage {
+    pub project_id: Uuid,
+    pub span: Span,
+    pub events: Vec<EventObservation>,
+    pub evaluate_events: Vec<EvaluateEventRequest>,
 }
 
 #[post("traces")]
-pub async fn upload_traces(
-    request: web::Json<UploadTracesRequest>,
+pub async fn process_traces(
+    body: Bytes,
     project_api_key: ProjectApiKey,
-    language_model_runner: web::Data<Arc<LanguageModelRunner>>,
-    tx: web::Data<Sender<BatchObservations>>,
+    rabbitmq_connection: web::Data<Arc<Connection>>,
 ) -> ResponseResult {
-    let project_id = project_api_key.project_id;
-    let language_model_runner = language_model_runner.as_ref().clone();
-    let request = request.into_inner();
-    let req_traces = request.traces;
+    let channel = rabbitmq_connection
+        .create_channel()
+        .await
+        .expect("Failed to create channel");
 
-    let mut traces = vec![];
-    let mut spans_with_checks = vec![];
-    let mut event_payloads = vec![];
-    let mut cumulative_trace_attributes = HashMap::<Uuid, TraceAttributes>::new();
+    let request = ExportTraceServiceRequest::decode(body).unwrap();
 
-    for observation in req_traces {
-        match observation {
-            Observation::Trace(trace) => traces.push(trace),
-            Observation::Span(span_with_checks) => {
-                let span = &span_with_checks.span;
-                let mut trace_attributes = cumulative_trace_attributes
-                    .get(&span.trace_id)
-                    .cloned()
-                    .unwrap_or(TraceAttributes::new(span.trace_id));
-                trace_attributes.update_start_time(span.start_time);
-                trace_attributes.update_end_time(span.end_time);
-                if span.span_type == SpanType::LLM {
-                    let usage = get_llm_usage_for_span(span, language_model_runner.clone()).ok();
-                    if let Some(usage) = usage {
-                        trace_attributes.add_tokens(usage.total_tokens.unwrap_or_default() as i64);
-                        trace_attributes.add_cost(usage.approximate_cost.unwrap_or_default());
+    for resource_span in request.resource_spans {
+        for scope_span in resource_span.scope_spans {
+            for otel_span in scope_span.spans {
+                let span = Span::from_otel_span(otel_span.clone());
+
+                let mut events = vec![];
+                let mut evaluate_events = vec![];
+
+                for event in otel_span.events {
+                    let event_attributes = event
+                        .attributes
+                        .clone()
+                        .into_iter()
+                        .map(|kv| (kv.key, convert_any_value_to_json_value(kv.value)))
+                        .collect::<serde_json::Map<String, serde_json::Value>>();
+
+                    let serde_json::Value::String(event_type) =
+                        event_attributes.get("lmnr.event.type").unwrap()
+                    else {
+                        return Err(anyhow::anyhow!("Failed to get event type").into());
+                    };
+
+                    if event_type == "default" {
+                        events.push(EventObservation::from_otel(event, span.span_id));
+                    } else if event_type == "evaluate" {
+                        evaluate_events.push(EvaluateEventRequest::try_from_otel(event)?);
+                    } else {
+                        log::warn!("Unknown event type: {}", event_type);
                     }
                 }
-                cumulative_trace_attributes.insert(span.trace_id, trace_attributes);
-                span_with_checks
-                    .events
-                    .clone()
-                    .iter_mut()
-                    .for_each(|event| {
-                        event.span_id = span.id;
-                        event_payloads.push(event.clone());
-                    });
-                spans_with_checks.push(span_with_checks);
+
+                let rabbitmq_span_message = RabbitMqSpanMessage {
+                    project_id: project_api_key.project_id,
+                    span,
+                    events,
+                    evaluate_events,
+                };
+
+                let payload = serde_json::to_string(&rabbitmq_span_message).unwrap();
+                let payload = payload.as_bytes();
+
+                channel
+                    .basic_publish(
+                        OBSERVATIONS_EXCHANGE,
+                        OBSERVATIONS_ROUTING_KEY,
+                        BasicPublishOptions::default(),
+                        payload,
+                        BasicProperties::default(),
+                    )
+                    .await
+                    .expect("Failed to publish message")
+                    .await
+                    .expect("Failed to ack on publish message");
             }
         }
     }
-
-    tx.send(BatchObservations {
-        project_id,
-        traces,
-        spans_with_checks,
-        event_payloads,
-        cumulative_trace_attributes,
-    })
-    .await
-    .map_err(|e| anyhow::anyhow!("Failed to record observations: {}", e))?;
 
     Ok(HttpResponse::Ok().finish())
 }

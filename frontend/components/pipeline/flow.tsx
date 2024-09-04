@@ -12,6 +12,7 @@ import ReactFlow, {
 
 
 import InputNodeComponent from './nodes/input-node'
+import OutputNodeComponent from './nodes/output-node'
 import GenericNodeComponent from './nodes/generic-node'
 
 import useStore from '@/lib/flow/store'
@@ -24,7 +25,7 @@ import CustomEdge from './nodes/components/custom-edge'
 const nodeTypes = {
   [NodeType.INPUT]: InputNodeComponent,
   [NodeType.SEMANTIC_SEARCH]: GenericNodeComponent,
-  [NodeType.OUTPUT]: GenericNodeComponent,
+  [NodeType.OUTPUT]: OutputNodeComponent,
   [NodeType.ERROR]: GenericNodeComponent,
   [NodeType.STRING_TEMPLATE]: GenericNodeComponent,
   [NodeType.SUBPIPELINE]: GenericNodeComponent,

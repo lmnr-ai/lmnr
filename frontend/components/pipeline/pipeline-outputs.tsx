@@ -10,7 +10,6 @@ import { Graph } from "@/lib/flow/graph"
 import { NodeInput, NodeType } from "@/lib/flow/types"
 import { createParser, type ParsedEvent, type ReconnectInterval } from 'eventsource-parser'
 import StreamTrace from "./stream-trace"
-import { filterRunRequiredEnvVars } from "@/lib/flow/utils"
 import { RunTrace } from "@/lib/traces/types";
 import { v4 } from "uuid";
 import eventEmitter from "@/lib/pipeline/eventEmitter";
@@ -224,8 +223,7 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
       return;
     }
 
-    let requiredEnvVars = graph.requiredEnvVars();
-    requiredEnvVars = filterRunRequiredEnvVars(requiredEnvVars, Array.from(graph.nodes.values()));
+    const requiredEnvVars = graph.requiredEnvVars();
     const envVars = getLocalEnvVars(projectId);
     for (const envVar of requiredEnvVars) {
       if (!envVars[envVar]) {

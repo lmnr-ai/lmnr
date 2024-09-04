@@ -65,7 +65,7 @@ const GenericNodeComponent = ({ id, data, children }: GenericNodeComponentProps)
     }
 
     setShouldUpdate(missingKeys.length > 0)
-  }, [])
+  }, [data])
 
   const isValidConnection = (connection: Connection) => {
     if (!connection.source || !connection.target) return false

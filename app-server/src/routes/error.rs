@@ -12,8 +12,6 @@ use crate::pipeline::GraphError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Internal Error")]
-    InternalError,
     #[error("{0}")]
     InternalAnyhowError(#[from] anyhow::Error),
     #[error("{0}")]
@@ -56,6 +54,17 @@ impl Error {
         }
     }
 
+    pub fn no_target_pipeline(pipeline_name: &String) -> Self {
+        Self::RequestError {
+            error_code: "api.noTargetPipeline".to_string(),
+            error_message: Some(Value::String(
+                format!("Pipeline has no target pipeline. There is no pipeline '{pipeline_name}', or it does not have a target version.
+            
+Set the target version for the pipeline in the pipeline builder."),
+            )),
+        }
+    }
+
     pub fn graph_running_error(trace: EngineOutput, run_id: Uuid) -> Self {
         Self::RequestError {
             error_code: "api.GraphRunningError".to_string(),
@@ -94,9 +103,6 @@ pub fn workspace_error_to_http_error(e: WorkspaceError) -> Error {
             "Limit reached for {}. Limit: {}. Current {}: {}",
             entity, limit, entity, usage
         )),
-        WorkspaceError::RunLimitReached => {
-            Error::limit_error("Run limit reached. See https://www.lmnr.ai/profile/usage")
-        }
     }
 }
 
@@ -138,7 +144,7 @@ pub fn pipeline_runner_to_http_error(e: PipelineRunnerError, run_id: Uuid) -> Er
 impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match &self {
-            Self::InternalError | Self::InternalAnyhowError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::InternalAnyhowError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::MultipartError(_) => StatusCode::BAD_REQUEST,
             Self::RequestError { .. } => StatusCode::BAD_REQUEST,
         }

@@ -8,13 +8,13 @@ import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { ScrollArea } from "../ui/scroll-area";
 import Formatter from "../ui/formatter";
-import { Span, SpanPreview } from "@/lib/traces/types";
+import { Span } from "@/lib/traces/types";
 import { Button } from "../ui/button";
 import { X } from "lucide-react";
 import SpanEvents from "./span-events";
 
 interface SpanViewProps {
-  spanPreview: SpanPreview;
+  spanPreview: Span;
   onCloseClick?: () => void;
 }
 
@@ -23,7 +23,7 @@ export function SpanView({ spanPreview, onCloseClick }: SpanViewProps) {
   const { projectId } = useProjectContext();
   const [selectedTab, setSelectedTab] = useState<'output' | 'inputs' | 'metadata' | 'events' | 'attributes'>('output')
 
-  const url = `/api/projects/${projectId}/traces/${spanPreview.traceId}/spans/${spanPreview.id}`;
+  const url = `/api/projects/${projectId}/traces/${spanPreview.traceId}/spans/${spanPreview.spanId}`;
   const { data: span }: { data: Span } = useSWR(url, swrFetcher)
 
   return (
@@ -122,7 +122,7 @@ export function SpanView({ spanPreview, onCloseClick }: SpanViewProps) {
             forceMount
             hidden={selectedTab !== 'events'}
           >
-            <div className='flex h-full w-full'>
+            <div className='flex h-full w-full relative'>
               <SpanEvents span={span} />
             </div>
           </TabsContent>

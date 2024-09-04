@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{collections::HashMap, env, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::engine::Task;
@@ -131,43 +131,6 @@ fn task_from_node(node: Node) -> Task {
 //     stack
 // }
 
-/// Quick hack: Iterate over graph's nodes and based on that return the updated environment.
-pub fn to_env_with_provided_env_vars(
-    env: &HashMap<String, String>,
-    graph: &Graph,
-) -> HashMap<String, String> {
-    let mut env = env.clone();
-
-    if env.contains_key("OPENAI_API_KEY") {
-        return env;
-    }
-
-    let mut add_provided_openai_api_key = false;
-    for node in graph.nodes.values() {
-        if let Node::LLM(llm_node) = node {
-            if let Some(model_name) = &llm_node.model {
-                if model_name.starts_with("openai:") {
-                    if model_name.starts_with("openai:gpt-3.5")
-                        || model_name == "openai:gpt-4o-mini"
-                    {
-                        add_provided_openai_api_key = true;
-                    } else {
-                        add_provided_openai_api_key = false;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    if add_provided_openai_api_key {
-        let openai_api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
-        env.insert(String::from("OPENAI_API_KEY"), openai_api_key);
-    }
-
-    env
-}
-
-pub fn get_pipeline_version_cache_key(project_id: &str, pipeline_name: &str) -> String {
+pub fn get_target_pipeline_version_cache_key(project_id: &str, pipeline_name: &str) -> String {
     format!("{}:{}", project_id, pipeline_name)
 }

@@ -19,7 +19,7 @@ export function mergeOriginalWithComparedDatapoints(results: EvaluationDatapoint
       ...original,
       comparedId: compared.id,
       comparedEvaluationId: compared.evaluationId,
-      comparedScore: compared.score,
+      comparedScores: compared.scores,
     };
     mergedResults.push(merged);
   }

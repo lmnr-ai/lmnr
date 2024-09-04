@@ -8,6 +8,9 @@ import Formatter from "../ui/formatter";
 import { useEffect, useState } from "react";
 import { Event } from "@/lib/events/types";
 import { ScrollArea } from "../ui/scroll-area";
+import { DataTable } from "../ui/datatable";
+import { ColumnDef } from "@tanstack/react-table";
+import ClientTimestampFormatter from "../client-timestamp-formatter";
 
 interface TagsProps {
   span: Span;
@@ -18,7 +21,7 @@ export default function SpanEvents({ span }: TagsProps) {
 
   const [events, setEvents] = useState<Event[]>([]);
 
-  // const { data, isLoading, mutate } = useSWR(`/api/projects/${projectId}/traces/${span.traceId}/spans/${span.id}/events`, swrFetcher);
+  // const { data, isLoading, mutate } = useSWR(`/api/projects/${projectId}/traces/${span.traceId}/spans/${span.spanId}/events`, swrFetcher);
 
   useEffect(() => {
     if (!span) return;
@@ -26,27 +29,35 @@ export default function SpanEvents({ span }: TagsProps) {
     setEvents(span.events ?? [])
   }, [span])
 
-  return (
-    <div className='flex'>
-      <ScrollArea className='flex flex-grow overflow-auto'>
-        <div className="max-h-0">
-          <div className="flex flex-col space-y-4 p-4">
-            {events.map((event, index) => {
-              return (
-                <div key={index} className='flex flex-col border rounded'>
-                  <div className="p-2">{event.templateName}</div>
-                  {event.value &&
-                    <div className="p-2 border-t">{event.value}</div>
-                  }
-                  {event.metadata?.["reasoning"] &&
-                    <div className="border-t p-2 text-secondary-foreground text-xs whitespace-pre-wrap">{event.metadata?.["reasoning"]}</div>
-                  }
-                </div>
-              )
-            })}
-          </div>
+  const columns: ColumnDef<Event>[] = [
+    {
+      accessorKey: "templateName",
+      header: "Event Name",
+    },
+    {
+      accessorKey: "timestamp",
+      header: "Timestamp",
+      cell: ({ row }) => (
+        <ClientTimestampFormatter timestamp={row.original.timestamp} />
+      ),
+    },
+    {
+      accessorKey: "value",
+      header: "Value",
+      cell: ({ row }) => (
+        <div className="max-w-[300px] truncate">
+          {JSON.stringify(row.original.value)}
         </div>
-      </ScrollArea>
-    </div >
+      ),
+    },
+  ];
+
+  return (
+    <div className="border-none flex inset-0 absolute flex-grow">
+
+      <div className="flex flex-grow h-full w-full">
+        <DataTable columns={columns} data={events} className="h-full w-full border-none" />
+      </div>
+    </div>
   )
 }

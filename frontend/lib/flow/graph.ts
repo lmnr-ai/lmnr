@@ -178,7 +178,8 @@ export class Graph {
           type: output.type
         }],
         inputType: output.type,
-        outputs: []
+        outputs: [],
+        outputCastType: null
       }
 
       graph.addNode(outputNode)

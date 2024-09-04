@@ -1,8 +1,8 @@
-import Landing from "@/components/landing/landing";
-import LandingHeader from "@/components/landing/landing-header";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 import { Metadata } from 'next'
+import { redirect } from "next/navigation";
+
 
 export const metadata: Metadata = {
   title: 'Laminar',
@@ -25,11 +25,5 @@ export const metadata: Metadata = {
 export default async function LandingPage() {
 
   const session = await getServerSession(authOptions);
-
-  return (
-    <>
-      <LandingHeader hasSession={session !== null && session !== undefined} />
-      <Landing />
-    </>
-  );
+  redirect(session ? '/projects' : '/sign-in');
 }

@@ -10,6 +10,43 @@ services:
       - type: volume
         source: qdrant-data
         target: /data
+    
+  rabbitmq:
+    image: rabbitmq
+    ports:
+      - "5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 7s
+      timeout: 5s
+      retries: 3
+
+  clickhouse:
+    build:
+      context: ./clickhouse
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+    volumes:
+      - type: volume
+        source: clickhouse-data
+        target: /var/lib/clickhouse/
+      - type: volume
+        source: clickhouse-logs
+        target: /var/log/clickhouse-server/
+    cap_add:
+      - SYS_NICE
+      - NET_ADMIN
+      - IPC_LOCK
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+
 
   semantic-search-service:
     build:
@@ -21,24 +58,50 @@ services:
       - qdrant
     environment:
       - PORT=8080
-      - QDRANT_URL=http://localhost:6334
+      - QDRANT_URL=http://qdrant:6334
       - COHERE_ENDPOINT=https://api.cohere.ai/v1/embed
       - COHERE_API_KEY=${COHERE_API_KEY}
-  
+
+  postgres:
+    build:
+      context: ./postgres
+      args:
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        POSTGRES_DB: ${POSTGRES_DB}
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - type: volume
+        source: postgres-data
+        target: /var/lib/postgresql/data
+
   app-server:
     build:
       context: ./app-server
       args:
-        DATABASE_URL: ${DATABASE_URL}
+        DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     container_name: app-server
     ports:
       - "8000:8000"
     depends_on:
-      - semantic-search-service
+      semantic-search-service:
+        condition: service_started
+      postgres:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
     environment:
       - PORT=8000
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SEMANTIC_SEARCH_URL=http://semantic-search-service:8080
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
+      - FRONTEND_SHARED_SECRET=${SHARED_SECRET}
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
 
   frontend:
     build:
@@ -46,9 +109,14 @@ services:
     container_name: frontend
     ports:
       - "3000:3000"
+    env_file: ./frontend/.env.local.example
     environment:
       - PORT=3000
       - BACKEND_URL=http://app-server:8000
-  
+      - BACKEND_SHARED_SECRET=${SHARED_SECRET}
+
 volumes:
   qdrant-data:
+  clickhouse-data:
+  clickhouse-logs:
+  postgres-data:

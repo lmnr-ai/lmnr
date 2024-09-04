@@ -40,7 +40,7 @@ export default function ProjectCreateDialog({ onProjectCreate, workspaces }: Pro
     const newProject = await res.json() as Project
 
     onProjectCreate?.();
-    router.push(`/project/${newProject.id}/pipelines`)
+    router.push(`/project/${newProject.id}/traces`)
     setIsCreatingProject(false)
   }, [newProjectName, newProjectWorkspaceId])
 

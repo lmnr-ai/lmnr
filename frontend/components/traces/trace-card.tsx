@@ -1,17 +1,17 @@
 import { getDurationString } from "@/lib/flow/utils"
 import React, { useEffect, useRef, useState } from "react"
 import { Label } from "../ui/label"
-import { SpanPreview } from "@/lib/traces/types"
+import { Span } from "@/lib/traces/types"
 
 
 interface SpanCardProps {
-  span: SpanPreview
+  span: Span
   parentY: number
-  childSpans: { [key: string]: SpanPreview[] }
+  childSpans: { [key: string]: Span[] }
   containerWidth: number
   depth: number
-  selectedSpan?: SpanPreview | null
-  onSpanSelect?: (span: SpanPreview) => void
+  selectedSpan?: Span | null
+  onSpanSelect?: (span: Span) => void
 }
 
 export function SpanCard({ span, childSpans, parentY, onSpanSelect, containerWidth, depth, selectedSpan }: SpanCardProps) {
@@ -20,7 +20,7 @@ export function SpanCard({ span, childSpans, parentY, onSpanSelect, containerWid
   const [height, setHeight] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
 
-  const childrenSpans = childSpans[span.id]
+  const childrenSpans = childSpans[span.spanId]
 
   useEffect(() => {
     if (ref.current) {
@@ -29,7 +29,7 @@ export function SpanCard({ span, childSpans, parentY, onSpanSelect, containerWid
   }, [parentY])
 
   useEffect(() => {
-    setIsSelected(selectedSpan?.id === span.id)
+    setIsSelected(selectedSpan?.spanId === span.spanId)
   }, [selectedSpan])
 
   return (

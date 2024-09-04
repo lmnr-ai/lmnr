@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { getDuration, getDurationString } from "@/lib/flow/utils";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
 import { Table } from "../ui/table";
-import { SpanPreview } from "@/lib/traces/types";
+import { Span } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 interface TimelineProps {
-  spans: SpanPreview[]
-  childSpans: { [key: string]: SpanPreview[] }
+  spans: Span[]
+  childSpans: { [key: string]: Span[] }
 }
 
 interface SegmentEvent {
@@ -19,7 +19,7 @@ interface SegmentEvent {
 interface Segment {
   left: number
   width: number
-  span: SpanPreview
+  span: Span
   events: SegmentEvent[]
 }
 
@@ -29,7 +29,7 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
   const [timeIntervals, setTimeIntervals] = useState<string[]>([])
   const ref = useRef<HTMLDivElement>(null)
 
-  const traverse = (span: SpanPreview, childSpans: { [key: string]: SpanPreview[] }, orderedSpands: SpanPreview[]) => {
+  const traverse = (span: Span, childSpans: { [key: string]: Span[] }, orderedSpands: Span[]) => {
 
     if (!span) {
       return
@@ -37,8 +37,8 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
 
     orderedSpands.push(span)
 
-    if (childSpans[span.id]) {
-      for (const child of childSpans[span.id]) {
+    if (childSpans[span.spanId]) {
+      for (const child of childSpans[span.spanId]) {
         traverse(child, childSpans, orderedSpands)
       }
     }
@@ -56,10 +56,12 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
       return
     }
 
-    const orderedSpans: SpanPreview[] = []
+    const orderedSpans: Span[] = []
     const topLevelSpans = spans.filter(span => span.parentSpanId === null)
 
-    traverse(topLevelSpans[0], childSpans, orderedSpans)
+    for (const span of topLevelSpans) {
+      traverse(span, childSpans, orderedSpans)
+    }
 
     let startTime = null
     let endTime = null

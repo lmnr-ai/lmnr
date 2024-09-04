@@ -55,7 +55,12 @@ export default function Projects({ }: ProjectsProps) {
               {data.map(workspace => (
                 <div key={workspace.id} className='flex flex-col'>
                   <Label className="text-lg font-medium mb-4">{workspace.name}</Label>
-                  {(workspace.projects.length === 0) && <Label>No projects</Label>}
+                  {(workspace.projects.length === 0) && (
+                    <div className='flex flex-col text-secondary-foreground text-sm'>
+                      No projects in this workspace yet. <br />
+                      Start by creating a new project.
+                    </div>
+                  )}
                   {(workspace.projects.length > 0) &&
                     <div className='grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3'>
                       {workspace.projects.map(project => (

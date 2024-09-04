@@ -4,7 +4,7 @@ import { SpanCard } from './trace-card'
 import { getDurationString } from '@/lib/flow/utils'
 import { ScrollArea, ScrollBar } from '../ui/scroll-area'
 import { Label } from '../ui/label'
-import { SpanPreview, TraceWithSpanPreviews } from '@/lib/traces/types'
+import { Span, TraceWithSpans } from '@/lib/traces/types'
 import StatusLabel from '../ui/status-label'
 import { CircleDollarSign, Clock3, Coins } from 'lucide-react'
 import { SpanView } from './span-view'
@@ -14,16 +14,15 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table'
 import { cn } from '@/lib/utils'
 
 interface TraceCardsProps {
-  trace: TraceWithSpanPreviews
-  enableFeedback?: boolean
+  trace: TraceWithSpans
   onTraceHover?: (nodeId?: string) => void
 }
 
 
-export default function TraceCards({ trace, enableFeedback, onTraceHover }: TraceCardsProps) {
+export default function TraceCards({ trace, onTraceHover }: TraceCardsProps) {
   const spans = trace.spans
 
-  const childSpans = {} as { [key: string]: SpanPreview[] }
+  const childSpans = {} as { [key: string]: Span[] }
 
   const topLevelSpans = spans.filter(span => !span.parentSpanId)
 
@@ -36,7 +35,7 @@ export default function TraceCards({ trace, enableFeedback, onTraceHover }: Trac
     }
   }
 
-  const [selectedSpan, setSelectedSpan] = useState<SpanPreview | null>(null)
+  const [selectedSpan, setSelectedSpan] = useState<Span | null>(null)
 
 
   const ref = useRef<HTMLDivElement>(null)
@@ -117,14 +116,13 @@ export default function TraceCards({ trace, enableFeedback, onTraceHover }: Trac
                           <Label className='text-secondary-foreground text-sm'>{trace.cost?.toFixed(5)}$</Label>
                         </div>
                       </div>
-                      <div className='flex flex-col px-2'>
+                      <div className='flex flex-col px-2 pt-1'>
                         {
                           topLevelSpans.map((span, index) => (
                             <div
                               key={index}
-                              className='pl-6 relative mt-1'
+                              className='pl-6 relative'
                             >
-
                               <SpanCard
                                 parentY={0}
                                 span={span}
@@ -133,6 +131,7 @@ export default function TraceCards({ trace, enableFeedback, onTraceHover }: Trac
                                 selectedSpan={selectedSpan}
                                 containerWidth={timelineWidth}
                                 onSpanSelect={(span) => {
+                                  console.log(span)
                                   setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1)
                                   setSelectedSpan(span)
                                 }}

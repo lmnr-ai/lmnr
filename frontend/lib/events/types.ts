@@ -8,8 +8,6 @@ export type EventTemplate = {
   id: string;
   createdAt: string;
   name: string;
-  description: string | null;
-  instruction: string | null;
   eventType: EventType;
   domain: string[] | number[] | null;
 }
@@ -20,7 +18,9 @@ export type Event = {
   timestamp: string;
   templateId: string;
   templateName: string;
+  templateEventType: EventType;
   source: string;
   value: string | number | null;
   metadata: Record<string, string> | null;
+  inputs: Record<string, any> | null;
 }

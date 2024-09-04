@@ -4,15 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import LogEditor from './log-editor';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { DataTable } from '../ui/datatable';
-import { RunTrace, TracePreview, TagType, Trace, TraceEvent } from '@/lib/traces/types';
+import { Trace } from '@/lib/traces/types';
 import { ColumnDef } from '@tanstack/react-table';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { useProjectContext } from '@/contexts/project-context';
-import { Minus } from 'lucide-react';
 import { Resizable } from 're-resizable';
 import StatusLabel from '../ui/status-label';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
-import { Event, EventType } from '@/lib/events/types';
+import { Event } from '@/lib/events/types';
 import TracesMetrics from './traces-metrics';
 import TracesPagePlaceholder from './page-placeholder';
 
@@ -24,6 +21,7 @@ interface TracesProps {
   pageNumber: number;
   defaultSelectedid?: string;
   pastHours: string;
+  totalInProject: number | null;
 }
 
 export default function Traces({
@@ -34,6 +32,7 @@ export default function Traces({
   pageNumber,
   defaultSelectedid,
   pastHours,
+  totalInProject,
 }: TracesProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const [sidebarWidth, setSidebarWidth] = useState<number>(500);
@@ -152,6 +151,11 @@ export default function Traces({
   useEffect(() => {
     setTraces(defaultTraces ?? [])
   }, [defaultTraces]);
+
+
+  if (totalTracesCount === 0 && totalInProject === 0) {
+    return <TracesPagePlaceholder />
+  }
 
   return (
     <div className="h-full flex flex-col">

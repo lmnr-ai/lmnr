@@ -1,7 +1,7 @@
 'use client'
 
 import { useProjectContext } from "@/contexts/project-context";
-import { EvaluationWithPipelineInfo } from "@/lib/evaluation/types";
+import { Evaluation } from "@/lib/evaluation/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreVertical } from "lucide-react";
 import CreateEvaluationDialog from "./create-evaluation-dialog";
@@ -17,16 +17,17 @@ import { useRouter } from "next/navigation";
 import { DataTable } from "../ui/datatable";
 import Mono from "../ui/mono";
 import Header from "../ui/header";
+import EvalsPagePlaceholder from "./page-placeholder";
 
 export interface EvaluationProps {
-  evaluations: EvaluationWithPipelineInfo[];
+  evaluations: Evaluation[];
 }
 
 export default function Evaluations({ evaluations }: EvaluationProps) {
   const { projectId } = useProjectContext();
   const router = useRouter();
 
-  const columns: ColumnDef<EvaluationWithPipelineInfo>[] = [
+  const columns: ColumnDef<Evaluation>[] = [
     {
       accessorKey: "status",
       header: "Status",
@@ -48,21 +49,20 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     },
     {
-      accessorFn: (row) => {
-        if (!row.executorPipelineName || !row.executorPipelineVersionName) return '-'
-        return row.executorPipelineName + ':' + row.executorPipelineVersionName
-      },
-      header: 'Executor',
-      size: 200
-    },
-
-    {
-      accessorFn: (row) => row.evaluatorPipelineName + ':' + row.evaluatorPipelineVersionName,
-      header: 'Evaluator',
-      size: 200
+      accessorFn: (row) => row.metadata ?? '-',
+      header: 'Metadata',
     },
   ];
 
+  if (evaluations.length === 0) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header path="evaluations" />
+
+        <EvalsPagePlaceholder />
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col h-full">
       <Header path="evaluations" />
@@ -70,7 +70,7 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
         <h3 className="scroll-m-20 text-lg font-semibold tracking-tight">
           Evaluations
         </h3>
-        <CreateEvaluationDialog />
+        {/* <CreateEvaluationDialog /> */}
       </div>
       <div className="flex-grow">
         <DataTable columns={columns} data={evaluations} onRowClick={(row) => {

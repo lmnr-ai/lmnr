@@ -1,11 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::engine::{RunOutput, RunnableNode};
-use crate::pipeline::{
-    context::Context,
-    trace::{MetaLog, RunTrace},
-    Graph,
-};
+use crate::pipeline::runner::PipelineRunner;
+use crate::pipeline::trace::RunTraceStats;
+use crate::pipeline::{context::Context, trace::MetaLog, Graph};
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -78,58 +76,38 @@ impl RunnableNode for SubpipelineNode {
             return Err(anyhow::anyhow!("Pipeline version id is required"));
         }
 
-        let run_id = Uuid::new_v4();
         let env = &context.env;
 
         let mut graph = serde_json::from_value::<Graph>(self.runnable_graph.clone())?;
         graph.setup(&inputs, &env, &context.metadata, &context.run_type)?;
         // TODO: Add streaming and websocket streaming here so that subpipelines can stream and use external functions.
-        let run_result = context
-            .pipeline_runner
-            .run(graph, context.tx.clone())
-            .await;
+        let run_result = context.pipeline_runner.run(graph, context.tx.clone()).await;
 
-        let graph_trace = RunTrace::from_runner_result(
-            run_id,
-            self.pipeline_version_id.unwrap(),
-            context.run_type.clone(),
-            &run_result,
-            context.metadata.clone(),
-            None,
-            None,
-        );
+        let trace = PipelineRunner::get_trace_from_result(&run_result);
 
-        // Note that whether logs are recorded depend on the RunType
-        if let Some(trace) = graph_trace.clone() {
-            let _ = context.pipeline_runner.send_trace(trace).await;
-        }
+        // TODO: record logs if needed
 
-        match run_result {
-            Ok(engine_output) => {
-                let output_values = engine_output.output_values();
-                let res = output_values.values().next().unwrap().clone();
-
-                let meta_log = if let Some(trace) = graph_trace {
-                    SubpipelineNodeMetaLog {
-                        outputs: Some(serde_json::to_value(output_values).unwrap()),
-                        total_token_count: trace.run_stats.total_token_count,
-                        approximate_cost: trace.run_stats.approximate_cost,
-                    }
-                } else {
-                    SubpipelineNodeMetaLog {
-                        outputs: None,
-                        total_token_count: 0,
-                        approximate_cost: Some(0.0),
-                    }
-                };
+        if let Some(engine_output) = trace {
+            let run_stats = RunTraceStats::from_messages(&engine_output.messages);
+            let output_values = engine_output.output_values();
+            let res = output_values.values().next().unwrap().clone();
+            let meta_log = SubpipelineNodeMetaLog {
+                outputs: Some(serde_json::to_value(output_values).unwrap()),
+                total_token_count: run_stats.total_token_count,
+                approximate_cost: run_stats.approximate_cost,
+            };
+            if run_result.is_ok() {
                 Ok(RunOutput::Success((
                     res,
                     Some(MetaLog::Subpipeline(meta_log)),
                 )))
+            } else {
+                // TODO: Partial trace must be returned, modify engine's Err from anyhow to custom error type,
+                // which will contain error type and optional meta_log/error trace fields
+                Err(anyhow::anyhow!("Subpipeline run failed"))
             }
-            // TODO: Partial trace must be returned, modify engine's Err from anyhow to custom error type,
-            // which will contain error type and optional meta_log/error trace fields
-            Err(e) => Err(anyhow::anyhow!("Subpipeline run failed: {}", e)),
+        } else {
+            Err(anyhow::anyhow!("Subpipeline run failed"))
         }
     }
 }

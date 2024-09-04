@@ -30,14 +30,6 @@ export default function EventTemplates({ events }: EventProps) {
       header: "Name",
     },
     {
-      accessorFn: (row) => row.description || "-",
-      header: "Description",
-    },
-    {
-      accessorFn: (row) => row.instruction || "-",
-      header: "Instruction",
-    },
-    {
       header: "Created at",
       accessorKey: "createdAt",
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,

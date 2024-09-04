@@ -2,6 +2,7 @@ import { Edge, type Node } from 'reactflow'
 import { ChatMessage } from '../types'
 import { GraphMessage } from '../pipeline/types'
 import { Dataset } from '../dataset/types'
+import { EventType } from '../events/types'
 
 export enum NodeType {
   INPUT = 'Input',
@@ -76,6 +77,7 @@ export interface InputNode extends GenericNode {
 
 export interface OutputNode extends GenericNode {
   inputType: NodeHandleType
+  outputCastType: EventType | null
 }
 
 export interface ErrorNode extends GenericNode {
