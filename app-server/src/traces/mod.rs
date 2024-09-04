@@ -56,11 +56,21 @@ pub async fn observation_collector(
         .unwrap();
 
     while let Some(delivery) = consumer.next().await {
-        let delivery = delivery.unwrap();
+        let Ok(delivery) = delivery else {
+            log::error!("Failed to get delivery from RabbitMQ. Continuing...");
+            continue;
+        };
 
-        let payload = String::from_utf8(delivery.data.clone()).unwrap();
+        let Ok(payload) = String::from_utf8(delivery.data.clone()) else {
+            log::error!("Failed to parse delivery data as UTF-8. Continuing...");
+            continue;
+        };
 
-        let rabbitmq_span_message: RabbitMqSpanMessage = serde_json::from_str(&payload).unwrap();
+        let Ok(rabbitmq_span_message) = serde_json::from_str::<RabbitMqSpanMessage>(&payload)
+        else {
+            log::error!("Failed to parse delivery data as `RabbitMqSpanMessage`. Continuing...");
+            continue;
+        };
 
         let span: Span = rabbitmq_span_message.span;
 
@@ -127,7 +137,10 @@ pub async fn observation_collector(
             log::error!("Failed to add instrumentation events: {:?}", e);
         }
 
-        delivery.ack(BasicAckOptions::default()).await.unwrap();
+        let _ = delivery
+            .ack(BasicAckOptions::default())
+            .await
+            .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
     }
 
     log::info!("Shutting down span listener");

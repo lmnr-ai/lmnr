@@ -1,15 +1,16 @@
 <a href="https://www.ycombinator.com/companies/laminar-ai">![Static Badge](https://img.shields.io/badge/Y%20Combinator-S24-orange)</a>
-<a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnr-ai)</a>
+<a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
 <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
 ## Laminar - Open-Source observability, analytics, evals and prompt chains for complex LLM apps.
 <img width="1439" alt="traces" src="https://github.com/user-attachments/assets/88e1f801-1dbf-4e5b-af71-1a3923661cd1">
 
 
-Think of it as DataDog + PostHog for LLM apps. 
-- OpenTelemetry based instrumentation: automatic for LLM / vector DB calls with just 2 lines of code + decorators to track functions (powered by an amazing [OpenLLMetry](https://github.com/traceloop/openllmetry), open-source package, by TraceLoop).
-- Semantic events-based analytics. Laminar hosts background job queues of LLM pipelines. Outputs of those pipelines are turned them into metrics. For example, you can design a pipeline which extracts "my AI drive-through agent made an upsell" data, and you can track this metric in Laminar.
-- Built for scale with modern stack: written in Rust, RabbitMQ for message queue, Postgres for data, Clickhouse for analytics
+Think of it as DataDog + PostHog for LLM apps.
+
+- OpenTelemetry-based instrumentation: automatic for LLM / vector DB calls with just 2 lines of code + decorators to track functions (powered by an amazing [OpenLLMetry](https://github.com/traceloop/openllmetry) open-source package by TraceLoop).
+- Semantic events-based analytics. Laminar hosts background job queues of LLM pipelines. Outputs of those pipelines are turned into metrics. For example, you can design a pipeline which extracts "my AI drive-through agent made an upsell" data, and track this metric in Laminar.
+- Built for scale with a modern stack: written in Rust, RabbitMQ for message queue, Postgres for data, Clickhouse for analytics
 - Insightful, fast dashboards for traces / spans / events
 
 Read the [docs](https://docs.lmnr.ai).
@@ -21,7 +22,8 @@ This is a work in progress repo and it will be frequently updated.
 ### Laminar Cloud
 The easiest way to get started is with a generous free tier on our managed platform -> [https://www.lmnr.ai](lmnr.ai)
 
-### Docker compose
+### Self-hosting with Docker compose
+
 Start local version with docker compose.
 ```sh
 git clone git@github.com:lmnr-ai/lmnr
@@ -40,7 +42,7 @@ This will spin up the following containers:
 
 ### Instrumenting Python code
 
-First, create a project and generate a Project API Key.
+First, create a project and generate a Project API Key. Then,
 
 ```sh
 pip install lmnr
@@ -54,7 +56,7 @@ L.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
 ```
 
 In addition to automatic instrumentation, we provide a simple `@observe()` decorator, if you want to trace inputs / outputs of functions
-### Example
+#### Example
 
 ```python
 import os
@@ -83,7 +85,7 @@ if __name__ == "__main__":
 ```
 
 
-### Sending events
+#### Sending events
 
 You can send events in two ways:
 - `.event(name, value)` – instant event with a value.
@@ -109,7 +111,7 @@ L.event("topic alignment", topic in poem)
 L.evaluate_event("excessive_wordiness", "check_wordy", {"text_input": poem})
 ```
 
-### Laminar pipelines as prompt chain managers
+#### Laminar pipelines as prompt chain managers
 
 You can create Laminar pipelines in the UI and manage chains of LLM calls there.
 

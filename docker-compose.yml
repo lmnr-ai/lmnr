@@ -25,7 +25,9 @@ services:
       retries: 3
 
   clickhouse:
-    image: clickhouse/clickhouse-server
+    build:
+      context: ./clickhouse
+    container_name: clickhouse
     ports:
       - "8123:8123"
     volumes:
@@ -70,6 +72,10 @@ services:
     container_name: postgres
     ports:
       - "5432:5432"
+    volumes:
+      - type: volume
+        source: postgres-data
+        target: /var/lib/postgresql/data
 
   app-server:
     build:
@@ -113,3 +119,4 @@ volumes:
   qdrant-data:
   clickhouse-data:
   clickhouse-logs:
+  postgres-data:

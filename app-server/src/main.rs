@@ -142,7 +142,7 @@ async fn main() -> std::io::Result<()> {
     let document_client = reqwest::Client::new();
     let mut chunkers = HashMap::new();
     let character_split_chunker = CharacterSplitChunker {};
-    chunkers.insert(
+    chunkers.insert(    
         ChunkerType::CharacterSplit,
         Chunker::CharacterSplit(character_split_chunker),
     );
@@ -157,6 +157,23 @@ async fn main() -> std::io::Result<()> {
             .await
             .unwrap(),
     );
+
+    let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+        let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+        let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+        // https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts -> Create client which will wait for async inserts
+        // For now, we're not waiting for inserts to finish, but later need to add queue and batch on client-side
+        let mut clickhouse = clickhouse::Client::default()
+            .with_url(clickhouse_url)
+            .with_user(clickhouse_user)
+            .with_database("default")
+            .with_option("async_insert", "1")
+            .with_option("wait_for_async_insert", "0");
+        if let Ok(clickhouse_password) = clickhouse_password {
+            clickhouse = clickhouse.with_password(clickhouse_password);
+        } else {
+            log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+        }
 
     // declare the exchange
     let channel = rabbitmq_connection.create_channel().await.unwrap();
@@ -191,24 +208,6 @@ async fn main() -> std::io::Result<()> {
             rabbitmq_connection.clone(),
         ));
 
-        let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-        let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-        let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-        // https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts -> Create client which will wait for async inserts
-        // For now, we're not waiting for inserts to finish, but later need to add queue and batch on client-side
-        let mut clickhouse = clickhouse::Client::default()
-            .with_url(clickhouse_url)
-            .with_user(clickhouse_user)
-            .with_database("default")
-            .with_option("async_insert", "1")
-            .with_option("wait_for_async_insert", "0");
-        if let Ok(clickhouse_password) = clickhouse_password {
-            clickhouse = clickhouse.with_password(clickhouse_password);
-        } else {
-            log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
-        }
-
-        // let (observation_tx, observation_rx) = mpsc::channel(LOG_CHANNEL_SIZE);
         tokio::task::spawn(observation_collector(
             pipeline_runner.clone(),
             db.clone(),
@@ -228,9 +227,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(semantic_search.clone()))
             .app_data(web::Data::new(interrupt_senders.clone()))
             .app_data(web::Data::new(language_model_runner.clone()))
-            // .app_data(web::Data::new(observation_tx.clone()))
             .app_data(web::Data::new(rabbitmq_connection.clone()))
-            .app_data(web::Data::new(clickhouse))
+            .app_data(web::Data::new(clickhouse.clone()))
             // Scopes with specific auth or no auth
             .service(
                 web::scope("api/v1/auth")
@@ -246,7 +244,8 @@ async fn main() -> std::io::Result<()> {
                     .service(api::v1::evaluations::create_evaluation)
                     .service(api::v1::evaluations::upload_evaluation_datapoints)
                     .service(api::v1::evaluations::update_evaluation)
-                    .service(api::v1::traces::process_traces),
+                    .service(api::v1::traces::process_traces)
+                    .service(api::v1::metrics::process_metrics),
             )
             // Scopes with generic auth
             .service(
