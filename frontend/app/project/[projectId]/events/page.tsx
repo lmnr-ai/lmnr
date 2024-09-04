@@ -10,7 +10,7 @@ import Header from '@/components/ui/header';
 
 
 export const metadata: Metadata = {
-  title: 'Traces',
+  title: 'Events',
 }
 
 const getEvents = async (
@@ -88,7 +88,7 @@ export default async function EventsPage({
 
   return (
     <>
-      <Header path={"traces"} />
+      <Header path={"events"} />
       <Suspense>
         <EventsDashboard
           defaultEvents={res?.events ?? []}

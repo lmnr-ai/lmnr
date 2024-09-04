@@ -4,15 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import LogEditor from './log-editor';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { DataTable } from '../ui/datatable';
-import { RunTrace, TracePreview, TagType, Trace, TraceEvent } from '@/lib/traces/types';
+import { Trace } from '@/lib/traces/types';
 import { ColumnDef } from '@tanstack/react-table';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { useProjectContext } from '@/contexts/project-context';
-import { Minus } from 'lucide-react';
 import { Resizable } from 're-resizable';
 import StatusLabel from '../ui/status-label';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
-import { Event, EventType } from '@/lib/events/types';
+import { Event } from '@/lib/events/types';
 import TracesMetrics from './traces-metrics';
 import TracesPagePlaceholder from './page-placeholder';
 

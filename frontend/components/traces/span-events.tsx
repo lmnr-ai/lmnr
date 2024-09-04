@@ -21,7 +21,7 @@ export default function SpanEvents({ span }: TagsProps) {
 
   const [events, setEvents] = useState<Event[]>([]);
 
-  // const { data, isLoading, mutate } = useSWR(`/api/projects/${projectId}/traces/${span.traceId}/spans/${span.id}/events`, swrFetcher);
+  // const { data, isLoading, mutate } = useSWR(`/api/projects/${projectId}/traces/${span.traceId}/spans/${span.spanId}/events`, swrFetcher);
 
   useEffect(() => {
     if (!span) return;
