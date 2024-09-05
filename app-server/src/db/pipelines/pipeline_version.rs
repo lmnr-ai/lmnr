@@ -55,8 +55,7 @@ pub async fn get_pipeline_versions(
     pool: &PgPool,
     pipeline_id: &Uuid,
 ) -> Result<Vec<PipelineVersion>> {
-    Ok(sqlx::query_as!(
-        PipelineVersion,
+    Ok(sqlx::query_as::<_, PipelineVersion>(
         "SELECT
             id,
             pipeline_id,
@@ -71,8 +70,8 @@ pub async fn get_pipeline_versions(
             pipeline_id = $1
         ORDER BY
             created_at DESC",
-        pipeline_id
     )
+    .bind(pipeline_id)
     .fetch_all(pool)
     .await?)
 }
@@ -81,8 +80,7 @@ pub async fn get_commit_pipeline_versions_info(
     pool: &PgPool,
     pipeline_id: &Uuid,
 ) -> Result<Vec<PipelineVersionInfo>> {
-    Ok(sqlx::query_as!(
-        PipelineVersionInfo,
+    Ok(sqlx::query_as::<_, PipelineVersionInfo>(
         "SELECT
                 pipeline_versions.id,
                 pipeline_versions.name,
@@ -97,8 +95,8 @@ pub async fn get_commit_pipeline_versions_info(
                 pipeline_versions.pipeline_type = 'COMMIT'
             ORDER BY
                 pipeline_versions.created_at DESC",
-        pipeline_id
     )
+    .bind(pipeline_id)
     .fetch_all(pool)
     .await?)
 }
@@ -107,8 +105,7 @@ pub async fn get_pipeline_versions_info(
     pool: &PgPool,
     pipeline_id: &Uuid,
 ) -> Result<Vec<PipelineVersionInfo>> {
-    Ok(sqlx::query_as!(
-        PipelineVersionInfo,
+    Ok(sqlx::query_as::<_, PipelineVersionInfo>(
         "SELECT
                 pipeline_versions.id,
                 pipeline_versions.name,
@@ -121,8 +118,8 @@ pub async fn get_pipeline_versions_info(
                 pipeline_versions.pipeline_id = $1
             ORDER BY
                 pipeline_versions.created_at DESC",
-        pipeline_id
     )
+    .bind(pipeline_id)
     .fetch_all(pool)
     .await?)
 }
@@ -136,18 +133,17 @@ pub async fn create_pipeline_version(
     displayable_graph: &Value,
     runnable_graph: &Value,
 ) -> Result<PipelineVersion> {
-    let pipeline_version = sqlx::query_as!(
-        PipelineVersion,
+    let pipeline_version = sqlx::query_as::<_, PipelineVersion>(
         "INSERT INTO pipeline_versions (id, pipeline_id, pipeline_type, name, displayable_graph, runnable_graph) 
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, pipeline_id, pipeline_type, name, displayable_graph, runnable_graph, created_at",
-        id,
-        pipeline_id,
-        pipeline_type,
-        name,
-        displayable_graph,
-        runnable_graph
     )
+    .bind(id)
+    .bind(pipeline_id)
+    .bind(pipeline_type)
+    .bind(name)
+    .bind(displayable_graph)
+    .bind(runnable_graph)
     .fetch_one(pool)
     .await?;
 
@@ -160,15 +156,14 @@ pub async fn clone_pipeline_version(
     new_pipeline_version_name: &str,
     new_pipeline_version_type: &str,
 ) -> Result<Uuid> {
-    let pipeline_version = sqlx::query_as!(
-        PipelineVersion,
+    let pipeline_version = sqlx::query_as::<_, PipelineVersion>(
         "INSERT INTO pipeline_versions (pipeline_id, pipeline_type, name, displayable_graph, runnable_graph) 
         SELECT pipeline_id, $1, $2, displayable_graph, runnable_graph FROM pipeline_versions WHERE id = $3
         RETURNING id, pipeline_id, pipeline_type, name, displayable_graph, runnable_graph, created_at",
-        new_pipeline_version_type,
-        new_pipeline_version_name,
-        ref_pipeline_version_id,
     )
+    .bind(new_pipeline_version_type)
+    .bind(new_pipeline_version_name)
+    .bind(ref_pipeline_version_id)
     .fetch_one(pool)
     .await?;
 
@@ -182,16 +177,15 @@ pub async fn clone_pipeline_version_to_pipeline(
     new_pipeline_version_name: &str,
     new_pipeline_version_type: &str,
 ) -> Result<PipelineVersion> {
-    let pipeline_version = sqlx::query_as!(
-        PipelineVersion,
+    let pipeline_version = sqlx::query_as::<_, PipelineVersion>(
         "INSERT INTO pipeline_versions (pipeline_id, pipeline_type, name, displayable_graph, runnable_graph) 
         SELECT $2, $3, $4, displayable_graph, runnable_graph FROM pipeline_versions WHERE id = $1
         RETURNING id, pipeline_id, pipeline_type, name, displayable_graph, runnable_graph, created_at",
-        ref_pipeline_version_id,
-        pipeline_id,
-        new_pipeline_version_type,
-        new_pipeline_version_name,
     )
+    .bind(ref_pipeline_version_id)
+    .bind(pipeline_id)
+    .bind(new_pipeline_version_type)
+    .bind(new_pipeline_version_name)
     .fetch_one(pool)
     .await?;
 
@@ -204,7 +198,7 @@ pub async fn overwrite_graph(
     ref_pipeline_version_id: Uuid,
     workshop_pipeline_version_id: Uuid,
 ) -> Result<()> {
-    sqlx::query!(
+    sqlx::query(
         "WITH ref_version AS (
             SELECT
                 pipeline_versions.id,
@@ -224,9 +218,9 @@ pub async fn overwrite_graph(
             runnable_graph = ref_version.runnable_graph
         FROM ref_version
             WHERE pipeline_versions.id = $2",
-        ref_pipeline_version_id,
-        workshop_pipeline_version_id,
     )
+    .bind(ref_pipeline_version_id)
+    .bind(workshop_pipeline_version_id)
     .execute(pool)
     .await?;
 
@@ -234,8 +228,7 @@ pub async fn overwrite_graph(
 }
 
 pub async fn get_pipeline_version(pool: &PgPool, version_id: &Uuid) -> Result<PipelineVersion> {
-    let version = sqlx::query_as!(
-        PipelineVersion,
+    let version = sqlx::query_as::<_, PipelineVersion>(
         "SELECT
             pipeline_versions.id,
             pipeline_versions.pipeline_id,
@@ -248,8 +241,8 @@ pub async fn get_pipeline_version(pool: &PgPool, version_id: &Uuid) -> Result<Pi
             pipeline_versions
         WHERE
             pipeline_versions.id = $1",
-        version_id,
     )
+    .bind(version_id)
     .fetch_one(pool)
     .await?;
 
@@ -260,8 +253,7 @@ pub async fn get_pipeline_version_with_pipeline_name(
     pool: &PgPool,
     version_id: &Uuid,
 ) -> Result<PipelineVersionWithPipelineName> {
-    let version = sqlx::query_as!(
-        PipelineVersionWithPipelineName,
+    let version = sqlx::query_as::<_, PipelineVersionWithPipelineName>(
         "SELECT
             pipeline_versions.id,
             pipeline_versions.pipeline_id,
@@ -277,8 +269,8 @@ pub async fn get_pipeline_version_with_pipeline_name(
             pipelines ON pipeline_versions.pipeline_id = pipelines.id
         WHERE
             pipeline_versions.id = $1",
-        version_id,
     )
+    .bind(version_id)
     .fetch_one(pool)
     .await?;
 
@@ -291,15 +283,14 @@ pub async fn create_or_update_target_pipeline_version(
     pipeline_version_id: Uuid,
 ) -> Result<TargetPipelineVersion> {
     // For now, (pipeline_id) is UNIQUE, but is subject to change upon extending this table
-    let target = sqlx::query_as!(
-        TargetPipelineVersion,
+    let target = sqlx::query_as::<_, TargetPipelineVersion>(
         "INSERT INTO target_pipeline_versions (pipeline_id, pipeline_version_id)
         VALUES ($1, $2)
         ON CONFLICT (pipeline_id) DO UPDATE SET pipeline_version_id = $2
         RETURNING id, created_at, pipeline_id, pipeline_version_id",
-        pipeline_id,
-        pipeline_version_id,
     )
+    .bind(pipeline_id)
+    .bind(pipeline_version_id)
     .fetch_one(pool)
     .await?;
 
@@ -311,8 +302,7 @@ pub async fn get_target_pipeline_version_by_pipeline_name(
     project_id: Uuid,
     pipeline_name: &str,
 ) -> Result<Option<PipelineVersion>> {
-    let version = sqlx::query_as!(
-        PipelineVersion,
+    let version = sqlx::query_as::<_, PipelineVersion>(
         "SELECT
             pipeline_versions.id,
             pipeline_versions.pipeline_id,
@@ -333,9 +323,9 @@ pub async fn get_target_pipeline_version_by_pipeline_name(
                     WHERE project_id = $1 AND name = $2
                 )
         )",
-        project_id,
-        pipeline_name,
     )
+    .bind(project_id)
+    .bind(pipeline_name)
     .fetch_optional(pool)
     .await?;
 
@@ -346,13 +336,13 @@ pub async fn get_target_pipeline_version_by_pipeline_name(
 ///
 /// Note: Use only for workshop pipeline versions.
 pub async fn update_pipeline_version(pool: &PgPool, version: &PipelineVersion) -> Result<()> {
-    sqlx::query!(
+    sqlx::query(
         "UPDATE pipeline_versions SET name = $1, displayable_graph = $2, runnable_graph = $3 WHERE id = $4",
-        &version.name,
-        &version.displayable_graph,
-        &version.runnable_graph,
-        &version.id,
     )
+    .bind(&version.name)
+    .bind(&version.displayable_graph)
+    .bind(&version.runnable_graph)
+    .bind(&version.id)
     .execute(pool)
     .await?;
 

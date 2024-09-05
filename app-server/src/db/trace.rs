@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 use crate::{
     db::modifiers::DateRange,
-    language_model::{ChatMessage, ChatMessageContent},
+    language_model::{
+        providers::anthropic::OtelChatMessageContentPart, ChatMessage, ChatMessageContent,
+    },
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     pipeline::{nodes::Message, trace::MetaLog},
     traces::attributes::{
@@ -460,20 +462,35 @@ impl Span {
                     "".to_string()
                 };
 
-                let role = attributes
-                    .get(format!("gen_ai.prompt.{}.role", i).as_str())
-                    .unwrap()
-                    .to_string();
+                let role = if let Some(serde_json::Value::String(s)) =
+                    attributes.get(format!("gen_ai.prompt.{}.role", i).as_str())
+                {
+                    s.clone()
+                } else {
+                    "user".to_string()
+                };
 
                 input_messages.push(ChatMessage {
                     role,
-                    content: ChatMessageContent::Text(content.to_string()),
+                    content: serde_json::from_str::<Vec<OtelChatMessageContentPart>>(&content)
+                        .map(|parts| {
+                            ChatMessageContent::ContentPartList(
+                                parts.into_iter().map(|part| part.into()).collect(),
+                            )
+                        })
+                        .unwrap_or(ChatMessageContent::Text(content.clone())),
                 });
                 i += 1;
             }
 
             span.input = Some(json!(input_messages));
-            span.output = attributes.get("gen_ai.completion.0.content").cloned();
+            span.output = if let Some(serde_json::Value::String(s)) =
+                attributes.get("gen_ai.completion.0.content")
+            {
+                Some(serde_json::Value::String(s.clone()))
+            } else {
+                None
+            };
         } else {
             if let Some(serde_json::Value::String(s)) = attributes.get("traceloop.entity.input") {
                 span.input = Some(
@@ -952,7 +969,7 @@ pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
 
 pub async fn get_span_previews(pool: &PgPool, trace_id: Uuid) -> Result<Vec<Span>> {
     let spans = sqlx::query_as::<_, Span>(
-        r#"WITH span_events AS (
+        "WITH span_events AS (
             SELECT
                 events.span_id,
                 jsonb_agg(
@@ -986,7 +1003,7 @@ pub async fn get_span_previews(pool: &PgPool, trace_id: Uuid) -> Result<Vec<Span
         FROM spans
         LEFT JOIN span_events ON spans.span_id = span_events.span_id
         WHERE trace_id = $1
-        ORDER BY start_time ASC"#,
+        ORDER BY start_time ASC",
     )
     .bind(trace_id)
     .fetch_all(pool)
@@ -997,7 +1014,7 @@ pub async fn get_span_previews(pool: &PgPool, trace_id: Uuid) -> Result<Vec<Span
 
 pub async fn get_span(pool: &PgPool, id: Uuid) -> Result<Span> {
     let span = sqlx::query_as::<_, Span>(
-        r#"SELECT
+        "SELECT
             span_id,
             start_time,
             end_time,
@@ -1011,7 +1028,7 @@ pub async fn get_span(pool: &PgPool, id: Uuid) -> Result<Span> {
             span_type,
             '{}'::jsonb as events
         FROM spans
-        WHERE span_id = $1"#,
+        WHERE span_id = $1",
     )
     .bind(id)
     .fetch_one(pool)

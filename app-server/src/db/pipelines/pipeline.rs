@@ -31,15 +31,14 @@ pub async fn write_pipeline(
     name: &String,
     visibility: &String,
 ) -> Result<Pipeline> {
-    let pipeline = sqlx::query_as!(
-        Pipeline,
+    let pipeline = sqlx::query_as::<_, Pipeline>(
         "INSERT INTO pipelines (id, project_id, name, visibility) values ($1, $2, $3, $4)
         RETURNING id, created_at, project_id, name, visibility",
-        id,
-        project_id,
-        name,
-        visibility,
     )
+    .bind(&id)
+    .bind(&project_id)
+    .bind(name)
+    .bind(visibility)
     .fetch_one(pool)
     .await?;
 
@@ -50,22 +49,21 @@ pub async fn get_pipeline_by_id(
     pool: &PgPool,
     pipeline_id: &Uuid,
 ) -> Result<PipelineWithTargetVersion> {
-    let pipeline = sqlx::query_as!(
-        PipelineWithTargetVersion,
-        r#"SELECT
+    let pipeline = sqlx::query_as::<_, PipelineWithTargetVersion>(
+        "SELECT
             pipelines.id,
             pipelines.created_at,
             pipelines.name,
             pipelines.project_id,
             pipelines.visibility,
-            target_pipeline_versions.pipeline_version_id as "target_version_id?"
+            target_pipeline_versions.pipeline_version_id as target_version_id
         FROM
             pipelines
         LEFT JOIN target_pipeline_versions ON target_pipeline_versions.pipeline_id = pipelines.id
         WHERE
-            pipelines.id = $1"#,
-        pipeline_id,
+            pipelines.id = $1",
     )
+    .bind(pipeline_id)
     .fetch_one(pool)
     .await?;
 
@@ -73,7 +71,8 @@ pub async fn get_pipeline_by_id(
 }
 
 pub async fn delete_pipeline(pool: &PgPool, pipeline_id: &Uuid) -> Result<()> {
-    sqlx::query!("DELETE FROM pipelines WHERE id = $1;", pipeline_id,)
+    sqlx::query("DELETE FROM pipelines WHERE id = $1")
+        .bind(pipeline_id)
         .execute(pool)
         .await?;
 
@@ -81,14 +80,13 @@ pub async fn delete_pipeline(pool: &PgPool, pipeline_id: &Uuid) -> Result<()> {
 }
 
 pub async fn update_pipeline(pool: &PgPool, pipeline: &Pipeline) -> Result<Pipeline> {
-    let updated_pipeline = sqlx::query_as!(
-        Pipeline,
+    let updated_pipeline = sqlx::query_as::<_, Pipeline>(
         "UPDATE pipelines SET name = $2, visibility = $3 WHERE id = $1
         RETURNING id, created_at, project_id, name, visibility",
-        pipeline.id,
-        pipeline.name,
-        pipeline.visibility,
     )
+    .bind(pipeline.id)
+    .bind(&pipeline.name)
+    .bind(&pipeline.visibility)
     .fetch_optional(pool)
     .await?;
 
@@ -96,13 +94,12 @@ pub async fn update_pipeline(pool: &PgPool, pipeline: &Pipeline) -> Result<Pipel
 }
 
 pub async fn get_pipeline_by_version_id(pool: &PgPool, version_id: &Uuid) -> Result<Pipeline> {
-    let pipeline = sqlx::query_as!(
-        Pipeline,
+    let pipeline = sqlx::query_as::<_, Pipeline>(
         "SELECT id, created_at, project_id, name, visibility
         FROM pipelines
         WHERE id = (SELECT pipeline_id FROM pipeline_versions WHERE id = $1)",
-        version_id,
     )
+    .bind(version_id)
     .fetch_optional(pool)
     .await?;
 
@@ -113,24 +110,23 @@ pub async fn get_pipelines_of_project(
     pool: &PgPool,
     project_id: &Uuid,
 ) -> Result<Vec<PipelineWithTargetVersion>> {
-    let res = sqlx::query_as!(
-        PipelineWithTargetVersion,
-        r#"SELECT
+    let res = sqlx::query_as::<_, PipelineWithTargetVersion>(
+        "SELECT
           pipelines.id,
           pipelines.created_at,
           pipelines.name,
           pipelines.project_id,
           pipelines.visibility,
-          target_pipeline_versions.pipeline_version_id as "target_version_id?"
+          target_pipeline_versions.pipeline_version_id as target_version_id
       FROM
           pipelines
       LEFT JOIN target_pipeline_versions ON target_pipeline_versions.pipeline_id = pipelines.id
       WHERE
           pipelines.project_id = $1
       ORDER BY
-          pipelines.created_at DESC;"#,
-        project_id
+          pipelines.created_at DESC;",
     )
+    .bind(project_id)
     .fetch_all(pool)
     .await?;
     Ok(res)

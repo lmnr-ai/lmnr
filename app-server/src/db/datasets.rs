@@ -5,15 +5,14 @@ use uuid::Uuid;
 use crate::datasets::Dataset;
 
 pub async fn create_dataset(pool: &PgPool, name: &String, project_id: Uuid) -> Result<Dataset> {
-    let dataset = sqlx::query_as!(
-        Dataset,
+    let dataset = sqlx::query_as::<_, Dataset>(
         "INSERT INTO datasets (name, project_id)
         VALUES ($1, $2)
         RETURNING id, created_at, name, project_id, indexed_on
         ",
-        name,
-        project_id,
     )
+    .bind(name)
+    .bind(project_id)
     .fetch_one(pool)
     .await?;
 
@@ -21,12 +20,11 @@ pub async fn create_dataset(pool: &PgPool, name: &String, project_id: Uuid) -> R
 }
 
 pub async fn get_datasets(pool: &PgPool, project_id: Uuid) -> Result<Vec<Dataset>> {
-    let datasets = sqlx::query_as!(
-        Dataset,
+    let datasets = sqlx::query_as::<_, Dataset>(
         "SELECT id, created_at, name, project_id, indexed_on FROM datasets WHERE project_id = $1
         ORDER BY created_at DESC",
-        project_id
     )
+    .bind(project_id)
     .fetch_all(pool)
     .await?;
 
@@ -34,12 +32,11 @@ pub async fn get_datasets(pool: &PgPool, project_id: Uuid) -> Result<Vec<Dataset
 }
 
 pub async fn get_dataset(pool: &PgPool, project_id: Uuid, dataset_id: Uuid) -> Result<Dataset> {
-    let dataset = sqlx::query_as!(
-        Dataset,
+    let dataset = sqlx::query_as::<_, Dataset>(
         "SELECT id, created_at, name, project_id, indexed_on FROM datasets WHERE id = $1 AND project_id = $2",
-        dataset_id,
-        project_id
     )
+    .bind(dataset_id)
+    .bind(project_id)
     .fetch_optional(pool)
     .await?;
 
@@ -52,14 +49,13 @@ pub async fn rename_dataset(
     project_id: Uuid,
     new_name: &String,
 ) -> Result<Dataset> {
-    let dataset = sqlx::query_as!(
-        Dataset,
+    let dataset = sqlx::query_as::<_, Dataset>(
         "UPDATE datasets SET name = $3 WHERE id = $1 AND project_id = $2
         RETURNING id, created_at, name, project_id, indexed_on",
-        id,
-        project_id,
-        new_name,
     )
+    .bind(id)
+    .bind(project_id)
+    .bind(new_name)
     .fetch_optional(pool)
     .await?;
 
@@ -67,7 +63,8 @@ pub async fn rename_dataset(
 }
 
 pub async fn delete_dataset(pool: &PgPool, dataset_id: Uuid) -> Result<()> {
-    sqlx::query!("DELETE from datasets WHERE id = $1", dataset_id)
+    sqlx::query("DELETE from datasets WHERE id = $1")
+        .bind(dataset_id)
         .execute(pool)
         .await?;
 
@@ -79,13 +76,12 @@ pub async fn update_index_column(
     dataset_id: Uuid,
     index_column: Option<String>,
 ) -> Result<Dataset> {
-    let dataset = sqlx::query_as!(
-        Dataset,
+    let dataset = sqlx::query_as::<_, Dataset>(
         "UPDATE datasets SET indexed_on = $2 WHERE id = $1
         RETURNING id, created_at, name, project_id, indexed_on",
-        dataset_id,
-        index_column
     )
+    .bind(dataset_id)
+    .bind(index_column)
     .fetch_one(pool)
     .await?;
 

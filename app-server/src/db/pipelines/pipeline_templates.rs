@@ -5,7 +5,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-#[derive(Serialize)]
+#[derive(Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct PipelineTemplateRow {
     pub id: Uuid,
@@ -18,7 +18,7 @@ pub struct PipelineTemplateRow {
     pub display_group: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct PipelineTemplateInfo {
     pub id: Uuid,
@@ -29,15 +29,13 @@ pub struct PipelineTemplateInfo {
 }
 
 pub async fn get_template(pool: &PgPool, id: &Uuid) -> Result<PipelineTemplateRow> {
-    let template = sqlx::query_as!(
-        PipelineTemplateRow,
+    let template = sqlx::query_as::<_, PipelineTemplateRow>(
         "
         SELECT id, created_at, name, runnable_graph, displayable_graph, number_of_nodes, description, display_group
         FROM pipeline_templates
-        WHERE id = $1
-        ",
-        id,
+        WHERE id = $1",
     )
+    .bind(id)
     .fetch_one(pool)
     .await?;
 
@@ -53,21 +51,19 @@ pub async fn write_template(
     number_of_nodes: i64,
     group: &String,
 ) -> Result<PipelineTemplateRow> {
-    let template = sqlx::query_as!(
-        PipelineTemplateRow,
+    let template = sqlx::query_as::<_, PipelineTemplateRow>(
         "
         INSERT INTO pipeline_templates
         (name, description, runnable_graph, displayable_graph, number_of_nodes, display_group)
         VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, created_at, name, description, runnable_graph, displayable_graph, number_of_nodes, display_group
-        ",
-        name,
-        description,
-        runnable_graph_template,
-        displayable_graph_template,
-        number_of_nodes,
-        group,
+        RETURNING id, created_at, name, description, runnable_graph, displayable_graph, number_of_nodes, display_group",
     )
+    .bind(name)
+    .bind(description)
+    .bind(runnable_graph_template)
+    .bind(displayable_graph_template)
+    .bind(number_of_nodes)
+    .bind(group)
     .fetch_one(pool)
     .await?;
 
@@ -75,8 +71,7 @@ pub async fn write_template(
 }
 
 pub async fn get_all_templates(pool: &PgPool) -> Result<Vec<PipelineTemplateInfo>> {
-    let templates = sqlx::query_as!(
-        PipelineTemplateInfo,
+    let templates = sqlx::query_as::<_, PipelineTemplateInfo>(
         "SELECT id, created_at, name, description, display_group
         FROM pipeline_templates
         ORDER BY display_group ASC, ordinal ASC",
