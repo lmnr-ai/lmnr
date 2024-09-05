@@ -1,21 +1,40 @@
+<img src="./frontend/assets/logo/laminar-banner.png">
+
+<div align="center">
+
+# Laminar 
+
+### Open-source observability, analytics, evaluations, and prompt chains for complex LLM apps
+
+[![Website](https://img.shields.io/badge/Website-000000?style=for-the-badge&logo=About&logoColor=white)](https://www.lmnr.ai/)
+[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/nNFUUDAKub)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/lmnr-ai/)
+
 <a href="https://www.ycombinator.com/companies/laminar-ai">![Static Badge](https://img.shields.io/badge/Y%20Combinator-S24-orange)</a>
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
-<a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
-
-## Laminar - Open-Source observability, analytics, evals and prompt chains for complex LLM apps.
-<img width="1439" alt="traces" src="https://github.com/user-attachments/assets/88e1f801-1dbf-4e5b-af71-1a3923661cd1">
+<!-- <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a> -->
 
 
-Think of it as DataDog + PostHog for LLM apps.
+<img width="700" alt="traces" src="./frontend/assets/landing/traces.png">
 
-- OpenTelemetry-based instrumentation: automatic for LLM / vector DB calls with just 2 lines of code + decorators to track functions (powered by an amazing [OpenLLMetry](https://github.com/traceloop/openllmetry) open-source package by TraceLoop).
-- Semantic events-based analytics. Laminar hosts background job queues of LLM pipelines. Outputs of those pipelines are turned into metrics. For example, you can design a pipeline which extracts "my AI drive-through agent made an upsell" data, and track this metric in Laminar.
-- Built for scale with a modern stack: written in Rust, RabbitMQ for message queue, Postgres for data, Clickhouse for analytics
-- Insightful, fast dashboards for traces / spans / events
+Think of it as DataDog + PostHog for LLM apps
+</div>
 
-Read the [docs](https://docs.lmnr.ai).
+<br />
 
-This is a work in progress repo and it will be frequently updated.
+## 💰 Features
+
+- **OpenTelemetry-based Instrumentation:** Automatic for LLM / vector DB calls with just 2 lines of code + decorators to track functions (powered by an amazing [OpenLLMetry](https://github.com/traceloop/openllmetry) open-source package by TraceLoop).
+- **Semantic Events-based Analytics:** Laminar hosts background job queues of LLM pipelines. Outputs of those pipelines are turned into metrics. For example, you can design a pipeline which extracts "My AI drive-through agent made an upsell" data, and track this metric in Laminar.
+- **Built for Scale with a Modern Stack:** written in Rust, RabbitMQ for message queue, Postgres for data, Clickhouse for analytics
+- **Insightful and Fast Dashboards:** Gain quick insights with dashboards that efficiently display traces, spans, and events.
+
+
+🧐 For more details, explore the ***[documentation](https://docs.lmnr.ai)**.*
+
+🚧 ***Note:** This repo is a work in progress and will be updated frequently.*
+
+<br />
 
 ## Getting started
 
