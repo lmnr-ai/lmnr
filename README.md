@@ -2,10 +2,6 @@
 
 <div align="center">
 
-# Laminar 
-
-### Open-source observability, analytics, evaluations, and prompt chains for complex LLM apps
-
 [![Website](https://img.shields.io/badge/Website-000000?style=for-the-badge&logo=About&logoColor=white)](https://www.lmnr.ai/)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/nNFUUDAKub)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/lmnr-ai/)
@@ -14,6 +10,11 @@
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
 <!-- <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a> -->
 
+# Laminar 
+
+### Open-source observability, analytics, evaluations, and prompt chains for complex LLM apps
+
+<br />
 
 <img width="700" alt="traces" src="./frontend/assets/landing/traces.png">
 
