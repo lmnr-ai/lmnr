@@ -20,7 +20,7 @@ This is a work in progress repo and it will be frequently updated.
 ## Getting started
 
 ### Laminar Cloud
-The easiest way to get started is with a generous free tier on our managed platform -> [https://www.lmnr.ai](lmnr.ai)
+The easiest way to get started is with a generous free tier on our managed platform -> [lmnr.ai](https://www.lmnr.ai)
 
 ### Self-hosting with Docker compose
 
