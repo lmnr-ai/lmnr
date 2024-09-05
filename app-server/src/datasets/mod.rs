@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::{pipeline::nodes::NodeInput, semantic_search::SemanticSearch};
@@ -9,7 +10,7 @@ use crate::{pipeline::nodes::NodeInput, semantic_search::SemanticSearch};
 pub mod datapoints;
 pub mod utils;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Dataset {
     pub id: Uuid,

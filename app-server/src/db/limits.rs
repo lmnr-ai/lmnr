@@ -24,9 +24,8 @@ pub async fn get_limits_for_user(
     user_id: &Uuid,
 ) -> anyhow::Result<SubscriptionLimits> {
     #[allow(non_snake_case)]
-    let tier = sqlx::query_as!(
-        SubscriptionLimits,
-        r#"SELECT
+    let tier = sqlx::query_as::<_, SubscriptionLimits>(
+        "SELECT
             subscription_tiers.name as _name,
             subscription_tiers.pipeline_runs_per_month,
             subscription_tiers.storage_mib as _storage_mib,
@@ -34,15 +33,15 @@ pub async fn get_limits_for_user(
             subscription_tiers.members_per_workspace,
             subscription_tiers.num_workspaces,
             subscription_tiers.pipeline_pulls_per_month,
-            user_limits.additional_seats as "additional_seats?",
-            user_limits.code_services as "code_services?"
+            user_limits.additional_seats,
+            user_limits.code_services
         FROM
             users
         JOIN subscription_tiers ON subscription_tiers.id = users.tier_id
         LEFT JOIN user_limits ON user_limits.user_id = users.id
-        WHERE users.id = $1"#,
-        user_id
+        WHERE users.id = $1",
     )
+    .bind(user_id)
     .fetch_one(pool)
     .await?;
 
@@ -54,9 +53,8 @@ pub async fn get_limits_for_workspace(
     workspace_id: &Uuid,
 ) -> anyhow::Result<SubscriptionLimits> {
     #[allow(non_snake_case)]
-    let tier = sqlx::query_as!(
-        SubscriptionLimits,
-        r#"SELECT
+    let tier = sqlx::query_as::<_, SubscriptionLimits>(
+        "SELECT
             subscription_tiers.name as _name,
             subscription_tiers.pipeline_runs_per_month,
             subscription_tiers.storage_mib as _storage_mib,
@@ -64,8 +62,8 @@ pub async fn get_limits_for_workspace(
             subscription_tiers.members_per_workspace,
             subscription_tiers.num_workspaces,
             subscription_tiers.pipeline_pulls_per_month,
-            user_limits.additional_seats as "additional_seats?",
-            user_limits.code_services as "code_services?"
+            user_limits.additional_seats,
+            user_limits.code_services
         FROM
             users
         JOIN subscription_tiers ON subscription_tiers.id = users.tier_id
@@ -79,9 +77,9 @@ pub async fn get_limits_for_workspace(
                 workspace_id = $1
                 AND member_role = 'owner'::workspace_role
             LIMIT 1
-        )"#,
-        workspace_id
+        )",
     )
+    .bind(workspace_id)
     .fetch_one(pool)
     .await?;
 
@@ -103,8 +101,7 @@ pub struct StorageStats {
 }
 
 pub async fn get_user_storage_stats(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<StorageStats> {
-    let storage_stats = sqlx::query_as!(
-        StorageStats,
+    let storage_stats = sqlx::query_as::<_, StorageStats>(
         "SELECT (sum(pg_column_size(data)) + sum(pg_column_size(target)))::float8 / 1024 / 1024 as storage_mib
         FROM dataset_datapoints 
         WHERE dataset_id in (
@@ -117,8 +114,8 @@ pub async fn get_user_storage_stats(pool: &PgPool, user_id: &Uuid) -> anyhow::Re
                 )
             )
         )",
-        user_id
     )
+    .bind(user_id)
     .fetch_one(pool)
     .await?;
 
@@ -149,9 +146,8 @@ pub struct UserStats {
 }
 
 pub async fn get_user_stats(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<UserStats> {
-    let stats = sqlx::query_as!(
-        UserStats,
-        r#"WITH owned_workspace_run_counts(user_id, total_runs, runs_this_month, runs_next_reset_time) AS (
+    let stats = sqlx::query_as::<_, UserStats>(
+        "WITH owned_workspace_run_counts(user_id, total_runs, runs_this_month, runs_next_reset_time) AS (
             SELECT members_of_workspaces.user_id,
             sum(run_count.total_count)::int8,
             sum(run_count.count_since_reset)::int8,
@@ -182,8 +178,8 @@ pub async fn get_user_stats(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<Use
             owned_workspaces.num_workspaces,
 
             subscription_tiers.num_workspaces as workspaces_limit,
-            user_limits.additional_seats as "additional_seats?",
-            user_limits.code_services as "code_services?"
+            user_limits.additional_seats,
+            user_limits.code_services
         FROM
             users
         JOIN subscription_tiers ON subscription_tiers.id = users.tier_id
@@ -191,9 +187,9 @@ pub async fn get_user_stats(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<Use
         JOIN owned_workspace_run_counts ON users.id = owned_workspace_run_counts.user_id
         LEFT JOIN user_limits ON user_limits.user_id = users.id
         WHERE users.id =  $1
-        "#,
-        user_id
+        ",
     )
+    .bind(user_id)
     .fetch_one(pool)
     .await?;
 
@@ -218,8 +214,7 @@ pub async fn get_workspace_stats(
     pool: &PgPool,
     workspace_id: &Uuid,
 ) -> anyhow::Result<WorkspaceStats> {
-    let stats = sqlx::query_as!(
-        WorkspaceStats,
+    let stats = sqlx::query_as::<_, WorkspaceStats>(
         "WITH members_per_workspace(workspace_id, members_count) AS (
             SELECT workspace_id, count(user_id)::int8 from members_of_workspaces
             GROUP BY workspace_id
@@ -241,8 +236,8 @@ pub async fn get_workspace_stats(
         LEFT JOIN projects_per_workspace ON run_count.workspace_id = projects_per_workspace.workspace_id
         WHERE run_count.workspace_id = $1
         ",
-        workspace_id
     )
+    .bind(workspace_id)
     .fetch_one(pool)
     .await?;
 

@@ -1,12 +1,11 @@
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 use super::projects::Project;
 use super::stats::create_run_count_for_workspace;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, FromRow)]
 pub struct Workspace {
     pub id: Uuid,
     pub name: String,
@@ -38,27 +37,25 @@ pub async fn get_all_workspaces_of_user(
     pool: &PgPool,
     user_id: &Uuid,
 ) -> anyhow::Result<Vec<WorkspaceWithProjects>> {
-    let workspaces = sqlx::query_as!(
-        Workspace,
-        "select
+    let workspaces = sqlx::query_as::<_, Workspace>(
+        "SELECT
             workspaces.id,
             workspaces.name
-        from
+        FROM
             workspaces
             join members_of_workspaces on workspaces.id = members_of_workspaces.workspace_id
-        where
+        WHERE
             members_of_workspaces.user_id = $1
-        order by
-            workspaces.created_at DESC;",
-        user_id
+        ORDER BY
+            workspaces.created_at DESC",
     )
+    .bind(user_id)
     .fetch_all(pool)
     .await?;
 
     let mut workspaces_with_projects = Vec::new();
     for workspace in workspaces {
-        let projects = sqlx::query_as!(
-            Project,
+        let projects = sqlx::query_as::<_, Project>(
             "select
                 projects.id,
                 projects.name,
@@ -66,9 +63,9 @@ pub async fn get_all_workspaces_of_user(
             from
                 projects
             where
-                projects.workspace_id = $1;",
-            workspace.id
+                projects.workspace_id = $1",
         )
+        .bind(workspace.id)
         .fetch_all(pool)
         .await?;
 
@@ -83,18 +80,19 @@ pub async fn get_all_workspaces_of_user(
 }
 
 pub async fn get_owned_workspaces(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<Vec<Workspace>> {
-    let workspaces = sqlx::query_as!(
-        Workspace,
+    let workspaces = sqlx::query_as::<_, Workspace>(
         "SELECT
             id,
             name
         FROM
             workspaces
         WHERE id IN (
-            SELECT workspace_id FROM members_of_workspaces WHERE user_id = $1 AND member_role = 'owner'::workspace_role
+            SELECT workspace_id
+            FROM members_of_workspaces
+            WHERE user_id = $1 AND member_role = 'owner'::workspace_role
         )",
-        user_id
     )
+    .bind(user_id)
     .fetch_all(pool)
     .await?;
 
@@ -102,13 +100,11 @@ pub async fn get_owned_workspaces(pool: &PgPool, user_id: &Uuid) -> anyhow::Resu
 }
 
 pub async fn create_new_workspace(pool: &PgPool, workspace: &Workspace) -> anyhow::Result<()> {
-    sqlx::query!(
-        "insert into workspaces (id, name) values ($1, $2);",
-        workspace.id,
-        workspace.name
-    )
-    .execute(pool)
-    .await?;
+    sqlx::query("INSERT INTO workspaces (id, name) VALUES ($1, $2)")
+        .bind(workspace.id)
+        .bind(&workspace.name)
+        .execute(pool)
+        .await?;
 
     create_run_count_for_workspace(pool, &workspace.id).await?;
 
@@ -120,13 +116,13 @@ pub async fn add_owner_to_workspace(
     user_id: &Uuid,
     workspace_id: &Uuid,
 ) -> anyhow::Result<()> {
-    sqlx::query!(
-        "insert into members_of_workspaces
+    sqlx::query(
+        "INSERT INTO members_of_workspaces
             (user_id, workspace_id, member_role)
-        SELECT $1, $2, 'owner'::workspace_role;",
-        user_id,
-        workspace_id,
+        SELECT $1, $2, 'owner'::workspace_role",
     )
+    .bind(user_id)
+    .bind(workspace_id)
     .execute(pool)
     .await?;
 
@@ -138,13 +134,13 @@ pub async fn add_user_to_workspace_by_email(
     user_email: &str,
     workspace_id: &Uuid,
 ) -> anyhow::Result<()> {
-    sqlx::query!(
+    sqlx::query(
         "INSERT INTO members_of_workspaces (user_id, workspace_id, member_role)
         SELECT id, $2 as workspace_id, 'member'::workspace_role FROM users
-        WHERE users.email = $1;",
-        user_email,
-        workspace_id
+        WHERE users.email = $1",
     )
+    .bind(user_email)
+    .bind(workspace_id)
     .execute(pool)
     .await
     .map_err(|e| WorkspaceError::UnhandledError(e.into()))?;
@@ -160,7 +156,7 @@ pub struct WorkspaceWithInfo {
     pub users: Vec<WorkspaceUserInfo>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceUserInfo {
     pub id: Uuid,
@@ -174,25 +170,23 @@ pub async fn get_workspace(
     pool: &PgPool,
     workspace_id: &Uuid,
 ) -> anyhow::Result<WorkspaceWithInfo> {
-    let workspace = sqlx::query_as!(
-        Workspace,
-        "select
+    let workspace = sqlx::query_as::<_, Workspace>(
+        "SELECT
             id,
             name
-        from
+        FROM
             workspaces
-        where
-            id = $1;",
-        workspace_id
+        WHERE
+            id = $1",
     )
+    .bind(workspace_id)
     .fetch_optional(pool)
     .await?;
 
     match workspace {
         None => return Err(anyhow::anyhow!("Workspace not found")),
         Some(workspace) => {
-            let users = sqlx::query_as!(
-                WorkspaceUserInfo,
+            let users = sqlx::query_as::<_, WorkspaceUserInfo>(
                 "SELECT
                     users.id,
                     users.name,
@@ -207,8 +201,8 @@ pub async fn get_workspace(
                 ORDER BY
                     role DESC, -- for now, 'owner' comes before 'member'
                     members_of_workspaces.created_at ASC",
-                workspace_id
             )
+            .bind(workspace_id)
             .fetch_all(pool)
             .await?;
 
@@ -221,37 +215,47 @@ pub async fn get_workspace(
     }
 }
 
+#[derive(FromRow)]
+struct WorkspaceUserCount {
+    count: i64,
+}
+
 pub async fn number_of_users_in_workspace(
     pool: &PgPool,
     workspace_id: &Uuid,
 ) -> anyhow::Result<i64> {
-    let count = sqlx::query!(
+    let count = sqlx::query_as::<_, WorkspaceUserCount>(
         "SELECT
             count(user_id) as count
         FROM
             members_of_workspaces
         WHERE workspace_id = $1",
-        workspace_id
     )
+    .bind(workspace_id)
     .fetch_one(pool)
     .await?;
 
-    Ok(count.count.context("Could not count users")?)
+    Ok(count.count)
+}
+
+#[derive(FromRow)]
+struct WorkspaceApiKey {
+    api_key: String,
 }
 
 pub async fn get_user_api_keys_in_workspace(
     pool: &PgPool,
     workspace_id: &Uuid,
 ) -> anyhow::Result<Vec<String>> {
-    let records = sqlx::query!(
+    let records = sqlx::query_as::<_, WorkspaceApiKey>(
         "SELECT
             api_keys.api_key
         FROM members_of_workspaces
         JOIN api_keys ON members_of_workspaces.user_id = api_keys.user_id
         WHERE
             workspace_id = $1",
-        workspace_id
     )
+    .bind(workspace_id)
     .fetch_all(pool)
     .await?;
 

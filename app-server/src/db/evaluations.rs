@@ -70,17 +70,16 @@ pub async fn create_evaluation(
     project_id: Uuid,
     metadata: Option<Value>,
 ) -> Result<Evaluation> {
-    let evaluation = sqlx::query_as!(
-        Evaluation,
-        r#"INSERT INTO evaluations (name, status, project_id, metadata)
+    let evaluation = sqlx::query_as::<_, Evaluation>(
+        "INSERT INTO evaluations (name, status, project_id, metadata)
         VALUES ($1, $2::evaluation_job_status, $3, $4)
         ON CONFLICT (name, project_id) DO UPDATE set metadata = $4
-        RETURNING id, created_at, name, status as "status: EvaluationStatus", project_id, metadata"#,
-        name,
-        &status as &EvaluationStatus,
-        project_id,
-        metadata
+        RETURNING id, created_at, name, status, project_id, metadata",
     )
+    .bind(name)
+    .bind(status)
+    .bind(project_id)
+    .bind(metadata)
     .fetch_one(pool)
     .await?;
 
@@ -88,12 +87,11 @@ pub async fn create_evaluation(
 }
 
 pub async fn get_evaluation(db: Arc<DB>, evaluation_id: Uuid) -> Result<Evaluation> {
-    let evaluation = sqlx::query_as!(
-        Evaluation,
-        r#"SELECT id, name, status as "status: EvaluationStatus", project_id, created_at, metadata
-        FROM evaluations WHERE id = $1"#,
-        evaluation_id
+    let evaluation = sqlx::query_as::<_, Evaluation>(
+        "SELECT id, name, status, project_id, created_at, metadata
+        FROM evaluations WHERE id = $1",
     )
+    .bind(evaluation_id)
     .fetch_one(&db.pool)
     .await?;
 
@@ -105,13 +103,12 @@ pub async fn get_evaluation_by_name(
     project_id: Uuid,
     name: &str,
 ) -> Result<Evaluation> {
-    let evaluation = sqlx::query_as!(
-        Evaluation,
-        r#"SELECT id, name, status as "status: EvaluationStatus", project_id, created_at, metadata
-        FROM evaluations WHERE project_id = $1 AND name = $2"#,
-        project_id,
-        name
+    let evaluation = sqlx::query_as::<_, Evaluation>(
+        "SELECT id, name, status, project_id, created_at, metadata
+        FROM evaluations WHERE project_id = $1 AND name = $2",
     )
+    .bind(project_id)
+    .bind(name)
     .fetch_one(pool)
     .await?;
 
@@ -119,12 +116,11 @@ pub async fn get_evaluation_by_name(
 }
 
 pub async fn get_evaluations(pool: &PgPool, project_id: Uuid) -> Result<Vec<Evaluation>> {
-    let evaluations = sqlx::query_as!(
-        Evaluation,
-        r#"SELECT id, name, status as "status: EvaluationStatus", project_id, created_at, metadata
-        FROM evaluations WHERE project_id = $1"#,
-        project_id,
+    let evaluations = sqlx::query_as::<_, Evaluation>(
+        "SELECT id, name, status, project_id, created_at, metadata
+        FROM evaluations WHERE project_id = $1",
     )
+    .bind(project_id)
     .fetch_all(pool)
     .await?;
 
@@ -136,15 +132,14 @@ pub async fn get_finished_evaluation_infos(
     project_id: Uuid,
     exclude_id: Uuid,
 ) -> Result<Vec<Evaluation>> {
-    let evaluations = sqlx::query_as!(
-        Evaluation,
-        r#"SELECT id, name, status as "status: EvaluationStatus", project_id, created_at, metadata
+    let evaluations = sqlx::query_as::<_, Evaluation>(
+        "SELECT id, name, status, project_id, created_at, metadata
         FROM evaluations
         WHERE project_id = $1 AND status = 'Finished'::evaluation_job_status AND id != $2
-        ORDER BY created_at DESC"#,
-        project_id,
-        exclude_id,
+        ORDER BY created_at DESC",
     )
+    .bind(project_id)
+    .bind(exclude_id)
     .fetch_all(pool)
     .await?;
 
@@ -157,14 +152,14 @@ pub async fn update_evaluation_status_by_name(
     project_id: Uuid,
     status: EvaluationStatus,
 ) -> Result<()> {
-    sqlx::query!(
+    sqlx::query(
         "UPDATE evaluations
         SET status = $3
         WHERE name = $1 AND project_id = $2",
-        evaluation_name,
-        project_id,
-        status as EvaluationStatus,
     )
+    .bind(evaluation_name)
+    .bind(project_id)
+    .bind(status)
     .execute(pool)
     .await?;
 
@@ -191,8 +186,8 @@ pub async fn set_evaluation_results(
         .map(|score| serde_json::to_value(score.clone()).unwrap())
         .collect::<Vec<_>>();
 
-    let res = sqlx::query!(
-        r#"INSERT INTO evaluation_results (
+    let res = sqlx::query(
+        "INSERT INTO evaluation_results (
             evaluation_id,
             status,
             scores,
@@ -206,7 +201,7 @@ pub async fn set_evaluation_results(
         )
         SELECT 
             $10 as evaluation_id,
-            status as "status: EvaluationDatapointStatus",
+            status,
             scores,
             data,
             target,
@@ -217,18 +212,18 @@ pub async fn set_evaluation_results(
             error
         FROM
         UNNEST ($1::evaluation_status[], $2::jsonb[], $3::jsonb[], $4::jsonb[], $5::jsonb[], $6::uuid[], $7::uuid[], $8::int8[], $9::jsonb[])
-        AS tmp_table(status, scores, data, target, executor_output, evaluator_trace_id, executor_trace_id, index_in_batch, error)"#,
-        &statuses as &[EvaluationDatapointStatus],
-        &scores,
-        datas,
-        targets,
-        &executor_outputs as &[Option<Value>],
-        evaluator_trace_ids as &[Option<Uuid>],
-        executor_trace_ids as &[Option<Uuid>],
-        &Vec::from_iter(0..statuses.len() as i64),
-        error as &[Option<Value>],
-        evaluation_id
+        AS tmp_table(status, scores, data, target, executor_output, evaluator_trace_id, executor_trace_id, index_in_batch, error)",
     )
+    .bind(statuses)
+    .bind(scores)
+    .bind(datas)
+    .bind(targets)
+    .bind(executor_outputs)
+    .bind(evaluator_trace_ids)
+    .bind(executor_trace_ids)
+    .bind(Vec::from_iter(0..statuses.len() as i64))
+    .bind(error)
+    .bind(evaluation_id)
     .execute(pool)
     .await;
 
@@ -243,13 +238,12 @@ pub async fn get_evaluation_results(
     pool: &PgPool,
     evaluation_id: Uuid,
 ) -> Result<Vec<EvaluationDatapointPreview>> {
-    let results = sqlx::query_as!(
-        EvaluationDatapointPreview,
-        r#"SELECT
+    let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
+        "SELECT
             id,
             created_at,
             evaluation_id,
-            status as "status: EvaluationDatapointStatus",
+            status,
             data,
             target,
             scores,
@@ -257,9 +251,9 @@ pub async fn get_evaluation_results(
             error
         FROM evaluation_results
         WHERE evaluation_id = $1
-        ORDER BY created_at ASC, index_in_batch ASC NULLS FIRST"#,
-        evaluation_id
+        ORDER BY created_at ASC, index_in_batch ASC NULLS FIRST",
     )
+    .bind(evaluation_id)
     .fetch_all(pool)
     .await?;
 
@@ -270,22 +264,21 @@ pub async fn get_evaluation_datapoint(
     pool: &PgPool,
     evaluation_result_id: Uuid,
 ) -> Result<EvaluationDatapointPreview> {
-    let preview = sqlx::query_as!(
-        EvaluationDatapointPreview,
-        r#"SELECT
+    let preview = sqlx::query_as::<_, EvaluationDatapointPreview>(
+        "SELECT
             id,
             created_at,
             evaluation_id,
-            status as "status: EvaluationDatapointStatus",
+            status,
             scores,
             data,
             target,
             executor_output,
             error
         FROM evaluation_results
-        WHERE id = $1"#,
-        evaluation_result_id
+        WHERE id = $1",
     )
+    .bind(evaluation_result_id)
     .fetch_one(pool)
     .await?;
 

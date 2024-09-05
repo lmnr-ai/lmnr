@@ -20,14 +20,12 @@ pub async fn create_project_api_key(
     api_key: &ProjectApiKey,
     cache: Arc<Cache>,
 ) -> Result<()> {
-    sqlx::query!(
-        "insert into project_api_keys (value, project_id, name) values ($1, $2, $3);",
-        api_key.value,
-        api_key.project_id,
-        api_key.name
-    )
-    .execute(db)
-    .await?;
+    sqlx::query("INSERT INTO project_api_keys (value, project_id, name) VALUES ($1, $2, $3);")
+        .bind(&api_key.value)
+        .bind(api_key.project_id)
+        .bind(&api_key.name)
+        .execute(db)
+        .await?;
 
     let _ = cache
         .insert::<ProjectApiKey>(api_key.value.clone(), api_key)
@@ -40,18 +38,17 @@ pub async fn get_api_keys_for_project(
     db: &PgPool,
     project_id: &Uuid,
 ) -> Result<Vec<ProjectApiKey>> {
-    let api_keys = sqlx::query_as!(
-        ProjectApiKey,
-        "select
+    let api_keys = sqlx::query_as::<_, ProjectApiKey>(
+        "SELECT
             project_api_keys.value,
             project_api_keys.project_id,
             project_api_keys.name
-        from
+        FROM
             project_api_keys
-        where
-            project_api_keys.project_id = $1;",
-        project_id
+        WHERE
+            project_api_keys.project_id = $1",
     )
+    .bind(project_id)
     .fetch_all(db)
     .await?;
 
@@ -70,18 +67,17 @@ pub async fn get_api_key(
         Err(e) => log::error!("Error getting project API key from cache: {}", e),
     }
 
-    let api_key = match sqlx::query_as!(
-        ProjectApiKey,
-        "select
+    let api_key = match sqlx::query_as::<_, ProjectApiKey>(
+        "SELECT
             project_api_keys.value,
             project_api_keys.project_id,
             project_api_keys.name
-        from
+        FROM
             project_api_keys
-        where
-            project_api_keys.value = $1;",
-        api_key
+        WHERE
+            project_api_keys.value = $1",
     )
+    .bind(api_key)
     .fetch_optional(db)
     .await
     {
@@ -99,12 +95,10 @@ pub async fn get_api_key(
 }
 
 pub async fn delete_api_key(pool: &PgPool, api_key: &String, project_id: &Uuid) -> Result<()> {
-    sqlx::query!(
-        "delete from project_api_keys where value = $1 AND project_id = $2",
-        api_key,
-        project_id
-    )
-    .execute(pool)
-    .await?;
+    sqlx::query("DELETE FROM project_api_keys WHERE value = $1 AND project_id = $2")
+        .bind(api_key)
+        .bind(project_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }

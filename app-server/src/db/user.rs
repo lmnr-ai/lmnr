@@ -30,8 +30,7 @@ pub struct User {
 }
 
 pub async fn get_by_email(pool: &PgPool, email: &str) -> Result<Option<User>> {
-    sqlx::query_as!(
-        User,
+    sqlx::query_as::<_, User>(
         "SELECT 
             users.id, 
             users.name, 
@@ -43,22 +42,20 @@ pub async fn get_by_email(pool: &PgPool, email: &str) -> Result<Option<User>> {
             users
             left join api_keys on users.id = api_keys.user_id
         WHERE email = $1",
-        email
     )
+    .bind(email)
     .fetch_optional(pool)
     .await
     .map_err(|e| e.into())
 }
 
 pub async fn write_user(pool: &PgPool, id: &Uuid, email: &String, name: &String) -> Result<()> {
-    sqlx::query!(
-        "INSERT INTO users (id, name, email) values ($1, $2, $3)",
-        id,
-        name,
-        email,
-    )
-    .execute(pool)
-    .await?;
+    sqlx::query("INSERT INTO users (id, name, email) values ($1, $2, $3)")
+        .bind(id)
+        .bind(name)
+        .bind(email)
+        .execute(pool)
+        .await?;
 
     Ok(())
 }
@@ -76,14 +73,12 @@ pub async fn write_api_key(
     user_id: &Uuid,
     name: &String,
 ) -> Result<()> {
-    sqlx::query!(
-        "INSERT INTO api_keys (api_key, user_id, name) values ($1, $2, $3)",
-        api_key,
-        user_id,
-        name,
-    )
-    .execute(pool)
-    .await?;
+    sqlx::query("INSERT INTO api_keys (api_key, user_id, name) values ($1, $2, $3)")
+        .bind(api_key)
+        .bind(user_id)
+        .bind(name)
+        .execute(pool)
+        .await?;
 
     Ok(())
 }
@@ -102,30 +97,29 @@ pub async fn get_user_from_api_key(
         Err(e) => log::error!("Error getting user from cache: {}", e),
     };
 
-    match sqlx::query_as!(
-        User,
+    match sqlx::query_as::<_, User>(
         "
-            select
+            SELECT
             u.id as id,
             u.name as name,
             u.email as email,
             array_remove(array_agg(mo.workspace_id), null) as workspace_ids,
             array_remove(array_agg(p.id), null) as project_ids,
             ak.api_key
-        from
+        FROM
             users u
             left join members_of_workspaces mo on u.id = mo.user_id
             left join projects p on mo.workspace_id = p.workspace_id
             left join api_keys ak on u.id = ak.user_id
-        where
+        WHERE
             ak.api_key = $1
-        group by
+        GROUP BY
             u.id,
             u.name,
             u.email,
-            ak.api_key;",
-        api_key
+            ak.api_key",
     )
+    .bind(&api_key)
     .fetch_optional(pool)
     .await
     {
@@ -139,11 +133,12 @@ pub async fn get_user_from_api_key(
 }
 
 pub async fn get_api_key_for_user_from_email(pool: &PgPool, email: &String) -> Option<String> {
-    match sqlx::query_as!(
-        ApiKey,
-        "select api_key, user_id, name from api_keys where user_id = (select id from users where email = $1)",
-        email
+    match sqlx::query_as::<_, ApiKey>(
+        "SELECT api_key, user_id, name
+        FROM api_keys
+        WHERE user_id = (SELECT id FROM users WHERE email = $1)",
     )
+    .bind(email)
     .fetch_optional(pool)
     .await
     {

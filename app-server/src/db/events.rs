@@ -143,16 +143,16 @@ pub async fn create_event(
     value: Value,
     inputs: Option<Value>,
 ) -> Result<()> {
-    sqlx::query!(
+    sqlx::query(
         "INSERT INTO events (span_id, timestamp, template_id, source, value, inputs)
         VALUES ($1, $2, $3, $4, $5, $6)",
-        span_id,
-        timestamp,
-        template_id,
-        source as EventSource,
-        value,
-        inputs,
     )
+    .bind(span_id)
+    .bind(timestamp)
+    .bind(template_id)
+    .bind(source)
+    .bind(value)
+    .bind(inputs)
     .execute(pool)
     .await?;
 
@@ -170,19 +170,24 @@ pub async fn create_events(
     source: EventSource,
     values: &Vec<Option<Value>>,
 ) -> Result<()> {
-    sqlx::query!(
+    sqlx::query(
         "INSERT INTO events (span_id, timestamp, template_id, source, value)
         SELECT unnest($1::uuid[]), unnest($2::timestamptz[]), unnest($3::uuid[]), $4, unnest($5::jsonb[])",
-        span_ids,
-        timestamps,
-        template_ids,
-        source as EventSource,
-        values as &[Option<Value>],
     )
+    .bind(span_ids)
+    .bind(timestamps)
+    .bind(template_ids)
+    .bind(source)
+    .bind(values)
     .execute(pool)
     .await?;
 
     Ok(())
+}
+
+#[derive(sqlx::FromRow)]
+struct EventTemplateId {
+    id: Uuid,
 }
 
 pub async fn create_events_by_template_name(
@@ -197,11 +202,11 @@ pub async fn create_events_by_template_name(
     let mut values = vec![];
 
     for event in events {
-        let template_id = sqlx::query!(
+        let template_id = sqlx::query_as::<_, EventTemplateId>(
             "SELECT id FROM event_templates WHERE name = $1 AND project_id = $2",
-            event.template_name,
-            project_id,
         )
+        .bind(&event.template_name)
+        .bind(project_id)
         .fetch_one(&db.pool)
         .await?
         .id;
@@ -229,39 +234,8 @@ pub async fn get_events_for_span(
     pool: &PgPool,
     span_id: Uuid,
 ) -> Result<Vec<EventWithTemplateName>> {
-    let events = sqlx::query_as!(
-        EventWithTemplateName,
-        r#"SELECT
-            e.id,
-            e.created_at,
-            e.span_id,
-            e.timestamp,
-            e.template_id,
-            event_templates.name as template_name,
-            event_templates.event_type as "template_event_type: EventType",
-            e.source as "source: EventSource",
-            e.metadata,
-            e.value,
-            e.inputs
-        FROM events e
-        JOIN event_templates ON e.template_id = event_templates.id
-        WHERE span_id = $1
-        ORDER BY e.timestamp ASC"#,
-        span_id,
-    )
-    .fetch_all(pool)
-    .await?;
-
-    Ok(events)
-}
-
-pub async fn get_events_by_template_id(
-    pool: &PgPool,
-    template_id: &Uuid,
-    date_range: Option<DateRange>,
-) -> Result<Vec<EventWithTemplateName>> {
-    let mut query = QueryBuilder::<Postgres>::new(
-        r#"SELECT
+    let events = sqlx::query_as::<_, EventWithTemplateName>(
+        "SELECT
             e.id,
             e.created_at,
             e.span_id,
@@ -275,7 +249,37 @@ pub async fn get_events_by_template_id(
             e.inputs
         FROM events e
         JOIN event_templates ON e.template_id = event_templates.id
-        WHERE event_templates.id = "#,
+        WHERE span_id = $1
+        ORDER BY e.timestamp ASC",
+    )
+    .bind(span_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(events)
+}
+
+pub async fn get_events_by_template_id(
+    pool: &PgPool,
+    template_id: &Uuid,
+    date_range: Option<DateRange>,
+) -> Result<Vec<EventWithTemplateName>> {
+    let mut query = QueryBuilder::<Postgres>::new(
+        "SELECT
+            e.id,
+            e.created_at,
+            e.span_id,
+            e.timestamp,
+            e.template_id,
+            event_templates.name as template_name,
+            event_templates.event_type as template_event_type,
+            e.source,
+            e.metadata,
+            e.value,
+            e.inputs
+        FROM events e
+        JOIN event_templates ON e.template_id = event_templates.id
+        WHERE event_templates.id = ",
     );
     query.push_bind(template_id);
 
@@ -464,7 +468,7 @@ pub async fn get_events(
     let mut query = QueryBuilder::<Postgres>::new("WITH ");
     let mut query = add_events_info_expression(&mut query, date_range);
     query.push(
-        r#"
+        "
         SELECT
             e.id,
             e.created_at,
@@ -479,7 +483,7 @@ pub async fn get_events(
             event_templates.event_type as template_event_type
         FROM events_info e
         JOIN event_templates ON e.template_id = event_templates.id
-        WHERE event_templates.project_id = "#,
+        WHERE event_templates.project_id = ",
     );
 
     query.push_bind(project_id);
@@ -533,16 +537,15 @@ pub async fn count_events(
 /// This function is a simpler version of `count_events` that only counts the traces without any additional information
 /// and is more efficient.
 pub async fn count_all_events_in_project(pool: &PgPool, project_id: Uuid) -> Result<i64> {
-    let count = sqlx::query!(
+    let count = sqlx::query_as::<_, TotalCount>(
         "SELECT COUNT(DISTINCT(events.id)) as total_count
         FROM events
         JOIN event_templates ON events.template_id = event_templates.id
         WHERE event_templates.project_id = $1",
-        project_id,
     )
+    .bind(project_id)
     .fetch_one(pool)
-    .await?
-    .total_count;
+    .await?;
 
-    Ok(count.unwrap_or_default())
+    Ok(count.total_count)
 }
