@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import LogEditor from './log-editor';
+import { useState, useEffect, useMemo } from 'react';
+import TraceView from './trace-view';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { DataTable } from '../ui/datatable';
 import { Trace } from '@/lib/traces/types';
@@ -12,6 +12,11 @@ import StatusLabel from '../ui/status-label';
 import { Event } from '@/lib/events/types';
 import TracesMetrics from './traces-metrics';
 import TracesPagePlaceholder from './page-placeholder';
+import { useUserContext } from '@/contexts/user-context';
+import { createClient } from '@supabase/supabase-js';
+import { SUPABASE_ANON_KEY, SUPABASE_URL, USE_REALTIME } from '@/lib/const';
+import { useProjectContext } from '@/contexts/project-context';
+import { usePrevious } from '@/lib/hooks/use-previous';
 
 interface TracesProps {
   defaultTraces: Trace[];
@@ -20,8 +25,8 @@ interface TracesProps {
   pageSize: number;
   pageNumber: number;
   defaultSelectedid?: string;
-  pastHours: string;
   totalInProject: number | null;
+  enableStreaming: boolean;
 }
 
 export default function Traces({
@@ -31,20 +36,20 @@ export default function Traces({
   pageSize,
   pageNumber,
   defaultSelectedid,
-  pastHours,
   totalInProject,
+  enableStreaming,
 }: TracesProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
-  const [sidebarWidth, setSidebarWidth] = useState<number>(500);
   const pathName = usePathname();
   const router = useRouter();
   const [expandedid, setExpandedid] = useState<string | null>(defaultSelectedid ?? null);
   const [traces, setTraces] = useState<Trace[]>(defaultTraces);
-  const [refreshButtonDisabled, setRefreshButtonDisabled] = useState<boolean>(false);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(defaultSelectedid != null);
-  const [selectedids, setSelectedids] = useState<string[]>([]);
-  const [allRunsAcrossPagesSelected, setAllRunsAcrossPagesSelected] = useState<boolean>(false);
-  const logEditorRef = useRef(null);
+  const { projectId } = useProjectContext();
+  const [isDefaultTracesMounted, setIsDefaultTracesMounted] = useState<boolean>(false);
+
+  const [totalCount, setTotalCount] = useState<number>(totalTracesCount);  // including the filtering
+  const [totalInProjectCount, setTotalInProjectCount] = useState<number>(totalInProject ?? 0);
 
   const handleRowClick = async (row: Trace) => {
     setExpandedid(row.id);
@@ -148,20 +153,127 @@ export default function Traces({
 
   const columns = staticColumns
 
+  const { supabaseAccessToken } = useUserContext()
+  const supabase = useMemo(() => {
+    return USE_REALTIME
+    ? createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${supabaseAccessToken}`,
+          },
+        },
+      }
+    )
+    : null
+  }, [])
+
+  supabase?.realtime.setAuth(supabaseAccessToken)
+
   useEffect(() => {
+    // When enableStreaming changes, need to remove all channels and, if enabled, re-subscribe
+    supabase?.channel('table-db-changes').unsubscribe()
+
+    if (enableStreaming) {
+      supabase
+        ?.channel('table-db-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'traces',
+            filter: `project_id=eq.${projectId}`
+          },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              fetch(`/api/projects/${projectId}/traces/${payload.new.id}/trace-with-events`).then((res) => res.json()).then((newTrace) => {
+                // TODO: Update total count and total in project
+                setTraces((prevTraces) => {
+                  return [newTrace, ...prevTraces];
+                })
+                setTotalCount((prevTotalCount) => prevTotalCount + 1);
+                setTotalInProjectCount((prevTotalInProjectCount) => prevTotalInProjectCount + 1);
+              });
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'traces',
+            filter: `project_id=eq.${projectId}`
+          },
+          (payload) => {
+            if (payload.eventType === 'UPDATE') {
+              fetch(`/api/projects/${projectId}/traces/${payload.new.id}/trace-with-events`).then((res) => res.json()).then((updatedTrace) => {
+                setTraces((prevTraces) => {
+                  const updatedTraces = prevTraces.map((trace) => {
+                    if (trace.id === updatedTrace.id) {
+                      return updatedTrace;
+                    }
+                    return trace;
+                  });
+
+                  return updatedTraces;
+                })
+              });
+            }
+          }
+        )
+        .subscribe()
+    }
+
+    // remove all channels on unmount
+    return () => {
+      supabase?.removeAllChannels()
+    }
+  }, [enableStreaming])
+
+  useEffect(() => {
+    setTraces(defaultTraces)
+  }, [defaultTraces]);
+
+  const prevPageSize = usePrevious(pageSize);
+  const prevPageNumber = usePrevious(pageNumber);
+
+  useEffect(() => {
+    let isMounted = isDefaultTracesMounted;
+
+    if (pageSize !== prevPageSize || pageNumber !== prevPageNumber) {
+      setIsDefaultTracesMounted(false)
+      isMounted = false;
+    }
+
+    if (isMounted && enableStreaming) {
+      return;
+    }
+
+    setIsDefaultTracesMounted(true)
     setTraces(defaultTraces ?? [])
   }, [defaultTraces]);
 
+  useEffect(() => {
+    setTotalCount(totalTracesCount);
+    setTotalInProjectCount(totalInProject ?? 0);
+  }, [totalTracesCount, totalInProject])
 
-  if (totalTracesCount === 0 && totalInProject === 0) {
+
+  if (totalCount === 0 && totalInProjectCount === 0) {
     return <TracesPagePlaceholder />
   }
+
 
   return (
     <div className="h-full flex flex-col">
       <div className="flex flex-col w-full h-full relative">
         <div className='flex-none'>
-          <TracesMetrics pastHours={pastHours} />
+          <TracesMetrics
+          />
         </div>
         <div className='flex-grow'>
           <DataTable
@@ -181,14 +293,12 @@ export default function Traces({
               searchParams.set('pageSize', pageSize.toString());
               router.push(`${pathName}?${searchParams.toString()}`);
             }}
-            totalItemsCount={totalTracesCount}
+            totalItemsCount={totalCount}
             enableRowSelection
-            onSelectedRowsChange={setSelectedids}
             filterColumns={
               columns.filter(column => !['actions', 'events', 'start_time'].includes(column.id!)).concat([eventFilterCol])
             }
             enableDateRangeFilter
-            onSelectAllAcrossPages={setAllRunsAcrossPagesSelected}
           />
         </div>
         {isSidePanelOpen && (
@@ -211,7 +321,7 @@ export default function Traces({
               }}
             >
               <div className='w-full h-full flex'>
-                <LogEditor
+                <TraceView
                   onClose={() => {
                     searchParams.delete('selectedid');
                     router.push(`${pathName}?${searchParams.toString()}`);

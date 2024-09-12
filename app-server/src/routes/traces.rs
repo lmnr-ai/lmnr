@@ -2,19 +2,21 @@ use super::ResponseResult;
 use crate::{
     ch::{
         self,
+        modifiers::GroupByInterval,
         spans::{get_time_bounds, IntMetricTimeValue},
         utils::hours_ago,
+        Aggregation,
     },
     db::{
         self,
         events::EventWithTemplateName,
-        metrics::Aggregation,
-        modifiers::{DateRange, Filter, GroupByInterval},
+        modifiers::{DateRange, Filter, RelativeDateInterval},
         trace::{Span, Trace, TraceWithEvents},
         DB,
     },
 };
 use actix_web::{get, post, web, HttpResponse};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -83,6 +85,19 @@ pub async fn get_traces(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[get("traces/{trace_id}/trace-with-events")]
+pub async fn get_trace_with_events(
+    params: web::Path<(Uuid, Uuid)>,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    let (project_id, trace_id) = params.into_inner();
+
+    let trace_with_events =
+        db::trace::get_trace_with_events(&db.pool, trace_id, project_id).await?;
+
+    Ok(HttpResponse::Ok().json(trace_with_events))
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TraceWithSpanPreviews {
@@ -131,12 +146,35 @@ pub async fn get_single_span(params: web::Path<(Uuid, Uuid)>, db: web::Data<DB>)
     Ok(HttpResponse::Ok().json(span_with_events))
 }
 
+#[get("trace-id-for-span/{span_id}")]
+pub async fn get_trace_id_for_span(
+    params: web::Path<(Uuid, Uuid)>,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    let (_project_id, span_id) = params.into_inner();
+
+    // TODO: if querying the entire span with input and output is inefficient,
+    // we can just query the trace_id in a separate db function
+    let span = db::trace::get_span(&db.pool, span_id).await?;
+    let trace_id = span.trace_id;
+
+    Ok(HttpResponse::Ok().json(trace_id))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum TraceMetric {
+    TraceCount,
+    TraceLatencySeconds,
+    TotalTokenCount,
+    CostUsd,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GetTraceMetricsParams {
-    /// e.g. "traceCount", "traceLatency", "tokenCount", "approximateCost"
-    pub metric: String,
-    /// Total or average, TODO: Find better name for this field
+    pub metric: TraceMetric,
+    /// Total or average
     pub aggregation: Aggregation,
     /// Date range per page
     #[serde(default)]
@@ -162,45 +200,68 @@ pub async fn get_traces_metrics(
     let date_range = req.date_range.as_ref();
     let group_by_interval = req.group_by_interval;
 
-    let past_hours = match date_range {
-        Some(date_range) => match date_range {
-            DateRange::Absolute(_) => {
-                return Err(anyhow::anyhow!("Absolute date range is not supported").into());
-            }
-            DateRange::Relative(interval) => {
-                if interval.past_hours == "all" {
-                    // Don't fetch data for more than 30 days for "all"
-                    None
-                } else {
-                    let past_hours: i64 = interval.past_hours.parse().map_err(|_| {
-                        anyhow::anyhow!(
-                            "Failed to parse past_hours as i64: {}",
-                            interval.past_hours
-                        )
-                    })?;
-                    Some(past_hours)
+    // We expect the frontend to always provide a date range.
+    // However, for smooth UX we default this to all time.
+    let defaulted_range =
+        date_range
+            .cloned()
+            .unwrap_or(DateRange::Relative(RelativeDateInterval {
+                past_hours: "all".to_string(),
+            }));
+
+    match defaulted_range {
+        DateRange::Relative(interval) => {
+            let past_hours = if interval.past_hours == "all" {
+                let time_bounds = get_time_bounds(clickhouse.clone(), project_id).await?;
+                if time_bounds.min_time == 0 {
+                    let values: Vec<IntMetricTimeValue> = vec![];
+                    return Ok(HttpResponse::Ok().json(values));
                 }
-            }
-        },
-        // We expect client to always provide a date range. But for smooth UX, we default to 30 days
-        None => None,
-    };
+                let past_hours = hours_ago(time_bounds.min_time);
+                // FIXME: This is definitely to do with the query, and this patch is likely not a solution.
+                past_hours.max(48)
+            } else {
+                let past_hours: i64 = interval.past_hours.parse().map_err(|_| {
+                    anyhow::anyhow!("Failed to parse past_hours as i64: {}", interval.past_hours)
+                })?;
 
-    let past_hours = if let Some(past_hours) = past_hours {
-        past_hours
-    } else {
-        let time_bounds = get_time_bounds(clickhouse.clone(), project_id).await?;
-        if time_bounds.min_time == 0 {
-            let values: Vec<IntMetricTimeValue> = vec![];
-            return Ok(HttpResponse::Ok().json(values));
+                past_hours
+            };
+            get_metrics_relative_time(
+                clickhouse.clone(),
+                metric,
+                project_id,
+                past_hours,
+                group_by_interval,
+                aggregation,
+            )
+            .await
         }
+        DateRange::Absolute(interval) => {
+            get_metrics_absolute_time(
+                clickhouse.clone(),
+                metric,
+                project_id,
+                interval.start_date,
+                interval.end_date,
+                group_by_interval,
+                aggregation,
+            )
+            .await
+        }
+    }
+}
 
-        let past_hours = hours_ago(time_bounds.min_time);
-        past_hours.max(48) // the grouping is done by 1 day
-    };
-
-    match metric.as_str() {
-        "traceCount" => match aggregation {
+async fn get_metrics_relative_time(
+    clickhouse: clickhouse::Client,
+    metric: TraceMetric,
+    project_id: Uuid,
+    past_hours: i64,
+    group_by_interval: GroupByInterval,
+    aggregation: Aggregation,
+) -> ResponseResult {
+    match metric {
+        TraceMetric::TraceCount => match aggregation {
             Aggregation::Average => {
                 return Err(anyhow::anyhow!(
                     "Average grouping is not supported for traceCount metric"
@@ -208,7 +269,7 @@ pub async fn get_traces_metrics(
                 .into());
             }
             Aggregation::Total => {
-                let values = ch::spans::get_total_trace_count_metrics(
+                let values = ch::spans::get_total_trace_count_metrics_relative(
                     clickhouse,
                     group_by_interval,
                     project_id,
@@ -219,7 +280,7 @@ pub async fn get_traces_metrics(
                 Ok(HttpResponse::Ok().json(values))
             }
         },
-        "traceLatencySeconds" => match aggregation {
+        TraceMetric::TraceLatencySeconds => match aggregation {
             Aggregation::Total => {
                 return Err(anyhow::anyhow!(
                     "Total grouping is not supported for traceLatency metric"
@@ -227,24 +288,26 @@ pub async fn get_traces_metrics(
                 .into());
             }
             Aggregation::Average => {
-                let values = ch::spans::get_average_trace_latency_seconds_metrics(
+                let values = ch::spans::get_trace_latency_seconds_metrics_relative(
                     clickhouse,
                     group_by_interval,
                     project_id,
                     past_hours,
+                    aggregation,
                 )
                 .await?;
 
                 Ok(HttpResponse::Ok().json(values))
             }
         },
-        "totalTokenCount" => match aggregation {
+        TraceMetric::TotalTokenCount => match aggregation {
             Aggregation::Total => {
-                let values = ch::spans::get_total_total_token_count_metrics(
+                let values = ch::spans::get_total_token_count_metrics_relative(
                     clickhouse,
                     group_by_interval,
                     project_id,
                     past_hours,
+                    aggregation,
                 )
                 .await?;
 
@@ -257,13 +320,14 @@ pub async fn get_traces_metrics(
                 .into());
             }
         },
-        "costUsd" => match aggregation {
+        TraceMetric::CostUsd => match aggregation {
             Aggregation::Total => {
-                let values = ch::spans::get_total_cost_usd_metrics(
+                let values = ch::spans::get_cost_usd_metrics_relative(
                     clickhouse,
                     group_by_interval,
                     project_id,
                     past_hours,
+                    aggregation,
                 )
                 .await?;
 
@@ -276,8 +340,101 @@ pub async fn get_traces_metrics(
                 .into());
             }
         },
-        _ => {
-            return Err(anyhow::anyhow!("Unsupported metric: {}", metric).into());
-        }
+    }
+}
+
+async fn get_metrics_absolute_time(
+    clickhouse: clickhouse::Client,
+    metric: TraceMetric,
+    project_id: Uuid,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    group_by_interval: GroupByInterval,
+    aggregation: Aggregation,
+) -> ResponseResult {
+    match metric {
+        TraceMetric::TraceCount => match aggregation {
+            Aggregation::Average => {
+                return Err(anyhow::anyhow!(
+                    "Average grouping is not supported for traceCount metric"
+                )
+                .into());
+            }
+            Aggregation::Total => {
+                let values = ch::spans::get_total_trace_count_metrics_absolute(
+                    clickhouse,
+                    group_by_interval,
+                    project_id,
+                    start_time,
+                    end_time,
+                )
+                .await?;
+
+                Ok(HttpResponse::Ok().json(values))
+            }
+        },
+        TraceMetric::TraceLatencySeconds => match aggregation {
+            Aggregation::Total => {
+                return Err(anyhow::anyhow!(
+                    "Total grouping is not supported for traceLatency metric"
+                )
+                .into());
+            }
+            Aggregation::Average => {
+                let values = ch::spans::get_trace_latency_seconds_metrics_absolute(
+                    clickhouse,
+                    group_by_interval,
+                    project_id,
+                    start_time,
+                    end_time,
+                    aggregation,
+                )
+                .await?;
+
+                Ok(HttpResponse::Ok().json(values))
+            }
+        },
+        TraceMetric::TotalTokenCount => match aggregation {
+            Aggregation::Total => {
+                let values = ch::spans::get_total_token_count_metrics_absolute(
+                    clickhouse,
+                    group_by_interval,
+                    project_id,
+                    start_time,
+                    end_time,
+                    aggregation,
+                )
+                .await?;
+
+                Ok(HttpResponse::Ok().json(values))
+            }
+            Aggregation::Average => {
+                return Err(anyhow::anyhow!(
+                    "Average grouping is not supported for totalTokenCount metric"
+                )
+                .into());
+            }
+        },
+        TraceMetric::CostUsd => match aggregation {
+            Aggregation::Total => {
+                let values = ch::spans::get_cost_usd_metrics_absolute(
+                    clickhouse,
+                    group_by_interval,
+                    project_id,
+                    start_time,
+                    end_time,
+                    aggregation,
+                )
+                .await?;
+
+                Ok(HttpResponse::Ok().json(values))
+            }
+            Aggregation::Average => {
+                return Err(anyhow::anyhow!(
+                    "Average grouping is not supported for costUsd metric"
+                )
+                .into());
+            }
+        },
     }
 }

@@ -23,12 +23,6 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
   const pathname = usePathname()
 
   const navbarOptions = [
-    // {
-    //   name: 'home',
-    //   href: `/project/${projectId}`,
-    //   icon: LayoutGrid,
-    //   current: false
-    // },
     {
       name: 'traces',
       href: `/project/${projectId}/traces`,
@@ -51,6 +45,12 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
       name: 'events',
       href: `/project/${projectId}/events`,
       icon: ArrowBigUp,
+      current: false
+    },
+    {
+      name: 'dashboard',
+      href: `/project/${projectId}/dashboard`,
+      icon: LayoutGrid,
       current: false
     },
     {

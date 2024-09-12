@@ -8,12 +8,12 @@ import { Skeleton } from '../ui/skeleton';
 import { Button } from '../ui/button';
 import Mono from '../ui/mono';
 
-interface LogEditorProps {
+interface TraceViewProps {
   onClose: () => void;
   traceId: string;
 }
 
-export default function LogEditor({ onClose, traceId }: LogEditorProps) {
+export default function TraceView({ onClose, traceId }: TraceViewProps) {
   const { projectId } = useProjectContext();
   const { data: rowInfo, isLoading, error } = useSWR(`/api/projects/${projectId}/traces/${traceId}`, swrFetcher);
 

@@ -6,9 +6,9 @@ import { DataTable } from '../ui/datatable';
 import { ColumnDef } from '@tanstack/react-table';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Resizable } from 're-resizable';
-import StatusLabel from '../ui/status-label';
-import { Event, EventType } from '@/lib/events/types';
+import { Event } from '@/lib/events/types';
 import EventsPagePlaceholder from '@/components/events/page-placeholder';
+import EventView from './event-view';
 
 // const sourceToText = (source: string) => {
 //   switch (source) {
@@ -27,7 +27,6 @@ interface EventsProps {
   pageCount: number;
   pageSize: number;
   pageNumber: number;
-  defaultSelectedid?: string;
   totalInProject: number | null;
 }
 
@@ -37,23 +36,21 @@ export default function Events({
   pageCount,
   pageSize,
   pageNumber,
-  defaultSelectedid,
   totalInProject,
 }: EventsProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
-  const [expandedid, setExpandedid] = useState<string | null>(defaultSelectedid ?? null);
   const [events, setEvents] = useState<Event[]>(defaultEvents);
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(false);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
-  // const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(defaultSelectedid != null);
-
-  // const handleRowClick = async (row: Event) => {
-  //   setExpandedid(row.id);
-  //   searchParams.set('selectedid', row.id!);
-  //   router.push(`${pathName}?${searchParams.toString()}`);
-  //   setIsSidePanelOpen(true);
-  // };
+  const handleRowClick = async (row: Event) => {
+    setSelectedEvent(row);
+    // searchParams.set('selectedid', row.id!);
+    // router.push(`${pathName}?${searchParams.toString()}`);
+    setIsSidePanelOpen(true);
+  };
 
   // useEffect(() => {
   //   const selectedid = searchParams.get('selectedid');
@@ -113,17 +110,6 @@ export default function Events({
     },
   ]
 
-  // const eventFilterCol = {
-  //   header: "events",
-  //   id: `jsonb::events::event`,
-  // };
-
-  // const metadata_keys = new Set<string>();
-  // defaultEvents.forEach((trace) => {
-  //   Object.keys(trace.metadata ?? {}).forEach((key) => {
-  //     metadata_keys.add(key);
-  //   });
-  // });
 
   const columns = staticColumns
 
@@ -145,9 +131,9 @@ export default function Events({
             columns={columns}
             data={events}
             getRowId={(event) => event.id}
-            // onRowClick={async (row) => await handleRowClick(row)}
+            onRowClick={async (row) => await handleRowClick(row)}
             paginated
-            focusedRowId={expandedid}
+            // focusedRowId={expandedid}
             manualPagination
             pageCount={pageCount}
             defaultPageSize={pageSize}
@@ -164,7 +150,7 @@ export default function Events({
             enableDateRangeFilter
           />
         </div>
-        {/* {isSidePanelOpen && (
+        {isSidePanelOpen && (
           <div className='absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex'>
             <Resizable
               enable={
@@ -184,19 +170,21 @@ export default function Events({
               }}
             >
               <div className='w-full h-full flex'>
-                <LogEditor
+                <EventView
                   onClose={() => {
-                    searchParams.delete('selectedid');
-                    router.push(`${pathName}?${searchParams.toString()}`);
+                    //   searchParams.delete('selectedid');
+                    //   router.push(`${pathName}?${searchParams.toString()}`);
                     setIsSidePanelOpen(false)
-                    setExpandedid(null);
+                    //   setExpandedid(null);
                   }}
-                  traceId={expandedid!}
+                  event={selectedEvent!}
+                // traceId={expandedid!}
                 />
+
               </div>
             </Resizable>
           </div>
-        )} */}
+        )}
       </div>
     </div >
   )

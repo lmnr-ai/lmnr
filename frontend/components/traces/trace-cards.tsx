@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { GraphMessagePreview } from '@/lib/pipeline/types'
 import { SpanCard } from './trace-card'
 import { getDurationString } from '@/lib/flow/utils'
 import { ScrollArea, ScrollBar } from '../ui/scroll-area'
@@ -8,9 +7,7 @@ import { Span, TraceWithSpans } from '@/lib/traces/types'
 import StatusLabel from '../ui/status-label'
 import { CircleDollarSign, Clock3, Coins } from 'lucide-react'
 import { SpanView } from './span-view'
-import { TraceOverviewMessage } from '../pipeline/trace-overview-message'
 import Timeline from './timeline'
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table'
 import { cn } from '@/lib/utils'
 
 interface TraceCardsProps {
@@ -131,7 +128,6 @@ export default function TraceCards({ trace, onTraceHover }: TraceCardsProps) {
                                 selectedSpan={selectedSpan}
                                 containerWidth={timelineWidth}
                                 onSpanSelect={(span) => {
-                                  console.log(span)
                                   setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1)
                                   setSelectedSpan(span)
                                 }}

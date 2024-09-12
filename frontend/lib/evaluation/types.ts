@@ -7,14 +7,13 @@ export type Evaluation = {
   name: string,
   status: 'Started' | 'Finished' | 'Error',
   projectId: string,
-  metadata: Record<string, any> | null,
 }
 
 export type EvaluationDatapoint = {
   id: string;
   evaluationId: string;
   status: string;
-  score: number | null;
+  scores: Record<string, number>;
   data: Record<string, any>;
   target: Record<string, any>;
   executorOutput: Record<string, any> | null;
@@ -41,15 +40,7 @@ export type EvaluationDatapointPreviewWithCompared = {
   comparedScores?: Record<string, any>;
 } & EvaluationDatapointPreview
 
-export type EvaluationStats = {
-  averageScore?: number;
-  averageExecutorTime?: number;
-  averageEvaluatorTime?: number;
-  executorTokens?: number;
-  evaluatorTokens?: number;
-  executorCost?: number;
-  evaluatorCost?: number;
-}
+export type EvaluationStats = Record<string, number>;
 
 export type EvaluationResultsInfo = {
   evaluation: Evaluation;

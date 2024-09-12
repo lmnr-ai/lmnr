@@ -7,7 +7,6 @@ pub mod evaluations;
 pub mod event_templates;
 pub mod events;
 pub mod limits;
-pub mod metrics;
 pub mod modifiers;
 pub mod pipelines;
 pub mod projects;

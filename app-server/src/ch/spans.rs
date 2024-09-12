@@ -1,15 +1,16 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    ch::utils::round_small_values_to_zero,
-    db::{self, modifiers::GroupByInterval},
-    traces::SpanUsage,
-};
+use crate::{ch::utils::round_small_values_to_zero, db, traces::SpanUsage};
 
-use super::utils::chrono_to_timestamp;
+use super::{
+    modifiers::GroupByInterval,
+    utils::{chrono_to_nanoseconds, TimeBounds},
+    Aggregation,
+};
 
 #[derive(Row, Serialize, Deserialize)]
 pub struct CHSpan {
@@ -45,8 +46,8 @@ impl CHSpan {
             span_id: span.span_id,
             name: span.name.clone(),
             span_type: span.span_type.clone().into(),
-            start_time: chrono_to_timestamp(span.start_time),
-            end_time: chrono_to_timestamp(span.end_time),
+            start_time: chrono_to_nanoseconds(span.start_time),
+            end_time: chrono_to_nanoseconds(span.end_time),
             prompt_tokens: usage.prompt_tokens,
             completion_tokens: usage.completion_tokens,
             total_tokens: usage.total_tokens,
@@ -69,24 +70,25 @@ pub async fn insert_span(clickhouse: clickhouse::Client, span: &CHSpan) -> Resul
     let ch_insert = clickhouse.insert("spans");
     match ch_insert {
         Ok(mut ch_insert) => {
-            let write_res = ch_insert.write(span).await;
-            if let Err(e) = write_res {
-                log::error!("Failed to write span into Clickhouse: {:?}", e);
-            }
-
+            ch_insert.write(span).await?;
             let ch_insert_end_res = ch_insert.end().await;
-            if let Err(e) = ch_insert_end_res {
-                log::error!("Failed to insert span into Clickhouse: {:?}", e);
+            match ch_insert_end_res {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    return Err(anyhow::anyhow!("Clickhouse span insertion failed: {:?}", e));
+                }
             }
         }
         Err(e) => {
-            log::error!("Failed to insert span into Clickhouse: {:?}", e);
+            return Err(anyhow::anyhow!(
+                "Failed to insert span into Clickhouse: {:?}",
+                e
+            ));
         }
     }
-    Ok(())
 }
 
-#[derive(Deserialize, Row, Serialize)]
+#[derive(Deserialize, Row, Serialize, Debug)]
 pub struct IntMetricTimeValue {
     pub time: u32,
     pub value: i64,
@@ -96,12 +98,6 @@ pub struct IntMetricTimeValue {
 pub struct FloatMetricTimeValue {
     pub time: u32,
     pub value: f64,
-}
-
-#[derive(Deserialize, Row)]
-pub struct TimeBounds {
-    pub min_time: i64,
-    pub max_time: i64,
 }
 
 pub async fn get_time_bounds(
@@ -124,25 +120,25 @@ pub async fn get_time_bounds(
     Ok(time_bounds)
 }
 
-pub async fn get_total_trace_count_metrics(
+pub async fn get_total_trace_count_metrics_relative(
     clickhouse: clickhouse::Client,
     group_by_interval: GroupByInterval,
     project_id: Uuid,
     past_hours: i64,
 ) -> Result<Vec<IntMetricTimeValue>> {
-    let ch_round_time = group_by_interval.to_ch_round_time();
+    let ch_round_time = group_by_interval.to_ch_truncate_time();
     let ch_interval = group_by_interval.to_interval();
     let ch_step = group_by_interval.to_ch_step();
 
     let query_string = format!(
         "
     WITH traces AS (
-    SELECT
-        trace_id,
-        project_id,
-        {}(MIN(start_time)) as time
-    FROM spans
-    GROUP BY project_id, trace_id
+        SELECT
+            trace_id,
+            project_id,
+            {}(MIN(start_time)) as time
+        FROM spans
+        GROUP BY project_id, trace_id
     )
     SELECT
         time,
@@ -182,15 +178,79 @@ pub async fn get_total_trace_count_metrics(
     Ok(res)
 }
 
-pub async fn get_average_trace_latency_seconds_metrics(
+pub async fn get_total_trace_count_metrics_absolute(
+    clickhouse: clickhouse::Client,
+    group_by_interval: GroupByInterval,
+    project_id: Uuid,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+) -> Result<Vec<IntMetricTimeValue>> {
+    let ch_round_time = group_by_interval.to_ch_truncate_time();
+    let ch_step = group_by_interval.to_ch_step();
+    let ch_start_time = start_time.timestamp();
+    let ch_end_time = end_time.timestamp();
+
+    let query_string = format!(
+        "
+    WITH traces AS (
+    SELECT
+        trace_id,
+        project_id,
+        {}(MIN(start_time)) as time,
+        SUM(total_tokens) as value
+    FROM spans
+    GROUP BY project_id, trace_id
+    )
+    SELECT
+        time,
+        COUNT(DISTINCT(trace_id)) as value
+    FROM traces
+    WHERE
+        project_id = '{}'
+        AND time >= fromUnixTimestamp({})
+        AND time <= fromUnixTimestamp({})
+    GROUP BY
+        time
+    ORDER BY
+        time
+    WITH FILL
+    FROM {}(fromUnixTimestamp({}))
+    TO {}(fromUnixTimestamp({}))
+    STEP {}",
+        ch_round_time,
+        project_id,
+        ch_start_time,
+        ch_end_time,
+        ch_round_time,
+        ch_start_time,
+        ch_round_time,
+        ch_end_time,
+        ch_step
+    );
+
+    let mut cursor = clickhouse
+        .query(&query_string)
+        .fetch::<IntMetricTimeValue>()?;
+
+    let mut res = Vec::new();
+    while let Some(row) = cursor.next().await? {
+        res.push(row);
+    }
+
+    Ok(res)
+}
+
+pub async fn get_trace_latency_seconds_metrics_relative(
     clickhouse: clickhouse::Client,
     group_by_interval: GroupByInterval,
     project_id: Uuid,
     past_hours: i64,
+    aggregation: Aggregation,
 ) -> Result<Vec<FloatMetricTimeValue>> {
-    let ch_round_time = group_by_interval.to_ch_round_time();
+    let ch_round_time = group_by_interval.to_ch_truncate_time();
     let ch_interval = group_by_interval.to_interval();
     let ch_step = group_by_interval.to_ch_step();
+    let ch_aggregation = aggregation.to_ch_agg_function();
 
     let query_string = format!(
         "
@@ -205,7 +265,7 @@ pub async fn get_average_trace_latency_seconds_metrics(
     )
     SELECT
         time,
-        AVG(value) as value
+        {}(value) as value
     FROM traces
     WHERE
         project_id = '{}'
@@ -219,6 +279,7 @@ pub async fn get_average_trace_latency_seconds_metrics(
     TO {}(NOW() + INTERVAL {})
     STEP {}",
         ch_round_time,
+        ch_aggregation,
         project_id,
         past_hours,
         ch_round_time,
@@ -253,15 +314,94 @@ pub async fn get_average_trace_latency_seconds_metrics(
     Ok(res)
 }
 
-pub async fn get_total_total_token_count_metrics(
+pub async fn get_trace_latency_seconds_metrics_absolute(
+    clickhouse: clickhouse::Client,
+    group_by_interval: GroupByInterval,
+    project_id: Uuid,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    aggregation: Aggregation,
+) -> Result<Vec<FloatMetricTimeValue>> {
+    let ch_round_time = group_by_interval.to_ch_truncate_time();
+    let ch_step = group_by_interval.to_ch_step();
+    let ch_start_time = start_time.timestamp();
+    let ch_end_time = end_time.timestamp();
+    let ch_aggregation = aggregation.to_ch_agg_function();
+
+    let query_string = format!(
+        "
+        WITH traces AS (
+        SELECT
+            trace_id,
+            project_id,
+            {}(MIN(start_time)) as time,
+            toUnixTimestamp64Nano(MAX(end_time)) - toUnixTimestamp64Nano(MIN(start_time)) as value
+        FROM spans
+        GROUP BY project_id, trace_id
+        )
+        SELECT
+            time,
+            {}(value) as value
+        FROM traces
+        WHERE
+            project_id = '{}'
+            AND time >= fromUnixTimestamp({})
+            AND time <= fromUnixTimestamp({})
+        GROUP BY
+            time
+        ORDER BY
+            time
+        WITH FILL
+        FROM {}(fromUnixTimestamp({}))
+        TO {}(fromUnixTimestamp({}))
+        STEP {}",
+        ch_round_time,
+        ch_aggregation,
+        project_id,
+        ch_start_time,
+        ch_end_time,
+        ch_round_time,
+        ch_start_time,
+        ch_round_time,
+        ch_end_time,
+        ch_step
+    );
+
+    let mut cursor = clickhouse
+        .query(&query_string)
+        .fetch::<FloatMetricTimeValue>()?;
+
+    let mut res = Vec::new();
+    while let Some(row) = cursor.next().await? {
+        res.push(row);
+    }
+
+    // TODO: Move this logic to Clickhouse query
+    let res = res
+        .into_iter()
+        .map(|value| FloatMetricTimeValue {
+            time: value.time,
+            value: {
+                let value_sec = value.value as f64 / 1_000_000_000.0;
+                round_small_values_to_zero(value_sec)
+            },
+        })
+        .collect();
+
+    Ok(res)
+}
+
+pub async fn get_total_token_count_metrics_relative(
     clickhouse: clickhouse::Client,
     group_by_interval: GroupByInterval,
     project_id: Uuid,
     past_hours: i64,
+    aggregation: Aggregation,
 ) -> Result<Vec<IntMetricTimeValue>> {
-    let ch_round_time = group_by_interval.to_ch_round_time();
+    let ch_round_time = group_by_interval.to_ch_truncate_time();
     let ch_interval = group_by_interval.to_interval();
     let ch_step = group_by_interval.to_ch_step();
+    let ch_aggregation = aggregation.to_ch_agg_function();
 
     let query_string = format!(
         "
@@ -276,7 +416,7 @@ pub async fn get_total_total_token_count_metrics(
     )
     SELECT
         time,
-        SUM(value) as value
+        {}(value) as value
     FROM traces
     WHERE
         project_id = '{}'
@@ -290,6 +430,7 @@ pub async fn get_total_total_token_count_metrics(
     TO {}(NOW() + INTERVAL {})
     STEP {}",
         ch_round_time,
+        ch_aggregation,
         project_id,
         past_hours,
         ch_round_time,
@@ -312,15 +453,82 @@ pub async fn get_total_total_token_count_metrics(
     Ok(res)
 }
 
-pub async fn get_total_cost_usd_metrics(
+pub async fn get_total_token_count_metrics_absolute(
+    clickhouse: clickhouse::Client,
+    group_by_interval: GroupByInterval,
+    project_id: Uuid,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    aggregation: Aggregation,
+) -> Result<Vec<IntMetricTimeValue>> {
+    let ch_round_time = group_by_interval.to_ch_truncate_time();
+    let ch_step = group_by_interval.to_ch_step();
+    let ch_start_time = start_time.timestamp();
+    let ch_end_time = end_time.timestamp();
+    let ch_aggregation = aggregation.to_ch_agg_function();
+
+    let query_string = format!(
+        "
+    WITH traces AS (
+    SELECT
+        trace_id,
+        project_id,
+        {}(MIN(start_time)) as time,
+        SUM(total_tokens) as value
+    FROM spans
+    GROUP BY project_id, trace_id
+    )
+    SELECT
+        time,
+        {}(value) as value
+    FROM traces
+    WHERE
+        project_id = '{}'
+        AND time >= fromUnixTimestamp({})
+        AND time <= fromUnixTimestamp({})
+    GROUP BY
+        time
+    ORDER BY
+        time
+    WITH FILL
+    FROM {}(fromUnixTimestamp({}))
+    TO {}(fromUnixTimestamp({}))
+    STEP {}",
+        ch_round_time,
+        ch_aggregation,
+        project_id,
+        ch_start_time,
+        ch_end_time,
+        ch_round_time,
+        ch_start_time,
+        ch_round_time,
+        ch_end_time,
+        ch_step
+    );
+
+    let mut cursor = clickhouse
+        .query(&query_string)
+        .fetch::<IntMetricTimeValue>()?;
+
+    let mut res = Vec::new();
+    while let Some(row) = cursor.next().await? {
+        res.push(row);
+    }
+
+    Ok(res)
+}
+
+pub async fn get_cost_usd_metrics_relative(
     clickhouse: clickhouse::Client,
     group_by_interval: GroupByInterval,
     project_id: Uuid,
     past_hours: i64,
+    aggregation: Aggregation,
 ) -> Result<Vec<FloatMetricTimeValue>> {
-    let ch_round_time = group_by_interval.to_ch_round_time();
+    let ch_round_time = group_by_interval.to_ch_truncate_time();
     let ch_interval = group_by_interval.to_interval();
     let ch_step = group_by_interval.to_ch_step();
+    let ch_aggregation = aggregation.to_ch_agg_function();
 
     let query_string = format!(
         "
@@ -335,7 +543,7 @@ pub async fn get_total_cost_usd_metrics(
     )
     SELECT
         time,
-        SUM(value) as value
+        {}(value) as value
     FROM traces
     WHERE
         project_id = '{}'
@@ -349,6 +557,7 @@ pub async fn get_total_cost_usd_metrics(
     TO {}(NOW() + INTERVAL {})
     STEP {}",
         ch_round_time,
+        ch_aggregation,
         project_id,
         past_hours,
         ch_round_time,
@@ -356,6 +565,71 @@ pub async fn get_total_cost_usd_metrics(
         ch_interval,
         ch_round_time,
         ch_interval,
+        ch_step
+    );
+
+    let mut cursor = clickhouse
+        .query(&query_string)
+        .fetch::<FloatMetricTimeValue>()?;
+
+    let mut res = Vec::new();
+    while let Some(row) = cursor.next().await? {
+        res.push(row);
+    }
+
+    Ok(res)
+}
+
+pub async fn get_cost_usd_metrics_absolute(
+    clickhouse: clickhouse::Client,
+    group_by_interval: GroupByInterval,
+    project_id: Uuid,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    aggregation: Aggregation,
+) -> Result<Vec<FloatMetricTimeValue>> {
+    let ch_round_time = group_by_interval.to_ch_truncate_time();
+    let ch_step = group_by_interval.to_ch_step();
+    let ch_start_time = start_time.timestamp();
+    let ch_end_time = end_time.timestamp();
+    let ch_aggregation = aggregation.to_ch_agg_function();
+
+    let query_string = format!(
+        "
+        WITH traces AS (
+        SELECT
+            trace_id,
+            project_id,
+            {}(MIN(start_time)) as time,
+            SUM(total_cost) as value
+        FROM spans
+        GROUP BY project_id, trace_id
+        )
+        SELECT
+            time,
+            {}(value) as value
+        FROM traces
+        WHERE
+            project_id = '{}'
+            AND time >= fromUnixTimestamp({})
+            AND time <= fromUnixTimestamp({})
+        GROUP BY
+            time
+        ORDER BY
+            time
+        WITH FILL
+        FROM {}(fromUnixTimestamp({}))
+        TO {}(fromUnixTimestamp({}))
+        STEP {}",
+        ch_round_time,
+        ch_aggregation,
+        project_id,
+        ch_start_time,
+        ch_end_time,
+        ch_round_time,
+        ch_start_time,
+        ch_round_time,
+        ch_end_time,
         ch_step
     );
 

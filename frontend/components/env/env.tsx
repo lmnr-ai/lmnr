@@ -1,8 +1,8 @@
 'use client'
 
 import { Label } from "@/components/ui/label";
-import { useContext, useEffect, useState } from "react";
-import { ProjectContext, useProjectContext } from '@/contexts/project-context'
+import { useEffect, useState } from "react";
+import { useProjectContext } from '@/contexts/project-context'
 import { getLocalEnvVars } from "@/lib/utils";
 import AddEnvVarDialog from "./add-env-var-dialog";
 import { Trash } from "lucide-react";

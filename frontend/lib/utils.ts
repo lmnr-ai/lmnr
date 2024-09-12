@@ -4,6 +4,8 @@ import { InputVariable, PipelineVisibility } from './pipeline/types';
 import { ChatMessageContentPart, DatatableFilter } from './types';
 import * as Y from 'yjs';
 
+export const TIME_MILLISECONDS_FORMAT = "timeMilliseconds";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -70,6 +72,18 @@ export function formatDate(input: string | number | Date): string {
     day: 'numeric',
     year: 'numeric'
   });
+}
+
+// E.g. 2024-09-04T20:18:58.330355+00:00 -> 13:18:58.330
+export function convertToLocalTimeWithMillis(isoDateString: string): string {
+  const date = new Date(isoDateString);
+
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
+
+  return `${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
 export function formatTimestamp(timestampStr: string): string {

@@ -53,7 +53,8 @@ export default function UseApi({ pipelineName, targetRunnableGraph }: UseApiProp
     pipeline: pipelineName,
     inputs: defaultInputs,
     env,
-    metadata: {}
+    metadata: {},
+    stream: false
   }
   const indentAll = (str: string, indentBy: number) => str.split('\n').map((line, index) => {
     if (index === 0) return line;
@@ -66,27 +67,28 @@ export default function UseApi({ pipelineName, targetRunnableGraph }: UseApiProp
 -d '${JSON.stringify(body, null, 2)}'`
 
 
-  const pythonString = `from lmnr import lmnr_context
+  const pythonString = `from lmnr import Laminar as L
 
-result = lmnr_context.run(
+L.initialize(project_api_key='<YOUR_PROJECT_API_KEY>')
+  
+result = L.run(
     pipeline = '${pipelineName}',
     inputs = ${indentAll(JSON.stringify(defaultInputs, null, 4), 4)},
     env = ${indentAll(JSON.stringify(pythonEnv, null, 4), 4)},
     metadata={},
-    stream=False
 )
 print(result)
 `
 
-  const tsString = `import { Laminar } from '@lmnr-ai/lmnr';
+  const tsString = `import { Laminar as L } from '@lmnr-ai/lmnr';
 
-const l = new Laminar(process.env.LAMINAR_API_KEY);
-const result = await l.run({
+L.initialize({ projectApiKey: '<YOUR_PROJECT_API_KEY>' });
+
+const result = await L.run({
   pipeline: '${pipelineName}',
   inputs: ${indentAll(JSON.stringify(defaultInputs, null, 2), 2)},
   env: ${indentAll(JSON.stringify(tsEnv, null, 2), 2)},
   metadata: {},
-  stream: false,
 });
 console.log(result);
 `

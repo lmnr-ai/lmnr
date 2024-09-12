@@ -8,7 +8,6 @@ import { WorkspaceWithInfo } from '@/lib/workspaces/types';
 import WorkspaceUsers from '@/components/workspace/workspace-users';
 import WorkspacesNavbar from '@/components/projects/workspaces-navbar';
 import { UserContextProvider } from '@/contexts/user-context';
-import { UserStats } from '@/lib/profile/types';
 
 export const metadata: Metadata = {
   title: 'Workspace',
@@ -27,16 +26,6 @@ const getWorkspace = async (workspaceId: string) => {
   return await res
 }
 
-const getUserLimits = async () => {
-  const session = await getServerSession(authOptions)
-  const user = session!.user
-  return await fetcherJSON(`/limits/user`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
-    },
-  }) as UserStats;
-}
 
 export default async function WorkspacePage(
   { params }: { params: { workspaceId: string } }
@@ -49,8 +38,6 @@ export default async function WorkspacePage(
 
   const workspace: WorkspaceWithInfo = await getWorkspace(params.workspaceId);
   const isOwner = workspace.users.find(u => u.email === user.email && u.name === user.name)?.role === 'owner';
-  const limits = await getUserLimits();
-  const maxUsers = limits.membersPerWorkspace < 0 ? undefined : limits.membersPerWorkspace + limits.additionalSeats;
 
   return (
     <UserContextProvider email={user.email!} supabaseAccessToken={session.supabaseAccessToken} username={user.name!} imageUrl={user.image!}>
@@ -63,8 +50,7 @@ export default async function WorkspacePage(
           <WorkspaceUsers
             workspaceId={workspace.id}
             workspaceUsers={workspace.users}
-            isOwner={isOwner}
-            maxUsers={maxUsers} />
+            isOwner={isOwner} />
         </div>
       </div>
     </UserContextProvider>

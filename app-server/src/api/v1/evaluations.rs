@@ -13,8 +13,6 @@ use crate::{
 #[serde(rename_all = "camelCase")]
 struct CreateEvaluationRequest {
     name: String,
-    #[serde(default)]
-    metadata: Option<Value>,
 }
 
 #[post("evaluations")]
@@ -29,7 +27,6 @@ async fn create_evaluation(
         &req.name,
         db::evaluations::EvaluationStatus::Started,
         project_id,
-        req.metadata.clone(),
     )
     .await?;
     Ok(HttpResponse::Ok().json(evaluation))
@@ -80,9 +77,10 @@ async fn upload_evaluation_datapoints(
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
-    let evaluation_id = db::evaluations::get_evaluation_by_name(&db.pool, project_id, &req.name)
-        .await?
-        .id;
+    let evaluation =
+        db::evaluations::get_evaluation_by_name(&db.pool, project_id, &req.name).await?;
+
+    let evaluation_id = evaluation.id;
     let statuses = req
         .points
         .iter()

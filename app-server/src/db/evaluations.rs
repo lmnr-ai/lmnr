@@ -4,18 +4,10 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::{prelude::FromRow, PgPool};
 use uuid::Uuid;
 
 use super::DB;
-
-pub async fn delete_evaluation(pool: &PgPool, evaluation_id: &Uuid) -> Result<()> {
-    sqlx::query("DELETE FROM evaluations WHERE id = $1")
-        .bind(evaluation_id)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
 
 #[derive(sqlx::Type, Deserialize, Serialize)]
 #[sqlx(type_name = "evaluation_job_status")]
@@ -40,7 +32,7 @@ pub struct Evaluation {
     pub name: String,
     pub status: EvaluationStatus,
     pub project_id: Uuid,
-    pub metadata: Option<Value>,
+    pub score_names: Value, // Vec<String>
 }
 
 #[derive(Serialize, FromRow)]
@@ -62,18 +54,32 @@ pub async fn create_evaluation(
     name: &String,
     status: EvaluationStatus,
     project_id: Uuid,
-    metadata: Option<Value>,
 ) -> Result<Evaluation> {
+    // FIXME: This is done simply to return eval info to the caller,
+    // even when the evaluation already exists.
+    // `DO UPDATE set dummy` is not a good way to handle this, as the update is not atomic.
+    // See: https://stackoverflow.com/questions/34708509/how-to-use-returning-with-on-conflict-in-postgresql
+    // Possible alternatives:
+    // (1) ON CONFLICT DO NOTHING and then query the evaluation separately,
+    // (2) figure out how the solution from https://stackoverflow.com/a/62205017/18249562 works with sqlx.
+    //     Currently because UNION will not necessarily work,
+    //     it infers the return type as Option<T> for each col.
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "INSERT INTO evaluations (name, status, project_id, metadata)
+        "INSERT INTO evaluations (name, status, project_id, score_names)
         VALUES ($1, $2::evaluation_job_status, $3, $4)
-        ON CONFLICT (name, project_id) DO UPDATE set metadata = $4
-        RETURNING id, created_at, name, status, project_id, metadata",
+        ON CONFLICT (name, project_id) DO UPDATE SET name = $1
+        RETURNING
+            id,
+            created_at,
+            name,
+            status,
+            project_id,
+            score_names",
     )
     .bind(name)
-    .bind(status)
+    .bind(&status)
     .bind(project_id)
-    .bind(metadata)
+    .bind(serde_json::Value::Array(Vec::new()))
     .fetch_one(pool)
     .await?;
 
@@ -82,7 +88,8 @@ pub async fn create_evaluation(
 
 pub async fn get_evaluation(db: Arc<DB>, evaluation_id: Uuid) -> Result<Evaluation> {
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "SELECT id, name, status, project_id, created_at, metadata
+        "SELECT
+            id, name, status, project_id, created_at, score_names
         FROM evaluations WHERE id = $1",
     )
     .bind(evaluation_id)
@@ -98,7 +105,7 @@ pub async fn get_evaluation_by_name(
     name: &str,
 ) -> Result<Evaluation> {
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "SELECT id, name, status, project_id, created_at, metadata
+        "SELECT id, name, status, project_id, created_at, score_names
         FROM evaluations WHERE project_id = $1 AND name = $2",
     )
     .bind(project_id)
@@ -111,8 +118,9 @@ pub async fn get_evaluation_by_name(
 
 pub async fn get_evaluations(pool: &PgPool, project_id: Uuid) -> Result<Vec<Evaluation>> {
     let evaluations = sqlx::query_as::<_, Evaluation>(
-        "SELECT id, name, status, project_id, created_at, metadata
-        FROM evaluations WHERE project_id = $1",
+        "SELECT id, name, status, project_id, created_at, score_names
+        FROM evaluations WHERE project_id = $1
+        ORDER BY created_at DESC",
     )
     .bind(project_id)
     .fetch_all(pool)
@@ -127,7 +135,7 @@ pub async fn get_finished_evaluation_infos(
     exclude_id: Uuid,
 ) -> Result<Vec<Evaluation>> {
     let evaluations = sqlx::query_as::<_, Evaluation>(
-        "SELECT id, name, status, project_id, created_at, metadata
+        "SELECT id, name, status, project_id, created_at, score_names
         FROM evaluations
         WHERE project_id = $1 AND status = 'Finished'::evaluation_job_status AND id != $2
         ORDER BY created_at DESC",
@@ -162,7 +170,7 @@ pub async fn update_evaluation_status_by_name(
 
 /// Record evaluation results in the database.
 ///
-/// Each target data may contain an empty JSON file, if there is no target data.
+/// Each target data may contain an empty JSON object, if there is no target data.
 pub async fn set_evaluation_results(
     pool: &PgPool,
     evaluation_id: Uuid,
@@ -181,7 +189,7 @@ pub async fn set_evaluation_results(
         .collect::<Vec<_>>();
 
     let res = sqlx::query(
-        "INSERT INTO evaluation_results (
+        r#"INSERT INTO evaluation_results (
             evaluation_id,
             status,
             scores,
@@ -195,7 +203,7 @@ pub async fn set_evaluation_results(
         )
         SELECT 
             $10 as evaluation_id,
-            status,
+            status as "status: EvaluationStatus",
             scores,
             data,
             target,
@@ -206,7 +214,7 @@ pub async fn set_evaluation_results(
             error
         FROM
         UNNEST ($1::evaluation_status[], $2::jsonb[], $3::jsonb[], $4::jsonb[], $5::jsonb[], $6::uuid[], $7::uuid[], $8::int8[], $9::jsonb[])
-        AS tmp_table(status, scores, data, target, executor_output, evaluator_trace_id, executor_trace_id, index_in_batch, error)",
+        AS tmp_table(status, scores, data, target, executor_output, evaluator_trace_id, executor_trace_id, index_in_batch, error)"#,
     )
     .bind(statuses)
     .bind(scores)
@@ -224,6 +232,18 @@ pub async fn set_evaluation_results(
     if let Err(e) = res {
         log::error!("Error inserting evaluation results: {}", e);
     }
+
+    // let new_score_names: HashSet<String> = scores
+    //     .iter()
+    //     .flat_map(|score| score.as_object().unwrap().keys())
+    //     .map(|s| s.to_string())
+    //     .collect();
+
+    // let res = add_score_names_to_evaluation(pool, evaluation_id, new_score_names).await;
+
+    // if let Err(e) = res {
+    //     log::error!("Error adding score names to evaluation: {}", e);
+    // }
 
     Ok(())
 }
@@ -252,6 +272,36 @@ pub async fn get_evaluation_results(
     .await?;
 
     Ok(results)
+}
+
+pub async fn delete_evaluation(pool: &PgPool, evaluation_id: &Uuid) -> Result<()> {
+    sqlx::query("DELETE FROM evaluations WHERE id = $1")
+        .bind(evaluation_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+#[derive(FromRow)]
+pub struct EvaluationDatapointScores {
+    pub scores: Value,
+}
+
+pub async fn get_evaluation_datapoint_scores(
+    pool: &PgPool,
+    evaluation_id: Uuid,
+) -> Result<Vec<EvaluationDatapointScores>> {
+    let scores = sqlx::query_as::<_, EvaluationDatapointScores>(
+        "SELECT
+            scores
+        FROM evaluation_results
+        WHERE evaluation_id = $1",
+    )
+    .bind(evaluation_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(scores)
 }
 
 pub async fn get_evaluation_datapoint(

@@ -3,11 +3,13 @@ import Code from "../ui/code";
 
 export default function EventsPagePlaceholder() {
   const pythonString = `from lmnr import observe
+
 @observe()  # annotate all functions you want to trace
 def function_to_trace(...):
     ...
     lmnr_context.evaluate_event("user_sentiment", evaluator="sentiment", value={"message": "I am happy"})
     lmnr_context.event("rejection", json.dumps({"reason": "not authorized"}))
+
 `
 
   return (

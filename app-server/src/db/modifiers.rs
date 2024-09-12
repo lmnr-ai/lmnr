@@ -124,54 +124,6 @@ impl Default for DateRange {
     }
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub enum GroupByInterval {
-    Minute,
-    Hour,
-    Day,
-}
-
-impl GroupByInterval {
-    pub fn to_sql(&self) -> &str {
-        match self {
-            GroupByInterval::Minute => "minute",
-            GroupByInterval::Hour => "hour",
-            GroupByInterval::Day => "day",
-        }
-    }
-
-    pub fn to_ch_round_time(&self) -> &str {
-        match self {
-            GroupByInterval::Minute => "toStartOfMinute",
-            GroupByInterval::Hour => "toStartOfHour",
-            GroupByInterval::Day => "toStartOfDay",
-        }
-    }
-
-    pub fn to_interval(&self) -> &str {
-        match self {
-            GroupByInterval::Minute => "1 MINUTE",
-            GroupByInterval::Hour => "1 HOUR",
-            GroupByInterval::Day => "1 DAY",
-        }
-    }
-
-    pub fn to_ch_step(&self) -> &str {
-        match self {
-            GroupByInterval::Minute => "toIntervalMinute(1)",
-            GroupByInterval::Hour => "toIntervalHour(1)",
-            GroupByInterval::Day => "toIntervalDay(1)",
-        }
-    }
-}
-
-impl Default for GroupByInterval {
-    fn default() -> Self {
-        GroupByInterval::Hour
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::FilterOperator;

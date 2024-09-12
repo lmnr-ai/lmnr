@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use actix_web::{get, post, web, HttpResponse};
+use actix_web::{get, post, web, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use lapin::{options::BasicPublishOptions, BasicProperties, Connection};
+use lapin::Connection;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -11,12 +11,11 @@ use crate::{
         api_keys::ProjectApiKey,
         events::{self, EvaluateEventRequest, EventObservation},
         trace::Span,
-        utils::convert_any_value_to_json_value,
         DB,
     },
-    opentelemetry::opentelemetry_collector_trace_v1::ExportTraceServiceRequest,
+    opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
+    traces::process::process_trace_export,
 };
 use prost::Message;
 
@@ -30,75 +29,30 @@ pub struct RabbitMqSpanMessage {
 
 #[post("traces")]
 pub async fn process_traces(
+    req: HttpRequest,
     body: Bytes,
     project_api_key: ProjectApiKey,
     rabbitmq_connection: web::Data<Arc<Connection>>,
 ) -> ResponseResult {
-    let channel = rabbitmq_connection
-        .create_channel()
-        .await
-        .expect("Failed to create channel");
+    let request = ExportTraceServiceRequest::decode(body).map_err(|e| {
+        anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
+    })?;
+    let rabbitmq_connection = rabbitmq_connection.as_ref().clone();
 
-    let request = ExportTraceServiceRequest::decode(body).unwrap();
-
-    for resource_span in request.resource_spans {
-        for scope_span in resource_span.scope_spans {
-            for otel_span in scope_span.spans {
-                let span = Span::from_otel_span(otel_span.clone());
-
-                let mut events = vec![];
-                let mut evaluate_events = vec![];
-
-                for event in otel_span.events {
-                    let event_attributes = event
-                        .attributes
-                        .clone()
-                        .into_iter()
-                        .map(|kv| (kv.key, convert_any_value_to_json_value(kv.value)))
-                        .collect::<serde_json::Map<String, serde_json::Value>>();
-
-                    let serde_json::Value::String(event_type) =
-                        event_attributes.get("lmnr.event.type").unwrap()
-                    else {
-                        return Err(anyhow::anyhow!("Failed to get event type").into());
-                    };
-
-                    if event_type == "default" {
-                        events.push(EventObservation::from_otel(event, span.span_id));
-                    } else if event_type == "evaluate" {
-                        evaluate_events.push(EvaluateEventRequest::try_from_otel(event)?);
-                    } else {
-                        log::warn!("Unknown event type: {}", event_type);
-                    }
-                }
-
-                let rabbitmq_span_message = RabbitMqSpanMessage {
-                    project_id: project_api_key.project_id,
-                    span,
-                    events,
-                    evaluate_events,
-                };
-
-                let payload = serde_json::to_string(&rabbitmq_span_message).unwrap();
-                let payload = payload.as_bytes();
-
-                channel
-                    .basic_publish(
-                        OBSERVATIONS_EXCHANGE,
-                        OBSERVATIONS_ROUTING_KEY,
-                        BasicPublishOptions::default(),
-                        payload,
-                        BasicProperties::default(),
-                    )
-                    .await
-                    .expect("Failed to publish message")
-                    .await
-                    .expect("Failed to ack on publish message");
-            }
-        }
+    let response =
+        process_trace_export(request, project_api_key.project_id, rabbitmq_connection).await?;
+    if response.partial_success.is_some() {
+        return Err(anyhow::anyhow!("There has been an error during trace processing.").into());
     }
 
-    Ok(HttpResponse::Ok().finish())
+    let keep_alive = req.headers().get("connection").map_or(false, |v| {
+        v.to_str().unwrap_or_default().trim().to_lowercase() == "keep-alive"
+    });
+    if keep_alive {
+        Ok(HttpResponse::Ok().keep_alive().finish())
+    } else {
+        Ok(HttpResponse::Ok().finish())
+    }
 }
 
 #[derive(Deserialize)]

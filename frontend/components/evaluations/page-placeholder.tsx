@@ -4,8 +4,11 @@ import Code from "../ui/code";
 export default function EvalsPagePlaceholder() {
   const tsString = `
 import { Evaluation } from '@lmnr-ai/lmnr';
+
 import OpenAI from 'openai';
+
 const openai = new OpenAI({apiKey: process.env.OPENAI_API_KEY});
+
 const getCapital = async ({country} : {country: string}): Promise<string> => {
     const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -22,6 +25,7 @@ const getCapital = async ({country} : {country: string}): Promise<string> => {
     });
     return response.choices[0].message.content ?? ''
 }
+
 const e = new Evaluation( 'my-evaluation', {
     data: [
         { data: { country: 'Canada' }, target: { capital: 'Ottawa' } },
@@ -36,6 +40,7 @@ const e = new Evaluation( 'my-evaluation', {
         projectApiKey: process.env.LMNR_PROJECT_API_KEY
     }
 })
+
 e.run();
 `
 

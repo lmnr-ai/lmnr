@@ -12,32 +12,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
   const body = await req.json()
 
-  const res = await fetcher(`/projects/${projectId}/event-templates/${templateId}`, {
+  const res = await fetcher(`/projects/${projectId}/event-templates/${templateId}/metrics`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${user.apiKey}`
     },
     body: JSON.stringify(body)
-  })
-
-  return res
-}
-
-export async function DELETE(req: Request, { params }: { params: { projectId: string, templateId: string } }): Promise<Response> {
-
-  const projectId = params.projectId;
-  const templateId = params.templateId;
-
-  const session = await getServerSession(authOptions)
-  const user = session!.user
-
-  const res = await fetcher(`/projects/${projectId}/event-templates/${templateId}`, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    }
   })
 
   return res

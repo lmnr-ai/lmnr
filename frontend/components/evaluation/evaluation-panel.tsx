@@ -1,9 +1,7 @@
 import { useProjectContext } from "@/contexts/project-context";
-import { EvaluationDatapoint, EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
+import { EvaluationDatapoint, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 import { ChevronsRight } from "lucide-react";
 import { Skeleton } from "../ui/skeleton";
-import Ide from "../ui/ide";
-import TraceCards from "../traces/trace-cards";
 import { Label } from "../ui/label";
 import { ScrollArea } from "../ui/scroll-area";
 import { Button } from "../ui/button";
@@ -11,27 +9,30 @@ import Mono from "../ui/mono";
 import useSWR from "swr";
 import { swrFetcher } from "@/lib/utils";
 import EvaluationDatapointErr from "./evaluation-datapoint-error";
-import React, { useEffect } from "react";
+import React from "react";
 import { RunTrace } from "@/lib/traces/types";
 import { Separator } from "../ui/separator";
+import Formatter from "../ui/formatter";
 
 interface EvaluationPanelProps {
   datapointPreview: EvaluationDatapointPreviewWithCompared;
   onClose: () => void;
 }
 
-function DatapointWithTraces({ datapoint, executorTrace, evaluatorTrace }: { datapoint: EvaluationDatapoint, executorTrace: RunTrace | null, evaluatorTrace: RunTrace | null }) {
+function EvalDatapointView({ datapoint, executorTrace, evaluatorTrace }: { datapoint: EvaluationDatapoint, executorTrace: RunTrace | null, evaluatorTrace: RunTrace | null }) {
 
   return (
     <ScrollArea className="flex-grow flex overflow-auto">
       <div className="flex max-h-0">
         <div className="flex-grow flex flex-col space-y-4 p-4 h-full">
           <Label className="">Data</Label>
-          <Ide mode="json" value={JSON.stringify(datapoint.data, null, 2)} readOnly maxLines={Infinity} className="min-h-2" />
+          <Formatter value={JSON.stringify(datapoint.data, null, 2)} defaultMode="json" />
           <Label className="">Target</Label>
-          <Ide mode="json" value={JSON.stringify(datapoint.target, null, 2)} readOnly maxLines={Infinity} className="min-h-2" />
+          <Formatter value={JSON.stringify(datapoint.target, null, 2)} defaultMode="json" />
           <Label className="">Executor Output</Label>
-          <Ide mode="json" value={JSON.stringify(datapoint.executorOutput, null, 2)} readOnly maxLines={Infinity} className="min-h-2" />
+          <Formatter value={JSON.stringify(datapoint.executorOutput, null, 2)} defaultMode="text" />
+          <Label className="">Scores</Label>
+          <Formatter value={JSON.stringify(datapoint.scores, null, 2)} defaultMode="json" />
           {
             !!datapoint.error && (
               <EvaluationDatapointErr datapoint={datapoint} />
@@ -94,7 +95,7 @@ export default function EvaluationPanel({ datapointPreview, onClose }: Evaluatio
     </div>
     <div className="flex-grow flex flex-row mx-2">
       {datapoint &&
-        <DatapointWithTraces datapoint={datapoint} executorTrace={executorTrace} evaluatorTrace={evaluatorTrace} />
+        <EvalDatapointView datapoint={datapoint} executorTrace={executorTrace} evaluatorTrace={evaluatorTrace} />
       }
 
       {
@@ -110,7 +111,7 @@ export default function EvaluationPanel({ datapointPreview, onClose }: Evaluatio
       {comparedDatapoint && <Separator orientation="vertical" className="text-gray-500" />}
 
       {comparedDatapoint && (
-        <DatapointWithTraces datapoint={comparedDatapoint} executorTrace={comparedExecutorTrace} evaluatorTrace={comparedEvaluatorTrace} />
+        <EvalDatapointView datapoint={comparedDatapoint} executorTrace={comparedExecutorTrace} evaluatorTrace={comparedEvaluatorTrace} />
       )}
 
     </div>

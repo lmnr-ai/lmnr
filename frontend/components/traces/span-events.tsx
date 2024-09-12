@@ -1,4 +1,4 @@
-import { swrFetcher } from "@/lib/utils";
+import { TIME_MILLISECONDS_FORMAT, swrFetcher } from "@/lib/utils";
 import useSWR from "swr";
 import SpanEventsAddEvent from "./span-events-add-event";
 import { Skeleton } from "../ui/skeleton";
@@ -25,7 +25,6 @@ export default function SpanEvents({ span }: TagsProps) {
 
   useEffect(() => {
     if (!span) return;
-    console.log(span.events)
     setEvents(span.events ?? [])
   }, [span])
 
@@ -38,7 +37,7 @@ export default function SpanEvents({ span }: TagsProps) {
       accessorKey: "timestamp",
       header: "Timestamp",
       cell: ({ row }) => (
-        <ClientTimestampFormatter timestamp={row.original.timestamp} />
+        <ClientTimestampFormatter timestamp={row.original.timestamp} format={TIME_MILLISECONDS_FORMAT} />
       ),
     },
     {

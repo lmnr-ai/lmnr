@@ -2,16 +2,18 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use qdrant_client::{
-    prelude::*,
     qdrant::{
-        vectors_config::Config, Condition, FieldType, Filter, HnswConfigDiff, PointsSelector, SearchResponse, VectorParams, VectorsConfig
+        vectors_config::Config, Condition, CreateCollection, CreateFieldIndexCollectionBuilder,
+        DeletePointsBuilder, Distance, FieldType, Filter, HnswConfigDiff, PointStruct,
+        SearchPoints, SearchResponse, UpsertPointsBuilder, VectorParams, VectorsConfig,
     },
+    Qdrant,
 };
 
 use crate::semantic_search::semantic_search_grpc::Model;
 
-pub struct Qdrant {
-    client: QdrantClient,
+pub struct QdrantClient {
+    client: Qdrant,
 }
 
 impl Model {
@@ -30,9 +32,9 @@ impl Model {
     }
 }
 
-impl Qdrant {
+impl QdrantClient {
     pub fn new(url: &str) -> Self {
-        let client = QdrantClient::from_url(url).build().unwrap();
+        let client = Qdrant::from_url(url).build().unwrap();
         Self { client }
     }
 
@@ -45,18 +47,23 @@ impl Qdrant {
         let collection_id = collection_id(collection_name, model);
 
         // hack to create project collection for old projects
-        if !self.client.has_collection(collection_id.clone()).await? {
+        if !self.client.collection_exists(collection_id.clone()).await? {
             self.create_collection(collection_name, model).await?;
         }
 
         self.client
-            .upsert_points(collection_id, None, points, None)
+            .upsert_points(UpsertPointsBuilder::new(collection_id, points).build())
             .await?;
 
         Ok(())
     }
 
-    pub async fn delete_points(&self, collection_name: &str, model: &Model, payloads: Vec<HashMap<String, String>>) -> Result<()> {
+    pub async fn delete_points(
+        &self,
+        collection_name: &str,
+        model: &Model,
+        payloads: Vec<HashMap<String, String>>,
+    ) -> Result<()> {
         let collection_id = collection_id(collection_name, model);
 
         let payload_conditions: Vec<Condition> = payloads
@@ -72,9 +79,15 @@ impl Qdrant {
             })
             .collect();
 
-        let points: PointsSelector = Filter::any(payload_conditions).into();
+        let points_filter = Filter::any(payload_conditions);
 
-        self.client.delete_points(collection_id, None, &points, None).await?;
+        self.client
+            .delete_points(
+                DeletePointsBuilder::new(collection_id)
+                    .points(points_filter)
+                    .build(),
+            )
+            .await?;
 
         Ok(())
     }
@@ -114,7 +127,7 @@ impl Qdrant {
             ..Default::default()
         };
 
-        let response = self.client.search_points(&search_points).await?;
+        let response = self.client.search_points(search_points).await?;
 
         Ok(response)
     }
@@ -125,7 +138,7 @@ impl Qdrant {
         let collection_id = collection_id(collection_name, model);
 
         self.client
-            .create_collection(&CreateCollection {
+            .create_collection(CreateCollection {
                 collection_name: collection_id.clone(),
                 vectors_config: Some(VectorsConfig {
                     config: Some(Config::Params(VectorParams {
@@ -145,11 +158,12 @@ impl Qdrant {
 
         self.client
             .create_field_index(
-                collection_id.clone(),
-                "datasource_id",
-                FieldType::Keyword,
-                None,
-                None,
+                CreateFieldIndexCollectionBuilder::new(
+                    collection_id.clone(),
+                    "datasource_id",
+                    FieldType::Keyword,
+                )
+                .build(),
             )
             .await?;
 
@@ -165,7 +179,6 @@ impl Qdrant {
 
         Ok(())
     }
-
 }
 
 fn collection_id(collection_name: &str, model: &Model) -> String {

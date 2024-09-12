@@ -3,15 +3,7 @@
 import { useProjectContext } from "@/contexts/project-context";
 import { Evaluation } from "@/lib/evaluation/types";
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreVertical } from "lucide-react";
 import CreateEvaluationDialog from "./create-evaluation-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Button } from "../ui/button";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { useRouter } from "next/navigation";
 import { DataTable } from "../ui/datatable";
@@ -47,11 +39,7 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
       header: "Created at",
       accessorKey: "createdAt",
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-    },
-    {
-      accessorFn: (row) => row.metadata ?? '-',
-      header: 'Metadata',
-    },
+    }
   ];
 
   if (evaluations.length === 0) {
@@ -63,6 +51,7 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
       </div>
     )
   }
+
   return (
     <div className="flex flex-col h-full">
       <Header path="evaluations" />

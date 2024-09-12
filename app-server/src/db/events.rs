@@ -19,7 +19,7 @@ use super::{
     DB,
 };
 
-#[derive(sqlx::Type, Deserialize, Serialize)]
+#[derive(sqlx::Type, Deserialize, Serialize, Clone)]
 #[sqlx(type_name = "event_source")]
 pub enum EventSource {
     AUTO,
@@ -30,6 +30,7 @@ pub enum EventSource {
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct EventObservation {
+    pub id: Uuid,
     pub span_id: Uuid,
     pub timestamp: DateTime<Utc>,
     /// Unique type name
@@ -48,6 +49,7 @@ impl EventObservation {
         let value = attributes.get("lmnr.event.value").cloned();
 
         Self {
+            id: Uuid::new_v4(),
             span_id,
             timestamp: Utc.timestamp_nanos(event.time_unix_nano as i64),
             template_name: event.name,
@@ -59,6 +61,7 @@ impl EventObservation {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EvaluateEventRequest {
+    pub id: Uuid,
     pub name: String,
     pub data: HashMap<String, NodeInput>,
     pub evaluator: String,
@@ -95,6 +98,7 @@ impl EvaluateEventRequest {
         let env = serde_json::from_str::<HashMap<String, String>>(env).unwrap();
 
         Ok(Self {
+            id: Uuid::new_v4(),
             name: event.name,
             data,
             evaluator,
@@ -102,19 +106,6 @@ impl EvaluateEventRequest {
             env,
         })
     }
-}
-
-#[derive(sqlx::FromRow, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Event {
-    pub id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub span_id: Uuid,
-    pub timestamp: DateTime<Utc>,
-    pub template_id: Uuid,
-    pub source: EventSource,
-    pub metadata: Option<Value>,
-    pub value: Option<Value>,
 }
 
 #[derive(sqlx::FromRow, Serialize)]
@@ -136,6 +127,7 @@ pub struct EventWithTemplateName {
 
 pub async fn create_event(
     pool: &PgPool,
+    id: Uuid,
     span_id: Uuid,
     timestamp: DateTime<Utc>,
     template_id: Uuid,
@@ -144,9 +136,10 @@ pub async fn create_event(
     inputs: Option<Value>,
 ) -> Result<()> {
     sqlx::query(
-        "INSERT INTO events (span_id, timestamp, template_id, source, value, inputs)
-        VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO events (id, span_id, timestamp, template_id, source, value, inputs)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
+    .bind(id)
     .bind(span_id)
     .bind(timestamp)
     .bind(template_id)
@@ -164,16 +157,18 @@ pub async fn create_event(
 /// For now, record them without metadata
 pub async fn create_events(
     pool: &PgPool,
+    ids: &Vec<Uuid>,
     span_ids: &Vec<Uuid>,
     timestamps: &Vec<DateTime<Utc>>,
     template_ids: &Vec<Uuid>,
-    source: EventSource,
+    source: &EventSource,
     values: &Vec<Option<Value>>,
 ) -> Result<()> {
     sqlx::query(
-        "INSERT INTO events (span_id, timestamp, template_id, source, value)
-        SELECT unnest($1::uuid[]), unnest($2::timestamptz[]), unnest($3::uuid[]), $4, unnest($5::jsonb[])",
+        "INSERT INTO events (id, span_id, timestamp, template_id, source, value)
+        SELECT unnest($1::uuid[]), unnest($2::uuid[]), unnest($3::timestamptz[]), unnest($4::uuid[]), $5, unnest($6::jsonb[])",
     )
+    .bind(ids)
     .bind(span_ids)
     .bind(timestamps)
     .bind(template_ids)
@@ -185,43 +180,42 @@ pub async fn create_events(
     Ok(())
 }
 
-#[derive(sqlx::FromRow)]
-struct EventTemplateId {
-    id: Uuid,
-}
-
 pub async fn create_events_by_template_name(
     db: Arc<DB>,
     events: Vec<EventObservation>,
-    source: EventSource,
-    project_id: Uuid,
+    template_ids: &Vec<Uuid>,
+    source: &EventSource,
 ) -> Result<()> {
+    if events.is_empty() {
+        return Ok(());
+    }
+
+    if events.len() != template_ids.len() {
+        return Err(anyhow::anyhow!(
+            "Number of events ({}) does not match number of template_ids ({})",
+            events.len(),
+            template_ids.len()
+        ));
+    }
+
+    let mut ids = vec![];
     let mut span_ids = vec![];
     let mut timestamps = vec![];
-    let mut template_ids = vec![];
     let mut values = vec![];
 
     for event in events {
-        let template_id = sqlx::query_as::<_, EventTemplateId>(
-            "SELECT id FROM event_templates WHERE name = $1 AND project_id = $2",
-        )
-        .bind(&event.template_name)
-        .bind(project_id)
-        .fetch_one(&db.pool)
-        .await?
-        .id;
-
+        ids.push(event.id);
         span_ids.push(event.span_id);
         timestamps.push(event.timestamp);
-        template_ids.push(template_id);
         values.push(event.value);
     }
 
     create_events(
         &db.pool,
+        &ids,
         &span_ids,
         &timestamps,
-        &template_ids,
+        template_ids,
         source,
         &values,
     )

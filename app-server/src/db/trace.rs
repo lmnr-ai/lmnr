@@ -31,137 +31,6 @@ const DEFAULT_VERSION: &str = "0.1.0";
 // they can just modify the query builder in place, and return nothing.
 // They won't need to be annotated with lifetime in that case
 
-#[derive(Clone, Debug, Serialize, FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct DBRunTrace {
-    pub run_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub pipeline_version_id: Uuid,
-    pub run_type: Option<String>,
-    pub success: bool,
-    pub output_message_ids: Value,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
-    pub total_token_count: i64,
-    pub approximate_cost: Option<f64>,
-    pub metadata: Value,
-}
-
-#[derive(Clone, Debug, Serialize, FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct EndpointRunTraceInfo {
-    pub run_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub pipeline_version_id: Uuid,
-    pub pipeline_version_name: String,
-    pub pipeline_id: Uuid,
-    pub pipeline_name: String,
-    pub run_type: Option<String>,
-    pub success: bool,
-    pub output_message_ids: Value,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
-    pub total_token_count: i64,
-    pub approximate_cost: Option<f64>,
-    pub metadata: Value,
-}
-
-#[derive(FromRow)]
-pub struct DBRunTraceWithMessagePreviews {
-    pub run_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub pipeline_version_id: Uuid,
-    pub run_type: Option<String>,
-    pub success: bool,
-    pub output_message_ids: Value,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
-    pub total_token_count: i64,
-    pub approximate_cost: Option<f64>,
-    pub metadata: Value,
-    pub message_previews: Value, // HashMap<Uuid, DBMessagePreview>
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RunTraceWithMessagePreviews {
-    pub run_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub pipeline_version_id: Uuid,
-    pub run_type: Option<String>,
-    pub success: bool,
-    pub output_message_ids: Value,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
-    pub total_token_count: i64,
-    pub approximate_cost: Option<f64>,
-    pub metadata: Value,
-    pub message_previews: HashMap<Uuid, DBMessagePreview>,
-}
-
-impl TryFrom<DBRunTraceWithMessagePreviews> for RunTraceWithMessagePreviews {
-    type Error = anyhow::Error;
-
-    fn try_from(trace: DBRunTraceWithMessagePreviews) -> Result<Self, Self::Error> {
-        let message_previews: HashMap<Uuid, DBMessagePreview> =
-            if matches!(trace.message_previews, Value::Null) {
-                log::error!(
-                    "Unexpected null message_previews for trace: {:?}",
-                    trace.run_id
-                );
-                HashMap::new()
-            } else {
-                serde_json::from_value(trace.message_previews)?
-            };
-
-        Ok(RunTraceWithMessagePreviews {
-            run_id: trace.run_id,
-            created_at: trace.created_at,
-            pipeline_version_id: trace.pipeline_version_id,
-            run_type: trace.run_type,
-            success: trace.success,
-            output_message_ids: trace.output_message_ids,
-            start_time: trace.start_time,
-            end_time: trace.end_time,
-            total_token_count: trace.total_token_count,
-            approximate_cost: trace.approximate_cost,
-            metadata: trace.metadata,
-            message_previews,
-        })
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, FromRow)]
-#[serde(rename_all(serialize = "camelCase"))]
-pub struct DBMessagePreview {
-    pub id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub run_id: Uuid,
-    pub node_id: Uuid,
-    pub node_name: String,
-    pub node_type: String,
-    pub input_message_ids: Value, // Vec<Uuid>
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, Serialize, FromRow, Deserialize)]
-#[serde(rename_all(serialize = "camelCase"))]
-pub struct DBMessage {
-    pub id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub run_id: Uuid,
-    pub node_id: Uuid,
-    pub node_name: String,
-    pub node_type: String,
-    pub input_message_ids: Value, // Vec<Uuid>
-    pub inputs: Option<Vec<Value>>,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
-    pub value: Value,
-    pub meta_log: Value,
-}
-
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "span_type")]
 pub enum SpanType {
@@ -212,25 +81,6 @@ pub struct Trace {
     #[serde(default)]
     pub project_id: Uuid,
 }
-
-// impl Trace {
-//     pub fn from_run_trace(run_trace: &crate::pipeline::trace::RunTrace, project_id: Uuid) -> Self {
-//         Self {
-//             id: run_trace.run_id,
-//             start_time: Some(run_trace.run_stats.start_time),
-//             end_time: Some(run_trace.run_stats.end_time),
-//             version: String::from(DEFAULT_VERSION),
-//             release: None,
-//             user_id: None,
-//             session_id: Some(Uuid::new_v4().to_string()),
-//             metadata: serde_json::to_value(run_trace.metadata.clone()).ok(),
-//             total_token_count: run_trace.run_stats.total_token_count,
-//             cost: run_trace.run_stats.approximate_cost.unwrap_or_default(),
-//             success: run_trace.success,
-//             project_id,
-//         }
-//     }
-// }
 
 #[derive(Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
@@ -293,20 +143,6 @@ impl TraceAttributes {
             self.end_time = Some(end_time);
         }
     }
-
-    // pub fn from_run_trace(id: Uuid, run_trace: &crate::pipeline::trace::RunTrace) -> Self {
-    //     Self {
-    //         id,
-    //         start_time: Some(run_trace.run_stats.start_time),
-    //         end_time: Some(run_trace.run_stats.end_time),
-    //         total_token_count: Some(run_trace.run_stats.total_token_count),
-    //         cost: Some(run_trace.run_stats.approximate_cost.unwrap_or_default()),
-    //         success: Some(run_trace.success),
-    //         session_id: None,
-    //         user_id: None,
-    //     }
-    // }
-
     pub fn update_session_id(&mut self, session_id: Option<String>) {
         self.session_id = session_id;
     }
@@ -506,7 +342,21 @@ impl Span {
         run_stats: &crate::pipeline::trace::RunTraceStats,
         parent_span_id: Option<Uuid>,
         name: &String,
+        messages: &HashMap<Uuid, Message>,
     ) -> Self {
+        let mut inputs = HashMap::new();
+        let mut outputs = HashMap::new();
+        messages
+            .values()
+            .for_each(|msg| match msg.node_type.as_str() {
+                "Input" => {
+                    inputs.insert(msg.node_name.clone(), msg.value.clone());
+                }
+                "Output" => {
+                    outputs.insert(msg.node_name.clone(), msg.value.clone());
+                }
+                _ => (),
+            });
         Self {
             span_id: Uuid::new_v4(),
             start_time: run_stats.start_time,
@@ -516,8 +366,8 @@ impl Span {
             parent_span_id,
             name: name.clone(),
             attributes: serde_json::json!({}),
-            input: None,
-            output: None,
+            input: serde_json::to_value(inputs).ok(),
+            output: serde_json::to_value(outputs).ok(),
             span_type: SpanType::DEFAULT,
             events: None,
         }
@@ -833,6 +683,47 @@ fn add_filters_to_traces_query<'a>(
         });
     }
     query
+}
+
+pub async fn get_trace_with_events(
+    pool: &PgPool,
+    trace_id: Uuid,
+    project_id: Uuid,
+) -> Result<TraceWithEvents> {
+    let mut query = QueryBuilder::<Postgres>::new("WITH ");
+    query.push(TRACE_EVENTS_EXPRESSION);
+    query
+        .push(
+            "
+        SELECT
+            id,
+            start_time,
+            end_time,
+            version,
+            release,
+            user_id,
+            session_id,
+            metadata,
+            project_id,
+            total_token_count,
+            cost,
+            success,
+            COALESCE(trace_events.events, '[]'::jsonb) AS events
+        FROM traces
+        LEFT JOIN trace_events ON trace_events.trace_id = traces.id
+        WHERE project_id = ",
+        )
+        .push_bind(project_id)
+        .push(" AND id = ")
+        .push_bind(trace_id)
+        .push(" AND start_time IS NOT NULL AND end_time IS NOT NULL");
+
+    let trace = query
+        .build_query_as::<'_, TraceWithEvents>()
+        .fetch_one(pool)
+        .await?;
+
+    Ok(trace)
 }
 
 /// Queries traces for a project which match the given filters, with given limit and offset

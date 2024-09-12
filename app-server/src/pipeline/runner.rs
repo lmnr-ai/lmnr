@@ -219,6 +219,7 @@ impl PipelineRunner {
             &run_stats,
             parent_span_id,
             pipeline_version_name,
+            &engine_output.messages,
         );
 
         let message_spans = Span::from_messages(

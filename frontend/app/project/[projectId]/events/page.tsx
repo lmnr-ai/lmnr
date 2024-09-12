@@ -19,12 +19,20 @@ const getEvents = async (
   pageNumber: number,
   pageSize: number,
   filter: string | string[] | undefined,
-  pastHours: number | null  // if null, show traces for all time
+  pastHours: number | null,  // if null, show traces for all time
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
 ) => {
   const user = session.user;
   let url = `/projects/${projectId}/events?pageNumber=${pageNumber}&pageSize=${pageSize}`;
   if (pastHours !== null) {
     url += `&pastHours=${pastHours}`;
+  }
+  if (startDate != null) {
+    url += `&startDate=${startDate}`;
+  }
+  if (endDate != null) {
+    url += `&endDate=${endDate}`;
   }
   if (typeof filter === 'string') {
     url += `&filter=${encodeURI(filter)}`;
@@ -76,13 +84,36 @@ export default async function EventsPage({
   const pageSize = parseNumericSearchParam('pageSize', 50);
   const filter = searchParams?.filter;
   const pastHours = parseNullableNumericSearchParam('pastHours');
+  const startDate = searchParams?.startDate as string;
+  const endDate = searchParams?.endDate as string;
+
+  if (!pastHours && !startDate && !endDate) {
+
+    const sp = new URLSearchParams();
+    for (const [key, value] of Object.entries(searchParams ?? {})) {
+      if (key !== 'pastHours') {
+        sp.set(key, value as string);
+      }
+    }
+    sp.set('pastHours', '24');
+    redirect(`?${sp.toString()}`);
+  }
 
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
   }
 
-  const res = await getEvents(session, projectId, pageNumber, pageSize, filter, pastHours);
+  const res = await getEvents(
+    session,
+    projectId,
+    pageNumber,
+    pageSize,
+    filter,
+    pastHours,
+    startDate,
+    endDate
+  );
 
   const pageCount = res?.totalEntries ? Math.ceil(res?.totalEntries / pageSize) : 1;
 

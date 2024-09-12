@@ -1,6 +1,6 @@
 use log::error;
-use qdrant_client::prelude::*;
 use qdrant_client::qdrant::PointStruct;
+use qdrant_client::Payload;
 use serde_json::json;
 use simsimd::SpatialSimilarity;
 use std::collections::HashMap;
@@ -9,13 +9,14 @@ use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
 use crate::embeddings::{Embed, Embedding, EmbeddingModel};
-use crate::vectordb::Qdrant;
+use crate::vectordb::QdrantClient;
 use semantic_search_grpc::query_response::QueryPoint;
 use semantic_search_grpc::semantic_search_server::SemanticSearch;
 use semantic_search_grpc::{
     generate_embeddings_response, CalculateSimilarityScoresRequest,
-    CalculateSimilarityScoresResponse, GenerateEmbeddingsRequest, GenerateEmbeddingsResponse,
-    IndexRequest, IndexResponse, QueryRequest, QueryResponse, DeleteEmbeddingsRequest, DeleteEmbeddingsResponse
+    CalculateSimilarityScoresResponse, DeleteEmbeddingsRequest, DeleteEmbeddingsResponse,
+    GenerateEmbeddingsRequest, GenerateEmbeddingsResponse, IndexRequest, IndexResponse,
+    QueryRequest, QueryResponse,
 };
 
 use self::semantic_search_grpc::Model;
@@ -24,7 +25,7 @@ pub mod semantic_search_grpc;
 
 pub struct SemanticSearchService {
     embedding_models: HashMap<Model, EmbeddingModel>,
-    qdrant: Arc<Qdrant>,
+    qdrant: Arc<QdrantClient>,
 }
 
 impl Model {
@@ -38,7 +39,10 @@ impl Model {
 }
 
 impl SemanticSearchService {
-    pub fn new(embedding_models: HashMap<Model, EmbeddingModel>, qdrant: Arc<Qdrant>) -> Self {
+    pub fn new(
+        embedding_models: HashMap<Model, EmbeddingModel>,
+        qdrant: Arc<QdrantClient>,
+    ) -> Self {
         Self {
             embedding_models,
             qdrant,
@@ -108,7 +112,10 @@ impl SemanticSearch for SemanticSearchService {
         }
     }
 
-    async fn delete_embeddings(&self, request: Request<DeleteEmbeddingsRequest>) -> Result<Response<DeleteEmbeddingsResponse>, Status> {
+    async fn delete_embeddings(
+        &self,
+        request: Request<DeleteEmbeddingsRequest>,
+    ) -> Result<Response<DeleteEmbeddingsResponse>, Status> {
         let message = request.into_inner();
 
         let payloads = message
@@ -117,9 +124,13 @@ impl SemanticSearch for SemanticSearchService {
             .map(|payload| payload.payload)
             .collect();
 
-        match self 
+        match self
             .qdrant
-            .delete_points(&message.collection_name, &Model::from_int(message.model), payloads)
+            .delete_points(
+                &message.collection_name,
+                &Model::from_int(message.model),
+                payloads,
+            )
             .await
         {
             Ok(_) => {
@@ -129,7 +140,7 @@ impl SemanticSearch for SemanticSearchService {
                 Ok(Response::new(res))
             }
             Err(e) => Err(Status::internal(e.to_string())),
-        }   
+        }
     }
 
     async fn query(
@@ -225,9 +236,16 @@ impl SemanticSearch for SemanticSearchService {
         }
     }
 
-    async fn delete_collections(&self,request: Request<semantic_search_grpc::DeleteCollectionsRequest>) -> Result<tonic::Response<semantic_search_grpc::DeleteCollectionsResponse>, Status> {
+    async fn delete_collections(
+        &self,
+        request: Request<semantic_search_grpc::DeleteCollectionsRequest>,
+    ) -> Result<tonic::Response<semantic_search_grpc::DeleteCollectionsResponse>, Status> {
         let message = request.into_inner();
-        match self.qdrant.delete_collections(&message.collection_name).await {
+        match self
+            .qdrant
+            .delete_collections(&message.collection_name)
+            .await
+        {
             Ok(_) => {
                 let reply = semantic_search_grpc::DeleteCollectionsResponse {
                     status: "ok".to_string(),

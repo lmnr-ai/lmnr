@@ -1,10 +1,14 @@
 import Code from "../ui/code";
 
+
 export default function TracesPagePlaceholder() {
-const pythonString = `from lmnr import observe
+  const pythonString = `from lmnr import observe, Laminar as L
+L.initialize(project_api_key="<YOUR_PROJECT_API_KEY>")
+
 @observe()  # annotate all functions you want to trace
 def function_to_trace(...):
     ...
+
 `
 
   return (

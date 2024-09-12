@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     db::{self, user::User, DB},
-    routes::ResponseResult,
+    routes::{self, ResponseResult},
     semantic_search::SemanticSearch,
 };
 
@@ -71,6 +71,15 @@ async fn create_project(
     project: web::Json<db::projects::Project>,
     semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
+    let project_count =
+        db::limits::get_workspace_project_count_and_limit(&db.pool, &project.workspace_id).await?;
+
+    if project_count.current_projects >= project_count.project_limit {
+        return Err(routes::error::Error::limit_error(
+            "Project limit reached for workspace",
+        ));
+    }
+
     let project = db::projects::create_project(&db.pool, &user.id, &project).await?;
     info!("Created new project: {:?}", project);
 

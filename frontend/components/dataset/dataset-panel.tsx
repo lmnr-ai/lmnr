@@ -8,7 +8,7 @@ import { Button } from "../ui/button";
 import Mono from "../ui/mono";
 import { Datapoint } from "@/lib/dataset/types";
 import Formatter from "../ui/formatter";
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface DatasetPanelProps {

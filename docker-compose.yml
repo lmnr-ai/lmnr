@@ -85,6 +85,7 @@ services:
     container_name: app-server
     ports:
       - "8000:8000"
+      - "8001:8001"
     depends_on:
       semantic-search-service:
         condition: service_started
@@ -96,6 +97,7 @@ services:
         condition: service_started
     environment:
       - PORT=8000
+      - GRPC_PORT=8001
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SEMANTIC_SEARCH_URL=http://semantic-search-service:8080
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f

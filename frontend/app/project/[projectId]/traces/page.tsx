@@ -8,7 +8,6 @@ import { Metadata } from 'next';
 import { fetcherJSON } from '@/lib/utils';
 import Header from '@/components/ui/header';
 
-
 export const metadata: Metadata = {
   title: 'Traces',
 }
@@ -19,12 +18,20 @@ const getTraces = async (
   pageNumber: number,
   pageSize: number,
   filter: string | string[] | undefined,
-  pastHours: string | null | undefined   // if null, show traces for all time
+  pastHours: string | null | undefined,   // if null, show traces for all time
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
 ) => {
   const user = session.user;
   let url = `/projects/${projectId}/traces?pageNumber=${pageNumber}&pageSize=${pageSize}`;
-  if (pastHours !== null) {
+  if (pastHours != null) {
     url += `&pastHours=${pastHours}`;
+  }
+  if (startDate != null) {
+    url += `&startDate=${startDate}`;
+  }
+  if (endDate != null) {
+    url += `&endDate=${endDate}`;
   }
   if (typeof filter === 'string') {
     url += `&filter=${encodeURI(filter)}`;
@@ -58,27 +65,16 @@ export default async function TracesPage({
     return isNaN(parsed) ? defaultValue : parsed;
   }
 
-  // For some numeric params, they can be absent in the query and we want to parse them as null
-  const parseNullableNumericSearchParam = (key: string): number | null => {
-    const param = searchParams?.[key];
-    if (Array.isArray(param)) {
-      return null;
-    }
-    const parsed = param ? parseInt(param as string) : null;
-    if (typeof parsed === 'number' && isNaN(parsed)) {
-      return null;
-    }
-    return parsed;
-  }
-
   const projectId = params.projectId;
   const pageNumber = parseNumericSearchParam('pageNumber', 0);
   const pageSize = parseNumericSearchParam('pageSize', 50);
   const filter = searchParams?.filter;
+  const startDate = searchParams?.startDate as string;
+  const endDate = searchParams?.endDate as string;
 
   let pastHours = searchParams?.pastHours as string;
 
-  if (!pastHours) {
+  if (!pastHours && !startDate && !endDate) {
 
     const sp = new URLSearchParams();
     for (const [key, value] of Object.entries(searchParams)) {
@@ -96,9 +92,22 @@ export default async function TracesPage({
     redirect('/sign-in');
   }
 
-  const res = await getTraces(session, projectId, pageNumber, pageSize, filter, pastHours);
+  const res = await getTraces(
+    session,
+    projectId,
+    pageNumber,
+    pageSize,
+    filter,
+    pastHours,
+    startDate,
+    endDate,
+  );
 
   const pageCount = res?.totalEntries ? Math.ceil(res?.totalEntries / pageSize) : 1;
+
+
+  // For now, streaming with filters is not supported
+  let enableStreaming = (pageNumber === 0 && (!filter || filter.length === 0));
 
   return (
     <>
@@ -110,10 +119,12 @@ export default async function TracesPage({
           pageCount={pageCount}
           pageSize={pageSize}
           totalInProject={res?.totalInProject}
-          pastHours={pastHours?.toString() ?? "720"}
           pageNumber={Math.min(pageNumber, pageCount - 1)}
+          enableStreaming={enableStreaming}
         />
       </Suspense>
     </>
   );
 }
+
+

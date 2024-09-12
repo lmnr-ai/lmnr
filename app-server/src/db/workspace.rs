@@ -3,7 +3,7 @@ use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 use super::projects::Project;
-use super::stats::create_run_count_for_workspace;
+use super::stats::create_usage_stats_for_workspace;
 
 #[derive(Debug, Deserialize, Serialize, FromRow)]
 pub struct Workspace {
@@ -106,7 +106,7 @@ pub async fn create_new_workspace(pool: &PgPool, workspace: &Workspace) -> anyho
         .execute(pool)
         .await?;
 
-    create_run_count_for_workspace(pool, &workspace.id).await?;
+    create_usage_stats_for_workspace(pool, &workspace.id).await?;
 
     Ok(())
 }

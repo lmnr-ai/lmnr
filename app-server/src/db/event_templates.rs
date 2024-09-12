@@ -17,7 +17,7 @@ pub enum EventType {
 /// Event type for a project
 ///
 /// (name, project_id) is a unique constraint
-#[derive(Serialize, sqlx::FromRow)]
+#[derive(Serialize, sqlx::FromRow, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EventTemplate {
     pub id: Uuid,
@@ -94,26 +94,38 @@ pub async fn get_event_template_by_id(pool: &PgPool, id: &Uuid) -> Result<EventT
     Ok(event_template)
 }
 
-pub async fn create_or_update_event_template(
+/// Create event template without raising an error if it already exists
+///
+/// If users send event template creation request simultaneously, we need to ensure they all have the same event type.
+pub async fn create_event_template_idempotent(
     pool: &PgPool,
-    id: Uuid,
-    name: String,
+    name: &str,
     project_id: Uuid,
     event_type: EventType,
 ) -> Result<EventTemplate> {
-    let event_template = sqlx::query_as::<_, EventTemplate>(
-        "INSERT INTO event_templates (id, name, project_id, event_type)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (name, project_id) DO UPDATE
-        SET event_type = $4
-        RETURNING id, created_at, name, project_id, event_type",
+    // Do nothing on conflict, i.e. do not update event type
+    sqlx::query(
+        "INSERT INTO event_templates (name, project_id, event_type)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (name, project_id) DO NOTHING",
     )
-    .bind(id)
     .bind(name)
     .bind(project_id)
-    .bind(event_type)
-    .fetch_one(pool)
+    .bind(&event_type)
+    .execute(pool)
     .await?;
+
+    // https://stackoverflow.com/questions/34708509/how-to-use-returning-with-on-conflict-in-postgresql
+    let event_template = get_event_template_by_name(pool, name, project_id).await?;
+    let event_template = event_template.unwrap();
+
+    if event_template.event_type != event_type {
+        return Err(anyhow::anyhow!(
+            "Event template already exists with different event type, current: {:?}, attempted: {:?}",
+            event_template.event_type,
+            event_type
+        ));
+    }
 
     Ok(event_template)
 }
@@ -151,19 +163,13 @@ pub async fn delete_event_template(pool: &PgPool, id: &Uuid) -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize, sqlx::FromRow)]
-struct NamedType {
-    name: String,
-    event_type: EventType,
-}
-
-pub async fn get_template_types(
+pub async fn get_event_templates_map(
     pool: &PgPool,
     names: &Vec<String>,
     project_id: Uuid,
-) -> Result<HashMap<String, EventType>> {
-    let records = sqlx::query_as::<_, NamedType>(
-        "SELECT name, event_type FROM event_templates WHERE name = ANY($1) and project_id = $2",
+) -> Result<HashMap<String, EventTemplate>> {
+    let records = sqlx::query_as::<_, EventTemplate>(
+        "SELECT id, created_at, name, project_id, event_type FROM event_templates WHERE name = ANY($1) and project_id = $2",
     )
     .bind(names)
     .bind(project_id)
@@ -172,7 +178,7 @@ pub async fn get_template_types(
 
     let mut res = HashMap::new();
     for record in records {
-        res.insert(record.name, record.event_type);
+        res.insert(record.name.clone(), record);
     }
 
     Ok(res)
