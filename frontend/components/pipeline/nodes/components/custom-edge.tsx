@@ -7,7 +7,6 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   EdgeProps,
-  MarkerType,
   getBezierPath,
   useReactFlow,
 } from 'reactflow';

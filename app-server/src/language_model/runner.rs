@@ -31,7 +31,7 @@ pub enum LanguageModelProviderName {
 }
 
 #[derive(Clone, Debug)]
-#[enum_dispatch]
+#[enum_dispatch(ExecuteChatCompletion)]
 pub enum LanguageModelProvider {
     Anthropic(Anthropic),
     Gemini(Gemini),
@@ -42,7 +42,7 @@ pub enum LanguageModelProvider {
     Bedrock(AnthropicBedrock),
 }
 
-#[enum_dispatch(LanguageModelProvider)]
+#[enum_dispatch]
 pub trait ExecuteChatCompletion {
     async fn chat_completion(
         &self,

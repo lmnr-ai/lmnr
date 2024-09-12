@@ -22,10 +22,9 @@ interface WorkspaceUsersProps {
   workspaceId: string
   workspaceUsers: WorkspaceUser[]
   isOwner: boolean
-  maxUsers?: number
 }
 
-export default function WorkspaceUsers({ workspaceId, workspaceUsers, isOwner, maxUsers }: WorkspaceUsersProps) {
+export default function WorkspaceUsers({ workspaceId, workspaceUsers, isOwner }: WorkspaceUsersProps) {
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [isAddUserLoading, setIsAddUserLoading] = useState(false);
   const [users, setUsers] = useState<WorkspaceUser[]>(workspaceUsers)
@@ -84,61 +83,43 @@ export default function WorkspaceUsers({ workspaceId, workspaceUsers, isOwner, m
         </Label>
         {isOwner && (
           <>
-            {(maxUsers != null && users.length >= maxUsers)
-              ?
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div tabIndex={0}>
-                      <Button variant="outline" disabled>
-                        <Plus className='w-4 mr-1 text-gray-500' />
-                        Add user
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    You have reached the maximum number of users for this workspace.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              :
-              <Dialog open={isAddUserDialogOpen} onOpenChange={() => {
-                setIsAddUserDialogOpen(!isAddUserDialogOpen);
-                setNewUserEmail('');
-              }}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => { setIsAddUserDialogOpen(true) }} variant="outline" className="h-8 max-w-80">
-                    <Plus className='w-4 mr-1 text-gray-500' />
-                    Add user
+            <Dialog open={isAddUserDialogOpen} onOpenChange={() => {
+              setIsAddUserDialogOpen(!isAddUserDialogOpen);
+              setNewUserEmail('');
+            }}>
+              <DialogTrigger asChild>
+                <Button onClick={() => { setIsAddUserDialogOpen(true) }} variant="outline" className="h-8 max-w-80">
+                  <Plus className='w-4 mr-1 text-gray-500' />
+                  Add user
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add user by email</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <Label>Email</Label>
+                  <Input
+                    autoFocus
+                    placeholder="Enter email"
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    disabled={isAddUserLoading || newUserEmail.trim() === ''}
+                    handleEnter={true}
+                    onClick={async () => {
+                      await addUser()
+                      setIsAddUserDialogOpen(false);
+                      setNewUserEmail('');
+                    }}>
+                    Add
                   </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Add user by email</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <Label>Email</Label>
-                    <Input
-                      autoFocus
-                      placeholder="Enter email"
-                      onChange={(e) => setNewUserEmail(e.target.value)}
-                    />
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      disabled={isAddUserLoading || newUserEmail.trim() === ''}
-                      handleEnter={true}
-                      onClick={async () => {
-                        await addUser()
-                        setIsAddUserDialogOpen(false);
-                        setNewUserEmail('');
-                      }}>
-                      Add
-                    </Button>
-                    {isAddUserLoading && <Loader className='animate-spin h-4 w-4 mr-2' />}
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>}
+                  {isAddUserLoading && <Loader className='animate-spin h-4 w-4 mr-2' />}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
         <table className="w-2/3 border-t">

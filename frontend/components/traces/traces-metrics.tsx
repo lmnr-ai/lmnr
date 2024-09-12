@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useProjectContext } from "@/contexts/project-context";
 import { TraceMetricDatapoint } from "@/lib/traces/types";
 import { Skeleton } from "../ui/skeleton";
+import { useSearchParams } from "next/navigation";
 
 
 interface CustomChartProps {
@@ -21,10 +22,21 @@ interface CustomChartProps {
   title: string
   xAxisKey: string
   yAxisKey: string
-  pastHours: string
+  pastHours?: string
+  startDate?: string
+  endDate?: string
 }
 
-export function CustomChart({ metric, aggregation, title, xAxisKey, yAxisKey, pastHours }: CustomChartProps) {
+export function CustomChart({
+  metric,
+  aggregation,
+  title,
+  xAxisKey,
+  yAxisKey,
+  pastHours,
+  startDate,
+  endDate
+}: CustomChartProps) {
   const [data, setData] = useState<TraceMetricDatapoint[] | null>(null);
   const { projectId } = useProjectContext();
 
@@ -43,8 +55,22 @@ export function CustomChart({ metric, aggregation, title, xAxisKey, yAxisKey, pa
       groupByInterval = "minute";
     } else if (pastHours === "24") {
       groupByInterval = "hour";
-    } else {
+    } else if (parseInt(pastHours ?? '0') > 24) {
       groupByInterval = "day";
+    }
+
+    console.log({ pastHours, startDate, endDate, groupByInterval })
+
+    const body: Record<string, any> = {
+      metric,
+      aggregation,
+      groupByInterval
+    };
+    if (pastHours) {
+      body["pastHours"] = pastHours;
+    } else {
+      body["startDate"] = startDate;
+      body["endDate"] = endDate;
     }
 
     fetch(`/api/projects/${projectId}/traces/metrics`, {
@@ -52,18 +78,12 @@ export function CustomChart({ metric, aggregation, title, xAxisKey, yAxisKey, pa
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        metric,
-        aggregation,
-        groupByInterval,
-        pastHours,
-      })
+      body: JSON.stringify(body)
     })
       .then(res => res.json()).then((data: any) => {
-        console.log(`Data for ${metric} metric: ${JSON.stringify(data)}`)
         setData(data)
       })
-  }, [pastHours])
+  }, [pastHours, startDate, endDate])
 
   return (
     <div className="">
@@ -116,10 +136,17 @@ export function CustomChart({ metric, aggregation, title, xAxisKey, yAxisKey, pa
 }
 
 export interface TracesMetricsProps {
-  pastHours: string
+  pastHours?: string
+  startDate?: string
+  endDate?: string
 }
 
-export default function TracesMetrics({ pastHours }: TracesMetricsProps) {
+export default function TracesMetrics() {
+  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const pastHours = searchParams.get('pastHours') as string | undefined;
+  const startDate = searchParams.get('startDate') as string | undefined;
+  const endDate = searchParams.get('endDate') as string | undefined;
+
   return (
     <div className="flex p-4 space-x-4 border-b">
       <div className="flex-1">
@@ -130,6 +157,8 @@ export default function TracesMetrics({ pastHours }: TracesMetricsProps) {
           xAxisKey="time"
           yAxisKey="value"
           pastHours={pastHours}
+          startDate={startDate}
+          endDate={endDate}
         />
       </div>
       <div className="flex-1">
@@ -140,6 +169,8 @@ export default function TracesMetrics({ pastHours }: TracesMetricsProps) {
           xAxisKey="time"
           yAxisKey="value"
           pastHours={pastHours}
+          startDate={startDate}
+          endDate={endDate}
         />
       </div>
       <div className="flex-1">
@@ -150,6 +181,8 @@ export default function TracesMetrics({ pastHours }: TracesMetricsProps) {
           xAxisKey="time"
           yAxisKey="value"
           pastHours={pastHours}
+          startDate={startDate}
+          endDate={endDate}
         />
       </div>
       <div className="flex-1">
@@ -160,6 +193,8 @@ export default function TracesMetrics({ pastHours }: TracesMetricsProps) {
           xAxisKey="time"
           yAxisKey="value"
           pastHours={pastHours}
+          startDate={startDate}
+          endDate={endDate}
         />
       </div>
     </div>

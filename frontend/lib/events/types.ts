@@ -9,7 +9,7 @@ export type EventTemplate = {
   createdAt: string;
   name: string;
   eventType: EventType;
-  domain: string[] | number[] | null;
+  projectId: string;
 }
 
 export type Event = {
@@ -20,7 +20,7 @@ export type Event = {
   templateName: string;
   templateEventType: EventType;
   source: string;
-  value: string | number | null;
+  value: string | number | boolean | null;
   metadata: Record<string, string> | null;
   inputs: Record<string, any> | null;
 }

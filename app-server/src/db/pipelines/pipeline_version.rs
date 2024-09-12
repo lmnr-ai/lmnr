@@ -22,13 +22,13 @@ pub struct PipelineVersion {
 
 #[derive(FromRow)]
 pub struct PipelineVersionWithPipelineName {
-    pub id: Uuid,
-    pub pipeline_id: Uuid,
+    // pub id: Uuid,
+    // pub pipeline_id: Uuid,
     pub pipeline_type: String,
-    pub name: String,
-    pub displayable_graph: Value,
-    pub runnable_graph: Value,
-    pub created_at: DateTime<Utc>,
+    // pub name: String,
+    // pub displayable_graph: Value,
+    // pub runnable_graph: Value,
+    // pub created_at: DateTime<Utc>,
     pub pipeline_name: String,
 }
 
@@ -255,13 +255,7 @@ pub async fn get_pipeline_version_with_pipeline_name(
 ) -> Result<PipelineVersionWithPipelineName> {
     let version = sqlx::query_as::<_, PipelineVersionWithPipelineName>(
         "SELECT
-            pipeline_versions.id,
-            pipeline_versions.pipeline_id,
             pipeline_versions.pipeline_type,
-            pipeline_versions.name,
-            pipeline_versions.displayable_graph,
-            pipeline_versions.runnable_graph,
-            pipeline_versions.created_at,
             pipelines.name as pipeline_name
         FROM
             pipeline_versions

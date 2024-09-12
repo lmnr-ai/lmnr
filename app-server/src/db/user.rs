@@ -16,15 +16,13 @@ pub struct UserInfo {
     pub email: String,
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize, FromRow)]
+#[derive(Default, Debug, Clone, Serialize, FromRow)]
 pub struct User {
     pub id: Uuid,
     pub name: String,
     pub email: String,
     #[serde(skip_serializing)]
     pub api_key: Option<String>,
-    #[serde(skip_serializing)]
-    pub workspace_ids: Option<Vec<Uuid>>,
     #[serde(skip_serializing)]
     pub project_ids: Option<Vec<Uuid>>,
 }
@@ -36,7 +34,6 @@ pub async fn get_by_email(pool: &PgPool, email: &str) -> Result<Option<User>> {
             users.name, 
             users.email, 
             api_keys.api_key,
-            null::uuid[] as workspace_ids,
             null::uuid[] as project_ids
         FROM
             users
@@ -103,7 +100,6 @@ pub async fn get_user_from_api_key(
             u.id as id,
             u.name as name,
             u.email as email,
-            array_remove(array_agg(mo.workspace_id), null) as workspace_ids,
             array_remove(array_agg(p.id), null) as project_ids,
             ak.api_key
         FROM

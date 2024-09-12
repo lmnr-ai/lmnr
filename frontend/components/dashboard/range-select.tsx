@@ -47,7 +47,7 @@ export default function RangeSelect({ setPastHours, setGroupByInterval }: RangeS
   return (
     <div className="flex items-start flex-none space-x-4">
       <div>
-        <Select defaultValue={defaultGroupByInterval} onValueChange={(interval: string) => {
+        <Select defaultValue={defaultGroupByInterval} onValueChange={(interval) => {
           searchParams.set('groupByInterval', interval);
           router.push(`${pathName}?${searchParams.toString()}`);
           setGroupByInterval(interval);

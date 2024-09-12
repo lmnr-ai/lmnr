@@ -24,7 +24,7 @@ import { Label } from './label';
 import { Button } from './button';
 import { X } from 'lucide-react';
 import DataTableFilter from './datatable-filter';
-import DateRangeFilter from './datatable-date-range-filter';
+import DateRangeFilter from './date-range-filter';
 
 const DEFAULT_PAGE_SIZE = 50;
 

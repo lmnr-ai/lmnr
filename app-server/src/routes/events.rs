@@ -1,16 +1,22 @@
-use std::collections::HashMap;
-
 use actix_web::{delete, get, post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::db::{
-    self,
-    events::EventWithTemplateName,
-    metrics::EventMetricsDatapoint,
-    modifiers::{DateRange, Filter, GroupByInterval},
-    DB,
+use crate::{
+    ch::{
+        self,
+        events::{get_time_bounds, IntMetricTimeValue},
+        modifiers::GroupByInterval,
+        utils::hours_ago,
+        Aggregation,
+    },
+    db::{
+        self,
+        events::EventWithTemplateName,
+        modifiers::{DateRange, Filter, RelativeDateInterval},
+        DB,
+    },
 };
 
 use super::ResponseResult;
@@ -29,28 +35,7 @@ pub async fn get_event_templates(path: web::Path<Uuid>, db: web::Data<DB>) -> Re
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CreateEventTemplateRequest {
-    name: String,
     event_type: db::event_templates::EventType,
-}
-
-#[post("event-templates")]
-pub async fn create_event_template(
-    path: web::Path<Uuid>,
-    req: web::Json<CreateEventTemplateRequest>,
-    db: web::Data<DB>,
-) -> ResponseResult {
-    let project_id = path.into_inner();
-    let req = req.into_inner();
-    let name = req.name;
-    let event_type = req.event_type;
-
-    let id = Uuid::new_v4();
-    let event_template = db::event_templates::create_or_update_event_template(
-        &db.pool, id, name, project_id, event_type,
-    )
-    .await?;
-
-    Ok(HttpResponse::Ok().json(event_template))
 }
 
 #[get("event-templates/{template_id}")]
@@ -119,60 +104,117 @@ pub async fn get_events_by_template_id(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GetEventTemplateMetricsQueryParams {
+enum EventMetric {
+    EventCount,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetEventMetricsParams {
+    /// e.g. "eventCount", "valueAverage" or "valueSum" for NUMBER type, p90, some metrics grouped by enum tags, etc.
+    pub metric: EventMetric,
+    /// Total or average, TODO: Find better name for this field
+    pub aggregation: Aggregation,
+    /// Date range per page
     #[serde(default)]
     #[serde(flatten)]
     pub date_range: Option<DateRange>,
+    /// Group by interval per page
     #[serde(default)]
     pub group_by_interval: GroupByInterval,
 }
 
-#[get("event-templates/{event_template_id}/metrics")]
+#[post("event-templates/{event_template_id}/metrics")]
 pub async fn get_events_metrics(
     params: web::Path<(Uuid, Uuid)>,
-    db: web::Data<DB>,
-    query_params: web::Query<GetEventTemplateMetricsQueryParams>,
+    clickhouse: web::Data<clickhouse::Client>,
+    req: web::Json<GetEventMetricsParams>,
 ) -> ResponseResult {
-    let (_project_id, event_template_id) = params.into_inner();
-    let query_params = query_params.into_inner();
-    let date_range = query_params.date_range;
+    let (project_id, event_template_id) = params.into_inner();
+    let clickhouse = clickhouse.into_inner().as_ref().clone();
+    let req = req.into_inner();
+    let metric = req.metric;
+    let aggregation = req.aggregation;
+    let date_range = req.date_range.as_ref();
+    let group_by_interval = req.group_by_interval;
 
-    let metrics = db::metrics::get_event_metrics(
-        &db.pool,
-        date_range.as_ref(),
-        query_params.group_by_interval.to_sql(),
-        event_template_id,
-    )
-    .await?;
+    // We expect the frontend to always provide a date range.
+    // However, for smooth UX we default this to all time.
+    let defaulted_range =
+        date_range
+            .cloned()
+            .unwrap_or(DateRange::Relative(RelativeDateInterval {
+                past_hours: "all".to_string(),
+            }));
 
-    Ok(HttpResponse::Ok().json(convert_event_metrics_response(&metrics)))
-}
+    match defaulted_range {
+        DateRange::Relative(interval) => {
+            let past_hours = if interval.past_hours == "all" {
+                let time_bounds =
+                    get_time_bounds(clickhouse.clone(), project_id, event_template_id).await?;
+                if time_bounds.min_time == 0 {
+                    let values: Vec<IntMetricTimeValue> = vec![];
+                    return Ok(HttpResponse::Ok().json(values));
+                }
+                let past_hours = hours_ago(time_bounds.min_time);
+                // FIXME: This is definitely to do with the query, and this patch is likely not a solution.
+                past_hours.max(48)
+            } else {
+                let past_hours: i64 = interval.past_hours.parse().map_err(|_| {
+                    anyhow::anyhow!("Failed to parse past_hours as i64: {}", interval.past_hours)
+                })?;
 
-#[derive(Serialize)]
-pub struct MetricTimeValue {
-    pub time: i64,
-    pub value: Option<f64>,
-}
-
-/// For now, this function simply converts db_datapoints to response datapoints,
-/// but it can be extended with converting other metrics too
-fn convert_event_metrics_response(
-    db_datapoints: &Vec<EventMetricsDatapoint>,
-) -> HashMap<String, Vec<MetricTimeValue>> {
-    let mut points = HashMap::<String, Vec<MetricTimeValue>>::new();
-
-    let counts = db_datapoints.iter().map(|point| {
-        let time = point.time;
-        let count = point.count;
-
-        MetricTimeValue {
-            time: time.timestamp(),
-            value: Some(count as f64),
+                past_hours
+            };
+            match metric {
+                EventMetric::EventCount => match aggregation {
+                    Aggregation::Total => {
+                        let values = ch::events::get_total_event_count_metrics_relative(
+                            clickhouse,
+                            group_by_interval,
+                            project_id,
+                            event_template_id,
+                            past_hours,
+                        )
+                        .await?;
+                        Ok(HttpResponse::Ok().json(values))
+                    }
+                    _ => {
+                        return Err(anyhow::anyhow!(
+                            "Unsupported aggregation {:?} for metric {}",
+                            aggregation,
+                            "eventCount"
+                        )
+                        .into());
+                    }
+                },
+            }
         }
-    });
-
-    points.insert("count".to_string(), counts.collect());
-    points
+        DateRange::Absolute(interval) => match metric {
+            EventMetric::EventCount => match aggregation {
+                Aggregation::Total => {
+                    let values = ch::events::get_total_event_count_metrics_absolute(
+                        clickhouse,
+                        group_by_interval,
+                        project_id,
+                        event_template_id,
+                        interval.start_date,
+                        interval.end_date,
+                    )
+                    .await?;
+                    Ok(HttpResponse::Ok().json(values))
+                }
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "Unsupported aggregation {:?} for metric {}",
+                        aggregation,
+                        "eventCount"
+                    )
+                    .into());
+                }
+            },
+        },
+    }
 }
 
 #[derive(Deserialize)]

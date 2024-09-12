@@ -72,7 +72,7 @@ async fn run_pipeline_graph(
     let Some(pipeline_version) = pipeline_version else {
         return Err(error::Error::no_target_pipeline(&req.pipeline));
     };
-    let pipeline_version_name = pipeline_version.name.clone();
+    let pipeline_version_name = format!("{}.{}", req.pipeline, pipeline_version.name);
 
     let run_id = Uuid::new_v4(); // used to uniquely identify the related log or run trace
     let run_type = RunType::Endpoint;
@@ -156,7 +156,7 @@ async fn run_pipeline_graph(
             .record_observations(
                 &run_result,
                 &project_id,
-                &pipeline_version.name,
+                &pipeline_version_name,
                 parent_span_id,
                 trace_id,
             )

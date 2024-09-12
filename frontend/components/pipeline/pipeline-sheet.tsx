@@ -27,49 +27,49 @@ interface PipelineSheetProps {
   editable: boolean
 }
 
+function RenderNode({ data, editable }: { data: GenericNode, editable: boolean }) {
+  switch (data.type) {
+    case NodeType.LLM:
+      return (
+        <LLM data={data as LLMNode} editable={editable} />
+      )
+    case NodeType.SEMANTIC_SEARCH:
+      return (
+        <SemanticSearchNodeComponent data={data as SemanticSearchNode} />
+      )
+    case NodeType.SWITCH:
+      return (
+        <SwitchNodeComponent data={data as RouterNode} />
+      )
+    case NodeType.STRING_TEMPLATE:
+      return (
+        <StringTemplateNodeComponent data={data as StringTemplateNode} />
+      )
+    case NodeType.SEMANTIC_SWITCH:
+      return (
+        <SemanticSwitchNodeComponent data={data as SemanticSwitchNode} />
+      )
+    case NodeType.JSON_EXTRACTOR:
+      return (
+        <JsonExtractorNodeComponent data={data as JsonExtractorNode} />
+      )
+    case NodeType.WEB_SEARCH:
+      return (
+        <WebSearchNodeComponent data={data as WebSearchNode} />
+      )
+    case NodeType.FUNCTION:
+      return (
+        <FunctionNodeComponent data={data as FunctionNode} />
+      )
+    default:
+      return null
+  }
+}
+
 export default function PipelineSheet({ editable }: PipelineSheetProps) {
   const { focusedNodeId, getNode, updateNodeData } = useStore(store => store)
 
   const data = getNode(focusedNodeId ?? "")?.data
-
-  const renderNode = (data: GenericNode) => {
-    switch (data.type) {
-      case NodeType.LLM:
-        return (
-          <LLM data={data as LLMNode} editable={editable} />
-        )
-      case NodeType.SEMANTIC_SEARCH:
-        return (
-          <SemanticSearchNodeComponent data={data as SemanticSearchNode} />
-        )
-      case NodeType.SWITCH:
-        return (
-          <SwitchNodeComponent data={data as RouterNode} />
-        )
-      case NodeType.STRING_TEMPLATE:
-        return (
-          <StringTemplateNodeComponent data={data as StringTemplateNode} />
-        )
-      case NodeType.SEMANTIC_SWITCH:
-        return (
-          <SemanticSwitchNodeComponent data={data as SemanticSwitchNode} />
-        )
-      case NodeType.JSON_EXTRACTOR:
-        return (
-          <JsonExtractorNodeComponent data={data as JsonExtractorNode} />
-        )
-      case NodeType.WEB_SEARCH:
-        return (
-          <WebSearchNodeComponent data={data as WebSearchNode} />
-        )
-      case NodeType.FUNCTION:
-        return (
-          <FunctionNodeComponent data={data as FunctionNode} />
-        )
-      default:
-        return null
-    }
-  }
 
   return (
     <div className="w-full h-full relative">
@@ -95,7 +95,7 @@ export default function PipelineSheet({ editable }: PipelineSheetProps) {
               <div className="absolute inset-0 z-50" />
             )}
 
-            {renderNode(data)}
+            <RenderNode data={data} editable={editable} key={data.id} />
           </div>
         </ScrollArea>
       }

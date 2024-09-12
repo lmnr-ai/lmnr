@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use actix_web::{delete, get, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -100,4 +102,41 @@ async fn get_evaluation_datapoint(
     let result = evaluations::get_evaluation_datapoint(&db.pool, datapoint_id).await?;
 
     Ok(HttpResponse::Ok().json(result))
+}
+
+#[get("evaluations/{evaluation_id}/stats")]
+async fn get_evaluation_stats(path: web::Path<(Uuid, Uuid)>, db: web::Data<DB>) -> ResponseResult {
+    // This query should eventually migrate to OLAP, so for now it is a pretty rudimentary
+    // query-time in-memory aggregation. A slightly better - but still not perfect -
+    // solution would be to use a GROUP BY query in SQL with `->` operator to extract
+    // each score value, but that would also require to store and manage the keys (score names)
+    // in the database. In addition, since the keys are different across
+    // evaluations, GIN index optimization is not possible.
+    let (_project_id, evaluation_id) = path.into_inner();
+    let datapoint_scores =
+        evaluations::get_evaluation_datapoint_scores(&db.pool, evaluation_id).await?;
+
+    let mut values_per_score = HashMap::<String, Vec<f64>>::new();
+    for score in datapoint_scores {
+        let score: HashMap<String, f64> = serde_json::from_value(score.scores).unwrap_or_default();
+        for (name, value) in score {
+            values_per_score
+                .entry(name)
+                .and_modify(|values| {
+                    values.push(value);
+                })
+                .or_insert(vec![value]);
+        }
+    }
+
+    // Map from score name to average value
+    let averages = values_per_score
+        .into_iter()
+        .map(|(name, values)| {
+            let mean = values.iter().sum::<f64>() / values.len() as f64;
+            (name, mean)
+        })
+        .collect::<HashMap<_, _>>();
+
+    Ok(HttpResponse::Ok().json(averages))
 }

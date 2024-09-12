@@ -6,9 +6,10 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
+    ch::{self, events::CHEvent},
     db::{
         self,
-        event_templates::EventType,
+        event_templates::{EventTemplate, EventType},
         events::{EvaluateEventRequest, EventObservation, EventSource},
         DB,
     },
@@ -19,62 +20,67 @@ use crate::{
     },
 };
 
+// TODO: Make this function more readable and separate into smaller functions
 pub async fn create_events(
     db: Arc<DB>,
+    clickhouse: clickhouse::Client,
     event_payloads: Vec<EventObservation>,
     event_source: EventSource,
     project_id: Uuid,
 ) -> Result<()> {
-    let event_types = db::event_templates::get_template_types(
-        &db.pool,
-        &event_payloads
-            .iter()
-            .map(|o| o.template_name.clone())
-            .collect(),
-        project_id,
-    )
-    .await?;
+    let template_names = event_payloads
+        .iter()
+        .map(|o| o.template_name.clone())
+        .collect::<Vec<String>>();
+    let event_templates_map =
+        db::event_templates::get_event_templates_map(&db.pool, &template_names, project_id).await?;
 
     let mut events = vec![];
+    let mut event_templates = vec![];
 
     for mut event_payload in event_payloads.into_iter() {
-        let event_type = event_types
-            .get(&event_payload.template_name)
-            .map(|et| et.to_owned());
-
-        let event_type = match event_type {
-            Some(event_type) => event_type,
-            None => {
-                let id = Uuid::new_v4();
-                let event_type = match event_payload.value {
-                    None => EventType::BOOLEAN,
-                    Some(ref value) => match value {
-                        Value::Number(_) => EventType::NUMBER,
-                        Value::String(_) => EventType::STRING,
-                        Value::Bool(_) => EventType::BOOLEAN,
-                        _ => {
+        let event_template: EventTemplate =
+            match event_templates_map.get(&event_payload.template_name) {
+                Some(et) => et.clone(),
+                None => {
+                    let event_type = match event_payload.value {
+                        None => EventType::BOOLEAN,
+                        Some(ref value) => match value {
+                            Value::Number(_) => EventType::NUMBER,
+                            Value::String(_) => EventType::STRING,
+                            Value::Bool(_) => EventType::BOOLEAN,
+                            _ => {
+                                log::warn!(
+                                    "Skipping event with unsupported value type: {:?}",
+                                    event_payload
+                                );
+                                continue;
+                            }
+                        },
+                    };
+                    // If the user wants to use events for simply logging, create a boolean event, if there's no template for such event
+                    let event_template_create_res =
+                        db::event_templates::create_event_template_idempotent(
+                            &db.pool,
+                            &event_payload.template_name,
+                            project_id,
+                            event_type,
+                        )
+                        .await;
+                    match event_template_create_res {
+                        Ok(et) => et,
+                        Err(e) => {
                             log::warn!(
-                                "Skipping event with unsupported value type: {:?}",
-                                event_payload
+                                "Skipping event due to error when creating event template: {:?}",
+                                e
                             );
                             continue;
                         }
-                    },
-                };
-                // If the user wants to use events for simply logging, create a boolean event, if there's no template for such event
-                let event_template = db::event_templates::create_or_update_event_template(
-                    &db.pool,
-                    id,
-                    event_payload.template_name.clone(),
-                    project_id,
-                    event_type,
-                )
-                .await?;
-                event_template.event_type
-            }
-        };
+                    }
+                }
+            };
 
-        match event_type {
+        match event_template.event_type {
             EventType::BOOLEAN => {
                 let value = match event_payload.value.clone() {
                     Some(v) => v,
@@ -92,6 +98,7 @@ pub async fn create_events(
                     }
                 };
                 events.push(event_payload);
+                event_templates.push(event_template);
             }
             EventType::STRING => {
                 let Some(value) = event_payload.value.clone() else {
@@ -106,6 +113,7 @@ pub async fn create_events(
                     continue;
                 };
                 events.push(event_payload);
+                event_templates.push(event_template);
             }
             EventType::NUMBER => {
                 let Some(value) = event_payload.value.clone() else {
@@ -120,11 +128,33 @@ pub async fn create_events(
                     continue;
                 };
                 events.push(event_payload);
+                event_templates.push(event_template);
             }
         }
     }
 
-    db::events::create_events_by_template_name(db, events, event_source, project_id).await
+    let template_ids = event_templates
+        .iter()
+        .map(|et| et.id)
+        .collect::<Vec<Uuid>>();
+    db::events::create_events_by_template_name(db, events.clone(), &template_ids, &event_source)
+        .await?;
+
+    let ch_events = events
+        .into_iter()
+        .zip(event_templates.into_iter())
+        .map(|(event, event_template)| {
+            CHEvent::from_data(
+                event.id,
+                event.timestamp,
+                event_template,
+                event_source.clone().into(),
+                project_id,
+            )
+        })
+        .collect::<Vec<CHEvent>>();
+
+    ch::events::insert_events(clickhouse, ch_events).await
 }
 
 pub async fn evaluate_event(
@@ -192,7 +222,7 @@ pub async fn evaluate_event(
         .record_observations(
             &run_result,
             &project_id,
-            &pipeline_version.name,
+            &format!("{}.{}", evaluate_event.evaluator, pipeline_version.name),
             parent_span_id,
             trace_id,
         )
@@ -228,6 +258,7 @@ pub async fn evaluate_and_record_single_event(
     span_id: Uuid,
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
+    clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     project_id: Uuid,
 ) -> Result<()> {
@@ -240,10 +271,9 @@ pub async fn evaluate_and_record_single_event(
 
     let timestamp = evaluated_event.timestamp;
     let data = evaluated_event.data.clone();
-    let evaluated_event_name = evaluated_event.name.clone();
 
     match evaluate_event(
-        evaluated_event,
+        evaluated_event.clone(),
         span_id,
         pipeline_runner,
         db.clone(),
@@ -292,7 +322,6 @@ pub async fn evaluate_and_record_single_event(
                     }
                 }
             } else {
-                let id = Uuid::new_v4();
                 let event_type = match res {
                     Value::Number(_) => EventType::NUMBER,
                     Value::String(_) => EventType::STRING,
@@ -306,10 +335,9 @@ pub async fn evaluate_and_record_single_event(
                     }
                 };
                 event_template = Some(
-                    db::event_templates::create_or_update_event_template(
+                    db::event_templates::create_event_template_idempotent(
                         &db.pool,
-                        id,
-                        evaluated_event_name,
+                        &evaluated_event.name,
                         project_id,
                         event_type,
                     )
@@ -318,23 +346,43 @@ pub async fn evaluate_and_record_single_event(
             }
             let event_template = event_template.unwrap();
 
+            // Quick hack to not record false values for boolean events temporarily
+            if event_template.event_type == EventType::BOOLEAN && res == Value::Bool(false) {
+                dbg!("Skipping false boolean event: {:?}", evaluated_event.name);
+                return Ok(());
+            }
+
+            let event_source = db::events::EventSource::AUTO;
             db::events::create_event(
                 &db.pool,
+                evaluated_event.id,
                 span_id,
                 timestamp,
                 event_template.id,
-                db::events::EventSource::AUTO,
+                event_source.clone(),
                 res,
                 serde_json::to_value(data).ok(),
             )
             .await?;
+
+            let ch_event = CHEvent::from_data(
+                evaluated_event.id,
+                evaluated_event.timestamp,
+                event_template,
+                event_source.into(),
+                project_id,
+            );
+            ch::events::insert_events(clickhouse, vec![ch_event]).await?;
+            Ok(())
         }
         Err(e) => {
-            log::error!("Failed to classify if event happened: {}", e);
+            return Err(anyhow::anyhow!(
+                "Failed to evaluate event {}: {:?}",
+                evaluated_event.name,
+                e
+            ));
         }
     }
-
-    Ok(())
 }
 
 /// Classifies if events happened in the spans and records to the database.
@@ -343,6 +391,7 @@ pub async fn evaluate_and_record_events(
     span_id: Uuid,
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
+    clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     project_id: Uuid,
 ) -> Result<()> {
@@ -351,13 +400,15 @@ pub async fn evaluate_and_record_events(
     for evaluated_event in evaluated_events {
         let pipeline_runner = pipeline_runner.clone();
         let db = db.clone();
+        let clickhouse = clickhouse.clone();
         let cache = cache.clone();
         let task = tokio::spawn(async move {
             evaluate_and_record_single_event(
                 evaluated_event,
                 span_id,
                 pipeline_runner,
-                db.clone(),
+                db,
+                clickhouse,
                 cache,
                 project_id,
             )

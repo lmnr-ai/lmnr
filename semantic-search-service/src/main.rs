@@ -10,7 +10,7 @@ use tonic::transport::Server;
 
 use semantic_search::semantic_search_grpc::semantic_search_server::SemanticSearchServer;
 use semantic_search::SemanticSearchService;
-use vectordb::Qdrant;
+use vectordb::QdrantClient;
 
 mod embeddings;
 mod semantic_search;
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let onnx = Arc::new(onnx);
 
     let qdrant_url = env::var("QDRANT_URL").expect("QDRANT_URL must be set");
-    let qdrant = Arc::new(Qdrant::new(&qdrant_url));
+    let qdrant = Arc::new(QdrantClient::new(&qdrant_url));
 
     let client = reqwest::Client::new();
 

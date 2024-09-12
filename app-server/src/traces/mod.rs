@@ -19,6 +19,8 @@ use crate::{
 
 pub mod attributes;
 pub mod events;
+pub mod grpc_service;
+pub mod process;
 
 pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
 pub const OBSERVATIONS_EXCHANGE: &str = "observations_exchange";
@@ -118,6 +120,7 @@ pub async fn observation_collector(
             span.span_id,
             pipeline_runner.clone(),
             db.clone(),
+            clickhouse.clone(),
             cache.clone(),
             rabbitmq_span_message.project_id,
         )
@@ -128,6 +131,7 @@ pub async fn observation_collector(
 
         let add_instrumentation_events_res = create_events(
             db.clone(),
+            clickhouse.clone(),
             rabbitmq_span_message.events,
             EventSource::CODE,
             rabbitmq_span_message.project_id,

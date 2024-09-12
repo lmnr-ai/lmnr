@@ -8,10 +8,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .out_dir("./src/semantic_search/")
         .compile(&[proto_file], &["proto"])?;
 
+    // NOTE: Currently need to manually enable this, fix errors with super::super::..., whenever changing proto.
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional") // for older systems
         .build_client(false)
-        .build_server(false)
+        .build_server(true)
+        .include_file("mod.rs")
         .out_dir("./src/opentelemetry/")
         .compile(
             &[
@@ -22,8 +24,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ],
             &["proto"],
         )?;
-
-
 
     Ok(())
 }
