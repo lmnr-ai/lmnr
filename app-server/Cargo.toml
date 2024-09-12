@@ -22,7 +22,7 @@ tokio-stream = { version = "0.1", features = ["net"] }
 futures = "0.3"
 rayon = "1"
 enum_dispatch = "0.3.12"
-reqwest = { version = "0.12.0", default-features = false, features = ["rustls-tls", "json", "stream", "multipart"] }
+reqwest = { version = "0.12.7", default-features = false, features = ["rustls-tls", "json", "stream", "multipart"] }
 serde = "1.0"
 serde_json = "1.0.105"
 log = "0.4.20"
@@ -38,7 +38,7 @@ itertools = "0.11.0"
 unicode-segmentation = "1.10.1"
 chrono = { version = "0.4.31", features = ["serde"] }
 moka = { version = "0.12.1", features = ["sync", "future"] }
-sqlx = { version = "0.7", features = ["runtime-tokio", "postgres", "uuid", "json", "time", "chrono", "bigdecimal"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal"] }
 thiserror = "1.0.56"
 json_value_merge = "2.0.0"
 serde-jsonlines = "0.5.0"
@@ -59,9 +59,11 @@ backoff = { version = "0.4.0", features = ["tokio"] }
 lmnr-baml = { git = "https://github.com/lmnr-ai/lmnr-baml", branch = "rust" }
 lapin = "2.5.0"
 bytes = "1.7.1"
-clickhouse = { version = "0.12.2", features = ["rustls-tls", "uuid"] }
+clickhouse = {version = "0.12.2", features = ["rustls-tls", "uuid"]}
 time = "0.3.36"
-rustls = "0.23.12"
+rustls = { version = "0.23.12", features = ["ring"] }
+serde_repr = "0.1.19"
+num_cpus = "1.16.0"
 
 [build-dependencies]
 tonic-build = "0.8"
