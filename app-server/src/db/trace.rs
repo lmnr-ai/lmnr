@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::{postgres::PgHasArrayType, FromRow, PgPool, Postgres, QueryBuilder};
+use sqlx::{FromRow, PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
 use crate::{
@@ -179,13 +179,6 @@ impl Into<u8> for SpanType {
             SpanType::DEFAULT => 0,
             SpanType::LLM => 1,
         }
-    }
-}
-
-impl PgHasArrayType for SpanType {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        // Specify the PostgreSQL array type name for your custom enum type
-        sqlx::postgres::PgTypeInfo::with_name("_span_type")
     }
 }
 

@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{postgres::PgHasArrayType, prelude::FromRow, PgPool};
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 use super::DB;
@@ -30,12 +30,6 @@ pub enum EvaluationStatus {
 pub enum EvaluationDatapointStatus {
     Success,
     Error,
-}
-
-impl PgHasArrayType for EvaluationDatapointStatus {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_evaluation_status")
-    }
 }
 
 #[derive(Deserialize, Serialize, FromRow)]

@@ -1,5 +1,5 @@
 # Uses the bullseye-slim debian image per the rust recommendation.
-FROM rust:1.76-slim-bullseye AS builder
+FROM rust:1.80-slim-bullseye AS builder
 
 # Install g++ and other build essentials for compiling openssl/tls dependencies
 RUN apt update
