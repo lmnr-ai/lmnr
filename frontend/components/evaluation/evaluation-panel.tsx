@@ -1,5 +1,5 @@
 import { useProjectContext } from "@/contexts/project-context";
-import { EvaluationDatapoint, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
+import { EvaluationDatapoint, EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 import { ChevronsRight } from "lucide-react";
 import { Skeleton } from "../ui/skeleton";
 import { Label } from "../ui/label";
@@ -9,7 +9,7 @@ import Mono from "../ui/mono";
 import useSWR from "swr";
 import { swrFetcher } from "@/lib/utils";
 import EvaluationDatapointErr from "./evaluation-datapoint-error";
-import React from "react";
+import React, { useEffect } from "react";
 import { RunTrace } from "@/lib/traces/types";
 import { Separator } from "../ui/separator";
 import Formatter from "../ui/formatter";

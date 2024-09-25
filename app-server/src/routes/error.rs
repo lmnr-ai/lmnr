@@ -21,6 +21,8 @@ pub enum Error {
         error_code: String,
         error_message: Option<serde_json::Value>,
     },
+    #[error("Forbidden")]
+    Forbidden,
 }
 
 // This can be refactored, but for now it can be used as a single source to see
@@ -103,6 +105,7 @@ pub fn workspace_error_to_http_error(e: WorkspaceError) -> Error {
             "Limit reached for {}. Limit: {}. Current {}: {}",
             entity, limit, entity, usage
         )),
+        WorkspaceError::NotAllowed => Error::Forbidden,
     }
 }
 
@@ -147,6 +150,7 @@ impl ResponseError for Error {
             Self::InternalAnyhowError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::MultipartError(_) => StatusCode::BAD_REQUEST,
             Self::RequestError { .. } => StatusCode::BAD_REQUEST,
+            Self::Forbidden => StatusCode::FORBIDDEN,
         }
     }
 

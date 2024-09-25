@@ -8,6 +8,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use dashmap::DashMap;
 use db::{api_keys::ProjectApiKey, pipelines::PipelineVersion, user::User};
 use files::FileManager;
+use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use tonic::transport::Server;
@@ -49,8 +50,10 @@ mod chunk;
 mod datasets;
 mod db;
 mod engine;
+mod evaluations;
 mod files;
 mod language_model;
+mod names;
 mod opentelemetry;
 mod pipeline;
 mod routes;
@@ -244,7 +247,6 @@ fn main() -> anyhow::Result<()> {
 
                     let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
                         language_model_runner.clone(),
-                        chunker_runner.clone(),
                         semantic_search.clone(),
                         rabbitmq_connection.clone(),
                     ));
@@ -258,6 +260,8 @@ fn main() -> anyhow::Result<()> {
                         clickhouse.clone(),
                     ));
 
+                    let name_generator = Arc::new(NameGenerator::new());
+
                     App::new()
                         .wrap(Logger::default())
                         .wrap(NormalizePath::trim())
@@ -270,6 +274,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(language_model_runner.clone()))
                         .app_data(web::Data::new(rabbitmq_connection.clone()))
                         .app_data(web::Data::new(clickhouse.clone()))
+                        .app_data(web::Data::new(name_generator.clone()))
                         // Scopes with specific auth or no auth
                         .service(
                             web::scope("api/v1/auth")
@@ -280,7 +285,6 @@ fn main() -> anyhow::Result<()> {
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
                                 .service(api::v1::pipelines::run_pipeline_graph)
-                                .service(api::v1::pipelines::ping_healthcheck)
                                 .service(api::v1::traces::get_events_for_session)
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::evaluations::upload_evaluation_datapoints)
@@ -296,7 +300,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::workspace::get_all_workspaces_of_user)
                                 .service(routes::workspace::get_workspace)
                                 .service(routes::workspace::create_workspace)
-                                .service(routes::workspace::can_add_users_to_workspace)
                                 .service(routes::workspace::add_user_to_workspace),
                         )
                         .service(
@@ -381,15 +384,20 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::evaluations::get_evaluation_datapoint)
                                         .service(routes::traces::get_traces)
                                         .service(routes::traces::get_single_trace)
-                                        .service(routes::traces::get_trace_with_events)
                                         .service(routes::traces::get_single_span)
                                         .service(routes::traces::get_trace_id_for_span)
+                                        .service(routes::traces::get_sessions)
+                                        .service(routes::labels::create_label_class)
+                                        .service(routes::labels::get_label_types)
+                                        .service(routes::labels::get_span_labels)
+                                        .service(routes::labels::update_span_label)
+                                        .service(routes::labels::delete_span_label)
+                                        .service(routes::traces::export_span)
                                         .service(routes::events::get_event_templates)
                                         .service(routes::events::get_event_template)
                                         .service(routes::events::update_event_template)
                                         .service(routes::events::delete_event_template)
                                         .service(routes::events::get_events_by_template_id)
-                                        .service(routes::events::get_events)
                                         .service(routes::events::get_events_metrics)
                                         .service(routes::traces::get_traces_metrics),
                                 ),

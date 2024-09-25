@@ -1,6 +1,6 @@
 'use client'
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { Line, LineChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import {
   ChartConfig,
@@ -8,8 +8,8 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { formatTimestampFromSeconds } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { formatTimestampFromSeconds, getGroupByInterval, isGroupByIntervalAvailable } from "@/lib/utils";
+import { use, useEffect, useState } from "react";
 import { useProjectContext } from "@/contexts/project-context";
 import { TraceMetricDatapoint } from "@/lib/traces/types";
 import { Skeleton } from "../ui/skeleton";
@@ -25,6 +25,7 @@ interface CustomChartProps {
   pastHours?: string
   startDate?: string
   endDate?: string
+  defaultGroupByInterval?: string
 }
 
 export function CustomChart({
@@ -35,7 +36,8 @@ export function CustomChart({
   yAxisKey,
   pastHours,
   startDate,
-  endDate
+  endDate,
+  defaultGroupByInterval,
 }: CustomChartProps) {
   const [data, setData] = useState<TraceMetricDatapoint[] | null>(null);
   const { projectId } = useProjectContext();
@@ -45,26 +47,16 @@ export function CustomChart({
       color: "hsl(var(--chart-2))",
     },
   } satisfies ChartConfig
+  const inferredGroupBy = getGroupByInterval(pastHours, startDate, endDate, defaultGroupByInterval);
 
   useEffect(() => {
-    let groupByInterval = "hour";
-
-    if (pastHours === "1") {
-      groupByInterval = "minute";
-    } else if (pastHours === "7") {
-      groupByInterval = "minute";
-    } else if (pastHours === "24") {
-      groupByInterval = "hour";
-    } else if (parseInt(pastHours ?? '0') > 24) {
-      groupByInterval = "day";
+    if (!pastHours && !startDate && !endDate) {
+      return;
     }
-
-    console.log({ pastHours, startDate, endDate, groupByInterval })
-
     const body: Record<string, any> = {
       metric,
       aggregation,
-      groupByInterval
+      groupByInterval: inferredGroupBy
     };
     if (pastHours) {
       body["pastHours"] = pastHours;
@@ -83,31 +75,34 @@ export function CustomChart({
       .then(res => res.json()).then((data: any) => {
         setData(data)
       })
-  }, [pastHours, startDate, endDate])
+  }, [defaultGroupByInterval, pastHours, startDate, endDate]);
 
   return (
     <div className="">
-      <div className="text-sm font-medium text-secondary-foreground">
-        {title}
+      <div className="flex space-x-2 justify-between text-sm font-medium text-secondary-foreground ">
+        <div className="flex-grow">
+          {title}
+        </div>
       </div>
       <div className="">
         <ChartContainer config={chartConfig} className="max-h-40 w-full">
-
           {
             (data === null) ? <Skeleton className="h-40" /> :
-              <BarChart
+              <LineChart
                 accessibilityLayer
                 data={data}
                 margin={{ top: 10, right: 10, bottom: 10, left: 0 }}
               >
                 <CartesianGrid vertical={false} />
                 <XAxis
-                  type="number"
+                  type="category"
                   domain={['dataMin', 'dataMax']}
                   tickLine={false}
+                  tickCount={data.length + 1}
                   tickFormatter={formatTimestampFromSeconds}
                   axisLine={false}
                   dataKey={xAxisKey}
+                  padding="no-gap"
                 />
                 <YAxis
                   tickLine={false}
@@ -116,18 +111,19 @@ export function CustomChart({
                 />
                 <ChartTooltip
                   cursor={false}
-                  content={<ChartTooltipContent
-                    labelKey={xAxisKey}
-                    labelFormatter={(label, p) => formatTimestampFromSeconds(p[0].payload[xAxisKey])}
-                  />}
+                  content={
+                    <ChartTooltipContent
+                      labelKey={xAxisKey}
+                      labelFormatter={(label, p) => formatTimestampFromSeconds(p[0].payload[xAxisKey])}
+                    />
+                  }
                 />
-                <Bar
+                <Line
                   dataKey={yAxisKey}
-                  type="monotone"
+                  dot={false}
                   fill="hsl(var(--chart-1))"
-                  radius={[2, 2, 0, 0]}
                 />
-              </BarChart>
+              </LineChart>
           }
         </ChartContainer>
       </div>
@@ -146,6 +142,7 @@ export default function TracesMetrics() {
   const pastHours = searchParams.get('pastHours') as string | undefined;
   const startDate = searchParams.get('startDate') as string | undefined;
   const endDate = searchParams.get('endDate') as string | undefined;
+  const groupByInterval = searchParams.get('groupByInterval') as string | undefined;
 
   return (
     <div className="flex p-4 space-x-4 border-b">
@@ -159,6 +156,7 @@ export default function TracesMetrics() {
           pastHours={pastHours}
           startDate={startDate}
           endDate={endDate}
+          defaultGroupByInterval={groupByInterval}
         />
       </div>
       <div className="flex-1">
@@ -171,6 +169,7 @@ export default function TracesMetrics() {
           pastHours={pastHours}
           startDate={startDate}
           endDate={endDate}
+          defaultGroupByInterval={groupByInterval}
         />
       </div>
       <div className="flex-1">
@@ -183,6 +182,7 @@ export default function TracesMetrics() {
           pastHours={pastHours}
           startDate={startDate}
           endDate={endDate}
+          defaultGroupByInterval={groupByInterval}
         />
       </div>
       <div className="flex-1">
@@ -195,6 +195,7 @@ export default function TracesMetrics() {
           pastHours={pastHours}
           startDate={startDate}
           endDate={endDate}
+          defaultGroupByInterval={groupByInterval}
         />
       </div>
     </div>

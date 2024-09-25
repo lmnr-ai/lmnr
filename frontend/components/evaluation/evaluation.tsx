@@ -4,21 +4,21 @@ import { Evaluation as EvaluationType, EvaluationDatapointPreview, EvaluationDat
 import { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "../ui/datatable";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { useUserContext } from "@/contexts/user-context";
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/const";
-import EvaluationPanel from "./evaluation-panel";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, USE_REALTIME } from "@/lib/const";
 import EvaluationStats from "./evaluation-stats";
 import { useProjectContext } from "@/contexts/project-context";
 import Header from "../ui/header";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { mergeOriginalWithComparedDatapoints } from "@/lib/evaluation/utils";
-import { ArrowRight, MoveHorizontal, X } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "@/lib/utils";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
+import { Resizable } from "re-resizable";
+import TraceView from "../traces/trace-view";
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId',
@@ -41,13 +41,11 @@ export default function Evaluation({
 
   const { projectId } = useProjectContext();
 
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
-  const [selectedDatapoint, setSelectedDatapoint] = useState<EvaluationDatapointPreviewWithCompared | null>(null);
-
   const [evaluation, setEvaluation] = useState(evaluationInfo.evaluation);
   const [comparedEvaluation, setComparedEvaluation] = useState(comparedEvaluationInfo?.evaluation);
 
   let defaultResults = evaluationInfo.results as EvaluationDatapointPreviewWithCompared[];
+
   let scoreColumns = new Set<string>();
   for (const row of evaluationInfo.results) {
     for (const key of Object.keys(row.scores ?? {})) {
@@ -62,7 +60,9 @@ export default function Evaluation({
       }
     }
   }
+
   const [results, setResults] = useState(defaultResults);
+  const [selectedDatapoint, setSelectedDatapoint] = useState<EvaluationDatapointPreviewWithCompared | null>(defaultResults.find((result) => result.id === searchParams.get('datapointId')) ?? null);
 
   let columns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = []
 
@@ -72,11 +72,6 @@ export default function Evaluation({
       {
         accessorKey: "status",
         header: "Status",
-      },
-      {
-        accessorFn: (row) => row.createdAt,
-        header: "Created At",
-        cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
       },
       {
         accessorFn: (row) => JSON.stringify(row.data),
@@ -105,11 +100,6 @@ export default function Evaluation({
         header: "Status",
       },
       {
-        accessorFn: (row) => row.createdAt,
-        header: "Created At",
-        cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-      },
-      {
         accessorFn: (row) => JSON.stringify(row.data),
         header: "Data",
       },
@@ -125,28 +115,33 @@ export default function Evaluation({
     columns = columns.concat(Array.from(scoreColumns).map((scoreColumn) => ({
       header: scoreColumn,
       accessorFn: (row) => row.scores?.[scoreColumn] ?? "-",
+      size: 150,
     })));
   }
 
   const { supabaseAccessToken } = useUserContext()
-  const supabase = useMemo(() => createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-    {
-      global: {
-        headers: {
-          Authorization: `Bearer ${supabaseAccessToken}`,
+  const supabase = useMemo(() => {
+    return USE_REALTIME 
+    ? createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${supabaseAccessToken}`,
+          },
         },
-      },
-    }
-  ), [])
+      }
+    )
+    : null
+  }, [])
 
-  supabase.realtime.setAuth(supabaseAccessToken)
+  supabase?.realtime.setAuth(supabaseAccessToken)
 
   useEffect(() => {
     if (evaluation.status !== 'Finished') {
       supabase
-        .channel('table-db-changes')
+        ?.channel('table-db-changes')
         .on(
           'postgres_changes',
           {
@@ -187,13 +182,14 @@ export default function Evaluation({
 
     // remove all channels on unmount
     return () => {
-      supabase.removeAllChannels()
+      supabase?.removeAllChannels()
     }
   }, [])
 
   const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
-    setIsSidePanelOpen(true);
     setSelectedDatapoint(row);
+    searchParams.set('datapointId', row.id);
+    router.push(`${pathName}?${searchParams.toString()}`);
   }
 
   const handleComparedEvaluationChange = (comparedEvaluationId: string) => {
@@ -201,7 +197,6 @@ export default function Evaluation({
       .then(res => res.json())
       .then((comparedEvaluation) => {
         setComparedEvaluation(comparedEvaluation.evaluation);
-        setIsSidePanelOpen(false);
         // evaluationInfo.results are always fixed, but the compared results (comparedEvaluation.results) change
         setResults(mergeOriginalWithComparedDatapoints(evaluationInfo.results, comparedEvaluation.results));
       })
@@ -213,82 +208,103 @@ export default function Evaluation({
   return (
     <div className="h-full flex flex-col">
       <Header path={`evaluations/${evaluation.name}`} />
-      <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel className="flex">
-
-          <div className="flex w-full flex-grow">
-            <div className="flex flex-col w-full flex-grow">
-              <div className="flex-none flex space-x-2 h-14 px-4 items-center border-b justify-start">
-                <div>
-                  <Select
-                    key={comparedEvaluation ? comparedEvaluation.id : Date.now()}
-                    value={comparedEvaluation ? comparedEvaluation.id : undefined}
-                    onValueChange={handleComparedEvaluationChange}
-                    disabled={evaluation.status !== 'Finished'}
-                  >
-                    <SelectTrigger className="flex flex-none font-medium max-w-40 text-secondary-foreground">
-                      <SelectValue placeholder="select evaluation" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {evaluations.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-none text-secondary-foreground"><ArrowRight size={16} /></div>
-                <h3 className={cn("text-sm px-3 border rounded-md h-[36px] items-center flex font-medium", comparedEvaluation && "text-ring")}>
-                  {evaluation.name}
-                </h3>
-                <div>
-                  {!!comparedEvaluation && (
-                    <Button
-                      className="h-6"
-                      variant={'secondary'}
-                      onClick={() => {
-                        setComparedEvaluation(undefined);
-                        setIsSidePanelOpen(false);
-                        setResults(evaluationInfo.results);
-                        searchParams.delete(URL_QUERY_PARAMS.COMPARE_EVAL_ID);
-                        router.push(`${pathName}?${searchParams.toString()}`);
-                      }}
-                    >
-                      Reset
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="flex-grow">
-                <DataTable
-                  className="border-none"
-                  columns={columns}
-                  data={results}
-                  getRowId={(row) => row.id}
-                  focusedRowId={selectedDatapoint?.id}
-                  paginated
-                  onRowClick={handleRowClick}
-                />
-              </div>
+      <div className="flex flex-grow">
+        <div className="flex flex-col flex-grow">
+          <div className="flex-none flex space-x-2 h-12 px-4 items-center border-b justify-start">
+            <div>
+              <Select
+                key={comparedEvaluation ? comparedEvaluation.id : Date.now()}
+                value={comparedEvaluation ? comparedEvaluation.id : undefined}
+                onValueChange={handleComparedEvaluationChange}
+                disabled={evaluation.status !== 'Finished'}
+              >
+                <SelectTrigger className="flex flex-none font-medium max-w-40 text-secondary-foreground h-7">
+                  <SelectValue placeholder="select evaluation" />
+                </SelectTrigger>
+                <SelectContent>
+                  {evaluations.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {!selectedDatapoint &&
-              <EvaluationStats evaluationId={evaluation.id} comparedEvaluationId={comparedEvaluation?.id} />
-            }
+            <div className="flex-none text-secondary-foreground"><ArrowRight size={16} /></div>
+            <h3 className={cn("text-sm px-3 border rounded-md h-7 items-center flex font-medium", comparedEvaluation && "text-ring")}>
+              {evaluation.name}
+            </h3>
+            <div>
+              {!!comparedEvaluation && (
+                <Button
+                  className="h-6"
+                  variant={'secondary'}
+                  onClick={() => {
+                    setComparedEvaluation(undefined);
+                    setResults(evaluationInfo.results);
+                    searchParams.delete(URL_QUERY_PARAMS.COMPARE_EVAL_ID);
+                    router.push(`${pathName}?${searchParams.toString()}`);
+                  }}
+                >
+                  Reset
+                </Button>
+              )}
+            </div>
           </div>
-        </ResizablePanel>
-        <ResizableHandle />
-        {isSidePanelOpen && (
-          <ResizablePanel
-            minSize={50}
+          <div className="flex flex-grow h-full">
+            <div className="flex-grow relative">
+              <DataTable
+                className="border-none absolute top-0 left-0 right-0 bottom-0"
+                columns={columns}
+                data={results}
+                getRowId={(row) => row.id}
+                focusedRowId={selectedDatapoint?.id}
+                paginated
+                onRowClick={(row) => handleRowClick(row.original)}
+              />
+            </div>
+            <div className="flex-none h-full flex">
+              {!selectedDatapoint &&
+                <EvaluationStats evaluationId={evaluation.id} comparedEvaluationId={comparedEvaluation?.id} />
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {selectedDatapoint &&
+        <div className='absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex'>
+          <Resizable
+            enable={
+              {
+                top: false,
+                right: false,
+                bottom: false,
+                left: true,
+                topRight: false,
+                bottomRight: false,
+                bottomLeft: false,
+                topLeft: false
+              }
+            }
+            defaultSize={{
+              width: 1000,
+            }}
           >
-            <EvaluationPanel datapointPreview={selectedDatapoint!} onClose={() => {
-              setIsSidePanelOpen(false)
-              setSelectedDatapoint(null)
-            }} />
-          </ResizablePanel>
-        )}
-      </ResizablePanelGroup>
-    </div >
+            <div className='w-full h-full flex'>
+              <TraceView
+                onClose={() => {
+                  searchParams.delete('datapointId');
+                  searchParams.delete('spanId');
+                  setSelectedDatapoint(null);
+                  router.push(`${pathName}?${searchParams.toString()}`);
+                }}
+                traceId={selectedDatapoint?.traceId}
+              />
+            </div>
+          </Resizable>
+        </div>
+      }
+    </div>
   );
 }

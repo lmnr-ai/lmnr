@@ -5,7 +5,6 @@ import { UserContextProvider } from '@/contexts/user-context';
 import { authOptions } from '@/lib/auth';
 import { fetcherJSON } from '@/lib/utils';
 import { getServerSession } from 'next-auth';
-import { SessionContext } from 'next-auth/react';
 import { redirect } from 'next/navigation';
 
 export default async function ProjectIdLayout({
@@ -34,7 +33,7 @@ export default async function ProjectIdLayout({
     <UserContextProvider email={user.email!} username={user.name!} imageUrl={user.image!} supabaseAccessToken={session.supabaseAccessToken}>
       <ProjectContextProvider projectId={project.id} projectName={project.name}>
         <div className="flex flex-row max-w-full max-h-screen">
-          <div className="flex flex-col h-screen w-[72px] flex-shrink-0">
+          <div className="flex flex-col h-screen flex-shrink-0">
             <ProjectNavbarCollapsed projectId={projectId} />
           </div>
 

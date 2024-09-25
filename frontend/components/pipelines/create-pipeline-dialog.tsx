@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { TemplateInfo } from '@/lib/pipeline/types';
 import { Skeleton } from '../ui/skeleton';
 import TemplateSelect from './template-select';
+import { useToast } from '@/lib/hooks/use-toast';
 
 interface CreatePipelineDialogProps {
   onUpdate?: () => void;
@@ -32,10 +33,18 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>(undefined);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
+  const {toast} = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
 
   const createNewPipeline = async () => {
+    // Allow to click "Create" with an empty pipeline name. Otherwise, if the button is simply disabled,
+    // then it's hard to understand that name is required.
+    if (!pipelineName) {
+      toast({ title: 'Set the pipeline name', description: 'Pipelines need a name to be created', variant: 'default' })
+      return;
+    };
+
     setIsLoading(true);
 
     const res = await fetch(`/api/projects/${projectId}/pipelines/`, {
@@ -47,6 +56,14 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
         templateId: selectedTemplateId,
       }),
     });
+
+    if (res.status !== 200) {
+      // Just a generic error message, since most likely the error has happened because the pipeline with the same name already exists.
+      toast({ title: 'Error creating pipeline', description: 'Pipeline name must be unique in the project', variant: 'destructive' })
+      setIsLoading(false);
+      return;
+    }
+
     const json = await res.json();
     onUpdate?.();
     setIsDialogOpen(false);
@@ -109,7 +126,7 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
           )}
         </div>
         <DialogFooter>
-          <Button onClick={createNewPipeline} handleEnter={true} disabled={!pipelineName || selectedTemplateId === undefined || isLoading}>
+          <Button onClick={createNewPipeline} handleEnter={true} disabled={selectedTemplateId === undefined || isLoading}>
             <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
             Create
           </Button>

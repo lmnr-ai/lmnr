@@ -35,29 +35,9 @@ export default async function DashboardPage({
     redirect('/sign-in');
   }
 
-  const eventTemplates = await getEventTemplates(session, projectId);
-
-  let pastHours = searchParams?.pastHours as string;
-
-  const startDate = searchParams?.startDate as string;
-  const endDate = searchParams?.endDate as string;
-
-  if (!pastHours && !startDate && !endDate) {
-
-    const sp = new URLSearchParams();
-    for (const [key, value] of Object.entries(searchParams)) {
-      if (key !== 'pastHours') {
-        sp.set(key, value as string);
-      }
-    }
-    sp.set('pastHours', '24');
-    redirect(`?${sp.toString()}`);
-  }
-
   return (
     <>
-      <Header path={"dashboard"} />
-      <Dashboard eventTemplates={eventTemplates} />
+      <Dashboard />
     </>
   );
 }

@@ -5,15 +5,19 @@ import { v4 } from "uuid";
 import { encodingForModel } from "js-tiktoken";
 import Ide from "@/components/ui/ide";
 import { IAceEditorProps } from "react-ace";
+import { cn } from "@/lib/utils";
+import DefaultTextarea from "@/components/ui/default-textarea";
 
 interface TemplatedTextAreaProps extends IAceEditorProps {
   defaultInputs: Map<string, GenericNodeHandle>
   onUpdate: (value: string, inputs: GenericNodeHandle[], edgeIdsToRemove: string[]) => void
+  disabled?: boolean
 }
 
 export default function TemplatedTextArea({
   defaultInputs,
   onUpdate,
+  disabled,
   ...props }: TemplatedTextAreaProps) {
 
   const prevInputVars = useRef(new Map<string, GenericNodeHandle>(defaultInputs));
@@ -60,15 +64,22 @@ export default function TemplatedTextArea({
   return (
     <>
       <Label className='text-gray-500'>{"enclose {{input_variable}} in double curly braces"}</Label>
-      <Ide
-        {...props}
-        minLines={3}
-        maxLines={Infinity}
-        mode="handlebars"
-        onChange={(val) => {
-          handleChange(val);
-        }}
-      />
+      {disabled ?
+        <DefaultTextarea
+          readOnly={disabled}
+          disabled={disabled}
+          value={props.value}
+          className="cursor-not-allowed bg-secondary-background text-secondary-foreground"
+        />
+        : <Ide
+          {...props}
+          minLines={3}
+          maxLines={Infinity}
+          mode="handlebars"
+          onChange={(val) => {
+            handleChange(val);
+          }}
+        />}
     </>
   );
 }

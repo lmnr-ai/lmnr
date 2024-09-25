@@ -9,18 +9,13 @@ import WorkspaceCreateDialog from './workspace-create-dialog';
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/utils';
 import { Skeleton } from '../ui/skeleton';
-import { Card } from '../ui/card';
 
-interface ProjectsProps {
-}
-
-export default function Projects({ }: ProjectsProps) {
+export default function Projects() {
   const { data, mutate, isLoading } = useSWR<WorkspaceWithProjects[]>('/api/workspaces', swrFetcher);
-  const allProjects = data?.flatMap(workspace => workspace.projects) ?? [];
 
   return (
     <>
-      <div className="h-full p-8 w-full flex-grow">
+      <div className="h-full p-4 w-full flex-grow">
         <div className='flex flex-col items-start'>
           <div className="flex items-center space-x-4 mb-4">
             {
@@ -39,11 +34,10 @@ export default function Projects({ }: ProjectsProps) {
               {
                 [...Array(5).keys()].map((_, index) => (
                   <div key={index} className='flex flex-col'>
-                    <Skeleton className="h-8 w-1/2 mb-4" />
+                    <Skeleton className="h-8 w-1/3 mb-4" />
                     <div className='grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3'>
-                      <Skeleton className="h-32 w-64" />
-                      <Skeleton className="h-32 w-64" />
-                      <Skeleton className="h-32 w-64" />
+                      <Skeleton className="h-32 w-96" />
+                      <Skeleton className="h-32 w-96" />
                     </div>
                   </div>
                 ))
@@ -56,7 +50,7 @@ export default function Projects({ }: ProjectsProps) {
                 <div key={workspace.id} className='flex flex-col'>
                   <Label className="text-lg font-medium mb-4">{workspace.name}</Label>
                   {(workspace.projects.length === 0) && (
-                    <div className='flex flex-col text-secondary-foreground text-sm'>
+                    <div className='flex flex-col text-secondary-foreground'>
                       No projects in this workspace yet. <br />
                       Start by creating a new project.
                     </div>

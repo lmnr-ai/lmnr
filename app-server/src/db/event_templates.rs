@@ -27,19 +27,41 @@ pub struct EventTemplate {
     pub event_type: EventType,
 }
 
+#[derive(Serialize, sqlx::FromRow, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct EventTemplateWithLatestTimestamp {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub name: String,
+    pub project_id: Uuid,
+    pub event_type: EventType,
+    pub latest_timestamp: Option<DateTime<Utc>>,
+}
+
 pub async fn get_event_templates_by_project_id(
     pool: &PgPool,
     project_id: Uuid,
-) -> Result<Vec<EventTemplate>> {
-    let event_templates = sqlx::query_as::<_, EventTemplate>(
-        "SELECT
+) -> Result<Vec<EventTemplateWithLatestTimestamp>> {
+    let event_templates = sqlx::query_as::<_, EventTemplateWithLatestTimestamp>(
+        "
+        WITH latest_occurences as (
+            SELECT
+                template_id,
+                MAX(created_at) as latest_timestamp
+            FROM events
+            GROUP BY template_id
+        )
+        SELECT
             id,
             created_at,
             name,
             project_id,
-            event_type
+            event_type,
+            latest_timestamp
         FROM event_templates
-        WHERE project_id = $1",
+        LEFT JOIN latest_occurences ON event_templates.id = latest_occurences.template_id
+        WHERE project_id = $1
+        ORDER BY latest_timestamp DESC NULLS LAST",
     )
     .bind(project_id)
     .fetch_all(pool)

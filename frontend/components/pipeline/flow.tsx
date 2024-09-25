@@ -117,6 +117,9 @@ function Flow() {
 
   return (
     <ReactFlow className="bg-gray-50 w-full h-full"
+      proOptions={{
+        hideAttribution: true
+      }}
       ref={reactFlowWrapper}
       nodes={nodes}
       onNodesChange={onNodesChange}

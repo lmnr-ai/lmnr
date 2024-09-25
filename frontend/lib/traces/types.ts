@@ -3,23 +3,37 @@ import { GraphMessagePreview } from "../pipeline/types"
 
 export type TraceMessages = { [key: string]: GraphMessagePreview }
 
-export type TagType = {
+export enum LabelType {
+  CATEGORICAL = 'Categorical',
+  BOOLEAN = 'Boolean',
+}
+
+export type LabelClass = {
   id: string;
   name: string;
   projectId: string;
   createdAt: string;
+  labelType: LabelType;
+  valueMap: string[];
 }
 
-export type TraceTag = {
+export type SpanLabel = {
   id: string;
-  runId: string;
-  typeId: string;
+  spanId: string;
+  classId: string;
   createdAt: string;
-  // value cannot be null or empty string, if you want this value, then delete the tag
-  value: string;
+  value: number;
+  valueMap: string[];
+  className: string;
 }
 
-export type TraceTagWithTypeName = TraceTag & { typeName: string }
+export enum SpanType {
+  DEFAULT = "DEFAULT",
+  LLM = "LLM",
+  EXECUTOR = "EXECUTOR",
+  EVALUATOR = "EVALUATOR",
+  EVALUATION = "EVALUATION",
+}
 
 export type Span = {
   version: string
@@ -34,7 +48,7 @@ export type Span = {
   metadata: any | null
   input: any | null
   output: any | null
-  spanType: string
+  spanType: SpanType
   events: Event[]
 }
 
@@ -85,4 +99,26 @@ export type TraceMetricDatapoint = {
   // epoch seconds
   time: number;
   value: number;
+}
+
+export type SessionPreview = {
+  id: string;
+  traceCount: number;
+  cost: number;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  totalTokenCount: number;
+}
+
+export enum ExportableSpanColumns {
+  SpanId = 'spanId',
+  Name = 'name',
+  TraceId = 'traceId',
+  StartTime = 'startTime',
+  EndTime = 'endTime',
+  ParentSpanId = 'parentSpanId',
+  Input = 'input',
+  Output = 'output',
+  SpanType = 'spanType',
 }

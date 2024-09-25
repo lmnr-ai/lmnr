@@ -1,13 +1,13 @@
 use actix_web::{post, web, HttpResponse};
 use log::info;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
     db::{
         self,
         user::{get_api_key_for_user_from_email, write_api_key, write_user, ApiKey, User},
         utils::generate_random_key,
-        workspace::Workspace,
         DB,
     },
     routes::ResponseResult,
@@ -61,11 +61,10 @@ async fn signin(params: web::Json<SignInParams>, db: web::Data<DB>) -> ResponseR
     write_api_key(&db.pool, &api_key.api_key, &api_key.user_id, &api_key.name).await?;
 
     // create new workspace for user
-    let workspace = Workspace {
-        id: uuid::Uuid::new_v4(),
-        name: format!("{}'s workspace", name),
-    };
-    db::workspace::create_new_workspace(&db.pool, &workspace).await?;
+    let workspace_id = Uuid::new_v4();
+    let workspace_name = format!("{}'s workspace", name);
+    let workspace =
+        db::workspace::create_new_workspace(&db.pool, workspace_id, workspace_name).await?;
     info!("Created new workspace: {:?}", workspace);
     db::workspace::add_owner_to_workspace(&db.pool, &user_id, &workspace.id).await?;
     info!("Added user to workspace: {:?}", workspace);

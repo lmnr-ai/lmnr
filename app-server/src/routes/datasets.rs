@@ -2,16 +2,15 @@ use std::{collections::HashMap, sync::Arc};
 
 use actix_multipart::Multipart;
 use actix_web::{delete, get, post, web, HttpResponse};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    datasets::datapoints::{self, Datapoint},
-    datasets::utils::read_multipart_file,
-    db::{self, datasets, DB},
+    datasets::{datapoints, utils::read_multipart_file, Dataset},
+    db::{self, datapoints::DatapointView, datasets, DB},
     files::FileManager,
-    routes::ResponseResult,
+    routes::{PaginatedGetQueryParams, PaginatedResponse, ResponseResult},
     semantic_search::SemanticSearch,
 };
 
@@ -38,10 +37,27 @@ async fn create_dataset(
 }
 
 #[get("datasets")]
-async fn get_datasets(db: web::Data<DB>, project_id: web::Path<Uuid>) -> ResponseResult {
-    let datasets = datasets::get_datasets(&db.pool, project_id.into_inner()).await?;
+async fn get_datasets(
+    db: web::Data<DB>,
+    project_id: web::Path<Uuid>,
+    params: web::Query<PaginatedGetQueryParams>,
+) -> ResponseResult {
+    let project_id = project_id.into_inner();
+    let limit = params.page_size.unwrap_or(DEFAULT_PAGE_SIZE) as i64;
+    let datasets =
+        datasets::get_datasets(&db.pool, project_id, limit, params.page_number as i64).await?;
 
-    Ok(HttpResponse::Ok().json(datasets))
+    let total_count = datasets::count_datasets(&db.pool, project_id).await?;
+
+    let response = PaginatedResponse::<Dataset> {
+        total_count,
+        items: datasets,
+        // Later, when we add filters, we must send a separate query to check if there are
+        // any datasets in the project
+        any_in_project: total_count > 0,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[get("datasets/{dataset_id}")]
@@ -279,38 +295,22 @@ async fn delete_all_datapoints(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct GetDatapointsQueryParams {
-    /// page number starting from 0
-    #[serde(default)]
-    page_number: usize,
-    page_size: Option<usize>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DatapointsResponse {
-    total_entries: u64,
-    datapoints: Vec<Datapoint>,
-}
-
 #[get("datasets/{dataset_id}/datapoints")]
 async fn get_datapoints(
     db: web::Data<DB>,
     path: web::Path<(Uuid, Uuid)>,
-    query_params: web::Query<GetDatapointsQueryParams>,
+    query_params: web::Query<PaginatedGetQueryParams>,
 ) -> ResponseResult {
     let (_project_id, dataset_id) = path.into_inner();
     let limit = query_params.page_size.unwrap_or(DEFAULT_PAGE_SIZE) as i64;
     let offset = limit * (query_params.page_number) as i64;
-    let datapoints =
-        db::datapoints::get_datapoints_paginated(&db.pool, dataset_id, limit, offset).await?;
+    let datapoints = db::datapoints::get_datapoints(&db.pool, dataset_id, limit, offset).await?;
     let total_entries = db::datapoints::count_datapoints(&db.pool, dataset_id).await?;
 
-    let response = DatapointsResponse {
-        total_entries,
-        datapoints,
+    let response = PaginatedResponse::<DatapointView> {
+        items: datapoints,
+        total_count: total_entries as i64,
+        any_in_project: true,
     };
 
     Ok(HttpResponse::Ok().json(response))

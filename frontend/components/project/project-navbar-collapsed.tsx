@@ -5,7 +5,7 @@ import { Cable, Database, Gauge, LockKeyhole, Rocket, Rows4, Settings, File, Hom
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
-import icon from '@/assets/logo/icon_light.svg';
+import logo from '@/assets/logo/icon_light.svg';
 import AvatarMenu from '../user/avatar-menu';
 import {
   Tooltip,
@@ -24,33 +24,15 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
 
   const navbarOptions = [
     {
-      name: 'traces',
-      href: `/project/${projectId}/traces`,
-      icon: Rows4,
-      current: false
-    },
-    {
-      name: 'pipelines',
-      href: `/project/${projectId}/pipelines`,
-      icon: Cable,
-      current: false
-    },
-    // {
-    //   name: 'datasets',
-    //   href: `/project/${projectId}/datasets`,
-    //   icon: Database,
-    //   current: false
-    // },
-    {
-      name: 'events',
-      href: `/project/${projectId}/events`,
-      icon: ArrowBigUp,
-      current: false
-    },
-    {
       name: 'dashboard',
       href: `/project/${projectId}/dashboard`,
       icon: LayoutGrid,
+      current: false
+    },
+    {
+      name: 'traces',
+      href: `/project/${projectId}/traces`,
+      icon: Rows4,
       current: false
     },
     {
@@ -60,11 +42,35 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
       current: false
     },
     {
-      name: 'env variables',
-      href: `/project/${projectId}/env`,
-      icon: LockKeyhole,
+      name: 'pipelines',
+      href: `/project/${projectId}/pipelines`,
+      icon: Cable,
       current: false
     },
+    {
+      name: 'events',
+      href: `/project/${projectId}/events`,
+      icon: ArrowBigUp,
+      current: false
+    },
+    {
+      name: 'datasets',
+      href: `/project/${projectId}/datasets`,
+      icon: Database,
+      current: false
+    },
+    {
+      name: 'evaluations',
+      href: `/project/${projectId}/evaluations`,
+      icon: Gauge,
+      current: false
+    },
+    // {
+    //   name: 'env variables',
+    //   href: `/project/${projectId}/env`,
+    //   icon: LockKeyhole,
+    //   current: false
+    // },
     {
       name: 'settings',
       href: `/project/${projectId}/settings`,
@@ -74,9 +80,9 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
   ];
 
   return (
-    <div className="flex flex-col h-screen border-r w-full text-md items-center">
-      <Link href={'/projects'} className='flex h-14 items-center justify-center mb-4 mt-1'>
-        <Image alt='Laminar AI icon' src={icon} width={40} />
+    <div className="flex flex-col h-screen border-r text-md items-center">
+      <Link href={'/projects'} className='flex h-14 items-center justify-center mx-4'>
+        <Image alt='Laminar AI icon' src={logo} height={32} />
       </Link>
       <div className="flex flex-col">
         {navbarOptions.map((option, i) => (
@@ -94,6 +100,12 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          // <Link key={i} href={option.href} className={cn('hover:bg-secondary flex items-center px-2 py-2 mx-2 rounded space-x-2 text-secondary-foreground', pathname === option.href ? "bg-secondary text-primary-foreground" : "")}>
+          //   <option.icon size={20} />
+          //   <div className='text-sm'>
+          //     {option.name.charAt(0).toUpperCase() + option.name.slice(1)}
+          //   </div>
+          // </Link>
         ))}
       </div>
       <div className='flex-grow'></div>

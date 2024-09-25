@@ -6,9 +6,12 @@ use super::projects::Project;
 use super::stats::create_usage_stats_for_workspace;
 
 #[derive(Debug, Deserialize, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct Workspace {
     pub id: Uuid,
     pub name: String,
+    pub tier_name: String,
+    pub is_free_tier: bool,
 }
 
 // create an error type with multiple variants
@@ -16,6 +19,8 @@ pub struct Workspace {
 pub enum WorkspaceError {
     #[error("User with email {0} not found")]
     UserNotFound(String),
+    #[error("Not allowed")]
+    NotAllowed,
     #[error("{0}")]
     UnhandledError(#[from] anyhow::Error),
     #[error("Hit limit of maximum {entity:?}: {limit:?}, current usage: {usage:?}")]
@@ -27,10 +32,12 @@ pub enum WorkspaceError {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspaceWithProjects {
     pub id: Uuid,
     pub name: String,
     pub projects: Vec<Project>,
+    pub tier_name: String,
 }
 
 pub async fn get_all_workspaces_of_user(
@@ -40,10 +47,13 @@ pub async fn get_all_workspaces_of_user(
     let workspaces = sqlx::query_as::<_, Workspace>(
         "SELECT
             workspaces.id,
-            workspaces.name
+            workspaces.name,
+            subscription_tiers.name as tier_name,
+            tier_id = 1 as is_free_tier
         FROM
             workspaces
             join members_of_workspaces on workspaces.id = members_of_workspaces.workspace_id
+            join subscription_tiers on workspaces.tier_id = subscription_tiers.id
         WHERE
             members_of_workspaces.user_id = $1
         ORDER BY
@@ -72,6 +82,7 @@ pub async fn get_all_workspaces_of_user(
         workspaces_with_projects.push(WorkspaceWithProjects {
             id: workspace.id,
             name: workspace.name,
+            tier_name: workspace.tier_name,
             projects,
         });
     }
@@ -82,10 +93,13 @@ pub async fn get_all_workspaces_of_user(
 pub async fn get_owned_workspaces(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<Vec<Workspace>> {
     let workspaces = sqlx::query_as::<_, Workspace>(
         "SELECT
-            id,
-            name
+            workspaces.id,
+            workspaces.name,
+            subscription_tiers.name as tier_name,
+            tier_id = 1 as is_free_tier
         FROM
             workspaces
+            JOIN subscription_tiers on workspaces.tier_id = subscription_tiers.id
         WHERE id IN (
             SELECT workspace_id
             FROM members_of_workspaces
@@ -99,16 +113,23 @@ pub async fn get_owned_workspaces(pool: &PgPool, user_id: &Uuid) -> anyhow::Resu
     Ok(workspaces)
 }
 
-pub async fn create_new_workspace(pool: &PgPool, workspace: &Workspace) -> anyhow::Result<()> {
-    sqlx::query("INSERT INTO workspaces (id, name) VALUES ($1, $2)")
-        .bind(workspace.id)
-        .bind(&workspace.name)
-        .execute(pool)
-        .await?;
+pub async fn create_new_workspace(
+    pool: &PgPool,
+    id: Uuid,
+    name: String,
+) -> anyhow::Result<Workspace> {
+    let workspace = sqlx::query_as::<_, Workspace>(
+        "INSERT INTO workspaces (id, name) VALUES ($1, $2)
+        RETURNING id, name, 'Free' as tier_name, true as is_free_tier",
+    )
+    .bind(id)
+    .bind(name)
+    .fetch_one(pool)
+    .await?;
 
     create_usage_stats_for_workspace(pool, &workspace.id).await?;
 
-    Ok(())
+    Ok(workspace)
 }
 
 pub async fn add_owner_to_workspace(
@@ -153,6 +174,7 @@ pub async fn add_user_to_workspace_by_email(
 pub struct WorkspaceWithInfo {
     pub id: Uuid,
     pub name: String,
+    pub tier_name: String,
     pub users: Vec<WorkspaceUserInfo>,
 }
 
@@ -172,12 +194,15 @@ pub async fn get_workspace(
 ) -> anyhow::Result<WorkspaceWithInfo> {
     let workspace = sqlx::query_as::<_, Workspace>(
         "SELECT
-            id,
-            name
+            workspaces.id,
+            workspaces.name,
+            subscription_tiers.name as tier_name,
+            workspaces.tier_id = 1 as is_free_tier
         FROM
             workspaces
+            JOIN subscription_tiers on workspaces.tier_id = subscription_tiers.id
         WHERE
-            id = $1",
+            workspaces.id = $1",
     )
     .bind(workspace_id)
     .fetch_optional(pool)
@@ -209,33 +234,11 @@ pub async fn get_workspace(
             Ok(WorkspaceWithInfo {
                 id: workspace.id,
                 name: workspace.name,
+                tier_name: workspace.tier_name,
                 users,
             })
         }
     }
-}
-
-#[derive(FromRow)]
-struct WorkspaceUserCount {
-    count: i64,
-}
-
-pub async fn number_of_users_in_workspace(
-    pool: &PgPool,
-    workspace_id: &Uuid,
-) -> anyhow::Result<i64> {
-    let count = sqlx::query_as::<_, WorkspaceUserCount>(
-        "SELECT
-            count(user_id) as count
-        FROM
-            members_of_workspaces
-        WHERE workspace_id = $1",
-    )
-    .bind(workspace_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(count.count)
 }
 
 #[derive(FromRow)]

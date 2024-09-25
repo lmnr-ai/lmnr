@@ -125,6 +125,14 @@ const providerMapping: { provider: string, models: LanguageModel[] }[] = [
       {
         id: "openai:gpt-4o-mini",
         name: "openai:gpt-4o-mini"
+      },
+      {
+        id: "openai:o1-mini",
+        name: "openai:o1-mini"
+      },
+      {
+        id: "openai:o1-preview",
+        name: "openai:o1-preview"
       }
     ]
   },

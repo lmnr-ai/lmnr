@@ -1,135 +1,39 @@
 import { authOptions } from '@/lib/auth';
-import { Session, getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
-
-import EventsDashboard from '@/components/events/events';
-import { Suspense } from 'react';
 import { Metadata } from 'next';
+import Events from '@/components/events/events';
 import { fetcherJSON } from '@/lib/utils';
-import Header from '@/components/ui/header';
-
+import { EventTemplate } from '@/lib/events/types';
 
 export const metadata: Metadata = {
   title: 'Events',
 }
 
-const getEvents = async (
-  session: Session,
-  projectId: string,
-  pageNumber: number,
-  pageSize: number,
-  filter: string | string[] | undefined,
-  pastHours: number | null,  // if null, show traces for all time
-  startDate: string | null | undefined,
-  endDate: string | null | undefined,
-) => {
-  const user = session.user;
-  let url = `/projects/${projectId}/events?pageNumber=${pageNumber}&pageSize=${pageSize}`;
-  if (pastHours !== null) {
-    url += `&pastHours=${pastHours}`;
-  }
-  if (startDate != null) {
-    url += `&startDate=${startDate}`;
-  }
-  if (endDate != null) {
-    url += `&endDate=${endDate}`;
-  }
-  if (typeof filter === 'string') {
-    url += `&filter=${encodeURI(filter)}`;
-  } else if (Array.isArray(filter)) {
-    const filters = encodeURI(`[${filter.toString()}]`)
-    url += `&filter=${filters}`;
-  }
-  return await fetcherJSON(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${user.apiKey}`
-    },
-  })
-}
-
-
-export default async function EventsPage({
+export default async function EventTemplatesPage({
   params,
   searchParams,
 }: {
   params: { projectId: string },
-  searchParams?: { [key: string]: string | string[] | undefined }
+  searchParams: { [key: string]: string | string[] | undefined },
 }) {
-  const parseNumericSearchParam = (key: string, defaultValue: number): number => {
-    const param = searchParams?.[key];
-    if (Array.isArray(param)) {
-      return defaultValue;
-    }
-    const parsed = param ? parseInt(param as string) : defaultValue;
-    return isNaN(parsed) ? defaultValue : parsed;
-  }
-
-  // For some numeric params, they can be absent in the query and we want to parse them as null
-  const parseNullableNumericSearchParam = (key: string): number | null => {
-    const param = searchParams?.[key];
-    if (Array.isArray(param)) {
-      return null;
-    }
-    const parsed = param ? parseInt(param as string) : null;
-    if (typeof parsed === 'number' && isNaN(parsed)) {
-      return null;
-    }
-    return parsed;
-  }
-
-  const projectId = params.projectId;
-  const pageNumber = parseNumericSearchParam('pageNumber', 0);
-  const pageSize = parseNumericSearchParam('pageSize', 50);
-  const filter = searchParams?.filter;
-  const pastHours = parseNullableNumericSearchParam('pastHours');
-  const startDate = searchParams?.startDate as string;
-  const endDate = searchParams?.endDate as string;
-
-  if (!pastHours && !startDate && !endDate) {
-
-    const sp = new URLSearchParams();
-    for (const [key, value] of Object.entries(searchParams ?? {})) {
-      if (key !== 'pastHours') {
-        sp.set(key, value as string);
-      }
-    }
-    sp.set('pastHours', '24');
-    redirect(`?${sp.toString()}`);
-  }
 
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
   }
 
-  const res = await getEvents(
-    session,
-    projectId,
-    pageNumber,
-    pageSize,
-    filter,
-    pastHours,
-    startDate,
-    endDate
-  );
+  const user = session.user;
+  const pastHours = searchParams.pastHours ? Number(searchParams.pastHours) : 24;
 
-  const pageCount = res?.totalEntries ? Math.ceil(res?.totalEntries / pageSize) : 1;
+  const events = await fetcherJSON(`/projects/${params.projectId}/event-templates?pastHours=${pastHours}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${user.apiKey}`
+    }
+  }) as EventTemplate[];
 
   return (
-    <>
-      <Header path={"events"} />
-      <Suspense>
-        <EventsDashboard
-          defaultEvents={res?.events ?? []}
-          totalEventsCount={res?.totalEntries ?? 0}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          totalInProject={res?.totalInProject}
-          pageNumber={Math.min(pageNumber, pageCount - 1)}
-        />
-      </Suspense>
-    </>
+    <Events events={events} />
   );
 }

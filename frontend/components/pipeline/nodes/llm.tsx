@@ -28,6 +28,10 @@ export default function LLM({
 
   // stores what was last selected in the model select, so we can restore it after re-disabling the model input
   const [selectedModelId, setSelectedModelId] = useState<string>(data.model ?? 'openai:gpt-3.5-turbo');
+  const [isPromptDisabled, setIsPromptDisabled] = useState<boolean>(false);
+  useEffect(() => {
+    setIsPromptDisabled(selectedModelId.startsWith('openai:o1-mini') || selectedModelId.startsWith('openai:o1-preview'));
+  }, [selectedModelId])
 
   return (
     <div className='p-4 flex flex-col space-y-2'>
@@ -38,6 +42,7 @@ export default function LLM({
         className='w-full nowheel nodrag'
         value={data.prompt}
         defaultInputs={defaultInputs}
+        disabled={isPromptDisabled}
         onUpdate={(value, inputs, edgeIdsToRemove) => {
 
           updateNodeData(data.id, {

@@ -1,191 +1,63 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { DataTable } from '../ui/datatable';
-import { ColumnDef } from '@tanstack/react-table';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { Resizable } from 're-resizable';
-import { Event } from '@/lib/events/types';
-import EventsPagePlaceholder from '@/components/events/page-placeholder';
-import EventView from './event-view';
+import { useProjectContext } from "@/contexts/project-context";
+import { ColumnDef } from "@tanstack/react-table";
+import ClientTimestampFormatter from "../client-timestamp-formatter";
+import { useRouter } from "next/navigation";
+import { DataTable } from "../ui/datatable";
+import Mono from "../ui/mono";
+import Header from "../ui/header";
+import { EventTemplate } from "@/lib/events/types";
+import { useUserContext } from "@/contexts/user-context";
 
-// const sourceToText = (source: string) => {
-//   switch (source) {
-//     case 'AUTO':
-//       return 'Online Eval';
-//     case 'CODE':
-//       return 'Code';
-//     case 'MANUAL':
-//       return 'UI';
-//   }
-// }
-
-interface EventsProps {
-  defaultEvents: Event[];
-  totalEventsCount: number;
-  pageCount: number;
-  pageSize: number;
-  pageNumber: number;
-  totalInProject: number | null;
+export interface EventsProps {
+  events: EventTemplate[];
 }
 
-export default function Events({
-  defaultEvents,
-  totalEventsCount,
-  pageCount,
-  pageSize,
-  pageNumber,
-  totalInProject,
-}: EventsProps) {
-  const searchParams = new URLSearchParams(useSearchParams().toString());
-  const pathName = usePathname();
+export default function Events({ events }: EventsProps) {
+  const { projectId } = useProjectContext();
   const router = useRouter();
-  const [events, setEvents] = useState<Event[]>(defaultEvents);
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(false);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const { email } = useUserContext();
 
-  const handleRowClick = async (row: Event) => {
-    setSelectedEvent(row);
-    // searchParams.set('selectedid', row.id!);
-    // router.push(`${pathName}?${searchParams.toString()}`);
-    setIsSidePanelOpen(true);
-  };
-
-  // useEffect(() => {
-  //   const selectedid = searchParams.get('selectedid');
-  //   if (selectedid != null) {
-  //     setExpandedid(selectedid);
-  //     setIsSidePanelOpen(true);
-  //   }
-  // }, []);
-
-  const staticColumns: ColumnDef<Event, any>[] = [
+  const columns: ColumnDef<EventTemplate>[] = [
     {
-      accessorKey: 'id',
-      header: 'ID',
-      id: 'id',
+      accessorKey: "id",
+      cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+      header: "ID",
+      size: 300
     },
     {
-      accessorKey: 'spanId',
-      header: 'Span ID',
-      id: 'span_id',
+      accessorKey: "name",
+      header: "Name",
     },
     {
-      accessorFn: (row) => {
-        return row.timestamp
-      },
-      header: 'Timestamp',
+      header: "Last occurrence",
+      accessorKey: "latestTimestamp",
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-      id: 'timestamp'
-    },
-    // {
-    //   accessorFn: (row) => {
-    //     return sourceToText(row.source)
-    //   },
-    //   header: 'Source',
-    //   id: 'source'
-    // },
-    {
-      accessorKey: 'templateName',
-      header: 'Name',
-      id: 'name',
     },
     {
-      accessorKey: 'templateEventType',
-      header: 'Type',
-      id: 'event_type',
+      header: "Type",
+      accessorKey: "eventType",
     },
-    {
-      accessorKey: 'value',
-      header: 'Value',
-      id: 'value',
-    },
-    {
-      accessorFn: (row) => {
-        return (row.inputs !== null) ? JSON.stringify(row.inputs) : '-';
-      },
-      header: 'Inputs',
-      id: 'inputs',
-    },
-  ]
-
-
-  const columns = staticColumns
-
-  useEffect(() => {
-    setEvents(defaultEvents ?? [])
-  }, [defaultEvents]);
-
-
-  if (totalEventsCount === 0 && totalInProject === 0) {
-    return <EventsPagePlaceholder />
-  }
+  ];
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex flex-col w-full h-full relative">
-        <div className='flex-grow'>
-          <DataTable
-            className='border-none'
-            columns={columns}
-            data={events}
-            getRowId={(event) => event.id}
-            onRowClick={async (row) => await handleRowClick(row)}
-            paginated
-            // focusedRowId={expandedid}
-            manualPagination
-            pageCount={pageCount}
-            defaultPageSize={pageSize}
-            defaultPageNumber={pageNumber}
-            onPageChange={(pageNumber, pageSize) => {
-              searchParams.set('pageNumber', pageNumber.toString());
-              searchParams.set('pageSize', pageSize.toString());
-              router.push(`${pathName}?${searchParams.toString()}`);
-            }}
-            totalItemsCount={totalEventsCount}
-            filterColumns={
-              columns.filter(column => !['value', 'inputs', 'timestamp'].includes(column.id!))
-            }
-            enableDateRangeFilter
-          />
-        </div>
-        {isSidePanelOpen && (
-          <div className='absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex'>
-            <Resizable
-              enable={
-                {
-                  top: false,
-                  right: false,
-                  bottom: false,
-                  left: true,
-                  topRight: false,
-                  bottomRight: false,
-                  bottomLeft: false,
-                  topLeft: false
-                }
-              }
-              defaultSize={{
-                width: 800,
-              }}
-            >
-              <div className='w-full h-full flex'>
-                <EventView
-                  onClose={() => {
-                    //   searchParams.delete('selectedid');
-                    //   router.push(`${pathName}?${searchParams.toString()}`);
-                    setIsSidePanelOpen(false)
-                    //   setExpandedid(null);
-                  }}
-                  event={selectedEvent!}
-                // traceId={expandedid!}
-                />
-
-              </div>
-            </Resizable>
-          </div>
-        )}
+    <div className="flex flex-col h-full">
+      <Header path="events" />
+      <div className="flex justify-between items-center flex-none h-14 p-4">
+        <h3 className="scroll-m-20 text-lg font-semibold tracking-tight">
+          Events
+        </h3>
       </div>
-    </div >
-  )
+      <div className="flex-grow">
+        <DataTable
+          columns={columns}
+          data={events}
+          onRowClick={(row) => {
+            router.push(`/project/${projectId}/events/${row.original.id}`)
+          }}
+        />
+      </div>
+    </div>
+  );
 }

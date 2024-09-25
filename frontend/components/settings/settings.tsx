@@ -11,10 +11,12 @@ interface SettingsProps {
 
 export default function Settings({ apiKeys }: SettingsProps) {
   return (
-    <div className="flex flex-col p-4 space-y-8">
+    <div className="flex flex-col">
       <Header path="settings" />
-      <ProjectApiKeys apiKeys={apiKeys} />
-      <DeleteProject />
+      <div className="flex flex-col space-y-4 p-4">
+        <ProjectApiKeys apiKeys={apiKeys} />
+        <DeleteProject />
+      </div>
     </div>
   )
 }

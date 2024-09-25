@@ -1,14 +1,15 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { fetcher } from '@/lib/utils';
+import { NextRequest } from 'next/server';
 
-export async function GET(req: Request, { params }: { params: { projectId: string, datasetId: string } }): Promise<Response> {
+export async function GET(req: NextRequest, { params }: { params: { projectId: string, datasetId: string } }): Promise<Response> {
   const projectId = params.projectId;
   const datasetId = params.datasetId;
   const session = await getServerSession(authOptions)
   const user = session!.user
 
-  return await fetcher(`/projects/${projectId}/datasets/${datasetId}/datapoints`, {
+  return await fetcher(`/projects/${projectId}/datasets/${datasetId}/datapoints?${req.nextUrl.searchParams.toString()}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${user.apiKey}`

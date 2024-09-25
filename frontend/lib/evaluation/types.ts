@@ -32,6 +32,7 @@ export type EvaluationDatapointPreview = {
   target: Record<string, any>;
   executorOutput: Record<string, any>;
   error?: any;
+  traceId: string;
 }
 
 export type EvaluationDatapointPreviewWithCompared = {

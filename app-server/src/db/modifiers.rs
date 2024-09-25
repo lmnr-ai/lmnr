@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 
+use super::utils::validate_sql_string;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Filter {
     pub filter_value: Value,
@@ -12,6 +14,8 @@ pub struct Filter {
     /// `metadata @> '{user_id: filter_value}'`, this field will contain
     /// Some(String::from("metadata"))`. Otherwise is `None`.
     pub jsonb_column: Option<String>,
+    /// The type of the value to filter on. This is used to cast the value to the correct type
+    pub filter_value_type: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -86,11 +90,26 @@ impl Filter {
                             filter_operator: FilterOperator::from_string(&filter.operator),
                             filter_column,
                             jsonb_column,
+                            filter_value_type: None, // TODO: add this to frontend?
                         })
                     })
                     .collect(),
             ),
             _ => None,
+        }
+    }
+
+    /// Validate that the column is a valid Postgres column name. This is a minimal check
+    /// to prevent SQL injection attacks.
+    pub fn validate_column(&self) -> bool {
+        validate_sql_string(&self.filter_column)
+    }
+
+    pub fn validate_cast_type(&self) -> bool {
+        if let Some(filter_value_type) = &self.filter_value_type {
+            validate_sql_string(filter_value_type)
+        } else {
+            true
         }
     }
 }

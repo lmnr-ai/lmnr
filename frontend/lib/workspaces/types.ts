@@ -1,24 +1,7 @@
 export type Project = {
-  id?: string
+  id: string
   name: string
   workspaceId: string
-}
-
-export type ProjectWithWorkspace = {
-  id: string
-  name: string
-  workspace: Workspace
-}
-
-export interface Workspace {
-  id: string
-  name: string
-}
-
-export interface WorkspaceWithProjects {
-  id: string
-  name: string
-  projects: Project[]
 }
 
 export interface WorkspaceUser {
@@ -28,8 +11,21 @@ export interface WorkspaceUser {
   role: string
 }
 
-export interface WorkspaceWithInfo {
+export enum WorkspaceTier {
+  FREE = 'Free',
+  PRO = 'Pro',
+}
+
+export interface Workspace {
   id: string
   name: string
+  tierName: WorkspaceTier
+}
+
+export interface WorkspaceWithProjects extends Workspace {
+  projects: Project[]
+}
+
+export interface WorkspaceWithUsers extends Workspace {
   users: WorkspaceUser[]
 }

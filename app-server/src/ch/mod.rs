@@ -1,4 +1,5 @@
-use serde::Deserialize;
+use clickhouse::Row;
+use serde::{Deserialize, Serialize};
 
 pub mod events;
 pub mod modifiers;
@@ -18,4 +19,10 @@ impl Aggregation {
             Aggregation::Average => "AVG",
         }
     }
+}
+
+#[derive(Deserialize, Row, Serialize)]
+pub struct MetricTimeValue<T> {
+    pub time: u32,
+    pub value: T,
 }

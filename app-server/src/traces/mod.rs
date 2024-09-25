@@ -74,7 +74,7 @@ pub async fn observation_collector(
             continue;
         };
 
-        let span: Span = rabbitmq_span_message.span;
+        let mut span: Span = rabbitmq_span_message.span;
 
         let mut trace_attributes = TraceAttributes::new(span.trace_id);
         let span_usage =
@@ -82,14 +82,17 @@ pub async fn observation_collector(
         trace_attributes.update_start_time(span.start_time);
         trace_attributes.update_end_time(span.end_time);
 
-        let span_attributes = span.get_attributes();
+        let mut span_attributes = span.get_attributes();
 
         trace_attributes.update_user_id(span_attributes.user_id());
         trace_attributes.update_session_id(span_attributes.session_id());
+        trace_attributes.update_trace_type(span_attributes.trace_type());
 
         if span.span_type == SpanType::LLM {
             trace_attributes.add_cost(span_usage.total_cost);
             trace_attributes.add_tokens(span_usage.total_tokens);
+            span_attributes.set_usage(&span_usage);
+            span.set_attributes(&span_attributes);
         }
 
         let update_attrs_res = trace::update_trace_attributes(
@@ -157,7 +160,8 @@ pub struct SpanUsage {
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,
-    pub model: Option<String>,
+    pub request_model: Option<String>,
+    pub response_model: Option<String>,
     pub provider_name: Option<String>,
 }
 
@@ -202,7 +206,8 @@ pub fn get_llm_usage_for_span(
         input_cost,
         output_cost,
         total_cost,
-        model: model_name,
+        response_model: attributes.request_model().clone(),
+        request_model: attributes.request_model().clone(),
         provider_name,
     }
 }

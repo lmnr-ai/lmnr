@@ -7,6 +7,7 @@ export interface Dataset {
 
 export interface Datapoint {
     id: string;
+    createdAt: string;
     data: Record<string, any>;
     target: Record<string, any>;
     indexedOn: string | null;

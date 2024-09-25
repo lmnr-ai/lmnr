@@ -2,8 +2,9 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use sqlx::{FromRow, PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
@@ -14,22 +15,22 @@ use crate::{
     },
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     pipeline::{nodes::Message, trace::MetaLog},
-    traces::attributes::{
-        GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL,
-        GEN_AI_SYSTEM,
+    traces::{
+        attributes::{
+            ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_INPUT_COST, GEN_AI_INPUT_TOKENS,
+            GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL,
+            GEN_AI_SYSTEM, GEN_AI_TOTAL_COST, SPAN_TYPE,
+        },
+        SpanUsage,
     },
 };
 
 use super::{
     modifiers::Filter,
-    utils::{convert_any_value_to_json_value, span_id_to_uuid},
+    utils::{add_date_range_to_query, convert_any_value_to_json_value, span_id_to_uuid},
 };
 
 const DEFAULT_VERSION: &str = "0.1.0";
-
-// TODO: add_X_to_query functions don't need to return the query builder
-// they can just modify the query builder in place, and return nothing.
-// They won't need to be annotated with lifetime in that case
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "span_type")]
@@ -37,6 +38,19 @@ pub enum SpanType {
     #[default]
     DEFAULT,
     LLM,
+    PIPELINE,
+    EXECUTOR,
+    EVALUATOR,
+    EVALUATION,
+}
+
+#[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
+#[sqlx(type_name = "trace_type")]
+pub enum TraceType {
+    #[default]
+    DEFAULT,
+    EVENT,
+    EVALUATION,
 }
 
 /// for inserting into clickhouse
@@ -47,6 +61,10 @@ impl Into<u8> for SpanType {
         match self {
             SpanType::DEFAULT => 0,
             SpanType::LLM => 1,
+            SpanType::PIPELINE => 2,
+            SpanType::EXECUTOR => 3,
+            SpanType::EVALUATOR => 4,
+            SpanType::EVALUATION => 5,
         }
     }
 }
@@ -54,6 +72,9 @@ impl Into<u8> for SpanType {
 fn default_true() -> bool {
     true
 }
+
+const INPUT_ATTRIBUTE_NAME: &str = "lmnr.span.input";
+const OUTPUT_ATTRIBUTE_NAME: &str = "lmnr.span.output";
 
 #[derive(Deserialize, Serialize, sqlx::FromRow, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -114,6 +135,7 @@ pub struct TraceAttributes {
     success: Option<bool>,
     session_id: Option<String>,
     user_id: Option<String>,
+    trace_type: Option<TraceType>,
 }
 
 impl TraceAttributes {
@@ -150,6 +172,10 @@ impl TraceAttributes {
     pub fn update_user_id(&mut self, user_id: Option<String>) {
         self.user_id = user_id;
     }
+
+    pub fn update_trace_type(&mut self, trace_type: Option<TraceType>) {
+        self.trace_type = trace_type;
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, FromRow)]
@@ -170,6 +196,22 @@ pub struct Span {
     pub events: Option<Value>,
 }
 
+/// List of available fields on the span. This is needed for "export to dataset query"
+/// so frontend can specify which fields to include in the dataset
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SpanField {
+    SpanId,
+    Name,
+    ParentSpanId,
+    TraceId,
+    StartTime,
+    EndTime,
+    Input,
+    Output,
+    SpanType,
+}
+
 pub struct SpanAttributes {
     pub attributes: HashMap<String, Value>,
 }
@@ -182,7 +224,7 @@ impl SpanAttributes {
     pub fn session_id(&self) -> Option<String> {
         match self
             .attributes
-            .get("traceloop.association.properties.session_id")
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}session_id").as_str())
         {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -192,11 +234,17 @@ impl SpanAttributes {
     pub fn user_id(&self) -> Option<String> {
         match self
             .attributes
-            .get("traceloop.association.properties.user_id")
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}user_id").as_str())
         {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
+    }
+
+    pub fn trace_type(&self) -> Option<TraceType> {
+        self.attributes
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}trace_type").as_str())
+            .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
     pub fn prompt_tokens(&self) -> i64 {
@@ -229,8 +277,68 @@ impl SpanAttributes {
 
     pub fn provider_name(&self) -> Option<String> {
         match self.attributes.get(GEN_AI_SYSTEM) {
-            Some(Value::String(s)) => Some(s.clone()),
+            Some(Value::String(s)) => Some(self.get_langchain_provider(s)),
             _ => None,
+        }
+    }
+
+    // Traceloop's auto-instrumentation sends the provider name as "Langchain" and the actual provider
+    // name as an attribute `association_properties.ls_provider`. This function returns the actual provider
+    // name if the provider is "Langchain" or the provider itself.
+    fn get_langchain_provider(&self, provider: &String) -> String {
+        if provider == "Langchain" {
+            let ls_provider = self
+                .attributes
+                .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}ls_provider").as_str())
+                .and_then(|s| serde_json::from_value(s.clone()).ok());
+            if let Some(ls_provider) = ls_provider {
+                ls_provider
+            } else {
+                provider.clone()
+            }
+        } else {
+            provider.clone()
+        }
+    }
+
+    pub fn span_type(&self) -> SpanType {
+        if let Some(span_type) = self.attributes.get(SPAN_TYPE) {
+            serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default()
+        } else {
+            // quick hack until we figure how to set span type on auto-instrumentation
+            if self.attributes.contains_key("gen_ai.system") {
+                SpanType::LLM
+            } else {
+                SpanType::DEFAULT
+            }
+        }
+    }
+
+    pub fn set_usage(&mut self, usage: &SpanUsage) {
+        self.attributes
+            .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(usage.prompt_tokens));
+        self.attributes.insert(
+            GEN_AI_OUTPUT_TOKENS.to_string(),
+            json!(usage.completion_tokens),
+        );
+        self.attributes
+            .insert(GEN_AI_TOTAL_COST.to_string(), json!(usage.total_cost));
+        self.attributes
+            .insert(GEN_AI_INPUT_COST.to_string(), json!(usage.input_cost));
+        self.attributes
+            .insert(GEN_AI_OUTPUT_COST.to_string(), json!(usage.output_cost));
+
+        if let Some(request_model) = &usage.request_model {
+            self.attributes
+                .insert(GEN_AI_REQUEST_MODEL.to_string(), json!(request_model));
+        }
+        if let Some(response_model) = &usage.response_model {
+            self.attributes
+                .insert(GEN_AI_RESPONSE_MODEL.to_string(), json!(response_model));
+        }
+        if let Some(provider_name) = &usage.provider_name {
+            self.attributes
+                .insert(GEN_AI_SYSTEM.to_string(), json!(provider_name));
         }
     }
 }
@@ -241,6 +349,10 @@ impl Span {
             serde_json::from_value::<HashMap<String, Value>>(self.attributes.clone()).unwrap();
 
         SpanAttributes::new(attributes)
+    }
+
+    pub fn set_attributes(&mut self, attributes: &SpanAttributes) {
+        self.attributes = serde_json::to_value(&attributes.attributes).unwrap();
     }
 
     pub fn from_otel_span(otel_span: OtelSpan) -> Self {
@@ -262,20 +374,31 @@ impl Span {
 
         let mut span = Span {
             version: String::from(DEFAULT_VERSION),
-            span_id: span_id,
-            trace_id: trace_id,
-            parent_span_id: parent_span_id,
+            span_id,
+            trace_id,
+            parent_span_id,
             name: otel_span.name,
-            attributes: json!(attributes.clone()),
+            attributes: serde_json::Value::Object(
+                attributes
+                    .clone()
+                    .into_iter()
+                    .filter_map(|(k, v)| {
+                        if should_keep_attribute(k.as_str()) {
+                            Some((k, v))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+            ),
             start_time: Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64),
             end_time: Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64),
             ..Default::default()
         };
 
-        // quick hack until we start sending our own attributes
-        if attributes.contains_key("gen_ai.system") {
-            span.span_type = SpanType::LLM;
+        span.span_type = span.get_attributes().span_type();
 
+        if span.span_type == SpanType::LLM {
             let mut input_messages: Vec<ChatMessage> = vec![];
 
             let mut i = 0;
@@ -321,13 +444,13 @@ impl Span {
                 None
             };
         } else {
-            if let Some(serde_json::Value::String(s)) = attributes.get("traceloop.entity.input") {
+            if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
                 span.input = Some(
                     serde_json::Value::from_str(s).unwrap_or(serde_json::Value::String(s.clone())),
                 );
             }
 
-            if let Some(serde_json::Value::String(s)) = attributes.get("traceloop.entity.output") {
+            if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
                 span.output = Some(
                     serde_json::Value::from_str(s).unwrap_or(serde_json::Value::String(s.clone())),
                 );
@@ -343,6 +466,7 @@ impl Span {
         parent_span_id: Option<Uuid>,
         name: &String,
         messages: &HashMap<Uuid, Message>,
+        trace_type: TraceType,
     ) -> Self {
         let mut inputs = HashMap::new();
         let mut outputs = HashMap::new();
@@ -357,6 +481,11 @@ impl Span {
                 }
                 _ => (),
             });
+        let mut attributes = HashMap::new();
+        attributes.insert(
+            format!("{ASSOCIATION_PROPERTIES_PREFIX}trace_type",),
+            trace_type,
+        );
         Self {
             span_id: Uuid::new_v4(),
             start_time: run_stats.start_time,
@@ -365,10 +494,10 @@ impl Span {
             trace_id,
             parent_span_id,
             name: name.clone(),
-            attributes: serde_json::json!({}),
+            attributes: serde_json::json!(attributes),
             input: serde_json::to_value(inputs).ok(),
             output: serde_json::to_value(outputs).ok(),
-            span_type: SpanType::DEFAULT,
+            span_type: SpanType::PIPELINE,
             events: None,
         }
     }
@@ -416,6 +545,36 @@ impl Span {
             })
             .collect()
     }
+
+    pub fn to_json_value(&self, fields: &Vec<SpanField>) -> Value {
+        if fields.is_empty() {
+            return Value::Object(Map::new());
+        }
+
+        let mut json_map = Map::new();
+
+        for field in fields {
+            match field {
+                SpanField::SpanId => json_map.insert("spanId".to_string(), json!(self.span_id)),
+                SpanField::Name => json_map.insert("name".to_string(), json!(self.name)),
+                SpanField::ParentSpanId => {
+                    json_map.insert("parentSpanId".to_string(), json!(self.parent_span_id))
+                }
+                SpanField::TraceId => json_map.insert("traceId".to_string(), json!(self.trace_id)),
+                SpanField::StartTime => {
+                    json_map.insert("startTime".to_string(), json!(self.start_time))
+                }
+                SpanField::EndTime => json_map.insert("endTime".to_string(), json!(self.end_time)),
+                SpanField::Input => json_map.insert("input".to_string(), json!(self.input)),
+                SpanField::Output => json_map.insert("output".to_string(), json!(self.output)),
+                SpanField::SpanType => {
+                    json_map.insert("spanType".to_string(), json!(self.span_type))
+                }
+            };
+        }
+
+        Value::Object(json_map)
+    }
 }
 
 fn span_attributes_from_meta_log(meta_log: Option<MetaLog>) -> Value {
@@ -425,6 +584,7 @@ fn span_attributes_from_meta_log(meta_log: Option<MetaLog>) -> Value {
             GEN_AI_OUTPUT_TOKENS: llm_log.output_token_count,
             GEN_AI_RESPONSE_MODEL: llm_log.model,
             GEN_AI_SYSTEM: llm_log.provider,
+            GEN_AI_TOTAL_COST: llm_log.approximate_cost,
         }),
         _ => serde_json::json!({}),
     }
@@ -470,9 +630,22 @@ pub async fn update_trace_attributes(
             end_time,
             version,
             session_id,
-            user_id
+            user_id,
+            trace_type
         )
-        VALUES ($1, $2, COALESCE($3, 0::int8), COALESCE($4, 0::float8), COALESCE($5, true), $6, $7, $8, $9, $10)
+        VALUES (
+            $1,
+            $2,
+            COALESCE($3, 0::int8),
+            COALESCE($4, 0::float8),
+            COALESCE($5, true),
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            COALESCE($11, 'DEFAULT'::trace_type)
+        )
         ON CONFLICT(id) DO
         UPDATE
         SET 
@@ -482,8 +655,9 @@ pub async fn update_trace_attributes(
             start_time = CASE WHEN traces.start_time IS NULL OR traces.start_time > $6 THEN $6 ELSE traces.start_time END,
             end_time = CASE WHEN traces.end_time IS NULL OR traces.end_time < $7 THEN $7 ELSE traces.end_time END,
             session_id = CASE WHEN traces.session_id IS NULL THEN $9 ELSE traces.session_id END,
-            user_id = CASE WHEN traces.user_id IS NULL THEN $10 ELSE traces.user_id END
-            "
+            user_id = CASE WHEN traces.user_id IS NULL THEN $10 ELSE traces.user_id END,
+            trace_type = CASE WHEN $11 IS NULL THEN traces.trace_type ELSE COALESCE($11, 'DEFAULT'::trace_type) END
+        "
     )
     .bind(attributes.id)
     .bind(project_id)
@@ -493,8 +667,9 @@ pub async fn update_trace_attributes(
     .bind(attributes.start_time)
     .bind(attributes.end_time)
     .bind(DEFAULT_VERSION)
-    .bind(attributes.session_id.clone())
-    .bind(attributes.user_id.clone())
+    .bind(&attributes.session_id)
+    .bind(&attributes.user_id)
+    .bind(&attributes.trace_type)
     .execute(pool)
     .await?;
     Ok(())
@@ -546,10 +721,10 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
     Ok(())
 }
 
-pub fn add_traces_info_expression<'a>(
-    query: &'a mut QueryBuilder<'a, Postgres>,
-    date_range: Option<&DateRange>,
-) -> Result<&'a mut QueryBuilder<'a, Postgres>> {
+pub fn add_traces_info_expression(
+    query: &mut QueryBuilder<Postgres>,
+    date_range: &Option<DateRange>,
+) -> Result<()> {
     query.push(
         "
     traces_info(
@@ -565,7 +740,9 @@ pub fn add_traces_info_expression<'a>(
         total_token_count,
         cost,
         success,
-        latency
+        trace_type,
+        latency,
+        status
     ) AS (
         SELECT
             t.id,
@@ -580,42 +757,103 @@ pub fn add_traces_info_expression<'a>(
             t.total_token_count,
             t.cost,
             t.success,
+            t.trace_type,
             EXTRACT(EPOCH FROM (t.end_time - t.start_time)),
-            CASE WHEN t.success = true THEN 'Success' ELSE 'Failed' END as status
+            CASE WHEN t.success = true THEN 'Success' ELSE 'Failed' END
         FROM traces t
         WHERE start_time IS NOT NULL AND end_time IS NOT NULL ",
     );
 
-    if let Some(date_range) = date_range {
-        match date_range {
-            // TODO: Parsing must be done outside of this function to avoid anything string-like into queries
-            DateRange::Relative(interval) => {
-                let past_hours = if interval.past_hours == "all" {
-                    None
-                } else {
-                    Some(interval.past_hours.parse::<i64>()?)
-                };
-                if let Some(past_hours) = past_hours {
-                    // If start_time is >= NOW() - interval 'x hours', then end_time is also >= NOW() - interval 'x hours'
-                    query.push(format!(
-                        " AND t.start_time >= NOW() - interval '{} hours'",
-                        past_hours
-                    ));
-                }
-            }
-            DateRange::Absolute(interval) => {
-                query
-                    .push(" AND t.start_time >= ")
-                    .push_bind(interval.start_date)
-                    .push(" AND t.end_time <= ")
-                    .push_bind(interval.end_date);
-            }
-        };
-    }
+    add_date_range_to_query(query, date_range, "t.start_time", Some("t.end_time"))?;
 
     query.push(")");
 
-    Ok(query)
+    Ok(())
+}
+
+pub fn add_traces_info_filtered_by_text(
+    query: &mut QueryBuilder<Postgres>,
+    date_range: &Option<DateRange>,
+    text_search_filter: String,
+    project_id: Uuid,
+) -> Result<()> {
+    query
+        .push(
+            "
+    spans_with_trace AS MATERIALIZED (
+        SELECT
+            traces.id,
+            traces.start_time,
+            traces.end_time,
+            traces.version,
+            traces.release,
+            traces.user_id,
+            traces.session_id,
+            traces.metadata,
+            traces.project_id,
+            traces.total_token_count,
+            traces.cost,
+            traces.success,
+            traces.trace_type,
+            spans.name as span_name,
+            spans.attributes as span_attributes,
+            spans.input as span_input,
+            spans.output as span_output 
+        FROM
+            spans
+        JOIN
+            traces
+        ON
+            traces.id = spans.trace_id
+        WHERE traces.project_id = ",
+        )
+        .push_bind(project_id)
+        .push(" AND traces.start_time IS NOT NULL AND traces.end_time IS NOT NULL");
+
+    add_date_range_to_query(
+        query,
+        date_range,
+        "traces.start_time",
+        Some("traces.end_time"),
+    )?;
+
+    query.push(" ),");
+
+    // After pushing materialized CTE, we need to push the traces_info CTE
+    query.push(
+        "
+        traces_info AS (
+        SELECT DISTINCT ON(id)
+            id,
+            start_time,
+            end_time,
+            version,
+            release,
+            user_id,
+            session_id,
+            metadata,
+            project_id,
+            total_token_count,
+            cost,
+            success,
+            EXTRACT(EPOCH FROM (end_time - start_time)) as latency 
+        FROM spans_with_trace st WHERE ",
+    );
+
+    query
+        .push("(st.span_input::TEXT ILIKE ")
+        .push_bind(format!("%{}%", &text_search_filter))
+        .push(" OR st.span_output::TEXT ILIKE ")
+        .push_bind(format!("%{}%", &text_search_filter))
+        .push(" OR st.span_name::TEXT ILIKE ")
+        .push_bind(format!("%{}%", &text_search_filter))
+        .push(" OR st.span_attributes::TEXT ILIKE ")
+        .push_bind(format!("%{}%", &text_search_filter))
+        .push(")");
+
+    query.push(")");
+
+    Ok(())
 }
 
 const TRACE_EVENTS_EXPRESSION: &str = "
@@ -638,16 +876,17 @@ const TRACE_EVENTS_EXPRESSION: &str = "
         GROUP BY traces.id
     )";
 
-fn add_filters_to_traces_query<'a>(
-    query: &'a mut QueryBuilder<'a, Postgres>,
-    filters: Option<Vec<Filter>>,
-) -> &'a mut QueryBuilder<'a, Postgres> {
+fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Option<Vec<Filter>>) {
     if let Some(filters) = filters {
         filters.iter().for_each(|filter| {
             let filter_value_str = match &filter.filter_value {
                 Value::String(s) => s.clone(),
                 v => v.to_string(),
             };
+            if !filter.validate_column() {
+                log::warn!("Invalid column name: {}", filter.filter_column);
+                return;
+            }
             query.push(" AND ");
             if let Some(jsonb_prefix) = &filter.jsonb_column {
                 if &filter.filter_column == "event" && jsonb_prefix == "events" {
@@ -672,7 +911,7 @@ fn add_filters_to_traces_query<'a>(
                 .any(|col| col == &filter.filter_column.as_str())
             {
                 query.push_bind(Uuid::parse_str(&filter_value_str).unwrap_or_default());
-            } else if ["latency", "approximate_cost", "total_token_count"]
+            } else if ["latency", "cost", "total_token_count"]
                 .iter()
                 .any(|col| col == &filter.filter_column.as_str())
             {
@@ -680,50 +919,14 @@ fn add_filters_to_traces_query<'a>(
             } else {
                 query.push_bind(filter_value_str);
             }
+
+            if filter.filter_value_type.is_some() && filter.validate_cast_type() {
+                query
+                    .push("::")
+                    .push(&filter.filter_value_type.clone().unwrap());
+            }
         });
     }
-    query
-}
-
-pub async fn get_trace_with_events(
-    pool: &PgPool,
-    trace_id: Uuid,
-    project_id: Uuid,
-) -> Result<TraceWithEvents> {
-    let mut query = QueryBuilder::<Postgres>::new("WITH ");
-    query.push(TRACE_EVENTS_EXPRESSION);
-    query
-        .push(
-            "
-        SELECT
-            id,
-            start_time,
-            end_time,
-            version,
-            release,
-            user_id,
-            session_id,
-            metadata,
-            project_id,
-            total_token_count,
-            cost,
-            success,
-            COALESCE(trace_events.events, '[]'::jsonb) AS events
-        FROM traces
-        LEFT JOIN trace_events ON trace_events.trace_id = traces.id
-        WHERE project_id = ",
-        )
-        .push_bind(project_id)
-        .push(" AND id = ")
-        .push_bind(trace_id)
-        .push(" AND start_time IS NOT NULL AND end_time IS NOT NULL");
-
-    let trace = query
-        .build_query_as::<'_, TraceWithEvents>()
-        .fetch_one(pool)
-        .await?;
-
-    Ok(trace)
 }
 
 /// Queries traces for a project which match the given filters, with given limit and offset
@@ -732,13 +935,20 @@ pub async fn get_traces(
     project_id: Uuid,
     limit: usize,
     offset: usize,
-    filters: Option<Vec<Filter>>,
-    date_range: Option<&DateRange>,
+    filters: &Option<Vec<Filter>>,
+    date_range: &Option<DateRange>,
+    text_search_filter: Option<String>,
 ) -> Result<Vec<TraceWithEvents>> {
     let mut query = QueryBuilder::<Postgres>::new("WITH ");
-    let mut query = add_traces_info_expression(&mut query, date_range)?;
+    if let Some(text_search_filter) = text_search_filter {
+        add_traces_info_filtered_by_text(&mut query, date_range, text_search_filter, project_id)?;
+    } else {
+        add_traces_info_expression(&mut query, date_range)?;
+    };
     query.push(", ");
     query.push(TRACE_EVENTS_EXPRESSION);
+
+    // Filtering by project id may be redundant in case of text search filter, but ok for now for simplicity
     query.push(
         "
         SELECT
@@ -761,7 +971,7 @@ pub async fn get_traces(
     );
     query.push_bind(project_id);
 
-    let query = add_filters_to_traces_query(&mut query, filters);
+    add_filters_to_traces_query(&mut query, &filters);
 
     query
         .push(" ORDER BY start_time DESC OFFSET ")
@@ -781,11 +991,21 @@ pub async fn get_traces(
 pub async fn count_traces(
     pool: &PgPool,
     project_id: Uuid,
-    filters: Option<Vec<Filter>>,
-    date_range: Option<&DateRange>,
+    filters: &Option<Vec<Filter>>,
+    date_range: &Option<DateRange>,
+    text_search_filter: Option<String>,
 ) -> Result<i64> {
     let mut base_query = QueryBuilder::<Postgres>::new("WITH ");
-    let mut base_query = add_traces_info_expression(&mut base_query, date_range)?;
+    if let Some(text_search_filter) = text_search_filter {
+        add_traces_info_filtered_by_text(
+            &mut base_query,
+            date_range,
+            text_search_filter,
+            project_id,
+        )?;
+    } else {
+        add_traces_info_expression(&mut base_query, date_range)?;
+    };
     base_query.push(", ");
     base_query.push(TRACE_EVENTS_EXPRESSION);
     base_query.push(
@@ -798,9 +1018,9 @@ pub async fn count_traces(
     );
     base_query.push_bind(project_id);
 
-    let query = add_filters_to_traces_query(&mut base_query, filters);
+    add_filters_to_traces_query(&mut base_query, &filters);
 
-    let count = query
+    let count = base_query
         .build_query_as::<'_, TotalCount>()
         .fetch_one(pool)
         .await?
@@ -919,4 +1139,106 @@ pub async fn get_span(pool: &PgPool, id: Uuid) -> Result<Span> {
     .await?;
 
     Ok(span)
+}
+
+#[derive(Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct Session {
+    pub id: String,
+    pub total_token_count: i64,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    pub duration: f64,
+    pub cost: f64,
+    pub trace_count: i64,
+}
+
+pub async fn get_sessions(
+    pool: &PgPool,
+    project_id: Uuid,
+    limit: usize,
+    offset: usize,
+    filters: &Option<Vec<Filter>>,
+    date_range: &Option<DateRange>,
+) -> Result<Vec<Session>> {
+    let mut query = sqlx::QueryBuilder::new(
+        "SELECT
+            session_id as id,
+            count(id)::int8 as trace_count,
+            sum(total_token_count)::int8 as total_token_count,
+            min(start_time) as start_time,
+            max(end_time) as end_time,
+            sum(extract(epoch from (end_time - start_time)))::float8 as duration,
+            sum(cost)::float8 as cost
+            FROM traces
+            WHERE session_id is not null and project_id = ",
+    );
+    query.push_bind(project_id);
+
+    add_date_range_to_query(&mut query, date_range, "start_time", Some("end_time"))?;
+
+    add_filters_to_traces_query(&mut query, filters);
+
+    query
+        .push(" GROUP BY session_id ORDER BY start_time DESC")
+        .push(" OFFSET ")
+        .push_bind(offset as i64)
+        .push(" LIMIT ")
+        .push_bind(limit as i64);
+
+    let sessions = query.build_query_as::<Session>().fetch_all(pool).await?;
+
+    Ok(sessions)
+}
+
+pub async fn count_sessions(
+    pool: &PgPool,
+    project_id: Uuid,
+    filters: &Option<Vec<Filter>>,
+    date_range: &Option<DateRange>,
+) -> Result<i64> {
+    let mut query = sqlx::QueryBuilder::new(
+        "SELECT
+            count(DISTINCT session_id) as total_count
+            FROM traces
+            WHERE session_id is not null and project_id = ",
+    );
+
+    query.push_bind(project_id);
+
+    add_date_range_to_query(&mut query, date_range, "start_time", Some("end_time"))?;
+
+    add_filters_to_traces_query(&mut query, filters);
+
+    let count = query
+        .build_query_as::<'_, TotalCount>()
+        .fetch_optional(pool)
+        .await?;
+
+    Ok(count.map(|tc| tc.total_count).unwrap_or_default())
+}
+
+pub async fn count_all_sessions_in_project(pool: &PgPool, project_id: Uuid) -> Result<i64> {
+    let count = sqlx::query_as::<_, TotalCount>(
+        "SELECT
+            count(DISTINCT session_id) as total_count
+            FROM traces
+            WHERE session_id is not null AND project_id = $1",
+    )
+    .bind(project_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(count.total_count)
+}
+
+fn should_keep_attribute(attribute: &str) -> bool {
+    // do not duplicate function input/output as they are stored in DEFAULT span's input/output
+    if attribute == INPUT_ATTRIBUTE_NAME || attribute == OUTPUT_ATTRIBUTE_NAME {
+        return false;
+    }
+
+    // remove gen_ai.prompt/completion attributes as they are stored in LLM span's input/output
+    let pattern = Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap();
+    return !pattern.is_match(attribute);
 }

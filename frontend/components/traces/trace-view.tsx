@@ -1,6 +1,6 @@
-import { RunTrace, TracePreview, TraceWithSpans } from '@/lib/traces/types';
+import { TraceWithSpans } from '@/lib/traces/types';
 import { ChevronsRight } from 'lucide-react';
-import TraceCards from './trace-cards';
+import SpanCards from './span-cards';
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/utils';
 import { useProjectContext } from '@/contexts/project-context';
@@ -31,7 +31,7 @@ export default function TraceView({ onClose, traceId }: TraceViewProps) {
 
 
     return (
-      <TraceCards
+      <SpanCards
         trace={rowInfo as TraceWithSpans}
       />
     )

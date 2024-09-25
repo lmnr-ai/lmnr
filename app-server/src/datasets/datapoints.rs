@@ -59,9 +59,7 @@ impl Datapoint {
             _ => None,
         }
     }
-}
 
-impl Datapoint {
     /// Turns a datapoint into protobuf datapoint for indexing in semantic search service
     ///
     /// Assumes column_name is there in `data`, so it unwraps the field

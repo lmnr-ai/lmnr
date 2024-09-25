@@ -15,14 +15,18 @@ export default function Code({ language, code, className }: CodeProps) {
         style={oneDark}
         showLineNumbers={false}
         showInlineLineNumbers={false}
-      // wrapLines
-      // wrapLongLines
-      // customStyle={{
-      //   padding: '0.5rem',
-      //   margin: '0',
-      //   fontSize: '0.75rem',
-      //   lineHeight: '1.5',
-      // }}
+        customStyle={{
+          backgroundColor: 'transparent',
+          padding: '0',
+          margin: '0',
+          fontSize: '0.9rem',
+          lineHeight: '1.5',
+        }}
+        codeTagProps={{
+          style: {
+            backgroundColor: 'transparent !important',
+          },
+        }}
       >
         {code}
       </SyntaxHighlighter>

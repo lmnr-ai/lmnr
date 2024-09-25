@@ -95,10 +95,8 @@ export default function Pipeline({ pipeline }: PipelineProps) {
 
   const { supabaseAccessToken, username, imageUrl } = useUserContext()
 
-  
-
   const supabase = useMemo(() => {
-    return USE_REALTIME
+    return USE_REALTIME 
     ? createClient(
       SUPABASE_URL,
       SUPABASE_ANON_KEY,
@@ -110,8 +108,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
         },
       }
     )
-    : null
-  }, [])
+    : null}, [])
 
   supabase?.realtime.setAuth(supabaseAccessToken)
 

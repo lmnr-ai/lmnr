@@ -1,10 +1,32 @@
 /// Refer to the following links for more information:
 /// - https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/gen-ai-spans.md
-/// - https://github.com/openlit/openlit/blob/main/sdk/python/src/openlit/semcov/__init__.py
+/// - https://github.com/traceloop/openllmetry/blob/main/packages/opentelemetry-semantic-conventions-ai/opentelemetry/semconv_ai/__init__.py
+
+// TODO: `prompt_tokens` and `completion_tokens` are not in the OpenTelemetry specs. This must be
+// `input_tokens` and `output_tokens` respectively. These are sent by TraceLoop's auto-instrumentation
+// library. We should update the library to send the correct attributes.
 pub const GEN_AI_INPUT_TOKENS: &str = "gen_ai.usage.prompt_tokens";
 pub const GEN_AI_OUTPUT_TOKENS: &str = "gen_ai.usage.completion_tokens";
+
 // pub const GEN_AI_TOTAL_TOKENS: &str = "gen_ai.usage.total_tokens";
 pub const GEN_AI_REQUEST_MODEL: &str = "gen_ai.request.model";
 pub const GEN_AI_RESPONSE_MODEL: &str = "gen_ai.response.model";
 // pub const GEN_AI_REQUEST_IS_STREAM: &str = "gen_ai.request.is_stream";
 pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
+
+// This one is not in the open-telemetry specs. See:
+// https://github.com/openlit/openlit/blob/main/sdk/python/src/openlit/semcov/__init__.py#L65
+pub const GEN_AI_TOTAL_COST: &str = "gen_ai.usage.cost";
+
+// These are in neither standard.
+pub const GEN_AI_INPUT_COST: &str = "gen_ai.usage.input_cost";
+pub const GEN_AI_OUTPUT_COST: &str = "gen_ai.usage.output_cost";
+
+// Custom lmnr attributes
+pub const ASSOCIATION_PROPERTIES_PREFIX: &str = "lmnr.association.properties.";
+pub const SPAN_TYPE: &str = "lmnr.span.type";
+pub const EVENT_TYPE: &str = "lmnr.event.type";
+pub const EVENT_DATA: &str = "lmnr.event.data";
+pub const EVENT_ENV: &str = "lmnr.event.env";
+pub const EVENT_EVALUATOR: &str = "lmnr.event.evaluator";
+pub const EVENT_VALUE: &str = "lmnr.event.value";

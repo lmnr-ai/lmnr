@@ -1,9 +1,21 @@
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
+use serde::Serialize;
 use serde_json::Value;
 use sqlx::{prelude::FromRow, PgPool};
 use uuid::Uuid;
 
 use crate::datasets::datapoints::Datapoint;
+
+#[derive(FromRow, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatapointView {
+    id: Uuid,
+    created_at: DateTime<Utc>,
+    dataset_id: Uuid,
+    data: Value,
+    target: Value,
+}
 
 pub async fn insert_datapoints(
     pool: &PgPool,
@@ -68,14 +80,14 @@ pub async fn get_all_datapoints(pool: &PgPool, dataset_id: Uuid) -> Result<Vec<D
     Ok(datapoints)
 }
 
-pub async fn get_datapoints_paginated(
+pub async fn get_datapoints(
     pool: &PgPool,
     dataset_id: Uuid,
     limit: i64,
     offset: i64,
-) -> Result<Vec<Datapoint>> {
-    let datapoints = sqlx::query_as::<_, Datapoint>(
-        "SELECT id, dataset_id, data, target
+) -> Result<Vec<DatapointView>> {
+    let datapoints = sqlx::query_as::<_, DatapointView>(
+        "SELECT id, dataset_id, data, target, created_at
         FROM dataset_datapoints
         WHERE dataset_id = $1
         ORDER BY

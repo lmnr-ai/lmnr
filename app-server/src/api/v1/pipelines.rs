@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use actix_web::{get, post, web, HttpResponse};
+use actix_web::{post, web, HttpResponse};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -95,7 +95,8 @@ async fn run_pipeline_graph(
                     &project_id,
                     &pipeline_version_name,
                     parent_span_id,
-                    trace_id
+                    trace_id,
+                    None,
                 )
                 .await
                 .expect("Failed to record observations from pipeline output");
@@ -159,6 +160,7 @@ async fn run_pipeline_graph(
                 &pipeline_version_name,
                 parent_span_id,
                 trace_id,
+                None,
             )
             .await?;
 
@@ -172,9 +174,4 @@ async fn run_pipeline_graph(
 
         Ok(HttpResponse::Ok().json(res))
     }
-}
-
-#[get("healthcheck")]
-async fn ping_healthcheck() -> ResponseResult {
-    Ok(HttpResponse::Ok().finish())
 }

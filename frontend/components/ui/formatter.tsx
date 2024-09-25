@@ -1,32 +1,39 @@
-import ReactAce from "react-ace";
-import "ace-builds/src-noconflict/ext-language_tools";
-import "ace-builds/src-noconflict/ext-beautify";
-import "ace-builds/src-noconflict/mode-json";
-import "ace-builds/src-noconflict/mode-yaml";
-import "ace-builds/src-noconflict/mode-text";
-import "ace-builds/src-noconflict/mode-python";
-import "ace-builds/src-noconflict/mode-handlebars";
-import "ace-builds/src-noconflict/mode-typescript";
-import "ace-builds/src-noconflict/mode-markdown";
-import "ace-builds/src-noconflict/theme-one_dark";
-import "ace-builds/src-noconflict/ext-searchbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 import { useState } from "react";
 import YAML from 'yaml'
+import CodeMirror from '@uiw/react-codemirror';
+import { createTheme } from '@uiw/codemirror-themes';
+import { githubDarkStyle } from '@uiw/codemirror-theme-github';
+import { json } from '@codemirror/lang-json';
+import { yaml } from '@codemirror/lang-yaml';
+import { EditorView } from "@codemirror/view";
+import { cn } from "@/lib/utils";
 
 interface OutputFormatterProps {
   value: string;
+  className?: string;
   defaultMode?: string;
   editable?: boolean;
   onChange?: (value: string) => void;
 }
 
-export default function Formatter({ value, defaultMode = "text", editable, onChange }: OutputFormatterProps) {
+const myTheme = createTheme({
+  theme: 'dark',
+  settings: {
+    fontSize: '11pt',
+    background: 'transparent',
+    lineHighlight: 'transparent',
+    gutterBackground: 'transparent',
+    gutterBorder: 'transparent',
+  },
+  styles: githubDarkStyle,
+});
+
+export default function Formatter({ value, defaultMode = "text", editable = false, onChange, className }: OutputFormatterProps) {
 
   const [mode, setMode] = useState(defaultMode)
 
   const renderText = (value: string) => {
-
     // if mode is YAML try to parse it as YAML
     if (mode === "yaml") {
       try {
@@ -37,78 +44,67 @@ export default function Formatter({ value, defaultMode = "text", editable, onCha
       }
     } else if (mode === "json") {
       try {
+        if (JSON.parse(value) === value) {
+          return value
+        }
+
         const jsonFormatted = JSON.stringify(JSON.parse(value), null, 2)
         return jsonFormatted
       } catch (e) {
         return value
       }
     }
+
     return value
   }
 
   return (
-    <div className="w-full h-full border rounded bg-secondary pb-2">
-      <div className="flex">
-        <div className="flex justify-start p-2">
-          <Select
-            defaultValue={mode}
-            onValueChange={(value) => setMode(value)}
-          >
-            <SelectTrigger className="font-medium text-xs border-gray-600 h-6">
-              <SelectValue placeholder="Select tag type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem key="TEXT" value="text">
-                TEXT
-              </SelectItem>
-              <SelectItem key="YAML" value="yaml">
-                YAML
-              </SelectItem>
-              <SelectItem key="JSON" value="json">
-                JSON
-              </SelectItem>
-            </SelectContent>
-          </Select>
+    <div className={cn("w-full h-full flex flex-col border rounded", className)}>
+      <div className="flex w-full flex-none">
+        <div className="flex justify-start p-2 w-full border-b">
+          <div>
+            <Select
+              defaultValue={mode}
+              onValueChange={(value) => setMode(value)}
+            >
+              <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-6">
+                <SelectValue placeholder="Select tag type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem key="TEXT" value="text">
+                  TEXT
+                </SelectItem>
+                <SelectItem key="YAML" value="yaml">
+                  YAML
+                </SelectItem>
+                <SelectItem key="JSON" value="json">
+                  JSON
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
-      <ReactAce
-        maxLines={Infinity}
-        setOptions={{
-          useWorker: false,
-          displayIndentGuides: false,
-          indentedSoftWrap: false,
-        }}
-        defaultValue={editable ? renderText(value) : undefined}
-        value={editable ? undefined : renderText(value)}
-        readOnly={!editable}
-        mode={mode}
-        wrapEnabled={true}
-        theme="one_dark"
-        showPrintMargin={false}
-        enableLiveAutocompletion={false}
-        enableSnippets={false}
-        enableBasicAutocompletion={false}
-        tabSize={2}
-        style={{
-          height: '100%',
-          width: '100%',
-          fontSize: '0.8rem',
-          backgroundColor: 'transparent',
-        }}
-        onChange={v => {
-          if (mode === "yaml") {
-            try {
-              const parsedYaml = YAML.parse(v);
-              onChange?.(JSON.stringify(parsedYaml, null, 2));
-            } catch (e) {
-              onChange?.(v);
+      <div className="h-full w-full overflow-auto flex-grow">
+        <CodeMirror
+          theme={myTheme}
+          extensions={[yaml(), json(), EditorView.lineWrapping]}
+          editable={editable}
+          value={renderText(value)}
+          onChange={v => {
+            if (mode === "yaml") {
+              try {
+                const parsedYaml = YAML.parse(v);
+                onChange?.(JSON.stringify(parsedYaml, null, 2));
+              } catch (e) {
+                onChange?.(v);
+              }
+            } else {
+              onChange?.(v)
             }
-          } else {
-            onChange?.(v)
-          }
-        }}
-      // {...props}
-      />
+          }}
+        />
+      </div>
     </div>
   )
 }
