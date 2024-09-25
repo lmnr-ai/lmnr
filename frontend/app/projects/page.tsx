@@ -7,11 +7,11 @@ import Projects from '@/components/projects/projects';
 import { UserContextProvider } from '@/contexts/user-context';
 import WorkspacesNavbar from '@/components/projects/workspaces-navbar';
 import { Metadata } from 'next';
+import Header from '@/components/ui/header';
 
 export const metadata: Metadata = {
   title: 'Projects',
 }
-
 
 export default async function ProjectsPage() {
 
@@ -25,7 +25,7 @@ export default async function ProjectsPage() {
     <UserContextProvider email={user.email!} supabaseAccessToken={session.supabaseAccessToken} username={user.name!} imageUrl={user.image!}>
       <WorkspacesNavbar />
       <div className="flex flex-col min-h-screen flex-grow overflow-auto ml-64">
-        <ProjectsHeader />
+        <Header path="Projects" />
         <Projects />
       </div>
     </UserContextProvider >

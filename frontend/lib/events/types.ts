@@ -10,6 +10,7 @@ export type EventTemplate = {
   name: string;
   eventType: EventType;
   projectId: string;
+  latestTimestamp: string | null;
 }
 
 export type Event = {

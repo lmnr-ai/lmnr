@@ -87,6 +87,22 @@ const GenericNodeComponent = ({ id, data, children }: GenericNodeComponentProps)
     return sourceHandleType === targetHandleType
   }
 
+  const [clickTimeout, setClickTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const handleDoubleClick = (nodeId: string) => {
+    if (clickTimeout) {
+      clearTimeout(clickTimeout);
+      setClickTimeout(null);
+      setFocusedNodeId(nodeId);
+    } else {
+      // If no timeout, set a new one to wait for the second click
+      const timeoutId = setTimeout(() => {
+        setClickTimeout(null);
+      }, 300);
+      setClickTimeout(timeoutId);
+    }
+  };
+
   // combine data.inputs and data.fixedInputs
   const inputs = data.inputs.concat(data.dynamicInputs?.map(input => {
     return {
@@ -134,12 +150,15 @@ const GenericNodeComponent = ({ id, data, children }: GenericNodeComponentProps)
           <Trash size={14} />
         </Button>
       </div>
-      <div className={cn(
-        "z-0 transition-all flex items-center border-2 rounded-md border-transparent",
-        !editable ? "pointer-events-none" : "",
-        isSelected ? 'border-2 border-blue-300' : '',
-        highlightedNodeId === data.id ? 'border-2 border-blue-300' : '',
-      )}>
+      <div
+        className={cn(
+          "z-0 transition-all flex items-center border-2 rounded-md border-transparent",
+          !editable ? "pointer-events-none" : "",
+          isSelected ? 'border-2 border-blue-300' : '',
+          highlightedNodeId === data.id ? 'border-2 border-blue-300' : '',
+        )}
+        onClick={() => { handleDoubleClick(data.id) }}
+      >
         <div className={cn("w-72 bg-background border rounded-md")}>
           <div className="flex flex-col">
             <div
@@ -211,6 +230,7 @@ const GenericNodeComponent = ({ id, data, children }: GenericNodeComponentProps)
                       setNodeName(e.currentTarget.value)
                       updateNodeData(id, { name: e.currentTarget.value } as GenericNode)
                     }}
+                    onClick={(e) => { e.stopPropagation() }}
                     spellCheck={false}
                   />
                   {children}

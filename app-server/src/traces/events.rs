@@ -186,8 +186,6 @@ pub async fn evaluate_event(
 
     // TODO: Figure out how to use this metadata and link it to the evaluation event
     let metadata = HashMap::from([("span_id".to_string(), span_id.to_string())]);
-    let parent_span_id = None;
-    let trace_id = None;
 
     let inputs = evaluate_event
         .data
@@ -223,8 +221,9 @@ pub async fn evaluate_event(
             &run_result,
             &project_id,
             &format!("{}.{}", evaluate_event.evaluator, pipeline_version.name),
-            parent_span_id,
-            trace_id,
+            None,
+            None,
+            Some(db::trace::TraceType::EVENT),
         )
         .await?;
 

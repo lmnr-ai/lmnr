@@ -199,6 +199,23 @@ impl ExecuteChatCompletion for OpenAI {
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
     ) -> Result<ChatCompletion> {
+        let is_o1 = model.starts_with("o1-preview") || model.starts_with("o1-mini");
+        let messages = if is_o1 {
+            &messages
+                .iter()
+                .filter_map(|message| {
+                    if message.role != "system" {
+                        Some(message.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        } else {
+            messages
+        };
+        let tx = if is_o1 { None } else { tx };
+
         let json_messages: Vec<Value> = messages.iter().map(|message| to_value(message)).collect();
 
         let mut body = json!({
@@ -383,7 +400,6 @@ impl ExecuteChatCompletion for OpenAI {
                 usage: res_body.usage,
                 model: res_body.model,
             };
-
             Ok(chat_completion)
         }
     }
@@ -398,6 +414,10 @@ impl ExecuteChatCompletion for OpenAI {
             Some(calculate_cost(prompt_tokens, 0.15))
         } else if model.starts_with("gpt-4o") {
             Some(calculate_cost(prompt_tokens, 5.0))
+        } else if model.starts_with("o1-preview") {
+            Some(calculate_cost(prompt_tokens, 15.0))
+        } else if model.starts_with("o1-mini") {
+            Some(calculate_cost(prompt_tokens, 3.0))
         } else {
             None
         }
@@ -413,6 +433,10 @@ impl ExecuteChatCompletion for OpenAI {
             Some(calculate_cost(completion_tokens, 0.6))
         } else if model.starts_with("gpt-4o") {
             Some(calculate_cost(completion_tokens, 15.0))
+        } else if model.starts_with("o1-preview") {
+            Some(calculate_cost(completion_tokens, 60.0))
+        } else if model.starts_with("o1-mini") {
+            Some(calculate_cost(completion_tokens, 12.0))
         } else {
             None
         }

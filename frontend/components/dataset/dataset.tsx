@@ -1,7 +1,7 @@
 'use client'
 
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import AddDatapointsDialog from "./add-datapoints-dialog";
 import { DataTable } from "@/components/ui/datatable";
@@ -14,23 +14,15 @@ import Header from "../ui/header";
 import DeleteDatapointsDialog from "./delete-datapoints-dialog";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useProjectContext } from "@/contexts/project-context";
+import ClientTimestampFormatter from "../client-timestamp-formatter";
+import { PaginatedResponse } from "@/lib/types";
 
 interface DatasetProps {
-  defaultDatapoints: Datapoint[];
   dataset: DatasetType;
-  pageCount: number;
-  pageSize: number;
-  pageNumber: number;
-  totalDatapointCount: number;
 }
 
 export default function Dataset({
-  defaultDatapoints,
   dataset,
-  pageCount,
-  pageSize,
-  pageNumber,
-  totalDatapointCount
 }: DatasetProps) {
   const [expandedDatapoint, setExpandedDatapoint] = useState<Datapoint | null>(null);
   const router = useRouter();
@@ -40,6 +32,21 @@ export default function Dataset({
   const [selectedDatapointIds, setSelectedDatapointIds] = useState<string[]>([]);
   const [allDatapointsAcrossPagesSelected, setAllDatapointsAcrossPagesSelected] = useState<boolean>(false);
   const { toast } = useToast();
+  const [datapoints, setDatapoints] = useState<Datapoint[] | undefined>(undefined);
+
+  const parseNumericSearchParam = (key: string, defaultValue: number): number => {
+    const param = searchParams.get(key);
+    if (Array.isArray(param)) {
+      return defaultValue;
+    }
+    const parsed = param ? parseInt(param as string) : defaultValue;
+    return isNaN(parsed) ? defaultValue : parsed;
+  }
+
+  const pageNumber = parseNumericSearchParam('pageNumber', 0);
+  const pageSize = Math.max(parseNumericSearchParam('pageSize', 50), 1);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const pageCount = Math.ceil(totalCount / pageSize);
 
   const deleteDatapoints = async (ids: string[], useAll: boolean) => {
     try {
@@ -67,7 +74,33 @@ export default function Dataset({
     }
   }
 
+  const getDatapoints = async () => {
+    setDatapoints(undefined);
+    let url = `/api/projects/${projectId}/datasets/` +
+      `${dataset.id}/datapoints?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const data = await res.json() as PaginatedResponse<Datapoint>;
+    setDatapoints(data.items);
+    setTotalCount(data.totalCount);
+  };
+
+  useEffect(() => {
+    getDatapoints();
+  }, [projectId, pageNumber, pageSize]);
+
   const columns: ColumnDef<Datapoint>[] = [
+    {
+      accessorKey: 'createdAt',
+      header: 'Created at',
+      size: 200,
+      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    },
     {
       accessorFn: (row) => JSON.stringify(row.data),
       header: 'Data',
@@ -99,7 +132,7 @@ export default function Dataset({
             <DeleteDatapointsDialog
               selectedDatapointIds={selectedDatapointIds}
               onDelete={deleteDatapoints}
-              totalDatapointsCount={totalDatapointCount}
+              totalDatapointsCount={totalCount}
               useAll={allDatapointsAcrossPagesSelected} />
             <AddDatapointsDialog datasetId={dataset.id} onUpdate={router.refresh} />
             <ManualAddDatapoint datasetId={dataset.id} onUpdate={router.refresh} />
@@ -108,10 +141,10 @@ export default function Dataset({
           <div className='flex-grow'>
             <DataTable
               columns={columns}
-              data={defaultDatapoints}
+              data={datapoints}
               getRowId={(datapoint) => datapoint.id}
               onRowClick={(row) => {
-                setExpandedDatapoint(row);
+                setExpandedDatapoint(row.original);
               }}
               paginated
               focusedRowId={expandedDatapoint?.id}
@@ -124,7 +157,7 @@ export default function Dataset({
                 searchParams.set('pageSize', pageSize.toString());
                 router.push(`${pathName}?${searchParams.toString()}`);
               }}
-              totalItemsCount={totalDatapointCount}
+              totalItemsCount={totalCount}
               enableRowSelection
               onSelectedRowsChange={setSelectedDatapointIds}
               onSelectAllAcrossPages={setAllDatapointsAcrossPagesSelected}

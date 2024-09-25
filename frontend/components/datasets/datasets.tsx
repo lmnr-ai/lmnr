@@ -22,16 +22,14 @@ import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { DataTable } from '../ui/datatable';
 import Header from '../ui/header';
 import { TableCell, TableRow } from '../ui/table';
+import { PaginatedResponse } from '@/lib/types';
 
 
-interface DatasetsProps {
-}
-
-export default function Datasets({ }: DatasetsProps) {
+export default function Datasets() {
   const { projectId } = useProjectContext();
   const fetcher = (url: string) => fetch(url).then(res => res.json());
   const router = useRouter();
-  const { data, isLoading, mutate } = useSWR(`/api/projects/${projectId}/datasets/`, fetcher)
+  const { data, isLoading, mutate } = useSWR<PaginatedResponse<Dataset>>(`/api/projects/${projectId}/datasets/`, fetcher)
 
   const updateDataset = async (datasetId: string, dataset: Dataset) => {
     const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}`, {
@@ -100,10 +98,10 @@ export default function Datasets({ }: DatasetsProps) {
       <div className='flex-grow'>
         <DataTable
           onRowClick={(row) => {
-            router.push(`/project/${projectId}/datasets/${row.id}`);
+            router.push(`/project/${projectId}/datasets/${row.original.id}`);
           }}
           columns={columns}
-          data={data}
+          data={data?.items}
           emptyRow={
             <TableRow>
               <TableCell colSpan={columns.length} className='text-center text'>

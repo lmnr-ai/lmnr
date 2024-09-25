@@ -19,16 +19,39 @@ pub async fn create_dataset(pool: &PgPool, name: &String, project_id: Uuid) -> R
     Ok(dataset)
 }
 
-pub async fn get_datasets(pool: &PgPool, project_id: Uuid) -> Result<Vec<Dataset>> {
+pub async fn get_datasets(
+    pool: &PgPool,
+    project_id: Uuid,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<Dataset>> {
     let datasets = sqlx::query_as::<_, Dataset>(
-        "SELECT id, created_at, name, project_id, indexed_on FROM datasets WHERE project_id = $1
-        ORDER BY created_at DESC",
+        "SELECT
+            id,
+            created_at,
+            name,
+            project_id,
+            indexed_on
+        FROM datasets WHERE project_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3",
     )
     .bind(project_id)
+    .bind(limit)
+    .bind(offset)
     .fetch_all(pool)
     .await?;
 
     Ok(datasets)
+}
+
+pub async fn count_datasets(pool: &PgPool, project_id: Uuid) -> Result<i64> {
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM datasets WHERE project_id = $1")
+        .bind(project_id)
+        .fetch_one(pool)
+        .await?;
+
+    Ok(count)
 }
 
 pub async fn get_dataset(pool: &PgPool, project_id: Uuid, dataset_id: Uuid) -> Result<Dataset> {

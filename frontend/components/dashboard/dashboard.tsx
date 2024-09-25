@@ -1,46 +1,53 @@
 'use client'
 
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { cn, formatTimestampFromSeconds } from "@/lib/utils";
+import { cn, formatTimestampFromSeconds, formatTimestampFromSecondsWithInterval, getGroupByInterval } from "@/lib/utils";
 import { useEffect, useState } from "react";
-import { EventTemplate } from "@/lib/events/types";
 import DateRangeFilter from "../ui/date-range-filter";
 import { Skeleton } from "../ui/skeleton";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { GroupByPeriodSelect } from "../ui/group-by-period-select";
+import { TraceMetricDatapoint } from "@/lib/traces/types";
+import Header from "../ui/header";
+import { useProjectContext } from "@/contexts/project-context";
 
 
 interface CustomChartProps {
-  eventTemplate: EventTemplate
+  className?: string
+  metric: string
+  aggregation: string
+  title: string
+  xAxisKey: string
+  yAxisKey: string
   pastHours?: string
   startDate?: string
   endDate?: string
-  className?: string
+  defaultGroupByInterval?: string
+  projectId: string
+  countComponent?: (data: TraceMetricDatapoint[]) => React.ReactNode
 }
 
 export function CustomChart({
-  eventTemplate,
   className,
+  metric,
+  aggregation,
+  title,
+  xAxisKey,
+  yAxisKey,
   pastHours,
   startDate,
-  endDate
+  endDate,
+  defaultGroupByInterval,
+  countComponent,
+  projectId
 }: CustomChartProps) {
-
-  const [xAxisKey, setXAxisKey] = useState<string>("time");
-  const [yAxisKey, setYAxisKey] = useState<string>("value");
-  const [data, setData] = useState<any[] | null>(null);
+  const [data, setData] = useState<TraceMetricDatapoint[] | null>(null);
 
   const chartConfig = {
     [xAxisKey]: {
@@ -49,22 +56,13 @@ export function CustomChart({
   } satisfies ChartConfig
 
   useEffect(() => {
-    let groupByInterval = "hour";
-
-    if (pastHours === "1") {
-      groupByInterval = "minute";
-    } else if (pastHours === "7") {
-      groupByInterval = "minute";
-    } else if (pastHours === "24") {
-      groupByInterval = "hour";
-    } else if (parseInt(pastHours ?? '0') > 24) {
-      groupByInterval = "day";
+    if (!pastHours && !startDate && !endDate) {
+      return;
     }
-
     const body: Record<string, any> = {
-      metric: "eventCount",
-      aggregation: "Total",
-      groupByInterval
+      metric,
+      aggregation,
+      groupByInterval: defaultGroupByInterval
     };
     if (pastHours) {
       body["pastHours"] = pastHours;
@@ -73,44 +71,44 @@ export function CustomChart({
       body["endDate"] = endDate;
     }
 
-    console.log(body)
-
-
-    fetch(`/api/projects/${eventTemplate.projectId}/event-templates/${eventTemplate.id}/metrics`, {
+    fetch(`/api/projects/${projectId}/traces/metrics`, {
       method: 'POST',
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body)
     })
-      .then(res => res.json().then((data: any) => {
-        setData(data);
-      }))
+      .then(res => res.json()).then((data: any) => {
+        setData(data)
+      })
 
-  }, [eventTemplate, pastHours]);
+  }, [defaultGroupByInterval, pastHours, startDate, endDate]);
 
   return (
-    <Card className={cn(className, "")}>
-      <CardHeader>
-        <CardTitle>{eventTemplate.name}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig}>
-          {(data === null) ? <Skeleton /> :
-            <AreaChart
+    <div className={cn(className, "flex flex-col space-y-2")}>
+      <div className="py-2 flex-none">
+        <div className="flex-col space-y-2 justify-between text-sm font-medium">
+          <div className="flex-grow text-secondary-foreground">{title}</div>
+          {countComponent && data && countComponent(data)}
+        </div>
+      </div>
+      <div className="flex-1">
+        {(data === null) ? <Skeleton className="h-full w-full" /> :
+          <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+            <LineChart
               accessibilityLayer
               data={data}
               margin={{
-                left: 12,
-                right: 12,
+                left: 0,
+                right: 0,
               }}
             >
               <CartesianGrid vertical={false} />
               <XAxis
-                type="number"
+                type="category"
                 domain={['dataMin', 'dataMax']}
                 tickLine={false}
-                tickFormatter={formatTimestampFromSeconds}
+                tickFormatter={(value) => formatTimestampFromSecondsWithInterval(value, defaultGroupByInterval ?? 'hour')}
                 axisLine={false}
                 tickMargin={8}
                 dataKey={xAxisKey}
@@ -125,49 +123,125 @@ export function CustomChart({
                 cursor={false}
                 content={<ChartTooltipContent
                   labelKey={xAxisKey}
-                  labelFormatter={(label, p) => formatTimestampFromSeconds(p[0].payload[xAxisKey])}
+                  labelFormatter={(_, p) => formatTimestampFromSeconds(p[0].payload[xAxisKey])}
                 />}
               />
-              <Area
+              <Line
                 dataKey={yAxisKey}
-                type="monotone"
-                fillOpacity={0.4}
+                dot={false}
+                fill="hsl(var(--chart-1))"
               />
-            </AreaChart>
-          }
-        </ChartContainer>
-      </CardContent>
-    </Card>
+            </LineChart>
+          </ChartContainer>
+        }
+      </div>
+    </div>
   )
 }
 
 export interface DashboardProps {
-  eventTemplates: EventTemplate[];
 }
 
-export default function Dashboard({ eventTemplates }: DashboardProps) {
+export default function Dashboard() {
+
+  const { projectId } = useProjectContext();
+
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pastHours = searchParams.get('pastHours') as string | undefined;
   const startDate = searchParams.get('startDate') as string | undefined;
   const endDate = searchParams.get('endDate') as string | undefined;
+  const groupByInterval = searchParams.get('groupByInterval') ?? getGroupByInterval(pastHours, startDate, endDate, undefined);
+
+  const router = useRouter();
+
+  useEffect(() => {
+
+    if (!pastHours && !startDate && !endDate) {
+
+      const sp = new URLSearchParams(searchParams);
+      sp.set('pastHours', '24');
+      router.push(`/project/${projectId}/dashboard?${sp.toString()}`);
+    }
+  }, []);
+
   return (
-    <div className="flex-grow flex flex-col p-4 space-y-4">
-      <DateRangeFilter />
-      <div className="grid grid-cols-3 gap-4">
-        {
-          eventTemplates.map((eventTemplate) => (
-            <div key={`event-${eventTemplate.id}`} className="flex-1">
+    <>
+      <Header path={"dashboard"}>
+        <div className='h-12 flex space-x-2 items-center'>
+          <DateRangeFilter />
+          <GroupByPeriodSelect />
+        </div>
+      </Header>
+      <div className="flex-grow flex flex-col">
+        <div className="flex-1 space-y-8 p-4">
+          <div className="flex-1">
+            <CustomChart
+              projectId={projectId}
+              className="h-[40vh]"
+              metric="traceCount"
+              aggregation="Total"
+              title="Traces"
+              xAxisKey="time"
+              yAxisKey="value"
+              pastHours={pastHours}
+              startDate={startDate}
+              endDate={endDate}
+              defaultGroupByInterval={groupByInterval}
+              countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{data?.reduce((acc, curr) => acc + curr.value, 0)}</span>}
+            />
+          </div>
+          <div className="flex space-x-4">
+            <div className="flex-1">
               <CustomChart
-                eventTemplate={eventTemplate}
+                projectId={projectId}
+                className="h-[40vh]"
+                metric="traceLatencySeconds"
+                aggregation="Average"
+                title="Trace latency (avg)"
+                xAxisKey="time"
+                yAxisKey="value"
                 pastHours={pastHours}
                 startDate={startDate}
                 endDate={endDate}
-                className=""
+                defaultGroupByInterval={groupByInterval}
+                countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{(data?.reduce((acc, curr) => acc + curr.value, 0) / data?.length).toFixed(2)}s</span>}
               />
             </div>
-          ))
-        }
+            <div className="flex-1">
+              <CustomChart
+                projectId={projectId}
+                className="h-[40vh]"
+                metric="totalTokenCount"
+                aggregation="Total"
+                title="Tokens"
+                xAxisKey="time"
+                yAxisKey="value"
+                pastHours={pastHours}
+                startDate={startDate}
+                endDate={endDate}
+                defaultGroupByInterval={groupByInterval}
+                countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{data?.reduce((acc, curr) => acc + curr.value, 0)}</span>}
+              />
+            </div>
+            <div className="flex-1">
+              <CustomChart
+                projectId={projectId}
+                className="h-[40vh]"
+                metric="costUsd"
+                aggregation="Total"
+                title="Cost"
+                xAxisKey="time"
+                yAxisKey="value"
+                pastHours={pastHours}
+                startDate={startDate}
+                endDate={endDate}
+                defaultGroupByInterval={groupByInterval}
+                countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{"$" + data?.reduce((acc, curr) => acc + curr.value, 0).toFixed(5)}</span>}
+              />
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

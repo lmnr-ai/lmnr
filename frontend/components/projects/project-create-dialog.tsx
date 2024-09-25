@@ -14,6 +14,7 @@ import { Button } from "../ui/button";
 import { Loader, Plus } from "lucide-react";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface ProjectCreateDialogProps {
   onProjectCreate?: () => void
@@ -25,23 +26,31 @@ export default function ProjectCreateDialog({ onProjectCreate, workspaces }: Pro
   const [newProjectName, setNewProjectName] = useState('')
 
   const [isCreatingProject, setIsCreatingProject] = useState(false)
-  const router = useRouter()
+  const router = useRouter();
+  const { toast } = useToast();
 
   const createNewProject = useCallback(async () => {
     setIsCreatingProject(true)
-    const res = await fetch('/api/projects', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: newProjectName,
-        workspaceId: newProjectWorkspaceId
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: newProjectName,
+          workspaceId: newProjectWorkspaceId
+        })
+      });
+      const newProject = await res.json() as Project
+      onProjectCreate?.();
+      router.push(`/project/${newProject.id}/traces`)
+      setIsCreatingProject(false)
+    } catch (e) {
+      toast({
+        title: 'Error creating project',
+        variant: 'destructive',
+        description: 'Possible reason: you have reached the projects limit in this workspace.'
       })
-    })
-
-    const newProject = await res.json() as Project
-
-    onProjectCreate?.();
-    router.push(`/project/${newProject.id}/traces`)
-    setIsCreatingProject(false)
+      setIsCreatingProject(false)
+    }
   }, [newProjectName, newProjectWorkspaceId])
 
   return (

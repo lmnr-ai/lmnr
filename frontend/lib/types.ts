@@ -36,3 +36,9 @@ export type DatatableFilter = {
   operator?: string;
   value?: string;
 }
+
+export type PaginatedResponse<T> = {
+  items: T[]
+  totalCount: number
+  anyInProject: boolean
+}

@@ -96,6 +96,18 @@ export function formatTimestampFromSeconds(seconds: number): string {
   return _innerFormatTimestamp(date);
 }
 
+export function formatTimestampFromSecondsWithInterval(seconds: number, interval: string): string {
+  const date = new Date(seconds * 1000);
+
+  if (interval === 'day') {
+    return date.toLocaleDateString('en-US', { day: '2-digit', month: 'numeric' });
+  } else if (interval === 'hour') {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  } else {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+}
+
 // Note that the formatted time is calculated for local time
 function _innerFormatTimestamp(date: Date): string {
   const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
@@ -266,4 +278,60 @@ export const getFilterFromUrlParams = (filter: string): DatatableFilter[] | unde
     return filters.filter((f: any) => typeof f === 'object' && f.column && f.operator && f.value) as DatatableFilter[];
   }
   return undefined;
+}
+
+export const getGroupByInterval = (
+  pastHours: string | undefined,
+  startDate: string | undefined,
+  endDate: string | undefined,
+  defaultGroupByInterval: string | undefined): string => {
+  let groupByInterval = 'hour';
+  // If explicitly specified in the URL, then use it
+  if (defaultGroupByInterval != undefined) {
+    return defaultGroupByInterval;
+  }
+  if (pastHours === "1") {
+    groupByInterval = "minute";
+  } else if (pastHours === "7") {
+    groupByInterval = "minute";
+  } else if (pastHours === "24") {
+    groupByInterval = "hour";
+  } else if (parseInt(pastHours ?? '0') > 24) {
+    groupByInterval = "day";
+  }
+  else if (pastHours === "all") {
+    groupByInterval = "day";
+  } else if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diff = end.getTime() - start.getTime();
+    if (diff > 48 * 60 * 60 * 1000) {  // 2 days
+      groupByInterval = "day";
+    } else if (diff < 6 * 60 * 60 * 1000) { // 6 hours
+      groupByInterval = "minute";
+    }
+  }
+  return groupByInterval;
+}
+
+export const isGroupByIntervalAvailable = (
+  pastHours: string | undefined,
+  startDate: string | undefined,
+  endDate: string | undefined,
+  interval: string | undefined): boolean => {
+  const minutes = pastHours
+    ? parseInt(pastHours) * 60
+    : startDate && endDate
+      ? Math.floor((new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000)
+      : 0;
+  if (interval === "minute") {
+    return minutes <= 12 * 60;
+  }
+  if (interval === "hour") {
+    return minutes <= 31 * 24 * 60;
+  }
+  if (interval === "day") {
+    return true;
+  }
+  return false;
 }

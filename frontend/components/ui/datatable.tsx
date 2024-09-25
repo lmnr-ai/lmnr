@@ -1,9 +1,11 @@
 import React, { use, useEffect } from 'react';
 import {
   ColumnDef,
+  ExpandedState,
   Row,
   flexRender,
   getCoreRowModel,
+  getExpandedRowModel,
   getPaginationRowModel,
   useReactTable
 } from '@tanstack/react-table';
@@ -23,8 +25,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from './label';
 import { Button } from './button';
 import { X } from 'lucide-react';
-import DataTableFilter from './datatable-filter';
-import DateRangeFilter from './date-range-filter';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -35,7 +35,7 @@ interface DataTableProps<TData> {
   // If not provided, then the row id is the index of the row in the data array
   getRowId?: (row: TData) => string;
 
-  onRowClick?: (row: TData) => void;
+  onRowClick?: (row: Row<TData>) => void;
 
   // ID of the row id that should be expanded in the side sheet. If null or undefined, side sheet is closed.
   // For now, must be controlled from the outside.
@@ -61,9 +61,7 @@ interface DataTableProps<TData> {
   // we cannot fetch all rowIds on the client side, so we need to know when the user selects all rows across all pages
   // and manage that externally
   onSelectAllAcrossPages?: (selectAll: boolean) => void;
-
-  filterColumns?: ColumnDef<TData>[];
-  enableDateRangeFilter?: boolean;
+  children?: React.ReactNode;
 }
 
 export function DataTable<TData>({
@@ -83,13 +81,13 @@ export function DataTable<TData>({
   className,
   enableRowSelection = false,
   onSelectedRowsChange,
-  filterColumns,
-  enableDateRangeFilter,
   onSelectAllAcrossPages,
+  children,
 }: DataTableProps<TData>) {
 
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({})
   const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = React.useState(false)
+  const [expandedRows, setExpandedRows] = React.useState<ExpandedState>({})
 
   useEffect(() => {
     onSelectedRowsChange?.(Object.keys(rowSelection))
@@ -141,6 +139,13 @@ export function DataTable<TData>({
     columns,
     columnResizeMode: 'onChange',
     columnResizeDirection: 'ltr',
+    getSubRows: (row: TData) => {
+      return (row as any).subRows;
+    },
+    enableExpanding: true,
+    getExpandedRowModel: getExpandedRowModel(),
+    getRowCanExpand: (row) => true,
+    onExpandedChange: setExpandedRows,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: !manualPagination ? getPaginationRowModel() : undefined,
     initialState: {
@@ -150,10 +155,11 @@ export function DataTable<TData>({
       }
     },
     defaultColumn: {
-      minSize: 50,
+      minSize: 100,
     },
     state: {
       rowSelection: allRowsAcrossAllPagesSelected && getRowId ? Object.fromEntries(data?.map(row => ([getRowId(row), true])) ?? []) : rowSelection,
+      expanded: expandedRows,
     },
     manualPagination: manualPagination,
     pageCount: pageCount == -1 ? undefined : pageCount,
@@ -172,54 +178,46 @@ export function DataTable<TData>({
     // }
   }, [defaultPageNumber])
 
-  if (!data) {
-    return (
-      <div className='flex flex-col space-y-2 p-4'>
-        <Skeleton className='w-full h-8' />
-        <Skeleton className='w-full h-8' />
-        <Skeleton className='w-full h-8' />
-      </div>
-    )
-  }
-
   const renderRow = (row: Row<TData>) => {
     const isSelected = (row.id === focusedRowId || row.getIsSelected());
     return (
       <TableRow
-        className={cn('flex min-w-full border-b', isSelected && 'bg-secondary', !!onRowClick && 'cursor-pointer')}
+        className={cn('flex min-w-full border-b', isSelected && 'bg-secondary/50', !!onRowClick && 'cursor-pointer', row.depth > 0 && 'bg-secondary/40')}
         key={row.id}
         data-state={row.getIsSelected() && 'selected'}
         onClick={() => {
-          onRowClick?.(row.original)
+          onRowClick?.(row)
         }}
       >
-        {row.getVisibleCells().map((cell: any, index) =>
-          <TableCell
-            className='relative flex-none w-full'
-            key={cell.id}
-            style={{
-              height: "38px",
-              width: cell.column.getSize(),
-            }}
-          >
-            {
-              row.getIsSelected() && (index === 0) && (
-                <div className="border-l-2 border-l-blue-400 absolute h-full left-0 top-0"></div>
-              )
-            }
-            <div className='absolute inset-0 items-center p-4 h-full flex'>
-              <div className='text-ellipsis overflow-hidden whitespace-nowrap'>
-                {flexRender(
-                  cell.column.columnDef.cell,
-                  cell.getContext()
-                )}
+        {
+          row.getVisibleCells().map((cell: any, index) =>
+            <TableCell
+              className='relative p-0 m-0'
+              key={cell.id}
+              style={{
+                height: "38px",
+                width: cell.column.getSize(),
+              }}
+            >
+              {
+                row.getIsSelected() && (index === 0) && (
+                  <div className="border-l-2 border-l-blue-400 absolute h-full left-0 top-0"></div>
+                )
+              }
+              <div className='absolute inset-0 items-center h-full flex px-4'>
+                <div className='text-ellipsis overflow-hidden whitespace-nowrap'>
+                  {flexRender(
+                    cell.column.columnDef.cell,
+                    cell.getContext()
+                  )}
+                </div>
               </div>
-            </div>
-          </TableCell>
-        )}
+            </TableCell>
+          )
+        }
         <TableCell className='flex-1'>
         </TableCell>
-      </TableRow>
+      </TableRow >
     )
   }
 
@@ -233,7 +231,7 @@ export function DataTable<TData>({
       <TableHeader className="sticky top-0 z-20 text-xs bg-background flex hover:bg-background">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow
-            className='hover:bg-background'
+            className='hover:bg-background p-0 m-0 w-full'
             key={headerGroup.id}
           >
             {headerGroup.headers.map((header) => (
@@ -242,84 +240,115 @@ export function DataTable<TData>({
                 style={{
                   width: header.getSize(),
                 }}
-                className="px-4"
+                className="p-0 m-0 relative"
                 key={header.id}
               >
-                <div className='flex h-full items-center relative group text-nowrap'>
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
+                <div className='absolute inset-0 items-center h-full border-r flex px-4 group'>
+                  <div className='text-ellipsis overflow-hidden whitespace-nowrap'>
+                    {flexRender(
                       header.column.columnDef.header,
                       header.getContext()
                     )}
+                    <div
+                      className={cn(' group-hover:bg-blue-300 group-hover:w-[2px] absolute w-[1px] bottom-0 top-0 right-0 bg-primary h-full cursor-col-resize transition-colors', header.column.getIsResizing() ? 'bg-blue-400' : 'bg-secondary')}
+                      onMouseDown={header.getResizeHandler()}
+                      onDoubleClick={() => header.column.resetSize()}
+                    ></div>
+                  </div>
+                </div>
+                {/* <div className='flex h-full items-center relative group text-nowrap'>
+                  {flexRender(
+                    header.column.columnDef.header,
+                    header.getContext()
+                  )}
                   <div
-                    className={cn('ml-4 group-hover:bg-blue-300 group-hover:w-[2px] absolute w-[1.5px] top-0 right-0 bg-primary h-full cursor-col-resize transition-colors', header.column.getIsResizing() ? 'bg-blue-400' : 'bg-secondary')}
+                    className={cn(' group-hover:bg-blue-300 group-hover:w-[2px] absolute w-[1px] bottom-0 top-0 right-0 bg-primary h-full cursor-col-resize transition-colors', header.column.getIsResizing() ? 'bg-blue-400' : 'bg-secondary')}
                     onMouseDown={header.getResizeHandler()}
                     onDoubleClick={() => header.column.resetSize()}
                   >
                   </div>
-                </div>
+                </div> */}
               </TableHead>
             ))}
           </TableRow>
         ))}
-        <TableRow className='flex-1 hover:bg-background'>
-        </TableRow>
       </TableHeader>
       <TableBody className=''>
-        {table.getRowModel().rows.length > 0 ? (
-          table.getRowModel().rows.map(renderRow)
-        ) : (emptyRow ?? (
-          <TableRow>
-            <TableCell
-              colSpan={columns.length}
-              className="text-center"
-            >
-              No results.
-            </TableCell>
-          </TableRow>
-        ))}
+        {
+          table.getRowModel().rows.length > 0
+            ? (table.getRowModel().rows.map(renderRow))
+            : (data !== undefined)
+              ? (emptyRow ?? (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="text-center p-4 text-secondary-foreground"
+                  >
+                    No results
+                  </TableCell>
+                </TableRow>
+              ))
+              :
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="text-center"
+                >
+                  <div className='flex flex-col space-y-2'>
+                    <Skeleton className='w-full h-8' />
+                    <Skeleton className='w-full h-8' />
+                    <Skeleton className='w-full h-8' />
+                  </div>
+                </TableCell>
+              </TableRow>
+        }
       </TableBody>
-    </Table >
+    </Table>
   )
+
+  const showSelection = Object.keys(rowSelection).length > 0 || allRowsAcrossAllPagesSelected || enableRowSelection;
+  const hasChildren = !!children;
 
   return (
     <div className={cn('flex flex-col h-full border-t', className)}>
-      {(Object.keys(rowSelection).length > 0 || allRowsAcrossAllPagesSelected || enableRowSelection || filterColumns || enableDateRangeFilter) &&
-        <div className='h-12 flex p-2 space-x-2 items-center border-b'>
-          {Object.keys(rowSelection).length > 0 &&
+      {(showSelection || hasChildren) &&
+        <div className='h-12 flex flex-none px-2 space-x-2 items-center border-b'>
+          {(showSelection) &&
             <>
-              <Button variant="outline" onClick={() => {
-                table.toggleAllRowsSelected(false)
-                setAllRowsAcrossAllPagesSelected(false)
-                onSelectAllAcrossPages?.(false)
-                setRowSelection({})
-              }}><X size={12} /></Button>
-              <Label className="">
-                {allRowsAcrossAllPagesSelected
-                  ? 'All rows in table '
-                  : `${Object.keys(rowSelection).length} ${Object.keys(rowSelection).length === 1 ? 'row ' : 'rows '}`}
-                selected.
-              </Label>
+              {Object.keys(rowSelection).length > 0 &&
+                <>
+                  <Button variant="outline" onClick={() => {
+                    table.toggleAllRowsSelected(false)
+                    setAllRowsAcrossAllPagesSelected(false)
+                    onSelectAllAcrossPages?.(false)
+                    setRowSelection({})
+                  }}><X size={12} /></Button>
+                  <Label className="">
+                    {allRowsAcrossAllPagesSelected
+                      ? 'All rows in table '
+                      : `${Object.keys(rowSelection).length} ${Object.keys(rowSelection).length === 1 ? 'row ' : 'rows '}`}
+                    selected.
+                  </Label>
+                </>
+              }
+              {
+                manualPagination && pageCount > 1 && table.getIsAllRowsSelected() && !allRowsAcrossAllPagesSelected && (
+                  <>
+                    <Label
+                      className='text-blue-500 hover:cursor-pointer'
+                      onClick={() => {
+                        setAllRowsAcrossAllPagesSelected(true)
+                        onSelectAllAcrossPages?.(true)
+                      }}
+                    > Select all {totalItemsCount}
+                    </Label>
+                  </>
+                )
+              }
             </>
           }
-          {
-            manualPagination && pageCount > 1 && table.getIsAllRowsSelected() && !allRowsAcrossAllPagesSelected && (
-              <>
-                <Label
-                  className='text-blue-500 hover:cursor-pointer'
-                  onClick={() => {
-                    setAllRowsAcrossAllPagesSelected(true)
-                    onSelectAllAcrossPages?.(true)
-                  }}
-                > Select all {totalItemsCount}
-                </Label>
-              </>
-            )
-          }
-          {filterColumns && <DataTableFilter columns={filterColumns} />}
-          {enableDateRangeFilter && <DateRangeFilter />}
-        </div >
+          {children}
+        </div>
       }
       <ScrollArea className="flex-grow overflow-auto border-b">
         <div className='max-h-0'>

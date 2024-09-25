@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, PgPool};
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize, Serialize, FromRow)]
+#[derive(Debug, Deserialize, Serialize, FromRow, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
     pub id: Option<Uuid>,

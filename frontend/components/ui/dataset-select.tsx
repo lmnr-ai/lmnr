@@ -2,6 +2,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react"
 import { useProjectContext } from "@/contexts/project-context"
 import { Dataset } from "@/lib/dataset/types"
+import { PaginatedResponse } from "@/lib/types"
 
 interface DatasetSelectProps {
   onDatasetChange: (dataset: Dataset) => void
@@ -16,8 +17,8 @@ export default function DatasetSelect({ onDatasetChange, selectedDatasetId }: Da
   useEffect(() => {
     fetch(`/api/projects/${projectId}/datasets`)
       .then(res => res.json())
-      .then(datasets => {
-        setDatasets(datasets)
+      .then((datasets: PaginatedResponse<Dataset>) => {
+        setDatasets(datasets.items)
       })
   }, [])
 

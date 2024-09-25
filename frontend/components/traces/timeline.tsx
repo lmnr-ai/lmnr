@@ -4,6 +4,7 @@ import { ScrollArea, ScrollBar } from "../ui/scroll-area";
 import { Table } from "../ui/table";
 import { Span } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
 interface TimelineProps {
   spans: Span[]
@@ -22,6 +23,8 @@ interface Segment {
   span: Span
   events: SegmentEvent[]
 }
+
+const HEIGHT = 32
 
 export default function Timeline({ spans, childSpans }: TimelineProps) {
 
@@ -140,7 +143,7 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
       className="flex flex-col h-full w-full"
       ref={ref}
     >
-      <div className="bg-background flex text-xs w-full border-b z-30 sticky top-0 h-12 px-4">
+      <div className="bg-background flex text-xs w-full border-b z-40 sticky top-0 h-12 px-4">
         {
           timeIntervals.map((interval, index) => (
             <div
@@ -162,12 +165,13 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
             segments.map((segment, index) => (
               <div
                 key={index}
-                className={cn("rounded relative z-20", segment.span.spanType === "DEFAULT" ? "bg-blue-400" : "bg-purple-600")}
+                className="rounded relative z-20"
                 style={
                   {
+                    backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
                     marginLeft: segment.left + "%",
-                    width: segment.width + "%",
-                    height: 24,
+                    width: "max(" + segment.width + "%, 2px)",
+                    height: HEIGHT,
                   }
                 }
               >
@@ -178,8 +182,8 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
                       className="absolute bg-orange-400 w-1 rounded"
                       style={{
                         left: event.left + "%",
-                        top: -2,
-                        height: 28
+                        top: 0,
+                        height: HEIGHT
                       }}
                     />
                   ))

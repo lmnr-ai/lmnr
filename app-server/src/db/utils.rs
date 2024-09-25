@@ -2,9 +2,12 @@ use std::str::FromStr;
 
 use rand::distributions::{Alphanumeric, DistString};
 use serde_json::json;
+use sqlx::{Postgres, QueryBuilder};
 use uuid::Uuid;
 
 use crate::opentelemetry::opentelemetry_proto_common_v1;
+
+use super::modifiers::DateRange;
 
 pub fn generate_random_key() -> String {
     Alphanumeric.sample_string(&mut rand::thread_rng(), 64)
@@ -64,4 +67,56 @@ pub fn span_id_to_uuid(span_id: &[u8]) -> Uuid {
     let mut padded_vec = vec![0; 8];
     padded_vec.extend_from_slice(&span_id.to_vec());
     Uuid::from_slice(&padded_vec).unwrap()
+}
+
+pub fn validate_sql_string(s: &str) -> bool {
+    s.chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+}
+
+pub fn add_date_range_to_query(
+    query: &mut QueryBuilder<Postgres>,
+    date_range: &Option<DateRange>,
+    column_name: &str,
+    column_name_end: Option<&str>,
+) -> anyhow::Result<()> {
+    let Some(date_range) = date_range else {
+        return Ok(());
+    };
+    if !validate_sql_string(column_name) {
+        return Ok(());
+    }
+    if column_name_end.is_some_and(|s| !validate_sql_string(s)) {
+        return Ok(());
+    }
+
+    match date_range {
+        DateRange::Relative(interval) => {
+            let past_hours = if interval.past_hours == "all" {
+                None
+            } else {
+                Some(interval.past_hours.parse::<i64>()?)
+            };
+            if let Some(past_hours) = past_hours {
+                query.push(format!(
+                    " AND {} >= NOW() - interval '{} hours'",
+                    column_name, past_hours
+                ));
+            }
+        }
+        DateRange::Absolute(interval) => {
+            query
+                // .push(" AND start_time >= ")
+                .push(" AND ")
+                .push(column_name)
+                .push(" >= ")
+                .push_bind(interval.start_date)
+                .push(" AND ")
+                .push(column_name_end.unwrap_or(column_name))
+                .push(" <= ")
+                .push_bind(interval.end_date);
+        }
+    };
+
+    Ok(())
 }

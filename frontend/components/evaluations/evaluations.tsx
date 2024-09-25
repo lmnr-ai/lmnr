@@ -23,7 +23,7 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
     {
       accessorKey: "status",
       header: "Status",
-      size: 80
+      size: 120
     },
     {
       accessorKey: "id",
@@ -63,7 +63,7 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
       </div>
       <div className="flex-grow">
         <DataTable columns={columns} data={evaluations} onRowClick={(row) => {
-          router.push(`/project/${projectId}/evaluations/${row.id}`)
+          router.push(`/project/${projectId}/evaluations/${row.original.id}`)
         }} />
       </div>
     </div>

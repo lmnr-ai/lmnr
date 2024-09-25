@@ -42,6 +42,7 @@ function AbsoluteDateRangeFilter() {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
+  const pastHours = searchParams.get('pastHours');
   const [calendarDate, setCalendarDate] = useState<ReactDateRange | undefined>(undefined);
   useEffect(() => {
     let urlFrom: Date | undefined = undefined;
@@ -59,13 +60,14 @@ function AbsoluteDateRangeFilter() {
         urlTo = new Date(searchParams.get('endDate') as string);
       }
     } catch (e) { }
-    if (calendarDate === undefined) {
+
+    if (calendarDate === undefined || urlFrom === undefined || urlTo === undefined) {
       setCalendarDate({
         from: urlFrom,
         to: urlTo
       });
     }
-  }, []);
+  }, [pastHours]);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
   return (
@@ -119,7 +121,6 @@ function AbsoluteDateRangeFilter() {
                   const from = calendarDate?.from;
                   if (from) {
                     const time = e.target.value;
-                    console.log(time);
                     const [hours, minutes] = time.split(":");
                     from.setHours(parseInt(hours));
                     from.setMinutes(parseInt(minutes));
@@ -144,7 +145,6 @@ function AbsoluteDateRangeFilter() {
                   const to = calendarDate?.to;
                   if (to) {
                     const time = e.target.value;
-                    console.log(time);
                     const [hours, minutes] = time.split(":");
                     to.setHours(parseInt(hours));
                     to.setMinutes(parseInt(minutes));
@@ -167,6 +167,7 @@ function AbsoluteDateRangeFilter() {
                 setIsPopoverOpen(false);
                 router.push(`${pathName}?${searchParams.toString()}`);
               }}
+              handleEnter
             >
               Apply
             </Button>
@@ -193,20 +194,20 @@ export default function DateRangeFilter() {
 
   return (
     <div className="flex items-start flex-none space-x-4">
-      <div className="flex rounded border h-[32px]">
+      <div className="flex rounded-md border h-8">
         {
           <>
             {RANGES.map((range, index) => (
               <div
                 key={index}
-                className={cn("h-full items-center flex px-2 cursor-pointer",
+                className={cn("h-full items-center flex px-2 cursor-pointer border-r",
                   range.value === selectedRange?.value ? "bg-secondary/80" : "hover:bg-secondary/80")}
                 onClick={() => {
                   searchParams.delete('startDate');
                   searchParams.delete('endDate');
+                  searchParams.delete('groupByInterval');
                   searchParams.set('pastHours', range.value);
                   router.push(`${pathName}?${searchParams.toString()}`);
-                  console.log(searchParams.toString());
                 }}
               >
                 {range.name}

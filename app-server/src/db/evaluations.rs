@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use super::DB;
 
-#[derive(sqlx::Type, Deserialize, Serialize)]
+#[derive(sqlx::Type, Deserialize, Serialize, PartialEq)]
 #[sqlx(type_name = "evaluation_job_status")]
 pub enum EvaluationStatus {
     Started,
@@ -24,7 +24,7 @@ pub enum EvaluationDatapointStatus {
     Error,
 }
 
-#[derive(Deserialize, Serialize, FromRow)]
+#[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Evaluation {
     pub id: Uuid,
@@ -32,7 +32,7 @@ pub struct Evaluation {
     pub name: String,
     pub status: EvaluationStatus,
     pub project_id: Uuid,
-    pub score_names: Value, // Vec<String>
+    pub average_scores: Option<Value>,
 }
 
 #[derive(Serialize, FromRow)]
@@ -47,6 +47,7 @@ pub struct EvaluationDatapointPreview {
     pub status: EvaluationDatapointStatus,
     pub executor_output: Option<Value>,
     pub error: Option<Value>,
+    pub trace_id: Uuid,
 }
 
 pub async fn create_evaluation(
@@ -55,62 +56,39 @@ pub async fn create_evaluation(
     status: EvaluationStatus,
     project_id: Uuid,
 ) -> Result<Evaluation> {
-    // FIXME: This is done simply to return eval info to the caller,
-    // even when the evaluation already exists.
-    // `DO UPDATE set dummy` is not a good way to handle this, as the update is not atomic.
-    // See: https://stackoverflow.com/questions/34708509/how-to-use-returning-with-on-conflict-in-postgresql
-    // Possible alternatives:
-    // (1) ON CONFLICT DO NOTHING and then query the evaluation separately,
-    // (2) figure out how the solution from https://stackoverflow.com/a/62205017/18249562 works with sqlx.
-    //     Currently because UNION will not necessarily work,
-    //     it infers the return type as Option<T> for each col.
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "INSERT INTO evaluations (name, status, project_id, score_names)
-        VALUES ($1, $2::evaluation_job_status, $3, $4)
-        ON CONFLICT (name, project_id) DO UPDATE SET name = $1
+        "INSERT INTO evaluations (name, status, project_id)
+        VALUES ($1, $2::evaluation_job_status, $3)
         RETURNING
             id,
             created_at,
             name,
             status,
             project_id,
-            score_names",
+            average_scores",
     )
     .bind(name)
     .bind(&status)
     .bind(project_id)
-    .bind(serde_json::Value::Array(Vec::new()))
     .fetch_one(pool)
     .await?;
 
     Ok(evaluation)
 }
 
-pub async fn get_evaluation(db: Arc<DB>, evaluation_id: Uuid) -> Result<Evaluation> {
-    let evaluation = sqlx::query_as::<_, Evaluation>(
-        "SELECT
-            id, name, status, project_id, created_at, score_names
-        FROM evaluations WHERE id = $1",
-    )
-    .bind(evaluation_id)
-    .fetch_one(&db.pool)
-    .await?;
-
-    Ok(evaluation)
-}
-
-pub async fn get_evaluation_by_name(
-    pool: &PgPool,
+pub async fn get_evaluation(
+    db: Arc<DB>,
     project_id: Uuid,
-    name: &str,
+    evaluation_id: Uuid,
 ) -> Result<Evaluation> {
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "SELECT id, name, status, project_id, created_at, score_names
-        FROM evaluations WHERE project_id = $1 AND name = $2",
+        "SELECT
+            id, name, status, project_id, created_at, average_scores
+        FROM evaluations WHERE id = $1 AND project_id = $2",
     )
+    .bind(evaluation_id)
     .bind(project_id)
-    .bind(name)
-    .fetch_one(pool)
+    .fetch_one(&db.pool)
     .await?;
 
     Ok(evaluation)
@@ -118,7 +96,7 @@ pub async fn get_evaluation_by_name(
 
 pub async fn get_evaluations(pool: &PgPool, project_id: Uuid) -> Result<Vec<Evaluation>> {
     let evaluations = sqlx::query_as::<_, Evaluation>(
-        "SELECT id, name, status, project_id, created_at, score_names
+        "SELECT id, name, status, project_id, created_at, average_scores
         FROM evaluations WHERE project_id = $1
         ORDER BY created_at DESC",
     )
@@ -135,7 +113,7 @@ pub async fn get_finished_evaluation_infos(
     exclude_id: Uuid,
 ) -> Result<Vec<Evaluation>> {
     let evaluations = sqlx::query_as::<_, Evaluation>(
-        "SELECT id, name, status, project_id, created_at, score_names
+        "SELECT id, name, status, project_id, created_at, average_scores
         FROM evaluations
         WHERE project_id = $1 AND status = 'Finished'::evaluation_job_status AND id != $2
         ORDER BY created_at DESC",
@@ -148,24 +126,27 @@ pub async fn get_finished_evaluation_infos(
     Ok(evaluations)
 }
 
-pub async fn update_evaluation_status_by_name(
+pub async fn update_evaluation_status(
     pool: &PgPool,
-    evaluation_name: String,
     project_id: Uuid,
+    evaluation_id: Uuid,
     status: EvaluationStatus,
-) -> Result<()> {
-    sqlx::query(
+    average_scores: Option<Value>,
+) -> Result<Evaluation> {
+    let evaluation = sqlx::query_as::<_, Evaluation>(
         "UPDATE evaluations
-        SET status = $3
-        WHERE name = $1 AND project_id = $2",
+        SET status = $3, average_scores = $4
+        WHERE id = $2 AND project_id = $1
+        RETURNING id, name, status, project_id, created_at, average_scores",
     )
-    .bind(evaluation_name)
     .bind(project_id)
+    .bind(evaluation_id)
     .bind(status)
-    .execute(pool)
+    .bind(average_scores)
+    .fetch_one(pool)
     .await?;
 
-    Ok(())
+    Ok(evaluation)
 }
 
 /// Record evaluation results in the database.
@@ -178,9 +159,8 @@ pub async fn set_evaluation_results(
     scores: &Vec<HashMap<String, f64>>,
     datas: &Vec<Value>,
     targets: &Vec<Value>,
-    executor_trace_ids: &Vec<Option<Uuid>>,
-    evaluator_trace_ids: &Vec<Option<Uuid>>,
     executor_outputs: &Vec<Option<Value>>,
+    trace_ids: &Vec<Uuid>,
     error: &Vec<Option<Value>>,
 ) -> Result<()> {
     let scores = scores
@@ -196,33 +176,30 @@ pub async fn set_evaluation_results(
             data,
             target,
             executor_output,
-            evaluator_trace_id,
-            executor_trace_id,
+            trace_id,
             index_in_batch,
             error
         )
         SELECT 
-            $10 as evaluation_id,
+            $9 as evaluation_id,
             status as "status: EvaluationStatus",
             scores,
             data,
             target,
             executor_output,
-            evaluator_trace_id,
-            executor_trace_id,
+            trace_id,
             index_in_batch,
             error
         FROM
-        UNNEST ($1::evaluation_status[], $2::jsonb[], $3::jsonb[], $4::jsonb[], $5::jsonb[], $6::uuid[], $7::uuid[], $8::int8[], $9::jsonb[])
-        AS tmp_table(status, scores, data, target, executor_output, evaluator_trace_id, executor_trace_id, index_in_batch, error)"#,
+        UNNEST ($1::evaluation_status[], $2::jsonb[], $3::jsonb[], $4::jsonb[], $5::jsonb[], $6::uuid[], $7::int8[], $8::jsonb[])
+        AS tmp_table(status, scores, data, target, executor_output, trace_id, index_in_batch, error)"#,
     )
     .bind(statuses)
     .bind(scores)
     .bind(datas)
     .bind(targets)
     .bind(executor_outputs)
-    .bind(evaluator_trace_ids)
-    .bind(executor_trace_ids)
+    .bind(trace_ids)
     .bind(Vec::from_iter(0..statuses.len() as i64))
     .bind(error)
     .bind(evaluation_id)
@@ -232,18 +209,6 @@ pub async fn set_evaluation_results(
     if let Err(e) = res {
         log::error!("Error inserting evaluation results: {}", e);
     }
-
-    // let new_score_names: HashSet<String> = scores
-    //     .iter()
-    //     .flat_map(|score| score.as_object().unwrap().keys())
-    //     .map(|s| s.to_string())
-    //     .collect();
-
-    // let res = add_score_names_to_evaluation(pool, evaluation_id, new_score_names).await;
-
-    // if let Err(e) = res {
-    //     log::error!("Error adding score names to evaluation: {}", e);
-    // }
 
     Ok(())
 }
@@ -260,8 +225,9 @@ pub async fn get_evaluation_results(
             status,
             data,
             target,
-            scores,
             executor_output,
+            scores,
+            trace_id,
             error
         FROM evaluation_results
         WHERE evaluation_id = $1
@@ -317,6 +283,7 @@ pub async fn get_evaluation_datapoint(
             scores,
             data,
             target,
+            trace_id,
             executor_output,
             error
         FROM evaluation_results

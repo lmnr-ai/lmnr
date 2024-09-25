@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
+use super::{attributes::EVENT_TYPE, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
 
 // TODO: Implement partial_success
 pub async fn process_trace_export(
@@ -43,9 +43,11 @@ pub async fn process_trace_export(
                         .collect::<serde_json::Map<String, serde_json::Value>>();
 
                     let Some(serde_json::Value::String(event_type)) =
-                        event_attributes.get("lmnr.event.type")
+                        event_attributes.get(EVENT_TYPE)
                     else {
-                        log::warn!("Unknown event type: {:?}", event);
+                        if event.name != "llm.content.completion.chunk" {
+                            log::warn!("Unknown event type: {:?}", event);
+                        }
                         continue;
                     };
 

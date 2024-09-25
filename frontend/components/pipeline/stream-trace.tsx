@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { SpanCard } from '../traces/trace-card'
+import { SpanCard } from '../traces/span-card'
 import { getDuration, getDurationString, renderNodeInput } from '@/lib/flow/utils'
 import { ScrollArea } from '../ui/scroll-area'
 import { Label } from '../ui/label'

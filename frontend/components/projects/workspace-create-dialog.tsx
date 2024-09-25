@@ -14,7 +14,6 @@ import { Loader, Plus } from "lucide-react";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 
-
 interface WorkspaceCreateDialogProps {
   onWorkspaceCreate?: () => void
 }
@@ -23,7 +22,6 @@ export default function WorkspaceCreateDialog({ onWorkspaceCreate }: WorkspaceCr
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
 
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
-
   const router = useRouter();
 
   const createNewWorkspace = async () => {

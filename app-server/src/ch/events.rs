@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_repr::Serialize_repr;
 use uuid::Uuid;
 
@@ -9,7 +9,11 @@ use crate::db::{self, event_templates::EventTemplate};
 
 use super::{
     modifiers::GroupByInterval,
-    utils::{chrono_to_nanoseconds, TimeBounds},
+    utils::{
+        chrono_to_nanoseconds, execute_query, group_by_time_absolute_statement,
+        group_by_time_relative_statement,
+    },
+    MetricTimeValue,
 };
 
 #[derive(Debug, Serialize_repr)]
@@ -63,12 +67,6 @@ pub struct CHEvent {
     pub project_id: Uuid,
 }
 
-#[derive(Deserialize, Row, Serialize)]
-pub struct IntMetricTimeValue {
-    pub time: u32,
-    pub value: i64,
-}
-
 impl CHEvent {
     pub fn from_data(
         id: Uuid,
@@ -118,78 +116,30 @@ pub async fn insert_events(clickhouse: clickhouse::Client, events: Vec<CHEvent>)
     }
 }
 
-pub async fn get_time_bounds(
-    clickhouse: clickhouse::Client,
-    project_id: Uuid,
-    template_id: Uuid,
-) -> Result<TimeBounds> {
-    let query_string = format!(
-        "SELECT
-            MIN(timestamp) AS min_time,
-            MAX(timestamp) AS max_time
-        FROM
-            events
-        WHERE project_id = '{}' AND template_id = '{}'",
-        project_id, template_id
-    );
-
-    let mut cursor = clickhouse.query(&query_string).fetch::<TimeBounds>()?;
-
-    let time_bounds = cursor.next().await?.unwrap();
-    Ok(time_bounds)
-}
-
 pub async fn get_total_event_count_metrics_relative(
     clickhouse: clickhouse::Client,
     group_by_interval: GroupByInterval,
     project_id: Uuid,
     template_id: Uuid,
     past_hours: i64,
-) -> Result<Vec<IntMetricTimeValue>> {
+) -> Result<Vec<MetricTimeValue<i64>>> {
     let ch_round_time = group_by_interval.to_ch_truncate_time();
-    let ch_interval = group_by_interval.to_interval();
-    let ch_step = group_by_interval.to_ch_step();
 
     let query_string = format!(
         "
     SELECT
-        {}(timestamp) AS time,
+        {ch_round_time}(timestamp) AS time,
         COUNT(DISTINCT id) AS value
     FROM events
     WHERE
-        project_id = '{}'
-        AND template_id = '{}'
-        AND timestamp >= now() - INTERVAL {} HOUR
-    GROUP BY
-        time
-    ORDER BY
-        time
-    WITH FILL
-    FROM {}(NOW() - INTERVAL {} HOUR + INTERVAL {})
-    TO {}(NOW() + INTERVAL {})
-    STEP {}",
-        ch_round_time,
-        project_id,
-        template_id,
-        past_hours,
-        ch_round_time,
-        past_hours,
-        ch_interval,
-        ch_round_time,
-        ch_interval,
-        ch_step
+        project_id = '{project_id}'
+        AND template_id = '{template_id}'
+        AND timestamp >= now() - INTERVAL {past_hours} HOUR
+    {}",
+        group_by_time_relative_statement(past_hours, group_by_interval),
     );
 
-    let mut cursor = clickhouse
-        .query(&query_string)
-        .fetch::<IntMetricTimeValue>()?;
-
-    let mut res = Vec::new();
-    while let Some(row) = cursor.next().await? {
-        res.push(row);
-    }
-
-    Ok(res)
+    execute_query(&clickhouse, &query_string).await
 }
 
 pub async fn get_total_event_count_metrics_absolute(
@@ -199,51 +149,25 @@ pub async fn get_total_event_count_metrics_absolute(
     template_id: Uuid,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
-) -> Result<Vec<IntMetricTimeValue>> {
+) -> Result<Vec<MetricTimeValue<i64>>> {
     let ch_round_time = group_by_interval.to_ch_truncate_time();
-    let ch_step = group_by_interval.to_ch_step();
     let ch_start_time = start_time.timestamp();
     let ch_end_time = end_time.timestamp();
 
     let query_string = format!(
         "
     SELECT
-        {}(timestamp) AS time,
+        {ch_round_time}(timestamp) AS time,
         COUNT(DISTINCT id) AS value
     FROM events
     WHERE
-        project_id = '{}'
-        AND template_id = '{}'
-        AND timestamp >= fromUnixTimestamp({})
-        AND timestamp <= fromUnixTimestamp({})
-    GROUP BY
-        time
-    ORDER BY
-        time
-    WITH FILL
-    FROM {}(fromUnixTimestamp({}))
-    TO {}(fromUnixTimestamp({}))
-    STEP {}",
-        ch_round_time,
-        project_id,
-        template_id,
-        ch_start_time,
-        ch_end_time,
-        ch_round_time,
-        ch_start_time,
-        ch_round_time,
-        ch_end_time,
-        ch_step
+        project_id = '{project_id}'
+        AND template_id = '{template_id}'
+        AND timestamp >= fromUnixTimestamp({ch_start_time})
+        AND timestamp <= fromUnixTimestamp({ch_end_time})
+    {}",
+        group_by_time_absolute_statement(start_time, end_time, group_by_interval)
     );
 
-    let mut cursor = clickhouse
-        .query(&query_string)
-        .fetch::<IntMetricTimeValue>()?;
-
-    let mut res = Vec::new();
-    while let Some(row) = cursor.next().await? {
-        res.push(row);
-    }
-
-    Ok(res)
+    execute_query(&clickhouse, &query_string).await
 }

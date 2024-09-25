@@ -2,7 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::trace::Span,
+    db::trace::{Span, TraceType},
     engine::{engine::EngineOutput, Engine},
     routes::pipelines::GraphInterruptMessage,
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
@@ -14,10 +14,7 @@ use serde::Serialize;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
-use crate::{
-    chunk::runner::ChunkerRunner, language_model::LanguageModelRunner,
-    semantic_search::SemanticSearch,
-};
+use crate::{language_model::LanguageModelRunner, semantic_search::SemanticSearch};
 
 use super::{
     context::Context,
@@ -91,7 +88,6 @@ impl Serialize for PipelineRunnerError {
 #[derive(Debug, Clone)]
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
-    chunker_runner: Arc<ChunkerRunner>,
     semantic_search: Arc<SemanticSearch>,
     rabbitmq_connection: Arc<Connection>,
 }
@@ -99,13 +95,11 @@ pub struct PipelineRunner {
 impl PipelineRunner {
     pub fn new(
         language_model: Arc<LanguageModelRunner>,
-        chunker_runner: Arc<ChunkerRunner>,
         semantic_search: Arc<SemanticSearch>,
         rabbitmq_connection: Arc<Connection>,
     ) -> Self {
         Self {
             language_model,
-            chunker_runner,
             semantic_search,
             rabbitmq_connection,
         }
@@ -127,7 +121,6 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
-            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
@@ -169,7 +162,6 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
-            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
@@ -207,6 +199,7 @@ impl PipelineRunner {
         pipeline_version_name: &String,
         parent_span_id: Option<Uuid>,
         trace_id: Option<Uuid>,
+        trace_type: Option<TraceType>,
     ) -> Result<()> {
         let engine_output = match run_output {
             Ok(engine_output) => engine_output,
@@ -220,6 +213,7 @@ impl PipelineRunner {
             parent_span_id,
             pipeline_version_name,
             &engine_output.messages,
+            trace_type.unwrap_or_default(),
         );
 
         let message_spans = Span::from_messages(

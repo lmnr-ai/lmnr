@@ -21,6 +21,7 @@ import { DataTable } from '../ui/datatable';
 import { useRouter } from 'next/navigation';
 import Header from '../ui/header';
 import { TableCell, TableRow } from '../ui/table';
+import { useUserContext } from '@/contexts/user-context';
 
 function capitalizeFirstLetter(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -144,7 +145,7 @@ export default function Pipelines() {
             data={data}
             columns={[...columns]}
             onRowClick={(row) => {
-              router.push(`/project/${projectId}/pipelines/${row.id}`)
+              router.push(`/project/${projectId}/pipelines/${row.original.id}`)
               router.refresh()
             }}
             emptyRow={
