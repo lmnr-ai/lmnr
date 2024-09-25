@@ -40,6 +40,16 @@ This will spin up the following containers:
 - postgres – the database for all the application data
 - clickhouse – columnar OLAP database for more efficient event and trace analytics
 
+#### Local development
+
+The simple set up above will pull latest Laminar images from Github Container Registry.
+
+If you want to test your local changes, you will need to build from source using [Local docker compose](./docker-compose-local-dev.yml)
+
+```sh
+docker compose -f docker-compose-local-dev.yml up --build
+```
+
 ### Instrumenting Python code
 
 First, create a project and generate a Project API Key. Then,
