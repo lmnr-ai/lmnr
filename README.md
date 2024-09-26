@@ -2,8 +2,10 @@
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
 <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
-## Laminar - Open-Source observability, analytics, evals and prompt chains for complex LLM apps.
-<img width="1439" alt="traces" src="https://github.com/user-attachments/assets/88e1f801-1dbf-4e5b-af71-1a3923661cd1">
+# Laminar - LLM engineering from first principles
+
+Laminar is an open-source platform for engineering LLM products. Trace, evaluate, annotate, and analyze LLM data. Bring LLM applications to production with confidence.
+<img width="1445" alt="Screenshot 2024-09-25 at 8 58 56 PM" src="https://github.com/user-attachments/assets/f6bd4208-6380-42c6-9ede-47ebc81a3d25">
 
 
 Think of it as DataDog + PostHog for LLM apps.
