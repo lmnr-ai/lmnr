@@ -9,12 +9,6 @@ export function mergeOriginalWithComparedDatapoints(results: EvaluationDatapoint
   for (let i = 0; i < minLen; i++) {
     const original = results[i];
     const compared = comparedResults[i];
-
-    if (original.status === 'Error' || compared.status === 'Error') {
-      mergedResults.push(original as EvaluationDatapointPreviewWithCompared);
-      continue;
-    }
-
     const merged: EvaluationDatapointPreviewWithCompared = {
       ...original,
       comparedId: compared.id,

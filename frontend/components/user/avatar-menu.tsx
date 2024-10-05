@@ -14,7 +14,7 @@ export default function AvatarMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger>
         <div className='flex items-center'>
-          <Image src={imageUrl} alt="avatar" width={28} height={28} className="border rounded-full cursor-pointer" />
+          <div className="border rounded-full cursor-pointer w-[28px] h-[28px] bg-black" />
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent>

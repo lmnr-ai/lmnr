@@ -56,6 +56,7 @@ mod language_model;
 mod names;
 mod opentelemetry;
 mod pipeline;
+mod projects;
 mod routes;
 mod runtime;
 mod semantic_search;
@@ -63,7 +64,7 @@ mod traces;
 
 const DEFAULT_CACHE_SIZE: u64 = 100; // entries
 
-pub fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
+fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
 }
 
@@ -103,8 +104,7 @@ fn main() -> anyhow::Result<()> {
         Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
     caches.insert(TypeId::of::<PipelineVersion>(), pipeline_version_cache);
 
-    let cache = Cache::new(caches);
-    let cache = Arc::new(cache);
+    let cache = Arc::new(Cache::new(caches));
 
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
@@ -239,6 +239,8 @@ fn main() -> anyhow::Result<()> {
                     .await
                     .unwrap();
 
+                let name_generator = Arc::new(NameGenerator::new());
+
                 HttpServer::new(move || {
                     let auth = HttpAuthentication::bearer(auth::validator);
                     let project_auth = HttpAuthentication::bearer(auth::project_validator);
@@ -259,8 +261,6 @@ fn main() -> anyhow::Result<()> {
                         rabbitmq_connection.clone(),
                         clickhouse.clone(),
                     ));
-
-                    let name_generator = Arc::new(NameGenerator::new());
 
                     App::new()
                         .wrap(Logger::default())
@@ -287,8 +287,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::pipelines::run_pipeline_graph)
                                 .service(api::v1::traces::get_events_for_session)
                                 .service(api::v1::evaluations::create_evaluation)
-                                .service(api::v1::evaluations::upload_evaluation_datapoints)
-                                .service(api::v1::evaluations::update_evaluation)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::traces::process_traces)
                                 .app_data(PayloadConfig::new(10 * 1024 * 1024)),
@@ -356,7 +354,6 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::pipelines::get_pipeline_version)
                                         .service(routes::pipelines::get_version)
                                         .service(routes::pipelines::get_templates)
-                                        .service(routes::pipelines::create_template)
                                         .service(routes::pipelines::run_pipeline_interrupt_graph)
                                         .service(routes::pipelines::update_target_pipeline_version)
                                         .service(routes::api_keys::create_project_api_key)
@@ -365,7 +362,10 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::evaluations::get_evaluation)
                                         .service(routes::evaluations::delete_evaluation)
                                         .service(routes::evaluations::get_evaluation_datapoint)
-                                        .service(routes::evaluations::get_evaluation_stats)
+                                        .service(routes::evaluations::get_evaluation_score_stats)
+                                        .service(
+                                            routes::evaluations::get_evaluation_score_distribution,
+                                        )
                                         .service(routes::datasets::get_datasets)
                                         .service(routes::datasets::create_dataset)
                                         .service(routes::datasets::get_dataset)
@@ -379,20 +379,17 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::datasets::delete_all_datapoints)
                                         .service(routes::datasets::index_dataset)
                                         .service(routes::evaluations::get_evaluations)
-                                        .service(routes::evaluations::get_finished_evaluation_infos)
                                         .service(routes::evaluations::get_evaluation)
                                         .service(routes::evaluations::get_evaluation_datapoint)
                                         .service(routes::traces::get_traces)
                                         .service(routes::traces::get_single_trace)
                                         .service(routes::traces::get_single_span)
-                                        .service(routes::traces::get_trace_id_for_span)
                                         .service(routes::traces::get_sessions)
                                         .service(routes::labels::create_label_class)
                                         .service(routes::labels::get_label_types)
                                         .service(routes::labels::get_span_labels)
                                         .service(routes::labels::update_span_label)
                                         .service(routes::labels::delete_span_label)
-                                        .service(routes::traces::export_span)
                                         .service(routes::events::get_event_templates)
                                         .service(routes::events::get_event_template)
                                         .service(routes::events::update_event_template)

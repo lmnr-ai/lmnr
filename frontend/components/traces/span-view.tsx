@@ -1,15 +1,12 @@
-import { getDurationString, isChatMessageList, renderNodeInput } from "@/lib/flow/utils";
-import { GraphMessage } from "@/lib/pipeline/types";
-import { useEffect, useState } from "react";
+import { getDurationString, isChatMessageList } from "@/lib/flow/utils";
 import useSWR from "swr";
 import { useProjectContext } from "@/contexts/project-context";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/utils";
 import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { ScrollArea } from "../ui/scroll-area";
 import Formatter from "../ui/formatter";
 import { Span, SpanType } from "@/lib/traces/types";
-import { Button } from "../ui/button";
 import { Activity, ArrowRight, Braces, CircleDollarSign, Clock3, Coins, Gauge, MessageCircleMore, X } from "lucide-react";
 import SpanEvents from "./span-events";
 import ChatMessageListTab from "./chat-message-list-tab";
@@ -19,71 +16,68 @@ import { AddLabelPopover } from "./add-label-popover";
 import ExportSpansDialog from "./export-spans-dialog";
 
 interface SpanViewProps {
-  spanPreview: Span;
-  onCloseClick?: () => void;
+  spanId: string;
 }
 
-type TabName = 'span' | 'events' | 'attributes' | 'labels';
-
-export function SpanView({ spanPreview, onCloseClick }: SpanViewProps) {
+export function SpanView({ spanId }: SpanViewProps) {
 
   const { projectId } = useProjectContext();
-  const [selectedTab, setSelectedTab] = useState<TabName>('span')
+  const { data: span }: { data: Span } = useSWR(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher)
 
-  const { data: span }: { data: Span } = useSWR(`/api/projects/${projectId}/spans/${spanPreview.spanId}`, swrFetcher)
+  if (!span) {
+    return (
+      <div className="flex flex-col space-y-2 p-4">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    )
+  }
 
   return (
     <>
       <Tabs
         className='flex flex-col flex-grow'
         defaultValue='span'
-        onValueChange={(value) => setSelectedTab(value as TabName)}
       >
         <div className='border-b flex-none'>
           <div className="flex flex-col">
             <div className='flex flex-none h-12 items-center px-4 space-x-2'>
               <div className="p-1.5 px-2 text-xs text-secondary-foreground rounded bg-secondary">
-                {spanPreview.spanType === SpanType.DEFAULT && <Braces size={16} />}
-                {spanPreview.spanType === SpanType.LLM && <MessageCircleMore size={16} />}
-                {spanPreview.spanType === SpanType.EXECUTOR && <Activity size={16} />}
-                {spanPreview.spanType === SpanType.EVALUATOR && <ArrowRight size={16} />}
-                {spanPreview.spanType === SpanType.EVALUATION && <Gauge size={16} />}
+                {span.spanType === SpanType.DEFAULT && <Braces size={16} />}
+                {span.spanType === SpanType.LLM && <MessageCircleMore size={16} />}
+                {span.spanType === SpanType.EXECUTOR && <Activity size={16} />}
+                {span.spanType === SpanType.EVALUATOR && <ArrowRight size={16} />}
+                {span.spanType === SpanType.EVALUATION && <Gauge size={16} />}
               </div>
-              <div className="flex-grow text-xl items-center font-medium truncate max-w-[400px]">{spanPreview.name}</div>
+              <div className="flex-grow text-xl items-center font-medium truncate max-w-[400px]">{span.name}</div>
               <div className="flex-grow"></div>
-              <Button variant='secondary' onClick={() => onCloseClick?.()}>
-                Timeline
-              </Button>
               <div>
-                {/* <ExportSpansDialog spanId={spanPreview.spanId} /> */}
+                <ExportSpansDialog span={span} />
               </div>
               <div>
                 <AddLabelPopover
-                  spanId={spanPreview.spanId}
+                  spanId={span.spanId}
                 />
               </div>
             </div>
             <div className="flex-grow flex flex-col px-4 py-1 space-y-2">
-              {span ? (
-                <div className="flex space-x-2 items-center">
-                  <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
-                    <Clock3 size={12} />
-                    <Label className='text-secondary-foreground text-sm'>{getDurationString(span.startTime, span.endTime)}</Label>
-                  </div>
-                  <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
-                    <Coins size={12} />
-                    <Label className='text-secondary-foreground text-sm'>
-                      {span.attributes["llm.usage.total_tokens"] ?? 0}
-                    </Label>
-                  </div>
-                  <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
-                    <CircleDollarSign size={12} />
-                    <Label className='text-secondary-foreground text-sm'>${span.attributes["gen_ai.usage.cost"]?.toFixed(5) ?? 0}</Label>
-                  </div>
+              <div className="flex space-x-2 items-center">
+                <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
+                  <Clock3 size={12} />
+                  <Label className='text-secondary-foreground text-sm'>{getDurationString(span.startTime, span.endTime)}</Label>
                 </div>
-              ) : (
-                <Skeleton className="h-7 w-full" />
-              )}
+                <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
+                  <Coins size={12} />
+                  <Label className='text-secondary-foreground text-sm'>
+                    {span.attributes["llm.usage.total_tokens"] ?? 0}
+                  </Label>
+                </div>
+                <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
+                  <CircleDollarSign size={12} />
+                  <Label className='text-secondary-foreground text-sm'>${span.attributes["gen_ai.usage.cost"]?.toFixed(5) ?? 0}</Label>
+                </div>
+              </div>
             </div>
           </div>
           <TabsList className="border-none text-sm px-4">
@@ -163,7 +157,7 @@ export function SpanView({ spanPreview, onCloseClick }: SpanViewProps) {
             className='w-full h-full mt-0'
           >
             <div className='flex h-full w-full relative'>
-              <SpanLabels spanId={spanPreview.spanId} />
+              <SpanLabels spanId={span.spanId} />
             </div>
           </TabsContent>
         </div>

@@ -59,12 +59,6 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
       icon: Database,
       current: false
     },
-    {
-      name: 'evaluations',
-      href: `/project/${projectId}/evaluations`,
-      icon: Gauge,
-      current: false
-    },
     // {
     //   name: 'env variables',
     //   href: `/project/${projectId}/env`,

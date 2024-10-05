@@ -2,13 +2,14 @@ import { LabelClass, LabelType, SpanLabel } from "@/lib/traces/types";
 import { cn, swrFetcher } from "@/lib/utils";
 import { useState } from "react";
 import useSWR from "swr";
-import { Plus, X } from "lucide-react";
+import { Plus, Tag, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useProjectContext } from "@/contexts/project-context";
 import { Table, TableBody, TableCell, TableRow } from "../ui/table";
 import { AddLabel } from "./add-label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { useUserContext } from "@/contexts/user-context";
 
 interface AddLabelPopoverProps {
   spanId: string;
@@ -24,8 +25,9 @@ export function AddLabelPopover({
   const { data: labels, mutate: mutateLabels } = useSWR<SpanLabel[]>(`/api/projects/${projectId}/spans/${spanId}/labels`, swrFetcher);
   const [mode, setMode] = useState<'add' | 'list'>('list');
 
+  const { email } = useUserContext();
+
   const addLabel = async (value: string, labelClass: LabelClass) => {
-    console.log(value, labelClass.valueMap)
     const response = await fetch(`/api/projects/${projectId}/spans/${spanId}/labels`, {
       method: 'POST',
       headers: {
@@ -67,10 +69,13 @@ export function AddLabelPopover({
     return labelClass.valueMap[index]
   }
 
+  const findLabel = (labelClassId: string): SpanLabel | undefined =>
+    labels?.find(label => label.classId === labelClassId && label.userEmail === email)
+
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline">Add label</Button>
+        <Button variant="outline"><Tag size={14} className="mr-2" /> Add label</Button>
       </PopoverTrigger>
       <PopoverContent side="bottom" align="end" className="min-w-[400px]">
         <div className="flex-col items-center space-y-2">
@@ -93,7 +98,7 @@ export function AddLabelPopover({
                     {labelClasses?.map(labelClass =>
                       <TableRow key={labelClass.name}>
                         <TableCell className="p-0 py-2">
-                          <div className={cn("flex justify-start text-secondary-foreground/30", labels?.some(label => label.classId === labelClass.id) ? 'text-white' : '')}>
+                          <div className={cn("flex justify-start text-secondary-foreground/30", findLabel(labelClass.id) ? 'text-white' : '')}>
                             <p className="border rounded-md p-0.5 px-2 text-ellipsis overflow-hidden truncate max-w-[200px]">
                               {labelClass.name}
                             </p>
@@ -102,15 +107,14 @@ export function AddLabelPopover({
                         <TableCell>
                           {labelClass.labelType === LabelType.BOOLEAN &&
                             <LabelBooleanInput
-                              value={indexToValue(labels?.find(label => label.classId === labelClass.id)?.value as number, labelClass) || undefined}
+                              value={indexToValue(findLabel(labelClass.id)?.value as number, labelClass) || undefined}
                               onChange={value => {
-                                console.log(value)
                                 addLabel(value, labelClass)
                               }} />
                           }
                           {labelClass.labelType === LabelType.CATEGORICAL &&
                             <LabelCategoricalInput
-                              value={indexToValue(labels?.find(label => label.classId === labelClass.id)?.value as number, labelClass) || undefined}
+                              value={indexToValue(findLabel(labelClass.id)?.value as number, labelClass) || undefined}
                               values={labelClass.valueMap}
                               onChange={(value) => {
                                 addLabel(value, labelClass)
@@ -125,7 +129,7 @@ export function AddLabelPopover({
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => {
-                                  removeLabel(labels?.find(label => label.classId === labelClass.id)?.id as string)
+                                  removeLabel(findLabel(labelClass.id)?.id as string)
                                 }}>
                                 <X size={14} />
                               </Button>
@@ -154,7 +158,6 @@ export function AddLabelPopover({
 
 
 function LabelBooleanInput({ value, onChange }: { value: string | undefined, onChange: (value: string) => void }) {
-  console.log(value)
   return (
     <div className="flex justify-start cursor-pointer text-secondary-foreground/50 h-8">
       <div className="flex rounded border overflow-clip">

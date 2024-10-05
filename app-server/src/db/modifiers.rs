@@ -9,13 +9,6 @@ pub struct Filter {
     pub filter_value: Value,
     pub filter_operator: FilterOperator,
     pub filter_column: String,
-    /// prefix for a flattened jsonb key.
-    /// E.g. if the filter is by `metadata.user_id` or, more precisely, in postgres,
-    /// `metadata @> '{user_id: filter_value}'`, this field will contain
-    /// Some(String::from("metadata"))`. Otherwise is `None`.
-    pub jsonb_column: Option<String>,
-    /// The type of the value to filter on. This is used to cast the value to the correct type
-    pub filter_value_type: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -74,23 +67,11 @@ impl Filter {
                     .into_iter()
                     .filter_map(|value| {
                         let filter: UrlParamFilter = serde_json::from_value(value).ok()?;
-                        let (jsonb_column, filter_column) = if filter.column.starts_with("jsonb::")
-                        {
-                            let mut split =
-                                filter.column.strip_prefix("jsonb::").unwrap().split("::");
-                            (
-                                Some(split.next().unwrap().to_string()),
-                                split.next().unwrap().to_string(),
-                            )
-                        } else {
-                            (None, filter.column.to_string())
-                        };
+                        let filter_column = filter.column;
                         Some(Self {
                             filter_value: filter.value,
                             filter_operator: FilterOperator::from_string(&filter.operator),
                             filter_column,
-                            jsonb_column,
-                            filter_value_type: None, // TODO: add this to frontend?
                         })
                     })
                     .collect(),
@@ -103,14 +84,6 @@ impl Filter {
     /// to prevent SQL injection attacks.
     pub fn validate_column(&self) -> bool {
         validate_sql_string(&self.filter_column)
-    }
-
-    pub fn validate_cast_type(&self) -> bool {
-        if let Some(filter_value_type) = &self.filter_value_type {
-            validate_sql_string(filter_value_type)
-        } else {
-            true
-        }
     }
 }
 

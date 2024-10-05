@@ -10,5 +10,6 @@ export interface Datapoint {
     createdAt: string;
     data: Record<string, any>;
     target: Record<string, any>;
+    metadata: Record<string, any> | null;
     indexedOn: string | null;
 }

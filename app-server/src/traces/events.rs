@@ -222,7 +222,6 @@ pub async fn evaluate_event(
             &project_id,
             &format!("{}.{}", evaluate_event.evaluator, pipeline_version.name),
             None,
-            None,
             Some(db::trace::TraceType::EVENT),
         )
         .await?;

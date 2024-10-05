@@ -23,6 +23,7 @@ import { DataTable } from '../ui/datatable';
 import Header from '../ui/header';
 import { TableCell, TableRow } from '../ui/table';
 import { PaginatedResponse } from '@/lib/types';
+import Mono from '../ui/mono';
 
 
 export default function Datasets() {
@@ -50,6 +51,13 @@ export default function Datasets() {
   }
 
   const columns: ColumnDef<Dataset>[] = [
+    {
+      cell: ({ row }) => {
+        return <Mono>{row.original.id}</Mono>
+      },
+      size: 300,
+      header: "ID",
+    },
     {
       accessorKey: "name",
       header: "name",

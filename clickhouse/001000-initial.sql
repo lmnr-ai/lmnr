@@ -16,12 +16,12 @@ CREATE TABLE spans
     prompt_tokens Int64,
     completion_tokens Int64,
     total_tokens Int64,
-    user_id String
+    user_id String,
+    path String DEFAULT '<null>'
 )
 ENGINE = MergeTree()
 ORDER BY (project_id, start_time, trace_id, span_id)
-SETTINGS index_granularity = 8192
-SETTINGS flatten_nested=0;
+SETTINGS index_granularity = 8192;
 
 
 CREATE TABLE events (
@@ -35,4 +35,16 @@ CREATE TABLE events (
 ) 
 ENGINE MergeTree()
 ORDER BY (project_id, template_id, id)
-SETTINGS index_granularity = 8192 SETTINGS flatten_nested=0
+SETTINGS index_granularity = 8192 SETTINGS flatten_nested=0;
+
+CREATE TABLE evaluation_scores (
+    project_id UUID,
+    group_id String,
+    evaluation_id UUID,
+    result_id UUID,
+    name String,
+    value Float64
+) ENGINE = MergeTree()
+ORDER BY (project_id, group_id, evaluation_id, name)
+SETTINGS index_granularity = 8192
+SETTINGS flatten_nested=0;

@@ -42,9 +42,7 @@ export default function LLM({
         className='w-full nowheel nodrag'
         value={data.prompt}
         defaultInputs={defaultInputs}
-        disabled={isPromptDisabled}
         onUpdate={(value, inputs, edgeIdsToRemove) => {
-
           updateNodeData(data.id, {
             dynamicInputs: inputs,
             prompt: value
@@ -101,7 +99,11 @@ export default function LLM({
               } as LLMNode)
               setSelectedModelId(model.id);
             }} />
-
+          {isPromptDisabled && (
+            <Label className='text-sm text-secondary-foreground'>
+              OpenAI o1 models are in preview. System prompt will be converted to the first user message.
+            </Label>
+          )}
         </>
       )}
 

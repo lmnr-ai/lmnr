@@ -5,3 +5,6 @@ export const SUPABASE_ANON_KEY = ""
 // by default, if SUPABASE_URL and SUPABASE_ANON_KEY are not set, we disable realtime
 export const USE_REALTIME = SUPABASE_URL != null 
     && SUPABASE_ANON_KEY != null && SUPABASE_ANON_KEY.length > 0 && SUPABASE_URL.length > 0;
+
+export const PYTHON_INSTALL = 'pip install lmnr';
+export const TYPESCRIPT_INSTALL = 'npm add @lmnr-ai/lmnr';

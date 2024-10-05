@@ -1,15 +1,8 @@
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use sqlx::{prelude::FromRow, PgPool};
+use sqlx::PgPool;
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize, Serialize, FromRow, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct Project {
-    pub id: Option<Uuid>,
-    pub name: String,
-    pub workspace_id: Uuid,
-}
+use crate::projects::Project;
 
 pub async fn get_all_projects_for_user(pool: &PgPool, user_id: &Uuid) -> Result<Vec<Project>> {
     let projects = sqlx::query_as::<_, Project>(
@@ -47,7 +40,12 @@ pub async fn get_project(pool: &PgPool, project_id: &Uuid) -> Result<Project> {
     Ok(project)
 }
 
-pub async fn create_project(pool: &PgPool, user_id: &Uuid, project: &Project) -> Result<Project> {
+pub async fn create_project(
+    pool: &PgPool,
+    user_id: &Uuid,
+    name: &str,
+    workspace_id: Uuid,
+) -> Result<Project> {
     // create project only if user is part of the workspace which owns the project
     let project = sqlx::query_as::<_, Project>(
         "INSERT INTO projects (name, workspace_id)
@@ -61,8 +59,8 @@ pub async fn create_project(pool: &PgPool, user_id: &Uuid, project: &Project) ->
         RETURNING
             id, name, workspace_id",
     )
-    .bind(&project.name)
-    .bind(project.workspace_id)
+    .bind(name)
+    .bind(workspace_id)
     .bind(user_id)
     .fetch_one(pool)
     .await?;

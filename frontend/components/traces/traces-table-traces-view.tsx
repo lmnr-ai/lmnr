@@ -1,7 +1,7 @@
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, USE_REALTIME } from "@/lib/const";
-import { Trace } from "@/lib/traces/types";
+import { LabelClass, Trace } from "@/lib/traces/types";
 import { createClient } from "@supabase/supabase-js";
 import { ColumnDef } from "@tanstack/react-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo } from "react";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import StatusLabel from "../ui/status-label";
 import TracesPagePlaceholder from "./page-placeholder";
-import { Event } from '@/lib/events/types';
+import { Event, EventTemplate } from '@/lib/events/types';
 import DateRangeFilter from "../ui/date-range-filter";
 import { DataTable } from "../ui/datatable";
 import DataTableFilter from "../ui/datatable-filter";
@@ -17,6 +17,8 @@ import TextSearchFilter from "../ui/text-search-filter";
 import { Button } from "../ui/button";
 import { RefreshCcw } from "lucide-react";
 import { PaginatedResponse } from "@/lib/types";
+import useSWR from "swr";
+import { swrFetcher } from "@/lib/utils";
 
 interface TracesTableProps {
   onRowClick?: (rowId: string) => void;
@@ -40,6 +42,8 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const [canRefresh, setCanRefresh] = useState<boolean>(false);
   const pageCount = Math.ceil(totalCount / pageSize);
   const [traceId, setTraceId] = useState<string | null>(searchParams.get('traceId') ?? null);
+
+  const isCurrentTimestampIncluded = (!!pastHours) || ((!!endDate) && new Date(endDate) >= new Date());
 
   const getTraces = async () => {
 
@@ -104,7 +108,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     router.push(`${pathName}?${searchParams.toString()}`);
   };
 
-  const staticColumns: ColumnDef<Trace, any>[] = [
+  const columns: ColumnDef<Trace, any>[] = [
     {
       accessorFn: (row) => row.success ? 'Success' : 'Failed',
       header: 'Status',
@@ -177,17 +181,35 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
 
   ]
 
-  const eventFilterCol = {
-    header: "events",
-    id: `jsonb::events::event`,
-  };
+  const extraFilterCols = [
+    {
+      header: "events",
+      id: `event`,
+    },
+    {
+      header: "labels",
+      id: `label`,
+    }
+  ]
 
-  const columns = staticColumns
+  const { data: events } = useSWR<EventTemplate[]>(
+    `/api/projects/${projectId}/event-templates`,
+    swrFetcher
+  );
+  const { data: labels } = useSWR<LabelClass[]>(
+    `/api/projects/${projectId}/label-classes`,
+    swrFetcher
+  );
+
+  const customFilterColumns = {
+    'event': events?.map(event => event.name) ?? [],
+    'label': labels?.map(label => label.name) ?? [],
+  }
 
   const { supabaseAccessToken } = useUserContext()
   const supabase = useMemo(() => {
     return USE_REALTIME
-    ? createClient(
+      ? createClient(
       SUPABASE_URL,
       SUPABASE_ANON_KEY,
       {
@@ -219,7 +241,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setCanRefresh(true);
+            setCanRefresh(isCurrentTimestampIncluded);
           }
         }
       )
@@ -233,7 +255,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         },
         (payload) => {
           if (payload.eventType === 'UPDATE') {
-            setCanRefresh(true);
+            setCanRefresh(isCurrentTimestampIncluded);
           }
         }
       )
@@ -245,11 +267,13 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     }
   }, [])
 
-  if (traces != null && totalCount === 0 && !anyInProject) {
+  if (traces != undefined && totalCount === 0 && !anyInProject) {
     return <TracesPagePlaceholder />
   }
 
-  const filterColumns = columns.filter(column => !['actions', 'events', 'start_time'].includes(column.id!)).concat([eventFilterCol]);
+  const filterColumns = columns
+    .filter(column => !['actions', 'start_time', 'events'].includes(column.id!))
+    .concat(extraFilterCols);
 
   return (
     <DataTable
@@ -275,7 +299,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       enableRowSelection
     >
       <TextSearchFilter />
-      <DataTableFilter columns={filterColumns} />
+      <DataTableFilter columns={filterColumns} customFilterColumns={customFilterColumns} />
       <DateRangeFilter />
       <Button
         onClick={() => {

@@ -1,14 +1,13 @@
 import { useProjectContext } from "@/contexts/project-context";
 import { ChevronsRight } from "lucide-react";
 import { Skeleton } from "../ui/skeleton";
-import Ide from "../ui/ide";
 import { Label } from "../ui/label";
 import { ScrollArea } from "../ui/scroll-area";
 import { Button } from "../ui/button";
 import Mono from "../ui/mono";
 import { Datapoint } from "@/lib/dataset/types";
 import Formatter from "../ui/formatter";
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface DatasetPanelProps {
@@ -17,7 +16,9 @@ interface DatasetPanelProps {
   onClose: () => void;
 }
 
-const deepEqual = (x: Object, y: Object): boolean => {
+const deepEqual = (x: Object | null, y: Object | null): boolean => {
+  if (x == null && y == null) return true;
+  if (x == null || y == null) return false;
   const ok = Object.keys, tx = typeof x, ty = typeof y;
   return x && y && tx === 'object' && tx === ty ? (
     ok(x).length === ok(y).length &&
@@ -30,18 +31,21 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
   // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
   const [newData, setNewData] = useState<Record<string, any>>(datapoint.data);
   const [newTarget, setNewTarget] = useState<Record<string, any>>(datapoint.target);
+  const [newMetadata, setNewMetadata] = useState<Record<string, any> | null>(datapoint.metadata);
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
+  const [isValidJsonMetadata, setIsValidJsonMetadata] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
     setNewData(datapoint.data);
     setNewTarget(datapoint.target);
+    setNewMetadata(datapoint.metadata);
   }, [datapoint])
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <div className='h-[49px] flex flex-none space-x-2 px-3 items-center border-b'>
+      <div className='h-12 flex flex-none space-x-2 px-3 items-center border-b'>
         <div className="flex flex-row flex-grow space-x-2 h-full items-center">
           <Button
             variant={'ghost'}
@@ -49,6 +53,7 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
             onClick={() => {
               setNewData(datapoint.data)
               setNewTarget(datapoint.target)
+              setNewMetadata(datapoint.metadata)
               onClose()
             }}
           >
@@ -64,8 +69,8 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
         <Button
           className="mr-4"
           variant='outline'
-          disabled={!isValidJsonData || !isValidJsonTarget ||
-            (deepEqual(datapoint.data, newData) && deepEqual(datapoint.target, newTarget))} // disable if no changes or invalid json
+          disabled={!isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata ||
+            (deepEqual(datapoint.data, newData) && deepEqual(datapoint.target, newTarget)) && deepEqual(datapoint.metadata, newMetadata)} // disable if no changes or invalid json
           onClick={() => {
             fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapoint.id}`, {
               method: 'POST',
@@ -74,7 +79,8 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
               },
               body: JSON.stringify({
                 data: newData,
-                target: newTarget
+                target: newTarget,
+                metadata: newMetadata,
               })
             })
             router.refresh()
@@ -85,10 +91,14 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
       {datapoint &&
         <ScrollArea className="flex-grow flex overflow-auto">
           <div className="flex max-h-0">
-            <div className="flex-grow flex flex-col space-y-2 p-4 h-full">
-              <Label className="">Data</Label>
-              <div className="rounded border" key={datapoint.id}>
-                <Formatter value={JSON.stringify(datapoint.data, null, 2)} defaultMode="json" editable
+            <div className="flex-grow flex flex-col space-y-4 p-4 h-full">
+              <div className="flex flex-col space-y-2">
+                <Label className="text-lg font-medium">Data</Label>
+                <Formatter
+                  className="max-h-[400px]"
+                  value={JSON.stringify(datapoint.data, null, 2)}
+                  defaultMode="json"
+                  editable
                   onChange={s => {
                     try {
                       const data = JSON.parse(s);
@@ -104,9 +114,13 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                     }
                   }} />
               </div>
-              <Label className="">Target</Label>
-              <div className="rounded border">
-                <Formatter value={JSON.stringify(datapoint.target, null, 2)} defaultMode="json" editable
+              <div className="flex flex-col space-y-2">
+                <Label className="text-lg font-medium">Target</Label>
+                <Formatter
+                  className="max-h-[400px]"
+                  value={JSON.stringify(datapoint.target, null, 2)}
+                  defaultMode="json"
+                  editable
                   onChange={s => {
                     try {
                       const target = JSON.parse(s);
@@ -119,6 +133,33 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                       }
                     } catch (e) {
                       setIsValidJsonTarget(false);
+                    }
+                  }} />
+              </div>
+              <div className="flex flex-col space-y-2">
+                <Label className="text-lg font-medium">Metadata</Label>
+                <Formatter
+                  className="max-h-[400px]"
+                  value={JSON.stringify(datapoint.metadata, null, 2)}
+                  defaultMode="json"
+                  editable
+                  onChange={s => {
+                    if (s === '') {
+                      setNewMetadata(null);
+                      setIsValidJsonMetadata(true);
+                      return;
+                    }
+                    try {
+                      const metadata = JSON.parse(s);
+                      const isMetadataValid = typeof metadata === 'object' && !Array.isArray(metadata);
+                      if (isMetadataValid) {
+                        setNewMetadata(metadata);
+                        setIsValidJsonMetadata(true);
+                      } else {
+                        setIsValidJsonMetadata(false);
+                      }
+                    } catch (e) {
+                      setIsValidJsonMetadata(false);
                     }
                   }} />
               </div>

@@ -12,7 +12,7 @@ export default async function SignInPage({
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
   const session = await getServerSession()
-  let callbackUrl = searchParams?.callbackUrl ?? '/projects';
+  let callbackUrl = searchParams?.callbackUrl ?? '/on-sign-up';
   if (Array.isArray(callbackUrl)) {
     callbackUrl = callbackUrl[0]
   }

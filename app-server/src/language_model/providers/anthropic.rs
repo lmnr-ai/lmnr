@@ -4,8 +4,7 @@ use crate::language_model::chat_message::{ChatChoice, ChatCompletion, ChatMessag
 use crate::language_model::providers::utils::calculate_cost;
 use crate::language_model::runner::ExecuteChatCompletion;
 use crate::language_model::{
-    ChatMessageContent, ChatMessageContentPart, ChatMessageImage, ChatMessageImageUrl,
-    ChatMessageText, LanguageModelProviderName, NodeInfo,
+    ChatMessageContent, ChatMessageContentPart, LanguageModelProviderName, NodeInfo,
 };
 use crate::pipeline::nodes::{NodeStreamChunk, StreamChunk};
 use anyhow::Result;
@@ -15,46 +14,6 @@ use reqwest_eventsource::{Event, EventSource};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::mpsc::Sender;
-
-#[derive(Deserialize)]
-pub struct OtelChatMessageImageSource {
-    media_type: String,
-    data: String,
-}
-
-#[derive(Deserialize)]
-pub struct OtelChatMessageImage {
-    source: OtelChatMessageImageSource,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "type")]
-pub enum OtelChatMessageContentPart {
-    #[serde(rename = "text")]
-    Text(ChatMessageText),
-    #[serde(rename = "image_url")]
-    ImageUrl(ChatMessageImageUrl),
-    #[serde(rename = "image")]
-    Image(OtelChatMessageImage),
-}
-
-impl Into<ChatMessageContentPart> for OtelChatMessageContentPart {
-    fn into(self) -> ChatMessageContentPart {
-        match self {
-            OtelChatMessageContentPart::Text(text) => ChatMessageContentPart::Text(text),
-            OtelChatMessageContentPart::ImageUrl(image_url) => {
-                ChatMessageContentPart::ImageUrl(image_url)
-            }
-            OtelChatMessageContentPart::Image(image) => {
-                let source = image.source;
-                ChatMessageContentPart::Image(ChatMessageImage {
-                    media_type: source.media_type,
-                    data: source.data,
-                })
-            }
-        }
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct Anthropic {
@@ -217,7 +176,6 @@ impl ExecuteChatCompletion for Anthropic {
             let json_user_message = to_value(&user_message)?;
             body["messages"] = serde_json::json!(vec![json_user_message]);
         } else {
-            // Assume message content enum->String will be serialized as string
             body["system"] = serde_json::json!(messages[0].content);
 
             let messages = messages

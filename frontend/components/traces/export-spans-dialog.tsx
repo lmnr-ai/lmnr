@@ -1,57 +1,86 @@
 import { useProjectContext } from "@/contexts/project-context";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTrigger, DialogTitle, DialogFooter } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTrigger, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import DatasetSelect from "../ui/dataset-select";
-import { ExportableSpanColumns } from "@/lib/traces/types";
-import { Checkbox } from "../ui/checkbox";
+import { Span } from "@/lib/traces/types";
 import { Label } from "../ui/label";
-import { Loader } from "lucide-react";
+import { Database, Loader } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Dataset } from "@/lib/dataset/types";
-
+import Formatter from "../ui/formatter";
 
 interface ExportSpansDialogProps {
-  spanId: string;
+  span: Span;
 }
 
-
 export default function ExportSpansDialog({
-  spanId
+  span
 }: ExportSpansDialogProps) {
   const { projectId } = useProjectContext();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
-  const [selectedColumns, setSelectedColumns] = useState<Set<ExportableSpanColumns>>(new Set([
-    ExportableSpanColumns.Name,
-    ExportableSpanColumns.Input,
-    ExportableSpanColumns.Output,
-  ]));
-
-  const toggleSelectedColumn = (column: ExportableSpanColumns) => {
-    const newSelectedColumns = new Set(selectedColumns);
-    if (newSelectedColumns.has(column)) {
-      newSelectedColumns.delete(column);
-    } else {
-      newSelectedColumns.add(column);
-    }
-    setSelectedColumns(newSelectedColumns);
-  };
 
   const { toast } = useToast();
+
+  const [data, setData] = useState(span.input);
+  const [target, setTarget] = useState(span.output);
+  const [isDataValid, setIsDataValid] = useState(true);
+  const [isTargetValid, setIsTargetValid] = useState(true);
+
+  const [metadata, setMetadata] = useState({});
+  const [isMetadataValid, setIsMetadataValid] = useState(true);
+
+  const isJsonValid = (json: string): boolean => {
+    try {
+      JSON.parse(json);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const handleDataChange = (value: string) => {
+    const isValid = isJsonValid(value);
+    setIsDataValid(isValid);
+    if (isValid) {
+      setData(JSON.parse(value));
+    }
+  };
+
+  const handleTargetChange = (value: string) => {
+    const isValid = isJsonValid(value);
+    setIsTargetValid(isValid);
+    if (isValid) {
+      setTarget(JSON.parse(value));
+    }
+  };
+
+  const handleMetadataChange = (value: string) => {
+    const isValid = isJsonValid(value);
+    setIsMetadataValid(isValid);
+    if (isValid) {
+      setMetadata(JSON.parse(value));
+    }
+  };
 
   const exportSpan = async () => {
     if (!selectedDataset) {
       return;
     };
     setIsLoading(true);
-    const res = await fetch(`/api/projects/${projectId}/spans/${spanId}/export`, {
+    const res = await fetch(`/api/projects/${projectId}/datasets/${selectedDataset.id}/datapoints`, {
       method: 'POST',
       body: JSON.stringify({
-        datasetId: selectedDataset?.id,
-        fields: Array.from(selectedColumns),
+        datapoints: [
+          {
+            data: data,
+            target: target,
+            metadata: metadata,
+          }
+        ]
       }),
     });
     setIsLoading(false);
@@ -78,35 +107,71 @@ export default function ExportSpansDialog({
         }
       }}>
         <DialogTrigger asChild>
-          <Button variant={'outline'}>Add to dataset</Button>
+          <Button variant={'outline'}>
+            <Database size={16} className="mr-2" />
+            Add to dataset
+          </Button>
         </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Select dataset and columns</DialogTitle>
+        <DialogContent className="max-w-6xl bg-background max-h-[90vh] p-0 m-0 gap-0">
+          <DialogHeader className="p-4 border-b m-0">
+            <div className="flex flex-row justify-between items-center">
+              <DialogTitle>Export span to dataset</DialogTitle>
+              <Button
+                onClick={async () => await exportSpan()}
+                disabled={isLoading || !selectedDataset || !isDataValid || !isTargetValid}
+              >
+                <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
+                Add to dataset
+              </Button>
+            </div>
           </DialogHeader>
-          <DatasetSelect onDatasetChange={(dataset) => setSelectedDataset(dataset)} />
-          <div className='flex-col'>
-            {(Object.values(ExportableSpanColumns)).map((column) => (
-              <div key={column} className='flex items-center p-1'>
-                <Checkbox
-                  className='cursor-pointer'
-                  id={`column-checkbox-${column}`}
-                  checked={selectedColumns.has(column)}
-                  onClick={() => toggleSelectedColumn(column)}
-                />
-                <Label htmlFor={`column-checkbox-${column}`} className='cursor-pointer pl-2'>{column}</Label>
+          <div className='flex flex-col space-y-8 overflow-auto flex-grow h-[70vh] m-0'>
+            <div className="flex flex-col space-y-4 p-4 pb-8">
+              <div className="flex flex-none flex-col space-y-2">
+                <Label className="text-lg font-medium">Dataset</Label>
+                <DatasetSelect onDatasetChange={(dataset) => setSelectedDataset(dataset)} />
               </div>
-            ))}
+              <div className="flex flex-col space-y-2">
+                <Label className="text-lg font-medium">Data</Label>
+                <Formatter
+                  className="max-h-[500px]"
+                  editable
+                  defaultMode={'json'}
+                  value={JSON.stringify(span.input)}
+                  onChange={handleDataChange}
+                />
+                {!isDataValid && (
+                  <p className="text-sm text-red-500">Invalid JSON format</p>
+                )}
+              </div>
+              <div className="flex flex-col space-y-2">
+                <Label className="text-lg font-medium">Target</Label>
+                <Formatter
+                  className="max-h-[500px]"
+                  editable
+                  defaultMode={'json'}
+                  value={JSON.stringify(span.output)}
+                  onChange={handleTargetChange}
+                />
+                {!isTargetValid && (
+                  <p className="text-sm text-red-500">Invalid JSON format</p>
+                )}
+              </div>
+              <div className="flex flex-col space-y-2">
+                <Label className="text-lg font-medium">Metadata</Label>
+                <Formatter
+                  className="max-h-[500px]"
+                  editable
+                  defaultMode={'json'}
+                  value={JSON.stringify(metadata, null, 2)}
+                  onChange={handleMetadataChange}
+                />
+                {!isMetadataValid && (
+                  <p className="text-sm text-red-500">Invalid JSON format</p>
+                )}
+              </div>
+            </div>
           </div>
-          <DialogFooter>
-            <Button
-              onClick={async () => await exportSpan()}
-              disabled={isLoading || !selectedDataset || selectedColumns.size === 0}
-            >
-              <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
-              Save
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

@@ -25,7 +25,7 @@ export default function AddDatapointsDialog({ datasetId, onUpdate }: AddDatapoin
         <Button
           variant="outline"
         >
-          Add from source
+          Import file
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">

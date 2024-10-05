@@ -256,18 +256,6 @@ export function DataTable<TData>({
                     ></div>
                   </div>
                 </div>
-                {/* <div className='flex h-full items-center relative group text-nowrap'>
-                  {flexRender(
-                    header.column.columnDef.header,
-                    header.getContext()
-                  )}
-                  <div
-                    className={cn(' group-hover:bg-blue-300 group-hover:w-[2px] absolute w-[1px] bottom-0 top-0 right-0 bg-primary h-full cursor-col-resize transition-colors', header.column.getIsResizing() ? 'bg-blue-400' : 'bg-secondary')}
-                    onMouseDown={header.getResizeHandler()}
-                    onDoubleClick={() => header.column.resetSize()}
-                  >
-                  </div>
-                </div> */}
               </TableHead>
             ))}
           </TableRow>
@@ -307,27 +295,30 @@ export function DataTable<TData>({
   )
 
   const showSelection = Object.keys(rowSelection).length > 0 || allRowsAcrossAllPagesSelected || enableRowSelection;
-  const hasChildren = !!children;
 
   return (
-    <div className={cn('flex flex-col h-full border-t', className)}>
-      {(showSelection || hasChildren) &&
-        <div className='h-12 flex flex-none px-2 space-x-2 items-center border-b'>
+    <div className={cn('flex flex-col h-full border-t relative', className)}>
+      {(showSelection && Object.keys(rowSelection).length > 0) &&
+        <div className='h-12 flex flex-none px-2 items-center rounded-lg border absolute bottom-20 z-50 left-1/2 transform -translate-x-1/2'>
           {(showSelection) &&
             <>
               {Object.keys(rowSelection).length > 0 &&
                 <>
-                  <Button variant="outline" onClick={() => {
-                    table.toggleAllRowsSelected(false)
-                    setAllRowsAcrossAllPagesSelected(false)
-                    onSelectAllAcrossPages?.(false)
-                    setRowSelection({})
-                  }}><X size={12} /></Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      table.toggleAllRowsSelected(false)
+                      setAllRowsAcrossAllPagesSelected(false)
+                      onSelectAllAcrossPages?.(false)
+                      setRowSelection({})
+                    }}>
+                    <X size={12} />
+                  </Button>
                   <Label className="">
                     {allRowsAcrossAllPagesSelected
                       ? 'All rows in table '
                       : `${Object.keys(rowSelection).length} ${Object.keys(rowSelection).length === 1 ? 'row ' : 'rows '}`}
-                    selected.
+                    selected
                   </Label>
                 </>
               }
@@ -347,9 +338,11 @@ export function DataTable<TData>({
               }
             </>
           }
-          {children}
         </div>
       }
+      {children && <div className='flex items-center space-x-2 h-12 px-4 border-b'>
+        {children}
+      </div>}
       <ScrollArea className="flex-grow overflow-auto border-b">
         <div className='max-h-0'>
           {content}

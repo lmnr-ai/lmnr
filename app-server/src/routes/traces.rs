@@ -1,15 +1,13 @@
 use super::{GetMetricsQueryParams, ResponseResult};
 use super::{PaginatedGetQueryParams, PaginatedResponse, DEFAULT_PAGE_SIZE};
 use crate::ch::utils::get_bounds;
-use crate::db::datasets;
-use crate::db::trace::SpanField;
 use crate::{
     ch::{self, modifiers::GroupByInterval, Aggregation},
     db::{
         self,
         events::EventWithTemplateName,
         modifiers::{DateRange, Filter, RelativeDateInterval},
-        trace::{Session, Span, Trace, TraceWithEvents},
+        trace::{Session, Span, Trace, TraceWithParentSpanAndEvents},
         DB,
     },
 };
@@ -35,8 +33,6 @@ pub async fn get_traces(
         filter_column: "trace_type".to_string(),
         filter_operator: db::modifiers::FilterOperator::Eq,
         filter_value: Value::String("DEFAULT".to_string()),
-        jsonb_column: None,
-        filter_value_type: Some(String::from("trace_type")),
     });
     let date_range = query_params.date_range;
     let text_search_filter = query_params.search;
@@ -65,7 +61,7 @@ pub async fn get_traces(
         true
     };
 
-    let response = PaginatedResponse::<TraceWithEvents> {
+    let response = PaginatedResponse::<TraceWithParentSpanAndEvents> {
         total_count,
         items: traces,
         any_in_project,
@@ -118,63 +114,6 @@ pub async fn get_single_span(params: web::Path<(Uuid, Uuid)>, db: web::Data<DB>)
     let span_with_events = SpanWithEvents { span, events };
 
     Ok(HttpResponse::Ok().json(span_with_events))
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ExportSpanRequest {
-    /// Dataset ID to export the span to. If not provided,
-    /// name for new dataset must be provided.
-    #[serde(default)]
-    dataset_id: Option<Uuid>,
-    /// Name for new dataset to create and export the span to. Only read if
-    /// dataset_id is not provided.
-    #[serde(default)]
-    dataset_name: Option<String>,
-
-    fields: Vec<SpanField>,
-}
-
-#[post("spans/{span_id}/export")]
-pub async fn export_span(
-    path: web::Path<(Uuid, Uuid)>,
-    req: web::Json<ExportSpanRequest>,
-    db: web::Data<DB>,
-) -> ResponseResult {
-    let (project_id, span_id) = path.into_inner();
-    let req = req.into_inner();
-    if req.dataset_id.is_none() && req.dataset_name.is_none() {
-        return Err(anyhow::anyhow!("Either dataset_id or dataset_name must be provided").into());
-    }
-
-    let dataset_id = if let Some(dataset_id) = req.dataset_id {
-        dataset_id
-    } else {
-        let dataset =
-            datasets::create_dataset(&db.pool, &req.dataset_name.unwrap(), project_id).await?;
-        dataset.id
-    };
-
-    let span = db::trace::get_span(&db.pool, span_id).await?;
-    let json_span = span.to_json_value(&req.fields);
-    db::datapoints::insert_raw_data(&db.pool, &dataset_id, &[json_span].to_vec()).await?;
-
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[get("trace-id-for-span/{span_id}")]
-pub async fn get_trace_id_for_span(
-    params: web::Path<(Uuid, Uuid)>,
-    db: web::Data<DB>,
-) -> ResponseResult {
-    let (_project_id, span_id) = params.into_inner();
-
-    // TODO: if querying the entire span with input and output is inefficient,
-    // we can just query the trace_id in a separate db function
-    let span = db::trace::get_span(&db.pool, span_id).await?;
-    let trace_id = span.trace_id;
-
-    Ok(HttpResponse::Ok().json(trace_id))
 }
 
 #[derive(Deserialize)]

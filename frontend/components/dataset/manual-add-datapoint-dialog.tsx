@@ -69,7 +69,7 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
         <Button
           variant="outline"
         >
-          Add datapoint
+          Add row
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
