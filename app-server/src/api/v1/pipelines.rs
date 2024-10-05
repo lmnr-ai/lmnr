@@ -163,8 +163,3 @@ async fn run_pipeline_graph(
         Ok(HttpResponse::Ok().json(res))
     }
 }
-
-#[get("healthcheck")]
-async fn ping_healthcheck() -> ResponseResult {
-    Ok(HttpResponse::Ok().finish())
-}

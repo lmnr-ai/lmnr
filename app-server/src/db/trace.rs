@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     db::modifiers::DateRange,
-    language_model::{ChatMessage, ChatMessageContent, OtelChatMessageContentPart},
+    language_model::{ChatMessage, ChatMessageContent, InstrumentationChatMessageContentPart},
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     pipeline::{nodes::Message, trace::MetaLog},
     traces::{
@@ -451,13 +451,15 @@ impl Span {
 
                 input_messages.push(ChatMessage {
                     role,
-                    content: serde_json::from_str::<Vec<OtelChatMessageContentPart>>(&content)
-                        .map(|parts| {
-                            ChatMessageContent::ContentPartList(
-                                parts.into_iter().map(|part| part.into()).collect(),
-                            )
-                        })
-                        .unwrap_or(ChatMessageContent::Text(content.clone())),
+                    content: serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(
+                        &content,
+                    )
+                    .map(|parts| {
+                        ChatMessageContent::ContentPartList(
+                            parts.into_iter().map(|part| part.into()).collect(),
+                        )
+                    })
+                    .unwrap_or(ChatMessageContent::Text(content.clone())),
                 });
                 i += 1;
             }
