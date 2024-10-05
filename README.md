@@ -99,15 +99,9 @@ if __name__ == "__main__":
 
 #### Sending events
 
-You can send events in two ways:
-- `.event(name, value)` – instant event with a value.
-- `.evaluate_event(name, evaluator, data)` –  event that is evaluated by evaluator pipeline based on the data.
+To send an evant, call `L.event(name, value)`.
 
-Note that to run an evaluate event, you need to crate an evaluator pipeline and create a target version for it. 
-
-Laminar processes background job queues of pipeline processes and records outputs of pipelines as events.
-
-Read our [docs](https://docs.lmnr.ai) to learn more about event types and how they are created and evaluated.
+Read our [docs](https://docs.lmnr.ai) to learn more about events and how they are created.
 
 ```python
 from lmnr import Laminar as L
@@ -116,11 +110,6 @@ poem = response.choices[0].message.content
 
 # this will register True or False value with Laminar
 L.event("topic alignment", topic in poem)
-
-# this will run the pipeline `check_wordy` with `poem` set as the value
-# of `text_input` node, and write the result as an event with name
-# "excessive_wordiness"
-L.evaluate_event("excessive_wordiness", "check_wordy", {"text_input": poem})
 ```
 
 #### Laminar pipelines as prompt chain managers
