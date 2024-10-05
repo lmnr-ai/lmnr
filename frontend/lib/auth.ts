@@ -9,6 +9,7 @@ declare module 'next-auth' {
     user: {
       id: string
       apiKey: string
+      isNewUserCreated: boolean
     } & DefaultSession['user']
   }
 
@@ -20,6 +21,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     apiKey: string
+    isNewUserCreated: boolean
   }
 }
 
@@ -67,7 +69,9 @@ export const authOptions: NextAuthOptions = {
           throw err
         }
 
-        token.apiKey = (await res.json()).apiKey
+        const resJson = await res.json()
+        token.apiKey = resJson.apiKey;
+        token.isNewUserCreated = resJson.isNewUserCreated;
       }
 
       return token
@@ -75,7 +79,7 @@ export const authOptions: NextAuthOptions = {
     session({ session, token }) {
       session.user.apiKey = token.apiKey
       session.user.email = token.email!
-      // session.user.email = token.email
+      session.user.isNewUserCreated = token.isNewUserCreated
 
       return session
     },

@@ -9,6 +9,8 @@ import { useProjectContext } from "@/contexts/project-context";
 import useSWR from "swr";
 import { convertToLocalTimeWithMillis, swrFetcher } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { Span } from "@/lib/traces/types";
+import { trace } from "console";
 
 interface EventViewProps {
   onClose: () => void;
@@ -20,10 +22,11 @@ export default function EventView({
   event,
 }: EventViewProps) {
   const { projectId } = useProjectContext();
-  const { data: traceId, isLoading } = useSWR(
-    `/api/projects/${projectId}/trace-id-for-span/${event.spanId}`,
+  const { data: span, isLoading } = useSWR<Span>(
+    `/api/projects/${projectId}/spans/${event.spanId}`,
     swrFetcher
-  ) as { data: string, isLoading: boolean };
+  );
+  const traceId = span?.traceId;
   const router = useRouter();
 
   return (
@@ -58,7 +61,7 @@ export default function EventView({
                 const timestamp = new Date(event.timestamp);
                 const startTime = new Date(timestamp.getTime() - 60_000).toISOString();
                 const endTime = new Date(timestamp.getTime() + 60_000).toISOString();
-                router.push(`/project/${projectId}/traces?selectedId=${traceId}&startDate=${startTime}&endDate=${endTime}`);
+                router.push(`/project/${projectId}/traces?traceId=${traceId}&startDate=${startTime}&endDate=${endTime}&spanId=${event.spanId}`);
               }}
               disabled={!traceId || isLoading}
 

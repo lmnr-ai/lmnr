@@ -33,6 +33,18 @@ impl OpenAI {
     }
 }
 
+#[derive(Deserialize)]
+pub struct ImageUrl {
+    pub url: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct OpenAIImageUrl {
+    pub image_url: ImageUrl,
+}
+
 #[derive(Debug, Deserialize)]
 struct OpenAIChatCompletion {
     choices: Vec<OpenAIChatChoice>,
@@ -203,11 +215,14 @@ impl ExecuteChatCompletion for OpenAI {
         let messages = if is_o1 {
             &messages
                 .iter()
-                .filter_map(|message| {
-                    if message.role != "system" {
-                        Some(message.clone())
+                .map(|message| {
+                    if message.role == "system" {
+                        ChatMessage {
+                            role: "user".to_string(),
+                            content: message.content.clone(),
+                        }
                     } else {
-                        None
+                        message.clone()
                     }
                 })
                 .collect()

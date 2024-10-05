@@ -3,13 +3,13 @@
 import { useProjectContext } from "@/contexts/project-context";
 import { Evaluation } from "@/lib/evaluation/types";
 import { ColumnDef } from "@tanstack/react-table";
-import CreateEvaluationDialog from "./create-evaluation-dialog";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { useRouter } from "next/navigation";
 import { DataTable } from "../ui/datatable";
 import Mono from "../ui/mono";
 import Header from "../ui/header";
 import EvalsPagePlaceholder from "./page-placeholder";
+import { useUserContext } from "@/contexts/user-context";
 
 export interface EvaluationProps {
   evaluations: Evaluation[];
@@ -19,10 +19,12 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
   const { projectId } = useProjectContext();
   const router = useRouter();
 
+  const { email } = useUserContext();
+
   const columns: ColumnDef<Evaluation>[] = [
     {
-      accessorKey: "status",
-      header: "Status",
+      accessorKey: "groupId",
+      header: "Group id",
       size: 120
     },
     {

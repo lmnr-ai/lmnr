@@ -2,7 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::trace::{Span, TraceType},
+    db::trace::{CurrentTraceAndSpan, Span, TraceType},
     engine::{engine::EngineOutput, Engine},
     routes::pipelines::GraphInterruptMessage,
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
@@ -197,8 +197,7 @@ impl PipelineRunner {
         run_output: &Result<EngineOutput, PipelineRunnerError>,
         project_id: &Uuid,
         pipeline_version_name: &String,
-        parent_span_id: Option<Uuid>,
-        trace_id: Option<Uuid>,
+        current_trace_and_span: Option<CurrentTraceAndSpan>,
         trace_type: Option<TraceType>,
     ) -> Result<()> {
         let engine_output = match run_output {
@@ -208,9 +207,8 @@ impl PipelineRunner {
         };
         let run_stats = RunTraceStats::from_messages(&engine_output.messages);
         let parent_span = Span::create_parent_span_in_run_trace(
-            trace_id.unwrap_or_else(Uuid::new_v4),
+            current_trace_and_span,
             &run_stats,
-            parent_span_id,
             pipeline_version_name,
             &engine_output.messages,
             trace_type.unwrap_or_default(),
@@ -220,6 +218,7 @@ impl PipelineRunner {
             &engine_output.messages,
             parent_span.trace_id,
             parent_span.span_id,
+            parent_span.get_attributes().path().unwrap(),
         );
         let parent_span_mq_message = RabbitMqSpanMessage {
             project_id: *project_id,

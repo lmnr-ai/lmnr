@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use super::projects::Project;
 use super::stats::create_usage_stats_for_workspace;
+use crate::projects::Project;
 
-#[derive(Debug, Deserialize, Serialize, FromRow)]
+#[derive(Deserialize, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Workspace {
     pub id: Uuid,
@@ -14,7 +14,6 @@ pub struct Workspace {
     pub is_free_tier: bool,
 }
 
-// create an error type with multiple variants
 #[derive(thiserror::Error, Debug)]
 pub enum WorkspaceError {
     #[error("User with email {0} not found")]
@@ -23,15 +22,9 @@ pub enum WorkspaceError {
     NotAllowed,
     #[error("{0}")]
     UnhandledError(#[from] anyhow::Error),
-    #[error("Hit limit of maximum {entity:?}: {limit:?}, current usage: {usage:?}")]
-    LimitReached {
-        entity: String,
-        limit: i64,
-        usage: i64,
-    },
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceWithProjects {
     pub id: Uuid,
@@ -100,7 +93,7 @@ pub async fn get_owned_workspaces(pool: &PgPool, user_id: &Uuid) -> anyhow::Resu
         FROM
             workspaces
             JOIN subscription_tiers on workspaces.tier_id = subscription_tiers.id
-        WHERE id IN (
+        WHERE workspaces.id IN (
             SELECT workspace_id
             FROM members_of_workspaces
             WHERE user_id = $1 AND member_role = 'owner'::workspace_role

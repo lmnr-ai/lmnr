@@ -39,6 +39,8 @@ pub struct CHSpan {
     pub trace_id: Uuid,
     pub provider: String,
     pub user_id: String,
+    // Default value is <null>  backwards compatibility or if path attribute is not present
+    pub path: String,
 }
 
 impl CHSpan {
@@ -68,6 +70,7 @@ impl CHSpan {
             trace_id: span.trace_id,
             provider: usage.provider_name.unwrap_or(String::from("<null>")),
             user_id: span_attributes.user_id().unwrap_or(String::from("<null>")),
+            path: span_attributes.path().unwrap_or(String::from("<null>")),
         }
     }
 }

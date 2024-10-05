@@ -23,7 +23,7 @@ export default function DatasetSelect({ onDatasetChange, selectedDatasetId }: Da
   }, [])
 
   return (
-    <div className="flex align-middle space-x-2">
+    <div className="align-middle space-x-2">
       <Select
         value={selectedDatasetId ?? undefined}
         onValueChange={(datasetId) => {

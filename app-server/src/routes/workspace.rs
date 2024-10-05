@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_web::{get, post, web, HttpResponse};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -8,10 +10,12 @@ use crate::{
     db::{
         self,
         user::{get_by_email, User},
-        workspace::WorkspaceError,
+        workspace::{WorkspaceError, WorkspaceWithProjects},
         DB,
     },
+    projects,
     routes::ResponseResult,
+    semantic_search::SemanticSearch,
 };
 
 #[get("")]
@@ -35,36 +39,63 @@ struct AddUserRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateWorkspaceRequest {
     name: String,
+    #[serde(default)]
+    project_name: Option<String>,
 }
 
 #[post("")]
 async fn create_workspace(
     user: User,
     db: web::Data<DB>,
+    cache: web::Data<Cache>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
     req: web::Json<CreateWorkspaceRequest>,
 ) -> ResponseResult {
-    let name = req.into_inner().name;
+    let req = req.into_inner();
+    let name = req.name;
+    let project_name = req.project_name;
 
-    let max_workspaces = 1; // for now, we only allow one workspace per user
-    let created_workspaces = db::workspace::get_owned_workspaces(&db.pool, &user.id)
-        .await?
-        .len() as i64;
+    let cache = cache.into_inner();
+    let semantic_search = semantic_search.into_inner().as_ref().clone();
 
-    if max_workspaces > 0 && created_workspaces >= max_workspaces {
-        return Err(workspace_error_to_http_error(
-            WorkspaceError::LimitReached {
-                entity: "workspaces".to_string(),
-                limit: max_workspaces,
-                usage: created_workspaces,
-            },
-        ));
-    }
     let workspace = db::workspace::create_new_workspace(&db.pool, Uuid::new_v4(), name).await?;
+    log::info!(
+        "Created new workspace: id {}, name {}, tier_name {}, is_free_tier {}",
+        workspace.id,
+        workspace.name,
+        workspace.tier_name,
+        workspace.is_free_tier
+    );
     db::workspace::add_owner_to_workspace(&db.pool, &user.id, &workspace.id).await?;
+    log::info!("Added owner {} to workspace: {}", user.id, workspace.id);
 
-    Ok(HttpResponse::Ok().json(workspace))
+    let projects = if let Some(project_name) = project_name {
+        let project = projects::create_project(
+            &db.pool,
+            cache.clone(),
+            semantic_search.clone(),
+            &user.id,
+            &project_name,
+            workspace.id,
+        )
+        .await?;
+
+        vec![project]
+    } else {
+        vec![]
+    };
+
+    let response = WorkspaceWithProjects {
+        id: workspace.id,
+        name: workspace.name,
+        tier_name: workspace.tier_name,
+        projects,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[post("{workspace_id}/users")]

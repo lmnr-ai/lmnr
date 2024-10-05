@@ -8,7 +8,7 @@ env_logger = "0.10.0"
 actix-web = "4"
 anyhow = "1"
 futures-util = "0.3.28"
-tonic = "0.8"
+tonic = "0.12.3"
 
 # workaround [AFIT](https://rust-lang.github.io/rfcs/3185-static-async-fn-in-trait.html)
 # while rust people have hot [debates](https://github.com/rust-lang/rust/pull/115822#issuecomment-1718261458) 
@@ -16,7 +16,7 @@ tonic = "0.8"
 async-trait = "0.1"
 
 dotenv = "0.15"
-prost = "0.11"
+prost = "0.13"
 tokio = { version = "1.24", features = ["macros", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 futures = "0.3"
@@ -66,4 +66,4 @@ serde_repr = "0.1.19"
 num_cpus = "1.16.0"
 
 [build-dependencies]
-tonic-build = "0.8"
+tonic-build = "0.12.3"

@@ -7,7 +7,6 @@ import { useProjectContext } from "@/contexts/project-context";
 import { swrFetcher } from "@/lib/utils";
 import { PipelineVersion } from "@/lib/pipeline/types";
 import { use, useEffect, useState } from "react";
-import SpanCards from "../traces/span-cards";
 import { ChevronsRight } from "lucide-react";
 import StatusLabel from "../ui/status-label";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";

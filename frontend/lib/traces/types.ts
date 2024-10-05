@@ -15,6 +15,7 @@ export type LabelClass = {
   createdAt: string;
   labelType: LabelType;
   valueMap: string[];
+  description: string | null;
 }
 
 export type SpanLabel = {
@@ -25,6 +26,10 @@ export type SpanLabel = {
   value: number;
   valueMap: string[];
   className: string;
+  labelSource: 'Auto' | 'Manual';
+  userEmail: string | null;
+  description: string | null;
+  updatedAt: string;
 }
 
 export enum SpanType {
@@ -74,6 +79,10 @@ export type Trace = {
   totalTokenCount: number;
   cost: number | null;
   metadata: Record<string, string> | null;
+  parentSpanInput: any | null;
+  parentSpanOutput: any | null;
+  parentSpanName: string | null;
+  parentSpanType: SpanType | null;
   events: TraceEvent[]
 }
 

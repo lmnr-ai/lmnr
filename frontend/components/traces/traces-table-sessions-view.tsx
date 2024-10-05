@@ -139,7 +139,6 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     },
     {
       accessorFn: row => {
-        console.log(row.data)
         if (row.type === 'trace') {
           return getDurationString(row.data.startTime, row.data.endTime)
         }

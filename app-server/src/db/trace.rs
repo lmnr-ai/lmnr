@@ -4,33 +4,42 @@ use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use sqlx::{FromRow, PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
 use crate::{
     db::modifiers::DateRange,
-    language_model::{
-        providers::anthropic::OtelChatMessageContentPart, ChatMessage, ChatMessageContent,
-    },
+    language_model::{ChatMessage, ChatMessageContent, OtelChatMessageContentPart},
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     pipeline::{nodes::Message, trace::MetaLog},
     traces::{
         attributes::{
             ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_INPUT_COST, GEN_AI_INPUT_TOKENS,
             GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL,
-            GEN_AI_SYSTEM, GEN_AI_TOTAL_COST, SPAN_TYPE,
+            GEN_AI_SYSTEM, GEN_AI_TOTAL_COST, SPAN_PATH, SPAN_TYPE,
         },
         SpanUsage,
     },
 };
 
 use super::{
-    modifiers::Filter,
+    modifiers::{Filter, FilterOperator},
     utils::{add_date_range_to_query, convert_any_value_to_json_value, span_id_to_uuid},
 };
 
 const DEFAULT_VERSION: &str = "0.1.0";
+
+/// Helper struct to pass current trace info, if exists, if pipeline is called from remote trace context
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrentTraceAndSpan {
+    trace_id: Uuid,
+    parent_span_id: Uuid,
+    // Optional for backwards compatibility
+    #[serde(default)]
+    parent_span_path: Option<String>,
+}
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "span_type")]
@@ -105,7 +114,7 @@ pub struct Trace {
 
 #[derive(Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct TraceWithEvents {
+pub struct TraceWithParentSpanAndEvents {
     id: Uuid,
     start_time: DateTime<Utc>,
     end_time: Option<DateTime<Utc>>,
@@ -121,6 +130,15 @@ pub struct TraceWithEvents {
     cost: f64,
     success: bool,
     project_id: Uuid,
+
+    // TODO: maybe use `Span` struct with `sqlx::flatten`,
+    // after figuring out how to handle start_time and end_time
+    // (which are both in `spans` and `traces` tables)
+    parent_span_input: Option<Value>,
+    parent_span_output: Option<Value>,
+    parent_span_name: Option<String>,
+    parent_span_type: Option<SpanType>,
+
     // 'events' is a list of partial event objects, using Option because of Coalesce
     events: Option<Value>,
 }
@@ -192,24 +210,7 @@ pub struct Span {
     pub span_type: SpanType,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
-
     pub events: Option<Value>,
-}
-
-/// List of available fields on the span. This is needed for "export to dataset query"
-/// so frontend can specify which fields to include in the dataset
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum SpanField {
-    SpanId,
-    Name,
-    ParentSpanId,
-    TraceId,
-    StartTime,
-    EndTime,
-    Input,
-    Output,
-    SpanType,
 }
 
 pub struct SpanAttributes {
@@ -306,12 +307,18 @@ impl SpanAttributes {
             serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default()
         } else {
             // quick hack until we figure how to set span type on auto-instrumentation
-            if self.attributes.contains_key("gen_ai.system") {
+            if self.attributes.contains_key(GEN_AI_SYSTEM) {
                 SpanType::LLM
             } else {
                 SpanType::DEFAULT
             }
         }
+    }
+
+    pub fn path(&self) -> Option<String> {
+        self.attributes
+            .get(SPAN_PATH)
+            .and_then(|p| p.as_str().map(|s| s.to_string()))
     }
 
     pub fn set_usage(&mut self, usage: &SpanUsage) {
@@ -339,6 +346,26 @@ impl SpanAttributes {
         if let Some(provider_name) = &usage.provider_name {
             self.attributes
                 .insert(GEN_AI_SYSTEM.to_string(), json!(provider_name));
+        }
+    }
+
+    /// Extend the span path.
+    ///
+    /// This is a hack which helps not to change traceloop auto-instrumentation code. It will
+    /// modify autoinstrumented LLM spans to have correct exact span path.
+    ///
+    /// NOTE: It may not work very precisely for Langchain auto-instrumentation, since it contains
+    /// nested spans within autoinstrumentation. Also, it may not work for autoinstrumented vector DB calls.
+    pub fn extend_span_path(&mut self, span_name: &str) {
+        if self.attributes.contains_key(GEN_AI_SYSTEM) {
+            match self.attributes.get(SPAN_PATH) {
+                Some(serde_json::Value::String(path)) => {
+                    let span_path = format!("{}.{}", path, span_name);
+                    self.attributes
+                        .insert(SPAN_PATH.to_string(), Value::String(span_path));
+                }
+                _ => {}
+            }
         }
     }
 }
@@ -461,13 +488,24 @@ impl Span {
     }
 
     pub fn create_parent_span_in_run_trace(
-        trace_id: Uuid,
+        current_trace_and_span: Option<CurrentTraceAndSpan>,
         run_stats: &crate::pipeline::trace::RunTraceStats,
-        parent_span_id: Option<Uuid>,
         name: &String,
         messages: &HashMap<Uuid, Message>,
         trace_type: TraceType,
     ) -> Self {
+        // First, process current active context (current_trace_and_span)
+        // If there is both active trace and span, use them. Otherwise, create new trace id and None for parent span id.
+        let trace_id = current_trace_and_span
+            .as_ref()
+            .map(|t| t.trace_id)
+            .unwrap_or_else(Uuid::new_v4);
+        let parent_span_id = current_trace_and_span.as_ref().map(|t| t.parent_span_id);
+        let parent_span_path = current_trace_and_span
+            .as_ref()
+            .map(|t| t.parent_span_path.clone())
+            .flatten();
+
         let mut inputs = HashMap::new();
         let mut outputs = HashMap::new();
         messages
@@ -481,11 +519,19 @@ impl Span {
                 }
                 _ => (),
             });
+
+        let path = if let Some(parent_span_path) = parent_span_path {
+            format!("{}.{}", parent_span_path, name)
+        } else {
+            name.clone()
+        };
         let mut attributes = HashMap::new();
         attributes.insert(
             format!("{ASSOCIATION_PROPERTIES_PREFIX}trace_type",),
-            trace_type,
+            json!(trace_type),
         );
+        attributes.insert(SPAN_PATH.to_string(), json!(path));
+
         Self {
             span_id: Uuid::new_v4(),
             start_time: run_stats.start_time,
@@ -502,14 +548,27 @@ impl Span {
         }
     }
 
+    /// Create spans from messages.
+    ///
+    /// At this point, the whole pipeline run acts as a parent span.
+    /// So trace id, parent span id, and parent span path are all not None.
     pub fn from_messages(
         messages: &HashMap<Uuid, Message>,
         trace_id: Uuid,
         parent_span_id: Uuid,
+        parent_span_path: String,
     ) -> Vec<Self> {
         messages
             .iter()
             .filter_map(|(msg_id, message)| {
+                if !(message.node_type.as_str() == "LLM"
+                    || message.node_type.as_str() == "SemanticSearch")
+                {
+                    return None;
+                }
+
+                let span_path = format!("{}.{}", parent_span_path, message.node_name);
+
                 let input_values = message
                     .input_message_ids
                     .iter()
@@ -529,7 +588,7 @@ impl Span {
                     trace_id,
                     parent_span_id: Some(parent_span_id),
                     name: message.node_name.clone(),
-                    attributes: span_attributes_from_meta_log(message.meta_log.clone()),
+                    attributes: span_attributes_from_data(message.meta_log.clone(), span_path),
                     input: Some(serde_json::to_value(input_values).unwrap()),
                     output: Some(message.value.clone().into()),
                     span_type: match message.node_type.as_str() {
@@ -538,56 +597,35 @@ impl Span {
                     },
                     events: None,
                 };
-                match message.node_type.as_str() {
-                    "LLM" | "SemanticSearch" => Some(span),
-                    _ => None,
-                }
+                Some(span)
             })
             .collect()
     }
-
-    pub fn to_json_value(&self, fields: &Vec<SpanField>) -> Value {
-        if fields.is_empty() {
-            return Value::Object(Map::new());
-        }
-
-        let mut json_map = Map::new();
-
-        for field in fields {
-            match field {
-                SpanField::SpanId => json_map.insert("spanId".to_string(), json!(self.span_id)),
-                SpanField::Name => json_map.insert("name".to_string(), json!(self.name)),
-                SpanField::ParentSpanId => {
-                    json_map.insert("parentSpanId".to_string(), json!(self.parent_span_id))
-                }
-                SpanField::TraceId => json_map.insert("traceId".to_string(), json!(self.trace_id)),
-                SpanField::StartTime => {
-                    json_map.insert("startTime".to_string(), json!(self.start_time))
-                }
-                SpanField::EndTime => json_map.insert("endTime".to_string(), json!(self.end_time)),
-                SpanField::Input => json_map.insert("input".to_string(), json!(self.input)),
-                SpanField::Output => json_map.insert("output".to_string(), json!(self.output)),
-                SpanField::SpanType => {
-                    json_map.insert("spanType".to_string(), json!(self.span_type))
-                }
-            };
-        }
-
-        Value::Object(json_map)
-    }
 }
 
-fn span_attributes_from_meta_log(meta_log: Option<MetaLog>) -> Value {
-    match meta_log {
-        Some(MetaLog::LLM(llm_log)) => serde_json::json!({
-            GEN_AI_INPUT_TOKENS: llm_log.input_token_count,
-            GEN_AI_OUTPUT_TOKENS: llm_log.output_token_count,
-            GEN_AI_RESPONSE_MODEL: llm_log.model,
-            GEN_AI_SYSTEM: llm_log.provider,
-            GEN_AI_TOTAL_COST: llm_log.approximate_cost,
-        }),
-        _ => serde_json::json!({}),
+fn span_attributes_from_data(meta_log: Option<MetaLog>, span_path: String) -> Value {
+    let mut attributes = HashMap::new();
+
+    if let Some(MetaLog::LLM(llm_log)) = meta_log {
+        attributes.insert(
+            GEN_AI_INPUT_TOKENS.to_string(),
+            json!(llm_log.input_token_count),
+        );
+        attributes.insert(
+            GEN_AI_OUTPUT_TOKENS.to_string(),
+            json!(llm_log.output_token_count),
+        );
+        attributes.insert(GEN_AI_RESPONSE_MODEL.to_string(), json!(llm_log.model));
+        attributes.insert(GEN_AI_SYSTEM.to_string(), json!(llm_log.provider));
+        attributes.insert(
+            GEN_AI_TOTAL_COST.to_string(),
+            json!(llm_log.approximate_cost),
+        );
     }
+
+    attributes.insert(SPAN_PATH.to_string(), json!(span_path));
+
+    serde_json::to_value(attributes).unwrap()
 }
 
 #[derive(Serialize)]
@@ -724,57 +762,7 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
 pub fn add_traces_info_expression(
     query: &mut QueryBuilder<Postgres>,
     date_range: &Option<DateRange>,
-) -> Result<()> {
-    query.push(
-        "
-    traces_info(
-        id,
-        start_time,
-        end_time,
-        version,
-        release,
-        user_id,
-        session_id,
-        metadata,
-        project_id,
-        total_token_count,
-        cost,
-        success,
-        trace_type,
-        latency,
-        status
-    ) AS (
-        SELECT
-            t.id,
-            t.start_time,
-            t.end_time,
-            t.version,
-            t.release,
-            t.user_id,
-            t.session_id,
-            t.metadata,
-            t.project_id,
-            t.total_token_count,
-            t.cost,
-            t.success,
-            t.trace_type,
-            EXTRACT(EPOCH FROM (t.end_time - t.start_time)),
-            CASE WHEN t.success = true THEN 'Success' ELSE 'Failed' END
-        FROM traces t
-        WHERE start_time IS NOT NULL AND end_time IS NOT NULL ",
-    );
-
-    add_date_range_to_query(query, date_range, "t.start_time", Some("t.end_time"))?;
-
-    query.push(")");
-
-    Ok(())
-}
-
-pub fn add_traces_info_filtered_by_text(
-    query: &mut QueryBuilder<Postgres>,
-    date_range: &Option<DateRange>,
-    text_search_filter: String,
+    text_search_filter: Option<String>,
     project_id: Uuid,
 ) -> Result<()> {
     query
@@ -795,10 +783,12 @@ pub fn add_traces_info_filtered_by_text(
             traces.cost,
             traces.success,
             traces.trace_type,
+            spans.parent_span_id,
             spans.name as span_name,
             spans.attributes as span_attributes,
             spans.input as span_input,
-            spans.output as span_output 
+            spans.output as span_output,
+            spans.span_type 
         FROM
             spans
         JOIN
@@ -818,8 +808,19 @@ pub fn add_traces_info_filtered_by_text(
     )?;
 
     query.push(" ),");
+    query.push(
+        "parent_span AS (
+        SELECT
+            span_input,
+            span_output,
+            span_name,
+            span_type,
+            id trace_id
+        FROM spans_with_trace
+        WHERE parent_span_id IS NULL
+    ),",
+    );
 
-    // After pushing materialized CTE, we need to push the traces_info CTE
     query.push(
         "
         traces_info AS (
@@ -836,20 +837,24 @@ pub fn add_traces_info_filtered_by_text(
             total_token_count,
             cost,
             success,
-            EXTRACT(EPOCH FROM (end_time - start_time)) as latency 
-        FROM spans_with_trace st WHERE ",
+            trace_type,
+            EXTRACT(EPOCH FROM (end_time - start_time)) as latency,
+            CASE WHEN success = true THEN 'Success' ELSE 'Failed' END status
+        FROM spans_with_trace st WHERE 1=1",
     );
 
-    query
-        .push("(st.span_input::TEXT ILIKE ")
-        .push_bind(format!("%{}%", &text_search_filter))
-        .push(" OR st.span_output::TEXT ILIKE ")
-        .push_bind(format!("%{}%", &text_search_filter))
-        .push(" OR st.span_name::TEXT ILIKE ")
-        .push_bind(format!("%{}%", &text_search_filter))
-        .push(" OR st.span_attributes::TEXT ILIKE ")
-        .push_bind(format!("%{}%", &text_search_filter))
-        .push(")");
+    if let Some(text_search_filter) = text_search_filter {
+        query
+            .push("AND (st.span_input::TEXT ILIKE ")
+            .push_bind(format!("%{text_search_filter}%"))
+            .push(" OR st.span_output::TEXT ILIKE ")
+            .push_bind(format!("%{text_search_filter}%"))
+            .push(" OR st.span_name::TEXT ILIKE ")
+            .push_bind(format!("%{text_search_filter}%"))
+            .push(" OR st.span_attributes::TEXT ILIKE ")
+            .push_bind(format!("%{text_search_filter}%"))
+            .push(")");
+    }
 
     query.push(")");
 
@@ -887,23 +892,27 @@ fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Opt
                 log::warn!("Invalid column name: {}", filter.filter_column);
                 return;
             }
-            query.push(" AND ");
-            if let Some(jsonb_prefix) = &filter.jsonb_column {
-                if &filter.filter_column == "event" && jsonb_prefix == "events" {
-                    // temporary hack to allow for includes queries.
-                    // Front-end hackily sends the array of `{"typeName": "my_event_name"}` objects
-                    // as a stringified JSON array, which we parse here.
-                    query.push("trace_events.events @> ").push_bind(
-                        serde_json::from_str::<Value>(filter_value_str.as_str()).unwrap(),
-                    );
-                    return;
-                }
-                let mut arg = HashMap::new();
-                arg.insert(&filter.filter_column, &filter.filter_value);
-                let arg = serde_json::to_value(arg).unwrap();
-                query.push(jsonb_prefix).push(" @> ").push_bind(arg);
+            if filter.filter_column.starts_with("event.") {
+                let template_name = filter.filter_column.strip_prefix("event.").unwrap();
+                filter_by_event_value(
+                    query,
+                    template_name.to_string(),
+                    filter.filter_operator.clone(),
+                    filter.filter_value.clone(),
+                );
                 return;
             }
+            if filter.filter_column.starts_with("label.") {
+                let label_name = filter.filter_column.strip_prefix("label.").unwrap();
+                filter_by_span_label_value(
+                    query,
+                    label_name.to_string(),
+                    filter.filter_operator.clone(),
+                    filter.filter_value.clone(),
+                );
+                return;
+            }
+            query.push(" AND ");
             query.push(&filter.filter_column);
             query.push(filter.filter_operator.to_sql_operator());
             if ["id"]
@@ -916,17 +925,57 @@ fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Opt
                 .any(|col| col == &filter.filter_column.as_str())
             {
                 query.push_bind(filter_value_str.parse::<f64>().unwrap_or_default());
+            } else if filter.filter_column == "trace_type" {
+                query.push_bind(filter_value_str);
+                query.push("::trace_type");
             } else {
                 query.push_bind(filter_value_str);
             }
-
-            if filter.filter_value_type.is_some() && filter.validate_cast_type() {
-                query
-                    .push("::")
-                    .push(&filter.filter_value_type.clone().unwrap());
-            }
         });
     }
+}
+
+fn filter_by_event_value(
+    query: &mut QueryBuilder<Postgres>,
+    template_name: String,
+    filter_operator: FilterOperator,
+    event_value: Value,
+) {
+    query.push(
+        " AND id IN
+        (SELECT trace_id
+        FROM spans
+        JOIN events ON spans.span_id = events.span_id
+        JOIN event_templates ON events.template_id = event_templates.id
+        WHERE event_templates.name = 
+    ",
+    );
+    query.push_bind(template_name);
+    query.push(" AND events.value ");
+    query.push(filter_operator.to_sql_operator());
+    query.push_bind(event_value);
+    query.push("::jsonb)");
+}
+
+fn filter_by_span_label_value(
+    query: &mut QueryBuilder<Postgres>,
+    label_name: String,
+    filter_operator: FilterOperator,
+    label_value: Value,
+) {
+    query.push(
+        " AND id IN
+        (SELECT trace_id
+        FROM spans
+        JOIN labels ON spans.span_id = labels.span_id
+        JOIN label_classes ON labels.class_id = label_classes.id
+        WHERE label_classes.name = ",
+    );
+    query.push_bind(label_name);
+    query.push(" AND label_classes.value_map ->> labels.value::int4 ");
+    query.push(filter_operator.to_sql_operator());
+    query.push_bind(label_value);
+    query.push("::text)");
 }
 
 /// Queries traces for a project which match the given filters, with given limit and offset
@@ -938,17 +987,12 @@ pub async fn get_traces(
     filters: &Option<Vec<Filter>>,
     date_range: &Option<DateRange>,
     text_search_filter: Option<String>,
-) -> Result<Vec<TraceWithEvents>> {
+) -> Result<Vec<TraceWithParentSpanAndEvents>> {
     let mut query = QueryBuilder::<Postgres>::new("WITH ");
-    if let Some(text_search_filter) = text_search_filter {
-        add_traces_info_filtered_by_text(&mut query, date_range, text_search_filter, project_id)?;
-    } else {
-        add_traces_info_expression(&mut query, date_range)?;
-    };
+    add_traces_info_expression(&mut query, date_range, text_search_filter, project_id)?;
     query.push(", ");
     query.push(TRACE_EVENTS_EXPRESSION);
 
-    // Filtering by project id may be redundant in case of text search filter, but ok for now for simplicity
     query.push(
         "
         SELECT
@@ -964,9 +1008,15 @@ pub async fn get_traces(
             total_token_count,
             cost,
             success,
-            COALESCE(trace_events.events, '[]'::jsonb) AS events
+            COALESCE(trace_events.events, '[]'::jsonb) AS events,
+            status,
+            parent_span.span_input as parent_span_input,
+            parent_span.span_output as parent_span_output,
+            parent_span.span_name as parent_span_name,
+            parent_span.span_type as parent_span_type
         FROM traces_info
         LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id
+        JOIN parent_span ON parent_span.trace_id = traces_info.id
         WHERE project_id = ",
     );
     query.push_bind(project_id);
@@ -980,7 +1030,7 @@ pub async fn get_traces(
         .push_bind(limit as i64);
 
     let traces = query
-        .build_query_as::<'_, TraceWithEvents>()
+        .build_query_as::<'_, TraceWithParentSpanAndEvents>()
         .fetch_all(pool)
         .await?;
 
@@ -996,16 +1046,7 @@ pub async fn count_traces(
     text_search_filter: Option<String>,
 ) -> Result<i64> {
     let mut base_query = QueryBuilder::<Postgres>::new("WITH ");
-    if let Some(text_search_filter) = text_search_filter {
-        add_traces_info_filtered_by_text(
-            &mut base_query,
-            date_range,
-            text_search_filter,
-            project_id,
-        )?;
-    } else {
-        add_traces_info_expression(&mut base_query, date_range)?;
-    };
+    add_traces_info_expression(&mut base_query, date_range, text_search_filter, project_id)?;
     base_query.push(", ");
     base_query.push(TRACE_EVENTS_EXPRESSION);
     base_query.push(

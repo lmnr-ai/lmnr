@@ -10,6 +10,7 @@ import { Button } from "../ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useProjectContext } from "@/contexts/project-context";
 import { Table, TableBody, TableCell, TableRow } from "../ui/table";
+import DefaultTextarea from "../ui/default-textarea";
 
 interface AddLabelProps {
   spanId: string;
@@ -28,6 +29,7 @@ export function AddLabel({
   const [value, setValue] = useState<string | number | boolean>('');
   const [isSaving, setIsSaving] = useState(false);
   const [valueMap, setValueMap] = useState<string[]>(["", ""]);
+  const [description, setDescription] = useState<string | null>(null);
 
   const saveLabel = async () => {
     setIsSaving(true);
@@ -39,7 +41,8 @@ export function AddLabel({
       body: JSON.stringify({
         name: typeName,
         labelType: selectedType,
-        valueMap
+        valueMap,
+        description,
       }),
     });
     newLabel = await res.json() as LabelClass;
@@ -63,6 +66,15 @@ export function AddLabel({
         <Input type="text" placeholder="Label name" onChange={e => setTypeName(e.target.value)} />
       </div>
       <div className="flex-col space-y-1">
+        <Label className="flex">Description (optional)</Label>
+        <DefaultTextarea
+          className="flex w-full"
+          placeholder="Label description"
+          onChange={e => setDescription(e.target.value)}
+          minRows={3}
+        />
+      </div>
+      <div className="flex-col space-y-1">
         <Label>Type</Label>
         <Select onValueChange={labelType => {
           setSelectedType(labelType as LabelType)
@@ -82,7 +94,6 @@ export function AddLabel({
         </Select>
       </div>
       {selectedType === LabelType.CATEGORICAL &&
-
         (<div className="flex flex-col space-y-2">
           <div className="flex-col space-y-1">
             <Label>Categorical values</Label>

@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(true)
         .build_server(false)
         .out_dir("./src/semantic_search/")
-        .compile(&[proto_file], &["proto"])?;
+        .compile_protos(&[proto_file], &["proto"])?;
 
     // NOTE: Currently need to manually enable this, fix errors with super::super::..., whenever changing proto.
     tonic_build::configure()
@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(true)
         .include_file("mod.rs")
         .out_dir("./src/opentelemetry/")
-        .compile(
+        .compile_protos(
             &[
                 "./proto/opentelemetry/common.proto",
                 "./proto/opentelemetry/resource.proto",

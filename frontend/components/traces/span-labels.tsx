@@ -4,17 +4,10 @@ import { swrFetcher } from "@/lib/utils";
 import useSWR from "swr";
 import { DataTable } from "../ui/datatable";
 import { useEffect } from "react";
-import { Row } from "@tanstack/react-table";
+import { ColumnDef } from "@tanstack/react-table";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreVertical } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { eventEmitter } from "@/lib/event-emitter";
+import ClientTimestampFormatter from "../client-timestamp-formatter";
 
 interface SpanLabelsProps {
   spanId: string;
@@ -43,7 +36,7 @@ export default function SpanLabels({
     };
   }, [mutate]);
 
-  const columns = [
+  const columns: ColumnDef<SpanLabel>[] = [
     {
       accessorKey: 'className',
       header: 'Name',
@@ -57,7 +50,19 @@ export default function SpanLabels({
         return row.valueMap?.[row.value] ?? '';
       },
       header: 'Value',
-    }
+    },
+    {
+      accessorFn: (row: SpanLabel) => {
+        return row.userEmail ?? (row.labelSource === 'Auto' ? 'Auto-labeled' : '-');
+      },
+      header: 'User',
+    },
+    {
+      accessorKey: 'updatedAt',
+      header: 'Updated At',
+      cell: row =>
+        <ClientTimestampFormatter timestamp={String(row.getValue())} />
+    },
   ];
 
   return (

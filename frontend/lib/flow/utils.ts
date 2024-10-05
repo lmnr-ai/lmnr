@@ -582,9 +582,10 @@ export function isStringList(input: NodeInput): input is string[] {
 export function isChatMessageList(input: NodeInput): input is ChatMessage[] {
   if (input === undefined) return false;
   if (!Array.isArray(input)) return false;
-  return input.every((item) => {
-    return typeof item === 'object' && 'role' in item && 'content' in item
-  });
+  return input.every((item) => 
+    // Check for !== null first, because typeof null is 'object'
+    item !== null && typeof item === 'object' && 'role' in item && 'content' in item
+  );
 }
 
 export const renderChatMessageContentParts = (parts: ChatMessageContentPart[]): string => {

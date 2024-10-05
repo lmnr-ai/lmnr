@@ -1,4 +1,4 @@
-import { Workspace } from "@/lib/workspaces/types"
+import { WorkspaceWithProjects } from "@/lib/workspaces/types"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import {
@@ -33,7 +33,7 @@ export default function WorkspaceCreateDialog({ onWorkspaceCreate }: WorkspaceCr
       })
     });
 
-    const newWorkspace = await res.json() as Workspace;
+    const newWorkspace = await res.json() as WorkspaceWithProjects;
 
     onWorkspaceCreate?.();
     router.push(`/workspace/${newWorkspace.id}`);

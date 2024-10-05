@@ -22,3 +22,22 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
   return res
 }
+
+export async function GET(req: Request, { params }: { params: { projectId: string } }): Promise<Response> {
+
+  const projectId = params.projectId;
+
+  const session = await getServerSession(authOptions)
+  const user = session!.user
+
+  const res = await fetcher(`/projects/${projectId}/event-templates`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${user.apiKey}`
+    },
+  })
+
+  return res
+}
+

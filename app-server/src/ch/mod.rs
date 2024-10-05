@@ -1,6 +1,7 @@
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 
+pub mod evaluation_scores;
 pub mod events;
 pub mod modifiers;
 pub mod spans;

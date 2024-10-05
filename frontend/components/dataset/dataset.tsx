@@ -16,6 +16,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { useProjectContext } from "@/contexts/project-context";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { PaginatedResponse } from "@/lib/types";
+import { Resizable } from "re-resizable";
 
 interface DatasetProps {
   dataset: DatasetType;
@@ -98,81 +99,97 @@ export default function Dataset({
     {
       accessorKey: 'createdAt',
       header: 'Created at',
-      size: 200,
+      size: 150,
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     },
     {
       accessorFn: (row) => JSON.stringify(row.data),
       header: 'Data',
-      size: 400,
+      size: 200,
     },
     {
       accessorFn: (row) => row.target ? JSON.stringify(row.target) : "-",
       header: 'Target',
-      size: 400,
+      size: 200,
+    },
+    {
+      accessorFn: (row) => row.metadata ? JSON.stringify(row.metadata) : "-",
+      header: 'Metadata',
+      size: 200,
     },
   ]
 
   return (
     <div className="h-full flex flex-col">
       <Header path={"datasets/" + dataset.name} />
-      <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel className="flex flex-col">
-          <div className="flex flex-none p-4 h-12 items-center space-x-4">
-            <div className="flex-grow text-lg font-semibold">
-              <h1>
-                {dataset.name}
-              </h1>
-            </div>
-            <div className="text-secondary-foreground bg-secondary text-sm border rounded p-1 px-2">
-              {dataset?.indexedOn
-                ? `Indexed on "${dataset.indexedOn}"`
-                : `Not indexed`}
-            </div>
-            <DeleteDatapointsDialog
-              selectedDatapointIds={selectedDatapointIds}
-              onDelete={deleteDatapoints}
-              totalDatapointsCount={totalCount}
-              useAll={allDatapointsAcrossPagesSelected} />
-            <AddDatapointsDialog datasetId={dataset.id} onUpdate={router.refresh} />
-            <ManualAddDatapoint datasetId={dataset.id} onUpdate={router.refresh} />
-            <IndexDatasetDialog datasetId={dataset.id} defaultDataset={dataset} onUpdate={router.refresh} />
-          </div>
-          <div className='flex-grow'>
-            <DataTable
-              columns={columns}
-              data={datapoints}
-              getRowId={(datapoint) => datapoint.id}
-              onRowClick={(row) => {
-                setExpandedDatapoint(row.original);
-              }}
-              paginated
-              focusedRowId={expandedDatapoint?.id}
-              manualPagination
-              pageCount={pageCount}
-              defaultPageSize={pageSize}
-              defaultPageNumber={pageNumber}
-              onPageChange={(pageNumber, pageSize) => {
-                searchParams.set('pageNumber', pageNumber.toString());
-                searchParams.set('pageSize', pageSize.toString());
-                router.push(`${pathName}?${searchParams.toString()}`);
-              }}
-              totalItemsCount={totalCount}
-              enableRowSelection
-              onSelectedRowsChange={setSelectedDatapointIds}
-              onSelectAllAcrossPages={setAllDatapointsAcrossPagesSelected}
-            />
-          </div>
-        </ResizablePanel>
-        <ResizableHandle />
-        {expandedDatapoint && <ResizablePanel>
-          <DatasetPanel datasetId={dataset.id} datapoint={expandedDatapoint} onClose={() => {
-            setExpandedDatapoint(null);
+      <div className="flex flex-none p-4 h-12 items-center space-x-4">
+        <div className="flex-grow text-lg font-semibold">
+          <h1>
+            {dataset.name}
+          </h1>
+        </div>
+        {/* <DeleteDatapointsDialog
+          selectedDatapointIds={selectedDatapointIds}
+          onDelete={deleteDatapoints}
+          totalDatapointsCount={totalCount}
+          useAll={allDatapointsAcrossPagesSelected} /> */}
+        <AddDatapointsDialog datasetId={dataset.id} onUpdate={router.refresh} />
+        <ManualAddDatapoint datasetId={dataset.id} onUpdate={router.refresh} />
+        <IndexDatasetDialog datasetId={dataset.id} defaultDataset={dataset} onUpdate={router.refresh} />
+      </div>
+      <div className='flex-grow'>
+        <DataTable
+          columns={columns}
+          data={datapoints}
+          getRowId={(datapoint) => datapoint.id}
+          onRowClick={(row) => {
+            setExpandedDatapoint(row.original);
           }}
-          />
-        </ResizablePanel>
-        }
-      </ResizablePanelGroup >
-    </div >
+          paginated
+          focusedRowId={expandedDatapoint?.id}
+          manualPagination
+          pageCount={pageCount}
+          defaultPageSize={pageSize}
+          defaultPageNumber={pageNumber}
+          onPageChange={(pageNumber, pageSize) => {
+            searchParams.set('pageNumber', pageNumber.toString());
+            searchParams.set('pageSize', pageSize.toString());
+            router.push(`${pathName}?${searchParams.toString()}`);
+          }}
+          totalItemsCount={totalCount}
+          enableRowSelection
+          onSelectedRowsChange={setSelectedDatapointIds}
+          onSelectAllAcrossPages={setAllDatapointsAcrossPagesSelected}
+        />
+      </div>
+      {expandedDatapoint &&
+        <div className='absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex'>
+          <Resizable
+            enable={
+              {
+                top: false,
+                right: false,
+                bottom: false,
+                left: true,
+                topRight: false,
+                bottomRight: false,
+                bottomLeft: false,
+                topLeft: false
+              }
+            }
+            defaultSize={{
+              width: 800,
+            }}
+          >
+            <div className='w-full h-full flex'>
+              <DatasetPanel datasetId={dataset.id} datapoint={expandedDatapoint} onClose={() => {
+                setExpandedDatapoint(null);
+              }}
+              />
+            </div>
+          </Resizable>
+        </div>
+      }
+    </div>
   );
 }

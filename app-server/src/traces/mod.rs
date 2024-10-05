@@ -92,8 +92,10 @@ pub async fn observation_collector(
             trace_attributes.add_cost(span_usage.total_cost);
             trace_attributes.add_tokens(span_usage.total_tokens);
             span_attributes.set_usage(&span_usage);
-            span.set_attributes(&span_attributes);
         }
+
+        span_attributes.extend_span_path(&span.name);
+        span.set_attributes(&span_attributes);
 
         let update_attrs_res = trace::update_trace_attributes(
             &db.pool,

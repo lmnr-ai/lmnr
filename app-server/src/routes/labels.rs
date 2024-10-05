@@ -3,7 +3,12 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::db::{self, labels::LabelType, user::User, DB};
+use crate::db::{
+    self,
+    labels::{LabelSource, LabelType},
+    user::User,
+    DB,
+};
 
 use super::ResponseResult;
 
@@ -21,6 +26,8 @@ struct CreateLabelClassRequest {
     name: String,
     label_type: LabelType,
     value_map: Vec<Value>,
+    #[serde(default)]
+    description: Option<String>,
 }
 
 #[post("label-classes")]
@@ -34,11 +41,41 @@ pub async fn create_label_class(
     let name = req.name;
     let label_type = req.label_type;
     let value_map = req.value_map;
+    let description = req.description;
 
     let id = Uuid::new_v4();
+    let label_class = db::labels::create_label_class(
+        &db.pool,
+        id,
+        name,
+        project_id,
+        &label_type,
+        value_map,
+        description,
+    )
+    .await?;
+
+    Ok(HttpResponse::Ok().json(label_class))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateLabelClassRequest {
+    description: Option<String>,
+}
+
+#[post("label-classes/{class_id}")]
+pub async fn update_label_class(
+    path: web::Path<(Uuid, Uuid)>,
+    req: web::Json<UpdateLabelClassRequest>,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    let (project_id, class_id) = path.into_inner();
+    let req = req.into_inner();
+    let description = req.description;
+
     let label_class =
-        db::labels::create_label_class(&db.pool, id, name, project_id, &label_type, value_map)
-            .await?;
+        db::labels::update_label_class(&db.pool, project_id, class_id, description).await?;
 
     Ok(HttpResponse::Ok().json(label_class))
 }
@@ -63,7 +100,15 @@ pub async fn update_span_label(
     let value = req.value;
     let user_id = user.id;
 
-    let label = db::labels::update_span_label(&db.pool, span_id, value, user_id, class_id).await?;
+    let label = db::labels::update_span_label(
+        &db.pool,
+        span_id,
+        value,
+        Some(user_id),
+        class_id,
+        LabelSource::MANUAL,
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(label))
 }
 

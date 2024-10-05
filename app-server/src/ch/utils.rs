@@ -141,3 +141,15 @@ where
 
     Ok(res)
 }
+
+/// Trivial SQL injection protection
+pub fn validate_string_against_injection(s: &str) -> Result<()> {
+    let invalid_chars = ["'", "\"", "\\", ";", "*", "/", "--"];
+    if invalid_chars.iter().any(|&c| s.contains(c))
+        || s.to_lowercase().contains("union")
+        || s.to_lowercase().contains("select")
+    {
+        return Err(anyhow::anyhow!("Invalid characters or SQL keywords"));
+    }
+    return Ok(());
+}
