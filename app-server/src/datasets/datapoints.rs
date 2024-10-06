@@ -44,12 +44,6 @@ impl Datapoint {
                 let is_meta_object_or_none =
                     matches!(metadata, Some(Value::Object(_))) || metadata.is_none();
 
-                dbg!(&data);
-                dbg!(&target);
-                dbg!(&metadata);
-                dbg!(is_data_object);
-                dbg!(is_target_object_or_none);
-                dbg!(is_meta_object_or_none);
                 if data.is_some()
                     && is_data_object
                     && is_target_object_or_none
