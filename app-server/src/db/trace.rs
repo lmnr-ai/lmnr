@@ -847,7 +847,7 @@ pub fn add_traces_info_expression(
 
     if let Some(text_search_filter) = text_search_filter {
         query
-            .push("AND (st.span_input::TEXT ILIKE ")
+            .push(" AND (st.span_input::TEXT ILIKE ")
             .push_bind(format!("%{text_search_filter}%"))
             .push(" OR st.span_output::TEXT ILIKE ")
             .push_bind(format!("%{text_search_filter}%"))
