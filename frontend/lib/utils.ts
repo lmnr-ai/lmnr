@@ -335,3 +335,12 @@ export const isGroupByIntervalAvailable = (
   }
   return false;
 }
+
+export const isJsonStringAValidObject = (json: string): boolean => {
+  try {
+    const obj = JSON.parse(json);
+    return typeof obj === 'object' && !Array.isArray(obj) && obj !== null;
+  } catch (e) {
+    return false;
+  }
+};

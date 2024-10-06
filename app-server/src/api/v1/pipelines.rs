@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use actix_web::{get, post, web, HttpResponse};
+use actix_web::{post, web, HttpResponse};
 use serde::Deserialize;
 use uuid::Uuid;
 

@@ -9,6 +9,8 @@ import { Datapoint } from "@/lib/dataset/types";
 import Formatter from "../ui/formatter";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isJsonStringAValidObject } from "@/lib/utils";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface DatasetPanelProps {
   datasetId: string;
@@ -36,6 +38,7 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
   const [isValidJsonMetadata, setIsValidJsonMetadata] = useState(true);
   const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
     setNewData(datapoint.data);
@@ -48,7 +51,7 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
       <div className='h-12 flex flex-none space-x-2 px-3 items-center border-b'>
         <div className="flex flex-row flex-grow space-x-2 h-full items-center">
           <Button
-            variant={'ghost'}
+            variant="ghost"
             className='px-1'
             onClick={() => {
               setNewData(datapoint.data)
@@ -69,10 +72,11 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
         <Button
           className="mr-4"
           variant='outline'
+          // disable if no changes or invalid json
           disabled={!isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata ||
-            (deepEqual(datapoint.data, newData) && deepEqual(datapoint.target, newTarget)) && deepEqual(datapoint.metadata, newMetadata)} // disable if no changes or invalid json
-          onClick={() => {
-            fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapoint.id}`, {
+            (deepEqual(datapoint.data, newData) && deepEqual(datapoint.target, newTarget)) && deepEqual(datapoint.metadata, newMetadata)}
+          onClick={async () => {
+            const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapoint.id}`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -83,7 +87,17 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                 metadata: newMetadata,
               })
             })
+            if (!res.ok) {
+              toast({
+                title: 'Failed to save changes',
+                variant: 'destructive',
+              })
+              return
+            }
             router.refresh()
+            toast({
+              title: 'Changes saved',
+            })
           }}
         > Save changes
         </Button>
@@ -101,10 +115,9 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                   editable
                   onChange={s => {
                     try {
-                      const data = JSON.parse(s);
-                      const isDataValid = typeof data === 'object' && !Array.isArray(data);
+                      const isDataValid = isJsonStringAValidObject(s);
                       if (isDataValid) {
-                        setNewData(data);
+                        setNewData(JSON.parse(s));
                         setIsValidJsonData(true);
                       } else {
                         setIsValidJsonData(false);
@@ -113,6 +126,9 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                       setIsValidJsonData(false);
                     }
                   }} />
+                {!isValidJsonData && (
+                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                )}
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Target</Label>
@@ -123,10 +139,9 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                   editable
                   onChange={s => {
                     try {
-                      const target = JSON.parse(s);
-                      const isTargetValid = typeof target === 'object' && !Array.isArray(target);
+                      const isTargetValid = isJsonStringAValidObject(s);
                       if (isTargetValid) {
-                        setNewTarget(target);
+                        setNewTarget(JSON.parse(s));
                         setIsValidJsonTarget(true);
                       } else {
                         setIsValidJsonTarget(false);
@@ -135,6 +150,9 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                       setIsValidJsonTarget(false);
                     }
                   }} />
+                  {!isValidJsonTarget && (
+                    <p className="text-sm text-red-500">Invalid JSON object</p>
+                  )}
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Metadata</Label>
@@ -150,10 +168,9 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                       return;
                     }
                     try {
-                      const metadata = JSON.parse(s);
-                      const isMetadataValid = typeof metadata === 'object' && !Array.isArray(metadata);
+                      const isMetadataValid = isJsonStringAValidObject(s);
                       if (isMetadataValid) {
-                        setNewMetadata(metadata);
+                        setNewMetadata(JSON.parse(s));
                         setIsValidJsonMetadata(true);
                       } else {
                         setIsValidJsonMetadata(false);
@@ -162,6 +179,9 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                       setIsValidJsonMetadata(false);
                     }
                   }} />
+                  {!isValidJsonMetadata && (
+                    <p className="text-sm text-red-500">Invalid JSON object</p>
+                  )}
               </div>
             </div>
           </div>

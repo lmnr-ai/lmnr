@@ -26,6 +26,7 @@ pub struct Datapoint {
     pub dataset_id: Uuid,
     pub data: Value,
     pub target: Value,
+    pub metadata: Option<Value>,
 }
 
 impl Datapoint {
@@ -36,15 +37,33 @@ impl Datapoint {
                 // and no other fields
                 let data = raw_obj.get("data");
                 let target = raw_obj.get("target");
-                if matches!(data, Some(Value::Object(_)))
-                    && ((raw_obj.len() == 2 && matches!(target, Some(Value::Object(_))))
-                        || raw_obj.len() == 1)
+                let metadata = raw_obj.get("metadata");
+                let is_data_object = matches!(data, Some(Value::Object(_)));
+                let is_target_object_or_none =
+                    matches!(target, Some(Value::Object(_))) || target.is_none();
+                let is_meta_object_or_none =
+                    matches!(metadata, Some(Value::Object(_))) || metadata.is_none();
+
+                dbg!(&data);
+                dbg!(&target);
+                dbg!(&metadata);
+                dbg!(is_data_object);
+                dbg!(is_target_object_or_none);
+                dbg!(is_meta_object_or_none);
+                if data.is_some()
+                    && is_data_object
+                    && is_target_object_or_none
+                    && is_meta_object_or_none
+                    && raw_obj
+                        .keys()
+                        .all(|k| matches!(k.as_str(), "data" | "target" | "metadata"))
                 {
                     Some(Datapoint {
                         id: Uuid::new_v4(),
                         dataset_id,
                         data: data.unwrap().to_owned(),
                         target: target.cloned().unwrap_or(Value::Object(Default::default())),
+                        metadata: metadata.cloned(),
                     })
                 } else {
                     // Otherwise, dump all the fields into the `data` field
@@ -53,6 +72,7 @@ impl Datapoint {
                         dataset_id,
                         data: raw.to_owned(),
                         target: Value::Object(Default::default()),
+                        metadata: None,
                     })
                 }
             }
@@ -97,6 +117,7 @@ impl From<VectorDBDatapoint> for Datapoint {
             dataset_id: Uuid::parse_str(&vectordb_datapoint.datasource_id).unwrap(),
             data,
             target,
+            metadata: None,
         }
     }
 }
