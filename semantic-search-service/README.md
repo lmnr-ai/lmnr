@@ -25,7 +25,7 @@ docker run -p 6333:6333 -p 6334:6334 --name qdrant -e QDRANT__SERVICE__GRPC_PORT
 you will also need to send a put request to the newly exposed API, somewhat like
 
 ```sh
-curl -X 'PUT' '127.0.0.1:6333/collections/documents_1024' \
+curl -X 'PUT' '127.0.0.1:6333/collections/<PROJECT_ID>' \
 -H 'accept: application/json' \
 -H 'Content-Type: text/json' \
 -d \
@@ -46,7 +46,7 @@ Here's the same thing without escaping quotes:
 ```json
 {
     "vectors": {
-      "size": 384,
+      "size": 1024,
       "distance": "Cosine"
     },
     "hnsw_config": {

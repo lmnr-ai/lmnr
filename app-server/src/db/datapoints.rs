@@ -15,6 +15,7 @@ pub struct DatapointView {
     dataset_id: Uuid,
     data: Value,
     target: Value,
+    metadata: Option<Value>,
 }
 
 pub async fn insert_datapoints(
@@ -24,11 +25,12 @@ pub async fn insert_datapoints(
 ) -> Result<Vec<Datapoint>> {
     let size = datapoints.len();
     let datapoints = sqlx::query_as::<_, Datapoint>(
-        "INSERT INTO dataset_datapoints (dataset_id, id, data, target, index_in_batch)
-        SELECT $1 as dataset_id, id, data, target, index_in_batch
-        FROM UNNEST($2::uuid[], $3::jsonb[], $4::jsonb[], $5::int8[])
-        AS tmp_table(id, data, target, index_in_batch)
-        RETURNING id, dataset_id, data, target",
+        "INSERT INTO dataset_datapoints 
+            (dataset_id, id, data, target, metadata, index_in_batch)
+        SELECT $1 as dataset_id, id, data, target, metadata, index_in_batch
+        FROM UNNEST($2::uuid[], $3::jsonb[], $4::jsonb[], $5::jsonb[], $6::int8[])
+        AS tmp_table(id, data, target, metadata, index_in_batch)
+        RETURNING id, dataset_id, data, target, metadata",
     )
     .bind(dataset_id)
     .bind(&datapoints.iter().map(|dp| dp.id).collect::<Vec<_>>())
@@ -40,8 +42,14 @@ pub async fn insert_datapoints(
     )
     .bind(
         &datapoints
+            .iter()
+            .map(|dp| dp.target.clone())
+            .collect::<Vec<_>>(),
+    )
+    .bind(
+        &datapoints
             .into_iter()
-            .map(|dp| dp.target)
+            .map(|dp| dp.metadata)
             .collect::<Vec<_>>(),
     )
     .bind(&Vec::from_iter(0..size as i64))
@@ -66,7 +74,7 @@ pub async fn insert_raw_data(
 
 pub async fn get_all_datapoints(pool: &PgPool, dataset_id: Uuid) -> Result<Vec<Datapoint>> {
     let datapoints = sqlx::query_as::<_, Datapoint>(
-        "SELECT id, dataset_id, data, target
+        "SELECT id, dataset_id, data, target, metadata
         FROM dataset_datapoints
         WHERE dataset_id = $1
         ORDER BY
@@ -87,7 +95,7 @@ pub async fn get_datapoints(
     offset: i64,
 ) -> Result<Vec<DatapointView>> {
     let datapoints = sqlx::query_as::<_, DatapointView>(
-        "SELECT id, dataset_id, data, target, created_at
+        "SELECT id, dataset_id, data, target, metadata, created_at
         FROM dataset_datapoints
         WHERE dataset_id = $1
         ORDER BY
@@ -110,14 +118,17 @@ pub async fn update_datapoint(
     datapoint_id: &Uuid,
     data: &Value,
     target: &Value,
+    metadata: &Option<Value>,
 ) -> Result<Datapoint> {
     let datapoint = sqlx::query_as::<_, Datapoint>(
-        "UPDATE dataset_datapoints SET data = $2, target = $3 WHERE id = $1
-        RETURNING id, dataset_id, data, target",
+        "UPDATE dataset_datapoints SET data = $2, target = $3, metadata = $4
+        WHERE id = $1
+        RETURNING id, dataset_id, data, target, metadata",
     )
     .bind(datapoint_id)
     .bind(data)
     .bind(target)
+    .bind(metadata)
     .fetch_optional(pool)
     .await?;
 

@@ -202,6 +202,7 @@ async fn create_datapoints(
 struct UpdateDatapointRequest {
     data: Value,
     target: Value,
+    metadata: Option<Value>,
 }
 
 #[post("datasets/{dataset_id}/datapoints/{datapoint_id}")]
@@ -214,8 +215,14 @@ async fn update_datapoint_data(
     let (project_id, dataset_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();
 
-    let updated_datapoint =
-        db::datapoints::update_datapoint(&db.pool, &datapoint_id, &req.data, &req.target).await?;
+    let updated_datapoint = db::datapoints::update_datapoint(
+        &db.pool,
+        &datapoint_id,
+        &req.data,
+        &req.target,
+        &req.metadata,
+    )
+    .await?;
 
     semantic_search
         .delete_embeddings(

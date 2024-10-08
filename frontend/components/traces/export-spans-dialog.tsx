@@ -6,13 +6,23 @@ import DatasetSelect from "../ui/dataset-select";
 import { Span } from "@/lib/traces/types";
 import { Label } from "../ui/label";
 import { Database, Loader } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isJsonStringAValidObject } from "@/lib/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Dataset } from "@/lib/dataset/types";
 import Formatter from "../ui/formatter";
 
 interface ExportSpansDialogProps {
   span: Span;
+}
+
+const toJsonObject = (value: string | object, key: string): object => {
+  if (typeof value === 'string' || Array.isArray(value)) {
+    if (value.length === 0) {
+      return {};
+    }
+    return { [key]: value };
+  }
+  return value;
 }
 
 export default function ExportSpansDialog({
@@ -24,26 +34,15 @@ export default function ExportSpansDialog({
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
 
   const { toast } = useToast();
-
-  const [data, setData] = useState(span.input);
-  const [target, setTarget] = useState(span.output);
+  const [data, setData] = useState(toJsonObject(span.input, 'input'));
+  const [target, setTarget] = useState(toJsonObject(span.output, 'output'));
   const [isDataValid, setIsDataValid] = useState(true);
   const [isTargetValid, setIsTargetValid] = useState(true);
-
   const [metadata, setMetadata] = useState({});
   const [isMetadataValid, setIsMetadataValid] = useState(true);
 
-  const isJsonValid = (json: string): boolean => {
-    try {
-      JSON.parse(json);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  };
-
   const handleDataChange = (value: string) => {
-    const isValid = isJsonValid(value);
+    const isValid = isJsonStringAValidObject(value);
     setIsDataValid(isValid);
     if (isValid) {
       setData(JSON.parse(value));
@@ -51,7 +50,7 @@ export default function ExportSpansDialog({
   };
 
   const handleTargetChange = (value: string) => {
-    const isValid = isJsonValid(value);
+    const isValid = isJsonStringAValidObject(value);
     setIsTargetValid(isValid);
     if (isValid) {
       setTarget(JSON.parse(value));
@@ -59,7 +58,7 @@ export default function ExportSpansDialog({
   };
 
   const handleMetadataChange = (value: string) => {
-    const isValid = isJsonValid(value);
+    const isValid = isJsonStringAValidObject(value);
     setIsMetadataValid(isValid);
     if (isValid) {
       setMetadata(JSON.parse(value));
@@ -137,11 +136,11 @@ export default function ExportSpansDialog({
                   className="max-h-[500px]"
                   editable
                   defaultMode={'json'}
-                  value={JSON.stringify(span.input)}
+                  value={JSON.stringify(toJsonObject(span.input, 'input'), null, 2)}
                   onChange={handleDataChange}
-                />
+                  />
                 {!isDataValid && (
-                  <p className="text-sm text-red-500">Invalid JSON format</p>
+                  <p className="text-sm text-red-500">Invalid JSON object</p>
                 )}
               </div>
               <div className="flex flex-col space-y-2">
@@ -150,11 +149,11 @@ export default function ExportSpansDialog({
                   className="max-h-[500px]"
                   editable
                   defaultMode={'json'}
-                  value={JSON.stringify(span.output)}
+                  value={JSON.stringify(toJsonObject(span.output, 'output'), null, 2)}
                   onChange={handleTargetChange}
-                />
+                  />
                 {!isTargetValid && (
-                  <p className="text-sm text-red-500">Invalid JSON format</p>
+                  <p className="text-sm text-red-500">Invalid JSON object</p>
                 )}
               </div>
               <div className="flex flex-col space-y-2">
@@ -163,13 +162,14 @@ export default function ExportSpansDialog({
                   className="max-h-[500px]"
                   editable
                   defaultMode={'json'}
-                  value={JSON.stringify(metadata, null, 2)}
+                  value={JSON.stringify(toJsonObject(metadata, 'metadata'), null, 2)}
                   onChange={handleMetadataChange}
-                />
+                  />
                 {!isMetadataValid && (
-                  <p className="text-sm text-red-500">Invalid JSON format</p>
+                  <p className="text-sm text-red-500">Invalid JSON object</p>
                 )}
               </div>
+              <Label> Every field must be a JSON map </Label>
             </div>
           </div>
         </DialogContent>
