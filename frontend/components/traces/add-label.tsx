@@ -25,16 +25,14 @@ export function AddLabel({
   const { projectId } = useProjectContext();
   const [selectedType, setSelectedType] = useState<LabelType>(LabelType.BOOLEAN);
   const [typeName, setTypeName] = useState<string>('');
-  const [typeId, setTypeId] = useState<string>('');
-  const [value, setValue] = useState<string | number | boolean>('');
   const [isSaving, setIsSaving] = useState(false);
   const [valueMap, setValueMap] = useState<string[]>(["", ""]);
   const [description, setDescription] = useState<string | null>(null);
 
+  const isLabelValueMapValid = valueMap.length > 0 && valueMap.every(value => value.length > 0);
+
   const saveLabel = async () => {
     setIsSaving(true);
-    let labelTypeId = typeId;
-    let newLabel: LabelClass;
 
     const res = await fetch(`/api/projects/${projectId}/label-classes`, {
       method: 'POST',
@@ -45,9 +43,7 @@ export function AddLabel({
         description,
       }),
     });
-    newLabel = await res.json() as LabelClass;
-
-    labelTypeId = newLabel.id;
+    await res.json();
 
     setIsSaving(false);
     onClose();
@@ -115,6 +111,7 @@ export function AddLabel({
           onClick={async () => {
             await saveLabel();
           }}
+          disabled={!typeName || !isLabelValueMapValid}
         >
           <Loader className={isSaving ? 'animate-spin h-4 w-4 mr-2' : 'hidden'} />
           Add
