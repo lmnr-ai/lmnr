@@ -4,7 +4,10 @@ use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{db, traces::SpanUsage};
+use crate::{
+    db::spans::{Span, SpanType},
+    traces::spans::SpanUsage,
+};
 
 use super::{
     modifiers::GroupByInterval,
@@ -14,6 +17,22 @@ use super::{
     },
     Aggregation, MetricTimeValue,
 };
+
+/// for inserting into clickhouse
+///
+/// Don't change the order of the fields or their values
+impl Into<u8> for SpanType {
+    fn into(self) -> u8 {
+        match self {
+            SpanType::DEFAULT => 0,
+            SpanType::LLM => 1,
+            SpanType::PIPELINE => 2,
+            SpanType::EXECUTOR => 3,
+            SpanType::EVALUATOR => 4,
+            SpanType::EVALUATION => 5,
+        }
+    }
+}
 
 #[derive(Row, Serialize, Deserialize)]
 pub struct CHSpan {
@@ -25,8 +44,8 @@ pub struct CHSpan {
     pub start_time: i64,
     /// End time in nanoseconds
     pub end_time: i64,
-    pub prompt_tokens: i64,
-    pub completion_tokens: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
     pub total_tokens: i64,
     pub input_cost: f64,
     pub output_cost: f64,
@@ -44,7 +63,7 @@ pub struct CHSpan {
 }
 
 impl CHSpan {
-    pub fn from_db_span(span: &db::trace::Span, usage: SpanUsage, project_id: Uuid) -> Self {
+    pub fn from_db_span(span: &Span, usage: SpanUsage, project_id: Uuid) -> Self {
         let span_attributes = span.get_attributes();
 
         CHSpan {
@@ -53,8 +72,8 @@ impl CHSpan {
             span_type: span.span_type.clone().into(),
             start_time: chrono_to_nanoseconds(span.start_time),
             end_time: chrono_to_nanoseconds(span.end_time),
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
             total_tokens: usage.total_tokens,
             input_cost: usage.input_cost,
             output_cost: usage.output_cost,

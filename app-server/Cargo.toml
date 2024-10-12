@@ -11,8 +11,8 @@ futures-util = "0.3.28"
 tonic = "0.12.3"
 
 # workaround [AFIT](https://rust-lang.github.io/rfcs/3185-static-async-fn-in-trait.html)
-# while rust people have hot [debates](https://github.com/rust-lang/rust/pull/115822#issuecomment-1718261458) 
-# around it and are strugling to stabilize it.
+# while [the feature](https://github.com/rust-lang/rust/pull/115822#issuecomment-1718261458) 
+# is lacking full support.
 async-trait = "0.1"
 
 dotenv = "0.15"

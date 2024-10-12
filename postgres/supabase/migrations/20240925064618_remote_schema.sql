@@ -521,29 +521,6 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
 ALTER TABLE "public"."users" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."workspace_usage" (
-    "workspace_id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "span_count" bigint DEFAULT '0'::bigint NOT NULL,
-    "span_count_since_reset" bigint DEFAULT '0'::bigint NOT NULL,
-    "prev_span_count" bigint DEFAULT '0'::bigint NOT NULL,
-    "event_count" bigint DEFAULT '0'::bigint NOT NULL,
-    "event_count_since_reset" bigint DEFAULT '0'::bigint NOT NULL,
-    "prev_event_count" bigint DEFAULT '0'::bigint NOT NULL,
-    "reset_time" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "reset_reason" "text" DEFAULT 'signup'::"text" NOT NULL
-);
-
-
-ALTER TABLE "public"."workspace_usage" OWNER TO "postgres";
-
-
-COMMENT ON COLUMN "public"."workspace_usage"."prev_span_count" IS 'Span count for the past billing period (month). Overriden at reset by the value of span_count_since_reset';
-
-
-
-COMMENT ON COLUMN "public"."workspace_usage"."prev_event_count" IS 'Event count in the last billing period (month). Overriden at reset time by event_count_since_reset';
-
-
 
 CREATE TABLE IF NOT EXISTS "public"."workspaces" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
@@ -704,17 +681,6 @@ ALTER TABLE ONLY "public"."user_subscription_info"
 
 ALTER TABLE ONLY "public"."user_limits"
     ADD CONSTRAINT "user_limits_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."workspace_usage"
-    ADD CONSTRAINT "user_usage_pkey" PRIMARY KEY ("workspace_id");
-
-
-
-ALTER TABLE ONLY "public"."workspace_usage"
-    ADD CONSTRAINT "user_usage_workspace_id_key" UNIQUE ("workspace_id");
-
 
 
 ALTER TABLE ONLY "public"."users"
@@ -886,12 +852,6 @@ ALTER TABLE ONLY "public"."user_limits"
     ADD CONSTRAINT "user_limits_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
 
-
-ALTER TABLE ONLY "public"."workspace_usage"
-    ADD CONSTRAINT "user_usage_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON UPDATE CASCADE ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."workspaces"
     ADD CONSTRAINT "workspaces_tier_id_fkey" FOREIGN KEY ("tier_id") REFERENCES "public"."subscription_tiers"("id") ON UPDATE CASCADE;
 
@@ -977,12 +937,7 @@ ALTER TABLE "public"."user_subscription_info" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."workspace_usage" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."workspaces" ENABLE ROW LEVEL SECURITY;
-
-
 
 
 
@@ -1353,12 +1308,6 @@ GRANT ALL ON TABLE "public"."user_subscription_info" TO "service_role";
 GRANT ALL ON TABLE "public"."users" TO "anon";
 GRANT ALL ON TABLE "public"."users" TO "authenticated";
 GRANT ALL ON TABLE "public"."users" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."workspace_usage" TO "anon";
-GRANT ALL ON TABLE "public"."workspace_usage" TO "authenticated";
-GRANT ALL ON TABLE "public"."workspace_usage" TO "service_role";
 
 
 

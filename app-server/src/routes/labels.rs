@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::db::{
     self,
-    labels::{LabelSource, LabelType},
+    labels::{LabelJobStatus, LabelSource, LabelType},
     user::User,
     DB,
 };
@@ -15,7 +15,8 @@ use super::ResponseResult;
 #[get("label-classes")]
 pub async fn get_label_types(path: web::Path<Uuid>, db: web::Data<DB>) -> ResponseResult {
     let project_id = path.into_inner();
-    let label_classes = db::labels::get_label_classes_by_project_id(&db.pool, project_id).await?;
+    let label_classes =
+        db::labels::get_label_classes_by_project_id(&db.pool, project_id, None).await?;
 
     Ok(HttpResponse::Ok().json(label_classes))
 }
@@ -28,6 +29,8 @@ struct CreateLabelClassRequest {
     value_map: Vec<Value>,
     #[serde(default)]
     description: Option<String>,
+    #[serde(default)]
+    pipeline_version_id: Option<Uuid>,
 }
 
 #[post("label-classes")]
@@ -42,6 +45,7 @@ pub async fn create_label_class(
     let label_type = req.label_type;
     let value_map = req.value_map;
     let description = req.description;
+    let pipeline_version_id = req.pipeline_version_id;
 
     let id = Uuid::new_v4();
     let label_class = db::labels::create_label_class(
@@ -52,6 +56,7 @@ pub async fn create_label_class(
         &label_type,
         value_map,
         description,
+        pipeline_version_id,
     )
     .await?;
 
@@ -61,7 +66,10 @@ pub async fn create_label_class(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct UpdateLabelClassRequest {
+    #[serde(default)]
     description: Option<String>,
+    #[serde(default)]
+    pipeline_version_id: Option<Uuid>,
 }
 
 #[post("label-classes/{class_id}")]
@@ -73,9 +81,16 @@ pub async fn update_label_class(
     let (project_id, class_id) = path.into_inner();
     let req = req.into_inner();
     let description = req.description;
+    let pipeline_version_id = req.pipeline_version_id;
 
-    let label_class =
-        db::labels::update_label_class(&db.pool, project_id, class_id, description).await?;
+    let label_class = db::labels::update_label_class(
+        &db.pool,
+        project_id,
+        class_id,
+        description,
+        pipeline_version_id,
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(label_class))
 }
@@ -85,6 +100,7 @@ pub async fn update_label_class(
 struct UpdateSpanLabelRequest {
     value: f64,
     class_id: Uuid,
+    reasoning: Option<String>,
 }
 
 #[post("spans/{span_id}/labels")]
@@ -98,15 +114,18 @@ pub async fn update_span_label(
     let req = req.into_inner();
     let class_id = req.class_id;
     let value = req.value;
+    let reasoning = req.reasoning;
     let user_id = user.id;
 
     let label = db::labels::update_span_label(
         &db.pool,
         span_id,
-        value,
+        Some(value),
         Some(user_id),
         class_id,
         LabelSource::MANUAL,
+        Some(LabelJobStatus::DONE),
+        reasoning,
     )
     .await?;
     Ok(HttpResponse::Ok().json(label))

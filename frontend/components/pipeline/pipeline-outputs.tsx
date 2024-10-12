@@ -294,7 +294,8 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
         pipelineVersionId: pipelineVersion.id!,
         prefilledMessages: startMessage.current ? allMessages : null,
         startTaskId: startMessage.current?.nodeId,
-        devSessionIds
+        devSessionIds,
+        stream: true
       })
     });
 

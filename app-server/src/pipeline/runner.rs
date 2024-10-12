@@ -2,7 +2,10 @@ use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::trace::{CurrentTraceAndSpan, Span, TraceType},
+    db::{
+        spans::Span,
+        trace::{CurrentTraceAndSpan, TraceType},
+    },
     engine::{engine::EngineOutput, Engine},
     routes::pipelines::GraphInterruptMessage,
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
@@ -224,7 +227,6 @@ impl PipelineRunner {
             project_id: *project_id,
             span: parent_span,
             events: vec![],
-            evaluate_events: vec![],
         };
 
         let channel = self.rabbitmq_connection.create_channel().await?;
@@ -246,7 +248,6 @@ impl PipelineRunner {
                 project_id: *project_id,
                 span: message_span,
                 events: vec![],
-                evaluate_events: vec![],
             };
 
             let payload = serde_json::to_string(&message_mq_message)?;

@@ -13,7 +13,7 @@ use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_ser
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use tonic::transport::Server;
 use traces::{
-    grpc_service::ProcessTracesService, observation_collector, OBSERVATIONS_EXCHANGE,
+    consumer::process_queue_spans, grpc_service::ProcessTracesService, OBSERVATIONS_EXCHANGE,
     OBSERVATIONS_QUEUE,
 };
 
@@ -253,10 +253,8 @@ fn main() -> anyhow::Result<()> {
                         rabbitmq_connection.clone(),
                     ));
 
-                    tokio::task::spawn(observation_collector(
-                        pipeline_runner.clone(),
+                    tokio::task::spawn(process_queue_spans(
                         db_for_http.clone(),
-                        cache_for_http.clone(),
                         language_model_runner.clone(),
                         rabbitmq_connection.clone(),
                         clickhouse.clone(),

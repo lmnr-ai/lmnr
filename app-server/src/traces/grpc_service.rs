@@ -15,7 +15,7 @@ use crate::{
 };
 use tonic::{Request, Response, Status};
 
-use super::process::process_trace_export;
+use super::producer::push_spans_to_queue;
 
 pub struct ProcessTracesService {
     db: Arc<DB>,
@@ -45,7 +45,7 @@ impl TraceService for ProcessTracesService {
         let project_id = api_key.project_id;
         let request = request.into_inner();
 
-        let response = process_trace_export(request, project_id, self.rabbitmq_connection.clone())
+        let response = push_spans_to_queue(request, project_id, self.rabbitmq_connection.clone())
             .await
             .map_err(|e| {
                 log::error!("Failed to process traces: {:?}", e);
