@@ -40,7 +40,7 @@ pub enum GraphError {
 pub enum RunType {
     Workshop,
     Endpoint,
-    EventEvaluation,
+    AutoLabel,
 }
 
 impl Serialize for RunType {
@@ -201,23 +201,17 @@ impl Graph {
 }
 
 impl RunType {
-    fn _should_write_traces(&self) -> bool {
-        match self {
-            Self::Workshop | Self::EventEvaluation | Self::Endpoint => true,
-        }
-    }
-
     fn do_local_stream(&self) -> bool {
         match self {
             Self::Workshop => true,
-            Self::Endpoint | Self::EventEvaluation => false,
+            Self::Endpoint | Self::AutoLabel => false,
         }
     }
 
     fn to_string(&self) -> String {
         match self {
             Self::Workshop => "WORKSHOP".to_string(),
-            Self::EventEvaluation => "EVENT_EVALUATION".to_string(),
+            Self::AutoLabel => "AUTOLABEL".to_string(),
             Self::Endpoint => "ENDPOINT".to_string(),
         }
     }

@@ -7,7 +7,8 @@ use crate::{
         self,
         events::EventWithTemplateName,
         modifiers::{DateRange, Filter, RelativeDateInterval},
-        trace::{Session, Span, Trace, TraceWithParentSpanAndEvents},
+        spans::Span,
+        trace::{Session, Trace, TraceWithParentSpanAndEvents},
         DB,
     },
 };
@@ -86,7 +87,7 @@ pub async fn get_single_trace(
     let (_project_id, trace_id) = params.into_inner();
 
     let trace = db::trace::get_single_trace(&db.pool, trace_id).await?;
-    let span_previews = db::trace::get_span_previews(&db.pool, trace_id).await?;
+    let span_previews = db::spans::get_span_previews(&db.pool, trace_id).await?;
 
     let trace_with_spans = TraceWithSpanPreviews {
         trace,
@@ -108,7 +109,7 @@ struct SpanWithEvents {
 pub async fn get_single_span(params: web::Path<(Uuid, Uuid)>, db: web::Data<DB>) -> ResponseResult {
     let (_project_id, span_id) = params.into_inner();
 
-    let span = db::trace::get_span(&db.pool, span_id).await?;
+    let span = db::spans::get_span(&db.pool, span_id).await?;
     let events = db::events::get_events_for_span(&db.pool, span_id).await?;
 
     let span_with_events = SpanWithEvents { span, events };

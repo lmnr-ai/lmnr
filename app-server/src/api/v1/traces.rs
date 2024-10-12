@@ -9,13 +9,13 @@ use uuid::Uuid;
 use crate::{
     db::{
         api_keys::ProjectApiKey,
-        events::{self, EvaluateEventRequest, EventObservation},
-        trace::Span,
+        events::{self, EventObservation},
+        spans::Span,
         DB,
     },
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    traces::process::process_trace_export,
+    traces::producer::push_spans_to_queue,
 };
 use prost::Message;
 
@@ -24,7 +24,6 @@ pub struct RabbitMqSpanMessage {
     pub project_id: Uuid,
     pub span: Span,
     pub events: Vec<EventObservation>,
-    pub evaluate_events: Vec<EvaluateEventRequest>,
 }
 
 #[post("traces")]
@@ -40,7 +39,7 @@ pub async fn process_traces(
     let rabbitmq_connection = rabbitmq_connection.as_ref().clone();
 
     let response =
-        process_trace_export(request, project_api_key.project_id, rabbitmq_connection).await?;
+        push_spans_to_queue(request, project_api_key.project_id, rabbitmq_connection).await?;
     if response.partial_success.is_some() {
         return Err(anyhow::anyhow!("There has been an error during trace processing.").into());
     }

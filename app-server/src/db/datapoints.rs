@@ -74,7 +74,7 @@ pub async fn insert_raw_data(
 
 pub async fn get_all_datapoints(pool: &PgPool, dataset_id: Uuid) -> Result<Vec<Datapoint>> {
     let datapoints = sqlx::query_as::<_, Datapoint>(
-        "SELECT id, dataset_id, data, target, metadata
+        "SELECT id, dataset_id, data, target
         FROM dataset_datapoints
         WHERE dataset_id = $1
         ORDER BY
