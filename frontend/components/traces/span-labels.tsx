@@ -1,13 +1,13 @@
-import { useProjectContext } from "@/contexts/project-context";
-import { SpanLabel } from "@/lib/traces/types";
-import { swrFetcher } from "@/lib/utils";
-import useSWR from "swr";
-import { DataTable } from "../ui/datatable";
-import { useEffect } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import { useProjectContext } from '@/contexts/project-context';
+import { SpanLabel } from '@/lib/traces/types';
+import { swrFetcher } from '@/lib/utils';
+import useSWR from 'swr';
+import { DataTable } from '../ui/datatable';
+import { useEffect } from 'react';
+import { ColumnDef } from '@tanstack/react-table';
 
-import { eventEmitter } from "@/lib/event-emitter";
-import ClientTimestampFormatter from "../client-timestamp-formatter";
+import { eventEmitter } from '@/lib/event-emitter';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
 
 interface SpanLabelsProps {
   spanId: string;
@@ -46,15 +46,11 @@ export default function SpanLabels({
       header: 'Type',
     },
     {
-      accessorFn: (row: SpanLabel) => {
-        return row.valueMap?.[row.value] ?? '';
-      },
+      accessorFn: (row: SpanLabel) => row.valueMap?.[row.value] ?? '',
       header: 'Value',
     },
     {
-      accessorFn: (row: SpanLabel) => {
-        return row.userEmail ?? (row.labelSource === 'Auto' ? 'Auto-labeled' : '-');
-      },
+      accessorFn: (row: SpanLabel) => row.userEmail ?? (row.labelSource === 'Auto' ? 'Auto-labeled' : '-'),
       header: 'User',
     },
     {
@@ -73,5 +69,5 @@ export default function SpanLabels({
         </div>
       </div>
     </div>
-  )
+  );
 }

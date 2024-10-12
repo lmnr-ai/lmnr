@@ -1,23 +1,23 @@
-import { memo, useState } from 'react'
-import useStore from '@/lib/flow/store'
-import { type SemanticSearchNode } from '@/lib/flow/types'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTrigger } from '@/components/ui/dialog'
-import DatasetSelect from '@/components/ui/dataset-select'
-import { Dataset } from '@/lib/dataset/types'
-import { Button } from '@/components/ui/button'
-import DefaultTextarea from '@/components/ui/default-textarea'
-import { Database, X } from 'lucide-react'
-import { Slider } from '@/components/ui/slider'
+import { memo, useState } from 'react';
+import useStore from '@/lib/flow/store';
+import { type SemanticSearchNode } from '@/lib/flow/types';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTrigger } from '@/components/ui/dialog';
+import DatasetSelect from '@/components/ui/dataset-select';
+import { Dataset } from '@/lib/dataset/types';
+import { Button } from '@/components/ui/button';
+import DefaultTextarea from '@/components/ui/default-textarea';
+import { Database, X } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 
 const SemanticSearchNodeComponent = ({
   data
 }: {
   data: SemanticSearchNode;
 }) => {
-  const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const id = data.id;
   const updateNodeData = useStore((state) => state.updateNodeData);
@@ -84,7 +84,7 @@ const SemanticSearchNodeComponent = ({
             <Label>Dataset</Label>
             <DatasetSelect
               onDatasetChange={(dataset) => {
-                setSelectedDataset(dataset)
+                setSelectedDataset(dataset);
               }}
             />
             <DialogFooter>
@@ -95,7 +95,7 @@ const SemanticSearchNodeComponent = ({
                   updateNodeData(id, {
                     datasets: data.datasets.concat(selectedDataset!)
                   } as SemanticSearchNode);
-                  setDialogOpen(false)
+                  setDialogOpen(false);
                 }}
               >
                 Add dataset

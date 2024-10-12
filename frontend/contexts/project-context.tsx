@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import React, { createContext, use } from 'react';
 
@@ -8,8 +8,8 @@ type ProjectContextType = {
 };
 
 export const ProjectContext = createContext<ProjectContextType>({
-  projectId: "",
-  projectName: "",
+  projectId: '',
+  projectName: '',
 });
 
 type ProjectContextProviderProps = {
@@ -18,13 +18,11 @@ type ProjectContextProviderProps = {
   children: React.ReactNode;
 };
 
-export const ProjectContextProvider = ({ projectId, projectName, children }: ProjectContextProviderProps) => {
-  return (
-    <ProjectContext.Provider value={{ projectId, projectName }}>
-      {children}
-    </ProjectContext.Provider>
-  );
-};
+export const ProjectContextProvider = ({ projectId, projectName, children }: ProjectContextProviderProps) => (
+  <ProjectContext.Provider value={{ projectId, projectName }}>
+    {children}
+  </ProjectContext.Provider>
+);
 
 export function useProjectContext() {
   return use(ProjectContext);

@@ -1,14 +1,14 @@
-'use client'
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
+import Image from 'next/image';
+import Link from 'next/link';
 import logo from '@/assets/logo/laminar_light.svg';
-import AvatarMenu from "../user/avatar-menu";
+import AvatarMenu from '../user/avatar-menu';
 import useSWR from 'swr';
-import { WorkspaceWithProjects } from "@/lib/workspaces/types";
-import { Skeleton } from "../ui/skeleton";
-import { cn, swrFetcher } from "@/lib/utils";
-import { usePathname } from "next/navigation";
+import { WorkspaceWithProjects } from '@/lib/workspaces/types';
+import { Skeleton } from '../ui/skeleton';
+import { cn, swrFetcher } from '@/lib/utils';
+import { usePathname } from 'next/navigation';
 
 export default function WorkspacesNavbar() {
   const { data, isLoading } = useSWR('/api/workspaces', swrFetcher);
@@ -29,7 +29,7 @@ export default function WorkspacesNavbar() {
           <span className="text-gray-600">Workspaces</span>
           {isLoading && [...Array(5).keys()].map((_, index) => (<Skeleton key={index} className="h-5 mr-4" />))}
           {!isLoading && (data as WorkspaceWithProjects[]).map((workspace) => (
-            <Link href={`/workspace/${workspace.id}`} key={workspace.id} className={cn("text-secondary-foreground hover:text-primary-foreground", pathname === `/workspace/${workspace.id}` ? "text-white" : "")}>
+            <Link href={`/workspace/${workspace.id}`} key={workspace.id} className={cn('text-secondary-foreground hover:text-primary-foreground', pathname === `/workspace/${workspace.id}` ? 'text-white' : '')}>
               {workspace.name}
             </Link>
           ))}

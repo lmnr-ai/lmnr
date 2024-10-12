@@ -1,24 +1,24 @@
-import { useProjectContext } from "@/contexts/project-context";
-import { useUserContext } from "@/contexts/user-context";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, USE_REALTIME } from "@/lib/const";
-import { LabelClass, Trace } from "@/lib/traces/types";
-import { createClient } from "@supabase/supabase-js";
-import { ColumnDef } from "@tanstack/react-table";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import StatusLabel from "../ui/status-label";
-import TracesPagePlaceholder from "./page-placeholder";
+import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, USE_REALTIME } from '@/lib/const';
+import { LabelClass, Trace } from '@/lib/traces/types';
+import { createClient } from '@supabase/supabase-js';
+import { ColumnDef } from '@tanstack/react-table';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import StatusLabel from '../ui/status-label';
+import TracesPagePlaceholder from './page-placeholder';
 import { Event, EventTemplate } from '@/lib/events/types';
-import DateRangeFilter from "../ui/date-range-filter";
-import { DataTable } from "../ui/datatable";
-import DataTableFilter from "../ui/datatable-filter";
-import TextSearchFilter from "../ui/text-search-filter";
-import { Button } from "../ui/button";
-import { RefreshCcw } from "lucide-react";
-import { PaginatedResponse } from "@/lib/types";
-import useSWR from "swr";
-import { swrFetcher } from "@/lib/utils";
+import DateRangeFilter from '../ui/date-range-filter';
+import { DataTable } from '../ui/datatable';
+import DataTableFilter from '../ui/datatable-filter';
+import TextSearchFilter from '../ui/text-search-filter';
+import { Button } from '../ui/button';
+import { RefreshCcw } from 'lucide-react';
+import { PaginatedResponse } from '@/lib/types';
+import useSWR from 'swr';
+import { swrFetcher } from '@/lib/utils';
 
 interface TracesTableProps {
   onRowClick?: (rowId: string) => void;
@@ -74,7 +74,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     if (typeof filter === 'string') {
       url += `&filter=${encodeURI(filter)}`;
     } else if (Array.isArray(filter)) {
-      const filters = encodeURI(JSON.stringify(filter))
+      const filters = encodeURI(JSON.stringify(filter));
       url += `&filter=${filters}`;
     }
     if (typeof textSearchFilter === 'string' && textSearchFilter.length > 0) {
@@ -82,9 +82,9 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     }
 
     const res = await fetch(url, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
 
@@ -94,7 +94,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     setTotalCount(data.totalCount);
     setAnyInProject(data.anyInProject);
 
-  }
+  };
 
   useEffect(() => {
     getTraces();
@@ -112,9 +112,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     {
       accessorFn: (row) => row.success ? 'Success' : 'Failed',
       header: 'Status',
-      cell: (row) => {
-        return <StatusLabel success={row.getValue() === 'Success'} />
-      },
+      cell: (row) => <StatusLabel success={row.getValue() === 'Success'} />,
       id: 'status'
     },
     {
@@ -128,28 +126,24 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       id: 'session_id',
     },
     {
-      accessorFn: (row) => {
-        return row.startTime
-      },
+      accessorFn: (row) => row.startTime,
       header: 'Timestamp',
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
       id: 'start_time'
     },
     {
       accessorFn: (row) => {
-        const start = new Date(row.startTime)
-        const end = new Date(row.endTime)
-        const duration = end.getTime() - start.getTime()
+        const start = new Date(row.startTime);
+        const end = new Date(row.endTime);
+        const duration = end.getTime() - start.getTime();
 
-        return `${(duration / 1000).toFixed(2)}s`
+        return `${(duration / 1000).toFixed(2)}s`;
       },
       header: 'Latency',
       id: 'latency'
     },
     {
-      accessorFn: (row) => {
-        return "$" + row.cost?.toFixed(5)
-      },
+      accessorFn: (row) => '$' + row.cost?.toFixed(5),
       header: 'Cost',
       id: 'cost'
     },
@@ -166,31 +160,29 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
 
         return (
           <div className='flex space-x-2'>
-            {eventNames.map((eventName, index) => {
-              return (
-                <div key={index} className='flex items-center rounded p-0.5 border text-xs text-secondary-foreground px-2 bg-secondary'>
-                  <span>{eventName}</span>
-                </div>
-              )
-            })}
+            {eventNames.map((eventName, index) => (
+              <div key={index} className='flex items-center rounded p-0.5 border text-xs text-secondary-foreground px-2 bg-secondary'>
+                <span>{eventName}</span>
+              </div>
+            ))}
           </div>
-        )
+        );
       },
       header: 'events',
     }
 
-  ]
+  ];
 
   const extraFilterCols = [
     {
-      header: "events",
-      id: `event`,
+      header: 'events',
+      id: 'event',
     },
     {
-      header: "labels",
-      id: `label`,
+      header: 'labels',
+      id: 'label',
     }
-  ]
+  ];
 
   const { data: events } = useSWR<EventTemplate[]>(
     `/api/projects/${projectId}/event-templates`,
@@ -204,12 +196,11 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const customFilterColumns = {
     'event': events?.map(event => event.name) ?? [],
     'label': labels?.map(label => label.name) ?? [],
-  }
+  };
 
-  const { supabaseAccessToken } = useUserContext()
-  const supabase = useMemo(() => {
-    return USE_REALTIME
-      ? createClient(
+  const { supabaseAccessToken } = useUserContext();
+  const supabase = useMemo(() => USE_REALTIME
+    ? createClient(
       SUPABASE_URL,
       SUPABASE_ANON_KEY,
       {
@@ -220,14 +211,13 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         },
       }
     )
-    : null
-  }, [])
+    : null, []);
 
-  supabase?.realtime.setAuth(supabaseAccessToken)
+  supabase?.realtime.setAuth(supabaseAccessToken);
 
   useEffect(() => {
     // When enableStreaming changes, need to remove all channels and, if enabled, re-subscribe
-    supabase?.channel('table-db-changes').unsubscribe()
+    supabase?.channel('table-db-changes').unsubscribe();
 
     supabase
       ?.channel('table-db-changes')
@@ -259,16 +249,16 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
           }
         }
       )
-      .subscribe()
+      .subscribe();
 
     // remove all channels on unmount
     return () => {
-      supabase?.removeAllChannels()
-    }
-  }, [])
+      supabase?.removeAllChannels();
+    };
+  }, []);
 
   if (traces != undefined && totalCount === 0 && !anyInProject) {
-    return <TracesPagePlaceholder />
+    return <TracesPagePlaceholder />;
   }
 
   const filterColumns = columns
@@ -282,7 +272,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       data={traces}
       getRowId={(trace) => trace.id}
       onRowClick={(row) => {
-        handleRowClick(row.original)
+        handleRowClick(row.original);
       }}
       paginated
       focusedRowId={traceId}
@@ -312,5 +302,5 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         Refresh
       </Button>
     </DataTable>
-  )
+  );
 }

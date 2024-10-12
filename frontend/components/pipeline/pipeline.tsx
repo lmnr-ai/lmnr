@@ -1,63 +1,63 @@
-'use client'
+'use client';
 
-import { useContext, useEffect, useState, useRef, useMemo } from 'react'
-import Flow from './flow'
-import PipelineTrace from './pipeline-trace'
-import PipelineHeader from './pipeline-header'
-import { ProjectContext } from '@/contexts/project-context'
-import useStore from '@/lib/flow/store'
-import { Label } from '../ui/label'
-import { InputVariable, Pipeline as PipelineType, PipelineExecutionMode, PipelineVersion } from '@/lib/pipeline/types'
-import { FlowContextProvider } from '@/contexts/pipeline-version-context'
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
-import { ImperativePanelHandle } from 'react-resizable-panels'
-import { useToast } from '@/lib/hooks/use-toast'
-import Toolbar from './pipeline-toolbar'
-import { STORED_INPUTS_STATE_UNSEEN, cn, convertAllStoredInputsToUnseen, convertStoredInputToUnseen, getStoredInputs, setStoredInputs } from '@/lib/utils'
-import { Graph } from '@/lib/flow/graph'
-import { createClient } from '@supabase/supabase-js'
-import { useUserContext } from '@/contexts/user-context'
-import { Skeleton } from '../ui/skeleton'
-import PipelineBottomPanel from './pipeline-bottom-panel'
-import { SUPABASE_ANON_KEY, SUPABASE_URL, USE_REALTIME } from '@/lib/const'
-import { PresenceUser } from '@/lib/user/types'
-import { v4 as uuidv4 } from 'uuid'
-import PipelineSheet from './pipeline-sheet'
-import { InputNode, NodeType } from '@/lib/flow/types'
-import { DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE } from '@/lib/flow/utils'
-import { Button } from '../ui/button'
-import { ChevronsRight, PlayIcon, StopCircle } from 'lucide-react'
-import { removeHashFromId } from '@/lib/pipeline/utils'
-import { ScrollArea } from '../ui/scroll-area'
-import { usePrevious } from '@/lib/hooks/use-previous'
-import Header from '../ui/header'
-import { Switch } from '../ui/switch'
-import * as Y from 'yjs'
-import eventEmitter from '@/lib/pipeline/eventEmitter'
+import { useContext, useEffect, useState, useRef, useMemo } from 'react';
+import Flow from './flow';
+import PipelineTrace from './pipeline-trace';
+import PipelineHeader from './pipeline-header';
+import { ProjectContext } from '@/contexts/project-context';
+import useStore from '@/lib/flow/store';
+import { Label } from '../ui/label';
+import { InputVariable, Pipeline as PipelineType, PipelineExecutionMode, PipelineVersion } from '@/lib/pipeline/types';
+import { FlowContextProvider } from '@/contexts/pipeline-version-context';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { ImperativePanelHandle } from 'react-resizable-panels';
+import { useToast } from '@/lib/hooks/use-toast';
+import Toolbar from './pipeline-toolbar';
+import { STORED_INPUTS_STATE_UNSEEN, cn, convertAllStoredInputsToUnseen, convertStoredInputToUnseen, getStoredInputs, setStoredInputs } from '@/lib/utils';
+import { Graph } from '@/lib/flow/graph';
+import { createClient } from '@supabase/supabase-js';
+import { useUserContext } from '@/contexts/user-context';
+import { Skeleton } from '../ui/skeleton';
+import PipelineBottomPanel from './pipeline-bottom-panel';
+import { SUPABASE_ANON_KEY, SUPABASE_URL, USE_REALTIME } from '@/lib/const';
+import { PresenceUser } from '@/lib/user/types';
+import { v4 as uuidv4 } from 'uuid';
+import PipelineSheet from './pipeline-sheet';
+import { InputNode, NodeType } from '@/lib/flow/types';
+import { DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE } from '@/lib/flow/utils';
+import { Button } from '../ui/button';
+import { ChevronsRight, PlayIcon, StopCircle } from 'lucide-react';
+import { removeHashFromId } from '@/lib/pipeline/utils';
+import { ScrollArea } from '../ui/scroll-area';
+import { usePrevious } from '@/lib/hooks/use-previous';
+import Header from '../ui/header';
+import { Switch } from '../ui/switch';
+import * as Y from 'yjs';
+import eventEmitter from '@/lib/pipeline/eventEmitter';
 
 interface PipelineProps {
   pipeline: PipelineType;
   defaultSelectedVersion?: PipelineVersion;
 }
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic';
 
 const AUTO_SAVE_TIMEOUT_MS = 750;
 
 enum RunGraphState {
-  Run = "run",
-  Idle = "idle"
+  Run = 'run',
+  Idle = 'idle'
 }
 
 export default function Pipeline({ pipeline }: PipelineProps) {
 
-  const [bottomPanelMinSize, setBottomPanelMinSize] = useState(0)
-  const { projectId } = useContext(ProjectContext)
-  const [isSheetOpen, setIsSheetOpen] = useState(false)
-  const [runGraphState, setRunGraphState] = useState<RunGraphState>(RunGraphState.Idle)
+  const [bottomPanelMinSize, setBottomPanelMinSize] = useState(0);
+  const { projectId } = useContext(ProjectContext);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [runGraphState, setRunGraphState] = useState<RunGraphState>(RunGraphState.Idle);
 
   // default to latest WORKSHOP pipeline version
-  const [selectedPipelineVersion, setSelectedPipelineVersion] = useState<PipelineVersion | null>(null)
+  const [selectedPipelineVersion, setSelectedPipelineVersion] = useState<PipelineVersion | null>(null);
   const {
     ydoc,
     syncNodesWithYDoc,
@@ -77,13 +77,13 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     setAllInputs,
     breakpointNodeIds,
     setBreakpointNodeIds,
-  } = useStore(state => state)
+  } = useStore(state => state);
 
   const autoSaveFuncTimeoutId = useRef<NodeJS.Timeout | null>(null);
   const externalUpdateTimeoutId = useRef<NodeJS.Timeout | null>(null);
   const [unsavedChanges, setUnsavedChanges] = useState<boolean>(false);
   const [isUpdatingByAnotherClient, setIsUpdatingByAnotherClient] = useState<boolean>(false);
-  const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
+  const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const flowPanelRef = useRef<ImperativePanelHandle>(null);
@@ -93,10 +93,9 @@ export default function Pipeline({ pipeline }: PipelineProps) {
   const seenClientIds = useRef<string[]>([]);
   const { toast } = useToast();
 
-  const { supabaseAccessToken, username, imageUrl } = useUserContext()
+  const { supabaseAccessToken, username, imageUrl } = useUserContext();
 
-  const supabase = useMemo(() => {
-    return USE_REALTIME 
+  const supabase = useMemo(() => USE_REALTIME
     ? createClient(
       SUPABASE_URL,
       SUPABASE_ANON_KEY,
@@ -108,31 +107,31 @@ export default function Pipeline({ pipeline }: PipelineProps) {
         },
       }
     )
-    : null}, [])
+    : null, []);
 
-  supabase?.realtime.setAuth(supabaseAccessToken)
+  supabase?.realtime.setAuth(supabaseAccessToken);
 
   useEffect(() => {
-    document.title = `${pipeline.name}`
+    document.title = `${pipeline.name}`;
 
     if (window?.innerHeight) {
-      setBottomPanelMinSize((46 / (window.innerHeight - 100)) * 100)
+      setBottomPanelMinSize((46 / (window.innerHeight - 100)) * 100);
     }
 
     eventEmitter.on('run', (action) => {
       if (action === 'cancel' || action === 'done') {
-        setRunGraphState(RunGraphState.Idle)
+        setRunGraphState(RunGraphState.Idle);
       } else if (action === 'run') {
-        setRunGraphState(RunGraphState.Run)
+        setRunGraphState(RunGraphState.Run);
       }
-    })
+    });
 
     // remove all channels on unmount
     return () => {
-      supabase?.removeAllChannels()
-      setFocusedNodeId(null)
-    }
-  }, [])
+      supabase?.removeAllChannels();
+      setFocusedNodeId(null);
+    };
+  }, []);
 
   const handleDocUpdate = (update: Uint8Array, origin: any) => {
 
@@ -142,7 +141,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     }
 
     if (origin === 'external') {
-      syncNodesWithYDoc()
+      syncNodesWithYDoc();
       return;
     }
 
@@ -154,45 +153,43 @@ export default function Pipeline({ pipeline }: PipelineProps) {
           pipelineVersionId: selectedPipelineVersion!.id,
           diff: Array.from(update)
         },
-      })
+      });
     }
 
-  }
+  };
 
   useEffect(() => {
-    setIsSheetOpen(focusedNodeId !== null)
-  }, [focusedNodeId])
+    setIsSheetOpen(focusedNodeId !== null);
+  }, [focusedNodeId]);
 
   const updateSelectedPipelineVersion = (versionId: string) => {
-    setFocusedNodeId(null)
+    setFocusedNodeId(null);
     fetch(`/api/projects/${projectId}/pipelines/${pipeline.id}/versions/${versionId}`, {
       method: 'GET',
       cache: 'no-store'
     }).then(res => res.json()).then(pipelineVersion => {
-      removeHashFromId(pipelineVersion)
-      setSelectedPipelineVersion(pipelineVersion)
-    })
-  }
+      removeHashFromId(pipelineVersion);
+      setSelectedPipelineVersion(pipelineVersion);
+    });
+  };
 
   const saveVersion = async (
     rf: any,
     graph: Graph,
     projectId: string,
     selectedPipelineVersion: PipelineVersion,
-  ) => {
-    return await fetch(
-      `/api/projects/${projectId}/pipelines/${selectedPipelineVersion.pipelineId}/versions/${selectedPipelineVersion.id}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          ...selectedPipelineVersion,
-          displayableGraph: rf,
-          runnableGraph: graph.toObject()
-        }),
-        cache: 'no-store',
-      }
-    );
-  }
+  ) => await fetch(
+    `/api/projects/${projectId}/pipelines/${selectedPipelineVersion.pipelineId}/versions/${selectedPipelineVersion.id}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        ...selectedPipelineVersion,
+        displayableGraph: rf,
+        runnableGraph: graph.toObject()
+      }),
+      cache: 'no-store',
+    }
+  );
 
   const autoSave = async (
     projectId: string,
@@ -211,11 +208,11 @@ export default function Pipeline({ pipeline }: PipelineProps) {
       toast({
         title: 'Error saving pipeline version',
         variant: 'destructive'
-      })
+      });
     }
 
     setUnsavedChanges(false);
-  }
+  };
 
   useEffect(() => {
 
@@ -225,20 +222,20 @@ export default function Pipeline({ pipeline }: PipelineProps) {
 
     isFirstRender.current = true;
 
-    if (selectedPipelineVersion === null) return
+    if (selectedPipelineVersion === null) return;
 
     if (selectedPipelineVersion.displayableGraph == undefined) {
-      return
+      return;
     }
 
     // First time, we read all inputs (for pipeline and all node graphs) from the storage
     convertAllStoredInputsToUnseen(selectedPipelineVersion!.id!);
 
     // updating nodes and edges from selected pipeline version
-    const flow = selectedPipelineVersion.displayableGraph
+    const flow = selectedPipelineVersion.displayableGraph;
 
-    setNodes((_) => flow.nodes)
-    setEdges((_) => flow.edges)
+    setNodes((_) => flow.nodes);
+    setEdges((_) => flow.edges);
 
     const currentPresenceUser: PresenceUser = {
       id: presenceId.current,
@@ -252,13 +249,11 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     }
 
     // setting up listener for changes on selected pipeline version
-    const newChannel = supabase?.channel('pipeline_versions_' + selectedPipelineVersion.id!)
+    const newChannel = supabase?.channel('pipeline_versions_' + selectedPipelineVersion.id!);
     channel.current = newChannel
       ?.on('presence', { event: 'sync' }, () => {
         const newState = channel.current.presenceState();
-        const presenceUsers = Object.values(newState).map((u: any) => ({ id: u[0].id, username: u[0].username, imageUrl: u[0].imageUrl })).filter((user) => {
-          return user.id != currentPresenceUser.id;
-        }).sort((user1, user2) => { return user1.id.localeCompare(user2.id) });
+        const presenceUsers = Object.values(newState).map((u: any) => ({ id: u[0].id, username: u[0].username, imageUrl: u[0].imageUrl })).filter((user) => user.id != currentPresenceUser.id).sort((user1, user2) => user1.id.localeCompare(user2.id));
         setPresenceUsers(presenceUsers);
       })
       .on('broadcast', { event: 'graph' }, handleExternalGraphUpdate)
@@ -273,23 +268,23 @@ export default function Pipeline({ pipeline }: PipelineProps) {
               pipelineVersionId: selectedPipelineVersion.id,
               diff: Array.from(Y.encodeStateAsUpdate(ydoc))
             },
-          })
-          await newChannel.track(currentPresenceUser)
+          });
+          await newChannel.track(currentPresenceUser);
 
         }
-      })
+      });
 
 
-    ydoc.on('update', handleDocUpdate)
+    ydoc.on('update', handleDocUpdate);
 
     return () => {
 
-      newChannel?.unsubscribe()
-      ydoc.off('update', handleDocUpdate)
-    }
+      newChannel?.unsubscribe();
+      ydoc.off('update', handleDocUpdate);
+    };
 
 
-  }, [selectedPipelineVersion])
+  }, [selectedPipelineVersion]);
 
   const handleInitialSync = (e: any) => {
     const payload = e.payload as { senderId: string, pipelineVersionId: string, diff: Int8Array };
@@ -300,13 +295,13 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     }
 
     if (payload.diff) {
-      const diff = new Uint8Array(payload.diff)
+      const diff = new Uint8Array(payload.diff);
 
-      Y.applyUpdate(ydoc, diff, "external")
+      Y.applyUpdate(ydoc, diff, 'external');
 
       // if we haven't seen this client id yet, we send our state
       if (seenClientIds.current.indexOf(payload.senderId) === -1) {
-        seenClientIds.current.push(payload.senderId)
+        seenClientIds.current.push(payload.senderId);
 
         channel.current.send({
           type: 'broadcast',
@@ -316,11 +311,11 @@ export default function Pipeline({ pipeline }: PipelineProps) {
             senderId: presenceId.current,
             diff: Array.from(Y.encodeStateAsUpdate(ydoc))
           },
-        })
+        });
 
       }
     }
-  }
+  };
 
 
   useEffect(() => {
@@ -338,7 +333,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     }
 
     if (selectedPipelineVersion === null) {
-      return
+      return;
     }
 
     // don't autosave endpoint pipelines
@@ -356,7 +351,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     );
     setUnsavedChanges(true);
 
-  }, [nodes, edges])
+  }, [nodes, edges]);
 
   const handleExternalGraphUpdate = (e: any) => {
 
@@ -368,8 +363,8 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     };
 
     if (payload.diff && payload.pipelineVersionId === selectedPipelineVersion?.id) {
-      const diff = new Uint8Array(payload.diff)
-      Y.applyUpdate(ydoc, diff, "external")
+      const diff = new Uint8Array(payload.diff);
+      Y.applyUpdate(ydoc, diff, 'external');
     }
 
     // add some latency to avoid flickering during simultaneous updates
@@ -381,7 +376,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
       setIsUpdatingByAnotherClient(false);
     }, 500);
 
-  }
+  };
 
   const prevFocusedNodeId = usePrevious(focusedNodeId);
   const prevMode = usePrevious(mode);
@@ -392,7 +387,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     // The node may be focused, but if we're not in Node execution mode, we're still working with whole pipeline's inputs.
     let storeFocusedNodeId = (mode === PipelineExecutionMode.Node) ? focusedNodeId : null;
     setStoredInputs(selectedPipelineVersion.id!, storeFocusedNodeId, allInputs);
-  }, [allInputs])
+  }, [allInputs]);
 
   // Update allInputs when nodes change
   useEffect(() => {
@@ -432,15 +427,13 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     let currentInputs: InputVariable[][];
     if (localPipelineInputs.state === STORED_INPUTS_STATE_UNSEEN) {
       if (localPipelineInputs.inputs.length === 0) {
-        const newPipelineInputs = inputNodes.map(inputNode => {
-          return {
-            id: inputNode.id,
-            name: inputNode.name,
-            value: DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE[inputNode.inputType],
-            type: inputNode.inputType,
-            executionId: uuidv4() // Added new execution
-          };
-        });
+        const newPipelineInputs = inputNodes.map(inputNode => ({
+          id: inputNode.id,
+          name: inputNode.name,
+          value: DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE[inputNode.inputType],
+          type: inputNode.inputType,
+          executionId: uuidv4() // Added new execution
+        }));
         currentInputs = [newPipelineInputs];
       } else {
         currentInputs = localPipelineInputs.inputs;
@@ -476,7 +469,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
               value: DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE[inputNode.inputType],
               type: inputNode.inputType,
               executionId,
-            }
+            };
           } else {
             return {
               id: inputNode.id,
@@ -484,7 +477,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
               value: input.value,
               type: inputNode.inputType,
               executionId,
-            }
+            };
           }
         } else {
           return {
@@ -495,7 +488,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
             executionId,
           };
         }
-      })
+      });
     });
 
     // allInputs is stored in store as a convenience, so that we don't always pass pipeline version id and focusedNodeId
@@ -506,22 +499,22 @@ export default function Pipeline({ pipeline }: PipelineProps) {
 
   return (
     <div className="pipeline flex flex-col h-full w-full">
-      <Header path={"pipelines/" + pipeline.name}>
+      <Header path={'pipelines/' + pipeline.name}>
         <PipelineHeader
           selectedPipelineVersion={selectedPipelineVersion}
           pipeline={pipeline}
           unsavedChanges={unsavedChanges}
           onPipelineVersionSelect={(version) => {
-            supabase?.removeAllChannels()
-            updateSelectedPipelineVersion(version.id)
+            supabase?.removeAllChannels();
+            updateSelectedPipelineVersion(version.id);
           }}
           onPipelineVersionSave={() => {
             autoSave(projectId, selectedPipelineVersion!).then(() => {
               toast({
                 title: 'Pipeline version saved',
                 duration: 1000
-              })
-            })
+              });
+            });
           }}
           onLeftPanelOpenChange={(open) =>
             setLeftPanelOpen(open)
@@ -556,10 +549,10 @@ export default function Pipeline({ pipeline }: PipelineProps) {
               (<Button
                 onClick={() => {
                   if (flowPanelRef.current && flowPanelRef.current.getSize() > 90) {
-                    flowPanelRef.current?.resize(50)
+                    flowPanelRef.current?.resize(50);
                   }
                   eventEmitter.emit('graph', 'run');
-                  setRunGraphState(RunGraphState.Run)
+                  setRunGraphState(RunGraphState.Run);
                 }}
                 disabled={selectedPipelineVersion == null}
                 handleKeys={[{ key: 'Enter', ctrlKey: true }, { key: 'Enter', metaKey: true }]}
@@ -574,7 +567,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
                 onClick={() => {
 
                   eventEmitter.emit('graph', 'cancel');
-                  setRunGraphState(RunGraphState.Idle)
+                  setRunGraphState(RunGraphState.Idle);
                 }}
 
               >
@@ -598,7 +591,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
                   <ResizablePanel className='flex'>
                     <div className='flex-1 relative z-10'>
                       {selectedPipelineVersion && (
-                        <FlowContextProvider editable={selectedPipelineVersion.pipelineType === "WORKSHOP"}>
+                        <FlowContextProvider editable={selectedPipelineVersion.pipelineType === 'WORKSHOP'}>
                           <Flow key={selectedPipelineVersion.id} />
                         </FlowContextProvider>
                       )}
@@ -607,8 +600,8 @@ export default function Pipeline({ pipeline }: PipelineProps) {
                       )
                       }
                     </div>
-                    <ScrollArea className={cn("flex-none", rightPanelOpen ? 'w-52' : 'w-0', isSheetOpen ? 'hidden' : '')} type='always'>
-                      <Toolbar editable={selectedPipelineVersion?.pipelineType === "WORKSHOP"} />
+                    <ScrollArea className={cn('flex-none', rightPanelOpen ? 'w-52' : 'w-0', isSheetOpen ? 'hidden' : '')} type='always'>
+                      <Toolbar editable={selectedPipelineVersion?.pipelineType === 'WORKSHOP'} />
                     </ScrollArea>
                   </ResizablePanel>
                   <ResizableHandle />
@@ -620,9 +613,9 @@ export default function Pipeline({ pipeline }: PipelineProps) {
                             <button
                               className=""
                               onClick={() => {
-                                setIsSheetOpen(false)
-                                setFocusedNodeId(null)
-                                setMode(PipelineExecutionMode.Pipeline)
+                                setIsSheetOpen(false);
+                                setFocusedNodeId(null);
+                                setMode(PipelineExecutionMode.Pipeline);
                               }}
                             >
                               <ChevronsRight />
@@ -636,9 +629,9 @@ export default function Pipeline({ pipeline }: PipelineProps) {
                                   checked={breakpointNodeIds.includes(focusedNodeId as string)}
                                   onCheckedChange={(checked) => {
                                     if (checked) {
-                                      setBreakpointNodeIds((prev) => [...prev, focusedNodeId as string])
+                                      setBreakpointNodeIds((prev) => [...prev, focusedNodeId as string]);
                                     } else {
-                                      setBreakpointNodeIds((prev) => prev.filter((id) => id !== focusedNodeId))
+                                      setBreakpointNodeIds((prev) => prev.filter((id) => id !== focusedNodeId));
                                     }
                                   }}
                                 />
@@ -650,18 +643,18 @@ export default function Pipeline({ pipeline }: PipelineProps) {
                                 <Switch
                                   onCheckedChange={(checked) => {
                                     if (checked) {
-                                      sheetRef.current?.resize(100)
-                                      setMode(PipelineExecutionMode.Node)
+                                      sheetRef.current?.resize(100);
+                                      setMode(PipelineExecutionMode.Node);
                                     } else {
-                                      sheetRef.current?.resize(50)
-                                      setMode(PipelineExecutionMode.Pipeline)
+                                      sheetRef.current?.resize(50);
+                                      setMode(PipelineExecutionMode.Pipeline);
                                     }
                                   }}
                                 />
                               </div>
                             </div>
                           </div>
-                          <PipelineSheet editable={selectedPipelineVersion?.pipelineType === "WORKSHOP"} />
+                          <PipelineSheet editable={selectedPipelineVersion?.pipelineType === 'WORKSHOP'} />
                         </div>
                       </div>
                     </ResizablePanel>
@@ -677,5 +670,5 @@ export default function Pipeline({ pipeline }: PipelineProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }

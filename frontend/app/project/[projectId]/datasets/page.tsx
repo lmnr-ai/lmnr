@@ -6,7 +6,7 @@ import Datasets from '@/components/datasets/datasets';
 
 export const metadata: Metadata = {
   title: 'Datasets',
-}
+};
 
 export default async function LogsPage({
   params,

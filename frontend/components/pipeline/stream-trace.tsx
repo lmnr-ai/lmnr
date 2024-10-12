@@ -1,22 +1,22 @@
-import React, { useEffect, useState } from 'react'
-import { SpanCard } from '../traces/span-card'
-import { getDuration, getDurationString, renderNodeInput } from '@/lib/flow/utils'
-import { ScrollArea } from '../ui/scroll-area'
-import { Label } from '../ui/label'
-import { RunTrace } from '@/lib/traces/types'
-import StatusLabel from '../ui/status-label'
-import { CircleDollarSign, Clock3, Coins, FastForward, Loader, Play } from 'lucide-react'
-import { StreamMessage } from './pipeline-outputs'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
-import { Skeleton } from '../ui/skeleton'
-import Formatter from '../ui/formatter'
-import { Button } from '../ui/button'
-import { v4 } from 'uuid'
-import { ConditionValue, NodeType } from '@/lib/flow/types'
-import useStore from '@/lib/flow/store'
-import eventEmitter from '@/lib/pipeline/eventEmitter'
-import { GraphMessagePreview } from '@/lib/pipeline/types'
-import { cn } from '@/lib/utils'
+import React, { useEffect, useState } from 'react';
+import { SpanCard } from '../traces/span-card';
+import { getDuration, getDurationString, renderNodeInput } from '@/lib/flow/utils';
+import { ScrollArea } from '../ui/scroll-area';
+import { Label } from '../ui/label';
+import { RunTrace } from '@/lib/traces/types';
+import StatusLabel from '../ui/status-label';
+import { CircleDollarSign, Clock3, Coins, FastForward, Loader, Play } from 'lucide-react';
+import { StreamMessage } from './pipeline-outputs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Skeleton } from '../ui/skeleton';
+import Formatter from '../ui/formatter';
+import { Button } from '../ui/button';
+import { v4 } from 'uuid';
+import { ConditionValue, NodeType } from '@/lib/flow/types';
+import useStore from '@/lib/flow/store';
+import eventEmitter from '@/lib/pipeline/eventEmitter';
+import { GraphMessagePreview } from '@/lib/pipeline/types';
+import { cn } from '@/lib/utils';
 
 interface StreaTraceProps {
   streamMessages: StreamMessage[]
@@ -26,27 +26,27 @@ interface StreaTraceProps {
 
 export default function StreamTrace({ streamMessages, runTrace, onNodeRun }: StreaTraceProps) {
 
-  const { highlightNode } = useStore()
-  const [selectedMessage, setSelectedMessage] = useState<StreamMessage | null>(null)
+  const { highlightNode } = useStore();
+  const [selectedMessage, setSelectedMessage] = useState<StreamMessage | null>(null);
 
   useEffect(() => {
     if (selectedMessage) {
-      setSelectedMessage(streamMessages.find(m => m.id === selectedMessage.id) || null)
+      setSelectedMessage(streamMessages.find(m => m.id === selectedMessage.id) || null);
     } else if (streamMessages.some(node => node.reachedBreakpoint)) {
-      setSelectedMessage(streamMessages.find(node => node.reachedBreakpoint) || null)
+      setSelectedMessage(streamMessages.find(node => node.reachedBreakpoint) || null);
     }
 
-  }, [streamMessages])
+  }, [streamMessages]);
 
   const status = () => {
 
     // if any stream message has reached breakpoint
     if (streamMessages.some(node => node.reachedBreakpoint)) {
-      return 'Breakpoint'
+      return 'Breakpoint';
     }
 
-    return streamMessages.length > 0 ? 'Running' : "Idle"
-  }
+    return streamMessages.length > 0 ? 'Running' : 'Idle';
+  };
 
   return (
     <div className='flex h-full w-full border border-l-0'>
@@ -65,7 +65,7 @@ export default function StreamTrace({ streamMessages, runTrace, onNodeRun }: Str
               </div>
               <div className='flex space-x-1 items-center'>
                 <CircleDollarSign size={12} />
-                <Label className='text-secondary-foreground text-sm'>{runTrace.approximateCost !== null ? `${runTrace.approximateCost.toFixed(5)}$` : "-"}</Label>
+                <Label className='text-secondary-foreground text-sm'>{runTrace.approximateCost !== null ? `${runTrace.approximateCost.toFixed(5)}$` : '-'}</Label>
               </div>
             </>
           )}
@@ -141,10 +141,10 @@ export default function StreamTrace({ streamMessages, runTrace, onNodeRun }: Str
                         onClick={() => {
 
                           if (!selectedMessage) {
-                            return
+                            return;
                           }
 
-                          let messages = streamMessages.map(node => node.message!)
+                          let messages = streamMessages.map(node => node.message!);
 
                           // updating message ids
                           for (const message of messages) {
@@ -153,27 +153,27 @@ export default function StreamTrace({ streamMessages, runTrace, onNodeRun }: Str
                               continue;
                             }
 
-                            const oldId = message.id
-                            const newId = v4()
+                            const oldId = message.id;
+                            const newId = v4();
 
                             if (typeof message?.value === 'object' && (message?.value as ConditionValue).value) {
-                              message.value = (message?.value as ConditionValue).value
+                              message.value = (message?.value as ConditionValue).value;
                             }
 
                             if (message?.inputMessageIds.includes(oldId)) {
-                              message.inputMessageIds = message.inputMessageIds.map(id => id === oldId ? newId : id)
+                              message.inputMessageIds = message.inputMessageIds.map(id => id === oldId ? newId : id);
                             }
 
-                            message.id = newId
+                            message.id = newId;
                             const now = new Date();
-                            const nowISO = now.toISOString()
+                            const nowISO = now.toISOString();
                             message.startTime = nowISO;
                             message.endTime = nowISO;
 
                           }
 
 
-                          onNodeRun?.(selectedMessage)
+                          onNodeRun?.(selectedMessage);
 
                         }}
                       >
@@ -186,8 +186,8 @@ export default function StreamTrace({ streamMessages, runTrace, onNodeRun }: Str
                           variant='secondary'
                           className='h-6'
                           onClick={() => {
-                            eventEmitter.emit('graph', 'continue')
-                            selectedMessage.reachedBreakpoint = false
+                            eventEmitter.emit('graph', 'continue');
+                            selectedMessage.reachedBreakpoint = false;
                           }}
                         >
                           <FastForward size={14} />
@@ -240,16 +240,16 @@ export default function StreamTrace({ streamMessages, runTrace, onNodeRun }: Str
                       }
                       {selectedMessage?.message?.inputMessageIds && (
                         selectedMessage.message.inputMessageIds.map((id, index) => {
-                          const node = streamMessages.find(node => node.message?.id === id)
+                          const node = streamMessages.find(node => node.message?.id === id);
 
                           return (
                             <div key={index} className='flex flex-col space-y-2'>
                               <div className='text-sm text-secondary-foreground'>{node?.nodeName}</div>
                               <div className="rounded border">
-                                <Formatter value={renderNodeInput(node?.message?.value || "")} />
+                                <Formatter value={renderNodeInput(node?.message?.value || '')} />
                               </div>
                             </div>
-                          )
+                          );
                         })
                       )}
                     </div>
@@ -261,7 +261,7 @@ export default function StreamTrace({ streamMessages, runTrace, onNodeRun }: Str
         </Tabs>
       </div>
     </div>
-  )
+  );
 }
 
 
@@ -290,7 +290,7 @@ function StreamTraceCard({ node, selected, showSpinner = true }: StreamTraceCard
         }
       </div>
     </div >
-  )
+  );
 }
 
 
@@ -305,8 +305,8 @@ export function TraceCard({ message, selected, onTraceHover, breakpoint = false 
   return (
     <div
       className="mt-4 border-none relative transition-all"
-      onMouseEnter={() => { onTraceHover?.(message.nodeId) }}
-      onMouseLeave={() => { onTraceHover?.(undefined) }}
+      onMouseEnter={() => { onTraceHover?.(message.nodeId); }}
+      onMouseLeave={() => { onTraceHover?.(undefined); }}
     >
       {selected && (
         <div className={cn('absolute left-[-32px] right-[-16px] top-[-8px] bottom-[-8px] z-0 border-l-2', breakpoint ? 'bg-yellow-200/10 border-yellow-500' : 'border-blue-400 bg-blue-400/10')}>
@@ -320,5 +320,5 @@ export function TraceCard({ message, selected, onTraceHover, breakpoint = false 
         </div>
       </div>
     </div >
-  )
+  );
 }

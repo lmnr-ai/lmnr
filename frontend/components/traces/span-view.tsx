@@ -1,19 +1,19 @@
-import { getDurationString, isChatMessageList } from "@/lib/flow/utils";
-import useSWR from "swr";
-import { useProjectContext } from "@/contexts/project-context";
-import { swrFetcher } from "@/lib/utils";
-import { Skeleton } from "../ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
-import { ScrollArea } from "../ui/scroll-area";
-import Formatter from "../ui/formatter";
-import { Span, SpanType } from "@/lib/traces/types";
-import { Activity, ArrowRight, Braces, CircleDollarSign, Clock3, Coins, Gauge, MessageCircleMore, X } from "lucide-react";
-import SpanEvents from "./span-events";
-import ChatMessageListTab from "./chat-message-list-tab";
-import { Label } from "../ui/label";
-import SpanLabels from "./span-labels";
-import { AddLabelPopover } from "./add-label-popover";
-import ExportSpansDialog from "./export-spans-dialog";
+import { getDurationString, isChatMessageList } from '@/lib/flow/utils';
+import useSWR from 'swr';
+import { useProjectContext } from '@/contexts/project-context';
+import { swrFetcher } from '@/lib/utils';
+import { Skeleton } from '../ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { ScrollArea } from '../ui/scroll-area';
+import Formatter from '../ui/formatter';
+import { Span, SpanType } from '@/lib/traces/types';
+import { Activity, ArrowRight, Braces, CircleDollarSign, Clock3, Coins, Gauge, MessageCircleMore, X } from 'lucide-react';
+import SpanEvents from './span-events';
+import ChatMessageListTab from './chat-message-list-tab';
+import { Label } from '../ui/label';
+import SpanLabels from './span-labels';
+import { AddLabelPopover } from './add-label-popover';
+import ExportSpansDialog from './export-spans-dialog';
 
 interface SpanViewProps {
   spanId: string;
@@ -22,7 +22,7 @@ interface SpanViewProps {
 export function SpanView({ spanId }: SpanViewProps) {
 
   const { projectId } = useProjectContext();
-  const { data: span }: { data: Span } = useSWR(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher)
+  const { data: span }: { data: Span } = useSWR(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
 
   if (!span) {
     return (
@@ -31,7 +31,7 @@ export function SpanView({ spanId }: SpanViewProps) {
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
       </div>
-    )
+    );
   }
 
   return (
@@ -70,12 +70,12 @@ export function SpanView({ spanId }: SpanViewProps) {
                 <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
                   <Coins size={12} />
                   <Label className='text-secondary-foreground text-sm'>
-                    {span.attributes["llm.usage.total_tokens"] ?? 0}
+                    {span.attributes['llm.usage.total_tokens'] ?? 0}
                   </Label>
                 </div>
                 <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
                   <CircleDollarSign size={12} />
-                  <Label className='text-secondary-foreground text-sm'>${span.attributes["gen_ai.usage.cost"]?.toFixed(5) ?? 0}</Label>
+                  <Label className='text-secondary-foreground text-sm'>${span.attributes['gen_ai.usage.cost']?.toFixed(5) ?? 0}</Label>
                 </div>
               </div>
             </div>
@@ -163,5 +163,5 @@ export function SpanView({ spanId }: SpanViewProps) {
         </div>
       </Tabs>
     </>
-  )
+  );
 }

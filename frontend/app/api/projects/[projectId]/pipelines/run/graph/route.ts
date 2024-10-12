@@ -1,12 +1,12 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export async function POST(req: Request, { params }: { params: { projectId: string } }): Promise<Response> {
   const projectId = params.projectId;
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
-  const body = await req.json()
+  const body = await req.json();
 
   const headers = new Headers({
     'Content-Type': 'text/event-stream',

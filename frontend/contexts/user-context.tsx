@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import React, { createContext, use } from 'react';
 
@@ -10,10 +10,10 @@ type UserContextType = {
 };
 
 export const UserContext = createContext<UserContextType>({
-  email: "",
-  username: "",
-  imageUrl: "",
-  supabaseAccessToken: ""
+  email: '',
+  username: '',
+  imageUrl: '',
+  supabaseAccessToken: ''
 });
 
 type UserContextProviderProps = {
@@ -24,13 +24,11 @@ type UserContextProviderProps = {
   supabaseAccessToken: string;
 };
 
-export const UserContextProvider = ({ email, username, imageUrl, children, supabaseAccessToken }: UserContextProviderProps) => {
-  return (
-    <UserContext.Provider value={{ email, username, imageUrl, supabaseAccessToken }}>
-      {children}
-    </UserContext.Provider>
-  );
-};
+export const UserContextProvider = ({ email, username, imageUrl, children, supabaseAccessToken }: UserContextProviderProps) => (
+  <UserContext.Provider value={{ email, username, imageUrl, supabaseAccessToken }}>
+    {children}
+  </UserContext.Provider>
+);
 
 export function useUserContext() {
   return use(UserContext);

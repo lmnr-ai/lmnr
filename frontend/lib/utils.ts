@@ -4,7 +4,7 @@ import { InputVariable, PipelineVisibility } from './pipeline/types';
 import { ChatMessageContentPart, DatatableFilter } from './types';
 import * as Y from 'yjs';
 
-export const TIME_MILLISECONDS_FORMAT = "timeMilliseconds";
+export const TIME_MILLISECONDS_FORMAT = 'timeMilliseconds';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -20,9 +20,9 @@ export async function fetcher<JSON = any>(
   });
 
   if (!res.ok) {
-    const text = await res.text()
+    const text = await res.text();
 
-    throw new Error(text)
+    throw new Error(text);
   }
 
   return res;
@@ -39,7 +39,7 @@ export async function fetcherJSON<JSON = any>(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text)
+    throw new Error(text);
   }
 
   return await res.json() as JSON;
@@ -122,44 +122,40 @@ function _innerFormatTimestamp(date: Date): string {
 }
 
 
-export const getLocalEnvVars = (projectId: string): Record<string, string> => {
-  return JSON.parse(localStorage?.getItem(`env-${projectId}`) ?? '{}');
-}
+export const getLocalEnvVars = (projectId: string): Record<string, string> => JSON.parse(localStorage?.getItem(`env-${projectId}`) ?? '{}');
 
 export const setLocalEnvVar = (projectId: string, key: string, value: string) => {
   const localEnvVars = getLocalEnvVars(projectId);
   localStorage.setItem(`env-${projectId}`, JSON.stringify({ ...localEnvVars, [key]: value }));
-}
+};
 
 export const deleteLocalEnvVar = (projectId: string, key: string) => {
   const localEnvVars = getLocalEnvVars(projectId);
   delete localEnvVars[key];
   localStorage.setItem(`env-${projectId}`, JSON.stringify(localEnvVars));
-}
+};
 
-export const getLocalDevSessions = (projectId: string): Record<string, string> => {
-  return JSON.parse(localStorage?.getItem(`dev-sessions-${projectId}`) ?? '{}');
-}
+export const getLocalDevSessions = (projectId: string): Record<string, string> => JSON.parse(localStorage?.getItem(`dev-sessions-${projectId}`) ?? '{}');
 
 export const setLocalDevSession = (projectId: string, key: string, value: string) => {
   const localDevSessions = getLocalDevSessions(projectId);
   localStorage.setItem(`dev-sessions-${projectId}`, JSON.stringify({ ...localDevSessions, [key]: value }));
-}
+};
 
 export const deleteLocalDevSession = (projectId: string, key: string) => {
   const localDevSessions = getLocalDevSessions(projectId);
   delete localDevSessions[key];
   localStorage.setItem(`dev-sessions-${projectId}`, JSON.stringify(localDevSessions));
-}
+};
 
 // If unseen state, then use it to fill out inputs
 export const STORED_INPUTS_STATE_UNSEEN = 'INPUTS_UNSEEN_STATE';
 // If seen state, then use allInputs to fill out inputs
 export const STORED_INPUTS_STATE_SEEN = 'INPUTS_SEEN_STATE';
 
-export const getStoredInputs = (pipelineVersionId: string, focusedNodeId: string | null, pipelineVisibility: PipelineVisibility = "PRIVATE") => {
+export const getStoredInputs = (pipelineVersionId: string, focusedNodeId: string | null, pipelineVisibility: PipelineVisibility = 'PRIVATE') => {
   const innerKey = (focusedNodeId === null) ? 'pipeline' : `node-${focusedNodeId}`;
-  const key = `${pipelineVisibility === "PUBLIC" ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
+  const key = `${pipelineVisibility === 'PUBLIC' ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
   const localPipelineInputs = JSON.parse(localStorage.getItem(key) ?? '{}');
 
   if (!localPipelineInputs[innerKey]) {
@@ -170,40 +166,38 @@ export const getStoredInputs = (pipelineVersionId: string, focusedNodeId: string
   }
 
   return localPipelineInputs[innerKey];
-}
+};
 
 /**
  * Set local pipeline inputs to the UNSEEN_STATE
  */
-export const convertAllStoredInputsToUnseen = (pipelineVersionId: string, pipelineVisibility: PipelineVisibility = "PRIVATE") => {
-  const inputsKey = `${pipelineVisibility === "PUBLIC" ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
+export const convertAllStoredInputsToUnseen = (pipelineVersionId: string, pipelineVisibility: PipelineVisibility = 'PRIVATE') => {
+  const inputsKey = `${pipelineVisibility === 'PUBLIC' ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
   const localPipelineInputs = JSON.parse(localStorage.getItem(inputsKey) ?? '{}');
-  const preparedLocalPipelineInputs = Object.keys(localPipelineInputs).reduce((acc, key) => {
-    return { ...acc, [key]: { state: STORED_INPUTS_STATE_UNSEEN, inputs: localPipelineInputs[key].inputs } };
-  }, {});
+  const preparedLocalPipelineInputs = Object.keys(localPipelineInputs).reduce((acc, key) => ({ ...acc, [key]: { state: STORED_INPUTS_STATE_UNSEEN, inputs: localPipelineInputs[key].inputs } }), {});
   localStorage.setItem(inputsKey, JSON.stringify(preparedLocalPipelineInputs));
-}
+};
 
 /**
  * Set local inputs for focusedNodeid to UNSEEN_STATE
  */
-export const convertStoredInputToUnseen = (pipelineVersionId: string, focusedNodeId: string | null, pipelineVisibility: PipelineVisibility = "PRIVATE") => {
+export const convertStoredInputToUnseen = (pipelineVersionId: string, focusedNodeId: string | null, pipelineVisibility: PipelineVisibility = 'PRIVATE') => {
   const innerKey = (focusedNodeId === null) ? 'pipeline' : `node-${focusedNodeId}`;
-  const key = `${pipelineVisibility === "PUBLIC" ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
+  const key = `${pipelineVisibility === 'PUBLIC' ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
   const localPipelineInputs = JSON.parse(localStorage.getItem(key) ?? '{}');
 
   if (!!localPipelineInputs[innerKey]) {
     localPipelineInputs[innerKey] = { ...localPipelineInputs[innerKey], state: STORED_INPUTS_STATE_UNSEEN };
     localStorage.setItem(key, JSON.stringify(localPipelineInputs));
   }
-}
+};
 
-export const setStoredInputs = (pipelineVersionId: string, focusedNodeId: string | null, inputs: InputVariable[][], pipelineVisibility: PipelineVisibility = "PRIVATE") => {
+export const setStoredInputs = (pipelineVersionId: string, focusedNodeId: string | null, inputs: InputVariable[][], pipelineVisibility: PipelineVisibility = 'PRIVATE') => {
   const innerKey = (focusedNodeId === null) ? 'pipeline' : `node-${focusedNodeId}`;
-  const key = `${pipelineVisibility === "PUBLIC" ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
+  const key = `${pipelineVisibility === 'PUBLIC' ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
   const localPipelineInputs = JSON.parse(localStorage.getItem(key) ?? '{}');
   localStorage.setItem(key, JSON.stringify({ ...localPipelineInputs, [innerKey]: { state: STORED_INPUTS_STATE_SEEN, inputs } }));
-}
+};
 
 /**
  * Simple hash function to generate a short unique (with high-probability) identifier
@@ -219,33 +213,29 @@ export function generateShortHash() {
   return hash;
 }
 
-export const isStringType = (content: string | ChatMessageContentPart[]): content is string => {
-  return (typeof content === 'string' || content instanceof String)
-}
+export const isStringType = (content: string | ChatMessageContentPart[]): content is string => (typeof content === 'string' || content instanceof String);
 
 export function deep<T>(value: T): T {
   if (typeof value !== 'object' || value === null) {
-    return value
+    return value;
   }
   if (Array.isArray(value)) {
-    return deepArray(value)
+    return deepArray(value);
   }
-  return deepObject(value)
+  return deepObject(value);
 }
 
 function deepObject<T extends {}>(source: T) {
-  const result = {} as T
+  const result = {} as T;
   Object.keys(source).forEach((key) => {
-    const value = source[key as keyof T]
-    result[key as keyof T] = deep(value)
-  }, {})
-  return result as T
+    const value = source[key as keyof T];
+    result[key as keyof T] = deep(value);
+  }, {});
+  return result as T;
 }
 
 function deepArray<T extends any[]>(collection: T): any {
-  return collection.map((value) => {
-    return deep(value)
-  })
+  return collection.map((value) => deep(value));
 }
 
 export function toYjsObject(obj: any): any {
@@ -278,7 +268,7 @@ export const getFilterFromUrlParams = (filter: string): DatatableFilter[] | unde
     return filters.filter((f: any) => typeof f === 'object' && f.column && f.operator && f.value) as DatatableFilter[];
   }
   return undefined;
-}
+};
 
 export const getGroupByInterval = (
   pastHours: string | undefined,
@@ -290,29 +280,29 @@ export const getGroupByInterval = (
   if (defaultGroupByInterval != undefined) {
     return defaultGroupByInterval;
   }
-  if (pastHours === "1") {
-    groupByInterval = "minute";
-  } else if (pastHours === "7") {
-    groupByInterval = "minute";
-  } else if (pastHours === "24") {
-    groupByInterval = "hour";
+  if (pastHours === '1') {
+    groupByInterval = 'minute';
+  } else if (pastHours === '7') {
+    groupByInterval = 'minute';
+  } else if (pastHours === '24') {
+    groupByInterval = 'hour';
   } else if (parseInt(pastHours ?? '0') > 24) {
-    groupByInterval = "day";
+    groupByInterval = 'day';
   }
-  else if (pastHours === "all") {
-    groupByInterval = "day";
+  else if (pastHours === 'all') {
+    groupByInterval = 'day';
   } else if (startDate && endDate) {
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diff = end.getTime() - start.getTime();
     if (diff > 48 * 60 * 60 * 1000) {  // 2 days
-      groupByInterval = "day";
+      groupByInterval = 'day';
     } else if (diff < 6 * 60 * 60 * 1000) { // 6 hours
-      groupByInterval = "minute";
+      groupByInterval = 'minute';
     }
   }
   return groupByInterval;
-}
+};
 
 export const isGroupByIntervalAvailable = (
   pastHours: string | undefined,
@@ -324,17 +314,17 @@ export const isGroupByIntervalAvailable = (
     : startDate && endDate
       ? Math.floor((new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000)
       : 0;
-  if (interval === "minute") {
+  if (interval === 'minute') {
     return minutes <= 12 * 60;
   }
-  if (interval === "hour") {
+  if (interval === 'hour') {
     return minutes <= 31 * 24 * 60;
   }
-  if (interval === "day") {
+  if (interval === 'day') {
     return true;
   }
   return false;
-}
+};
 
 export const isJsonStringAValidObject = (json: string): boolean => {
   try {

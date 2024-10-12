@@ -29,7 +29,7 @@ export default function MapNodeComponent({
           updateNodeData(data.id, {
             pipelineName: pipeline.name,
             pipelineId: pipeline.id
-          } as MapNode)
+          } as MapNode);
         }}
         onPipelineVersionChange={(pv) => {
           if (pv !== null) {
@@ -37,7 +37,7 @@ export default function MapNodeComponent({
               pipelineVersionName: pv.name,
               pipelineVersionId: pv.id,
               runnableGraph: pv.runnableGraph
-            } as MapNode)
+            } as MapNode);
           } else {
             updateNodeData(data.id, {
               pipelineVersionName: '',
@@ -48,5 +48,5 @@ export default function MapNodeComponent({
         }}
       />
     </div>
-  )
+  );
 };

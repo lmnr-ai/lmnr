@@ -41,7 +41,7 @@ export default function DeleteEventTemplateDialog({
     setIsDialogOpen(false);
     router.push(`/project/${projectId}/event-templates`);
     router.refresh();
-  }
+  };
 
 
   return (

@@ -25,7 +25,7 @@ import { DisplayableGraph, GenericNode } from '@/lib/flow/types';
 export default function CreateEvaluationDialog() {
   const { projectId } = useProjectContext();
   const env = getLocalEnvVars(projectId);
-  const devSessionIds = getLocalDevSessions
+  const devSessionIds = getLocalDevSessions;
   const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -65,12 +65,12 @@ export default function CreateEvaluationDialog() {
     setIsLoading(false);
     setIsDialogOpen(false);
     router.push(`/project/${projectId}/evaluations/${json.id}`);
-  }
+  };
 
   const isEvaluationComplete = (): boolean => {
     const isExecutorPipelineComplete = enableExecutorPipeline ? executorPipelineId != null && executorPipelineVersionId != null : true;
     return isExecutorPipelineComplete && name.trim().length > 0 && datasetId != null && evaluatorPipelineVersionId != null;
-  }
+  };
 
   // const extractNodeNames = (graph: DisplayableGraph | null, nodeType: string): string[] | null => {
   //   if (graph == null) {
@@ -113,11 +113,11 @@ export default function CreateEvaluationDialog() {
               <div className='flex flex-col space-y-2'>
                 <PipelineSelect
                   onPipelineVersionChange={(pipelineVersion) => {
-                    setExecutorPipelineVersionId(pipelineVersion?.id ?? null)
-                    setExecutorPipelineGraph(pipelineVersion?.displayableGraph ?? null)
+                    setExecutorPipelineVersionId(pipelineVersion?.id ?? null);
+                    setExecutorPipelineGraph(pipelineVersion?.displayableGraph ?? null);
                   }}
                   onPipelineChange={(pipeline) => {
-                    setExecutorPipelineId(pipeline.id ?? null)
+                    setExecutorPipelineId(pipeline.id ?? null);
                   }}
                   defaultPipelineId={executorPipelineId ?? undefined}
                   defaultPipelineVersionId={executorPipelineVersionId ?? undefined}

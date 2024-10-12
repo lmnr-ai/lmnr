@@ -1,8 +1,8 @@
-import { RunTrace } from "@/lib/traces/types";
-import { Card } from "../ui/card";
-import StatusLabel from "../ui/status-label";
-import { Label } from "../ui/label";
-import { getDurationString } from "@/lib/flow/utils";
+import { RunTrace } from '@/lib/traces/types';
+import { Card } from '../ui/card';
+import StatusLabel from '../ui/status-label';
+import { Label } from '../ui/label';
+import { getDurationString } from '@/lib/flow/utils';
 
 export default function MetadataCard({ runTrace }: { runTrace: RunTrace }) {
   return (
@@ -14,5 +14,5 @@ export default function MetadataCard({ runTrace }: { runTrace: RunTrace }) {
         <Label className="flex my-1">Estimated cost: {runTrace.approximateCost !== null ? `$${runTrace.approximateCost.toFixed(5)}` : 'Unknown'}</Label>
       </div>
     </Card>
-  )
+  );
 }

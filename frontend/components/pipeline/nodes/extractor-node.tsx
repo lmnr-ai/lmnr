@@ -1,4 +1,4 @@
-import { ExtractorNode } from '@/lib/flow/types'
+import { ExtractorNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { Label } from '@/components/ui/label';
 import { memo } from 'react';
@@ -25,7 +25,7 @@ const ExtractorNodeComponent = ({ data }: { data: ExtractorNode }) => {
         mode="javascript"
       />
     </div>
-  )
-}
+  );
+};
 
-export default memo(ExtractorNodeComponent)
+export default memo(ExtractorNodeComponent);

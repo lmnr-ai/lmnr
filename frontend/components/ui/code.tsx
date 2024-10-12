@@ -31,5 +31,5 @@ export default function Code({ language, code, className }: CodeProps) {
         {code}
       </SyntaxHighlighter>
     </div>
-  )
+  );
 }

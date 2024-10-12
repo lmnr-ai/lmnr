@@ -1,14 +1,14 @@
-import { useProjectContext } from "@/contexts/project-context";
-import { swrFetcher } from "@/lib/utils";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import useSWR from "swr";
-import { Skeleton } from "../ui/skeleton";
-import { ArrowRight } from "lucide-react";
+import { useProjectContext } from '@/contexts/project-context';
+import { swrFetcher } from '@/lib/utils';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import useSWR from 'swr';
+import { Skeleton } from '../ui/skeleton';
+import { ArrowRight } from 'lucide-react';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId',
-}
+};
 
 const getEvaluationIdFromPathname = (pathName: string) => {
   if (pathName.endsWith('/')) {
@@ -16,7 +16,7 @@ const getEvaluationIdFromPathname = (pathName: string) => {
   }
   const pathParts = pathName.split('/');
   return pathParts[pathParts.length - 1];
-}
+};
 
 interface ScoreCardProps {
   scoreName: string;
@@ -65,15 +65,15 @@ export default function ScoreCard({scoreName}: ScoreCardProps) {
             {!isComparedLoading && comparedData && !isComparedError && comparedData.averageValue != null && (
               <div className={`text-md font-medium ${(data.averageValue >= comparedData.averageValue ? 'text-green-400' : 'text-red-400')}`}>
                 <span className="mx-1">{data.averageValue >= comparedData.averageValue ? '▲' : '▼'}</span>
-                {Math.abs(data.averageValue - comparedData.averageValue).toFixed(2)} 
+                {Math.abs(data.averageValue - comparedData.averageValue).toFixed(2)}
                 {comparedData.averageValue !== 0 && (
                   <span> ({((data.averageValue - comparedData.averageValue) / comparedData.averageValue * 100).toFixed(2)}%)</span>
                 )}
               </div>
             )}
-            </div>
+          </div>
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -1,27 +1,27 @@
-'use client'
+'use client';
 
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from '@/components/ui/card';
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { cn, formatTimestampFromSeconds, getGroupByInterval } from "@/lib/utils";
-import { useEffect, useState } from "react";
-import { EventTemplate } from "@/lib/events/types";
-import DateRangeFilter from "../ui/date-range-filter";
-import { Skeleton } from "../ui/skeleton";
-import { useSearchParams } from "next/navigation";
-import { GroupByPeriodSelect } from "../ui/group-by-period-select";
-import Mono from "../ui/mono";
+} from '@/components/ui/chart';
+import { cn, formatTimestampFromSeconds, getGroupByInterval } from '@/lib/utils';
+import { useEffect, useState } from 'react';
+import { EventTemplate } from '@/lib/events/types';
+import DateRangeFilter from '../ui/date-range-filter';
+import { Skeleton } from '../ui/skeleton';
+import { useSearchParams } from 'next/navigation';
+import { GroupByPeriodSelect } from '../ui/group-by-period-select';
+import Mono from '../ui/mono';
 
 
 interface CustomChartProps {
@@ -41,15 +41,15 @@ export function CustomChart({
   endDate,
   defaultGroupByInterval,
 }: CustomChartProps) {
-  const [xAxisKey, setXAxisKey] = useState<string>("time");
-  const [yAxisKey, setYAxisKey] = useState<string>("value");
+  const [xAxisKey, setXAxisKey] = useState<string>('time');
+  const [yAxisKey, setYAxisKey] = useState<string>('value');
   const [data, setData] = useState<any[] | null>(null);
 
   const chartConfig = {
     [xAxisKey]: {
-      color: "hsl(var(--chart-2))",
+      color: 'hsl(var(--chart-2))',
     },
-  } satisfies ChartConfig
+  } satisfies ChartConfig;
 
   const inferredGroupBy = getGroupByInterval(pastHours, startDate, endDate, defaultGroupByInterval);
 
@@ -68,17 +68,17 @@ export function CustomChart({
     fetch(url, {
       method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     })
       .then(res => res.json().then((data: any) => {
         setData(data);
-      }))
+      }));
 
   }, [eventTemplate, pastHours, startDate, endDate, defaultGroupByInterval]);
 
   return (
-    <div className={cn(className, "border")}>
+    <div className={cn(className, 'border')}>
       <div className="p-4">
         <div className="flex space-x-2 justify-between text-sm font-medium">
           <div className="flex-grow text-lg text-secondary-foreground">{eventTemplate.name}</div>
@@ -128,7 +128,7 @@ export function CustomChart({
         }
       </div>
     </div>
-  )
+  );
 }
 
 export interface DashboardProps {

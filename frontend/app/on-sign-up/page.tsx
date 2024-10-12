@@ -9,7 +9,7 @@ import CreateFirstWorkspaceAndProject from '@/components/onboarding/create-first
 
 export const metadata: Metadata = {
   title: 'Create workspace and project',
-}
+};
 
 export default async function ProjectsPage() {
 
@@ -29,5 +29,5 @@ export default async function ProjectsPage() {
         <CreateFirstWorkspaceAndProject name={user.name} />
       </div>
     </UserContextProvider >
-  )
+  );
 }

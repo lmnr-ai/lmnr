@@ -46,7 +46,7 @@ export function UpdatePipelineDialog({ oldPipeline, onUpdate, isDropdown = true 
     onUpdate?.();
     setIsLoading(false);
     setIsDialogOpen(false);
-  }
+  };
 
   return (
     <div onClick={e => e.stopPropagation()}>
@@ -84,5 +84,5 @@ export function UpdatePipelineDialog({ oldPipeline, onUpdate, isDropdown = true 
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

@@ -1,5 +1,5 @@
 
-import { NodeHandleType, SemanticSwitchNode } from '@/lib/flow/types'
+import { NodeHandleType, SemanticSwitchNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -28,9 +28,9 @@ export default function SemanticSwitchNodeComponent({ data }: { data: SemanticSw
                     updateNodeData(id, {
                       routes: data.routes.filter((_, i) => i !== index),
                       outputs: data.outputs.filter((_, i) => i !== index)
-                    } as SemanticSwitchNode)
+                    } as SemanticSwitchNode);
 
-                    dropEdgeForHandle(data.outputs[index].id)
+                    dropEdgeForHandle(data.outputs[index].id);
 
                   }}>
                   delete route
@@ -40,7 +40,7 @@ export default function SemanticSwitchNodeComponent({ data }: { data: SemanticSw
                 updateNodeData(id, {
                   routes: data.routes.map((r, i) => i === index ? { ...r, name: e.currentTarget.value } : r),
                   outputs: data.outputs.map((output, i) => i === index ? { ...output, name: e.currentTarget.value } : output)
-                } as SemanticSwitchNode)
+                } as SemanticSwitchNode);
               }}
               />
               <Label>Examples</Label>
@@ -59,19 +59,19 @@ export default function SemanticSwitchNodeComponent({ data }: { data: SemanticSw
                               ...r,
                               examples: r.examples?.map((_, k) => k === i ? e.currentTarget.value : _)
                             } : r)
-                          } as SemanticSwitchNode)
+                          } as SemanticSwitchNode);
                         }}
                       />
                       <button
                         onClick={() => {
-                          if (route.examples.length == 2) return
+                          if (route.examples.length == 2) return;
 
                           updateNodeData(id, {
                             routes: data.routes.map((r, j) => j === index ? {
                               ...r,
                               examples: r.examples?.filter((_, k) => k !== i)
                             } : r)
-                          } as SemanticSwitchNode)
+                          } as SemanticSwitchNode);
                         }}
                       ><X size={16} className='ml-1 text-gray-500' /></button>
                     </div>
@@ -85,7 +85,7 @@ export default function SemanticSwitchNodeComponent({ data }: { data: SemanticSw
                         ...r,
                         examples: [...r.examples ?? [], '']
                       } : r)
-                    } as SemanticSwitchNode)
+                    } as SemanticSwitchNode);
                   }}
                 >Add example</Button>
               </div>
@@ -99,17 +99,17 @@ export default function SemanticSwitchNodeComponent({ data }: { data: SemanticSw
             updateNodeData(id, {
               routes: [...data.routes, {
                 name: 'New route',
-                examples: ["Example 1", "Example 2"]
+                examples: ['Example 1', 'Example 2']
               }],
               outputs: [...data.outputs, {
                 id: v4(),
                 name: 'New route',
                 type: NodeHandleType.STRING
               }]
-            } as SemanticSwitchNode)
+            } as SemanticSwitchNode);
           }}
         >Add route</Button>
       </div>
     </div>
-  )
+  );
 }

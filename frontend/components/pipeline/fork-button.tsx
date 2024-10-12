@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-import { Button } from '@/components/ui/button'
-import { useToast } from '../../lib/hooks/use-toast'
+import { Button } from '@/components/ui/button';
+import { useToast } from '../../lib/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Loader, GitFork } from 'lucide-react';
@@ -49,30 +49,30 @@ export default function ForkButton({ defaultNewPipelineName, selectedPipelineVer
           newPipelineName,
         }),
         cache: 'no-cache',
-      })
+      });
 
     if (res.status != 200) {
       toast({
         title: 'Error forking version',
         variant: 'destructive'
-      })
+      });
 
       setIsLoading(false);
       setIsOpen(false);
-      return
+      return;
     }
 
     let res_body = await res.json();
 
     toast({
       title: 'Successfully forked version'
-    })
+    });
 
     setIsLoading(false);
     setIsOpen(false);
 
     router.push(`/project/${projectId}/pipelines/${res_body.pipelineId}`);
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {

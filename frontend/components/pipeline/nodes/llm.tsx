@@ -31,7 +31,7 @@ export default function LLM({
   const [isPromptDisabled, setIsPromptDisabled] = useState<boolean>(false);
   useEffect(() => {
     setIsPromptDisabled(selectedModelId.startsWith('openai:o1-mini') || selectedModelId.startsWith('openai:o1-preview'));
-  }, [selectedModelId])
+  }, [selectedModelId]);
 
   return (
     <div className='p-4 flex flex-col space-y-2'>
@@ -46,7 +46,7 @@ export default function LLM({
           updateNodeData(data.id, {
             dynamicInputs: inputs,
             prompt: value
-          } as LLMNode)
+          } as LLMNode);
 
           edgeIdsToRemove.forEach((id) => {
             dropEdgeForHandle(id);
@@ -72,7 +72,7 @@ export default function LLM({
                   ...data.inputs
                 ],
                 model: undefined
-              } as LLMNode)
+              } as LLMNode);
             } else {
               dropEdgeForHandle(
                 data
@@ -83,7 +83,7 @@ export default function LLM({
               updateNodeData(data.id, {
                 model: selectedModelId,
                 inputs: data.inputs.filter(input => !(input.name === 'model' && input.type === NodeHandleType.STRING))
-              } as LLMNode)
+              } as LLMNode);
             }
           }}
         />
@@ -96,7 +96,7 @@ export default function LLM({
             onModelChange={model => {
               updateNodeData(data.id, {
                 model: model.id
-              } as LLMNode)
+              } as LLMNode);
               setSelectedModelId(model.id);
             }} />
           {isPromptDisabled && (
@@ -125,8 +125,8 @@ export default function LLM({
           checked={data.modelParams !== null}
           onCheckedChange={(checked) => {
             updateNodeData(data.id, {
-              modelParams: checked ? "{\n  \"temperature\": 0\n}" : null
-            } as LLMNode)
+              modelParams: checked ? '{\n  "temperature": 0\n}' : null
+            } as LLMNode);
           }}
         />
       </div>
@@ -139,7 +139,7 @@ export default function LLM({
             try {
               updateNodeData(data.id, {
                 modelParams: value
-              } as LLMNode)
+              } as LLMNode);
             } catch (e) {
             }
           }}
@@ -162,7 +162,7 @@ export default function LLM({
                   type: NodeHandleType.CHAT_MESSAGE_LIST
                 },
                 ...data.inputs]
-              } as LLMNode)
+              } as LLMNode);
             } else {
               dropEdgeForHandle(
                 data
@@ -174,7 +174,7 @@ export default function LLM({
                 inputs: [
                   ...data.inputs.filter(input => !(input.name === 'chat_messages' && input.type === NodeHandleType.CHAT_MESSAGE_LIST))
                 ]
-              } as unknown as LLMNode)
+              } as unknown as LLMNode);
 
             }
           }}
@@ -195,7 +195,7 @@ export default function LLM({
                   name: 'messages',
                   type: NodeHandleType.CHAT_MESSAGE_LIST
                 }]
-              } as LLMNode)
+              } as LLMNode);
             } else {
               updateNodeData(data.id, {
                 outputs: [{
@@ -203,7 +203,7 @@ export default function LLM({
                   name: 'output',
                   type: NodeHandleType.STRING
                 }]
-              } as LLMNode)
+              } as LLMNode);
             }
           }}
         />
@@ -219,10 +219,10 @@ export default function LLM({
           onCheckedChange={(checked) => {
             updateNodeData(data.id, {
               stream: checked,
-            } as LLMNode)
+            } as LLMNode);
           }}
         />
       </div>
     </div>
-  )
+  );
 };

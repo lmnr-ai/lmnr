@@ -1,22 +1,22 @@
-'use client'
+'use client';
 
-import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
-import { useEffect, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
-import AddDatapointsDialog from "./add-datapoints-dialog";
-import { DataTable } from "@/components/ui/datatable";
-import IndexDatasetDialog from "./index-dataset-dialog";
+import { Datapoint, Dataset as DatasetType } from '@/lib/dataset/types';
+import { useEffect, useState } from 'react';
+import { ColumnDef } from '@tanstack/react-table';
+import AddDatapointsDialog from './add-datapoints-dialog';
+import { DataTable } from '@/components/ui/datatable';
+import IndexDatasetDialog from './index-dataset-dialog';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import ManualAddDatapoint from "./manual-add-datapoint-dialog";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
-import DatasetPanel from "./dataset-panel";
-import Header from "../ui/header";
-import DeleteDatapointsDialog from "./delete-datapoints-dialog";
-import { useToast } from "@/lib/hooks/use-toast";
-import { useProjectContext } from "@/contexts/project-context";
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import { PaginatedResponse } from "@/lib/types";
-import { Resizable } from "re-resizable";
+import ManualAddDatapoint from './manual-add-datapoint-dialog';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
+import DatasetPanel from './dataset-panel';
+import Header from '../ui/header';
+import DeleteDatapointsDialog from './delete-datapoints-dialog';
+import { useToast } from '@/lib/hooks/use-toast';
+import { useProjectContext } from '@/contexts/project-context';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { PaginatedResponse } from '@/lib/types';
+import { Resizable } from 're-resizable';
 
 interface DatasetProps {
   dataset: DatasetType;
@@ -42,7 +42,7 @@ export default function Dataset({
     }
     const parsed = param ? parseInt(param as string) : defaultValue;
     return isNaN(parsed) ? defaultValue : parsed;
-  }
+  };
 
   const pageNumber = parseNumericSearchParam('pageNumber', 0);
   const pageSize = Math.max(parseNumericSearchParam('pageSize', 50), 1);
@@ -73,16 +73,16 @@ export default function Dataset({
         title: 'Error deleting datapoints',
       });
     }
-  }
+  };
 
   const getDatapoints = async () => {
     setDatapoints(undefined);
     let url = `/api/projects/${projectId}/datasets/` +
       `${dataset.id}/datapoints?pageNumber=${pageNumber}&pageSize=${pageSize}`;
     const res = await fetch(url, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
 
@@ -108,20 +108,20 @@ export default function Dataset({
       size: 200,
     },
     {
-      accessorFn: (row) => row.target ? JSON.stringify(row.target) : "-",
+      accessorFn: (row) => row.target ? JSON.stringify(row.target) : '-',
       header: 'Target',
       size: 200,
     },
     {
-      accessorFn: (row) => row.metadata ? JSON.stringify(row.metadata) : "-",
+      accessorFn: (row) => row.metadata ? JSON.stringify(row.metadata) : '-',
       header: 'Metadata',
       size: 200,
     },
-  ]
+  ];
 
   return (
     <div className="h-full flex flex-col">
-      <Header path={"datasets/" + dataset.name} />
+      <Header path={'datasets/' + dataset.name} />
       <div className="flex flex-none p-4 h-12 items-center space-x-4">
         <div className="flex-grow text-lg font-semibold">
           <h1>

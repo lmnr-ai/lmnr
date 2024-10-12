@@ -1,3 +1,16 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": ["next/core-web-vitals", "prettier"],
+  "rules": {
+    "indent": ["error", 2],
+    
+    "eol-last": ["error", "always"],
+    
+    "max-len": ["error", { "code": 80, "ignoreUrls": true, "ignoreStrings": true, "ignoreTemplateLiterals": true }],
+    
+    
+    "semi": ["error", "always"], 
+    "quotes": ["error", "single"], 
+    "no-trailing-spaces": ["error"], 
+    "arrow-body-style": ["error", "as-needed"] 
+  }
 }

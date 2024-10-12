@@ -4,7 +4,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from '@/components/ui/tooltip';
 import { PresenceUser } from '@/lib/user/types';
 
 interface PresenceUserImageProps {
@@ -25,5 +25,5 @@ export default function PresenceUserImage({ presenceUser }: PresenceUserImagePro
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  )
+  );
 }

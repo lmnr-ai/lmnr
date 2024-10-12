@@ -4,15 +4,15 @@ import { redirect } from 'next/navigation';
 
 import Pipelines from '@/components/pipelines/pipelines';
 
-import { Metadata } from 'next'
+import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Pipelines',
-}
+};
 
 // required to force reload on each pipeline page visit however apparently this is not working
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function PipelinesPage() {
 
@@ -23,5 +23,5 @@ export default async function PipelinesPage() {
 
   return (
     <Pipelines />
-  )
+  );
 }

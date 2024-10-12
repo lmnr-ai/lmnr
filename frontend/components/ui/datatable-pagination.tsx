@@ -1,17 +1,17 @@
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-} from "@radix-ui/react-icons"
-import { type Table } from "@tanstack/react-table"
+} from '@radix-ui/react-icons';
+import { type Table } from '@tanstack/react-table';
 
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from '@/components/ui/select';
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>
@@ -40,8 +40,8 @@ export function DataTablePagination<TData>({
             defaultValue={`${defaultPageSize}`}
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
-              onPageChange?.()
-              table.setPageSize(Number(value))
+              onPageChange?.();
+              table.setPageSize(Number(value));
             }}
           >
             <SelectTrigger className="h-8 w-16">
@@ -74,8 +74,8 @@ export function DataTablePagination<TData>({
             variant="outline"
             className="size-8 p-0 lg:flex w-8"
             onClick={() => {
-              onPageChange?.()
-              table.previousPage()
+              onPageChange?.();
+              table.previousPage();
             }}
             disabled={!table.getCanPreviousPage()}
           >
@@ -86,8 +86,8 @@ export function DataTablePagination<TData>({
             variant="outline"
             className="size-8 p-0 w-8"
             onClick={() => {
-              onPageChange?.()
-              table.nextPage()
+              onPageChange?.();
+              table.nextPage();
             }}
             disabled={!table.getCanNextPage()}
           >
@@ -105,5 +105,5 @@ export function DataTablePagination<TData>({
         </div>
       </div>
     </div>
-  )
+  );
 }

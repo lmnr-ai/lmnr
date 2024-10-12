@@ -1,19 +1,19 @@
-'use client'
+'use client';
 
-import { Line, LineChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { Line, LineChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { formatTimestampFromSeconds, getGroupByInterval, isGroupByIntervalAvailable } from "@/lib/utils";
-import { use, useEffect, useState } from "react";
-import { useProjectContext } from "@/contexts/project-context";
-import { TraceMetricDatapoint } from "@/lib/traces/types";
-import { Skeleton } from "../ui/skeleton";
-import { useSearchParams } from "next/navigation";
+} from '@/components/ui/chart';
+import { formatTimestampFromSeconds, getGroupByInterval, isGroupByIntervalAvailable } from '@/lib/utils';
+import { use, useEffect, useState } from 'react';
+import { useProjectContext } from '@/contexts/project-context';
+import { TraceMetricDatapoint } from '@/lib/traces/types';
+import { Skeleton } from '../ui/skeleton';
+import { useSearchParams } from 'next/navigation';
 
 
 interface CustomChartProps {
@@ -44,9 +44,9 @@ export function CustomChart({
 
   const chartConfig = {
     [xAxisKey]: {
-      color: "hsl(var(--chart-2))",
+      color: 'hsl(var(--chart-2))',
     },
-  } satisfies ChartConfig
+  } satisfies ChartConfig;
   const inferredGroupBy = getGroupByInterval(pastHours, startDate, endDate, defaultGroupByInterval);
 
   useEffect(() => {
@@ -59,22 +59,22 @@ export function CustomChart({
       groupByInterval: inferredGroupBy
     };
     if (pastHours) {
-      body["pastHours"] = pastHours;
+      body['pastHours'] = pastHours;
     } else {
-      body["startDate"] = startDate;
-      body["endDate"] = endDate;
+      body['startDate'] = startDate;
+      body['endDate'] = endDate;
     }
 
     fetch(`/api/projects/${projectId}/traces/metrics`, {
       method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(body)
     })
       .then(res => res.json()).then((data: any) => {
-        setData(data)
-      })
+        setData(data);
+      });
   }, [defaultGroupByInterval, pastHours, startDate, endDate]);
 
   return (
@@ -128,7 +128,7 @@ export function CustomChart({
         </ChartContainer>
       </div>
     </div>
-  )
+  );
 }
 
 export interface TracesMetricsProps {

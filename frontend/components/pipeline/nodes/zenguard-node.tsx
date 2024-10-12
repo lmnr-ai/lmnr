@@ -1,13 +1,13 @@
-import { memo } from 'react'
-import GenericNodeComponent from './generic-node'
-import { DetectorType, ZenguardNode } from '@/lib/flow/types'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
+import { memo } from 'react';
+import GenericNodeComponent from './generic-node';
+import { DetectorType, ZenguardNode } from '@/lib/flow/types';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import useStore from '@/lib/flow/store';
-import { Button } from '@/components/ui/button'
-import { IconZenguard } from '@/components/ui/icons'
+import { Button } from '@/components/ui/button';
+import { IconZenguard } from '@/components/ui/icons';
 
-const DETECTOR_TYPE_TO_DISPLAY_NAME_MAP: Record<DetectorType, string> = { "prompt_injection": "Prompt Injection", "pii": "PII (Personally Identifiable Info)", "topics/allowed": "Allowed Topics", "topics/banned": "Banned Topics", "keywords": "Keywords", "secrets": "Secrets" };
+const DETECTOR_TYPE_TO_DISPLAY_NAME_MAP: Record<DetectorType, string> = { 'prompt_injection': 'Prompt Injection', 'pii': 'PII (Personally Identifiable Info)', 'topics/allowed': 'Allowed Topics', 'topics/banned': 'Banned Topics', 'keywords': 'Keywords', 'secrets': 'Secrets' };
 
 const ZenguardNodeComponent = ({
   id,
@@ -31,7 +31,7 @@ const ZenguardNodeComponent = ({
                 onCheckedChange={(checked) => {
                   updateNodeData(id, {
                     detectors: data.detectors.map((d) => d.type === detector.type ? { ...d, enabled: checked } : d)
-                  } as ZenguardNode)
+                  } as ZenguardNode);
                 }}
               />
               <Label className="ml-1">{DETECTOR_TYPE_TO_DISPLAY_NAME_MAP[detector.type]}</Label>

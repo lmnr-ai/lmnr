@@ -5,7 +5,7 @@ import PipelineInput from './pipeline-input';
 import { ScrollArea } from '../ui/scroll-area';
 import { AiOutlineMinusCircle } from 'react-icons/ai';
 import { DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE } from '@/lib/flow/utils';
-import { v4 as uuidv4 } from 'uuid'
+import { v4 as uuidv4 } from 'uuid';
 import { PipelineExecutionMode } from '@/lib/pipeline/types';
 
 interface PipelineTraceProps {
@@ -17,7 +17,7 @@ export default function PipelineTrace({ }: PipelineTraceProps) {
 
   const deleteInput = (index: number) => {
     setAllInputs(allInputs.filter((_, i) => i !== index));
-  }
+  };
 
   return (
     <div className="flex flex-col h-full">

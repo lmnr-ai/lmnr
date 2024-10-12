@@ -30,12 +30,12 @@ const sendExportRequest = async (
     datasetId,
     runIds,
     filters
-  })
+  });
   await fetch(`/api/projects/${projectId}/traces/endpoint/${endpointId}/export`, {
     method: 'POST',
     body: body
   });
-}
+};
 
 export default function LogExportDialog({ endpointId, runIds, totalNumberOfTraces, useAll }: LogExportDialogProps) {
   const { projectId } = useProjectContext();
@@ -48,10 +48,10 @@ export default function LogExportDialog({ endpointId, runIds, totalNumberOfTrace
 
   return (useAll || runIds.length > 0) ? (
     <Dialog open={isDialogOpen} onOpenChange={open => {
-      setIsDialogOpen(open)
+      setIsDialogOpen(open);
       if (!open) {
-        setSelectedDatasetId(null)
-        setIsLoading(false)
+        setSelectedDatasetId(null);
+        setIsLoading(false);
       }
     }}>
       <DialogTrigger asChild>
@@ -73,15 +73,15 @@ export default function LogExportDialog({ endpointId, runIds, totalNumberOfTrace
               setIsLoading(true);
               const filters = useAll ? undefined : (queryParamFilters ? (getFilterFromUrlParams(queryParamFilters) ?? []) : []);
               try {
-                await sendExportRequest(projectId, endpointId, selectedDatasetId!, useAll ? undefined : runIds, filters)
+                await sendExportRequest(projectId, endpointId, selectedDatasetId!, useAll ? undefined : runIds, filters);
               } catch (e) {
                 toast({
                   title: 'Error exporting traces'
-                })
+                });
               }
-              setIsLoading(false)
-              setIsDialogOpen(false)
-              setSelectedDatasetId(null)
+              setIsLoading(false);
+              setIsDialogOpen(false);
+              setSelectedDatasetId(null);
             }}
             handleEnter
           >
@@ -104,5 +104,5 @@ export default function LogExportDialog({ endpointId, runIds, totalNumberOfTrace
         </TooltipContent>
       </Tooltip>
     </TooltipProvider >
-  )
+  );
 }

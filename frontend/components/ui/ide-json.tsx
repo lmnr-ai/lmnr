@@ -1,6 +1,6 @@
-import ReactAce from "react-ace";
-import "ace-builds/src-noconflict/mode-json";
-import "ace-builds/src-noconflict/theme-tomorrow";
+import ReactAce from 'react-ace';
+import 'ace-builds/src-noconflict/mode-json';
+import 'ace-builds/src-noconflict/theme-tomorrow';
 
 
 interface IdeJsonProps {
@@ -27,6 +27,6 @@ export default function IdeJson({ value, onChange }: IdeJsonProps) {
         style={{ width: '100%', height: '200px' }}
       />
     </div>
-  )
+  );
 
 }

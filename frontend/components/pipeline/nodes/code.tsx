@@ -1,8 +1,8 @@
 
-import { CodeNode, GenericNodeHandle, NodeHandleType } from '@/lib/flow/types'
+import { CodeNode, GenericNodeHandle, NodeHandleType } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { v4 } from 'uuid';
-import Editor from '@monaco-editor/react'
+import Editor from '@monaco-editor/react';
 
 
 export const DEFAULT_CODE = `"""
@@ -43,7 +43,7 @@ def main(string_list: list[str], chat_messages: list[ChatMessage]) -> str:
 
     assert isinstance(chat_messages[0].content, str)
     return item + chat_messages[0].content
-`
+`;
 
 
 type ParsedArgument = {
@@ -59,45 +59,43 @@ type ParsedFunction = {
 
 const argTypeToNodeHandleType = (returnType: string): NodeHandleType => {
   switch (returnType) {
-    case 'str':
-      return NodeHandleType.STRING;
-    case 'list[str]':
-    case 'List[str]':
-      return NodeHandleType.STRING_LIST;
-    case 'list[ChatMessage]':
-    case 'List[ChatMessage]':
-      return NodeHandleType.CHAT_MESSAGE_LIST;
-    case 'float':
-      return NodeHandleType.FLOAT;
-    default:
-      return NodeHandleType.ANY;
+  case 'str':
+    return NodeHandleType.STRING;
+  case 'list[str]':
+  case 'List[str]':
+    return NodeHandleType.STRING_LIST;
+  case 'list[ChatMessage]':
+  case 'List[ChatMessage]':
+    return NodeHandleType.CHAT_MESSAGE_LIST;
+  case 'float':
+    return NodeHandleType.FLOAT;
+  default:
+    return NodeHandleType.ANY;
   }
-}
+};
 
 const compareArgTypeToHandleType = (argType: string, handleType: NodeHandleType) => {
   switch (argType) {
-    case 'str':
-      return handleType === NodeHandleType.STRING;
-    case 'list[str]':
-    case 'List[str]':
-      return handleType === NodeHandleType.STRING_LIST;
-    case 'list[ChatMessage]':
-    case 'List[ChatMessage]':
-      return handleType === NodeHandleType.CHAT_MESSAGE_LIST;
-    case 'float':
-      return handleType === NodeHandleType.FLOAT;
-    default:
-      return false;
+  case 'str':
+    return handleType === NodeHandleType.STRING;
+  case 'list[str]':
+  case 'List[str]':
+    return handleType === NodeHandleType.STRING_LIST;
+  case 'list[ChatMessage]':
+  case 'List[ChatMessage]':
+    return handleType === NodeHandleType.CHAT_MESSAGE_LIST;
+  case 'float':
+    return handleType === NodeHandleType.FLOAT;
+  default:
+    return false;
   }
-}
+};
 
-const compareArgToHandle = (arg: ParsedArgument, handle: GenericNodeHandle) => {
-  return arg.name === handle.name && compareArgTypeToHandleType(arg.type, handle.type);
-}
+const compareArgToHandle = (arg: ParsedArgument, handle: GenericNodeHandle) => arg.name === handle.name && compareArgTypeToHandleType(arg.type, handle.type);
 
 // TODO: Update [^)] to handle only valid Python function arguments
 const functionPattern = /def\s+main\(([^)]*)\)\s*->\s*([\w\[\]]+):/;
-const argumentPattern = /\s*([\w]+)\s*:\s*([\w\[\]]+)\s*(,|$)/g // /(\w+):\s*(str|list\[str\]|List\[str\]|list\[ChatMessage\]|List\[ChatMessage\]|float)/g;
+const argumentPattern = /\s*([\w]+)\s*:\s*([\w\[\]]+)\s*(,|$)/g; // /(\w+):\s*(str|list\[str\]|List\[str\]|list\[ChatMessage\]|List\[ChatMessage\]|float)/g;
 
 
 // Function to parse Python code and extract function details

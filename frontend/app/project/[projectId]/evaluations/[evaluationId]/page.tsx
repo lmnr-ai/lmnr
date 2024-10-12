@@ -7,7 +7,7 @@ import Evaluation from '@/components/evaluation/evaluation';
 
 export const metadata: Metadata = {
   title: 'Evaluation results',
-}
+};
 
 export default async function EvaluationPage({params}: {params: { projectId: string, evaluationId: string }}) {
 

@@ -4,12 +4,12 @@ import { fetcherJSON } from '@/lib/utils';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 
-import { Metadata } from 'next'
+import { Metadata } from 'next';
 import Dataset from '@/components/dataset/dataset';
 
 export const metadata: Metadata = {
   title: 'Dataset',
-}
+};
 
 export default async function DatasetPage({
   params,

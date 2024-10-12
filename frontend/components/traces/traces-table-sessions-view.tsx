@@ -1,19 +1,19 @@
 'use client';
 
-import { SessionPreview, Trace } from "@/lib/traces/types";
-import { ColumnDef } from "@tanstack/react-table";
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import { DataTable } from "../ui/datatable";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import DataTableFilter from "../ui/datatable-filter";
-import DateRangeFilter from "../ui/date-range-filter";
-import { useProjectContext } from "@/contexts/project-context";
-import { useEffect, useState } from "react";
-import TextSearchFilter from "../ui/text-search-filter";
-import { ChevronDownIcon, ChevronRightIcon, RefreshCcw } from "lucide-react";
-import { getDuration, getDurationString } from "@/lib/flow/utils";
-import { Button } from "../ui/button";
-import { PaginatedResponse } from "@/lib/types";
+import { SessionPreview, Trace } from '@/lib/traces/types';
+import { ColumnDef } from '@tanstack/react-table';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { DataTable } from '../ui/datatable';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import DataTableFilter from '../ui/datatable-filter';
+import DateRangeFilter from '../ui/date-range-filter';
+import { useProjectContext } from '@/contexts/project-context';
+import { useEffect, useState } from 'react';
+import TextSearchFilter from '../ui/text-search-filter';
+import { ChevronDownIcon, ChevronRightIcon, RefreshCcw } from 'lucide-react';
+import { getDuration, getDurationString } from '@/lib/flow/utils';
+import { Button } from '../ui/button';
+import { PaginatedResponse } from '@/lib/types';
 
 
 type SessionRow = {
@@ -77,7 +77,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     if (typeof filter === 'string') {
       url += `&filter=${encodeURI(filter)}`;
     } else if (Array.isArray(filter)) {
-      const filters = encodeURI(JSON.stringify(filter))
+      const filters = encodeURI(JSON.stringify(filter));
       url += `&filter=${filters}`;
     }
     if (typeof textSearchFilter === 'string' && textSearchFilter.length > 0) {
@@ -85,23 +85,21 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     }
 
     const res = await fetch(url, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
     const data = await res.json() as PaginatedResponse<SessionPreview>;
 
-    setSessions(data.items.map((s) => {
-      return {
-        type: 'session',
-        data: s,
-        subRows: []
-      }
-    }));
+    setSessions(data.items.map((s) => ({
+      type: 'session',
+      data: s,
+      subRows: []
+    })));
 
     setTotalCount(data.totalCount);
-  }
+  };
 
   useEffect(() => {
     getSessions();
@@ -110,18 +108,16 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
   const columns: ColumnDef<SessionRow, any>[] = [
     {
       header: 'Type',
-      cell: ({ row }) => {
-        return row.original.type === 'session' ? (
-          <div className="flex items-center gap-2">
-            <span className="">Session</span>
-            {row.getIsExpanded() ? <ChevronDownIcon className="w-4 text-secondary-foreground" /> : <ChevronRightIcon className="w-4 text-secondary-foreground" />}
-          </div>
-        ) : (
-          <div>
-            <span className="text-gray-500">Trace</span>
-          </div>
-        )
-      },
+      cell: ({ row }) => row.original.type === 'session' ? (
+        <div className="flex items-center gap-2">
+          <span className="">Session</span>
+          {row.getIsExpanded() ? <ChevronDownIcon className="w-4 text-secondary-foreground" /> : <ChevronRightIcon className="w-4 text-secondary-foreground" />}
+        </div>
+      ) : (
+        <div>
+          <span className="text-gray-500">Trace</span>
+        </div>
+      ),
       id: 'type'
     },
     {
@@ -130,9 +126,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       id: 'id',
     },
     {
-      accessorFn: (row) => {
-        return row.data.startTime
-      },
+      accessorFn: (row) => row.data.startTime,
       header: 'Start time',
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
       id: 'start_time'
@@ -140,35 +134,29 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     {
       accessorFn: row => {
         if (row.type === 'trace') {
-          return getDurationString(row.data.startTime, row.data.endTime)
+          return getDurationString(row.data.startTime, row.data.endTime);
         }
 
-        return (row.data as SessionPreview).duration.toFixed(3) + 's'
+        return (row.data as SessionPreview).duration.toFixed(3) + 's';
       },
       header: 'Duration',
     },
     {
-      accessorFn: (row) => {
-        return "$" + row.data.cost?.toFixed(5)
-      },
+      accessorFn: (row) => '$' + row.data.cost?.toFixed(5),
       header: 'Cost',
       id: 'cost'
     },
     {
-      accessorFn: (row) => {
-        return row.data.totalTokenCount
-      },
+      accessorFn: (row) => row.data.totalTokenCount,
       header: 'Token Count',
       id: 'total_token_count'
     },
     {
-      accessorFn: (row) => {
-        return (row.data as SessionPreview).traceCount
-      },
+      accessorFn: (row) => (row.data as SessionPreview).traceCount,
       header: 'Trace Count',
       id: 'trace_count'
     },
-  ]
+  ];
 
 
   const filterColumns = columns.filter(column => !['type', 'ent_time', 'start_time'].includes(column.id!));
@@ -196,34 +184,30 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
           column: 'session_id',
           value: row.original.data.id,
           operator: 'eq'
-        }]
+        }];
 
         const res = await fetch(`/api/projects/${projectId}/traces?pageNumber=0&pageSize=50&filter=${encodeURI(JSON.stringify(filter))}`, {
-          method: "GET",
+          method: 'GET',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
         });
         const traces = await res.json() as PaginatedResponse<Trace>;
-        setSessions(sessions => {
-          return sessions?.map((s) => {
-            if (s.data.id === row.original.data.id) {
-              return {
-                ...s,
-                type: 'session',
-                subRows: traces.items.map(t => {
-                  return {
-                    type: 'trace',
-                    data: t,
-                    subRows: []
-                  }
-                }).toReversed()
-              }
-            } else {
-              return s;
-            }
-          })
-        })
+        setSessions(sessions => sessions?.map((s) => {
+          if (s.data.id === row.original.data.id) {
+            return {
+              ...s,
+              type: 'session',
+              subRows: traces.items.map(t => ({
+                type: 'trace',
+                data: t,
+                subRows: []
+              })).toReversed()
+            };
+          } else {
+            return s;
+          }
+        }));
       }}
       paginated
       focusedRowId={focusedRowId}

@@ -96,7 +96,7 @@ export default function UnifyModelSelect({ savedUploadedBy, savedModelName, save
           </SelectItem>
           {
             selectableProviders.map((provider, i) => (
-              <SelectItem className={dynamicProviders.includes(provider) ? "font-bold" : ""} key={`provider-select-${i}`} value={provider}>
+              <SelectItem className={dynamicProviders.includes(provider) ? 'font-bold' : ''} key={`provider-select-${i}`} value={provider}>
                 {provider}
               </SelectItem>
             ))
@@ -173,5 +173,5 @@ export default function UnifyModelSelect({ savedUploadedBy, savedModelName, save
         Add threshold
       </Button>
     </div >
-  )
+  );
 }

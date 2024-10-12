@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-import { Button } from '@/components/ui/button'
-import { useToast } from '../../lib/hooks/use-toast'
+import { Button } from '@/components/ui/button';
+import { useToast } from '../../lib/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog';
 import { Label } from '../ui/label';
 import { Loader, Pencil, ShieldQuestion } from 'lucide-react';
 import { PipelineVersionInfo } from '@/lib/pipeline/types';
@@ -30,9 +30,9 @@ interface OverwriteWorkshopButtonProps {
 export default function OverwriteWorkshopButton({ workshopVersionId, selectedPipelineVersion, onPipelineVersionsChange }: OverwriteWorkshopButtonProps) {
   const router = useRouter();
   const pathName = usePathname();
-  const { projectId } = useProjectContext()
+  const { projectId } = useProjectContext();
   const { toast } = useToast();
-  const searchParams = useSearchParams()
+  const searchParams = useSearchParams();
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -49,28 +49,28 @@ export default function OverwriteWorkshopButton({ workshopVersionId, selectedPip
           refVersionId: selectedPipelineVersion.id,
         }),
         cache: 'no-cache',
-      })
+      });
 
     if (res.status != 200) {
       toast({
         title: 'Error overwriting workshop version',
         variant: 'destructive'
-      })
+      });
 
       setIsLoading(false);
-      return
+      return;
     }
 
     toast({
       title: 'Workshop version is overwritten'
-    })
+    });
 
     setIsLoading(false);
     setIsDialogOpen(false);
 
     // This method must redirect to workshop version
     onPipelineVersionsChange();
-  }
+  };
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

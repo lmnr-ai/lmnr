@@ -1,7 +1,7 @@
-import { ChatMessageContentPart, ChatMessageText } from '@/lib/types'
-import { useEffect, useRef } from 'react'
-import EditableChatMessageContentPart from './editable-chat-message-content-part'
-import { AiOutlinePlusCircle } from 'react-icons/ai'
+import { ChatMessageContentPart, ChatMessageText } from '@/lib/types';
+import { useEffect, useRef } from 'react';
+import EditableChatMessageContentPart from './editable-chat-message-content-part';
+import { AiOutlinePlusCircle } from 'react-icons/ai';
 
 interface EditableChatMessageContentPartsProps {
   parts: ChatMessageContentPart[]
@@ -16,31 +16,31 @@ export default function EditableChatMessageContentParts({ parts, setParts }: Edi
 
   useEffect(() => {
     idsRef.current = parts.map((_, index) => index);
-  }, [])
+  }, []);
 
   const addPart = () => {
     const newPart: ChatMessageText = {
       type: 'text',
       text: ''
-    }
+    };
 
     const newId = idsRef.current!.length > 0 ? idsRef.current![idsRef.current!.length - 1] + 1 : 0;
     idsRef.current!.push(newId);
-    setParts([...parts, newPart])
-  }
+    setParts([...parts, newPart]);
+  };
 
   const deletePart = (index: number) => {
     idsRef.current!.splice(index, 1);
-    const newParts = [...parts]
-    newParts.splice(index, 1)
-    setParts(newParts)
-  }
+    const newParts = [...parts];
+    newParts.splice(index, 1);
+    setParts(newParts);
+  };
 
   const editPart = (index: number, part: ChatMessageContentPart) => {
-    const newParts = [...parts]
-    newParts[index] = part
-    setParts(newParts)
-  }
+    const newParts = [...parts];
+    newParts[index] = part;
+    setParts(newParts);
+  };
 
   return (
     <div className="">
@@ -57,5 +57,5 @@ export default function EditableChatMessageContentParts({ parts, setParts }: Edi
         <AiOutlinePlusCircle size={16} className="text-gray-600 hover:bg-secondary rounded" />
       </button>
     </div >
-  )
+  );
 }
