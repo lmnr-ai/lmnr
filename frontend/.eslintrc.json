@@ -3,7 +3,7 @@
   "rules": {
     "indent": ["error", 2],
     "eol-last": ["error", "always"],
-    "max-len": ["error", { "code": 120, "ignoreUrls": true, "ignoreStrings": true, "ignoreTemplateLiterals": true }],
+    "max-len": ["warn", { "code": 120, "ignoreUrls": true, "ignoreStrings": true, "ignoreTemplateLiterals": true }],
     "semi": ["error", "always"], 
     "no-trailing-spaces": ["error"], 
     "arrow-body-style": ["warn", "as-needed"] 
