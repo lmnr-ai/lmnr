@@ -1,5 +1,5 @@
 import { Event } from "../events/types";
-import { GraphMessagePreview } from "../pipeline/types"
+import { GraphMessagePreview } from "../pipeline/types";
 
 export type TraceMessages = { [key: string]: GraphMessagePreview }
 
