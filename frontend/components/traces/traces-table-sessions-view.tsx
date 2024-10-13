@@ -142,13 +142,33 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       header: 'Duration',
     },
     {
+      accessorFn: (row) => "$" + row.data.inputCost?.toFixed(5),
+      header: 'Input cost',
+      id: 'cost'
+    },
+    {
+      accessorFn: (row) => "$" + row.data.outputCost?.toFixed(5),
+      header: 'Output cost',
+      id: 'cost'
+    },
+    {
       accessorFn: (row) => '$' + row.data.cost?.toFixed(5),
       header: 'Cost',
       id: 'cost'
     },
     {
+      accessorFn: (row) => row.data.inputTokenCount,
+      header: 'Input token count',
+      id: 'input_token_count'
+    },
+    {
+      accessorFn: (row) => row.data.outputTokenCount,
+      header: 'Output token count',
+      id: 'output_token_count'
+    },
+    {
       accessorFn: (row) => row.data.totalTokenCount,
-      header: 'Token Count',
+      header: 'Token count',
       id: 'total_token_count'
     },
     {

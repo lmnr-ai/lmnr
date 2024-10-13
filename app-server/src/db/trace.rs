@@ -555,10 +555,14 @@ pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
 #[serde(rename_all = "camelCase")]
 pub struct Session {
     pub id: String,
+    pub input_token_count: i64,
+    pub output_token_count: i64,
     pub total_token_count: i64,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub duration: f64,
+    pub input_cost: f64,
+    pub output_cost: f64,
     pub cost: f64,
     pub trace_count: i64,
 }
@@ -575,10 +579,14 @@ pub async fn get_sessions(
         "SELECT
             session_id as id,
             count(id)::int8 as trace_count,
+            sum(input_token_count)::int8 as input_token_count,
+            sum(output_token_count)::int8 as output_token_count,
             sum(total_token_count)::int8 as total_token_count,
             min(start_time) as start_time,
             max(end_time) as end_time,
             sum(extract(epoch from (end_time - start_time)))::float8 as duration,
+            sum(input_cost)::float8 as input_cost,
+            sum(output_cost)::float8 as output_cost,
             sum(cost)::float8 as cost
             FROM traces
             WHERE session_id is not null and project_id = ",
