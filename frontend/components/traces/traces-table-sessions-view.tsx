@@ -144,12 +144,12 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     {
       accessorFn: (row) => "$" + row.data.inputCost?.toFixed(5),
       header: 'Input cost',
-      id: 'cost'
+      id: 'input_cost'
     },
     {
       accessorFn: (row) => "$" + row.data.outputCost?.toFixed(5),
       header: 'Output cost',
-      id: 'cost'
+      id: 'output_cost'
     },
     {
       accessorFn: (row) => '$' + row.data.cost?.toFixed(5),
