@@ -1,5 +1,5 @@
 
-import { NodeHandleType, RouterNode } from '@/lib/flow/types'
+import { NodeHandleType, RouterNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -32,9 +32,9 @@ export default function SwitchNodeComponent({ data }: { data: RouterNode }) {
                         updateNodeData(id, {
                           routes: data.routes.filter((_, i) => i !== index),
                           outputs: data.outputs.filter((_, i) => i !== index)
-                        } as RouterNode)
+                        } as RouterNode);
 
-                        dropEdgeForHandle(data.outputs[index].id)
+                        dropEdgeForHandle(data.outputs[index].id);
 
                       }}>
                       delete
@@ -47,8 +47,10 @@ export default function SwitchNodeComponent({ data }: { data: RouterNode }) {
                 onChange={(e) => {
                   updateNodeData(id, {
                     routes: data.routes.map((r, i) => i === index ? { ...r, name: e.currentTarget.value } : r),
-                    outputs: data.outputs.map((output, i) => i === index ? { ...output, name: e.currentTarget.value } : output)
-                  } as RouterNode)
+                    outputs: data
+                      .outputs
+                      .map((output, i) => i === index ? { ...output, name: e.currentTarget.value } : output),
+                  } as RouterNode);
                 }}
               />
             </div>
@@ -78,7 +80,7 @@ export default function SwitchNodeComponent({ data }: { data: RouterNode }) {
             updateNodeData(id, {
               routes: newRoutes,
               outputs: newOutputs
-            } as RouterNode)
+            } as RouterNode);
 
           }}
         >Add route
@@ -106,19 +108,19 @@ export default function SwitchNodeComponent({ data }: { data: RouterNode }) {
                     name: 'default'
                   }
                 ]
-              } as RouterNode)
+              } as RouterNode);
             } else {
-              dropEdgeForHandle(data.outputs[data.outputs.length - 1].id)
+              dropEdgeForHandle(data.outputs[data.outputs.length - 1].id);
               updateNodeData(id, {
                 hasDefaultRoute: false,
                 outputs: data.outputs.slice(0, data.outputs.length - 1),
                 routes: data.routes.slice(0, data.routes.length - 1)
-              } as RouterNode)
+              } as RouterNode);
 
             }
           }}
         />
       </div>
     </div>
-  )
+  );
 }

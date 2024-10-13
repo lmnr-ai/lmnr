@@ -1,6 +1,6 @@
-import { Project, WorkspaceWithProjects } from "@/lib/workspaces/types"
-import { useRouter } from "next/navigation"
-import { useCallback, useState } from "react"
+import { Project, WorkspaceWithProjects } from '@/lib/workspaces/types';
+import { useRouter } from 'next/navigation';
+import { useCallback, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,11 +10,11 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Button } from "../ui/button";
-import { Loader, Plus } from "lucide-react";
-import { Label } from "../ui/label";
-import { Input } from "../ui/input";
-import { useToast } from "@/lib/hooks/use-toast";
+import { Button } from '../ui/button';
+import { Loader, Plus } from 'lucide-react';
+import { Label } from '../ui/label';
+import { Input } from '../ui/input';
+import { useToast } from '@/lib/hooks/use-toast';
 
 interface ProjectCreateDialogProps {
   onProjectCreate?: () => void
@@ -22,15 +22,15 @@ interface ProjectCreateDialogProps {
 }
 
 export default function ProjectCreateDialog({ onProjectCreate, workspaces }: ProjectCreateDialogProps) {
-  const [newProjectWorkspaceId, setNewProjectWorkspaceId] = useState<string | undefined>(undefined)
-  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectWorkspaceId, setNewProjectWorkspaceId] = useState<string | undefined>(undefined);
+  const [newProjectName, setNewProjectName] = useState('');
 
-  const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
   const createNewProject = useCallback(async () => {
-    setIsCreatingProject(true)
+    setIsCreatingProject(true);
     try {
       const res = await fetch('/api/projects', {
         method: 'POST',
@@ -39,24 +39,24 @@ export default function ProjectCreateDialog({ onProjectCreate, workspaces }: Pro
           workspaceId: newProjectWorkspaceId
         })
       });
-      const newProject = await res.json() as Project
+      const newProject = await res.json() as Project;
       onProjectCreate?.();
-      router.push(`/project/${newProject.id}/traces`)
-      setIsCreatingProject(false)
+      router.push(`/project/${newProject.id}/traces`);
+      setIsCreatingProject(false);
     } catch (e) {
       toast({
         title: 'Error creating project',
         variant: 'destructive',
         description: 'Possible reason: you have reached the projects limit in this workspace.'
-      })
-      setIsCreatingProject(false)
+      });
+      setIsCreatingProject(false);
     }
-  }, [newProjectName, newProjectWorkspaceId])
+  }, [newProjectName, newProjectWorkspaceId]);
 
   return (
     <Dialog onOpenChange={() => {
       if (workspaces.length > 0) {
-        setNewProjectWorkspaceId(workspaces[0].id)
+        setNewProjectWorkspaceId(workspaces[0].id);
       }
     }}>
       <DialogTrigger asChild>
@@ -96,12 +96,16 @@ export default function ProjectCreateDialog({ onProjectCreate, workspaces }: Pro
           />
         </div>
         <DialogFooter>
-          <Button onClick={createNewProject} handleEnter={true} disabled={newProjectWorkspaceId === undefined || !newProjectName}>
+          <Button
+            onClick={createNewProject}
+            disabled={newProjectWorkspaceId === undefined || !newProjectName}
+            handleEnter
+          >
             {isCreatingProject && <Loader className='mr-2 animate-spin' size={16} />}
             Create
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

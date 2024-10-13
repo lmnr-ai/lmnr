@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { getDuration, getDurationString } from "@/lib/flow/utils";
-import { ScrollArea, ScrollBar } from "../ui/scroll-area";
-import { Table } from "../ui/table";
-import { Span } from "@/lib/traces/types";
-import { cn } from "@/lib/utils";
-import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
+import { useEffect, useRef, useState } from 'react';
+import { getDuration, getDurationString } from '@/lib/flow/utils';
+import { ScrollArea, ScrollBar } from '../ui/scroll-area';
+import { Table } from '../ui/table';
+import { Span } from '@/lib/traces/types';
+import { cn } from '@/lib/utils';
+import { SPAN_TYPE_TO_COLOR } from '@/lib/traces/utils';
 
 interface TimelineProps {
   spans: Span[]
@@ -24,106 +24,107 @@ interface Segment {
   events: SegmentEvent[]
 }
 
-const HEIGHT = 32
+const HEIGHT = 32;
 
 export default function Timeline({ spans, childSpans }: TimelineProps) {
 
-  const [segments, setSegments] = useState<Segment[]>([])
-  const [timeIntervals, setTimeIntervals] = useState<string[]>([])
-  const ref = useRef<HTMLDivElement>(null)
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [timeIntervals, setTimeIntervals] = useState<string[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
 
   const traverse = (span: Span, childSpans: { [key: string]: Span[] }, orderedSpands: Span[]) => {
 
     if (!span) {
-      return
+      return;
     }
 
-    orderedSpands.push(span)
+    orderedSpands.push(span);
 
     if (childSpans[span.spanId]) {
       for (const child of childSpans[span.spanId]) {
-        traverse(child, childSpans, orderedSpands)
+        traverse(child, childSpans, orderedSpands);
       }
     }
-  }
+  };
 
   useEffect(() => {
 
     if (!ref.current || childSpans === null) {
-      return
+      return;
     }
 
-    const componentWidth = ref.current.getBoundingClientRect().width
+    const componentWidth = ref.current.getBoundingClientRect().width;
 
     if (componentWidth === 0) {
-      return
+      return;
     }
 
-    const orderedSpans: Span[] = []
-    const topLevelSpans = spans.filter(span => span.parentSpanId === null)
+    const orderedSpans: Span[] = [];
+    const topLevelSpans = spans.filter(span => span.parentSpanId === null);
 
     for (const span of topLevelSpans) {
-      traverse(span, childSpans, orderedSpans)
+      traverse(span, childSpans, orderedSpans);
     }
 
-    let startTime = null
-    let endTime = null
+    let startTime = null;
+    let endTime = null;
 
     for (const span of spans) {
 
-      const spanStartTime = new Date(span.startTime)
-      const spanEndTime = new Date(span.endTime)
+      const spanStartTime = new Date(span.startTime);
+      const spanEndTime = new Date(span.endTime);
 
       if (!startTime) {
-        startTime = spanStartTime
+        startTime = spanStartTime;
       }
 
       if (!endTime) {
-        endTime = spanEndTime
+        endTime = spanEndTime;
       }
 
       if (spanStartTime < startTime) {
-        startTime = spanStartTime
+        startTime = spanStartTime;
       }
 
       if (spanEndTime > endTime) {
-        endTime = spanEndTime
+        endTime = spanEndTime;
       }
     }
 
     if (!startTime || !endTime) {
-      return
+      return;
     }
 
-    const totalDuration = (endTime.getTime() - startTime.getTime())
+    const totalDuration = (endTime.getTime() - startTime.getTime());
 
-    const upperInterval = Math.ceil(totalDuration / 1000)
-    const unit = upperInterval / 10
+    const upperInterval = Math.ceil(totalDuration / 1000);
+    const unit = upperInterval / 10;
 
-    const timeIntervals = []
+    const timeIntervals = [];
     for (let i = 0; i < 10; i++) {
-      timeIntervals.push((i * unit).toFixed(2) + "s")
+      timeIntervals.push((i * unit).toFixed(2) + 's');
     }
-    setTimeIntervals(timeIntervals)
+    setTimeIntervals(timeIntervals);
 
-    const segments: Segment[] = []
+    const segments: Segment[] = [];
 
     for (const span of orderedSpans) {
 
-      const duration = getDuration(span.startTime, span.endTime) / 1000
+      const duration = getDuration(span.startTime, span.endTime) / 1000;
 
-      const width = (duration / upperInterval) * 100
-      const left = ((getDuration(startTime.toISOString(), span.startTime) / 1000) / upperInterval) * 100
+      const width = (duration / upperInterval) * 100;
+      const left = ((getDuration(startTime.toISOString(), span.startTime) / 1000) / upperInterval) * 100;
 
-      const segmentEvents = [] as SegmentEvent[]
+      const segmentEvents = [] as SegmentEvent[];
       for (const event of span.events) {
-        const eventLeft = ((new Date(event.timestamp)).getTime() - (new Date(span.startTime)).getTime()) / 1000 / duration * 100
+        const eventLeft =
+          ((new Date(event.timestamp)).getTime() - (new Date(span.startTime)).getTime()) / 1000 / duration * 100;
 
         segmentEvents.push({
           id: event.id,
           name: event.templateName,
           left: eventLeft
-        })
+        });
       }
 
       segments.push({
@@ -131,12 +132,12 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
         width,
         span,
         events: segmentEvents
-      })
+      });
     }
 
-    setSegments(segments)
+    setSegments(segments);
 
-  }, [spans, childSpans])
+  }, [spans, childSpans]);
 
   return (
     <div
@@ -148,7 +149,7 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
           timeIntervals.map((interval, index) => (
             <div
               className="border-l text-secondary-foreground pl-1 flex items-center min-w-12 relative z-0"
-              style={{ width: "10%" }}
+              style={{ width: '10%' }}
               key={index}
             >
               {interval}
@@ -169,8 +170,8 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
                 style={
                   {
                     backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
-                    marginLeft: segment.left + "%",
-                    width: "max(" + segment.width + "%, 2px)",
+                    marginLeft: segment.left + '%',
+                    width: 'max(' + segment.width + '%, 2px)',
                     height: HEIGHT,
                   }
                 }
@@ -181,7 +182,7 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
                       key={index}
                       className="absolute bg-orange-400 w-1 rounded"
                       style={{
-                        left: event.left + "%",
+                        left: event.left + '%',
                         top: 0,
                         height: HEIGHT
                       }}

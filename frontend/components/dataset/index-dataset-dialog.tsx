@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-import { Button } from '@/components/ui/button'
-import { useToast } from '../../lib/hooks/use-toast'
+import { Button } from '@/components/ui/button';
+import { useToast } from '../../lib/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog';
 import { Loader, NotepadText } from 'lucide-react';
 import { useProjectContext } from '@/contexts/project-context';
 import { Label } from '@/components/ui/label';
@@ -23,10 +23,10 @@ interface IndexDatasetDialogProps {
 }
 
 export default function IndexDatasetDialog({ datasetId, defaultDataset, onUpdate }: IndexDatasetDialogProps) {
-  const { projectId } = useProjectContext()
+  const { projectId } = useProjectContext();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const [selectedIndexKey, setSelectedIndexKey] = useState<string>(defaultDataset.indexedOn ?? "");
+  const [selectedIndexKey, setSelectedIndexKey] = useState<string>(defaultDataset.indexedOn ?? '');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -39,19 +39,19 @@ export default function IndexDatasetDialog({ datasetId, defaultDataset, onUpdate
         method: 'POST',
         body: JSON.stringify({ indexColumn: selectedIndexKey }),
         cache: 'no-cache',
-      })
+      });
 
     if (res.status != 200) {
       setIsLoading(false);
       toast({
         title: 'Error indexing dataset',
-      })
-      return
+      });
+      return;
     }
 
     toast({
       title: 'Successfully indexed dataset',
-    })
+    });
 
     const newDataset = await res.json();
     setSelectedIndexKey(newDataset.indexedOn);
@@ -59,7 +59,7 @@ export default function IndexDatasetDialog({ datasetId, defaultDataset, onUpdate
 
     setIsLoading(false);
     setIsDialogOpen(false);
-  }
+  };
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -77,9 +77,9 @@ export default function IndexDatasetDialog({ datasetId, defaultDataset, onUpdate
           <DialogTitle>Index dataset</DialogTitle>
         </DialogHeader>
         <Label>Type the key to index this dataset on for semantic search.</Label>
-        <Label className='text-sm text-slate-400'>{"New datapoints are indexed automatically. " +
+        <Label className='text-sm text-slate-400'>{'New datapoints are indexed automatically. ' +
           'Only datapoints with this key in data" will be indexed.'}</Label>
-        <Input defaultValue={defaultDataset?.indexedOn ?? ""} onChange={(e) => setSelectedIndexKey(e.target.value)} />
+        <Input defaultValue={defaultDataset?.indexedOn ?? ''} onChange={(e) => setSelectedIndexKey(e.target.value)} />
         <DialogFooter>
           <Button
             className='my-4'
@@ -92,5 +92,5 @@ export default function IndexDatasetDialog({ datasetId, defaultDataset, onUpdate
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

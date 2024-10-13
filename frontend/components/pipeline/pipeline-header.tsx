@@ -24,7 +24,7 @@ import ForkButton from './fork-button';
 import UseApi from './use-api';
 import SetTargetVersionButton from './target-version';
 
-const getWorkshopVersionId = (pipelineVersions: PipelineVersionInfo[]) => { return pipelineVersions.filter(pv => pv.pipelineType === "WORKSHOP")[0].id }
+const getWorkshopVersionId = (pipelineVersions: PipelineVersionInfo[]) => pipelineVersions.filter(pv => pv.pipelineType === 'WORKSHOP')[0].id;
 
 interface PipelineHeaderProps {
   pipeline: Pipeline;
@@ -46,14 +46,14 @@ export default function PipelineHeader({
   onRightPanelOpenChange,
   presenceUsers
 }: PipelineHeaderProps) {
-  const searchParams = useSearchParams()
+  const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
 
-  const [pipelineVersions, setPipelineVersions] = useState<PipelineVersionInfo[]>([])
+  const [pipelineVersions, setPipelineVersions] = useState<PipelineVersionInfo[]>([]);
   const [selectedPipelineVersionPreview, setSelectedPipelineVersionPreview] = useState<PipelineVersionInfo | null>();
   const [targetVersionId, setTargetVersionId] = useState<string | null>(pipeline.targetVersionId);
-  const { projectId } = useProjectContext()
+  const { projectId } = useProjectContext();
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
@@ -63,26 +63,26 @@ export default function PipelineHeader({
       method: 'GET'
     }).then(res => res.json()).then(res => {
       let pipelineVersions = [...res.commitVersions, res.workshopVersion];
-      setPipelineVersions(pipelineVersions)
+      setPipelineVersions(pipelineVersions);
 
       // first, try to see if any callback explicitly sets versionId using selectVersionId
       const versionId = selectVersionId || searchParams.get('versionId');
 
-      let selectedPipelineVersion = null
+      let selectedPipelineVersion = null;
       if (versionId) {
-        selectedPipelineVersion = (pipelineVersions as PipelineVersionInfo[]).filter(pv => pv.id === versionId)[0]
+        selectedPipelineVersion = (pipelineVersions as PipelineVersionInfo[]).filter(pv => pv.id === versionId)[0];
       } else {
         selectedPipelineVersion = res.workshopVersion;
       }
 
       // TODO: Set focusedNodeId to null when switching versions, apply in Public Header too
       // simply setFocusedNodeId(null) doesn't work
-      setSelectedPipelineVersionPreview(selectedPipelineVersion)
+      setSelectedPipelineVersionPreview(selectedPipelineVersion);
 
       // TODO: Figure out how not to call it twice here and in Select.onValueChange
-      onPipelineVersionSelect(selectedPipelineVersion)
-    })
-  }
+      onPipelineVersionSelect(selectedPipelineVersion);
+    });
+  };
 
   useEffect(() => {
     onLeftPanelOpenChange(leftPanelOpen);
@@ -112,9 +112,9 @@ export default function PipelineHeader({
               onValueChange={(value) => {
                 router.push(`${pathName}?versionId=${value}`);
 
-                const selectedPipelineVersion = pipelineVersions.find((version) => version.id === value)
-                setSelectedPipelineVersionPreview(selectedPipelineVersion!)
-                onPipelineVersionSelect(selectedPipelineVersion!)
+                const selectedPipelineVersion = pipelineVersions.find((version) => version.id === value);
+                setSelectedPipelineVersionPreview(selectedPipelineVersion!);
+                onPipelineVersionSelect(selectedPipelineVersion!);
               }}
             >
               <SelectTrigger className="h-7 font-medium bg-secondary">
@@ -125,7 +125,7 @@ export default function PipelineHeader({
                 <SelectGroup>
                   <SelectLabel>Workshop</SelectLabel>
                   {
-                    pipelineVersions.filter((version) => version.pipelineType == "WORKSHOP").map((version) => (
+                    pipelineVersions.filter((version) => version.pipelineType == 'WORKSHOP').map((version) => (
                       <SelectItem key={version.id} value={version.id!} className='flex'>
                         <div className='truncate mx-1'>
                           workshop
@@ -134,11 +134,11 @@ export default function PipelineHeader({
                     ))
                   }
                 </SelectGroup>
-                {pipelineVersions.filter((version) => version.pipelineType == "COMMIT").length > 0 && (
+                {pipelineVersions.filter((version) => version.pipelineType == 'COMMIT').length > 0 && (
                   <SelectGroup>
                     <SelectLabel>Commits</SelectLabel>
                     {
-                      pipelineVersions.filter((version) => version.pipelineType == "COMMIT").map((version) => (
+                      pipelineVersions.filter((version) => version.pipelineType == 'COMMIT').map((version) => (
                         <SelectItem key={version.id} value={version.id!}>
                           <div className='flex items-center truncate'>
                             <div className='truncate mx-1'>
@@ -158,17 +158,17 @@ export default function PipelineHeader({
               </SelectContent>
             </Select>
           </div>
-          {selectedPipelineVersionPreview.pipelineType === "COMMIT" && targetVersionId !== selectedPipelineVersionPreview.id &&
+          {selectedPipelineVersionPreview.pipelineType === 'COMMIT' && targetVersionId !== selectedPipelineVersionPreview.id &&
             <SetTargetVersionButton
               pipelineId={pipeline.id}
-              pipelineVersionId={selectedPipelineVersion?.id ?? ""}
+              pipelineVersionId={selectedPipelineVersion?.id ?? ''}
               onTargetVersionChanged={(targetVersionId) => {
                 setTargetVersionId(targetVersionId);
               }}
             />
           }
           {
-            (selectedPipelineVersionPreview.pipelineType === "WORKSHOP") && (
+            (selectedPipelineVersionPreview.pipelineType === 'WORKSHOP') && (
               <CommitButton
                 selectedPipelineVersion={selectedPipelineVersionPreview!}
                 onPipelineVersionsChange={getPipelineVersions}
@@ -192,14 +192,14 @@ export default function PipelineHeader({
             )
           } */}
           {
-            (selectedPipelineVersionPreview.pipelineType === "COMMIT") && (
+            (selectedPipelineVersionPreview.pipelineType === 'COMMIT') && (
               <OverwriteWorkshopButton
                 workshopVersionId={getWorkshopVersionId(pipelineVersions)}
                 selectedPipelineVersion={selectedPipelineVersionPreview}
                 onPipelineVersionsChange={() => {
                   let workshopVersionId = getWorkshopVersionId(pipelineVersions);
                   router.push(`${pathName}?versionId=${workshopVersionId}`);
-                  getPipelineVersions(workshopVersionId)
+                  getPipelineVersions(workshopVersionId);
                 }}
               />
             )
@@ -223,9 +223,9 @@ export default function PipelineHeader({
             <PanelLeft
               onClick={() => {
                 setLeftPanelOpen((prev) => {
-                  const newState = !prev
-                  return newState
-                })
+                  const newState = !prev;
+                  return newState;
+                });
               }}
               size={20}
               className={cn('cursor-pointer', leftPanelOpen ? '' : ' text-gray-300')}
@@ -233,9 +233,9 @@ export default function PipelineHeader({
             <PanelRight
               onClick={() => {
                 setRightPanelOpen((prev) => {
-                  const newState = !prev
-                  return newState
-                })
+                  const newState = !prev;
+                  return newState;
+                });
               }}
               size={20}
               className={cn('cursor-pointer', rightPanelOpen ? '' : ' text-gray-300')}

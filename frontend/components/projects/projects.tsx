@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react'
-import ProjectCard from '@/components/projects/project-card'
+import React from 'react';
+import ProjectCard from '@/components/projects/project-card';
 import { Label } from '../ui/label';
 import { WorkspaceWithProjects } from '@/lib/workspaces/types';
 import ProjectCreateDialog from './project-create-dialog';

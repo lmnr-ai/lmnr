@@ -41,7 +41,7 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
     // Allow to click "Create" with an empty pipeline name. Otherwise, if the button is simply disabled,
     // then it's hard to understand that name is required.
     if (!pipelineName) {
-      toast({ title: 'Set the pipeline name', description: 'Pipelines need a name to be created', variant: 'default' })
+      toast({ title: 'Set the pipeline name', description: 'Pipelines need a name to be created', variant: 'default' });
       return;
     };
 
@@ -58,8 +58,13 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
     });
 
     if (res.status !== 200) {
-      // Just a generic error message, since most likely the error has happened because the pipeline with the same name already exists.
-      toast({ title: 'Error creating pipeline', description: 'Pipeline name must be unique in the project', variant: 'destructive' })
+      // Just a generic error message, since most likely the error has happened
+      // because the pipeline with the same name already exists.
+      toast({
+        title: 'Error creating pipeline',
+        description: 'Pipeline name must be unique in the project',
+        variant: 'destructive'
+      });
       setIsLoading(false);
       return;
     }
@@ -71,7 +76,7 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
 
     // Must come after router.push, otherwise multiple enter presses will create multiple pipelines
     setIsLoading(false);
-  }
+  };
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -81,7 +86,7 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
       if (json.length > 0) {
         setSelectedTemplateId(json[0].id);
       }
-    }
+    };
     fetchTemplates();
   }, []);
 
@@ -126,12 +131,16 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
           )}
         </div>
         <DialogFooter>
-          <Button onClick={createNewPipeline} handleEnter={true} disabled={selectedTemplateId === undefined || isLoading}>
+          <Button
+            onClick={createNewPipeline}
+            disabled={selectedTemplateId === undefined || isLoading}
+            handleEnter
+          >
             <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
             Create
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,12 +1,12 @@
-'use client'
+'use client';
 
-import { Label } from "@/components/ui/label";
-import { useContext, useEffect, useState } from "react";
-import { ProjectContext, useProjectContext } from '@/contexts/project-context'
-import { getLocalEnvVars } from "@/lib/utils";
-import AddEnvVarDialog from "./add-env-var-dialog";
-import { Trash } from "lucide-react";
-import Header from "../ui/header";
+import { Label } from '@/components/ui/label';
+import { useContext, useEffect, useState } from 'react';
+import { ProjectContext, useProjectContext } from '@/contexts/project-context';
+import { getLocalEnvVars } from '@/lib/utils';
+import AddEnvVarDialog from './add-env-var-dialog';
+import { Trash } from 'lucide-react';
+import Header from '../ui/header';
 
 export default function Env() {
   const { projectId } = useProjectContext();
@@ -14,7 +14,7 @@ export default function Env() {
 
   useEffect(() => {
     localStorage.setItem(`env-${projectId}`, JSON.stringify(envVars));
-  }, [envVars])
+  }, [envVars]);
 
   return (
     <>
@@ -26,7 +26,7 @@ export default function Env() {
           Laminar never stores your environment variables, they are only saved in your browser.
         </Label>
         <AddEnvVarDialog onAdd={(name, value) => {
-          setEnvVars({ ...envVars, [name]: value })
+          setEnvVars({ ...envVars, [name]: value });
         }} />
         <table className="w-2/3 table-fixed border-t">
           <tbody>
@@ -41,8 +41,10 @@ export default function Env() {
                       <button
                         className="mr-4 text-gray-400"
                         onClick={() => {
-                          const newEnvVars = Object.fromEntries(Object.entries({ ...envVars }).filter(([key, _]) => key !== k))
-                          setEnvVars({ ...newEnvVars })
+                          const newEnvVars = Object.fromEntries(
+                            Object.entries({ ...envVars }).filter(([key, _]) => key !== k)
+                          );
+                          setEnvVars({ ...newEnvVars });
                         }}
                       >
                         <Trash className='w-4' />
@@ -56,5 +58,5 @@ export default function Env() {
         </table>
       </div>
     </>
-  )
+  );
 }

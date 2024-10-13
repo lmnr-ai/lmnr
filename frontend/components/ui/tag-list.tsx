@@ -14,21 +14,19 @@ export const TagList: React.FC<TagListProps> = ({
   customTagRenderer,
   direction,
   ...tagProps
-}) => {
-  return (
-    <div
-      className={cn('rounded-md max-w-[450px]', {
-        'flex flex-wrap gap-2': direction === 'row',
-        'flex flex-col gap-2': direction === 'column'
-      })}
-    >
-      {tags.map((tagObj) =>
-        customTagRenderer ? (
-          customTagRenderer(tagObj)
-        ) : (
-          <Tag key={tagObj.id} tagObj={tagObj} {...tagProps} />
-        )
-      )}
-    </div>
-  );
-};
+}) => (
+  <div
+    className={cn('rounded-md max-w-[450px]', {
+      'flex flex-wrap gap-2': direction === 'row',
+      'flex flex-col gap-2': direction === 'column'
+    })}
+  >
+    {tags.map((tagObj) =>
+      customTagRenderer ? (
+        customTagRenderer(tagObj)
+      ) : (
+        <Tag key={tagObj.id} tagObj={tagObj} {...tagProps} />
+      )
+    )}
+  </div>
+);

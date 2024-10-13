@@ -1,14 +1,14 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { type NextRequest } from 'next/server'
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { type NextRequest } from 'next/server';
 
 
 export async function POST(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
-  const projectId = params.projectId
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const projectId = params.projectId;
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
-  const body = await req.json()
+  const body = await req.json();
 
   return await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/api-keys`, {
     method: 'POST',
@@ -21,9 +21,9 @@ export async function POST(req: NextRequest, { params }: { params: { projectId: 
 }
 
 export async function GET(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
-  const projectId = params.projectId
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const projectId = params.projectId;
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
   return await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/api-keys`, {
     method: 'GET',
@@ -34,11 +34,11 @@ export async function GET(req: NextRequest, { params }: { params: { projectId: s
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
-  const projectId = params.projectId
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const projectId = params.projectId;
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
-  const body = await req.json()
+  const body = await req.json();
 
   return await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/api-keys`, {
     method: 'DELETE',

@@ -11,5 +11,5 @@ export default function WorkspaceHeader({ workspaceName }: workspaceHeaderProps)
         <div className='px-3'>{workspaceName}</div>
       </div>
     </div>
-  )
+  );
 }

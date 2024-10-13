@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid'
+import { v4 as uuidv4 } from 'uuid';
 import {
   type GenericNode,
   NodeType,
@@ -22,28 +22,28 @@ import {
   FunctionNode,
   MapNode,
   CodeSandboxNode
-} from './types'
-import { ChatMessage, ChatMessageContentPart } from '../types'
-import { generateShortHash, isStringType } from '../utils'
+} from './types';
+import { ChatMessage, ChatMessageContentPart } from '../types';
+import { generateShortHash, isStringType } from '../utils';
 
-import InputNodePreview from '@/assets/pipeline/node-previews/input-node-preview.png'
-import OutputNodePreview from '@/assets/pipeline/node-previews/output-node-preview.png'
-import StringTemplateNodePreview from '@/assets/pipeline/node-previews/string-template-node-preview.png'
-import JsonExtractorNodePreview from '@/assets/pipeline/node-previews/json-extractor-node-preview.png'
-import SubpipelineNodePreview from '@/assets/pipeline/node-previews/subpipeline-node-preview.png'
-import MapNodePreview from '@/assets/pipeline/node-previews/map-node-preview.png'
-import SwitchNodePreview from '@/assets/pipeline/node-previews/switch-node-preview.png'
-import SemanticSwitchNodePreview from '@/assets/pipeline/node-previews/semantic-switch-node-preview.png'
-import LLMNodePreview from '@/assets/pipeline/node-previews/llm-node-preview.png'
-import CodeNodePreview from '@/assets/pipeline/node-previews/code-node-preview.png'
-import CodeSandboxNodePreview from '@/assets/pipeline/node-previews/code-sandbox-node-preview.png'
-import ToolCallNodePreview from '@/assets/pipeline/node-previews/tool-call-node-preview.png'
-import FunctionNodePreview from '@/assets/pipeline/node-previews/function-node-preview.png'
-import SemanticSearchNodePreview from '@/assets/pipeline/node-previews/semantic-search-node-preview.png'
-import WebSearchNodePreview from '@/assets/pipeline/node-previews/web-search-node-preview.png'
-import SemanticSimilarityNodePreview from '@/assets/pipeline/node-previews/semantic-similarity-node-preview.png'
+import InputNodePreview from '@/assets/pipeline/node-previews/input-node-preview.png';
+import OutputNodePreview from '@/assets/pipeline/node-previews/output-node-preview.png';
+import StringTemplateNodePreview from '@/assets/pipeline/node-previews/string-template-node-preview.png';
+import JsonExtractorNodePreview from '@/assets/pipeline/node-previews/json-extractor-node-preview.png';
+import SubpipelineNodePreview from '@/assets/pipeline/node-previews/subpipeline-node-preview.png';
+import MapNodePreview from '@/assets/pipeline/node-previews/map-node-preview.png';
+import SwitchNodePreview from '@/assets/pipeline/node-previews/switch-node-preview.png';
+import SemanticSwitchNodePreview from '@/assets/pipeline/node-previews/semantic-switch-node-preview.png';
+import LLMNodePreview from '@/assets/pipeline/node-previews/llm-node-preview.png';
+import CodeNodePreview from '@/assets/pipeline/node-previews/code-node-preview.png';
+import CodeSandboxNodePreview from '@/assets/pipeline/node-previews/code-sandbox-node-preview.png';
+import ToolCallNodePreview from '@/assets/pipeline/node-previews/tool-call-node-preview.png';
+import FunctionNodePreview from '@/assets/pipeline/node-previews/function-node-preview.png';
+import SemanticSearchNodePreview from '@/assets/pipeline/node-previews/semantic-search-node-preview.png';
+import WebSearchNodePreview from '@/assets/pipeline/node-previews/web-search-node-preview.png';
+import SemanticSimilarityNodePreview from '@/assets/pipeline/node-previews/semantic-similarity-node-preview.png';
 import { StaticImageData, StaticImport } from 'next/dist/shared/lib/get-img-props';
-import { DEFAULT_CODE } from '@/components/pipeline/nodes/code'
+import { DEFAULT_CODE } from '@/components/pipeline/nodes/code';
 
 export const NODE_TYPE_TO_DOCS = {
   [NodeType.INPUT]: 'https://docs.lmnr.ai/nodes/input-output',
@@ -67,7 +67,7 @@ export const NODE_TYPE_TO_DOCS = {
   [NodeType.FUNCTION]: 'https://docs.lmnr.ai/nodes/function-call',
   [NodeType.SEMANTIC_SIMILARITY]: 'https://docs.lmnr.ai/nodes/semantic-similarity',
   [NodeType.CODE_SANDBOX]: 'https://docs.lmnr.ai/nodes/code-sandbox',
-}
+};
 
 export const NODE_PREVIEWS: Partial<Record<NodeType, { description: string, imageSrc: StaticImport | StaticImageData, }>> = {
   [NodeType.INPUT]: {
@@ -141,19 +141,19 @@ export const NODE_PREVIEWS: Partial<Record<NodeType, { description: string, imag
 };
 
 export function getDefaultGraphInputs(inputNodes: InputNode[]): Record<string, any> {
-  const inputs = {} as Record<string, any>
+  const inputs = {} as Record<string, any>;
 
   for (const node of inputNodes) {
     switch (node.inputType) {
-      case NodeHandleType.STRING:
-        inputs[node.name] = '';
-        break;
-      case NodeHandleType.CHAT_MESSAGE_LIST:
-        inputs[node.name] = [{
-          role: 'user',
-          content: '',
-        }];
-        break;
+    case NodeHandleType.STRING:
+      inputs[node.name] = '';
+      break;
+    case NodeHandleType.CHAT_MESSAGE_LIST:
+      inputs[node.name] = [{
+        role: 'user',
+        content: '',
+      }];
+      break;
     }
   }
 
@@ -169,396 +169,396 @@ export function getDefaultGraphInputs(inputNodes: InputNode[]): Record<string, a
  */
 export function createNodeData(id: string, nodeType: NodeType): GenericNode {
   switch (nodeType) {
-    case NodeType.INPUT:
-      return {
-        id,
-        type: NodeType.INPUT,
-        name: 'Input' + '_' + generateShortHash(),
-        inputs: [],
-        outputs: [{
+  case NodeType.INPUT:
+    return {
+      id,
+      type: NodeType.INPUT,
+      name: 'Input' + '_' + generateShortHash(),
+      inputs: [],
+      outputs: [{
+        id: uuidv4(),
+        name: 'output',
+        type: NodeHandleType.STRING // default value
+      }],
+      input: '',
+      inputType: NodeHandleType.STRING
+    } as InputNode;
+  case NodeType.STRING_TEMPLATE:
+    return {
+      id,
+      type: NodeType.STRING_TEMPLATE,
+      name: 'String Template' + '_' + generateShortHash(),
+      inputs: [],
+      outputs: [{
+        id: uuidv4(),
+        name: 'output',
+        type: NodeHandleType.STRING
+      }],
+      text: '',
+      inputsMappings: {}
+    } as StringTemplateNode;
+  case NodeType.SUBPIPELINE:
+    return {
+      id,
+      type: NodeType.SUBPIPELINE,
+      name: 'Subpipeline' + '_' + generateShortHash(),
+      inputs: [],
+      outputs: [{
+        id: uuidv4(),
+        name: 'output',
+        type: NodeHandleType.ANY
+      }],
+      pipelineName: '',
+      pipelineId: null,
+      pipelineVersionName: '',
+      pipelineVersionId: null,
+      runnableGraph: {
+        nodes: {},
+        pred: {}
+      } as RunnableGraph
+    } as SubpipelineNode;
+  case NodeType.MAP:
+    return {
+      id,
+      type: NodeType.MAP,
+      name: 'Map' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'inputs',
+        type: NodeHandleType.STRING_LIST
+      }],
+      outputs: [{
+        id: uuidv4(),
+        name: 'outputs',
+        type: NodeHandleType.STRING_LIST
+      }],
+      pipelineName: '',
+      pipelineId: null,
+      pipelineVersionName: '',
+      pipelineVersionId: null,
+      runnableGraph: {
+        nodes: {},
+        pred: {}
+      } as RunnableGraph
+    } as MapNode;
+  case NodeType.SEMANTIC_SEARCH:
+    return {
+      id,
+      type: NodeType.SEMANTIC_SEARCH,
+      name: 'Semantic Search' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'query',
+        type: NodeHandleType.STRING,
+      }],
+      outputs: [{
+        id: uuidv4(),
+        name: 'output',
+        type: NodeHandleType.STRING
+      }],
+      limit: 10,
+      threshold: 0.5,
+      datasets: [],
+      template: '[{{relevance_index}}]\n{{content}}\n---\n',
+    } as SemanticSearchNode;
+  case NodeType.OUTPUT:
+    return {
+      version: 1,
+      id,
+      type: NodeType.OUTPUT,
+      name: 'Output' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'output',
+        type: NodeHandleType.ANY
+      }],
+      outputs: [],
+      outputCastType: null,
+    } as GenericNode;
+  case NodeType.ERROR:
+    return {
+      id,
+      type: NodeType.ERROR,
+      name: 'Error' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'error',
+        type: NodeHandleType.ANY
+      }],
+      inputType: NodeHandleType.STRING,
+      outputs: []
+    } as ErrorNode;
+  case NodeType.SEMANTIC_SWITCH:
+    return {
+      id,
+      type: NodeType.SEMANTIC_SWITCH,
+      name: 'Semantic Switch' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'input',
+        type: NodeHandleType.STRING
+      },],
+      outputs: [],
+      conditionNodes: [],
+      routes: [],
+      isCondtional: true
+    } as SemanticSwitchNode;
+  case NodeType.FORMAT_VALIDATOR:
+    return {
+      id,
+      type: NodeType.FORMAT_VALIDATOR,
+      name: 'Format Validator' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'input',
+        type: NodeHandleType.STRING
+      }],
+      outputs: [{
+        id: uuidv4(),
+        name: 'correct',
+        type: NodeHandleType.STRING
+      },
+      {
+        id: uuidv4(),
+        name: 'incorrect',
+        type: NodeHandleType.STRING
+      }],
+      format: '',
+      isCondtional: true
+    } as FormatValidatorNode;
+  case NodeType.ZENGUARD:
+    return {
+      id,
+      type: NodeType.ZENGUARD,
+      name: 'Zenguard' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'input',
+        type: NodeHandleType.STRING
+      }],
+      outputs: [{
+        id: uuidv4(),
+        name: 'passthrough',
+        type: NodeHandleType.STRING
+      },
+      {
+        id: uuidv4(),
+        name: 'block',
+        type: NodeHandleType.STRING
+      }],
+      detectors: [
+        { type: 'prompt_injection', enabled: false },
+        { type: 'pii', enabled: false },
+        { type: 'topics/allowed', enabled: false },
+        { type: 'topics/banned', enabled: false },
+        { type: 'keywords', enabled: false },
+        { type: 'secrets', enabled: false }
+      ],
+      isCondtional: true
+    } as ZenguardNode;
+  case NodeType.EXTRACTOR:
+    return {
+      id,
+      type: NodeType.EXTRACTOR,
+      name: 'Extractor' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'input',
+        type: NodeHandleType.STRING
+      }],
+      outputs: [{
+        id: uuidv4(),
+        type: NodeHandleType.STRING
+      }],
+      format: ''
+    } as ExtractorNode;
+  case NodeType.JSON_EXTRACTOR:
+    return {
+      id,
+      type: NodeType.JSON_EXTRACTOR,
+      name: 'JSON Extractor' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'input',
+        type: NodeHandleType.STRING
+      }],
+      outputs: [{
+        id: uuidv4(),
+        type: NodeHandleType.STRING
+      }],
+      template: ''
+    } as JsonExtractorNode;
+  case NodeType.LLM:
+    return {
+      id,
+      type: NodeType.LLM,
+      name: 'LLM' + '_' + generateShortHash(),
+      dynamicInputs: [{
+        id: uuidv4(),
+        name: 'prompt',
+        type: NodeHandleType.STRING
+      }],
+      inputs: [],
+      outputs: [{
+        id: uuidv4(),
+        type: NodeHandleType.STRING
+      }],
+      model: 'openai:gpt-3.5-turbo',
+      prompt: '{{prompt}}',
+      modelParams: null,
+      stream: false,
+    } as GenericNode;
+  case NodeType.WEB_SEARCH:
+    return {
+      id,
+      type: NodeType.WEB_SEARCH,
+      name: 'Web Search' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'query',
+        type: NodeHandleType.STRING
+      }],
+      outputs: [{
+        id: uuidv4(),
+        type: NodeHandleType.STRING
+      }],
+      limit: 10,
+      template: '{{title}}\n{{url}}\n{{content}}\n---',
+      semanticTextSearchEnabled: false,
+      semanticTextSearchLimit: 10,
+    } as WebSearchNode;
+  case NodeType.SWITCH:
+    return {
+      id,
+      type: NodeType.SWITCH,
+      name: 'Switch' + '_' + generateShortHash(),
+      inputs: [
+        {
           id: uuidv4(),
-          name: 'output',
-          type: NodeHandleType.STRING // default value
-        }],
-        input: '',
-        inputType: NodeHandleType.STRING
-      } as InputNode
-    case NodeType.STRING_TEMPLATE:
-      return {
-        id,
-        type: NodeType.STRING_TEMPLATE,
-        name: 'String Template' + '_' + generateShortHash(),
-        inputs: [],
-        outputs: [{
-          id: uuidv4(),
-          name: 'output',
-          type: NodeHandleType.STRING
-        }],
-        text: '',
-        inputsMappings: {}
-      } as StringTemplateNode
-    case NodeType.SUBPIPELINE:
-      return {
-        id,
-        type: NodeType.SUBPIPELINE,
-        name: 'Subpipeline' + '_' + generateShortHash(),
-        inputs: [],
-        outputs: [{
-          id: uuidv4(),
-          name: 'output',
-          type: NodeHandleType.ANY
-        }],
-        pipelineName: '',
-        pipelineId: null,
-        pipelineVersionName: '',
-        pipelineVersionId: null,
-        runnableGraph: {
-          nodes: {},
-          pred: {}
-        } as RunnableGraph
-      } as SubpipelineNode
-    case NodeType.MAP:
-      return {
-        id,
-        type: NodeType.MAP,
-        name: 'Map' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'inputs',
-          type: NodeHandleType.STRING_LIST
-        }],
-        outputs: [{
-          id: uuidv4(),
-          name: 'outputs',
-          type: NodeHandleType.STRING_LIST
-        }],
-        pipelineName: '',
-        pipelineId: null,
-        pipelineVersionName: '',
-        pipelineVersionId: null,
-        runnableGraph: {
-          nodes: {},
-          pred: {}
-        } as RunnableGraph
-      } as MapNode
-    case NodeType.SEMANTIC_SEARCH:
-      return {
-        id,
-        type: NodeType.SEMANTIC_SEARCH,
-        name: 'Semantic Search' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'query',
-          type: NodeHandleType.STRING,
-        }],
-        outputs: [{
-          id: uuidv4(),
-          name: 'output',
-          type: NodeHandleType.STRING
-        }],
-        limit: 10,
-        threshold: 0.5,
-        datasets: [],
-        template: '[{{relevance_index}}]\n{{content}}\n---\n',
-      } as SemanticSearchNode
-    case NodeType.OUTPUT:
-      return {
-        version: 1,
-        id,
-        type: NodeType.OUTPUT,
-        name: 'Output' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'output',
-          type: NodeHandleType.ANY
-        }],
-        outputs: [],
-        outputCastType: null,
-      } as GenericNode
-    case NodeType.ERROR:
-      return {
-        id,
-        type: NodeType.ERROR,
-        name: 'Error' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'error',
-          type: NodeHandleType.ANY
-        }],
-        inputType: NodeHandleType.STRING,
-        outputs: []
-      } as ErrorNode
-    case NodeType.SEMANTIC_SWITCH:
-      return {
-        id,
-        type: NodeType.SEMANTIC_SWITCH,
-        name: 'Semantic Switch' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'input',
-          type: NodeHandleType.STRING
-        },],
-        outputs: [],
-        conditionNodes: [],
-        routes: [],
-        isCondtional: true
-      } as SemanticSwitchNode
-    case NodeType.FORMAT_VALIDATOR:
-      return {
-        id,
-        type: NodeType.FORMAT_VALIDATOR,
-        name: 'Format Validator' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'input',
-          type: NodeHandleType.STRING
-        }],
-        outputs: [{
-          id: uuidv4(),
-          name: 'correct',
+          name: 'condition',
           type: NodeHandleType.STRING
         },
         {
           id: uuidv4(),
-          name: 'incorrect',
-          type: NodeHandleType.STRING
-        }],
-        format: '',
-        isCondtional: true
-      } as FormatValidatorNode
-    case NodeType.ZENGUARD:
-      return {
-        id,
-        type: NodeType.ZENGUARD,
-        name: 'Zenguard' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
           name: 'input',
-          type: NodeHandleType.STRING
-        }],
-        outputs: [{
-          id: uuidv4(),
-          name: 'passthrough',
-          type: NodeHandleType.STRING
-        },
-        {
-          id: uuidv4(),
-          name: 'block',
-          type: NodeHandleType.STRING
-        }],
-        detectors: [
-          { type: "prompt_injection", enabled: false },
-          { type: "pii", enabled: false },
-          { type: "topics/allowed", enabled: false },
-          { type: "topics/banned", enabled: false },
-          { type: "keywords", enabled: false },
-          { type: "secrets", enabled: false }
-        ],
-        isCondtional: true
-      } as ZenguardNode
-    case NodeType.EXTRACTOR:
-      return {
-        id,
-        type: NodeType.EXTRACTOR,
-        name: 'Extractor' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'input',
-          type: NodeHandleType.STRING
-        }],
-        outputs: [{
-          id: uuidv4(),
-          type: NodeHandleType.STRING
-        }],
-        format: ''
-      } as ExtractorNode
-    case NodeType.JSON_EXTRACTOR:
-      return {
-        id,
-        type: NodeType.JSON_EXTRACTOR,
-        name: 'JSON Extractor' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'input',
-          type: NodeHandleType.STRING
-        }],
-        outputs: [{
-          id: uuidv4(),
-          type: NodeHandleType.STRING
-        }],
-        template: ''
-      } as JsonExtractorNode
-    case NodeType.LLM:
-      return {
-        id,
-        type: NodeType.LLM,
-        name: 'LLM' + '_' + generateShortHash(),
-        dynamicInputs: [{
-          id: uuidv4(),
-          name: 'prompt',
-          type: NodeHandleType.STRING
-        }],
-        inputs: [],
-        outputs: [{
-          id: uuidv4(),
-          type: NodeHandleType.STRING
-        }],
-        model: 'openai:gpt-3.5-turbo',
-        prompt: '{{prompt}}',
-        modelParams: null,
-        stream: false,
-      } as GenericNode
-    case NodeType.WEB_SEARCH:
-      return {
-        id,
-        type: NodeType.WEB_SEARCH,
-        name: 'Web Search' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'query',
-          type: NodeHandleType.STRING
-        }],
-        outputs: [{
-          id: uuidv4(),
-          type: NodeHandleType.STRING
-        }],
-        limit: 10,
-        template: '{{title}}\n{{url}}\n{{content}}\n---',
-        semanticTextSearchEnabled: false,
-        semanticTextSearchLimit: 10,
-      } as WebSearchNode
-    case NodeType.SWITCH:
-      return {
-        id,
-        type: NodeType.SWITCH,
-        name: 'Switch' + '_' + generateShortHash(),
-        inputs: [
-          {
-            id: uuidv4(),
-            name: 'condition',
-            type: NodeHandleType.STRING
-          },
-          {
-            id: uuidv4(),
-            name: 'input',
-            type: NodeHandleType.ANY
-          }],
-        outputs: [],
-        routes: [],
-        hasDefaultRoute: false,
-        isCondtional: true
-      } as GenericNode
-    case NodeType.CODE:
-      return {
-        id,
-        type: NodeType.CODE,
-        name: 'Code' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'string_list',
-          type: NodeHandleType.STRING_LIST
-        },
-        {
-          id: uuidv4(),
-          name: 'chat_messages',
-          type: NodeHandleType.CHAT_MESSAGE_LIST
-        }],
-        outputs: [{
-          id: uuidv4(),
-          name: 'output',
-          type: NodeHandleType.STRING
-        }],
-        code: DEFAULT_CODE,
-        fnName: 'main',
-      } as CodeNode
-    case NodeType.TOOL_CALL:
-      return {
-        id,
-        type: NodeType.TOOL_CALL,
-        name: 'Tool Call' + '_' + generateShortHash(),
-        inputs: [{
-          id: uuidv4(),
-          name: 'input',
-          type: NodeHandleType.STRING
-        }],
-        outputs: [{
-          id: uuidv4(),
-          name: 'output',
-          type: NodeHandleType.STRING
-        }]
-      } as ToolCallNode
-    case NodeType.FUNCTION:
-      return {
-        id,
-        type: NodeType.FUNCTION,
-        name: 'Function' + '_' + generateShortHash(),
-        inputs: [],
-        dynamicInputs: [
-          {
-            id: uuidv4(),
-            name: 'first',
-            type: NodeHandleType.ANY
-          },
-          {
-            id: uuidv4(),
-            name: 'second',
-            type: NodeHandleType.ANY
-          }
-        ],
-        outputs: [{
-          id: uuidv4(),
-          name: 'output',
           type: NodeHandleType.ANY
         }],
-        parameterNames: ['first', 'second']
-      } as FunctionNode
+      outputs: [],
+      routes: [],
+      hasDefaultRoute: false,
+      isCondtional: true
+    } as GenericNode;
+  case NodeType.CODE:
+    return {
+      id,
+      type: NodeType.CODE,
+      name: 'Code' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'string_list',
+        type: NodeHandleType.STRING_LIST
+      },
+      {
+        id: uuidv4(),
+        name: 'chat_messages',
+        type: NodeHandleType.CHAT_MESSAGE_LIST
+      }],
+      outputs: [{
+        id: uuidv4(),
+        name: 'output',
+        type: NodeHandleType.STRING
+      }],
+      code: DEFAULT_CODE,
+      fnName: 'main',
+    } as CodeNode;
+  case NodeType.TOOL_CALL:
+    return {
+      id,
+      type: NodeType.TOOL_CALL,
+      name: 'Tool Call' + '_' + generateShortHash(),
+      inputs: [{
+        id: uuidv4(),
+        name: 'input',
+        type: NodeHandleType.STRING
+      }],
+      outputs: [{
+        id: uuidv4(),
+        name: 'output',
+        type: NodeHandleType.STRING
+      }]
+    } as ToolCallNode;
+  case NodeType.FUNCTION:
+    return {
+      id,
+      type: NodeType.FUNCTION,
+      name: 'Function' + '_' + generateShortHash(),
+      inputs: [],
+      dynamicInputs: [
+        {
+          id: uuidv4(),
+          name: 'first',
+          type: NodeHandleType.ANY
+        },
+        {
+          id: uuidv4(),
+          name: 'second',
+          type: NodeHandleType.ANY
+        }
+      ],
+      outputs: [{
+        id: uuidv4(),
+        name: 'output',
+        type: NodeHandleType.ANY
+      }],
+      parameterNames: ['first', 'second']
+    } as FunctionNode;
 
-    case NodeType.SEMANTIC_SIMILARITY:
-      return {
-        id,
-        type: NodeType.SEMANTIC_SIMILARITY,
-        name: 'Semantic Similarity' + '_' + generateShortHash(),
-        inputs: [
-          {
-            id: uuidv4(),
-            name: 'first',
-            type: NodeHandleType.STRING
-          }, {
-            id: uuidv4(),
-            name: 'second',
-            type: NodeHandleType.STRING
-          },
-        ],
-        outputs: [{
+  case NodeType.SEMANTIC_SIMILARITY:
+    return {
+      id,
+      type: NodeType.SEMANTIC_SIMILARITY,
+      name: 'Semantic Similarity' + '_' + generateShortHash(),
+      inputs: [
+        {
           id: uuidv4(),
-          name: 'output',
-          type: NodeHandleType.FLOAT
-        }]
-      } as ToolCallNode
-    case NodeType.CODE_SANDBOX:
-      return {
-        id,
-        type: NodeType.CODE_SANDBOX,
-        name: 'Python Sandbox' + '_' + generateShortHash(),
-        inputs: [
-          {
-            id: uuidv4(),
-            name: 'code',
-            type: NodeHandleType.STRING
-          },
-        ],
-        outputs: [
-          {
-            id: uuidv4(),
-            name: 'success',
-            type: NodeHandleType.ANY
-          }
-        ],
-        enableErrorPassing: false,
-        isCondtional: true
-      } as CodeSandboxNode
-    default:
-      throw new Error('Unknown node type')
+          name: 'first',
+          type: NodeHandleType.STRING
+        }, {
+          id: uuidv4(),
+          name: 'second',
+          type: NodeHandleType.STRING
+        },
+      ],
+      outputs: [{
+        id: uuidv4(),
+        name: 'output',
+        type: NodeHandleType.FLOAT
+      }]
+    } as ToolCallNode;
+  case NodeType.CODE_SANDBOX:
+    return {
+      id,
+      type: NodeType.CODE_SANDBOX,
+      name: 'Python Sandbox' + '_' + generateShortHash(),
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'code',
+          type: NodeHandleType.STRING
+        },
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'success',
+          type: NodeHandleType.ANY
+        }
+      ],
+      enableErrorPassing: false,
+      isCondtional: true
+    } as CodeSandboxNode;
+  default:
+    throw new Error('Unknown node type');
   }
 }
 
@@ -571,7 +571,7 @@ export const DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE = {
   }] as ChatMessage[],
   [NodeHandleType.FLOAT]: 0,
   [NodeHandleType.ANY]: '',
-}
+};
 
 export function isStringList(input: NodeInput): input is string[] {
   if (input === undefined) return false;
@@ -582,31 +582,29 @@ export function isStringList(input: NodeInput): input is string[] {
 export function isChatMessageList(input: NodeInput): input is ChatMessage[] {
   if (input === undefined) return false;
   if (!Array.isArray(input)) return false;
-  return input.every((item) => 
+  return input.every((item) =>
     // Check for !== null first, because typeof null is 'object'
     item !== null && typeof item === 'object' && 'role' in item && 'content' in item
   );
 }
 
-export const renderChatMessageContentParts = (parts: ChatMessageContentPart[]): string => {
-  return parts.map(part => {
-    if (part.type === 'text') {
-      return part.text
-    } else if (part.type === 'image_url') {
-      return part.url
+export const renderChatMessageContentParts = (parts: ChatMessageContentPart[]): string => parts.map(part => {
+  if (part.type === 'text') {
+    return part.text;
+  } else if (part.type === 'image_url') {
+    return part.url;
+  } else {
+    let data;
+    if (part.data.length <= 30) {
+      data = part.data;
     } else {
-      let data;
-      if (part.data.length <= 30) {
-        data = part.data
-      } else {
-        const firstPart = part.data.slice(0, 10);
-        const lastPart = part.data.slice(-10);
-        data = `${firstPart}...${lastPart}`;
-      }
-      return `Image\nMedia type: ${part.mediaType}\nData: ${data}`
+      const firstPart = part.data.slice(0, 10);
+      const lastPart = part.data.slice(-10);
+      data = `${firstPart}...${lastPart}`;
     }
-  }).join('\n\n')
-}
+    return `Image\nMedia type: ${part.mediaType}\nData: ${data}`;
+  }
+}).join('\n\n');
 
 /**
  * Render the node input as a string for display in the UI.
@@ -616,40 +614,40 @@ export const renderChatMessageContentParts = (parts: ChatMessageContentPart[]): 
  */
 export const renderNodeInput = (input: NodeInput): string => {
   if (typeof input === 'string') {
-    return input as string
+    return input as string;
   } else if (isStringList(input)) {
-    return JSON.stringify(input, null, 2) // `[\n  ${(input as string[]).join(',\n  ')}\n]`
+    return JSON.stringify(input, null, 2); // `[\n  ${(input as string[]).join(',\n  ')}\n]`
   } else if (isChatMessageList(input)) {
     return (input as ChatMessage[]).map(message => {
       if (isStringType(message.content)) {
-        return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${message.content}`
+        return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${message.content}`;
       } else {
-        return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${renderChatMessageContentParts(message.content)}`
+        return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${renderChatMessageContentParts(message.content)}`;
       }
     })
-      .join('\n\n---\n\n')
+      .join('\n\n---\n\n');
   } else {
-    return JSON.stringify(input, null, 2)
+    return JSON.stringify(input, null, 2);
   }
-}
+};
 
 export const getDurationString = (startTime: string, endTime: string) => {
-  const start = new Date(startTime)
-  const end = new Date(endTime)
-  const duration = end.getTime() - start.getTime()
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const duration = end.getTime() - start.getTime();
 
-  return `${(duration / 1000).toFixed(2)}s`
-}
+  return `${(duration / 1000).toFixed(2)}s`;
+};
 
 export const getDuration = (startTime: string, endTime: string) => {
-  const start = new Date(startTime)
-  const end = new Date(endTime)
-  return (end.getTime() - start.getTime())
-}
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  return (end.getTime() - start.getTime());
+};
 
 /**
  * Quick hack to remove OPENAI_API_KEY for cases where we provide the API keys by ourselves.
- * 
+ *
  * NOTE: Use it only for pipeline runs, not for other components such as PipelineEnv, UseAPI, etc.
  */
 export const filterRunRequiredEnvVars = (requiredEnvVars: Set<string>, nodes: GenericNode[]): Set<string> => {
@@ -672,4 +670,4 @@ export const filterRunRequiredEnvVars = (requiredEnvVars: Set<string>, nodes: Ge
   }
 
   return filteredEnvVars;
-}
+};

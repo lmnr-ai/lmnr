@@ -1,6 +1,6 @@
 
-import GenericNodeComponent from './generic-node'
-import { NodeHandleType, type InputNode } from '@/lib/flow/types'
+import GenericNodeComponent from './generic-node';
+import { NodeHandleType, type InputNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -19,7 +19,7 @@ const InputNodeComponent = ({ id, data }: { id: string, data: InputNode }) => {
           const newOutputs = [{
             ...data.outputs[0],
             type: value
-          }]
+          }];
           updateNodeData(id, {
 
             outputs: newOutputs,
@@ -32,16 +32,19 @@ const InputNodeComponent = ({ id, data }: { id: string, data: InputNode }) => {
         </SelectTrigger>
         <SelectContent>
           {
-            Object.values(NodeHandleType).filter(t => [NodeHandleType.STRING, NodeHandleType.STRING_LIST, NodeHandleType.CHAT_MESSAGE_LIST].includes(t)).map((nodeType, i) => (
-              <SelectItem key={i} value={nodeType}>
-                {nodeType}
-              </SelectItem>
-            ))
+            Object.values(NodeHandleType)
+              .filter(t =>
+                [NodeHandleType.STRING, NodeHandleType.STRING_LIST, NodeHandleType.CHAT_MESSAGE_LIST].includes(t))
+              .map((nodeType, i) => (
+                <SelectItem key={i} value={nodeType}>
+                  {nodeType}
+                </SelectItem>
+              ))
           }
         </SelectContent>
       </Select>
     </GenericNodeComponent>
-  )
-}
+  );
+};
 
-export default memo(InputNodeComponent)
+export default memo(InputNodeComponent);

@@ -1,3 +1,7 @@
+# This compose definition pulls the latest images from the GitHub Container Registry.
+# This is the best and fastest for self hosting, as the images are already built and ready to go.
+# If you want to build images locally, you can use the docker-compose-local-build.yml file instead.
+
 name: lmnr
 
 services:

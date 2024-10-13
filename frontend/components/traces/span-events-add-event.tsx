@@ -1,11 +1,11 @@
 
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { useState } from "react";
-import { useProjectContext } from "@/contexts/project-context";
-import { useToast } from "@/lib/hooks/use-toast";
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { useState } from 'react';
+import { useProjectContext } from '@/contexts/project-context';
+import { useToast } from '@/lib/hooks/use-toast';
 
 interface SpanEventsAddEventProps {
   spanId: string;
@@ -43,24 +43,24 @@ export default function SpanEventsAddEvent({ spanId, onEventCreate }: SpanEvents
       toast({
         title: 'There was an error when adding the event',
         variant: 'destructive'
-      })
+      });
     }
 
     onEventCreate();
 
     setIsLoading(false);
     setIsPopoverOpen(false);
-  }
+  };
 
   return (
     <Popover
       modal={false}
       open={isPopoverOpen}
       onOpenChange={(open) => {
-        setIsPopoverOpen(open)
-        setSelectedEventTypeId(null)
-        setNewEventTypeName('')
-        setNewEventValue('')
+        setIsPopoverOpen(open);
+        setSelectedEventTypeId(null);
+        setNewEventTypeName('');
+        setNewEventValue('');
       }}>
       <PopoverTrigger asChild>
         <Button
@@ -78,14 +78,14 @@ export default function SpanEventsAddEvent({ spanId, onEventCreate }: SpanEvents
           <Input
             placeholder="Enter value"
             onChange={(e) => {
-              setNewEventValue(e.target.value)
+              setNewEventValue(e.target.value);
             }}
             spellCheck={false}
           />
           <div className="flex w-full justify-end">
             <Button
               variant={'secondary'}
-              onClick={() => { addEvent() }}
+              onClick={() => { addEvent(); }}
               disabled={isLoading || ((selectedEventTypeId === null) && newEventTypeName === '') || !newEventValue}
               handleEnter
             >
@@ -95,5 +95,5 @@ export default function SpanEventsAddEvent({ spanId, onEventCreate }: SpanEvents
         </div>
       </PopoverContent>
     </Popover>
-  )
+  );
 }

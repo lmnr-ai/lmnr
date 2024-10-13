@@ -1,15 +1,15 @@
-'use client'
+'use client';
 
-import { useProjectContext } from "@/contexts/project-context";
-import { Evaluation } from "@/lib/evaluation/types";
-import { ColumnDef } from "@tanstack/react-table";
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import { useRouter } from "next/navigation";
-import { DataTable } from "../ui/datatable";
-import Mono from "../ui/mono";
-import Header from "../ui/header";
-import EvalsPagePlaceholder from "./page-placeholder";
-import { useUserContext } from "@/contexts/user-context";
+import { useProjectContext } from '@/contexts/project-context';
+import { Evaluation } from '@/lib/evaluation/types';
+import { ColumnDef } from '@tanstack/react-table';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { useRouter } from 'next/navigation';
+import { DataTable } from '../ui/datatable';
+import Mono from '../ui/mono';
+import Header from '../ui/header';
+import EvalsPagePlaceholder from './page-placeholder';
+import { useUserContext } from '@/contexts/user-context';
 
 export interface EvaluationProps {
   evaluations: Evaluation[];
@@ -23,23 +23,23 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
 
   const columns: ColumnDef<Evaluation>[] = [
     {
-      accessorKey: "groupId",
-      header: "Group id",
+      accessorKey: 'groupId',
+      header: 'Group id',
       size: 120
     },
     {
-      accessorKey: "id",
+      accessorKey: 'id',
       cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-      header: "ID",
+      header: 'ID',
       size: 300
     },
     {
-      accessorKey: "name",
-      header: "Name",
+      accessorKey: 'name',
+      header: 'Name',
     },
     {
-      header: "Created at",
-      accessorKey: "createdAt",
+      header: 'Created at',
+      accessorKey: 'createdAt',
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     }
   ];
@@ -51,7 +51,7 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
 
         <EvalsPagePlaceholder />
       </div>
-    )
+    );
   }
 
   return (
@@ -65,7 +65,7 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
       </div>
       <div className="flex-grow">
         <DataTable columns={columns} data={evaluations} onRowClick={(row) => {
-          router.push(`/project/${projectId}/evaluations/${row.original.id}`)
+          router.push(`/project/${projectId}/evaluations/${row.original.id}`);
         }} />
       </div>
     </div>

@@ -8,7 +8,7 @@ import { EventTemplate } from '@/lib/events/types';
 
 export const metadata: Metadata = {
   title: 'Events',
-}
+};
 
 export default async function EventTemplatesPage({
   params,

@@ -1,4 +1,4 @@
-import React from 'react'
+import React from 'react';
 
 export default function ProjectsHeader() {
 
@@ -14,5 +14,5 @@ export default function ProjectsHeader() {
         </div>
       </header>
     </div>
-  )
+  );
 };

@@ -33,7 +33,7 @@ export default function UpdateDatasetDialog({ oldDataset, doUpdate, isDropdown =
     doUpdate?.(datasetId, dataset!);
     setIsLoading(false);
     setOpen(false);
-  }
+  };
 
   return (
     <div onClick={e => e.stopPropagation()}>
@@ -61,7 +61,7 @@ export default function UpdateDatasetDialog({ oldDataset, doUpdate, isDropdown =
             />
           </div>
           <DialogFooter>
-            <Button onClick={async (_) => { await updateDataset(dataset?.id!) }} disabled={!dataset || isLoading}>
+            <Button onClick={async (_) => { await updateDataset(dataset?.id!); }} disabled={!dataset || isLoading}>
               <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
               Save
             </Button>

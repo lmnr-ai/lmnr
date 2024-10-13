@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { fetcherJSON } from "@/lib/utils";
+import { fetcherJSON } from '@/lib/utils';
 import { redirect } from 'next/navigation';
 import { Metadata } from 'next';
 import { WorkspaceWithUsers } from '@/lib/workspaces/types';
@@ -11,26 +11,26 @@ import Header from '@/components/ui/header';
 
 export const metadata: Metadata = {
   title: 'Workspace',
-}
+};
 
 const getWorkspace = async (workspaceId: string): Promise<WorkspaceWithUsers> => {
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
   const res = await fetcherJSON(`/workspaces/${workspaceId}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${user.apiKey}`
     },
   });
-  return await res
-}
+  return await res;
+};
 
 
 
 export default async function WorkspacePage(
   { params }: { params: { workspaceId: string } }
 ) {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
   }
@@ -51,5 +51,5 @@ export default async function WorkspacePage(
         />
       </div>
     </UserContextProvider>
-  )
+  );
 }

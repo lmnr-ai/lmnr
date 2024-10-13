@@ -4,6 +4,6 @@ interface SelectNodeInputTypeProps {
 
 export default function SelectNodeInputType({ onNodeInputTypeChange }: SelectNodeInputTypeProps) {
   return (
-    "TODO"
-  )
+    'TODO'
+  );
 }

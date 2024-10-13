@@ -1,4 +1,4 @@
-import { NodeHandleType, CodeSandboxNode } from '@/lib/flow/types'
+import { NodeHandleType, CodeSandboxNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { Label } from '@/components/ui/label';
 import { v4 } from 'uuid';
@@ -25,13 +25,13 @@ export default function CodeSandboxNodeComponent({ data }: { data: CodeSandboxNo
                     type: NodeHandleType.STRING
                   }
                 ],
-              } as CodeSandboxNode)
+              } as CodeSandboxNode);
             } else {
-              dropEdgeForHandle(data.outputs[data.outputs.length - 1].id)
+              dropEdgeForHandle(data.outputs[data.outputs.length - 1].id);
               updateNodeData(data.id, {
                 enableErrorPassing: false,
                 outputs: data.outputs.slice(0, data.outputs.length - 1)
-              } as CodeSandboxNode)
+              } as CodeSandboxNode);
             }
           }}
         />
@@ -40,5 +40,5 @@ export default function CodeSandboxNodeComponent({ data }: { data: CodeSandboxNo
         If an error occurs during code execution, pass it as an output
       </Label>
     </div>
-  )
+  );
 }

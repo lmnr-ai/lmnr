@@ -1,8 +1,8 @@
-import * as React from 'react'
-import { Slot } from '@radix-ui/react-slot'
-import { cva, type VariantProps } from 'class-variance-authority'
+import * as React from 'react';
+import { Slot } from '@radix-ui/react-slot';
+import { cva, type VariantProps } from 'class-variance-authority';
 
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
   // overriden text-sm class to ensure center positioning
@@ -33,7 +33,7 @@ const buttonVariants = cva(
       size: 'default'
     }
   }
-)
+);
 
 type HandledKey = {
   key: string;
@@ -54,7 +54,7 @@ export interface ButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, handleEnter, handleKeys, ...props }, ref) => {
-    const Comp = asChild ? Slot : 'button'
+    const Comp = asChild ? Slot : 'button';
 
     const handleKeysUp = React.useMemo(() => {
       let handleKeysUp = new Set<HandledKey>();
@@ -67,31 +67,27 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         });
       }
       return Array.from(handleKeysUp);
-    }, [handleEnter, handleKeys])
+    }, [handleEnter, handleKeys]);
 
-    const isHandledKey = React.useCallback((e: React.KeyboardEvent) => {
-      return handleKeysUp.some((key) => {
-        return e.key === key.key &&
+    const isHandledKey = React.useCallback((e: React.KeyboardEvent) => handleKeysUp.some((key) => e.key === key.key &&
           (key.ctrlKey === undefined || key.ctrlKey === e.ctrlKey) &&
-          (key.metaKey === undefined || key.metaKey === e.metaKey);
-      });
-    }, [handleKeysUp])
+          (key.metaKey === undefined || key.metaKey === e.metaKey)), [handleKeysUp]);
 
     const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
       // Both keyup and keydown work well for all keys and Ctrl+Key,
       // However, keyup does not work for Meta+Key on Mac (Command+Key)
       if (!props.disabled && isHandledKey(e)) {
-        props.onClick?.(e as any)
+        props.onClick?.(e as any);
       }
-    }, [props.onClick])
+    }, [props.onClick]);
 
     React.useEffect(() => {
       if (handleKeysUp.length > 0) { window.addEventListener('keydown', handleKeyDown as any); }
 
       return () => {
         if (handleKeysUp.length > 0) { window.removeEventListener('keydown', handleKeyDown as any); }
-      }
-    }, [props.onClick])
+      };
+    }, [props.onClick]);
 
     return (
       <Comp
@@ -99,9 +95,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         {...props}
       />
-    )
+    );
   }
-)
-Button.displayName = 'Button'
+);
+Button.displayName = 'Button';
 
-export { Button, buttonVariants }
+export { Button, buttonVariants };

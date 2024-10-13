@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import { cn } from '@/lib/utils';
 import { Cable, Database, Gauge, LockKeyhole, Rocket, Rows4 } from 'lucide-react';
@@ -14,7 +14,7 @@ interface ProjectNavBarProps {
 
 export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
 
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   const navbarOptions = [
     {
@@ -57,7 +57,7 @@ export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
       <div className="flex flex-col w-32">
         {navbarOptions.map((option, i) => (
 
-          <Link key={i} href={option.href} className={cn('flex items-center p-2 rounded', pathname.includes(option.href) ? "bg-gray-200" : "")}>
+          <Link key={i} href={option.href} className={cn('flex items-center p-2 rounded', pathname.includes(option.href) ? 'bg-gray-200' : '')}>
             <option.icon size={20} className='mr-4' />
             {option.name}
           </Link>

@@ -61,7 +61,7 @@ export default function CustomEdge({
             // if you have an interactive element, set pointer-events: all
             pointerEvents: 'all',
           }}
-          className={cn("nodrag border nopan bg-primary rounded-full w-6 h-6", data?.isHover && editable ? 'flex items-center justify-center' : 'hidden')}
+          className={cn('nodrag border nopan bg-primary rounded-full w-6 h-6', data?.isHover && editable ? 'flex items-center justify-center' : 'hidden')}
           onClick={onEdgeClick}
         >
           {/* <button className="" > */}

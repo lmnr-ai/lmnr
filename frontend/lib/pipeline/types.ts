@@ -1,4 +1,4 @@
-import { RunnableGraph, DisplayableGraph, NodeInput, NodeHandleType } from "@/lib/flow/types"
+import { RunnableGraph, DisplayableGraph, NodeInput, NodeHandleType } from '@/lib/flow/types';
 
 export type PipelineType = 'WORKSHOP' | 'COMMIT'
 export type PipelineVisibility = 'PUBLIC' | 'PRIVATE'
@@ -64,11 +64,11 @@ export type TemplateInfo = {
 
 /**
  * Frontend side type for handling input variables
- * 
+ *
  * Not supposed to be serialized/deserialized and sent to backend.
- * 
+ *
  * pipelineVersionId and executionId are used to identify the input variable
- * 
+ *
  * "Execution" is a bit misleading name. It's not a single pipeline run, but is
  * rather a single set of inputs for a pipeline version. Purely frontend concept.
  */
@@ -104,165 +104,165 @@ export type LanguageModel = {
 
 const providerMapping: { provider: string, models: LanguageModel[] }[] = [
   {
-    provider: "openai",
+    provider: 'openai',
     models: [
       {
-        id: "openai:gpt-3.5-turbo",
-        name: "openai:gpt-3.5-turbo"
+        id: 'openai:gpt-3.5-turbo',
+        name: 'openai:gpt-3.5-turbo'
       },
       {
-        id: "openai:gpt-3.5-turbo-16k",
-        name: "openai:gpt-3.5-turbo-16k"
+        id: 'openai:gpt-3.5-turbo-16k',
+        name: 'openai:gpt-3.5-turbo-16k'
       },
       {
-        id: "openai:gpt-4-turbo",
-        name: "openai:gpt-4-turbo"
+        id: 'openai:gpt-4-turbo',
+        name: 'openai:gpt-4-turbo'
       },
       {
-        id: "openai:gpt-4o",
-        name: "openai:gpt-4o"
+        id: 'openai:gpt-4o',
+        name: 'openai:gpt-4o'
       },
       {
-        id: "openai:gpt-4o-mini",
-        name: "openai:gpt-4o-mini"
+        id: 'openai:gpt-4o-mini',
+        name: 'openai:gpt-4o-mini'
       },
       {
-        id: "openai:o1-mini",
-        name: "openai:o1-mini"
+        id: 'openai:o1-mini',
+        name: 'openai:o1-mini'
       },
       {
-        id: "openai:o1-preview",
-        name: "openai:o1-preview"
+        id: 'openai:o1-preview',
+        name: 'openai:o1-preview'
       }
     ]
   },
   {
-    provider: "anthropic",
+    provider: 'anthropic',
     models: [
       {
-        id: "anthropic:claude-3-haiku-20240307",
-        name: "anthropic:claude-3-haiku"
+        id: 'anthropic:claude-3-haiku-20240307',
+        name: 'anthropic:claude-3-haiku'
       },
       {
-        id: "anthropic:claude-3-sonnet-20240229",
-        name: "anthropic:claude-3-sonnet"
+        id: 'anthropic:claude-3-sonnet-20240229',
+        name: 'anthropic:claude-3-sonnet'
       },
       {
-        id: "anthropic:claude-3-opus-20240229",
-        name: "anthropic:claude-3-opus"
+        id: 'anthropic:claude-3-opus-20240229',
+        name: 'anthropic:claude-3-opus'
       },
       {
-        id: "anthropic:claude-3-5-sonnet-20240620",
-        name: "anthropic:claude-3-5-sonnet"
+        id: 'anthropic:claude-3-5-sonnet-20240620',
+        name: 'anthropic:claude-3-5-sonnet'
       }
     ]
   },
   {
-    provider: "gemini",
+    provider: 'gemini',
     models: [
       {
-        id: "gemini:gemini-1.5-flash",
-        name: "gemini:1.5-flash"
+        id: 'gemini:gemini-1.5-flash',
+        name: 'gemini:1.5-flash'
       },
       {
-        id: "gemini:gemini-1.5-pro",
-        name: "gemini:1.5-pro"
+        id: 'gemini:gemini-1.5-pro',
+        name: 'gemini:1.5-pro'
       }
     ]
   },
   {
-    provider: "groq",
+    provider: 'groq',
     models: [
       {
-        id: "groq:llama-3.1-405b-reasoning",
-        name: "qroq:llama-3.1-405b-reasoning"
+        id: 'groq:llama-3.1-405b-reasoning',
+        name: 'qroq:llama-3.1-405b-reasoning'
       },
       {
-        id: "groq:llama-3.1-70b-versatile",
-        name: "qroq:llama-3.1-70b-versatile"
+        id: 'groq:llama-3.1-70b-versatile',
+        name: 'qroq:llama-3.1-70b-versatile'
       },
       {
-        id: "groq:llama-3.1-8b-instant",
-        name: "qroq:llama-3.1-8b-instant"
+        id: 'groq:llama-3.1-8b-instant',
+        name: 'qroq:llama-3.1-8b-instant'
       },
       {
-        id: "groq:llama3-groq-8b-8192-tool-use-preview",
-        name: "groq:llama3-groq-8b-8192-tool-use-preview"
+        id: 'groq:llama3-groq-8b-8192-tool-use-preview',
+        name: 'groq:llama3-groq-8b-8192-tool-use-preview'
       },
       {
-        id: "groq:llama3-8b-8192",
-        name: "groq:llama3-8b-8192"
+        id: 'groq:llama3-8b-8192',
+        name: 'groq:llama3-8b-8192'
       },
       {
-        id: "groq:llama3-70b-8192",
-        name: "groq:llama3-70b-8192"
+        id: 'groq:llama3-70b-8192',
+        name: 'groq:llama3-70b-8192'
       },
       {
-        id: "groq:mixtral-8x7b-32768",
-        name: "groq:mixtral-8x7b-32768"
+        id: 'groq:mixtral-8x7b-32768',
+        name: 'groq:mixtral-8x7b-32768'
       },
       {
-        id: "groq:gemma2-9b-it",
-        name: "groq:gemma2-9b-it"
+        id: 'groq:gemma2-9b-it',
+        name: 'groq:gemma2-9b-it'
       },
       {
-        id: "groq:gemma-7b-it",
-        name: "groq:gemma-7b-it"
+        id: 'groq:gemma-7b-it',
+        name: 'groq:gemma-7b-it'
       }
     ]
   },
   {
-    provider: "mistral",
+    provider: 'mistral',
     models: [
       {
-        id: "mistral:mistral-small",
-        name: "mistral:mistral-small"
+        id: 'mistral:mistral-small',
+        name: 'mistral:mistral-small'
       },
       {
-        id: "mistral:mistral-tiny",
-        name: "mistral:mitsral-tiny"
+        id: 'mistral:mistral-tiny',
+        name: 'mistral:mitsral-tiny'
       }
     ]
   },
   {
-    provider: "bedrock",
+    provider: 'bedrock',
     models: [
       {
-        id: "bedrock:anthropic.claude-v2",
-        name: "bedrock:anthropic.claude-v2"
+        id: 'bedrock:anthropic.claude-v2',
+        name: 'bedrock:anthropic.claude-v2'
       },
       {
-        id: "bedrock:anthropic.claude-v2:1",
-        name: "bedrock:anthropic.claude-v2:1"
+        id: 'bedrock:anthropic.claude-v2:1',
+        name: 'bedrock:anthropic.claude-v2:1'
       },
       {
-        id: "bedrock:anthropic.claude-3-sonnet-20240229-v1:0",
-        name: "bedrock:anthropic.claude-3-sonnet-20240229-v1:0"
+        id: 'bedrock:anthropic.claude-3-sonnet-20240229-v1:0',
+        name: 'bedrock:anthropic.claude-3-sonnet-20240229-v1:0'
       },
       {
-        id: "bedrock:anthropic.claude-3-5-sonnet-20240620-v1:0",
-        name: "bedrock:anthropic.claude-3-5-sonnet-20240620-v1:0"
+        id: 'bedrock:anthropic.claude-3-5-sonnet-20240620-v1:0',
+        name: 'bedrock:anthropic.claude-3-5-sonnet-20240620-v1:0'
       },
       {
-        id: "bedrock:anthropic.claude-3-haiku-20240307-v1:0",
-        name: "bedrock:anthropic.claude-3-haiku-20240307-v1:0"
+        id: 'bedrock:anthropic.claude-3-haiku-20240307-v1:0',
+        name: 'bedrock:anthropic.claude-3-haiku-20240307-v1:0'
       },
       {
-        id: "bedrock:anthropic.claude-3-opus-20240229-v1:0",
-        name: "bedrock:anthropic.claude-3-opus-20240229-v1:0"
+        id: 'bedrock:anthropic.claude-3-opus-20240229-v1:0',
+        name: 'bedrock:anthropic.claude-3-opus-20240229-v1:0'
       },
       {
-        id: "bedrock:anthropic.claude-instant-v1",
-        name: "bedrock:anthropic.claude-instant-v1"
+        id: 'bedrock:anthropic.claude-instant-v1',
+        name: 'bedrock:anthropic.claude-instant-v1'
       }
     ]
   },
   {
-    provider: "openai-azure",
+    provider: 'openai-azure',
     models: [
       {
-        id: "openai-azure:gpt",
-        name: "openai-azure:gpt"
+        id: 'openai-azure:gpt',
+        name: 'openai-azure:gpt'
       }
     ]
   }

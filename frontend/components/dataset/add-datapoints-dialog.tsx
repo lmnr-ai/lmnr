@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog';
 import DatasetUpload from './dataset-upload';
 
 
@@ -41,5 +41,5 @@ export default function AddDatapointsDialog({ datasetId, onUpdate }: AddDatapoin
         />
       </DialogContent>
     </Dialog>
-  )
+  );
 }

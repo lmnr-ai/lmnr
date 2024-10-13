@@ -1,5 +1,5 @@
-import { useCallback, useRef, type DragEvent, useState } from 'react'
-import 'reactflow/dist/style.css'
+import { useCallback, useRef, type DragEvent, useState } from 'react';
+import 'reactflow/dist/style.css';
 import ReactFlow, {
   ConnectionLineType,
   Background,
@@ -8,19 +8,19 @@ import ReactFlow, {
   updateEdge,
   type Node,
   MarkerType
-} from 'reactflow'
+} from 'reactflow';
 
 
-import InputNodeComponent from './nodes/input-node'
-import OutputNodeComponent from './nodes/output-node'
-import GenericNodeComponent from './nodes/generic-node'
+import InputNodeComponent from './nodes/input-node';
+import OutputNodeComponent from './nodes/output-node';
+import GenericNodeComponent from './nodes/generic-node';
 
-import useStore from '@/lib/flow/store'
-import { NodeType } from '@/lib/flow/types'
-import { v4 as uuidv4 } from 'uuid'
-import { createNodeData } from '@/lib/flow/utils'
-import { useFlowContext } from '@/contexts/pipeline-version-context'
-import CustomEdge from './nodes/components/custom-edge'
+import useStore from '@/lib/flow/store';
+import { NodeType } from '@/lib/flow/types';
+import { v4 as uuidv4 } from 'uuid';
+import { createNodeData } from '@/lib/flow/utils';
+import { useFlowContext } from '@/contexts/pipeline-version-context';
+import CustomEdge from './nodes/components/custom-edge';
 
 const nodeTypes = {
   [NodeType.INPUT]: InputNodeComponent,
@@ -43,20 +43,20 @@ const nodeTypes = {
   [NodeType.FUNCTION]: GenericNodeComponent,
   [NodeType.SEMANTIC_SIMILARITY]: GenericNodeComponent,
   [NodeType.CODE_SANDBOX]: GenericNodeComponent,
-}
+};
 
 const defaultEdgeOptions = {
   type: 'custom',
   markerEnd: { type: MarkerType.ArrowClosed },
-}
+};
 
 const edgeTypes = {
   custom: CustomEdge,
 };
 
 function Flow() {
-  const reactFlowWrapper = useRef<HTMLDivElement>(null)
-  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const {
     nodes,
     edges,
@@ -65,28 +65,28 @@ function Flow() {
     onNodesChange,
     onEdgesChange,
     onConnect,
-  } = useStore()
-  const edgeUpdateSuccessful = useRef(true)
-  const { editable } = useFlowContext()
+  } = useStore();
+  const edgeUpdateSuccessful = useRef(true);
+  const { editable } = useFlowContext();
 
   const onDragOver = useCallback((event: DragEvent) => {
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-  }, [])
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
 
   const onDrop = useCallback((event: DragEvent) => {
-    event.preventDefault()
+    event.preventDefault();
 
-    const nodeType: string = event.dataTransfer.getData('application/reactflow')
+    const nodeType: string = event.dataTransfer.getData('application/reactflow');
 
     const position = reactFlowInstance!.screenToFlowPosition({
       x: event.clientX,
       y: event.clientY
-    })
+    });
 
-    const nodeId = uuidv4()
-    const nodeData = createNodeData(nodeId, nodeType as NodeType)
-    nodeData.inputsMappings = {}
+    const nodeId = uuidv4();
+    const nodeData = createNodeData(nodeId, nodeType as NodeType);
+    nodeData.inputsMappings = {};
 
 
     const newNode: Node = {
@@ -94,26 +94,26 @@ function Flow() {
       id: nodeId,
       type: nodeType,
       position
-    }
+    };
 
-    setNodes((nodes) => nodes.concat(newNode))
-  }, [reactFlowInstance])
+    setNodes((nodes) => nodes.concat(newNode));
+  }, [reactFlowInstance]);
 
   const onEdgeUpdateStart = useCallback(() => {
-    edgeUpdateSuccessful.current = false
-  }, [])
+    edgeUpdateSuccessful.current = false;
+  }, []);
 
   const onEdgeUpdate = useCallback((oldEdge: Edge, newConnection: Connection) => {
-    edgeUpdateSuccessful.current = true
-    updateEdge(oldEdge, newConnection, edges)
-  }, [])
+    edgeUpdateSuccessful.current = true;
+    updateEdge(oldEdge, newConnection, edges);
+  }, []);
 
   const onEdgeUpdateEnd = useCallback((_: any, edge: Edge) => {
     if (!edgeUpdateSuccessful.current) {
-      setEdges((eds) => eds.filter((e) => e.id !== edge.id))
+      setEdges((eds) => eds.filter((e) => e.id !== edge.id));
     }
-    edgeUpdateSuccessful.current = true
-  }, [])
+    edgeUpdateSuccessful.current = true;
+  }, []);
 
   return (
     <ReactFlow className="bg-gray-50 w-full h-full"
@@ -143,18 +143,18 @@ function Flow() {
       onEdgeMouseEnter={(_event, edge) => {
         setEdges((edges) => edges.map((e) => {
           if (e.id === edge.id) {
-            return { ...e, data: { ...e.data, isHover: true } }
+            return { ...e, data: { ...e.data, isHover: true } };
           }
-          return e
-        }))
+          return e;
+        }));
       }}
       onEdgeMouseLeave={(_event, edge) => {
         setEdges((edges) => edges.map((e) => {
           if (e.id === edge.id) {
-            return { ...e, data: { ...e.data, isHover: false } }
+            return { ...e, data: { ...e.data, isHover: false } };
           }
-          return e
-        }))
+          return e;
+        }));
 
       }}
       edgesFocusable={editable}
@@ -163,7 +163,7 @@ function Flow() {
     >
       <Background className='bg-background brightness-125 text-foreground/5' gap={16} />
     </ReactFlow>
-  )
+  );
 }
 
-export default Flow
+export default Flow;

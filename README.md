@@ -46,11 +46,7 @@ This will spin up the following containers:
 
 The simple set up above will pull latest Laminar images from Github Container Registry.
 
-If you want to test your local changes, you will need to build from source using [Local docker compose](./docker-compose-local-dev.yml)
-
-```sh
-docker compose -f docker-compose-local-dev.yml up --build
-```
+For running and building Laminar locally, follow the guide in [Contributing](/CONTRIBUTING.md).
 
 ### Instrumenting Python code
 

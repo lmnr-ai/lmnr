@@ -1,6 +1,6 @@
-import { WorkspaceWithProjects } from "@/lib/workspaces/types"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { WorkspaceWithProjects } from '@/lib/workspaces/types';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,10 +9,10 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Button } from "../ui/button";
-import { Loader, Plus } from "lucide-react";
-import { Label } from "../ui/label";
-import { Input } from "../ui/input";
+import { Button } from '../ui/button';
+import { Loader, Plus } from 'lucide-react';
+import { Label } from '../ui/label';
+import { Input } from '../ui/input';
 
 interface WorkspaceCreateDialogProps {
   onWorkspaceCreate?: () => void
@@ -38,7 +38,7 @@ export default function WorkspaceCreateDialog({ onWorkspaceCreate }: WorkspaceCr
     onWorkspaceCreate?.();
     router.push(`/workspace/${newWorkspace.id}`);
     setIsCreatingWorkspace(false);
-  }
+  };
 
   return (
     <Dialog>
@@ -70,5 +70,5 @@ export default function WorkspaceCreateDialog({ onWorkspaceCreate }: WorkspaceCr
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

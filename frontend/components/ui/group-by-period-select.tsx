@@ -1,6 +1,6 @@
-import { useRouter, useSearchParams } from "next/navigation"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
-import { getGroupByInterval, isGroupByIntervalAvailable } from "@/lib/utils";
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
+import { getGroupByInterval, isGroupByIntervalAvailable } from '@/lib/utils';
 
 
 export function GroupByPeriodSelect() {
@@ -31,5 +31,5 @@ export function GroupByPeriodSelect() {
         </SelectContent>
       </Select>
     </div>
-  )
+  );
 }

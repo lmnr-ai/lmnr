@@ -1,5 +1,5 @@
-import { Event } from "../events/types";
-import { GraphMessagePreview } from "../pipeline/types"
+import { Event } from '../events/types';
+import { GraphMessagePreview } from '../pipeline/types';
 
 export type TraceMessages = { [key: string]: GraphMessagePreview }
 
@@ -33,11 +33,11 @@ export type SpanLabel = {
 }
 
 export enum SpanType {
-  DEFAULT = "DEFAULT",
-  LLM = "LLM",
-  EXECUTOR = "EXECUTOR",
-  EVALUATOR = "EVALUATOR",
-  EVALUATION = "EVALUATION",
+  DEFAULT = 'DEFAULT',
+  LLM = 'LLM',
+  EXECUTOR = 'EXECUTOR',
+  EVALUATOR = 'EVALUATOR',
+  EVALUATION = 'EVALUATION',
 }
 
 export type Span = {
@@ -63,7 +63,11 @@ export type TraceWithSpans = {
   startTime: string;
   endTime: string;
   success: boolean;
+  inputTokenCount: number;
+  outputTokenCount: number;
   totalTokenCount: number;
+  inputCost: number | null;
+  outputCost: number | null;
   cost: number | null;
   metadata: Record<string, string> | null;
   projectId: string;
@@ -76,7 +80,11 @@ export type Trace = {
   success: boolean;
   id: string;
   sessionId: string;
+  inputTokenCount: number;
+  outputTokenCount: number;
   totalTokenCount: number;
+  inputCost: number | null;
+  outputCost: number | null;
   cost: number | null;
   metadata: Record<string, string> | null;
   parentSpanInput: any | null;
@@ -98,7 +106,11 @@ export type TracePreview = {
   endTime: string;
   success: boolean;
   id: string;
+  inputTokenCount: number;
+  outputTokenCount: number;
   totalTokenCount: number;
+  inputCost: number | null;
+  outputCost: number | null;
   approximateCost: number | null;
   metadata: Record<string, string> | null;
   outputMessageIds: string[];

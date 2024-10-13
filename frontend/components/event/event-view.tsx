@@ -1,16 +1,16 @@
-import { ChevronsRight } from "lucide-react";
-import { Button } from "../ui/button";
-import Mono from "../ui/mono";
-import { Event } from "@/lib/events/types";
-import { Label } from "../ui/label";
-import Formatter from "../ui/formatter";
-import { ScrollArea } from "../ui/scroll-area";
-import { useProjectContext } from "@/contexts/project-context";
-import useSWR from "swr";
-import { convertToLocalTimeWithMillis, swrFetcher } from "@/lib/utils";
-import { useRouter } from "next/navigation";
-import { Span } from "@/lib/traces/types";
-import { trace } from "console";
+import { ChevronsRight } from 'lucide-react';
+import { Button } from '../ui/button';
+import Mono from '../ui/mono';
+import { Event } from '@/lib/events/types';
+import { Label } from '../ui/label';
+import Formatter from '../ui/formatter';
+import { ScrollArea } from '../ui/scroll-area';
+import { useProjectContext } from '@/contexts/project-context';
+import useSWR from 'swr';
+import { convertToLocalTimeWithMillis, swrFetcher } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { Span } from '@/lib/traces/types';
+import { trace } from 'console';
 
 interface EventViewProps {
   onClose: () => void;
@@ -81,5 +81,5 @@ export default function EventView({
         </div>
       </div>
     </ScrollArea>
-  )
+  );
 }

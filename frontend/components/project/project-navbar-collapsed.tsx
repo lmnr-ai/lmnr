@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import { cn } from '@/lib/utils';
 import { Cable, Database, Gauge, LockKeyhole, Rocket, Rows4, Settings, File, Home, LayoutGrid, ArrowBigDown, ArrowBigUp } from 'lucide-react';
@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from '@/components/ui/tooltip';
 
 interface ProjectNavBarProps {
   projectId: string;
@@ -20,7 +20,7 @@ interface ProjectNavBarProps {
 
 export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps) {
 
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   const navbarOptions = [
     {
@@ -83,7 +83,12 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
           <TooltipProvider key={i} delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href={option.href} className={cn('hover:bg-secondary flex items-center p-2 rounded', pathname === option.href ? "bg-secondary" : "")}>
+                <Link
+                  href={option.href}
+                  className={cn(
+                    'hover:bg-secondary flex items-center p-2 rounded',
+                    pathname === option.href ? 'bg-secondary' : '')}
+                >
                   <option.icon size={20} />
                 </Link>
               </TooltipTrigger>
@@ -94,11 +99,17 @@ export default function ProjectNavbarCollapsed({ projectId }: ProjectNavBarProps
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          // <Link key={i} href={option.href} className={cn('hover:bg-secondary flex items-center px-2 py-2 mx-2 rounded space-x-2 text-secondary-foreground', pathname === option.href ? "bg-secondary text-primary-foreground" : "")}>
-          //   <option.icon size={20} />
-          //   <div className='text-sm'>
-          //     {option.name.charAt(0).toUpperCase() + option.name.slice(1)}
-          //   </div>
+          // <Link
+          //   key={i}
+          //   href={option.href}
+          //   className={cn(
+          //     'hover:bg-secondary flex items-center px-2 py-2 mx-2 rounded space-x-2 text-secondary-foreground',
+          //      pathname === option.href ? "bg-secondary text-primary-foreground" : "")}
+          // >
+          //     <option.icon size={20} />
+          //     <div className='text-sm'>
+          //       {option.name.charAt(0).toUpperCase() + option.name.slice(1)}
+          //     </div>
           // </Link>
         ))}
       </div>

@@ -1,13 +1,13 @@
-import { getDurationString } from "@/lib/flow/utils"
-import React, { useEffect, useRef, useState } from "react"
-import { Label } from "../ui/label"
-import { Span, SpanType } from "@/lib/traces/types"
-import { Activity, ArrowRight, Braces, Gauge, MessageCircleMore } from "lucide-react"
-import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils"
+import { getDurationString } from '@/lib/flow/utils';
+import React, { useEffect, useRef, useState } from 'react';
+import { Label } from '../ui/label';
+import { Span, SpanType } from '@/lib/traces/types';
+import { Activity, ArrowRight, Braces, Gauge, MessageCircleMore } from 'lucide-react';
+import { SPAN_TYPE_TO_COLOR } from '@/lib/traces/utils';
 
-const ROW_HEIGHT = 36
-const SQUARE_SIZE = 22
-const SQUARE_ICON_SIZE = 16
+const ROW_HEIGHT = 36;
+const SQUARE_SIZE = 22;
+const SQUARE_ICON_SIZE = 16;
 
 interface SpanCardProps {
   span: Span
@@ -21,21 +21,21 @@ interface SpanCardProps {
 
 export function SpanCard({ span, childSpans, parentY, onSpanSelect, containerWidth, depth, selectedSpan }: SpanCardProps) {
 
-  const [isSelected, setIsSelected] = useState(false)
-  const [segmentHeight, setSegmentHeight] = useState(0)
-  const ref = useRef<HTMLDivElement>(null)
+  const [isSelected, setIsSelected] = useState(false);
+  const [segmentHeight, setSegmentHeight] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
 
-  const childrenSpans = childSpans[span.spanId]
+  const childrenSpans = childSpans[span.spanId];
 
   useEffect(() => {
     if (ref.current) {
-      setSegmentHeight(ref.current.getBoundingClientRect().y - parentY)
+      setSegmentHeight(ref.current.getBoundingClientRect().y - parentY);
     }
-  }, [parentY])
+  }, [parentY]);
 
   useEffect(() => {
-    setIsSelected(selectedSpan?.spanId === span.spanId)
-  }, [selectedSpan])
+    setIsSelected(selectedSpan?.spanId === span.spanId);
+  }, [selectedSpan]);
 
   return (
 
@@ -99,7 +99,7 @@ export function SpanCard({ span, childSpans, parentY, onSpanSelect, containerWid
             left: -depth * 24 - 16,
           }}
           onClick={() => {
-            onSpanSelect?.(span)
+            onSpanSelect?.(span);
           }}
         />
         {
@@ -130,5 +130,5 @@ export function SpanCard({ span, childSpans, parentY, onSpanSelect, containerWid
         ))}
       </div>
     </div>
-  )
+  );
 }

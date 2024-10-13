@@ -1,12 +1,12 @@
-import { Button } from "../ui/button";
-import useStore from "@/lib/flow/store";
-import { cn, deleteLocalEnvVar, getLocalEnvVars, setLocalEnvVar } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
-import { InputPassword } from "../ui/input-password";
-import { Graph } from "@/lib/flow/graph";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { LockKeyhole } from "lucide-react";
-import { ENV_VAR_TO_ISSUER_URL } from "@/lib/env/utils";
+import { Button } from '../ui/button';
+import useStore from '@/lib/flow/store';
+import { cn, deleteLocalEnvVar, getLocalEnvVars, setLocalEnvVar } from '@/lib/utils';
+import { useEffect, useRef, useState } from 'react';
+import { InputPassword } from '../ui/input-password';
+import { Graph } from '@/lib/flow/graph';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { LockKeyhole } from 'lucide-react';
+import { ENV_VAR_TO_ISSUER_URL } from '@/lib/env/utils';
 
 interface PipelineEnvProps {
   projectId: string
@@ -39,7 +39,7 @@ export default function PipelineEnv({ projectId }: PipelineEnvProps) {
     } else {
       setAlerting(false);
     }
-  }, [...Object.keys(envVars), ...Object.values(envVars)])
+  }, [...Object.keys(envVars), ...Object.values(envVars)]);
 
   useEffect(() => {
     // Note that isMissingEnvVars is set to true only temporarily
@@ -48,7 +48,7 @@ export default function PipelineEnv({ projectId }: PipelineEnvProps) {
     if (isMissingEnvVars) {
       triggerRef.current?.click();
     }
-  }, [isMissingEnvVars])
+  }, [isMissingEnvVars]);
 
   return (
     <Popover modal={false} onOpenChange={(open) => {
@@ -68,8 +68,8 @@ export default function PipelineEnv({ projectId }: PipelineEnvProps) {
       </PopoverTrigger>
       <PopoverContent side='bottom' className="max-h-96 overflow-y-auto ml-48 mt-4 w-96">
         <div className="flex flex-col items-start p-1">
-          <h1 className={"text-lg"}>Environment variables</h1>
-          <p className={cn("text-sm text-muted-foreground mt-2 whitespace-normal", (isAlerting ? "text-red-400" : ""))}>
+          <h1 className={'text-lg'}>Environment variables</h1>
+          <p className={cn('text-sm text-muted-foreground mt-2 whitespace-normal', (isAlerting ? 'text-red-400' : ''))}>
             Set environment variables.
           </p>
           <p className="text-sm text-muted-foreground mt-2 mb-2 whitespace-normal">
@@ -112,5 +112,5 @@ export default function PipelineEnv({ projectId }: PipelineEnvProps) {
         </div>
       </PopoverContent>
     </Popover>
-  )
+  );
 }

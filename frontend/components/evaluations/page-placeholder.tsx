@@ -1,13 +1,13 @@
-import { useState } from "react";
-import Code from "../ui/code";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from "@/lib/const";
-import { useProjectContext } from "@/contexts/project-context";
+import { useState } from 'react';
+import Code from '../ui/code';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
+import { useProjectContext } from '@/contexts/project-context';
 
 export default function EvalsPagePlaceholder() {
   const { projectId } = useProjectContext();
   const [tabValue, setTabValue] = useState('python');
-  
+
   const pythonEval = `from lmnr import evaluate
 
 evaluate(
@@ -23,7 +23,7 @@ evaluate(
     },
     group_id="my_first_feature",
     project_api_key='<YOUR_PROJECT_API_KEY>'
-)`
+)`;
   const tsEval = `import { evaluate } from '@lmnr-ai/lmnr';
 
 evaluate({
@@ -42,7 +42,7 @@ evaluate({
     projectApiKey: '<YOUR_PROJECT_API_KEY>'
   }
 })
-`
+`;
 
   return (
     <div className="h-full w-full justify-center flex p-2">
@@ -50,7 +50,7 @@ evaluate({
         <div className="flex-col p-4 mb-32 space-y-4 w-[800px]">
           <h1 className="text-2xl font-semibold mb-4">Evaluations</h1>
           <h3 className="text-secondary-foreground/80 font-light">
-            You don{"'"}t have any evaluations in this project yet.
+            You don{'\''}t have any evaluations in this project yet.
             To run an evaluation you can start by following the example below.
           </h3>
           <h2 className="text-xl font-semibold mb-4">Install Laminar</h2>
@@ -100,7 +100,7 @@ evaluate({
           <h2 className="text-xl font-semibold mb-4">Cannot run evaluations?</h2>
           <h3 className="text-secondary-foreground/80 font-light">
             <a href="https://discord.com/invite/nNFUUDAKub" className="text-primary-foreground font-medium" target="_blank">Message us </a>
-            and we{"'"}ll be happy to help.
+            and we{'\''}ll be happy to help.
           </h3>
         </div>
       </div>

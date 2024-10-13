@@ -41,7 +41,7 @@ export default function DeleteEventTemplateDialog({
     setIsDialogOpen(false);
     router.push(`/project/${projectId}/event-templates`);
     router.refresh();
-  }
+  };
 
 
   return (
@@ -57,7 +57,8 @@ export default function DeleteEventTemplateDialog({
             <DialogTitle>Delete event {defaultEventTemplate.name}</DialogTitle>
           </DialogHeader>
           <Label className='text-secondary-foreground'>
-            Are you sure you want to delete this event template? This will remove all events associated with this template.
+            Are you sure you want to delete this event template?
+            This will remove all events associated with this template.
           </Label>
           <DialogFooter>
             <Button

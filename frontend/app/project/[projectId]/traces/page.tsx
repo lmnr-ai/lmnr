@@ -8,7 +8,7 @@ import Header from '@/components/ui/header';
 
 export const metadata: Metadata = {
   title: 'Traces',
-}
+};
 
 
 export default async function TracesPage() {
@@ -20,7 +20,7 @@ export default async function TracesPage() {
 
   return (
     <>
-      <Header path={"traces"} className="border-b-0" />
+      <Header path={'traces'} className="border-b-0" />
       <TracesDashboard />
     </>
   );

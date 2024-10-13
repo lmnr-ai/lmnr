@@ -1,8 +1,8 @@
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { StaticImageData, StaticImport } from "next/dist/shared/lib/get-img-props";
-import Image from "next/image";
-import { useState } from "react";
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { StaticImageData, StaticImport } from 'next/dist/shared/lib/get-img-props';
+import Image from 'next/image';
+import { useState } from 'react';
 
 export interface NodePreviewProps {
   name: string
@@ -19,7 +19,7 @@ export default function NodePreviewComponent({
   imageSrc,
   imageAlt,
 }: NodePreviewProps) {
-  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false);
   return (
     <div className='p-4 space-x-4 flex md:w-[500px] sm:w-[300px] '>
       <div className='space-y-2 flex flex-col w-1/2'>
@@ -43,5 +43,5 @@ export default function NodePreviewComponent({
         )}
       </div>
     </div>
-  )
+  );
 }

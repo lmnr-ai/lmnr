@@ -1,16 +1,16 @@
-import { ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "../ui/datatable";
-import { RunTrace, TracePreview } from "@/lib/traces/types";
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import useSWR from "swr";
-import { useProjectContext } from "@/contexts/project-context";
-import { swrFetcher } from "@/lib/utils";
-import { PipelineVersion } from "@/lib/pipeline/types";
-import { use, useEffect, useState } from "react";
-import { ChevronsRight } from "lucide-react";
-import StatusLabel from "../ui/status-label";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
-import { Skeleton } from "../ui/skeleton";
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '../ui/datatable';
+import { RunTrace, TracePreview } from '@/lib/traces/types';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import useSWR from 'swr';
+import { useProjectContext } from '@/contexts/project-context';
+import { swrFetcher } from '@/lib/utils';
+import { PipelineVersion } from '@/lib/pipeline/types';
+import { use, useEffect, useState } from 'react';
+import { ChevronsRight } from 'lucide-react';
+import StatusLabel from '../ui/status-label';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
+import { Skeleton } from '../ui/skeleton';
 
 export const TRACE_COLUMNS: ColumnDef<RunTrace, any>[] = [
   {
@@ -22,20 +22,18 @@ export const TRACE_COLUMNS: ColumnDef<RunTrace, any>[] = [
     size: 80
   },
   {
-    accessorFn: (row) => {
-      return row.startTime
-    },
+    accessorFn: (row) => row.startTime,
     header: 'Timestamp',
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     size: 140
   },
   {
     accessorFn: (row) => {
-      const start = new Date(row.startTime)
-      const end = new Date(row.endTime)
-      const duration = end.getTime() - start.getTime()
+      const start = new Date(row.startTime);
+      const end = new Date(row.endTime);
+      const duration = end.getTime() - start.getTime();
 
-      return `${(duration / 1000).toFixed(2)}s`
+      return `${(duration / 1000).toFixed(2)}s`;
     },
     header: 'Latency',
     size: 100
@@ -50,7 +48,7 @@ export const TRACE_COLUMNS: ColumnDef<RunTrace, any>[] = [
     header: 'Cost',
     size: 120
   },
-]
+];
 
 interface PipelineHistoryProps {
   pipelineVersion: PipelineVersion,
@@ -59,20 +57,21 @@ interface PipelineHistoryProps {
 
 export default function PipelineHistory({ pipelineVersion, onTraceHover }: PipelineHistoryProps) {
 
-  const { projectId } = useProjectContext()
+  const { projectId } = useProjectContext();
 
-  const columns = TRACE_COLUMNS
+  const columns = TRACE_COLUMNS;
 
   // const { data, mutate } = useSWR(`/api/projects/${projectId}/traces/workshop/${pipelineVersion.id}`, swrFetcher)
-  const [selectedRunTrace, setSelectedRunTrace] = useState<TracePreview | null>(null)
-  const [fullTrace, setFullTrace] = useState<RunTrace | null>(null)
+  const [selectedRunTrace, setSelectedRunTrace] = useState<TracePreview | null>(null);
+  const [fullTrace, setFullTrace] = useState<RunTrace | null>(null);
   // useEffect(() => {
   //   if (!selectedRunTrace) {
   //     return;
   //   }
-  //   fetch(`/api/projects/${projectId}/traces/trace/${selectedRunTrace?.runId}`).then((res) => res.json()).then((data) => {
-  //     setFullTrace(data)
-  //   })
+  //   fetch(`/api/projects/${projectId}/traces/trace/${selectedRunTrace?.runId}`)
+  //     .then((res) => res.json()).then((data) => {
+  //       setFullTrace(data)
+  //     })
   // }, [selectedRunTrace])
 
   // useEffect(() => {
@@ -82,7 +81,7 @@ export default function PipelineHistory({ pipelineVersion, onTraceHover }: Pipel
   if (!pipelineVersion.id) {
     return (
       <Skeleton className="w-full h-full" />
-    )
+    );
   }
 
   return (
@@ -120,5 +119,5 @@ export default function PipelineHistory({ pipelineVersion, onTraceHover }: Pipel
         )} */}
       </ResizablePanelGroup>
     </div>
-  )
+  );
 }

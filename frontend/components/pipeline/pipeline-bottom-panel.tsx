@@ -1,11 +1,11 @@
-import { ImperativePanelHandle } from "react-resizable-panels"
-import { useState } from "react"
-import { Maximize2, Minimize2 } from "lucide-react"
-import PipelineOutputs from "./pipeline-outputs"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import PipelineHistory from "./pipeline-history"
-import { PipelineVersion } from "@/lib/pipeline/types"
-import { Skeleton } from "../ui/skeleton"
+import { ImperativePanelHandle } from 'react-resizable-panels';
+import { useState } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
+import PipelineOutputs from './pipeline-outputs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PipelineHistory from './pipeline-history';
+import { PipelineVersion } from '@/lib/pipeline/types';
+import { Skeleton } from '../ui/skeleton';
 
 interface PipelineBottomPanelProps {
   pipelineVersion: PipelineVersion
@@ -15,14 +15,14 @@ interface PipelineBottomPanelProps {
 
 export default function PipelineBottomPanel({ pipelineVersion, onTraceHover }: PipelineBottomPanelProps) {
 
-  const [selectedTab, setSelectedTab] = useState<"runs" | "history">("runs")
+  const [selectedTab, setSelectedTab] = useState<'runs' | 'history'>('runs');
 
   return (
 
     <Tabs
       defaultValue="runs"
       className="h-full z-50 bg-background flex flex-col"
-      onValueChange={(value) => setSelectedTab(value as "runs" | "history")}
+      onValueChange={(value) => setSelectedTab(value as 'runs' | 'history')}
     >
       <div className="flex flex-none border-b z-50 bg-background pl-4">
         {/* <button
@@ -46,7 +46,7 @@ export default function PipelineBottomPanel({ pipelineVersion, onTraceHover }: P
           value="runs"
           className="h-full m-0 relative w-max-0"
           forceMount
-          hidden={selectedTab !== "runs"}
+          hidden={selectedTab !== 'runs'}
         >
           <div className="absolute inset-0">
             <PipelineOutputs pipelineVersion={pipelineVersion} />
@@ -56,7 +56,7 @@ export default function PipelineBottomPanel({ pipelineVersion, onTraceHover }: P
           value="history"
           className="h-full m-0 relative w-max-0"
           forceMount
-          hidden={selectedTab !== "history"}
+          hidden={selectedTab !== 'history'}
         >
           {pipelineVersion?.id ? (<div className="absolute inset-0">
             <PipelineHistory pipelineVersion={pipelineVersion} onTraceHover={onTraceHover} />
@@ -65,5 +65,5 @@ export default function PipelineBottomPanel({ pipelineVersion, onTraceHover }: P
         </TabsContent>
       </div>
     </Tabs >
-  )
+  );
 }
