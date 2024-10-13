@@ -1,29 +1,29 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 import { NextRequest } from 'next/server';
 
 export async function GET(req: NextRequest, { params }: { params: { projectId: string, datasetId: string } }): Promise<Response> {
   const projectId = params.projectId;
   const datasetId = params.datasetId;
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
   return await fetcher(`/projects/${projectId}/datasets/${datasetId}/datapoints?${req.nextUrl.searchParams.toString()}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${user.apiKey}`
     },
-  })
+  });
 }
 
 export async function POST(req: Request, { params }: { params: { projectId: string, datasetId: string } }): Promise<Response> {
   const projectId = params.projectId;
   const datasetId = params.datasetId;
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
-  const body = await req.json()
+  const body = await req.json();
 
   return await fetcher(`/projects/${projectId}/datasets/${datasetId}/datapoints`, {
     method: 'POST',
@@ -32,16 +32,16 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
       Authorization: `Bearer ${user.apiKey}`
     },
     body: JSON.stringify(body)
-  })
+  });
 }
 
 export async function DELETE(req: Request, { params }: { params: { projectId: string, datasetId: string } }): Promise<Response> {
   const projectId = params.projectId;
   const datasetId = params.datasetId;
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
-  const body = await req.json()
+  const body = await req.json();
 
   return await fetcher(`/projects/${projectId}/datasets/${datasetId}/datapoints`, {
     method: 'DELETE',
@@ -50,5 +50,5 @@ export async function DELETE(req: Request, { params }: { params: { projectId: st
       Authorization: `Bearer ${user.apiKey}`
     },
     body: JSON.stringify(body)
-  })
+  });
 }

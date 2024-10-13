@@ -31,7 +31,7 @@ export default function CreateDatasetDialog({ }: CreateDatasetDialogProps) {
     const dataset = {
       name: newDatasetName,
       projectId: projectId
-    }
+    };
 
     const res = await fetch(`/api/projects/${projectId}/datasets`, {
       method: 'POST',
@@ -84,5 +84,5 @@ export default function CreateDatasetDialog({ }: CreateDatasetDialogProps) {
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

@@ -1,15 +1,15 @@
-import { useProjectContext } from "@/contexts/project-context";
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTrigger, DialogTitle } from "../ui/dialog";
-import { Button } from "../ui/button";
-import DatasetSelect from "../ui/dataset-select";
-import { Span } from "@/lib/traces/types";
-import { Label } from "../ui/label";
-import { Database, Loader } from "lucide-react";
-import { cn, isJsonStringAValidObject } from "@/lib/utils";
-import { useToast } from "@/lib/hooks/use-toast";
-import { Dataset } from "@/lib/dataset/types";
-import Formatter from "../ui/formatter";
+import { useProjectContext } from '@/contexts/project-context';
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTrigger, DialogTitle } from '../ui/dialog';
+import { Button } from '../ui/button';
+import DatasetSelect from '../ui/dataset-select';
+import { Span } from '@/lib/traces/types';
+import { Label } from '../ui/label';
+import { Database, Loader } from 'lucide-react';
+import { cn, isJsonStringAValidObject } from '@/lib/utils';
+import { useToast } from '@/lib/hooks/use-toast';
+import { Dataset } from '@/lib/dataset/types';
+import Formatter from '../ui/formatter';
 
 interface ExportSpansDialogProps {
   span: Span;
@@ -23,7 +23,7 @@ const toJsonObject = (value: string | object, key: string): object => {
     return { [key]: value };
   }
   return value;
-}
+};
 
 export default function ExportSpansDialog({
   span
@@ -99,10 +99,10 @@ export default function ExportSpansDialog({
   return (
     <>
       <Dialog open={isDialogOpen} onOpenChange={open => {
-        setIsDialogOpen(open)
+        setIsDialogOpen(open);
         if (!open) {
-          setSelectedDataset(null)
-          setIsLoading(false)
+          setSelectedDataset(null);
+          setIsLoading(false);
         }
       }}>
         <DialogTrigger asChild>
@@ -138,7 +138,7 @@ export default function ExportSpansDialog({
                   defaultMode={'json'}
                   value={JSON.stringify(toJsonObject(span.input, 'input'), null, 2)}
                   onChange={handleDataChange}
-                  />
+                />
                 {!isDataValid && (
                   <p className="text-sm text-red-500">Invalid JSON object</p>
                 )}
@@ -151,7 +151,7 @@ export default function ExportSpansDialog({
                   defaultMode={'json'}
                   value={JSON.stringify(toJsonObject(span.output, 'output'), null, 2)}
                   onChange={handleTargetChange}
-                  />
+                />
                 {!isTargetValid && (
                   <p className="text-sm text-red-500">Invalid JSON object</p>
                 )}
@@ -164,7 +164,7 @@ export default function ExportSpansDialog({
                   defaultMode={'json'}
                   value={JSON.stringify(toJsonObject(metadata, 'metadata'), null, 2)}
                   onChange={handleMetadataChange}
-                  />
+                />
                 {!isMetadataValid && (
                   <p className="text-sm text-red-500">Invalid JSON object</p>
                 )}
@@ -175,5 +175,5 @@ export default function ExportSpansDialog({
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

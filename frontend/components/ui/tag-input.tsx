@@ -247,7 +247,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       }
       setInputValue('');
       parentOnBlur?.(e);
-    }
+    };
 
     const handleDrop = (id: string) => {
       if (draggedTagId === null) return;
@@ -292,7 +292,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           : inputFieldPostion === 'top'
             ? 'flex-col-reverse'
             : 'flex-row'
-          }`}
+        }`}
       >
         {!usePopoverForTags ? (
           <TagList
@@ -338,7 +338,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   onChangeCapture={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onFocus={onFocus}
-                  onBlur={(e) => { handleOnBlur(e, onBlur) }}
+                  onBlur={(e) => { handleOnBlur(e, onBlur); }}
                   className="w-full"
                 />
               ) : (
@@ -373,7 +373,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                     onChangeCapture={handleInputChange}
                     onKeyDown={handleKeyDown}
                     onFocus={onFocus}
-                    onBlur={(e) => { handleOnBlur(e, onBlur) }}
+                    onBlur={(e) => { handleOnBlur(e, onBlur); }}
                     className="w-full"
                   />
                 </TagPopover>
@@ -396,7 +396,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onFocus={onFocus}
-                onBlur={(e) => { handleOnBlur(e, onBlur) }}
+                onBlur={(e) => { handleOnBlur(e, onBlur); }}
                 {...inputProps}
                 className={className}
                 autoComplete={enableAutocomplete ? 'on' : 'off'}
@@ -436,7 +436,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onFocus={onFocus}
-                  onBlur={(e) => { handleOnBlur(e, onBlur) }}
+                  onBlur={(e) => { handleOnBlur(e, onBlur); }}
                   {...inputProps}
                   className={className}
                   autoComplete={enableAutocomplete ? 'on' : 'off'}

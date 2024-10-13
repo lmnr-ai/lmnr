@@ -1,19 +1,19 @@
-import { useEffect, useRef, useState } from "react"
-import useStore from "@/lib/flow/store"
-import { useProjectContext } from "@/contexts/project-context"
+import { useEffect, useRef, useState } from 'react';
+import useStore from '@/lib/flow/store';
+import { useProjectContext } from '@/contexts/project-context';
 import { useToast } from '../../lib/hooks/use-toast';
 import { useCallback } from 'react';
-import { GRAPH_VALID, validateGraph, validateInputs } from "@/lib/pipeline/utils"
-import { getLocalDevSessions, getLocalEnvVars } from "@/lib/utils"
-import { BreakpointChunk, GraphMessage, InputVariable, NodeStreamChunk, PipelineVersion } from "@/lib/pipeline/types"
-import { Graph } from "@/lib/flow/graph"
-import { NodeInput, NodeType } from "@/lib/flow/types"
-import { createParser, type ParsedEvent, type ReconnectInterval } from 'eventsource-parser'
-import StreamTrace from "./stream-trace"
-import { filterRunRequiredEnvVars } from "@/lib/flow/utils"
-import { RunTrace } from "@/lib/traces/types";
-import { v4 } from "uuid";
-import eventEmitter from "@/lib/pipeline/eventEmitter";
+import { GRAPH_VALID, validateGraph, validateInputs } from '@/lib/pipeline/utils';
+import { getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
+import { BreakpointChunk, GraphMessage, InputVariable, NodeStreamChunk, PipelineVersion } from '@/lib/pipeline/types';
+import { Graph } from '@/lib/flow/graph';
+import { NodeInput, NodeType } from '@/lib/flow/types';
+import { createParser, type ParsedEvent, type ReconnectInterval } from 'eventsource-parser';
+import StreamTrace from './stream-trace';
+import { filterRunRequiredEnvVars } from '@/lib/flow/utils';
+import { RunTrace } from '@/lib/traces/types';
+import { v4 } from 'uuid';
+import eventEmitter from '@/lib/pipeline/eventEmitter';
 
 
 export type StreamMessage = {
@@ -45,129 +45,129 @@ interface PipelineOutputsProps {
 export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProps) {
   const { toast } = useToast();
 
-  let { projectId } = useProjectContext()
+  let { projectId } = useProjectContext();
 
   const runId = useRef(v4());
   const startMessage = useRef<StreamMessage | null>(null);
-  const [streamMessages, setStreamMessages] = useState<StreamMessage[]>([])
-  const [runTrace, setRunTrace] = useState<RunTrace | undefined>(undefined)
+  const [streamMessages, setStreamMessages] = useState<StreamMessage[]>([]);
+  const [runTrace, setRunTrace] = useState<RunTrace | undefined>(undefined);
 
-  const { getRunGraph, getEdges, allInputs, focusedNodeId, setIsMissingEnvVars, breakpointNodeIds } = useStore()
+  const { getRunGraph, getEdges, allInputs, focusedNodeId, setIsMissingEnvVars, breakpointNodeIds } = useStore();
 
-  const [error, setError] = useState<string | undefined>(undefined)
+  const [error, setError] = useState<string | undefined>(undefined);
 
   const showError = useCallback((message: string) => {
-    toast({ title: "Pipeline running error", variant: 'destructive', description: message, duration: 10000 })
-  }, [])
+    toast({ title: 'Pipeline running error', variant: 'destructive', description: message, duration: 10000 });
+  }, []);
 
 
   const onParse = async (event: ParsedEvent | ReconnectInterval) => {
     let type = (event as ParsedEvent).event;
     let content = JSON.parse((event as ParsedEvent).data).content;
     switch (type) {
-      case 'Breakpoint': {
-        const breakpoint = content as BreakpointChunk
+    case 'Breakpoint': {
+      const breakpoint = content as BreakpointChunk;
 
-        setStreamMessages((prev) => {
-          const node = findMostRecentStreamMessage(prev, breakpoint.nodeId);
-          if (node !== null) {
-            return prev.map((n) => {
-              if (n.nodeId === breakpoint.nodeId) {
-                return {
-                  ...n,
-                  reachedBreakpoint: true
-                }
-              }
-              return n;
-            })
-          } else {
-            throw new Error(`Breakpoint received for node ${breakpoint.nodeId} but no NodeChunk found`);
-          }
-        });
-
-        break;
-      }
-      case 'NodeChunk': {
-
-        let chunk = content as NodeStreamChunk;
-        const nodeId = chunk.nodeId
-        const nodeType = chunk.nodeType
-
-        if (nodeType === NodeType.CONDITION) {
-          break;
-        };
-
-        setStreamMessages((prev) => {
-
-          const message = findMostRecentStreamMessage(prev, nodeId);
-          // if node is not found, create a new one
-          // if found node is not completed, append the chunk to the value
-          if (message !== null && !message.message) {
-            return prev.map((n) => {
-              if (n.id === message.id) {
-                return {
-                  ...n,
-                  value: n.value + content.content
-                }
-              }
+      setStreamMessages((prev) => {
+        const node = findMostRecentStreamMessage(prev, breakpoint.nodeId);
+        if (node !== null) {
+          return prev.map((n) => {
+            if (n.nodeId === breakpoint.nodeId) {
               return {
-                ...n
-              }
-            })
+                ...n,
+                reachedBreakpoint: true
+              };
+            }
+            return n;
+          });
+        } else {
+          throw new Error(`Breakpoint received for node ${breakpoint.nodeId} but no NodeChunk found`);
+        }
+      });
 
-          } else {
-            return [...prev, {
-              id: v4(),
-              nodeId: nodeId,
-              nodeName: content.nodeName,
-              value: content.content,
-              nodeType: content.nodeType
-            }]
-          }
-        });
-        break;
-      }
-      case 'NodeEnd': {
-        if (content.message.nodeType === NodeType.CONDITION) {
-          break;
-        };
+      break;
+    }
+    case 'NodeChunk': {
 
-        const nodeId = content.message.nodeId;
+      let chunk = content as NodeStreamChunk;
+      const nodeId = chunk.nodeId;
+      const nodeType = chunk.nodeType;
 
-        setStreamMessages((prev) => {
-          const message = findMostRecentStreamMessage(prev, nodeId);
-          if (message !== null) {
-            return prev.map((n) => {
-              if (n.id === message.id) {
-                return {
-                  ...n,
-                  message: content.message
-                }
-              }
-              return n;
-            })
-          } else {
-            throw new Error(`NodeEnd received for node ${nodeId} but no NodeChunk found`);
-          }
-        });
+      if (nodeType === NodeType.CONDITION) {
         break;
-      }
-      case 'RunTrace':
-        setRunTrace(content);
+      };
+
+      setStreamMessages((prev) => {
+
+        const message = findMostRecentStreamMessage(prev, nodeId);
+        // if node is not found, create a new one
+        // if found node is not completed, append the chunk to the value
+        if (message !== null && !message.message) {
+          return prev.map((n) => {
+            if (n.id === message.id) {
+              return {
+                ...n,
+                value: n.value + content.content
+              };
+            }
+            return {
+              ...n
+            };
+          });
+
+        } else {
+          return [...prev, {
+            id: v4(),
+            nodeId: nodeId,
+            nodeName: content.nodeName,
+            value: content.content,
+            nodeType: content.nodeType
+          }];
+        }
+      });
+      break;
+    }
+    case 'NodeEnd': {
+      if (content.message.nodeType === NodeType.CONDITION) {
         break;
-      case 'Error':
-        setError(content);
-        break;
+      };
+
+      const nodeId = content.message.nodeId;
+
+      setStreamMessages((prev) => {
+        const message = findMostRecentStreamMessage(prev, nodeId);
+        if (message !== null) {
+          return prev.map((n) => {
+            if (n.id === message.id) {
+              return {
+                ...n,
+                message: content.message
+              };
+            }
+            return n;
+          });
+        } else {
+          throw new Error(`NodeEnd received for node ${nodeId} but no NodeChunk found`);
+        }
+      });
+      break;
+    }
+    case 'RunTrace':
+      setRunTrace(content);
+      break;
+    case 'Error':
+      setError(content);
+      break;
     };
-  }
+  };
 
   useEffect(() => {
     eventEmitter.on('graph', handleGraphEvent);
 
     return () => {
       eventEmitter.off('graph', handleGraphEvent);
-    }
-  }, [pipelineVersion, allInputs, breakpointNodeIds])
+    };
+  }, [pipelineVersion, allInputs, breakpointNodeIds]);
 
 
   const handleGraphEvent = (content: string) => {
@@ -178,7 +178,7 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
     } else if (content === 'continue') {
       interruptRun('Continue');
     }
-  }
+  };
 
   const interruptRun = async (message: string) => {
 
@@ -198,7 +198,7 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
       return;
     }
 
-  }
+  };
 
   const runGraph = async () => {
 
@@ -234,32 +234,30 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
           // hack to make it triggerable next time the button is clicked
           setIsMissingEnvVars(false);
         }, 1000);
-        return
+        return;
       }
     };
 
     const devSessionIds = getLocalDevSessions(projectId);
 
     // copying all messages to send prefilled in case start task is set
-    const allMessages = streamMessages.map((m) => {
-      return {
-        ...m.message
-      }
-    })
+    const allMessages = streamMessages.map((m) => ({
+      ...m.message
+    }));
 
     if (startMessage.current !== null) {
-      let prefilledMessages = []
+      let prefilledMessages = [];
 
       for (const m of streamMessages) {
 
         const message = {
           ...m
-        }
+        };
 
         prefilledMessages.push(message);
 
         if (message.message && message.id === startMessage.current.id) {
-          message.value = ""
+          message.value = '';
           message.message = undefined;
           break;
         }
@@ -322,15 +320,11 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
     startMessage.current = null;
 
     // reset breakpoint info
-    setStreamMessages((prev) => {
-      return prev.map((n) => {
-        return {
-          ...n,
-          reachedBreakpoint: false
-        }
-      })
-    });
-  }
+    setStreamMessages((prev) => prev.map((n) => ({
+      ...n,
+      reachedBreakpoint: false
+    })));
+  };
 
   return (
     <>
@@ -356,6 +350,6 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
         </div>
       </div>
     </>
-  )
+  );
 
 }

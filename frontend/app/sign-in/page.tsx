@@ -1,7 +1,7 @@
-import { getServerSession } from 'next-auth'
-import logo from '@/assets/logo/laminar_light.svg'
-import Image from 'next/image'
-import { redirect } from 'next/navigation'
+import { getServerSession } from 'next-auth';
+import logo from '@/assets/logo/laminar_light.svg';
+import Image from 'next/image';
+import { redirect } from 'next/navigation';
 import { DefaultSignInButton } from '@/components/sign-in/dummy-signin';
 
 export default async function SignInPage({
@@ -11,14 +11,14 @@ export default async function SignInPage({
   params: {};
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
-  const session = await getServerSession()
+  const session = await getServerSession();
   let callbackUrl = searchParams?.callbackUrl ?? '/on-sign-up';
   if (Array.isArray(callbackUrl)) {
-    callbackUrl = callbackUrl[0]
+    callbackUrl = callbackUrl[0];
   }
 
   if (session?.user) {
-    redirect(callbackUrl)
+    redirect(callbackUrl);
   }
   return (
     <div className="flex h-full items-center justify-center">
@@ -28,5 +28,5 @@ export default async function SignInPage({
         <DefaultSignInButton callbackUrl={callbackUrl} />
       </div>
     </div>
-  )
+  );
 }

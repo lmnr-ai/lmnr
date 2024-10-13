@@ -1,6 +1,6 @@
 'use client';
 
-import { signIn } from 'next-auth/react'
+import { signIn } from 'next-auth/react';
 
 interface DefaultSigninProps {
   showIcon?: boolean
@@ -15,11 +15,11 @@ export function DefaultSignInButton({
   className,
   ...props
 }: DefaultSigninProps) {
-  signIn('email', { callbackUrl: callbackUrl, email: 'username@example.com', name: 'username' })
+  signIn('email', { callbackUrl: callbackUrl, email: 'username@example.com', name: 'username' });
 
   return (
     <div className='w-full h-full flex items-center'>
       Signing in...
     </div>
-  )
+  );
 }

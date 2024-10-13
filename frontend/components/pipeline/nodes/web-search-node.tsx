@@ -1,6 +1,6 @@
-import { memo } from 'react'
-import GenericNodeComponent from './generic-node'
-import { WebSearchNode } from '@/lib/flow/types'
+import { memo } from 'react';
+import GenericNodeComponent from './generic-node';
+import { WebSearchNode } from '@/lib/flow/types';
 import { Label } from '@/components/ui/label';
 import DefaultTextarea from '@/components/ui/default-textarea';
 import useStore from '@/lib/flow/store';
@@ -24,7 +24,7 @@ const WebSearchNodeComponent = ({
         defaultValue={data.limit}
         onChange={(e) => {
 
-          const l = Number.isNaN(Number(e.currentTarget.value)) ? 0 : Number(e.currentTarget.value)
+          const l = Number.isNaN(Number(e.currentTarget.value)) ? 0 : Number(e.currentTarget.value);
 
           updateNodeData(data.id, {
             limit: l
@@ -48,7 +48,7 @@ const WebSearchNodeComponent = ({
           onCheckedChange={(semanticTextSearchEnabled) => {
             updateNodeData(data.id, {
               semanticTextSearchEnabled,
-            } as WebSearchNode)
+            } as WebSearchNode);
           }}
         />
       </div>

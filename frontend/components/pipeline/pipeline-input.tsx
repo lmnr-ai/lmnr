@@ -29,9 +29,9 @@ export default function PipelineInput({ onInputsChange, inputs }: PipelineTraceP
                   value={input.value as string}
                   className="w-full"
                   onChange={(e) => {
-                    const newInputs = [...inputs]
-                    newInputs[i].value = e.currentTarget.value
-                    onInputsChange(newInputs)
+                    const newInputs = [...inputs];
+                    newInputs[i].value = e.currentTarget.value;
+                    onInputsChange(newInputs);
                   }}
                 />
               )}
@@ -40,9 +40,9 @@ export default function PipelineInput({ onInputsChange, inputs }: PipelineTraceP
                   <EditableStringList
                     messages={input.value as string[]}
                     setMessages={(messages) => {
-                      const newInputs = [...inputs]
-                      newInputs[i].value = messages
-                      onInputsChange(newInputs)
+                      const newInputs = [...inputs];
+                      newInputs[i].value = messages;
+                      onInputsChange(newInputs);
                     }}
                   />
                 </div>
@@ -52,9 +52,9 @@ export default function PipelineInput({ onInputsChange, inputs }: PipelineTraceP
                   <EditableChat
                     messages={input.value as ChatMessage[]}
                     setMessages={(messages) => {
-                      const newInputs = [...inputs]
-                      newInputs[i].value = messages
-                      onInputsChange(newInputs)
+                      const newInputs = [...inputs];
+                      newInputs[i].value = messages;
+                      onInputsChange(newInputs);
                     }}
                   />
                 </div>
@@ -67,9 +67,9 @@ export default function PipelineInput({ onInputsChange, inputs }: PipelineTraceP
                     value={input.value as string}
                     className="w-full"
                     onChange={(e) => {
-                      const newInputs = [...inputs]
-                      newInputs[i].value = e.currentTarget.value
-                      onInputsChange(newInputs)
+                      const newInputs = [...inputs];
+                      newInputs[i].value = e.currentTarget.value;
+                      onInputsChange(newInputs);
                     }}
                   />
                 )

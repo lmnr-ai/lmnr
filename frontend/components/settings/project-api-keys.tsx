@@ -1,5 +1,5 @@
-import { ProjectApiKey } from "@/lib/api-keys/types"
-import { Button } from "../ui/button"
+import { ProjectApiKey } from '@/lib/api-keys/types';
+import { Button } from '../ui/button';
 import {
   Dialog,
   DialogContent,
@@ -8,14 +8,14 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Copy, Plus } from "lucide-react";
-import { Label } from "../ui/label";
-import { Input } from "../ui/input";
-import { useCallback, useState } from "react";
-import { useProjectContext } from "@/contexts/project-context";
-import { useToast } from "@/lib/hooks/use-toast";
-import DeleteProject from "./delete-project";
-import RevokeDialog from "./revoke-dialog";
+import { Copy, Plus } from 'lucide-react';
+import { Label } from '../ui/label';
+import { Input } from '../ui/input';
+import { useCallback, useState } from 'react';
+import { useProjectContext } from '@/contexts/project-context';
+import { useToast } from '@/lib/hooks/use-toast';
+import DeleteProject from './delete-project';
+import RevokeDialog from './revoke-dialog';
 
 interface ApiKeysProps {
   apiKeys: ProjectApiKey[]
@@ -24,9 +24,9 @@ interface ApiKeysProps {
 export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
 
   const [isGenerateKeyDialogOpen, setIsGenerateKeyDialogOpen] = useState(false);
-  const [projectApiKeys, setProjectApiKeys] = useState<ProjectApiKey[]>(apiKeys)
-  const [newApiKeyName, setNewApiKeyName] = useState<string>('')
-  const { projectId } = useProjectContext()
+  const [projectApiKeys, setProjectApiKeys] = useState<ProjectApiKey[]>(apiKeys);
+  const [newApiKeyName, setNewApiKeyName] = useState<string>('');
+  const { projectId } = useProjectContext();
   const { toast } = useToast();
 
   const generateNewAPIKey = useCallback(async (newName: string) => {
@@ -34,28 +34,28 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       method: 'POST',
       body: JSON.stringify({ name: newName })
     });
-    await res.json()
+    await res.json();
 
-    getProjectApiKeys()
-  }, [])
+    getProjectApiKeys();
+  }, []);
 
   const deleteApiKey = useCallback(async (apiKeyVal: string) => {
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {
       method: 'DELETE',
       body: JSON.stringify({ apiKey: apiKeyVal })
     });
-    await res.text()
+    await res.text();
 
-    getProjectApiKeys()
-  }, [])
+    getProjectApiKeys();
+  }, []);
 
   const getProjectApiKeys = async () => {
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {
       method: 'GET'
     });
-    const data = await res.json()
-    setProjectApiKeys(data)
-  }
+    const data = await res.json();
+    setProjectApiKeys(data);
+  };
 
   return (
     <>
@@ -91,7 +91,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
               <Button
                 onClick={() => {
                   setIsGenerateKeyDialogOpen(false);
-                  generateNewAPIKey(newApiKeyName)
+                  generateNewAPIKey(newApiKeyName);
                 }}
                 handleEnter>
                 Create
@@ -114,10 +114,10 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
                         className="mr-4 text-gray-400"
                         onClick={() => {
                           // copy api key to clipboard
-                          navigator.clipboard.writeText(apiKey.value)
+                          navigator.clipboard.writeText(apiKey.value);
                           toast({
                             title: 'API key copied to clipboard'
-                          })
+                          });
                         }}
                       >
                         <Copy className="h-4" />
@@ -132,5 +132,5 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
         </table>
       </div>
     </>
-  )
+  );
 }

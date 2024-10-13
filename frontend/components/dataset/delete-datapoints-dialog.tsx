@@ -1,8 +1,8 @@
-import { Dialog, DialogHeader, DialogContent, DialogTrigger, DialogTitle, DialogFooter } from "../ui/dialog";
-import { Button } from "../ui/button";
-import { Label } from "../ui/label";
-import { useState } from "react";
-import { Loader } from "lucide-react";
+import { Dialog, DialogHeader, DialogContent, DialogTrigger, DialogTitle, DialogFooter } from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Label } from '../ui/label';
+import { useState } from 'react';
+import { Loader } from 'lucide-react';
 
 export interface DeleteDatapointsDialogProps {
   selectedDatapointIds: string[];
@@ -57,5 +57,5 @@ export default function DeleteDatapointsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

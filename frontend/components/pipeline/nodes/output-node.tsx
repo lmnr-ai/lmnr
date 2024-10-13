@@ -1,6 +1,6 @@
-import { memo } from 'react'
-import GenericNodeComponent from './generic-node'
-import { type OutputNode } from '@/lib/flow/types'
+import { memo } from 'react';
+import GenericNodeComponent from './generic-node';
+import { type OutputNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,7 +19,7 @@ const OutputNodeComponent = ({ id, data }: { id: string, data: OutputNode }) => 
       <Select
         value={data.outputCastType ?? undefined}
         onValueChange={(value: string) => {
-          if (value === "null") {
+          if (value === 'null') {
             updateNodeData(id, {
               outputCastType: null
             } as OutputNode);
@@ -36,7 +36,7 @@ const OutputNodeComponent = ({ id, data }: { id: string, data: OutputNode }) => 
           <SelectValue placeholder="-" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem key={-1} value={"null"}>
+          <SelectItem key={-1} value={'null'}>
             -
           </SelectItem>
           {
@@ -49,7 +49,7 @@ const OutputNodeComponent = ({ id, data }: { id: string, data: OutputNode }) => 
         </SelectContent>
       </Select>
     </GenericNodeComponent>
-  )
-}
+  );
+};
 
-export default memo(OutputNodeComponent)
+export default memo(OutputNodeComponent);

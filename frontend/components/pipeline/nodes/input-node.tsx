@@ -1,6 +1,6 @@
 
-import GenericNodeComponent from './generic-node'
-import { NodeHandleType, type InputNode } from '@/lib/flow/types'
+import GenericNodeComponent from './generic-node';
+import { NodeHandleType, type InputNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -19,7 +19,7 @@ const InputNodeComponent = ({ id, data }: { id: string, data: InputNode }) => {
           const newOutputs = [{
             ...data.outputs[0],
             type: value
-          }]
+          }];
           updateNodeData(id, {
 
             outputs: newOutputs,
@@ -41,7 +41,7 @@ const InputNodeComponent = ({ id, data }: { id: string, data: InputNode }) => {
         </SelectContent>
       </Select>
     </GenericNodeComponent>
-  )
-}
+  );
+};
 
-export default memo(InputNodeComponent)
+export default memo(InputNodeComponent);

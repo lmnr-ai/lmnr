@@ -14,8 +14,8 @@ export default async function ProjectIdLayout({
   children: React.ReactNode;
   params: { projectId: string };
 }) {
-  const projectId = params.projectId
-  const session = await getServerSession(authOptions)
+  const projectId = params.projectId;
+  const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
   }
@@ -27,7 +27,7 @@ export default async function ProjectIdLayout({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${user.apiKey}`
     },
-  })
+  });
 
   return (
     <UserContextProvider email={user.email!} username={user.name!} imageUrl={user.image!} supabaseAccessToken={session.supabaseAccessToken}>

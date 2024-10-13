@@ -1,7 +1,7 @@
 'use client';
 
-import { WorkspaceWithUsers } from "@/lib/workspaces/types"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { WorkspaceWithUsers } from '@/lib/workspaces/types';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 interface WorkspaceProps {
   workspace: WorkspaceWithUsers;
@@ -16,5 +16,5 @@ export default function WorkspaceComponent({
     <div className="flex flex-col">
       {workspace.name}
     </div>
-  )
+  );
 }

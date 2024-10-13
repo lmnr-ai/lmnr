@@ -1,28 +1,28 @@
 'use client';
 
-import { ColumnDef } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
-import { DataTable } from "../ui/datatable";
-import { useProjectContext } from "@/contexts/project-context";
-import Header from "../ui/header";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { formatTimestampFromSeconds } from "@/lib/utils";
-import { Event, EventTemplate } from "@/lib/events/types";
-import { Label } from "../ui/label";
+import { ColumnDef } from '@tanstack/react-table';
+import { useEffect, useState } from 'react';
+import { DataTable } from '../ui/datatable';
+import { useProjectContext } from '@/contexts/project-context';
+import Header from '../ui/header';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { formatTimestampFromSeconds } from '@/lib/utils';
+import { Event, EventTemplate } from '@/lib/events/types';
+import { Label } from '../ui/label';
 
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
-import DateRangeFilter from "../ui/date-range-filter";
-import DataTableFilter from "../ui/datatable-filter";
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import { Resizable } from "re-resizable";
-import EventView from "./event-view";
-import { PaginatedResponse } from "@/lib/types";
+} from '@/components/ui/chart';
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import DateRangeFilter from '../ui/date-range-filter';
+import DataTableFilter from '../ui/datatable-filter';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { Resizable } from 're-resizable';
+import EventView from './event-view';
+import { PaginatedResponse } from '@/lib/types';
 
 // TODO: add refresh button on realtime updates. See components/traces/traces-table-traces-view.tsx for an example.
 
@@ -49,18 +49,18 @@ const getEvents = async (
   if (typeof filter === 'string') {
     url += `&filter=${encodeURI(filter)}`;
   } else if (Array.isArray(filter)) {
-    const filters = encodeURI(`[${filter.toString()}]`)
+    const filters = encodeURI(`[${filter.toString()}]`);
     url += `&filter=${filters}`;
   }
   const res = await fetch(url, {
-    method: "GET",
+    method: 'GET',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
-    cache: "no-cache",
+    cache: 'no-cache',
   });
   return await res.json() as PaginatedResponse<Event>;
-}
+};
 
 
 interface EventProps {
@@ -84,7 +84,7 @@ export default function EventComponent({
     }
     const parsed = param ? parseInt(param as string) : defaultValue;
     return isNaN(parsed) ? defaultValue : parsed;
-  }
+  };
 
   const pageNumber = parseNumericSearchParam('pageNumber', 0);
   const pageSize = Math.max(parseNumericSearchParam('pageSize', 50), 1);
@@ -131,25 +131,25 @@ export default function EventComponent({
       startDate,
       endDate
     ).then((result) => {
-      console.log(result)
+      console.log(result);
       setEvents(result.items);
       setTotalCount(result.totalCount);
       setAnyInProject(result.anyInProject);
     }).catch((err) => {
-      console.error(err)
+      console.error(err);
     });
   }, [projectId, pageNumber, pageSize, filter, pastHours, startDate, endDate, eventTemplate.id]);
 
   const columns: ColumnDef<Event>[] = [
     {
-      accessorKey: "id",
-      header: "ID",
-      id: "id",
+      accessorKey: 'id',
+      header: 'ID',
+      id: 'id',
     },
     {
-      header: "Occurrence",
-      accessorKey: "createdAt",
-      id: "created_at",
+      header: 'Occurrence',
+      accessorKey: 'createdAt',
+      id: 'created_at',
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     },
     {
@@ -158,9 +158,9 @@ export default function EventComponent({
       id: 'span_id',
     },
     {
-      accessorKey: "value",
-      header: "Value",
-      id: "value",
+      accessorKey: 'value',
+      header: 'Value',
+      id: 'value',
     },
   ];
 
@@ -233,7 +233,7 @@ export default function EventComponent({
                   onClose={() => {
                     //   searchParams.delete('selectedid');
                     //   router.push(`${pathName}?${searchParams.toString()}`);
-                    setIsSidePanelOpen(false)
+                    setIsSidePanelOpen(false);
                     //   setExpandedid(null);
                   }}
                   event={selectedEvent!}
@@ -260,9 +260,9 @@ function CustomChart({ data, title, xAxisKey, yAxisKey, className }: CustomChart
 
   const chartConfig = {
     [xAxisKey]: {
-      color: "hsl(var(--chart-2))",
+      color: 'hsl(var(--chart-2))',
     },
-  } satisfies ChartConfig
+  } satisfies ChartConfig;
 
   return (
     <div className="">
@@ -308,5 +308,5 @@ function CustomChart({ data, title, xAxisKey, yAxisKey, className }: CustomChart
         </ChartContainer>
       </div>
     </div>
-  )
+  );
 }

@@ -23,7 +23,7 @@ interface SpanViewProps {
 export function SpanView({ spanId }: SpanViewProps) {
 
   const { projectId } = useProjectContext();
-  const { data: span }: { data: Span } = useSWR(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher)
+  const { data: span }: { data: Span } = useSWR(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
 
   if (!span) {
     return (
@@ -32,7 +32,7 @@ export function SpanView({ spanId }: SpanViewProps) {
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
       </div>
-    )
+    );
   }
 
   return (
@@ -158,5 +158,5 @@ export function SpanView({ spanId }: SpanViewProps) {
         </div>
       </Tabs>
     </>
-  )
+  );
 }

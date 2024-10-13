@@ -53,7 +53,7 @@ export default function EditEventTemplateDialog({
     setIsDialogOpen(false);
     setEventType(data.eventType);
     router.refresh();
-  }
+  };
 
   const isReady = () => eventType && name.length > 0;
 

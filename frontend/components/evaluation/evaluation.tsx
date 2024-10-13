@@ -1,24 +1,24 @@
 'use client';
 
-import { Evaluation as EvaluationType, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo } from "@/lib/evaluation/types";
-import { ColumnDef } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
-import { DataTable } from "../ui/datatable";
-import { useProjectContext } from "@/contexts/project-context";
-import Header from "../ui/header";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { mergeOriginalWithComparedDatapoints } from "@/lib/evaluation/utils";
-import { ArrowRight } from "lucide-react";
-import { Button } from "../ui/button";
-import { Resizable } from "re-resizable";
-import TraceView from "../traces/trace-view";
-import Chart from "./chart";
-import ScoreCard from "./score-card";
+import { Evaluation as EvaluationType, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo } from '@/lib/evaluation/types';
+import { ColumnDef } from '@tanstack/react-table';
+import { useEffect, useState } from 'react';
+import { DataTable } from '../ui/datatable';
+import { useProjectContext } from '@/contexts/project-context';
+import Header from '../ui/header';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { mergeOriginalWithComparedDatapoints } from '@/lib/evaluation/utils';
+import { ArrowRight } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Resizable } from 're-resizable';
+import TraceView from '../traces/trace-view';
+import Chart from './chart';
+import ScoreCard from './score-card';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId',
-}
+};
 
 interface EvaluationProps {
   evaluationInfo: EvaluationResultsInfo;
@@ -41,7 +41,7 @@ export default function Evaluation({
   useEffect(() => {
     const comparedEvaluationId = searchParams.get(URL_QUERY_PARAMS.COMPARE_EVAL_ID);
     handleComparedEvaluationChange(comparedEvaluationId ?? null);
-  }, [])
+  }, []);
 
   let defaultResults = evaluationInfo.results as EvaluationDatapointPreviewWithCompared[];
   const [results, setResults] = useState(defaultResults);
@@ -55,7 +55,7 @@ export default function Evaluation({
 
   // This is ok to search for selected datapoint among defaultResults before we have pagination
   const [selectedDatapoint, setSelectedDatapoint] = useState<EvaluationDatapointPreviewWithCompared | null>(defaultResults.find((result) => result.id === searchParams.get('datapointId')) ?? null);
-  
+
   // Selected score name must usually not be undefined, as we expect to have at least one score, it's done just to not throw error if there are no scores
   const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined);
 
@@ -63,22 +63,22 @@ export default function Evaluation({
   let defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
     {
       accessorFn: (row) => JSON.stringify(row.data),
-      header: "Data",
+      header: 'Data',
     },
     {
-      accessorFn: (row) => row.target ? JSON.stringify(row.target) : "-",
-      header: "Target",
+      accessorFn: (row) => row.target ? JSON.stringify(row.target) : '-',
+      header: 'Target',
     },
     {
-      accessorFn: (row) => row.executorOutput ? JSON.stringify(row.executorOutput) : "-",
-      header: "Output",
+      accessorFn: (row) => row.executorOutput ? JSON.stringify(row.executorOutput) : '-',
+      header: 'Output',
     },
   ];
   defaultColumns = defaultColumns.concat(Array.from(scoreColumns).map((scoreColumn) => ({
-      header: scoreColumn,
-      accessorFn: (row) => row.scores?.[scoreColumn] ?? "-",
-      size: 150,
-    })));
+    header: scoreColumn,
+    accessorFn: (row) => row.scores?.[scoreColumn] ?? '-',
+    size: 150,
+  })));
 
   const [columns, setColumns] = useState(defaultColumns);
 
@@ -87,7 +87,7 @@ export default function Evaluation({
     searchParams.set('datapointId', row.id);
 
     router.push(`${pathName}?${searchParams.toString()}`);
-  }
+  };
 
   const handleComparedEvaluationChange = (comparedEvaluationId: string | null) => {
     if (comparedEvaluationId === undefined) {
@@ -113,28 +113,26 @@ export default function Evaluation({
         let columnsWithCompared: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
           {
             accessorFn: (row) => JSON.stringify(row.data),
-            header: "Data",
+            header: 'Data',
           },
           {
-            accessorFn: (row) => row.target ? JSON.stringify(row.target) : "-",
-            header: "Target",
+            accessorFn: (row) => row.target ? JSON.stringify(row.target) : '-',
+            header: 'Target',
           },
         ];
         columnsWithCompared = columnsWithCompared.concat(Array.from(scoreColumns).map((scoreColumn) => ({
           header: scoreColumn,
-          cell: (row) => {
-            return <div className="flex flex-row items-center space-x-2">
-              <div className="text-green-300">{row.row.original.comparedScores?.[scoreColumn] ?? "-"}</div>
-              <ArrowRight className="font-bold" size={12} />
-              <div className={comparedEvaluation && "text-blue-300"}>{row.row.original.scores?.[scoreColumn] ?? "-"}</div>
-            </div>
-          },
+          cell: (row) => <div className="flex flex-row items-center space-x-2">
+            <div className="text-green-300">{row.row.original.comparedScores?.[scoreColumn] ?? '-'}</div>
+            <ArrowRight className="font-bold" size={12} />
+            <div className={comparedEvaluation && 'text-blue-300'}>{row.row.original.scores?.[scoreColumn] ?? '-'}</div>
+          </div>,
         })));
         setColumns(columnsWithCompared);
-      })
+      });
     searchParams.set(URL_QUERY_PARAMS.COMPARE_EVAL_ID, comparedEvaluationId);
     router.push(`${pathName}?${searchParams.toString()}`);
-  }
+  };
 
   // It will reload the page
   const handleEvaluationChange = (evaluationId: string) => {
@@ -143,7 +141,7 @@ export default function Evaluation({
     const pathParts = currentPathName.split('/');
     pathParts[pathParts.length - 1] = evaluationId;
     router.push(`${pathParts.join('/')}?${searchParams.toString()}`);
-  }
+  };
 
   return (
     <div className="h-full flex flex-col relative">
@@ -191,7 +189,7 @@ export default function Evaluation({
             <Button
               className="h-6"
               variant={'secondary'}
-              onClick={() => {handleComparedEvaluationChange(null)}}
+              onClick={() => {handleComparedEvaluationChange(null);}}
             >
               Reset
             </Button>

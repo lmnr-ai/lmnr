@@ -42,7 +42,7 @@ const UnifyNodeComponent = ({
           updateNodeData(id, {
             dynamicInputs: inputs,
             prompt: value
-          } as UnifyNode)
+          } as UnifyNode);
 
           edgeIdsToRemove.forEach((id) => {
             dropEdgeForHandle(id);
@@ -53,7 +53,7 @@ const UnifyNodeComponent = ({
         placeholder='prompt'
       />
       <UnifyModelSelect savedUploadedBy={data.uploadedBy} savedModelName={data.modelName} savedProviderName={data.providerName} savedMetrics={data.metrics} onModelChange={updates => {
-        updateNodeData(id, updates)
+        updateNodeData(id, updates);
       }} />
       <div className='flex items-center w-full justify-between'>
         <Label className='mr-2'>Model params</Label>
@@ -62,7 +62,7 @@ const UnifyNodeComponent = ({
           onCheckedChange={(checked) => {
             updateNodeData(id, {
               modelParams: checked ? { 'temperature': 0 } : null
-            } as UnifyNode)
+            } as UnifyNode);
           }}
         />
       </div>
@@ -71,10 +71,10 @@ const UnifyNodeComponent = ({
           value={JSON.stringify(data.modelParams, null, 4) ?? ''}
           onChange={(value) => {
             try {
-              const parsed = JSON.parse(value)
+              const parsed = JSON.parse(value);
               updateNodeData(id, {
                 modelParams: parsed
-              } as UnifyNode)
+              } as UnifyNode);
             } catch (e) {
 
             }
@@ -95,20 +95,20 @@ const UnifyNodeComponent = ({
                   name: 'chat_messages',
                   type: NodeHandleType.CHAT_MESSAGE_LIST
                 }]
-              } as UnifyNode)
+              } as UnifyNode);
             } else {
               dropEdgeForHandle(data.inputs[0].id);
               updateNodeData(id, {
                 inputs: []
               } as unknown as UnifyNode)
 
-                ;
+              ;
             }
           }}
         />
       </div>
     </div>
-  )
+  );
 };
 
 export default memo(UnifyNodeComponent);

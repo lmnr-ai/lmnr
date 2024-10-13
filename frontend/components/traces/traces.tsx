@@ -78,7 +78,7 @@ export default function Traces() {
                 onClose={() => {
                   searchParams.delete('traceId');
                   router.push(`${pathName}?${searchParams.toString()}`);
-                  setIsSidePanelOpen(false)
+                  setIsSidePanelOpen(false);
                   setTraceId(null);
                 }}
                 traceId={traceId!}
@@ -89,5 +89,5 @@ export default function Traces() {
       )
       }
     </div >
-  )
+  );
 }

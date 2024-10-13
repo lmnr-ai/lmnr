@@ -20,8 +20,8 @@ export default function LanguageModelSelect({ modelId, disabled, onModelChange }
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    setModel(LANGUAGE_MODELS.find(model => model.id === modelId))
-  }, [modelId])
+    setModel(LANGUAGE_MODELS.find(model => model.id === modelId));
+  }, [modelId]);
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
@@ -40,14 +40,14 @@ export default function LanguageModelSelect({ modelId, disabled, onModelChange }
               {LANGUAGE_MODELS.map((model) => (
                 <CommandItem key={model.id} value={model.id} onSelect={(value) => {
                   setSelectedModelId(value);
-                  const newModel = LANGUAGE_MODELS.find(model => model.id === value)!
-                  onModelChange(newModel)
+                  const newModel = LANGUAGE_MODELS.find(model => model.id === value)!;
+                  onModelChange(newModel);
                   setOpen(false);
                 }}>
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4",
-                      selectedModelId === model.id ? "opacity-100" : "opacity-0"
+                      'mr-2 h-4 w-4',
+                      selectedModelId === model.id ? 'opacity-100' : 'opacity-0'
                     )}
                   />
                   {model.name}
@@ -58,5 +58,5 @@ export default function LanguageModelSelect({ modelId, disabled, onModelChange }
         </Command>
       </PopoverContent>
     </Popover>
-  )
+  );
 }

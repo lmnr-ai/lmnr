@@ -100,44 +100,42 @@ export const Tag: React.FC<TagProps> = ({
   interaction,
   animation,
   textStyle
-}) => {
-  return (
-    <span
-      key={tagObj.id}
-      draggable={draggable}
-      onDragStart={() => handleDragStart(tagObj.id)}
-      onDragOver={handleDragOver}
-      onDrop={() => handleDrop(tagObj.id)}
-      className={cn(
-        tagVariants({
-          variant,
-          size,
-          shape,
-          borderStyle,
-          textCase,
-          interaction,
-          animation,
-          textStyle
-        }),
-        {
-          'justify-between': direction === 'column',
-          'cursor-pointer': draggable
-        }
-      )}
-      onClick={() => onTagClick?.(tagObj)}
+}) => (
+  <span
+    key={tagObj.id}
+    draggable={draggable}
+    onDragStart={() => handleDragStart(tagObj.id)}
+    onDragOver={handleDragOver}
+    onDrop={() => handleDrop(tagObj.id)}
+    className={cn(
+      tagVariants({
+        variant,
+        size,
+        shape,
+        borderStyle,
+        textCase,
+        interaction,
+        animation,
+        textStyle
+      }),
+      {
+        'justify-between': direction === 'column',
+        'cursor-pointer': draggable
+      }
+    )}
+    onClick={() => onTagClick?.(tagObj)}
+  >
+    {tagObj.text}
+    <Button
+      type="button"
+      variant="ghost"
+      onClick={(e) => {
+        e.stopPropagation(); // Prevent event from bubbling up to the tag span
+        onRemoveTag(tagObj.id);
+      }}
+      className={cn('py-1 px-3 h-full hover:bg-transparent')}
     >
-      {tagObj.text}
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={(e) => {
-          e.stopPropagation(); // Prevent event from bubbling up to the tag span
-          onRemoveTag(tagObj.id);
-        }}
-        className={cn('py-1 px-3 h-full hover:bg-transparent')}
-      >
-        <X size={14} />
-      </Button>
-    </span>
-  );
-};
+      <X size={14} />
+    </Button>
+  </span>
+);

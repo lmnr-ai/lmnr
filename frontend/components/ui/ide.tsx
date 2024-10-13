@@ -1,15 +1,15 @@
-import ReactAce, { IAceEditorProps } from "react-ace";
+import ReactAce, { IAceEditorProps } from 'react-ace';
 
-import "ace-builds/src-noconflict/ext-language_tools";
-import "ace-builds/src-noconflict/ext-beautify";
-import "ace-builds/src-noconflict/theme-github";
-import "ace-builds/src-noconflict/theme-one_dark";
-import "ace-builds/src-noconflict/mode-json";
-import "ace-builds/src-noconflict/mode-yaml";
-import "ace-builds/src-noconflict/mode-python";
-import "ace-builds/src-noconflict/mode-handlebars";
-import "ace-builds/src-noconflict/mode-typescript";
-import "ace-builds/src-noconflict/mode-markdown";
+import 'ace-builds/src-noconflict/ext-language_tools';
+import 'ace-builds/src-noconflict/ext-beautify';
+import 'ace-builds/src-noconflict/theme-github';
+import 'ace-builds/src-noconflict/theme-one_dark';
+import 'ace-builds/src-noconflict/mode-json';
+import 'ace-builds/src-noconflict/mode-yaml';
+import 'ace-builds/src-noconflict/mode-python';
+import 'ace-builds/src-noconflict/mode-handlebars';
+import 'ace-builds/src-noconflict/mode-typescript';
+import 'ace-builds/src-noconflict/mode-markdown';
 
 interface IdeProps extends IAceEditorProps {
 }
@@ -38,5 +38,5 @@ export default function Ide({ ...props }: IdeProps) {
         {...props}
       />
     </div>
-  )
+  );
 }

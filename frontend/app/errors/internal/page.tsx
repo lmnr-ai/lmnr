@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from 'next/link';
 import Image from 'next/image';
 import icon from '@/assets/logo/icon_light.svg';
 
@@ -12,5 +12,5 @@ export default function InternalError() {
         <h1 className="mb-4 text-lg">Oops, something went wrong</h1>
       </div>
     </div>
-  )
+  );
 }

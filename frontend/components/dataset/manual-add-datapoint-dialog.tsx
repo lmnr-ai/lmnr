@@ -1,10 +1,10 @@
-import { useProjectContext } from "@/contexts/project-context";
-import { useCallback, useState } from "react";
-import { useToast } from '../../lib/hooks/use-toast'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
-import { Button } from "../ui/button";
+import { useProjectContext } from '@/contexts/project-context';
+import { useCallback, useState } from 'react';
+import { useToast } from '../../lib/hooks/use-toast';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Button } from '../ui/button';
 import { Loader, Plus } from 'lucide-react';
-import Ide from "../ui/ide";
+import Ide from '../ui/ide';
 
 const DEFAULT_DATA = '{\n  "data": {},\n  "target": {}\n}';
 
@@ -15,15 +15,15 @@ interface TypeDatapointDialogProps {
 
 // Dialog to add a single datapoint to a dataset by manually typing
 export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDatapointDialogProps) {
-  const { projectId } = useProjectContext()
+  const { projectId } = useProjectContext();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState(DEFAULT_DATA); // Datapoint's "data" field
 
   const showError = useCallback((message: string) => {
-    toast({ title: "Add datapoint error", variant: 'destructive', description: message, duration: 10000 })
-  }, [])
+    toast({ title: 'Add datapoint error', variant: 'destructive', description: message, duration: 10000 });
+  }, []);
 
   const addDatapoint = async () => {
     setIsLoading(true);
@@ -38,17 +38,17 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
             datapoints: [JSON.parse(data)],
           }),
           cache: 'no-cache',
-        })
+        });
 
       if (res.status != 200) {
         showError('Error adding datapoint');
         setIsLoading(false);
-        return
+        return;
       }
 
       toast({
         title: 'Successfully added datapoint'
-      })
+      });
 
       onUpdate?.();
       setIsLoading(false);
@@ -56,9 +56,9 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
     } catch (e) {
       showError('Please enter a valid JSON');
       setIsLoading(false);
-      return
+      return;
     }
-  }
+  };
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={() => {
@@ -90,5 +90,5 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

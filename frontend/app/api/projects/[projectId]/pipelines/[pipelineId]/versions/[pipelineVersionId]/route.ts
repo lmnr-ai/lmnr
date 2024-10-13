@@ -1,5 +1,5 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 
 export async function POST(req: Request, { params }: { params: { projectId: string, pipelineId: string, pipelineVersionId: string } }): Promise<Response> {
@@ -8,10 +8,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
   const pipelineId = params.pipelineId;
   const pipelineVersionId = params.pipelineVersionId;
 
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
-  const body = await req.json()
+  const body = await req.json();
 
   const res = await fetcher(`/projects/${projectId}/pipelines/${pipelineId}/versions/${pipelineVersionId}`, {
     method: 'POST',
@@ -20,9 +20,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
       Authorization: `Bearer ${user.apiKey}`
     },
     body: JSON.stringify(body)
-  })
+  });
 
-  return res
+  return res;
 }
 
 export async function DELETE(req: Request, { params }: { params: { projectId: string, pipelineId: string, pipelineVersionId: string } }): Promise<Response> {
@@ -31,8 +31,8 @@ export async function DELETE(req: Request, { params }: { params: { projectId: st
   const pipelineId = params.pipelineId;
   const pipelineVersionId = params.pipelineVersionId;
 
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
   const res = await fetcher(`/projects/${projectId}/pipelines/${pipelineId}/versions/${pipelineVersionId}`, {
     method: 'DELETE',
@@ -40,9 +40,9 @@ export async function DELETE(req: Request, { params }: { params: { projectId: st
       'Content-Type': 'application/json',
       Authorization: `Bearer ${user.apiKey}`
     }
-  })
+  });
 
-  return res
+  return res;
 }
 
 export async function GET(req: Request, { params }: { params: { projectId: string, pipelineId: string, pipelineVersionId: string } }): Promise<Response> {
@@ -51,8 +51,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
   const pipelineId = params.pipelineId;
   const pipelineVersionId = params.pipelineVersionId;
 
-  const session = await getServerSession(authOptions)
-  const user = session!.user
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
   const res = await fetcher(`/projects/${projectId}/pipelines/${pipelineId}/versions/${pipelineVersionId}`, {
     method: 'GET',
@@ -60,7 +60,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
       'Content-Type': 'application/json',
       Authorization: `Bearer ${user.apiKey}`
     }
-  })
+  });
 
-  return res
+  return res;
 }

@@ -36,7 +36,7 @@ const StringTemplateNodeComponent = ({
             updateNodeData(id, {
               dynamicInputs: inputs,
               text: value
-            } as StringTemplateNode)
+            } as StringTemplateNode);
 
             edgeIdsToRemove.forEach((id) => {
               dropEdgeForHandle(id);

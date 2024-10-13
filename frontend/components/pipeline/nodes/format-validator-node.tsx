@@ -1,4 +1,4 @@
-import { FormatValidatorNode } from '@/lib/flow/types'
+import { FormatValidatorNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { Label } from '@/components/ui/label';
 import Ide from '@/components/ui/ide';
@@ -23,7 +23,7 @@ const FormatValidatorNodeComponent = ({ data }: { data: FormatValidatorNode }) =
         mode="javascript"
       />
     </div>
-  )
-}
+  );
+};
 
-export default FormatValidatorNodeComponent
+export default FormatValidatorNodeComponent;

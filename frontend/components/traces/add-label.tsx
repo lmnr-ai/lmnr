@@ -1,16 +1,16 @@
-import { LabelClass, SpanLabel, LabelType } from "@/lib/traces/types";
-import { cn, swrFetcher } from "@/lib/utils";
-import { useState } from "react";
-import useSWR from "swr";
-import { Label } from "../ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { ArrowLeft, Loader, PlusCircle, Trash2 } from "lucide-react";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { useProjectContext } from "@/contexts/project-context";
-import { Table, TableBody, TableCell, TableRow } from "../ui/table";
-import DefaultTextarea from "../ui/default-textarea";
+import { LabelClass, SpanLabel, LabelType } from '@/lib/traces/types';
+import { cn, swrFetcher } from '@/lib/utils';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { ArrowLeft, Loader, PlusCircle, Trash2 } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { useProjectContext } from '@/contexts/project-context';
+import { Table, TableBody, TableCell, TableRow } from '../ui/table';
+import DefaultTextarea from '../ui/default-textarea';
 
 interface AddLabelProps {
   spanId: string;
@@ -26,7 +26,7 @@ export function AddLabel({
   const [selectedType, setSelectedType] = useState<LabelType>(LabelType.BOOLEAN);
   const [typeName, setTypeName] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
-  const [valueMap, setValueMap] = useState<string[]>(["", ""]);
+  const [valueMap, setValueMap] = useState<string[]>(['', '']);
   const [description, setDescription] = useState<string | null>(null);
 
   const isLabelValueMapValid = valueMap.length > 0 && valueMap.every(value => value.length > 0);
@@ -47,7 +47,7 @@ export function AddLabel({
 
     setIsSaving(false);
     onClose();
-  }
+  };
 
   return (
     <div className="flex-col items-center space-y-2">
@@ -73,10 +73,10 @@ export function AddLabel({
       <div className="flex-col space-y-1">
         <Label>Type</Label>
         <Select onValueChange={labelType => {
-          setSelectedType(labelType as LabelType)
+          setSelectedType(labelType as LabelType);
 
           if (labelType === LabelType.BOOLEAN) {
-            setValueMap(["false", "true"]);
+            setValueMap(['false', 'true']);
           }
         }}
         >
@@ -118,5 +118,5 @@ export function AddLabel({
         </Button>
       </div>
     </div>
-  )
+  );
 }

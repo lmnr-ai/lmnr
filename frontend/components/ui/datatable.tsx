@@ -85,13 +85,13 @@ export function DataTable<TData>({
   children,
 }: DataTableProps<TData>) {
 
-  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({})
-  const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = React.useState(false)
-  const [expandedRows, setExpandedRows] = React.useState<ExpandedState>({})
+  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+  const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = React.useState(false);
+  const [expandedRows, setExpandedRows] = React.useState<ExpandedState>({});
 
   useEffect(() => {
-    onSelectedRowsChange?.(Object.keys(rowSelection))
-  }, [rowSelection])
+    onSelectedRowsChange?.(Object.keys(rowSelection));
+  }, [rowSelection]);
 
   if (enableRowSelection) {
     columns.unshift({
@@ -102,8 +102,8 @@ export function DataTable<TData>({
           checked={table.getIsAllRowsSelected()}
           onCheckedChange={(checked) => {
             if (!checked) {
-              setAllRowsAcrossAllPagesSelected(false)
-              onSelectAllAcrossPages?.(false)
+              setAllRowsAcrossAllPagesSelected(false);
+              onSelectAllAcrossPages?.(false);
             }
           }}
           onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
@@ -116,12 +116,12 @@ export function DataTable<TData>({
       size: 24,
       cell: ({ row }) => (
         <Checkbox
-          className={cn("border border-secondary mt-1")}
+          className={cn('border border-secondary mt-1')}
           checked={row.getIsSelected()}
           onCheckedChange={(checked) => {
             if (!checked) {
-              setAllRowsAcrossAllPagesSelected(false)
-              onSelectAllAcrossPages?.(false)
+              setAllRowsAcrossAllPagesSelected(false);
+              onSelectAllAcrossPages?.(false);
             }
           }}
           onChange={row.getToggleSelectedHandler()}
@@ -131,7 +131,7 @@ export function DataTable<TData>({
           }}
         />
       ),
-    })
+    });
   }
 
   const table = useReactTable({
@@ -139,9 +139,7 @@ export function DataTable<TData>({
     columns,
     columnResizeMode: 'onChange',
     columnResizeDirection: 'ltr',
-    getSubRows: (row: TData) => {
-      return (row as any).subRows;
-    },
+    getSubRows: (row: TData) => (row as any).subRows,
     enableExpanding: true,
     getExpandedRowModel: getExpandedRowModel(),
     getRowCanExpand: (row) => true,
@@ -176,7 +174,7 @@ export function DataTable<TData>({
     // if (allRowsAcrossAllPagesSelected) {
     //   table.toggleAllRowsSelected(true)
     // }
-  }, [defaultPageNumber])
+  }, [defaultPageNumber]);
 
   const renderRow = (row: Row<TData>) => {
     const isSelected = (row.id === focusedRowId || row.getIsSelected());
@@ -186,7 +184,7 @@ export function DataTable<TData>({
         key={row.id}
         data-state={row.getIsSelected() && 'selected'}
         onClick={() => {
-          onRowClick?.(row)
+          onRowClick?.(row);
         }}
       >
         {
@@ -195,7 +193,7 @@ export function DataTable<TData>({
               className='relative p-0 m-0'
               key={cell.id}
               style={{
-                height: "38px",
+                height: '38px',
                 width: cell.column.getSize(),
               }}
             >
@@ -218,8 +216,8 @@ export function DataTable<TData>({
         <TableCell className='flex-1'>
         </TableCell>
       </TableRow >
-    )
-  }
+    );
+  };
 
   const content = (
     <Table
@@ -292,7 +290,7 @@ export function DataTable<TData>({
         }
       </TableBody>
     </Table>
-  )
+  );
 
   const showSelection = Object.keys(rowSelection).length > 0 || allRowsAcrossAllPagesSelected || enableRowSelection;
 
@@ -307,10 +305,10 @@ export function DataTable<TData>({
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      table.toggleAllRowsSelected(false)
-                      setAllRowsAcrossAllPagesSelected(false)
-                      onSelectAllAcrossPages?.(false)
-                      setRowSelection({})
+                      table.toggleAllRowsSelected(false);
+                      setAllRowsAcrossAllPagesSelected(false);
+                      onSelectAllAcrossPages?.(false);
+                      setRowSelection({});
                     }}>
                     <X size={12} />
                   </Button>
@@ -328,8 +326,8 @@ export function DataTable<TData>({
                     <Label
                       className='text-blue-500 hover:cursor-pointer'
                       onClick={() => {
-                        setAllRowsAcrossAllPagesSelected(true)
-                        onSelectAllAcrossPages?.(true)
+                        setAllRowsAcrossAllPagesSelected(true);
+                        onSelectAllAcrossPages?.(true);
                       }}
                     > Select all {totalItemsCount}
                     </Label>
@@ -357,8 +355,8 @@ export function DataTable<TData>({
             onPageChange={() => {
               // using timeout to ensure that the page index is updated
               setTimeout(() => {
-                onPageChange?.(table.getState().pagination.pageIndex, table.getState().pagination.pageSize)
-              }, 100)
+                onPageChange?.(table.getState().pagination.pageIndex, table.getState().pagination.pageSize);
+              }, 100);
             }}
             totalItemsCount={totalItemsCount}
           />
