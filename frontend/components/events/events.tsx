@@ -1,14 +1,14 @@
-'use client'
+'use client';
 
-import { useProjectContext } from "@/contexts/project-context";
-import { ColumnDef } from "@tanstack/react-table";
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import { useRouter } from "next/navigation";
-import { DataTable } from "../ui/datatable";
-import Mono from "../ui/mono";
-import Header from "../ui/header";
-import { EventTemplate } from "@/lib/events/types";
-import { useUserContext } from "@/contexts/user-context";
+import { useProjectContext } from '@/contexts/project-context';
+import { ColumnDef } from '@tanstack/react-table';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { useRouter } from 'next/navigation';
+import { DataTable } from '../ui/datatable';
+import Mono from '../ui/mono';
+import Header from '../ui/header';
+import { EventTemplate } from '@/lib/events/types';
+import { useUserContext } from '@/contexts/user-context';
 
 export interface EventsProps {
   events: EventTemplate[];
@@ -21,23 +21,23 @@ export default function Events({ events }: EventsProps) {
 
   const columns: ColumnDef<EventTemplate>[] = [
     {
-      accessorKey: "id",
+      accessorKey: 'id',
       cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-      header: "ID",
+      header: 'ID',
       size: 300
     },
     {
-      accessorKey: "name",
-      header: "Name",
+      accessorKey: 'name',
+      header: 'Name',
     },
     {
-      header: "Last occurrence",
-      accessorKey: "latestTimestamp",
+      header: 'Last occurrence',
+      accessorKey: 'latestTimestamp',
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     },
     {
-      header: "Type",
-      accessorKey: "eventType",
+      header: 'Type',
+      accessorKey: 'eventType',
     },
   ];
 
@@ -54,7 +54,7 @@ export default function Events({ events }: EventsProps) {
           columns={columns}
           data={events}
           onRowClick={(row) => {
-            router.push(`/project/${projectId}/events/${row.original.id}`)
+            router.push(`/project/${projectId}/events/${row.original.id}`);
           }}
         />
       </div>

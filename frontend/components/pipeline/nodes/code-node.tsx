@@ -1,15 +1,13 @@
-import { memo } from 'react'
-import GenericNodeComponent from './generic-node'
-import { CodeNode } from '@/lib/flow/types'
+import { memo } from 'react';
+import GenericNodeComponent from './generic-node';
+import { CodeNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { useUpdateNodeInternals } from 'reactflow';
 
 const pythonFunctionPattern = /def\s+(\w+)\s*\(([^)]*)\)/;
 
-const compareArrays = (array1: string[], array2: string[]): boolean => {
-  return array1.length === array2.length && array1.every((value, index) => value === array2[index]);
-
-}
+const compareArrays = (array1: string[], array2: string[]): boolean =>
+  array1.length === array2.length && array1.every((value, index) => value === array2[index]);
 
 const CodeNodeComponent = ({
   id,
@@ -61,7 +59,7 @@ const CodeNodeComponent = ({
               updateNodeInternals(id);
             } else {
               // TODO: Show error message to user
-              
+
             }
           }} />
       </div> */}

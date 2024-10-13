@@ -11,7 +11,7 @@ import Header from '@/components/ui/header';
 
 export const metadata: Metadata = {
   title: 'Projects',
-}
+};
 
 export default async function ProjectsPage() {
 
@@ -29,5 +29,5 @@ export default async function ProjectsPage() {
         <Projects />
       </div>
     </UserContextProvider >
-  )
+  );
 }

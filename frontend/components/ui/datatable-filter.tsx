@@ -1,15 +1,15 @@
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Popover, PopoverTrigger } from "./popover";
-import { Button } from "./button";
-import { PopoverContent } from "@radix-ui/react-popover";
-import { ColumnDef } from "@tanstack/react-table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
-import { Input } from "./input";
-import { useEffect, useState } from "react";
-import { ListFilter, X } from "lucide-react";
-import { DatatableFilter } from "@/lib/types";
-import { Label } from "./label";
-import { cn, getFilterFromUrlParams } from "@/lib/utils";
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Popover, PopoverTrigger } from './popover';
+import { Button } from './button';
+import { PopoverContent } from '@radix-ui/react-popover';
+import { ColumnDef } from '@tanstack/react-table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
+import { Input } from './input';
+import { useEffect, useState } from 'react';
+import { ListFilter, X } from 'lucide-react';
+import { DatatableFilter } from '@/lib/types';
+import { Label } from './label';
+import { cn, getFilterFromUrlParams } from '@/lib/utils';
 
 interface DataTableFilterProps<TData> {
   columns: ColumnDef<TData>[];
@@ -17,9 +17,7 @@ interface DataTableFilterProps<TData> {
   className?: string;
 }
 
-const toFilterUrlParam = (filters: DatatableFilter[]): string => {
-  return JSON.stringify(filters);
-}
+const toFilterUrlParam = (filters: DatatableFilter[]): string => JSON.stringify(filters);
 
 const SELECT_OPERATORS = [
   { key: 'eq', label: '=' },
@@ -28,7 +26,7 @@ const SELECT_OPERATORS = [
   { key: 'lte', label: '<=' },
   { key: 'gte', label: '>=' },
   { key: 'ne', label: '!=' },
-]
+];
 
 export default function DataTableFilter<TData>({ columns, className, customFilterColumns }: DataTableFilterProps<TData>) {
   const router = useRouter();
@@ -44,13 +42,13 @@ export default function DataTableFilter<TData>({ columns, className, customFilte
       return filter.column.split('.')[1].length > 0 && !!filter.operator && !!filter.value;
     }
     return !!filter.column && !!filter.operator && !!filter.value;
-  }
+  };
 
   return (
     <Popover open={popoverOpen} onOpenChange={setPopoverOpen} key={useSearchParams().toString()}>
       <PopoverTrigger asChild className={className}>
         <Button
-          variant={filters.length > 0 ? "secondary" : "outline"}
+          variant={filters.length > 0 ? 'secondary' : 'outline'}
           className='text-secondary-foreground h-8'
         >
           <ListFilter size={16} className="mr-2" />
@@ -83,9 +81,7 @@ export default function DataTableFilter<TData>({ columns, className, customFilte
               variant="secondary"
               className="mx-2"
               onClick={() => {
-                setFilters(filters => {
-                  return [...filters, { column: columns[0].id, operator: 'eq', value: undefined }]
-                });
+                setFilters(filters => [...filters, { column: columns[0].id, operator: 'eq', value: undefined }]);
               }}
             >
               Add Filter
@@ -97,7 +93,7 @@ export default function DataTableFilter<TData>({ columns, className, customFilte
               }
               onClick={() => {
                 searchParams.delete('filter');
-                searchParams.delete('pageNumber')
+                searchParams.delete('pageNumber');
                 searchParams.append('pageNumber', '0');
                 searchParams.append('filter', toFilterUrlParam(filters));
                 setPopoverOpen(false);
@@ -111,7 +107,7 @@ export default function DataTableFilter<TData>({ columns, className, customFilte
         </div>
       </PopoverContent>
     </Popover>
-  )
+  );
 }
 
 interface RowProps<TData> {
@@ -191,7 +187,7 @@ function DataTableFilterRow<TData>({
       </td>
       <td className="px-2">
         <Select
-          defaultValue={filter?.operator ?? "eq"}
+          defaultValue={filter?.operator ?? 'eq'}
           onValueChange={value => {
             const newFilters = [...filters];
             newFilters[i].operator = value;
@@ -242,5 +238,5 @@ function DataTableFilterRow<TData>({
         </Button>
       </td>
     </tr>
-  )
+  );
 }

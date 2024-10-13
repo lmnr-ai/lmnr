@@ -1,4 +1,4 @@
-import { TracePreview } from "../traces/types";
+import { TracePreview } from '../traces/types';
 
 
 export type Evaluation = {

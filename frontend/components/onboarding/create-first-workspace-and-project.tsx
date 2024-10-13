@@ -30,14 +30,14 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
         projectName
       })
     });
-  
+
     const newWorkspace = await res.json() as WorkspaceWithProjects;
 
     setIsLoading(false);
 
     // As we want user to start from traces page, redirect to it
     // Expect the workspace to contain exactly one created project
-    router.push(`/project/${newWorkspace.projects[0].id}/traces`)
+    router.push(`/project/${newWorkspace.projects[0].id}/traces`);
   };
 
   return (

@@ -1,16 +1,16 @@
-import { useProjectContext } from "@/contexts/project-context";
-import { ChevronsRight } from "lucide-react";
-import { Skeleton } from "../ui/skeleton";
-import { Label } from "../ui/label";
-import { ScrollArea } from "../ui/scroll-area";
-import { Button } from "../ui/button";
-import Mono from "../ui/mono";
-import { Datapoint } from "@/lib/dataset/types";
-import Formatter from "../ui/formatter";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { isJsonStringAValidObject } from "@/lib/utils";
-import { useToast } from "@/lib/hooks/use-toast";
+import { useProjectContext } from '@/contexts/project-context';
+import { ChevronsRight } from 'lucide-react';
+import { Skeleton } from '../ui/skeleton';
+import { Label } from '../ui/label';
+import { ScrollArea } from '../ui/scroll-area';
+import { Button } from '../ui/button';
+import Mono from '../ui/mono';
+import { Datapoint } from '@/lib/dataset/types';
+import Formatter from '../ui/formatter';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { isJsonStringAValidObject } from '@/lib/utils';
+import { useToast } from '@/lib/hooks/use-toast';
 
 interface DatasetPanelProps {
   datasetId: string;
@@ -26,7 +26,7 @@ const deepEqual = (x: Object | null, y: Object | null): boolean => {
     ok(x).length === ok(y).length &&
     ok(x).every((key: string) => deepEqual((x as any)[key], (y as any)[key]))
   ) : (x === y);
-}
+};
 
 export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetPanelProps) {
   const { projectId } = useProjectContext();
@@ -44,7 +44,7 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
     setNewData(datapoint.data);
     setNewTarget(datapoint.target);
     setNewMetadata(datapoint.metadata);
-  }, [datapoint])
+  }, [datapoint]);
 
   return (
     <div className='flex flex-col h-full w-full'>
@@ -54,10 +54,10 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
             variant="ghost"
             className='px-1'
             onClick={() => {
-              setNewData(datapoint.data)
-              setNewTarget(datapoint.target)
-              setNewMetadata(datapoint.metadata)
-              onClose()
+              setNewData(datapoint.data);
+              setNewTarget(datapoint.target);
+              setNewMetadata(datapoint.metadata);
+              onClose();
             }}
           >
             <ChevronsRight />
@@ -74,7 +74,11 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
           variant='outline'
           // disable if no changes or invalid json
           disabled={!isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata ||
-            (deepEqual(datapoint.data, newData) && deepEqual(datapoint.target, newTarget)) && deepEqual(datapoint.metadata, newMetadata)}
+            (
+              deepEqual(datapoint.data, newData)
+            && deepEqual(datapoint.target, newTarget)
+            && deepEqual(datapoint.metadata, newMetadata))
+          }
           onClick={async () => {
             const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapoint.id}`, {
               method: 'POST',
@@ -86,18 +90,18 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                 target: newTarget,
                 metadata: newMetadata,
               })
-            })
+            });
             if (!res.ok) {
               toast({
                 title: 'Failed to save changes',
                 variant: 'destructive',
-              })
-              return
+              });
+              return;
             }
-            router.refresh()
+            router.refresh();
             toast({
               title: 'Changes saved',
-            })
+            });
           }}
         > Save changes
         </Button>
@@ -150,9 +154,9 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                       setIsValidJsonTarget(false);
                     }
                   }} />
-                  {!isValidJsonTarget && (
-                    <p className="text-sm text-red-500">Invalid JSON object</p>
-                  )}
+                {!isValidJsonTarget && (
+                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                )}
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Metadata</Label>
@@ -179,9 +183,9 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
                       setIsValidJsonMetadata(false);
                     }
                   }} />
-                  {!isValidJsonMetadata && (
-                    <p className="text-sm text-red-500">Invalid JSON object</p>
-                  )}
+                {!isValidJsonMetadata && (
+                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                )}
               </div>
             </div>
           </div>
@@ -198,5 +202,5 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
         )
       }
     </div>
-  )
+  );
 }

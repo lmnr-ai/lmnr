@@ -1,8 +1,8 @@
-import { Edge, type Node } from 'reactflow'
-import { ChatMessage } from '../types'
-import { GraphMessage } from '../pipeline/types'
-import { Dataset } from '../dataset/types'
-import { EventType } from '../events/types'
+import { Edge, type Node } from 'reactflow';
+import { ChatMessage } from '../types';
+import { GraphMessage } from '../pipeline/types';
+import { Dataset } from '../dataset/types';
+import { EventType } from '../events/types';
 
 export enum NodeType {
   INPUT = 'Input',
@@ -164,7 +164,7 @@ export interface CodeNode extends GenericNode {
   fnName: string,
 }
 
-export type DetectorType = "prompt_injection" | "pii" | "topics/allowed" | "topics/banned" | "keywords" | "secrets";
+export type DetectorType = 'prompt_injection' | 'pii' | 'topics/allowed' | 'topics/banned' | 'keywords' | 'secrets';
 
 export interface Detector {
   type: DetectorType,

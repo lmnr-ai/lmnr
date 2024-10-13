@@ -4,9 +4,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
-import { Button } from '../ui/button'
-import { Code2, Copy } from 'lucide-react'
+} from '@/components/ui/dialog';
+import { Button } from '../ui/button';
+import { Code2, Copy } from 'lucide-react';
 import { InputNode, NodeType, RunnableGraph } from '@/lib/flow/types';
 import { getDefaultGraphInputs } from '@/lib/flow/utils';
 import Code from '../ui/code';
@@ -28,26 +28,20 @@ export default function UseApi({ pipelineName, targetRunnableGraph }: UseApiProp
   const [copied, setCopied] = useState(false);
 
   const envVars = getRequiredEnvVars(nodes);
-  const env = Array.from(envVars).reduce((acc, model) => {
-    return {
-      ...acc,
-      [model]: `$${model}`
-    }
-  }, {});
+  const env = Array.from(envVars).reduce((acc, model) => ({
+    ...acc,
+    [model]: `$${model}`
+  }), {});
 
-  const pythonEnv = Array.from(envVars).reduce((acc, model) => {
-    return {
-      ...acc,
-      [model]: `os.environ[${model}]`
-    }
-  }, {});
+  const pythonEnv = Array.from(envVars).reduce((acc, model) => ({
+    ...acc,
+    [model]: `os.environ[${model}]`
+  }), {});
 
-  const tsEnv = Array.from(envVars).reduce((acc, model) => {
-    return {
-      ...acc,
-      [model]: `process.env.${model}`
-    }
-  }, {});
+  const tsEnv = Array.from(envVars).reduce((acc, model) => ({
+    ...acc,
+    [model]: `process.env.${model}`
+  }), {});
 
   let body = {
     pipeline: pipelineName,
@@ -55,16 +49,16 @@ export default function UseApi({ pipelineName, targetRunnableGraph }: UseApiProp
     env,
     metadata: {},
     stream: false
-  }
+  };
   const indentAll = (str: string, indentBy: number) => str.split('\n').map((line, index) => {
     if (index === 0) return line;
-    return ' '.repeat(indentBy) + `${line}`
-  }).join('\n')
+    return ' '.repeat(indentBy) + `${line}`;
+  }).join('\n');
 
   const curlString = `curl 'https://api.lmnr.ai/v1/pipeline/run' \\
 -H "Content-Type: application/json" \\
 -H "Authorization: Bearer $LAMINAR_API_KEY" \\
--d '${JSON.stringify(body, null, 2)}'`
+-d '${JSON.stringify(body, null, 2)}'`;
 
 
   const pythonString = `from lmnr import Laminar as L
@@ -78,7 +72,7 @@ result = L.run(
     metadata={},
 )
 print(result)
-`
+`;
 
   const tsString = `import { Laminar as L } from '@lmnr-ai/lmnr';
 
@@ -91,7 +85,7 @@ const result = await L.run({
   metadata: {},
 });
 console.log(result);
-`
+`;
 
   return (
     <Dialog>
@@ -113,15 +107,15 @@ console.log(result);
               variant="ghost"
               onClick={() => {
                 navigator.clipboard.writeText(selectedTab === 'python' ? pythonString : selectedTab === 'ts' ? tsString : curlString);
-                setCopied(true)
+                setCopied(true);
               }}>
               <Copy size={20} />
             </Button>
           </div>
         </DialogHeader>
         <Tabs defaultValue='python' onValueChange={value => {
-          setCopied(false)
-          setSelectedTab(value)
+          setCopied(false);
+          setSelectedTab(value);
         }}>
           <TabsList>
             <TabsTrigger value="python">Python</TabsTrigger>
@@ -141,5 +135,5 @@ console.log(result);
 
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -40,9 +40,9 @@ export default function DatasetUpload({
             uploadFile(
               file, `/api/projects/${projectId}/datasets/${datasetId}/file-upload`, false
             ).then(_ => {
-              onSuccessfulUpload?.()
+              onSuccessfulUpload?.();
             }).catch(error => {
-              toast({ title: 'Error', description: 'Error uploading file' + error })
+              toast({ title: 'Error', description: 'Error uploading file' + error });
             }).finally(() => {
               setIsLoading(false);
             });

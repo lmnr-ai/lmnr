@@ -1,7 +1,7 @@
-import { useContext, useState } from "react";
-import { ProjectContext } from '@/contexts/project-context'
+import { useContext, useState } from 'react';
+import { ProjectContext } from '@/contexts/project-context';
 import { Loader, MoreVertical, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -11,8 +11,8 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { PipelineVersionInfo } from '@/lib/pipeline/types';
 import { cn } from '@/lib/utils';
 import {
@@ -22,14 +22,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu';
 
 interface DeletePipelineVersionButtonProps {
   selectedPipelineVersion: PipelineVersionInfo;
 }
 
 export default function DeletePipelineVersionButton({ selectedPipelineVersion }: DeletePipelineVersionButtonProps) {
-  const { projectId } = useContext(ProjectContext)
+  const { projectId } = useContext(ProjectContext);
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
   const [deleteVersionInputText, setDeleteVersionInputText] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
@@ -44,7 +44,7 @@ export default function DeletePipelineVersionButton({ selectedPipelineVersion }:
     );
 
     if (!res.ok) {
-      const text = await res.text()
+      const text = await res.text();
       console.error(`Failed to delete the pipeline version: ${text}`);
     }
 
@@ -52,7 +52,7 @@ export default function DeletePipelineVersionButton({ selectedPipelineVersion }:
     // without reloading the page. However, the problem is that the dropdown, which selects the pipeline version,
     // is not updated correctly and it's hard to access its value.
     window.location.reload();
-  }
+  };
 
   return (
     <>
@@ -98,5 +98,5 @@ export default function DeletePipelineVersionButton({ selectedPipelineVersion }:
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

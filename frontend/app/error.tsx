@@ -1,6 +1,6 @@
-'use client' // Error components must be Client Components
+'use client'; // Error components must be Client Components
 
-import Link from 'next/link'
+import Link from 'next/link';
 import Image from 'next/image';
 import icon from '@/assets/logo/icon_light.svg';
 
@@ -18,5 +18,5 @@ export default function Error({
       </Link>
       <h1 className="mb-4 text-lg">Oops, something went wrong</h1>
     </div>
-  )
+  );
 }

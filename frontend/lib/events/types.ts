@@ -1,7 +1,7 @@
 export enum EventType {
-  BOOLEAN = "BOOLEAN",
-  STRING = "STRING",
-  NUMBER = "NUMBER",
+  BOOLEAN = 'BOOLEAN',
+  STRING = 'STRING',
+  NUMBER = 'NUMBER',
 }
 
 export type EventTemplate = {

@@ -1,7 +1,7 @@
-import type { DefaultSession, NextAuthOptions, User } from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
-import { fetcher } from './utils'
-import jwt from "jsonwebtoken"
+import type { DefaultSession, NextAuthOptions, User } from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import { fetcher } from './utils';
+import jwt from 'jsonwebtoken';
 
 declare module 'next-auth' {
   interface Session {
@@ -38,7 +38,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email) {
           return null;
         }
-        const user = { id: credentials.email, name: credentials.name, email: credentials.email } as User
+        const user = { id: credentials.email, name: credentials.name, email: credentials.email } as User;
         return user;
       }
     }),
@@ -61,30 +61,30 @@ export const authOptions: NextAuthOptions = {
             name,
             email: token?.email
           })
-        })
+        });
 
         if (!res.ok) {
-          const err = new Error('HTTP status code: ' + res.status)
+          const err = new Error('HTTP status code: ' + res.status);
 
-          throw err
+          throw err;
         }
 
-        const resJson = await res.json()
+        const resJson = await res.json();
         token.apiKey = resJson.apiKey;
         token.isNewUserCreated = resJson.isNewUserCreated;
       }
 
-      return token
+      return token;
     },
     session({ session, token }) {
-      session.user.apiKey = token.apiKey
-      session.user.email = token.email!
-      session.user.isNewUserCreated = token.isNewUserCreated
+      session.user.apiKey = token.apiKey;
+      session.user.email = token.email!;
+      session.user.isNewUserCreated = token.isNewUserCreated;
 
-      return session
+      return session;
     },
   },
   pages: {
     signIn: '/sign-in' // overrides the next-auth default signin page https://authjs.dev/guides/basics/pages
   }
-}
+};

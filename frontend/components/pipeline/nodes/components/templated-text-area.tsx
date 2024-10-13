@@ -1,12 +1,12 @@
-import { Label } from "@/components/ui/label";
-import { GenericNodeHandle, NodeHandleType } from "@/lib/flow/types";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { v4 } from "uuid";
-import { encodingForModel } from "js-tiktoken";
-import Ide from "@/components/ui/ide";
-import { IAceEditorProps } from "react-ace";
-import { cn } from "@/lib/utils";
-import DefaultTextarea from "@/components/ui/default-textarea";
+import { Label } from '@/components/ui/label';
+import { GenericNodeHandle, NodeHandleType } from '@/lib/flow/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { v4 } from 'uuid';
+import { encodingForModel } from 'js-tiktoken';
+import Ide from '@/components/ui/ide';
+import { IAceEditorProps } from 'react-ace';
+import { cn } from '@/lib/utils';
+import DefaultTextarea from '@/components/ui/default-textarea';
 
 interface TemplatedTextAreaProps extends IAceEditorProps {
   defaultInputs: Map<string, GenericNodeHandle>
@@ -57,13 +57,13 @@ export default function TemplatedTextArea({
       }
     }
 
-    onUpdate(value, inputs, edgeIdsToRemove)
-    prevInputVars.current = new Map(inputs.map((input) => [input.name!, input]))
-  }, [])
+    onUpdate(value, inputs, edgeIdsToRemove);
+    prevInputVars.current = new Map(inputs.map((input) => [input.name!, input]));
+  }, []);
 
   return (
     <>
-      <Label className='text-gray-500'>{"enclose {{input_variable}} in double curly braces"}</Label>
+      <Label className='text-gray-500'>{'enclose {{input_variable}} in double curly braces'}</Label>
       {disabled ?
         <DefaultTextarea
           readOnly={disabled}

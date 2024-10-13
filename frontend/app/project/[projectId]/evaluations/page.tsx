@@ -8,7 +8,7 @@ import { Evaluation } from '@/lib/evaluation/types';
 
 export const metadata: Metadata = {
   title: 'Evaluations',
-}
+};
 
 export default async function EvaluationsPage({
   params,

@@ -14,7 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu';
 import useSWR from 'swr';
 import CreateDatasetDialog from './create-dataset-dialog';
 import UpdateDatasetDialog from './update-dataset-dialog';
@@ -30,7 +30,7 @@ export default function Datasets() {
   const { projectId } = useProjectContext();
   const fetcher = (url: string) => fetch(url).then(res => res.json());
   const router = useRouter();
-  const { data, isLoading, mutate } = useSWR<PaginatedResponse<Dataset>>(`/api/projects/${projectId}/datasets/`, fetcher)
+  const { data, isLoading, mutate } = useSWR<PaginatedResponse<Dataset>>(`/api/projects/${projectId}/datasets/`, fetcher);
 
   const updateDataset = async (datasetId: string, dataset: Dataset) => {
     const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}`, {
@@ -41,55 +41,51 @@ export default function Datasets() {
     });
     res.json();
     mutate();
-  }
+  };
 
   const deleteDataset = async (datasetId: string) => {
     const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}`, {
       method: 'DELETE',
     });
     mutate();
-  }
+  };
 
   const columns: ColumnDef<Dataset>[] = [
     {
-      cell: ({ row }) => {
-        return <Mono>{row.original.id}</Mono>
-      },
+      cell: ({ row }) => <Mono>{row.original.id}</Mono>,
       size: 300,
-      header: "ID",
+      header: 'ID',
     },
     {
-      accessorKey: "name",
-      header: "name",
+      accessorKey: 'name',
+      header: 'name',
     },
     {
-      header: "Created at",
-      accessorKey: "createdAt",
+      header: 'Created at',
+      accessorKey: 'createdAt',
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     },
     {
-      id: "actions",
-      cell: ({ row }) => {
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="p-0">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={(e) => { deleteDataset(row.original.id); e.stopPropagation() }}
-              >
+      id: 'actions',
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="p-0">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={(e) => { deleteDataset(row.original.id); e.stopPropagation(); }}
+            >
                 Delete
-              </DropdownMenuItem>
-              <UpdateDatasetDialog oldDataset={row.original} doUpdate={updateDataset} isDropdown={true} />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      },
+            </DropdownMenuItem>
+            <UpdateDatasetDialog oldDataset={row.original} doUpdate={updateDataset} isDropdown={true} />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
     }
-  ]
+  ];
 
   return (
     <div className="h-full flex flex-col">

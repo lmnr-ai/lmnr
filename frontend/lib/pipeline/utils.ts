@@ -1,13 +1,13 @@
-import { Edge } from "reactflow";
-import { Graph } from "../flow/graph";
-import { GenericNode, GenericNodeHandle, MapNode, NodeHandleType, NodeType, SubpipelineNode } from "../flow/types";
-import { ChatMessage } from "../types";
-import { InputVariable, PipelineVersion } from "./types";
-import { isStringType } from "../utils";
+import { Edge } from 'reactflow';
+import { Graph } from '../flow/graph';
+import { GenericNode, GenericNodeHandle, MapNode, NodeHandleType, NodeType, SubpipelineNode } from '../flow/types';
+import { ChatMessage } from '../types';
+import { InputVariable, PipelineVersion } from './types';
+import { isStringType } from '../utils';
 
-export const PUBLIC_PIPELINE_PROJECT_ID = "PUBLIC-PIPELINE"
-export const PUBLIC_PIPELINE_PROJECT_NAME = "Public pipeline"
-export const GRAPH_VALID = "VALID";
+export const PUBLIC_PIPELINE_PROJECT_ID = 'PUBLIC-PIPELINE';
+export const PUBLIC_PIPELINE_PROJECT_NAME = 'Public pipeline';
+export const GRAPH_VALID = 'VALID';
 
 const formatNodeById = (graph: Graph, id: string): string => {
   const node = graph.nodes.get(id);
@@ -15,14 +15,14 @@ const formatNodeById = (graph: Graph, id: string): string => {
     return `Unknown node (id: ${id})`;
   }
   return formatNode(node);
-}
+};
 
 const formatNode = (node: GenericNode): string => {
   if (node.type === NodeType.CONDITION) {
-    return `Condition handle: ${node.name}`
+    return `Condition handle: ${node.name}`;
   }
   return `${node.name} (type: ${node.type})`;
-}
+};
 
 const getDisconnectedNodes = (graph: Graph, edges: Edge[]): GenericNode[] => {
   let connectedNodes = new Set<string>();
@@ -31,14 +31,14 @@ const getDisconnectedNodes = (graph: Graph, edges: Edge[]): GenericNode[] => {
     connectedNodes.add(edge.target.split('_')[0]);
   }
   return Array.from(graph.nodes.values())
-    .filter(node => !connectedNodes.has(node.id) && node.type != NodeType.CONDITION)
-}
+    .filter(node => !connectedNodes.has(node.id) && node.type != NodeType.CONDITION);
+};
 
 const getDisconnectedInputHandles = (node: GenericNode): GenericNodeHandle[] => {
   const allNodeInputs = node.inputs.concat(node.dynamicInputs || []);
   const disconnectInputHandles = allNodeInputs.filter(input => !Object.keys(node.inputsMappings ?? {}).includes(input.id));
   return disconnectInputHandles;
-}
+};
 
 const getNodesWithDisconnectedOutputHandles = (graph: Graph, edges: Edge[]): GenericNode[] => {
 
@@ -50,9 +50,9 @@ const getNodesWithDisconnectedOutputHandles = (graph: Graph, edges: Edge[]): Gen
   return Array.from(graph.nodes.values())
     .filter(node => node.isCondtional !== true) // conditional nodes have virtual output handles that are disconnected
     .filter(node => !node.outputs.every(output => connectedOutputHandles.has(output.id)));
-}
+};
 
-// traverses the graph by checking every input handle of every node and checks which handles 
+// traverses the graph by checking every input handle of every node and checks which handles
 // are visited more than once. If a handle is visited more than once, it is marked as cyclic.
 // See docs on GenericNodeHandle.isCyclic.
 const markCyclicInputHandles = (graph: Graph, edges: Edge[]) => {
@@ -84,13 +84,13 @@ const markCyclicInputHandles = (graph: Graph, edges: Edge[]) => {
           .concat(nextNode.dynamicInputs || [])
           .filter(input => input.name === startInputHandlesName)
           .forEach(input => {
-            input.isCyclic = true
+            input.isCyclic = true;
           });
         return;
       }
       traverseFromInputHandle(nextNode, startNode, startInputHandlesName, visitedNodeIds);
     }
-  }
+  };
 
   for (const node of graph.nodes.values()) {
     const uniqueInputHandleName = new Set(node.inputs.concat(node.dynamicInputs ?? []).map(input => input.name));
@@ -101,15 +101,15 @@ const markCyclicInputHandles = (graph: Graph, edges: Edge[]) => {
       traverseFromInputHandle(node, node, handleName, new Set());
     }
   }
-}
+};
 
 export const validateGraph = (graph: Graph, edges: Edge[]): string => {
   const nodes = Array.from(graph.nodes.values());
   if (!nodes.some(node => [NodeType.OUTPUT, NodeType.ERROR].includes(node.type))) {
-    return "Graph must have at least one output node";
+    return 'Graph must have at least one output node';
   }
   if (!nodes.some(node => node.type === NodeType.INPUT)) {
-    return "Graph must have at least one input node";
+    return 'Graph must have at least one input node';
   }
   const disconnectedNodes = getDisconnectedNodes(graph, edges);
   if (disconnectedNodes.length > 0) {
@@ -133,36 +133,36 @@ export const validateGraph = (graph: Graph, edges: Edge[]): string => {
   }
 
   if (nodes.some(node => (node.type === NodeType.SUBPIPELINE) && !(node as SubpipelineNode).pipelineVersionId)) {
-    return "All Subpipeline nodes must have a pipeline version selected";
+    return 'All Subpipeline nodes must have a pipeline version selected';
   }
 
   for (const node of nodes) {
     if (node.type === NodeType.MAP) {
       if (!(node as MapNode).pipelineVersionId) {
-        return "All Map nodes must have a pipeline version selected";
+        return 'All Map nodes must have a pipeline version selected';
       }
 
       const inputNodes = Object.values((node as MapNode).runnableGraph.nodes).filter(node => node.type === NodeType.INPUT);
       if (inputNodes.length !== 1 || inputNodes[0].outputs[0].type !== NodeHandleType.STRING) {
-        return "Map node's subpipeline must have exactly one input node of type String";
+        return 'Map node\'s subpipeline must have exactly one input node of type String';
       }
 
       const outputNodes = Object.values((node as MapNode).runnableGraph.nodes).filter(node => node.type === NodeType.OUTPUT);
       if (outputNodes.length !== 1) {
-        return "Map node's subpipeline must have exactly one output node of type String";
+        return 'Map node\'s subpipeline must have exactly one output node of type String';
       }
     }
 
     if (node.type === NodeType.CODE) {
       for (const inp of (node as GenericNode).inputs) {
         if (inp.type === NodeHandleType.ANY) {
-          return `Node ${node.name} has an input of type ANY, please specify the type`
+          return `Node ${node.name} has an input of type ANY, please specify the type`;
         }
       }
 
       for (const out of (node as GenericNode).outputs) {
         if (out.type === NodeHandleType.ANY) {
-          return `Node ${node.name} has an output of type ANY, please specify the type`
+          return `Node ${node.name} has an output of type ANY, please specify the type`;
         }
       }
     }
@@ -171,7 +171,7 @@ export const validateGraph = (graph: Graph, edges: Edge[]): string => {
   markCyclicInputHandles(graph, edges);
 
   return GRAPH_VALID;
-}
+};
 
 export const validateInputs = (allInputs: InputVariable[][]): string => {
   for (const [runIndex, inputs] of allInputs.entries()) {
@@ -192,7 +192,7 @@ export const validateInputs = (allInputs: InputVariable[][]): string => {
     }
   }
   return GRAPH_VALID;
-}
+};
 
 // Helper funcion to remove hash from node ids
 // Will be removed once all pipelines are updated
@@ -206,4 +206,4 @@ export const removeHashFromId = (pipelineVersion: PipelineVersion) => {
     edge.source = edge.source.split('_')[0];
     edge.target = edge.target.split('_')[0];
   }
-}
+};

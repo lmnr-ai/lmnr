@@ -29,24 +29,26 @@ export default function SubpipelineNodeComponent({
           updateNodeData(data.id, {
             pipelineName: pipeline.name,
             pipelineId: pipeline.id
-          } as SubpipelineNode)
+          } as SubpipelineNode);
         }}
         onPipelineVersionChange={(pv) => {
           data.inputs.forEach((input) => {
             dropEdgeForHandle(input.id);
-          })
+          });
 
           if (pv !== null) {
             updateNodeData(data.id, {
-              inputs: Object.values(pv.runnableGraph.nodes).filter((node) => node.type === NodeType.INPUT).map((node) => ({
-                id: node.id,
-                name: node.name,
-                type: (node as InputNode).inputType
-              } as GenericNodeHandle)),
+              inputs: Object.values(pv.runnableGraph.nodes)
+                .filter((node) => node.type === NodeType.INPUT)
+                .map((node) => ({
+                  id: node.id,
+                  name: node.name,
+                  type: (node as InputNode).inputType
+                } as GenericNodeHandle)),
               pipelineVersionName: pv.name,
               pipelineVersionId: pv.id,
               runnableGraph: pv.runnableGraph
-            } as SubpipelineNode)
+            } as SubpipelineNode);
           } else {
             updateNodeData(data.id, {
               inputs: [] as GenericNodeHandle[],
@@ -58,5 +60,5 @@ export default function SubpipelineNodeComponent({
         }}
       />
     </div>
-  )
+  );
 };

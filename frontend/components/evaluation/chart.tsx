@@ -3,26 +3,26 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { useProjectContext } from "@/contexts/project-context"
-import { cn, swrFetcher } from "@/lib/utils"
-import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
-import useSWR from "swr"
-import { Skeleton } from "../ui/skeleton"
-import React, { useEffect, useState } from "react"
-import { usePathname, useSearchParams } from "next/navigation"
+} from '@/components/ui/chart';
+import { useProjectContext } from '@/contexts/project-context';
+import { cn, swrFetcher } from '@/lib/utils';
+import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts';
+import useSWR from 'swr';
+import { Skeleton } from '../ui/skeleton';
+import React, { useEffect, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId',
-}
+};
 
 const getEvaluationIdFromPathname = (pathName: string) => {
   if (pathName.endsWith('/')) {
-      pathName = pathName.slice(0, -1);
+    pathName = pathName.slice(0, -1);
   }
   const pathParts = pathName.split('/');
   return pathParts[pathParts.length - 1];
-}
+};
 
 type BucketRow = {
   lowerBound: number;
@@ -30,15 +30,11 @@ type BucketRow = {
   heights: number[];
 }
 
-const getTransformedData = (data: []) => {
-  return data.map((row: BucketRow, index: number) => {
-    return {
-      index,
-      height: row.heights[0],
-      comparedHeight: row.heights.length > 1 ? row.heights[1] : undefined,
-    }
-  })
-}
+const getTransformedData = (data: []) => data.map((row: BucketRow, index: number) => ({
+  index,
+  height: row.heights[0],
+  comparedHeight: row.heights.length > 1 ? row.heights[1] : undefined,
+}));
 
 function renderTick(tickProps: any) {
   const { x, y, payload } = tickProps;
@@ -78,7 +74,7 @@ export default function Chart({ scoreName, className }: ChartProps) {
 
   const [evaluationId, setEvaluationId] = useState(getEvaluationIdFromPathname(pathName));
   const [comparedEvaluationId, setComparedEvaluationId] = useState(searchParams.get(URL_QUERY_PARAMS.COMPARE_EVAL_ID));
-  
+
   const { data, isLoading, error } = useSWR(`/api/projects/${projectId}/evaluation-score-distribution?evaluationIds=${evaluationId + (comparedEvaluationId ? `,${comparedEvaluationId}` : '')}&scoreName=${scoreName}`, swrFetcher);
 
   useEffect(() => {
@@ -88,15 +84,15 @@ export default function Chart({ scoreName, className }: ChartProps) {
   useEffect(() => {
     setComparedEvaluationId(searchParams.get(URL_QUERY_PARAMS.COMPARE_EVAL_ID));
   }, [searchParams]);
-  
+
   const chartConfig = {
-    ["index"]: {
-      color: "hsl(var(--chart-1))",
+    ['index']: {
+      color: 'hsl(var(--chart-1))',
     },
-  } satisfies ChartConfig
+  } satisfies ChartConfig;
 
   return (
-    <div className={cn("", className)}>
+    <div className={cn('', className)}>
       {/* <div className="text-sm font-medium text-secondary-foreground">
         Score distribution: {scoreName}
       </div> */}
@@ -123,5 +119,5 @@ export default function Chart({ scoreName, className }: ChartProps) {
         </ChartContainer>
       </div>
     </div>
-  )
+  );
 }

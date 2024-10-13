@@ -1,7 +1,7 @@
-import { TemplateInfo } from "@/lib/pipeline/types";
-import { Card } from "../ui/card";
-import { Label } from "../ui/label";
-import { cn } from "@/lib/utils";
+import { TemplateInfo } from '@/lib/pipeline/types';
+import { Card } from '../ui/card';
+import { Label } from '../ui/label';
+import { cn } from '@/lib/utils';
 
 interface TemplateSelectProps {
   className?: string
@@ -20,12 +20,12 @@ export default function TemplateSelect({
   const evalTemplates = templates.filter(t => t.displayGroup === 'eval');
   const semanticEventEvalTemplates = templates.filter(t => t.displayGroup === 'semantic_event_eval');
   return (
-    <div className={cn("flex flex-col space-y-4", className ?? '')}>
+    <div className={cn('flex flex-col space-y-4', className ?? '')}>
       <Label>Build</Label>
       <div className='grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mt-2'>
         {buildTemplates.map((t) => (
           <Card
-            className={cn("hover:bg-secondary p-1", t.id === templateId ? "bg-secondary" : "")}
+            className={cn('hover:bg-secondary p-1', t.id === templateId ? 'bg-secondary' : '')}
             key={t.id}
             onClick={() => setTemplateId(t.id)}
           >
@@ -42,7 +42,7 @@ export default function TemplateSelect({
       <div className='grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mt-2'>
         {semanticEventEvalTemplates.map((t) => (
           <Card
-            className={cn("hover:bg-secondary p-1", t.id === templateId ? "bg-secondary" : "")}
+            className={cn('hover:bg-secondary p-1', t.id === templateId ? 'bg-secondary' : '')}
             key={t.id}
             onClick={() => setTemplateId(t.id)}
           >
@@ -58,7 +58,7 @@ export default function TemplateSelect({
       <div className='grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mt-2'>
         {evalTemplates.map((t) => (
           <Card
-            className={cn("hover:bg-secondary p-1", t.id === templateId ? "bg-secondary" : "")}
+            className={cn('hover:bg-secondary p-1', t.id === templateId ? 'bg-secondary' : '')}
             key={t.id}
             onClick={() => setTemplateId(t.id)}
           >

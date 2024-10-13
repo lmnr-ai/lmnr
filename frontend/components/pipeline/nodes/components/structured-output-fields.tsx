@@ -1,12 +1,12 @@
-import Ide from "@/components/ui/ide"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import useStore from "@/lib/flow/store"
-import { LLMNode } from "@/lib/flow/types"
-import Link from "next/link"
-import { useEffect, useState } from "react"
+import Ide from '@/components/ui/ide';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import useStore from '@/lib/flow/store';
+import { LLMNode } from '@/lib/flow/types';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 interface StructuredOutputFieldsProps {
   className?: string
@@ -36,9 +36,9 @@ enum ContactPreference {
 const extractTargets = (schema: string): string[] => {
   const targets = schema.match(/(class|enum)\s+(\w+)/g);
   return (targets?.map(target => target.replace('class', '').replace('enum', '').trim()) ?? []).filter((v) => v.length > 0);
-}
+};
 
-const DEFAULT_TARGET = "User";
+const DEFAULT_TARGET = 'User';
 const DEFAULT_SCHEMA_TARGETS = extractTargets(DEFAULT_SCHEMA);
 
 export default function StructuredOutputFields({ className, editable = true, data }: StructuredOutputFieldsProps) {
@@ -65,7 +65,7 @@ export default function StructuredOutputFields({ className, editable = true, dat
               structuredOutputMaxRetries: 3,
               structuredOutputSchema: DEFAULT_SCHEMA,
               structuredOutputSchemaTarget: DEFAULT_TARGET,
-            } as LLMNode)
+            } as LLMNode);
           }}
         />
       </div>
@@ -81,7 +81,7 @@ export default function StructuredOutputFields({ className, editable = true, dat
             onChange={(e) => {
               updateNodeData(data.id, {
                 structuredOutputMaxRetries: parseInt(e.target.value)
-              } as LLMNode)
+              } as LLMNode);
             }}
           />
           <Label>Schema</Label>
@@ -90,7 +90,7 @@ export default function StructuredOutputFields({ className, editable = true, dat
             readOnly={!editable}
             maxLines={Infinity}
             defaultValue={data.structuredOutputSchema ?? DEFAULT_SCHEMA}
-            value={data.structuredOutputSchema ?? ""}
+            value={data.structuredOutputSchema ?? ''}
             mode={'jinja2'}
             onChange={(value) => {
               const classes = extractTargets(value);
@@ -98,13 +98,13 @@ export default function StructuredOutputFields({ className, editable = true, dat
               if (!classes.includes(selectedTargetClass)) {
                 updateNodeData(data.id, {
                   structuredOutputSchemaTarget: null
-                } as LLMNode)
+                } as LLMNode);
               };
               setSchemaClasses(classes);
               try {
                 updateNodeData(data.id, {
                   structuredOutputSchema: (value.length > 0) ? value : null
-                } as LLMNode)
+                } as LLMNode);
               } catch (e) {
               }
             }}
@@ -120,7 +120,7 @@ export default function StructuredOutputFields({ className, editable = true, dat
               setSelectedTargetClass(value);
               updateNodeData(data.id, {
                 structuredOutputSchemaTarget: (value.length > 0) ? value : null
-              } as LLMNode)
+              } as LLMNode);
             }}
           >
             <SelectTrigger className="h-7 font-medium bg-secondary">
@@ -128,7 +128,7 @@ export default function StructuredOutputFields({ className, editable = true, dat
             </SelectTrigger>
             <SelectContent>
               {schemaClasses.map((className) => (
-                <SelectItem key={className} value={className ?? "f"}>{className}</SelectItem>
+                <SelectItem key={className} value={className ?? 'f'}>{className}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -136,5 +136,5 @@ export default function StructuredOutputFields({ className, editable = true, dat
         </div>
       )}
     </div>
-  )
+  );
 }

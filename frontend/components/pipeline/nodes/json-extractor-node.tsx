@@ -1,4 +1,4 @@
-import { JsonExtractorNode } from '@/lib/flow/types'
+import { JsonExtractorNode } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import { Label } from '@/components/ui/label';
 import { memo } from 'react';
@@ -29,10 +29,10 @@ const JsonExtractorNodeComponent = ({ data }: { data: JsonExtractorNode }) => {
         minLines={3}
       />
       <Label className="text-gray-500">
-        {`Hint: to avoid nested objects displayed as [Object], prefix your key with the word json, such as {{ json user }}`}
+        {'Hint: to avoid nested objects displayed as [Object], prefix your key with the word json, such as {{ json user }}'}
       </Label>
     </div>
-  )
-}
+  );
+};
 
-export default memo(JsonExtractorNodeComponent)
+export default memo(JsonExtractorNodeComponent);

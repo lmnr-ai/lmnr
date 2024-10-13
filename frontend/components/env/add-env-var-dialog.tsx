@@ -1,9 +1,9 @@
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label";
-import { useState } from "react";
-import { Input } from "../ui/input";
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
-import { Plus } from "lucide-react";
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { useState } from 'react';
+import { Input } from '../ui/input';
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Plus } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { EnvVars } from "@/lib/env/utils";
+import { EnvVars } from '@/lib/env/utils';
 
 interface AddEnvVarDialogProps {
   onAdd: (name: string, value: string) => void
@@ -19,9 +19,9 @@ interface AddEnvVarDialogProps {
 
 export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
 
-  const [envVarType, setEnvVarType] = useState<string>('')
-  const [envVarName, setEnvVarName] = useState<string>('')
-  const [envVarValue, setEnvVarValue] = useState<string>('')
+  const [envVarType, setEnvVarType] = useState<string>('');
+  const [envVarName, setEnvVarName] = useState<string>('');
+  const [envVarValue, setEnvVarValue] = useState<string>('');
 
   return (
 
@@ -40,11 +40,11 @@ export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
           <Label>Name</Label>
           <Select
             onValueChange={value => {
-              setEnvVarType(value)
+              setEnvVarType(value);
               if (value !== 'custom') {
-                setEnvVarName(value)
+                setEnvVarName(value);
               } else {
-                setEnvVarName('')
+                setEnvVarName('');
               }
             }}
           >
@@ -68,7 +68,7 @@ export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
             <Input
               placeholder="Name"
               onChange={(e) => {
-                setEnvVarName(e.target.value)
+                setEnvVarName(e.target.value);
               }}
             />
           }
@@ -77,7 +77,7 @@ export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
             placeholder="Value"
             spellCheck={false}
             onChange={(e) => {
-              setEnvVarValue(e.target.value)
+              setEnvVarValue(e.target.value);
             }}
           />
         </div>
@@ -86,10 +86,10 @@ export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
             <Button
               disabled={envVarValue === '' || envVarName === '' || envVarType === ''}
               onClick={() => {
-                setEnvVarName('')
-                setEnvVarType('')
-                setEnvVarValue('')
-                onAdd(envVarName, envVarValue)
+                setEnvVarName('');
+                setEnvVarType('');
+                setEnvVarValue('');
+                onAdd(envVarName, envVarValue);
               }}
               handleEnter
             >
@@ -100,5 +100,5 @@ export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
       </DialogContent>
     </Dialog>
 
-  )
+  );
 }

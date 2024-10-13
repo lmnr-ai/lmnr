@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu';
 import { useProjectContext } from '@/contexts/project-context';
 import { MoreVertical } from 'lucide-react';
 import { swrFetcher } from '@/lib/utils';
@@ -45,55 +45,52 @@ export default function Pipelines() {
     mutate();
 
     if (newVisibility === 'PUBLIC') {
-      navigator.clipboard.writeText(`https://www.lmnr.ai/pub/${oldPipeline.id!}`)
+      navigator.clipboard.writeText(`https://www.lmnr.ai/pub/${oldPipeline.id!}`);
       toast({
         title: 'Share URL copied to clipboard',
-      })
+      });
     } else if (newVisibility === 'PRIVATE') {
       toast({
         title: 'Pipeline has been changed to private',
-      })
+      });
     }
-  }
+  };
 
   const deletePipeline = async (pipelineId: string) => {
     const res = await fetch(`/api/projects/${projectId}/pipelines/${pipelineId}`, {
       method: 'DELETE'
     });
     mutate();
-  }
+  };
 
   const columns: ColumnDef<Pipeline>[] = [
     {
-      accessorKey: "id",
+      accessorKey: 'id',
       cell: (row) => <span className='font-mono text-[12px]'>{String(row.getValue())}</span>,
-      header: "ID",
+      header: 'ID',
       size: 320
     },
     {
-      accessorKey: "name",
-      header: "Name",
+      accessorKey: 'name',
+      header: 'Name',
       size: 240
     },
     {
-      header: "Created at",
-      accessorFn: (pipeline) => {
-        return pipeline.createdAt!
-      },
+      header: 'Created at',
+      accessorFn: (pipeline) => pipeline.createdAt!,
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     },
     {
-      id: "actions",
-      cell: ({ row }) => {
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="p-0 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {/* {(row.original.visibility! === "PRIVATE") && (<DropdownMenuItem onClick={(e) => {
+      id: 'actions',
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="p-0 w-8">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {/* {(row.original.visibility! === "PRIVATE") && (<DropdownMenuItem onClick={(e) => {
                 updateVisibility(row.original, 'PUBLIC')
                 e.stopPropagation()
               }}>
@@ -107,25 +104,24 @@ export default function Pipelines() {
                 Make private
               </DropdownMenuItem>
               )} */}
-              {(row.original.visibility! === "PUBLIC") && (<DropdownMenuItem onClick={(e) => { e.stopPropagation() }}>
-                <a target="_blank" href={`/pub/${row.original.id!}`} className='w-full h-full'>
+            {(row.original.visibility! === 'PUBLIC') && (<DropdownMenuItem onClick={(e) => { e.stopPropagation(); }}>
+              <a target="_blank" href={`/pub/${row.original.id!}`} className='w-full h-full'>
                   View public
-                </a>
-              </DropdownMenuItem>
-              )}
-              <UpdatePipelineDialog oldPipeline={row.original} onUpdate={mutate} isDropdown={true} />
-              <DropdownMenuItem onClick={(e) => {
-                deletePipeline(row.original.id!)
-                e.stopPropagation()
-              }}>
+              </a>
+            </DropdownMenuItem>
+            )}
+            <UpdatePipelineDialog oldPipeline={row.original} onUpdate={mutate} isDropdown={true} />
+            <DropdownMenuItem onClick={(e) => {
+              deletePipeline(row.original.id!);
+              e.stopPropagation();
+            }}>
                 Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      },
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
     }
-  ]
+  ];
 
   const router = useRouter();
 
@@ -145,8 +141,8 @@ export default function Pipelines() {
             data={data}
             columns={[...columns]}
             onRowClick={(row) => {
-              router.push(`/project/${projectId}/pipelines/${row.original.id}`)
-              router.refresh()
+              router.push(`/project/${projectId}/pipelines/${row.original.id}`);
+              router.refresh();
             }}
             emptyRow={
               <TableRow>

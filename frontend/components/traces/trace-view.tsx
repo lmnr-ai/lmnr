@@ -1,22 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { SpanCard } from './span-card'
-import { getDurationString } from '@/lib/flow/utils'
-import { ScrollArea, ScrollBar } from '../ui/scroll-area'
-import { Label } from '../ui/label'
-import { Span, TraceWithSpans } from '@/lib/traces/types'
-import { ArrowRight, ChevronsRight, CircleDollarSign, Clock3, Coins, InfoIcon } from 'lucide-react'
-import { SpanView } from './span-view'
-import Timeline from './timeline'
-import { cn, swrFetcher } from '@/lib/utils'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '../ui/button'
-import Mono from '../ui/mono'
-import useSWR from 'swr'
-import { useProjectContext } from '@/contexts/project-context'
-import { Skeleton } from '../ui/skeleton'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
-import { TooltipPortal } from '@radix-ui/react-tooltip'
-import StatsShields from './stats-shields'
+import React, { useEffect, useRef, useState } from 'react';
+import { SpanCard } from './span-card';
+import { ScrollArea, ScrollBar } from '../ui/scroll-area';
+import { Label } from '../ui/label';
+import { Span, TraceWithSpans } from '@/lib/traces/types';
+import { ChevronsRight } from 'lucide-react';
+import { SpanView } from './span-view';
+import Timeline from './timeline';
+import { cn, swrFetcher } from '@/lib/utils';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Button } from '../ui/button';
+import Mono from '../ui/mono';
+import useSWR from 'swr';
+import { useProjectContext } from '@/contexts/project-context';
+import { Skeleton } from '../ui/skeleton';
+import StatsShields from './stats-shields';
 
 interface TraceViewProps {
   traceId: string
@@ -30,83 +27,83 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
   const router = useRouter();
   const pathName = usePathname();
-  const ref = useRef<HTMLDivElement>(null)
-  const container = useRef<HTMLDivElement>(null)
-  const traceTreePanel = useRef<HTMLDivElement>(null)
-  const [containerHeight, setContainerHeight] = useState(0)
-  const [containerWidth, setContainerWidth] = useState(0)
+  const ref = useRef<HTMLDivElement>(null);
+  const container = useRef<HTMLDivElement>(null);
+  const traceTreePanel = useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
   // here timelineWidth refers to the width of the trace tree panel and waterfall timeline
-  const [timelineWidth, setTimelineWidth] = useState(0)
+  const [timelineWidth, setTimelineWidth] = useState(0);
   const { projectId } = useProjectContext();
 
   const { data: trace, isLoading } = useSWR<TraceWithSpans>(`/api/projects/${projectId}/traces/${traceId}`, swrFetcher);
 
-  const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({})
-  const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([])
-  const [spans, setSpans] = useState<Span[]>([])
+  const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({});
+  const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
+  const [spans, setSpans] = useState<Span[]>([]);
 
   useEffect(() => {
 
     if (!trace) {
-      return
+      return;
     }
 
-    const spans = trace.spans
+    const spans = trace.spans;
 
-    const childSpans = {} as { [key: string]: Span[] }
+    const childSpans = {} as { [key: string]: Span[] };
 
-    const topLevelSpans = spans.filter((span: Span) => !span.parentSpanId)
+    const topLevelSpans = spans.filter((span: Span) => !span.parentSpanId);
 
     for (const span of spans) {
       if (span.parentSpanId) {
         if (!childSpans[span.parentSpanId]) {
-          childSpans[span.parentSpanId] = []
+          childSpans[span.parentSpanId] = [];
         }
-        childSpans[span.parentSpanId].push(span)
+        childSpans[span.parentSpanId].push(span);
       }
     }
 
-    setChildSpans(childSpans)
-    setTopLevelSpans(topLevelSpans)
-    setSpans(spans)
-    setSelectedSpan(searchParams.get('spanId') ? spans.find((span: Span) => span.spanId === searchParams.get('spanId')) || null : null)
-  }, [trace])
+    setChildSpans(childSpans);
+    setTopLevelSpans(topLevelSpans);
+    setSpans(spans);
+    setSelectedSpan(searchParams.get('spanId') ? spans.find((span: Span) => span.spanId === searchParams.get('spanId')) || null : null);
+  }, [trace]);
 
   useEffect(() => {
     if (!container.current) {
-      return
+      return;
     }
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
         const { width, height } = entry.contentRect;
         setContainerHeight(height);
-        setContainerWidth(width)
+        setContainerWidth(width);
       }
     });
     resizeObserver.observe(container.current);
 
     return () => {
       resizeObserver.disconnect();
-    }
+    };
 
-  }, [container.current])
+  }, [container.current]);
 
   useEffect(() => {
 
     if (!traceTreePanel.current) {
-      return
+      return;
     }
 
     // if no span is selected, timeline should take full width
     if (!selectedSpan) {
-      setTimelineWidth(containerWidth)
+      setTimelineWidth(containerWidth);
     } else {
       // if a span is selected, waterfall is hidden, so timeline should take the width of the trace tree panel
-      setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1)
+      setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
     }
 
-  }, [containerWidth, selectedSpan, traceTreePanel.current])
+  }, [containerWidth, selectedSpan, traceTreePanel.current]);
 
   return (
 
@@ -116,9 +113,9 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           variant={'ghost'}
           className='px-1'
           onClick={() => {
-            searchParams.delete('spanId')
+            searchParams.delete('spanId');
             router.push(`${pathName}?${searchParams.toString()}`);
-            onClose()
+            onClose();
           }}
         >
           <ChevronsRight />
@@ -133,10 +130,10 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         <div>
           {selectedSpan && (
             <Button variant={'outline'} onClick={() => {
-              setSelectedSpan(null)
-              searchParams.delete('spanId')
+              setSelectedSpan(null);
+              searchParams.delete('spanId');
               router.push(`${pathName}?${searchParams.toString()}`);
-              setTimelineWidth(container.current!.getBoundingClientRect().width)
+              setTimelineWidth(container.current!.getBoundingClientRect().width);
             }}>
               Show timeline
             </Button>
@@ -173,7 +170,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                           minHeight: containerHeight
                         }}
                       >
-                        <td className={cn('p-0 border-r left-0 bg-background flex-none', !selectedSpan ? "sticky z-50" : "")}>
+                        <td className={cn('p-0 border-r left-0 bg-background flex-none', !selectedSpan ? 'sticky z-50' : '')}>
                           <div className='flex flex-col pb-4' ref={traceTreePanel}>
                             <StatsShields
                               className="px-2 pt-1 h-12 flex-none sticky top-0 bg-background z-40 border-b"
@@ -201,9 +198,9 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                                       selectedSpan={selectedSpan}
                                       containerWidth={timelineWidth}
                                       onSpanSelect={(span) => {
-                                        setSelectedSpan(span)
-                                        setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1)
-                                        searchParams.set('spanId', span.spanId)
+                                        setSelectedSpan(span);
+                                        setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
+                                        searchParams.set('spanId', span.spanId);
                                         router.push(`${pathName}?${searchParams.toString()}`);
                                       }}
                                     />
@@ -236,5 +233,5 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

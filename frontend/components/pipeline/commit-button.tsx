@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-import { Button } from '@/components/ui/button'
-import { useToast } from '../../lib/hooks/use-toast'
+import { Button } from '@/components/ui/button';
+import { useToast } from '../../lib/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Loader, PlusCircle } from 'lucide-react';
@@ -29,7 +29,7 @@ interface CommitButtonProps {
  * Commit button which creates a commit - an immutable clone of current version.
  */
 export default function CommitButton({ selectedPipelineVersion, onPipelineVersionsChange }: CommitButtonProps) {
-  const { projectId } = useProjectContext()
+  const { projectId } = useProjectContext();
   const { toast } = useToast();
   const { getGraph, getEdges } = useStore();
 
@@ -48,10 +48,10 @@ export default function CommitButton({ selectedPipelineVersion, onPipelineVersio
         variant: 'destructive',
         description: validationRes,
         duration: 10000
-      })
+      });
 
       setIsLoading(false);
-      return
+      return;
     }
 
     let res = await fetch(
@@ -64,26 +64,26 @@ export default function CommitButton({ selectedPipelineVersion, onPipelineVersio
           newPipelineType: 'COMMIT',
         }),
         cache: 'no-cache',
-      })
+      });
 
     if (res.status != 200) {
       toast({
         title: 'Error committing version',
         variant: 'destructive'
-      })
+      });
 
       setIsLoading(false);
-      return
+      return;
     }
 
     toast({
       title: 'Successfully committed version'
-    })
+    });
 
     setIsLoading(false);
     setIsDialogOpen(false);
     onPipelineVersionsChange();
-  }
+  };
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={(open) => {

@@ -1,21 +1,21 @@
-'use client'
+'use client';
 
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { cn, formatTimestampFromSeconds, formatTimestampFromSecondsWithInterval, getGroupByInterval } from "@/lib/utils";
-import { useEffect, useState } from "react";
-import DateRangeFilter from "../ui/date-range-filter";
-import { Skeleton } from "../ui/skeleton";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { GroupByPeriodSelect } from "../ui/group-by-period-select";
-import { TraceMetricDatapoint } from "@/lib/traces/types";
-import Header from "../ui/header";
-import { useProjectContext } from "@/contexts/project-context";
+} from '@/components/ui/chart';
+import { cn, formatTimestampFromSeconds, formatTimestampFromSecondsWithInterval, getGroupByInterval } from '@/lib/utils';
+import { useEffect, useState } from 'react';
+import DateRangeFilter from '../ui/date-range-filter';
+import { Skeleton } from '../ui/skeleton';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { GroupByPeriodSelect } from '../ui/group-by-period-select';
+import { TraceMetricDatapoint } from '@/lib/traces/types';
+import Header from '../ui/header';
+import { useProjectContext } from '@/contexts/project-context';
 
 
 interface CustomChartProps {
@@ -51,9 +51,9 @@ export function CustomChart({
 
   const chartConfig = {
     [xAxisKey]: {
-      color: "hsl(var(--chart-2))",
+      color: 'hsl(var(--chart-2))',
     },
-  } satisfies ChartConfig
+  } satisfies ChartConfig;
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
@@ -65,27 +65,27 @@ export function CustomChart({
       groupByInterval: defaultGroupByInterval
     };
     if (pastHours) {
-      body["pastHours"] = pastHours;
+      body['pastHours'] = pastHours;
     } else {
-      body["startDate"] = startDate;
-      body["endDate"] = endDate;
+      body['startDate'] = startDate;
+      body['endDate'] = endDate;
     }
 
     fetch(`/api/projects/${projectId}/traces/metrics`, {
       method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(body)
     })
       .then(res => res.json()).then((data: any) => {
-        setData(data)
-      })
+        setData(data);
+      });
 
   }, [defaultGroupByInterval, pastHours, startDate, endDate]);
 
   return (
-    <div className={cn(className, "flex flex-col space-y-2")}>
+    <div className={cn(className, 'flex flex-col space-y-2')}>
       <div className="py-2 flex-none">
         <div className="flex-col space-y-2 justify-between text-sm font-medium">
           <div className="flex-grow text-secondary-foreground">{title}</div>
@@ -136,7 +136,7 @@ export function CustomChart({
         }
       </div>
     </div>
-  )
+  );
 }
 
 export interface DashboardProps {
@@ -166,7 +166,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <Header path={"dashboard"}>
+      <Header path={'dashboard'}>
         <div className='h-12 flex space-x-2 items-center'>
           <DateRangeFilter />
           <GroupByPeriodSelect />
@@ -236,7 +236,7 @@ export default function Dashboard() {
                 startDate={startDate}
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
-                countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{"$" + data?.reduce((acc, curr) => acc + curr.value, 0).toFixed(5)}</span>}
+                countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{'$' + data?.reduce((acc, curr) => acc + curr.value, 0).toFixed(5)}</span>}
               />
             </div>
           </div>

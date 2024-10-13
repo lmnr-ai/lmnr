@@ -1,4 +1,4 @@
-import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "./types";
+import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from './types';
 
 export function mergeOriginalWithComparedDatapoints(results: EvaluationDatapointPreview[], comparedResults: EvaluationDatapointPreview[]): EvaluationDatapointPreviewWithCompared[] {
   // Assumes that the results and comparedResults are of the same length
