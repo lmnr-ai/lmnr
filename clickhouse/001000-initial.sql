@@ -13,8 +13,8 @@ CREATE TABLE spans
     project_id UUID,
     trace_id UUID,
     provider String,
-    prompt_tokens Int64,
-    completion_tokens Int64,
+    input_tokens Int64,
+    output_tokens Int64,
     total_tokens Int64,
     user_id String,
     path String DEFAULT '<null>'

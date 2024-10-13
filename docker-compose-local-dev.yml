@@ -1,3 +1,6 @@
+# This compose definition does not build Laminar images, it is intended for local development.
+# This file is meant to be used with running the Laminar services manually from each service's directory.
+# Refer to CONTRIBUTING.md for more information on how to run the services locally.
 name: lmnr
 
 services:
@@ -46,20 +49,6 @@ services:
         soft: 262144
         hard: 262144
 
-  semantic-search-service:
-    build:
-      context: ./semantic-search-service
-    container_name: semantic-search-service
-    ports:
-      - "8080:8080"
-    depends_on:
-      - qdrant
-    environment:
-      - PORT=8080
-      - QDRANT_URL=http://qdrant:6334
-      - COHERE_ENDPOINT=https://api.cohere.ai/v1/embed
-      - COHERE_API_KEY=${COHERE_API_KEY}
-
   postgres:
     build:
       context: ./postgres
@@ -74,46 +63,6 @@ services:
       - type: volume
         source: postgres-data
         target: /var/lib/postgresql/data
-
-  app-server:
-    build:
-      context: ./app-server
-      args:
-        DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-    container_name: app-server
-    ports:
-      - "8000:8000"
-      - "8001:8001"
-    depends_on:
-      semantic-search-service:
-        condition: service_started
-      postgres:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
-      clickhouse:
-        condition: service_started
-    environment:
-      - PORT=8000
-      - GRPC_PORT=8001
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - SEMANTIC_SEARCH_URL=http://semantic-search-service:8080
-      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
-      - FRONTEND_SHARED_SECRET=${SHARED_SECRET}
-      - CLICKHOUSE_URL=http://clickhouse:8123
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
-
-  frontend:
-    build:
-      context: ./frontend
-    container_name: frontend
-    ports:
-      - "3000:3000"
-    env_file: ./frontend/.env.local.example
-    environment:
-      - PORT=3000
-      - BACKEND_URL=http://app-server:8000
-      - BACKEND_SHARED_SECRET=${SHARED_SECRET}
 
 volumes:
   qdrant-data:

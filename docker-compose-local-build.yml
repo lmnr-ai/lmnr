@@ -1,7 +1,5 @@
-# This compose definition pulls the latest images from the GitHub Container Registry.
-# This is the best and fastest for self hosting, as the images are already built and ready to go.
-# If you want to build images locally, you can use the docker-compose-local-build.yml file instead.
-
+# This compose definition builds Laminar images locally. This is meant to be
+# run at the last step of local development as a check before pushing changes.
 name: lmnr
 
 services:
@@ -51,7 +49,9 @@ services:
         hard: 262144
 
   semantic-search-service:
-    image: ghcr.io/lmnr-ai/semantic-search-service
+    build:
+      context: ./semantic-search-service
+    container_name: semantic-search-service
     ports:
       - "8080:8080"
     depends_on:
@@ -78,7 +78,11 @@ services:
         target: /var/lib/postgresql/data
 
   app-server:
-    image: ghcr.io/lmnr-ai/app-server
+    build:
+      context: ./app-server
+      args:
+        DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    container_name: app-server
     ports:
       - "8000:8000"
       - "8001:8001"
@@ -102,7 +106,9 @@ services:
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
 
   frontend:
-    image: ghcr.io/lmnr-ai/frontend
+    build:
+      context: ./frontend
+    container_name: frontend
     ports:
       - "3000:3000"
     env_file: ./frontend/.env.local.example

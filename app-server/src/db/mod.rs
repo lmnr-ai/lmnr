@@ -10,7 +10,7 @@ pub mod labels;
 pub mod modifiers;
 pub mod pipelines;
 pub mod projects;
-pub mod stats;
+pub mod spans;
 pub mod trace;
 pub mod user;
 pub mod utils;

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 use itertools::Itertools;
@@ -68,12 +70,25 @@ Set the target version for the pipeline in the pipeline builder."),
     }
 
     pub fn graph_running_error(trace: EngineOutput, run_id: Uuid) -> Self {
+        let node_messages = trace.messages;
+        let truncated = node_messages
+            .iter()
+            .map(|(node, message)| {
+                let mut short_message = message.clone();
+                let value: String = short_message.value.clone().into();
+                if value.len() > 100 {
+                    short_message.value =
+                        format!("{}... [TRUNCATED FOR BREVITY]", &value[..100]).into();
+                }
+                (node, short_message)
+            })
+            .collect::<HashMap<_, _>>();
         Self::RequestError {
             error_code: "api.GraphRunningError".to_string(),
             error_message: Some(serde_json::json!(
             {
                 "runId": run_id.to_string(),
-                "nodeErrors": trace
+                "nodeErrors": truncated
             })),
         }
     }

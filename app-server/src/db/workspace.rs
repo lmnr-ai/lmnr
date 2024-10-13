@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use super::stats::create_usage_stats_for_workspace;
 use crate::projects::Project;
 
 #[derive(Deserialize, Serialize, FromRow)]
@@ -119,8 +118,6 @@ pub async fn create_new_workspace(
     .bind(name)
     .fetch_one(pool)
     .await?;
-
-    create_usage_stats_for_workspace(pool, &workspace.id).await?;
 
     Ok(workspace)
 }

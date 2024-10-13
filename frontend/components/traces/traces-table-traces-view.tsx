@@ -143,13 +143,39 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       id: 'latency'
     },
     {
-      accessorFn: (row) => '$' + row.cost?.toFixed(5),
+      accessorFn: (row) => {
+        return "$" + row.inputCost?.toFixed(5)
+      },
+      header: 'Input cost',
+      id: 'input_cost'
+    },
+    {
+      accessorFn: (row) => {
+        return "$" + row.outputCost?.toFixed(5)
+      },
+      header: 'Output cost',
+      id: 'output_cost'
+    },
+    {
+      accessorFn: (row) => {
+        return "$" + row.cost?.toFixed(5)
+      },
       header: 'Cost',
       id: 'cost'
     },
     {
+      accessorKey: 'inputTokenCount',
+      header: 'Input tokens',
+      id: 'input_token_count'
+    },
+    {
+      accessorKey: 'outputTokenCount',
+      header: 'Output tokens',
+      id: 'output_token_count'
+    },
+    {
       accessorKey: 'totalTokenCount',
-      header: 'Token Count',
+      header: 'Total tokens',
       id: 'total_token_count'
     },
     {

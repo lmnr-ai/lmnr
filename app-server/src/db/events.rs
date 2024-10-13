@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
@@ -10,8 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     opentelemetry::opentelemetry_proto_trace_v1::span::Event as OtelEvent,
-    pipeline::nodes::NodeInput,
-    traces::attributes::{EVENT_DATA, EVENT_ENV, EVENT_EVALUATOR, EVENT_VALUE},
+    traces::span_attributes::EVENT_VALUE,
 };
 
 use super::{
@@ -60,54 +59,6 @@ impl EventObservation {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct EvaluateEventRequest {
-    pub id: Uuid,
-    pub name: String,
-    pub data: HashMap<String, NodeInput>,
-    pub evaluator: String,
-    #[serde(default)]
-    pub timestamp: DateTime<Utc>,
-    pub env: HashMap<String, String>,
-}
-
-impl EvaluateEventRequest {
-    pub fn try_from_otel(event: OtelEvent) -> Result<Self> {
-        let attributes = event
-            .attributes
-            .into_iter()
-            .map(|kv| (kv.key, convert_any_value_to_json_value(kv.value)))
-            .collect::<serde_json::Map<String, serde_json::Value>>();
-
-        let serde_json::Value::String(evaluator) = attributes.get(EVENT_EVALUATOR).unwrap().clone()
-        else {
-            return Err(anyhow::anyhow!("Failed to get evaluator"));
-        };
-
-        let serde_json::Value::String(string_data) = attributes.get(EVENT_DATA).unwrap() else {
-            return Err(anyhow::anyhow!("Failed to get data"));
-        };
-
-        let data = serde_json::from_str::<HashMap<String, NodeInput>>(&string_data).unwrap();
-
-        let serde_json::Value::String(env) = attributes.get(EVENT_ENV).unwrap() else {
-            return Err(anyhow::anyhow!("Failed to get env"));
-        };
-
-        let env = serde_json::from_str::<HashMap<String, String>>(env).unwrap();
-
-        Ok(Self {
-            id: Uuid::new_v4(),
-            name: event.name,
-            data,
-            evaluator,
-            timestamp: Utc.timestamp_nanos(event.time_unix_nano as i64),
-            env,
-        })
-    }
-}
-
 #[derive(sqlx::FromRow, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventWithTemplateName {
@@ -123,33 +74,6 @@ pub struct EventWithTemplateName {
     pub value: Option<Value>,
     // Usually, inputs are used for evaluated events; none for regular events
     pub inputs: Option<Value>,
-}
-
-pub async fn create_event(
-    pool: &PgPool,
-    id: Uuid,
-    span_id: Uuid,
-    timestamp: DateTime<Utc>,
-    template_id: Uuid,
-    source: EventSource,
-    value: Value,
-    inputs: Option<Value>,
-) -> Result<()> {
-    sqlx::query(
-        "INSERT INTO events (id, span_id, timestamp, template_id, source, value, inputs)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)",
-    )
-    .bind(id)
-    .bind(span_id)
-    .bind(timestamp)
-    .bind(template_id)
-    .bind(source)
-    .bind(value)
-    .bind(inputs)
-    .execute(pool)
-    .await?;
-
-    Ok(())
 }
 
 /// Create events

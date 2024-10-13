@@ -1,33 +1,79 @@
-/// Refer to the following links for more information:
-/// - https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/gen-ai-spans.md
-/// - https://github.com/traceloop/openllmetry/blob/main/packages/opentelemetry-semantic-conventions-ai/opentelemetry/semconv_ai/__init__.py
+use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
-// TODO: `prompt_tokens` and `completion_tokens` are not in the OpenTelemetry specs. This must be
-// `input_tokens` and `output_tokens` respectively. These are sent by TraceLoop's auto-instrumentation
-// library. We should update the library to send the correct attributes.
-pub const GEN_AI_INPUT_TOKENS: &str = "gen_ai.usage.prompt_tokens";
-pub const GEN_AI_OUTPUT_TOKENS: &str = "gen_ai.usage.completion_tokens";
+use crate::db::trace::TraceType;
 
-// pub const GEN_AI_TOTAL_TOKENS: &str = "gen_ai.usage.total_tokens";
-pub const GEN_AI_REQUEST_MODEL: &str = "gen_ai.request.model";
-pub const GEN_AI_RESPONSE_MODEL: &str = "gen_ai.response.model";
-// pub const GEN_AI_REQUEST_IS_STREAM: &str = "gen_ai.request.is_stream";
-pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
+#[derive(Default, Clone, Debug)]
+pub struct TraceAttributes {
+    pub id: Uuid,
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub input_token_count: Option<i64>,
+    pub output_token_count: Option<i64>,
+    /// Total token count is not calculated on this struct and must be set manually
+    pub total_token_count: Option<i64>,
+    pub input_cost: Option<f64>,
+    pub output_cost: Option<f64>,
+    /// Total costis not calculated on this struct and must be set manually
+    pub cost: Option<f64>,
+    pub success: Option<bool>,
+    pub session_id: Option<String>,
+    pub user_id: Option<String>,
+    pub trace_type: Option<TraceType>,
+}
 
-// This one is not in the open-telemetry specs. See:
-// https://github.com/openlit/openlit/blob/main/sdk/python/src/openlit/semcov/__init__.py#L65
-pub const GEN_AI_TOTAL_COST: &str = "gen_ai.usage.cost";
+impl TraceAttributes {
+    pub fn new(trace_id: Uuid) -> Self {
+        Self {
+            id: trace_id,
+            ..Default::default()
+        }
+    }
 
-// These are in neither standard.
-pub const GEN_AI_INPUT_COST: &str = "gen_ai.usage.input_cost";
-pub const GEN_AI_OUTPUT_COST: &str = "gen_ai.usage.output_cost";
+    pub fn add_total_tokens(&mut self, tokens: i64) {
+        self.total_token_count = Some(self.total_token_count.unwrap_or(0) + tokens);
+    }
 
-// Custom lmnr attributes
-pub const ASSOCIATION_PROPERTIES_PREFIX: &str = "lmnr.association.properties.";
-pub const SPAN_TYPE: &str = "lmnr.span.type";
-pub const SPAN_PATH: &str = "lmnr.span.path";
-pub const EVENT_TYPE: &str = "lmnr.event.type";
-pub const EVENT_DATA: &str = "lmnr.event.data";
-pub const EVENT_ENV: &str = "lmnr.event.env";
-pub const EVENT_EVALUATOR: &str = "lmnr.event.evaluator";
-pub const EVENT_VALUE: &str = "lmnr.event.value";
+    pub fn add_input_tokens(&mut self, tokens: i64) {
+        self.input_token_count = Some(self.input_token_count.unwrap_or(0) + tokens);
+    }
+
+    pub fn add_output_tokens(&mut self, tokens: i64) {
+        self.output_token_count = Some(self.output_token_count.unwrap_or(0) + tokens);
+    }
+
+    pub fn add_total_cost(&mut self, cost: f64) {
+        self.cost = Some(self.cost.unwrap_or(0.0) + cost);
+    }
+
+    pub fn add_input_cost(&mut self, cost: f64) {
+        self.input_cost = Some(self.input_cost.unwrap_or(0.0) + cost);
+    }
+
+    pub fn add_output_cost(&mut self, cost: f64) {
+        self.output_cost = Some(self.output_cost.unwrap_or(0.0) + cost);
+    }
+
+    pub fn update_start_time(&mut self, start_time: DateTime<Utc>) {
+        if self.start_time.is_none() || self.start_time.unwrap() > start_time {
+            self.start_time = Some(start_time);
+        }
+    }
+
+    pub fn update_end_time(&mut self, end_time: DateTime<Utc>) {
+        if self.end_time.is_none() || self.end_time.unwrap() < end_time {
+            self.end_time = Some(end_time);
+        }
+    }
+    pub fn update_session_id(&mut self, session_id: Option<String>) {
+        self.session_id = session_id;
+    }
+
+    pub fn update_user_id(&mut self, user_id: Option<String>) {
+        self.user_id = user_id;
+    }
+
+    pub fn update_trace_type(&mut self, trace_type: Option<TraceType>) {
+        self.trace_type = trace_type;
+    }
+}

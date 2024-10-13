@@ -9,9 +9,10 @@ use uuid::Uuid;
 
 use super::ResponseResult;
 use crate::db::pipelines::pipeline_version::PipelineVersionInfo;
-use crate::pipeline::nodes::Message;
+use crate::pipeline::nodes::{GraphOutput, GraphRunOutput, Message};
 use crate::pipeline::trace::{RunTrace, RunTraceStats};
 use crate::pipeline::utils::get_target_pipeline_version_cache_key;
+use crate::routes::error::pipeline_runner_to_http_error;
 use crate::{
     cache::Cache,
     db::{
@@ -72,6 +73,8 @@ struct GraphRunRequest {
     prefilled_messages: Option<Vec<Message>>,
     breakpoint_task_ids: Option<Vec<Uuid>>,
     start_task_id: Option<Uuid>,
+    #[serde(default)]
+    stream: bool,
 }
 
 #[post("pipelines/run/graph")]
@@ -102,19 +105,20 @@ async fn run_pipeline_graph(
         .setup(&inputs, &env, &HashMap::new(), &run_type)
         .map_err(graph_error_to_http_error)?;
 
-    let stream = async_stream::stream! {
+    if params.stream {
         let (tx, mut rx) = mpsc::channel::<StreamChunk>(100);
 
         tokio::spawn(async move {
-
-            let run_result = pipeline_runner.run_workshop(
+            let run_result = pipeline_runner
+                .run_workshop(
                     graph,
                     Some(tx.clone()),
                     prefilled_messages,
                     start_task_id,
                     breakpoint_task_ids,
                     interrupt_rx,
-                ).await;
+                )
+                .await;
 
             let trace = PipelineRunner::get_trace_from_result(&run_result);
 
@@ -143,31 +147,58 @@ async fn run_pipeline_graph(
             }
         });
 
-        while let Some(chunk) = rx.recv().await {
-            let event_name = match chunk {
-                StreamChunk::NodeChunk(_) => "NodeChunk",
-                StreamChunk::NodeEnd(_) => "NodeEnd",
-                StreamChunk::RunTrace(_) => "RunTrace",
-                StreamChunk::Error(_) => "Error",
-                StreamChunk::GraphRunOutput(_) | StreamChunk::RunEndpointEventError(_) => {
-                    log::error!("Invalid chunk type in pipeline run stream");
-                    continue;
-                },
-                StreamChunk::Breakpoint(_) => "Breakpoint",
-            };
+        let stream = async_stream::stream! {
+            while let Some(chunk) = rx.recv().await {
+                let event_name = match chunk {
+                    StreamChunk::NodeChunk(_) => "NodeChunk",
+                    StreamChunk::NodeEnd(_) => "NodeEnd",
+                    StreamChunk::RunTrace(_) => "RunTrace",
+                    StreamChunk::Error(_) => "Error",
+                    StreamChunk::GraphRunOutput(_) | StreamChunk::RunEndpointEventError(_) => {
+                        log::error!("Invalid chunk type in pipeline run stream");
+                        continue;
+                    }
+                    StreamChunk::Breakpoint(_) => "Breakpoint",
+                };
 
-            let formatted_event = format!("id: 1\nevent: {}\ndata: {}\n\n", event_name, serde_json::to_string(&chunk).unwrap());
-            let bytes = formatted_event.into_bytes();
+                let formatted_event = format!(
+                    "id: 1\nevent: {}\ndata: {}\n\n",
+                    event_name,
+                    serde_json::to_string(&chunk).unwrap()
+                );
+                let bytes = formatted_event.into_bytes();
 
-            yield Ok::<_, actix_web::Error>(bytes.into())
-        }
+                yield Ok::<_, actix_web::Error>(bytes.into())
+            }
 
-        let _ = interrupt_senders.remove(&run_id);
-    };
+            let _ = interrupt_senders.remove(&run_id);
+        };
 
-    Ok(HttpResponse::Ok()
-        .content_type("text/event-stream")
-        .streaming(stream))
+        Ok(HttpResponse::Ok()
+            .content_type("text/event-stream")
+            .streaming(stream))
+    } else {
+        let run_result = pipeline_runner
+            .run_workshop(
+                graph,
+                None, // Don't pass tx when streaming is disabled
+                prefilled_messages,
+                start_task_id,
+                breakpoint_task_ids,
+                interrupt_rx,
+            )
+            .await;
+
+        let run_result = run_result.map_err(|e| pipeline_runner_to_http_error(e, run_id))?;
+        let outputs = run_result
+            .output_values()
+            .into_iter()
+            .map(|(node_name, value)| (node_name, GraphOutput { value }))
+            .collect();
+        let res = GraphRunOutput { outputs, run_id };
+
+        Ok(HttpResponse::Ok().json(res))
+    }
 }
 
 #[get("pipelines")]

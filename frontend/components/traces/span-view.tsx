@@ -1,19 +1,20 @@
-import { getDurationString, isChatMessageList } from '@/lib/flow/utils';
-import useSWR from 'swr';
-import { useProjectContext } from '@/contexts/project-context';
-import { swrFetcher } from '@/lib/utils';
-import { Skeleton } from '../ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { ScrollArea } from '../ui/scroll-area';
-import Formatter from '../ui/formatter';
-import { Span, SpanType } from '@/lib/traces/types';
-import { Activity, ArrowRight, Braces, CircleDollarSign, Clock3, Coins, Gauge, MessageCircleMore, X } from 'lucide-react';
-import SpanEvents from './span-events';
-import ChatMessageListTab from './chat-message-list-tab';
-import { Label } from '../ui/label';
-import SpanLabels from './span-labels';
-import { AddLabelPopover } from './add-label-popover';
-import ExportSpansDialog from './export-spans-dialog';
+import { getDurationString, isChatMessageList } from "@/lib/flow/utils";
+import useSWR from "swr";
+import { useProjectContext } from "@/contexts/project-context";
+import { swrFetcher } from "@/lib/utils";
+import { Skeleton } from "../ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
+import { ScrollArea } from "../ui/scroll-area";
+import Formatter from "../ui/formatter";
+import { Span, SpanType } from "@/lib/traces/types";
+import { Activity, ArrowRight, Braces, CircleDollarSign, Clock3, Coins, Gauge, MessageCircleMore, X } from "lucide-react";
+import SpanEvents from "./span-events";
+import ChatMessageListTab from "./chat-message-list-tab";
+import { Label } from "../ui/label";
+import SpanLabels from "./span-labels";
+import { AddLabelPopover } from "./add-label-popover";
+import ExportSpansDialog from "./export-spans-dialog";
+import StatsShields from "./stats-shields";
 
 interface SpanViewProps {
   spanId: string;
@@ -62,22 +63,16 @@ export function SpanView({ spanId }: SpanViewProps) {
               </div>
             </div>
             <div className="flex-grow flex flex-col px-4 py-1 space-y-2">
-              <div className="flex space-x-2 items-center">
-                <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
-                  <Clock3 size={12} />
-                  <Label className='text-secondary-foreground text-sm'>{getDurationString(span.startTime, span.endTime)}</Label>
-                </div>
-                <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
-                  <Coins size={12} />
-                  <Label className='text-secondary-foreground text-sm'>
-                    {span.attributes['llm.usage.total_tokens'] ?? 0}
-                  </Label>
-                </div>
-                <div className='flex space-x-1 items-center p-0.5 px-2 border rounded-md'>
-                  <CircleDollarSign size={12} />
-                  <Label className='text-secondary-foreground text-sm'>${span.attributes['gen_ai.usage.cost']?.toFixed(5) ?? 0}</Label>
-                </div>
-              </div>
+              <StatsShields
+                startTime={span.startTime}
+                endTime={span.endTime}
+                totalTokenCount={span.attributes["llm.usage.total_tokens"] ?? 0}
+                inputTokenCount={span.attributes["gen_ai.usage.input_tokens"] ?? 0}
+                outputTokenCount={span.attributes["gen_ai.usage.output_tokens"] ?? 0}
+                inputCost={span.attributes["gen_ai.usage.input_cost"] ?? 0}
+                outputCost={span.attributes["gen_ai.usage.output_cost"] ?? 0}
+                cost={span.attributes["gen_ai.usage.cost"] ?? 0}
+              />
             </div>
           </div>
           <TabsList className="border-none text-sm px-4">
