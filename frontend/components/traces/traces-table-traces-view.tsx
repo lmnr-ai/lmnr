@@ -143,23 +143,18 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       id: 'latency'
     },
     {
-      accessorFn: (row) => {
-        return "$" + row.inputCost?.toFixed(5)
-      },
+      accessorFn: (row) => "$" + row.inputCost?.toFixed(5),
       header: 'Input cost',
       id: 'input_cost'
     },
     {
-      accessorFn: (row) => {
-        return "$" + row.outputCost?.toFixed(5)
-      },
+      accessorFn: (row) =>  "$" + row.outputCost?.toFixed(5),
       header: 'Output cost',
       id: 'output_cost'
     },
     {
-      accessorFn: (row) => {
-        return "$" + row.cost?.toFixed(5)
-      },
+      accessorFn: (row) => "$" + row.cost?.toFixed(5)
+      ,
       header: 'Cost',
       id: 'cost'
     },
@@ -187,7 +182,9 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         return (
           <div className='flex space-x-2'>
             {eventNames.map((eventName, index) => (
-              <div key={index} className='flex items-center rounded p-0.5 border text-xs text-secondary-foreground px-2 bg-secondary'>
+              <div key={index}
+                className='flex items-center rounded p-0.5 border text-xs text-secondary-foreground px-2 bg-secondary'
+              >
                 <span>{eventName}</span>
               </div>
             ))}

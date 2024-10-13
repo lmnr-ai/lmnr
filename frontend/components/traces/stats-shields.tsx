@@ -1,7 +1,6 @@
 import { getDurationString } from "@/lib/flow/utils";
 import { TooltipProvider, TooltipTrigger, TooltipContent, Tooltip } from "@/components/ui/tooltip";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { trace } from "console";
 import { Clock3, Coins, InfoIcon, CircleDollarSign } from "lucide-react";
 import { Label } from "../ui/label";
 import { cn } from "@/lib/utils";
@@ -63,7 +62,7 @@ export default function StatsShields({
               <CircleDollarSign size={12} />
               <Label className='text-sm'>${cost?.toFixed(5)}</Label>
               <InfoIcon size={12} />
-              </div>
+            </div>
           </TooltipTrigger>
           {/* portal here so that SpanView does not overlay */}
           <TooltipPortal>
@@ -77,5 +76,5 @@ export default function StatsShields({
         </Tooltip>
       </TooltipProvider>
     </div>
-  )
+  );
 }

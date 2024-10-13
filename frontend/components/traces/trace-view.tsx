@@ -1,22 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { SpanCard } from './span-card'
-import { getDurationString } from '@/lib/flow/utils'
-import { ScrollArea, ScrollBar } from '../ui/scroll-area'
-import { Label } from '../ui/label'
-import { Span, TraceWithSpans } from '@/lib/traces/types'
-import { ArrowRight, ChevronsRight, CircleDollarSign, Clock3, Coins, InfoIcon } from 'lucide-react'
-import { SpanView } from './span-view'
-import Timeline from './timeline'
-import { cn, swrFetcher } from '@/lib/utils'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '../ui/button'
-import Mono from '../ui/mono'
-import useSWR from 'swr'
-import { useProjectContext } from '@/contexts/project-context'
-import { Skeleton } from '../ui/skeleton'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
-import { TooltipPortal } from '@radix-ui/react-tooltip'
-import StatsShields from './stats-shields'
+import React, { useEffect, useRef, useState } from 'react';
+import { SpanCard } from './span-card';
+import { ScrollArea, ScrollBar } from '../ui/scroll-area';
+import { Label } from '../ui/label';
+import { Span, TraceWithSpans } from '@/lib/traces/types';
+import { ChevronsRight } from 'lucide-react';
+import { SpanView } from './span-view';
+import Timeline from './timeline';
+import { cn, swrFetcher } from '@/lib/utils';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Button } from '../ui/button';
+import Mono from '../ui/mono';
+import useSWR from 'swr';
+import { useProjectContext } from '@/contexts/project-context';
+import { Skeleton } from '../ui/skeleton';
+import StatsShields from './stats-shields';
 
 interface TraceViewProps {
   traceId: string

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     title: 'Laminar',
-    description: 'Orchestration engine for LLM agents',
+    description: 'The LLM engineering platform',
   },
   twitter: {
     card: 'summary',
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     title: 'Laminar',
     images: {
       url: 'https://www.lmnr.ai/twitter-image.png',
-      alt: 'Logo of Laminar - Orchestration engine for LLM agents',
+      alt: 'Logo of Laminar - the LLM engineering platform',
     },
   }
 };

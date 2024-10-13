@@ -3,7 +3,7 @@ import useSWR from "swr";
 import { useProjectContext } from "@/contexts/project-context";
 import { swrFetcher } from "@/lib/utils";
 import { Skeleton } from "../ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ScrollArea } from "../ui/scroll-area";
 import Formatter from "../ui/formatter";
 import { Span, SpanType } from "@/lib/traces/types";
@@ -108,7 +108,9 @@ export function SpanView({ spanId }: SpanViewProps) {
                           <div className="pb-2 font-medium text-lg">
                             Output
                           </div>
-                          <Formatter className="max-h-[600px]" value={typeof span.output === 'string' ? span.output : JSON.stringify(span.output)} />
+                          <Formatter
+                            className="max-h-[600px]"
+                            value={typeof span.output === 'string' ? span.output : JSON.stringify(span.output)} />
                         </div>
                       </div>
                     ) : (
