@@ -6,7 +6,8 @@ import { useUpdateNodeInternals } from 'reactflow';
 
 const pythonFunctionPattern = /def\s+(\w+)\s*\(([^)]*)\)/;
 
-const compareArrays = (array1: string[], array2: string[]): boolean => array1.length === array2.length && array1.every((value, index) => value === array2[index]);
+const compareArrays = (array1: string[], array2: string[]): boolean =>
+  array1.length === array2.length && array1.every((value, index) => value === array2[index]);
 
 const CodeNodeComponent = ({
   id,

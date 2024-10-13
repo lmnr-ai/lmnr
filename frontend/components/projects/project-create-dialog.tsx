@@ -96,7 +96,11 @@ export default function ProjectCreateDialog({ onProjectCreate, workspaces }: Pro
           />
         </div>
         <DialogFooter>
-          <Button onClick={createNewProject} handleEnter={true} disabled={newProjectWorkspaceId === undefined || !newProjectName}>
+          <Button
+            onClick={createNewProject}
+            disabled={newProjectWorkspaceId === undefined || !newProjectName}
+            handleEnter
+          >
             {isCreatingProject && <Loader className='mr-2 animate-spin' size={16} />}
             Create
           </Button>

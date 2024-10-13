@@ -19,7 +19,9 @@ const StringTemplateNodeComponent = ({
   const dropEdgeForHandle = useStore((state) => state.dropEdgeForHandle);
 
   const id = data.id;
-  const defaultInputs = new Map<string, GenericNodeHandle>(data.dynamicInputs?.map((input) => [input.name!, input]) ?? []);
+  const defaultInputs = new Map<string, GenericNodeHandle>(
+    data.dynamicInputs?.map((input) => [input.name!, input]) ?? []
+  );
 
   return (
     <>

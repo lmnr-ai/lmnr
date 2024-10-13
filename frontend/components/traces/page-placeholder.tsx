@@ -73,8 +73,10 @@ const function_to_trace =
           </h3>
           <h2 className="text-xl font-semibold mb-4">Kickstart with just 2 lines</h2>
           <h3 className="text-secondary-foreground/80 font-light">
-            If you already have Python or Typescript code, which uses LLM provider libraries, add 2 lines to auto-instrument your app.
-            This will automatically instrument all major LLM providers (e.g. OpenAI, Anthropic), LLM frameworks including LangChain and LlamaIndex, and even vector DB calls.
+            If you already have Python or Typescript code, which uses LLM provider libraries, add 2 lines
+            to auto-instrument your app.
+            This will automatically instrument all major LLM providers (e.g. OpenAI, Anthropic),
+            LLM frameworks including LangChain and LlamaIndex, and even vector DB calls.
           </h3>
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">
@@ -97,7 +99,9 @@ const function_to_trace =
           </h3>
           <h2 className="text-xl font-semibold mb-4">Adding manual instrumentation (Optional)</h2>
           <h3 className="text-secondary-foreground/80 font-light">
-            If you want to trace your own functions to see their durations, inputs and outputs, or want to group LLM calls or other spans into one trace, you can use @observe decorator in Python or async observe function in JavaScript/TypeScript.
+            If you want to trace your own functions to see their durations, inputs and outputs,
+            or want to group LLM calls or other spans into one trace, you can use @observe decorator
+            in Python or async observe function in JavaScript/TypeScript.
           </h3>
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">

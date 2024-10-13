@@ -67,7 +67,9 @@ export default function ScoreCard({scoreName}: ScoreCardProps) {
                 <span className="mx-1">{data.averageValue >= comparedData.averageValue ? '▲' : '▼'}</span>
                 {Math.abs(data.averageValue - comparedData.averageValue).toFixed(2)}
                 {comparedData.averageValue !== 0 && (
-                  <span> ({((data.averageValue - comparedData.averageValue) / comparedData.averageValue * 100).toFixed(2)}%)</span>
+                  <span>
+                    ({((data.averageValue - comparedData.averageValue) / comparedData.averageValue * 100).toFixed(2)}%)
+                  </span>
                 )}
               </div>
             )}

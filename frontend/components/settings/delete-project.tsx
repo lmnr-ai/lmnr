@@ -67,9 +67,13 @@ export default function DeleteProject({ }: DeleteProjectProps) {
               />
             </div>
             <DialogFooter>
-              <Button disabled={(inputProjectName !== projectName) || isLoading} onClick={deleteProject} handleEnter={true}>
+              <Button
+                disabled={(inputProjectName !== projectName) || isLoading}
+                onClick={deleteProject}
+                handleEnter
+              >
                 <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
-                                Delete
+                Delete
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -98,7 +98,10 @@ export function AddLabelPopover({
                     {labelClasses?.map(labelClass =>
                       <TableRow key={labelClass.name}>
                         <TableCell className="p-0 py-2">
-                          <div className={cn('flex justify-start text-secondary-foreground/30', findLabel(labelClass.id) ? 'text-white' : '')}>
+                          <div className={cn(
+                            'flex justify-start text-secondary-foreground/30',
+                            findLabel(labelClass.id) ? 'text-white' : ''
+                          )}>
                             <p className="border rounded-md p-0.5 px-2 text-ellipsis overflow-hidden truncate max-w-[200px]">
                               {labelClass.name}
                             </p>
@@ -176,7 +179,11 @@ function LabelBooleanInput({ value, onChange }: { value: string | undefined, onC
   );
 }
 
-function LabelCategoricalInput({ value, values, onChange }: { value: string | undefined, values: string[], onChange: (value: string) => void }) {
+function LabelCategoricalInput({
+  value,
+  values,
+  onChange
+}: { value: string | undefined, values: string[], onChange: (value: string) => void }) {
   return (
     <div className={cn('text-secondary-foreground/50', value ? 'text-white' : '')}>
       <Select value={value} onValueChange={onChange}>

@@ -58,8 +58,13 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
     });
 
     if (res.status !== 200) {
-      // Just a generic error message, since most likely the error has happened because the pipeline with the same name already exists.
-      toast({ title: 'Error creating pipeline', description: 'Pipeline name must be unique in the project', variant: 'destructive' });
+      // Just a generic error message, since most likely the error has happened
+      // because the pipeline with the same name already exists.
+      toast({
+        title: 'Error creating pipeline',
+        description: 'Pipeline name must be unique in the project',
+        variant: 'destructive'
+      });
       setIsLoading(false);
       return;
     }
@@ -126,7 +131,11 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
           )}
         </div>
         <DialogFooter>
-          <Button onClick={createNewPipeline} handleEnter={true} disabled={selectedTemplateId === undefined || isLoading}>
+          <Button
+            onClick={createNewPipeline}
+            disabled={selectedTemplateId === undefined || isLoading}
+            handleEnter
+          >
             <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
             Create
           </Button>

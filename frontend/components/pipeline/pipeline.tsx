@@ -253,7 +253,9 @@ export default function Pipeline({ pipeline }: PipelineProps) {
     channel.current = newChannel
       ?.on('presence', { event: 'sync' }, () => {
         const newState = channel.current.presenceState();
-        const presenceUsers = Object.values(newState).map((u: any) => ({ id: u[0].id, username: u[0].username, imageUrl: u[0].imageUrl })).filter((user) => user.id != currentPresenceUser.id).sort((user1, user2) => user1.id.localeCompare(user2.id));
+        const presenceUsers = Object.values(newState)
+          .map((u: any) => ({ id: u[0].id, username: u[0].username, imageUrl: u[0].imageUrl }))
+          .filter((user) => user.id != currentPresenceUser.id).sort((user1, user2) => user1.id.localeCompare(user2.id));
         setPresenceUsers(presenceUsers);
       })
       .on('broadcast', { event: 'graph' }, handleExternalGraphUpdate)
@@ -384,7 +386,8 @@ export default function Pipeline({ pipeline }: PipelineProps) {
   useEffect(() => {
     if (!selectedPipelineVersion) return;
 
-    // The node may be focused, but if we're not in Node execution mode, we're still working with whole pipeline's inputs.
+    // The node may be focused, but if we're not in Node execution mode,
+    // we're still working with whole pipeline's inputs.
     let storeFocusedNodeId = (mode === PipelineExecutionMode.Node) ? focusedNodeId : null;
     setStoredInputs(selectedPipelineVersion.id!, storeFocusedNodeId, allInputs);
   }, [allInputs]);
@@ -664,7 +667,10 @@ export default function Pipeline({ pipeline }: PipelineProps) {
             </ResizablePanel>
             <ResizableHandle withHandle className='border-t z-50' />
             <ResizablePanel defaultSize={bottomPanelMinSize} minSize={bottomPanelMinSize} className='z-40 h-full'>
-              <PipelineBottomPanel flowPanelRef={flowPanelRef} pipelineVersion={selectedPipelineVersion ?? {} as PipelineVersion} />
+              <PipelineBottomPanel
+                flowPanelRef={flowPanelRef}
+                pipelineVersion={selectedPipelineVersion ?? {} as PipelineVersion}
+              />
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>

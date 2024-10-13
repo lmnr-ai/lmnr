@@ -19,7 +19,16 @@ interface GenericNodeComponentProps {
 
 const GenericNodeComponent = ({ id, data, children }: GenericNodeComponentProps) => {
 
-  const { getNode, updateNodeData, dropEdgeForHandle, edges, setNodes, setFocusedNodeId, focusedNodeId, highlightedNodeId } = useStore(state => state);
+  const {
+    getNode,
+    updateNodeData,
+    dropEdgeForHandle,
+    edges,
+    setNodes,
+    setFocusedNodeId,
+    focusedNodeId,
+    highlightedNodeId
+  } = useStore(state => state);
   const { editable } = useFlowContext();
   const [shouldUpdate, setShouldUpdate] = useState(false);
   const updateNodeInternals = useUpdateNodeInternals();

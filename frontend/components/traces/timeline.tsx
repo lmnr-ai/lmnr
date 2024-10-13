@@ -117,7 +117,8 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
 
       const segmentEvents = [] as SegmentEvent[];
       for (const event of span.events) {
-        const eventLeft = ((new Date(event.timestamp)).getTime() - (new Date(span.startTime)).getTime()) / 1000 / duration * 100;
+        const eventLeft =
+          ((new Date(event.timestamp)).getTime() - (new Date(span.startTime)).getTime()) / 1000 / duration * 100;
 
         segmentEvents.push({
           id: event.id,

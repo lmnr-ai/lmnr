@@ -21,7 +21,9 @@ const UnifyNodeComponent = ({
   const [prompt, setSystemInstruction] = useState(data.prompt);
   const { updateNodeData, dropEdgeForHandle } = useStore();
 
-  const defaultInputs = new Map<string, GenericNodeHandle>(data.dynamicInputs?.map((input) => [input.name!, input]) ?? []);
+  const defaultInputs = new Map<string, GenericNodeHandle>(
+    data.dynamicInputs?.map((input) => [input.name!, input]) ?? []
+  );
 
   // hack needed to update prompt from copilot message changes
   useEffect(() => {
@@ -52,9 +54,14 @@ const UnifyNodeComponent = ({
         }}
         placeholder='prompt'
       />
-      <UnifyModelSelect savedUploadedBy={data.uploadedBy} savedModelName={data.modelName} savedProviderName={data.providerName} savedMetrics={data.metrics} onModelChange={updates => {
-        updateNodeData(id, updates);
-      }} />
+      <UnifyModelSelect
+        savedUploadedBy={data.uploadedBy}
+        savedModelName={data.modelName}
+        savedProviderName={data.providerName}
+        savedMetrics={data.metrics}
+        onModelChange={updates => {
+          updateNodeData(id, updates);
+        }} />
       <div className='flex items-center w-full justify-between'>
         <Label className='mr-2'>Model params</Label>
         <Switch

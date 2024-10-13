@@ -38,11 +38,13 @@ export default function SubpipelineNodeComponent({
 
           if (pv !== null) {
             updateNodeData(data.id, {
-              inputs: Object.values(pv.runnableGraph.nodes).filter((node) => node.type === NodeType.INPUT).map((node) => ({
-                id: node.id,
-                name: node.name,
-                type: (node as InputNode).inputType
-              } as GenericNodeHandle)),
+              inputs: Object.values(pv.runnableGraph.nodes)
+                .filter((node) => node.type === NodeType.INPUT)
+                .map((node) => ({
+                  id: node.id,
+                  name: node.name,
+                  type: (node as InputNode).inputType
+                } as GenericNodeHandle)),
               pipelineVersionName: pv.name,
               pipelineVersionId: pv.id,
               runnableGraph: pv.runnableGraph

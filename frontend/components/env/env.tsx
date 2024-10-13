@@ -41,7 +41,9 @@ export default function Env() {
                       <button
                         className="mr-4 text-gray-400"
                         onClick={() => {
-                          const newEnvVars = Object.fromEntries(Object.entries({ ...envVars }).filter(([key, _]) => key !== k));
+                          const newEnvVars = Object.fromEntries(
+                            Object.entries({ ...envVars }).filter(([key, _]) => key !== k)
+                          );
                           setEnvVars({ ...newEnvVars });
                         }}
                       >

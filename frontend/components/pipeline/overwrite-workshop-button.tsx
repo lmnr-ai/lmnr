@@ -27,7 +27,11 @@ interface OverwriteWorkshopButtonProps {
 /**
  * Button which overrides the current workshop version (unsaved changes) with one of the commit's contents.
  */
-export default function OverwriteWorkshopButton({ workshopVersionId, selectedPipelineVersion, onPipelineVersionsChange }: OverwriteWorkshopButtonProps) {
+export default function OverwriteWorkshopButton({
+  workshopVersionId,
+  selectedPipelineVersion,
+  onPipelineVersionsChange
+}: OverwriteWorkshopButtonProps) {
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useProjectContext();

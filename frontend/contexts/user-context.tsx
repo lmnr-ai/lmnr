@@ -24,7 +24,13 @@ type UserContextProviderProps = {
   supabaseAccessToken: string;
 };
 
-export const UserContextProvider = ({ email, username, imageUrl, children, supabaseAccessToken }: UserContextProviderProps) => (
+export const UserContextProvider = ({
+  email,
+  username,
+  imageUrl,
+  children,
+  supabaseAccessToken
+}: UserContextProviderProps) => (
   <UserContext.Provider value={{ email, username, imageUrl, supabaseAccessToken }}>
     {children}
   </UserContext.Provider>

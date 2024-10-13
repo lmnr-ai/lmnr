@@ -33,7 +33,9 @@ const FunctionNodeComponent = ({ data }: { data: FunctionNode }) => {
               dropEdgeForHandle(newDynamicInputs[index].id);
               newParameters.splice(index, 1);
               newDynamicInputs.splice(index, 1);
-              updateNodeData(data.id, { parameterNames: newParameters, dynamicInputs: newDynamicInputs } as FunctionNode);
+              updateNodeData(data.id,
+                { parameterNames: newParameters, dynamicInputs: newDynamicInputs } as FunctionNode
+              );
             }}>
             <Trash2Icon size={14} />
           </Button>

@@ -60,7 +60,9 @@ const WebSearchNodeComponent = ({
             defaultValue={data.semanticTextSearchLimit ?? 10}
             onChange={(e) => {
               updateNodeData(data.id, {
-                semanticTextSearchLimit: Number.isNaN(Number(e.currentTarget.value)) ? 10 : Number(e.currentTarget.value)
+                semanticTextSearchLimit: Number.isNaN(Number(e.currentTarget.value))
+                  ? 10
+                  : Number(e.currentTarget.value)
               } as WebSearchNode);
             }}
           />

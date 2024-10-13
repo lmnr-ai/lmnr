@@ -39,7 +39,9 @@ export default function SemanticSwitchNodeComponent({ data }: { data: SemanticSw
               <Input defaultValue={route.name} onChange={(e) => {
                 updateNodeData(id, {
                   routes: data.routes.map((r, i) => i === index ? { ...r, name: e.currentTarget.value } : r),
-                  outputs: data.outputs.map((output, i) => i === index ? { ...output, name: e.currentTarget.value } : output)
+                  outputs: data
+                    .outputs
+                    .map((output, i) => i === index ? { ...output, name: e.currentTarget.value } : output)
                 } as SemanticSwitchNode);
               }}
               />

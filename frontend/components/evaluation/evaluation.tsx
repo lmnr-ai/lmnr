@@ -56,8 +56,11 @@ export default function Evaluation({
   // This is ok to search for selected datapoint among defaultResults before we have pagination
   const [selectedDatapoint, setSelectedDatapoint] = useState<EvaluationDatapointPreviewWithCompared | null>(defaultResults.find((result) => result.id === searchParams.get('datapointId')) ?? null);
 
-  // Selected score name must usually not be undefined, as we expect to have at least one score, it's done just to not throw error if there are no scores
-  const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined);
+  // Selected score name must usually not be undefined, as we expect to have at least one score,
+  // it's done just to not throw error if there are no scores
+  const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(
+    scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined
+  );
 
   // Columns used when there is no compared evaluation
   let defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
@@ -176,11 +179,13 @@ export default function Evaluation({
               <SelectValue placeholder="select evaluation" />
             </SelectTrigger>
             <SelectContent>
-              {evaluations.filter((item) => (comparedEvaluation === null || item.id != comparedEvaluation.id)).map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.name}
-                </SelectItem>
-              ))}
+              {evaluations
+                .filter((item) => (comparedEvaluation === null || item.id != comparedEvaluation.id))
+                .map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>

@@ -71,9 +71,17 @@ export default function LogExportDialog({ endpointId, runIds, totalNumberOfTrace
             disabled={!selectedDatasetId || isLoading}
             onClick={async () => {
               setIsLoading(true);
-              const filters = useAll ? undefined : (queryParamFilters ? (getFilterFromUrlParams(queryParamFilters) ?? []) : []);
+              const filters = useAll
+                ? undefined
+                : (queryParamFilters ? (getFilterFromUrlParams(queryParamFilters) ?? []) : []);
               try {
-                await sendExportRequest(projectId, endpointId, selectedDatasetId!, useAll ? undefined : runIds, filters);
+                await sendExportRequest(
+                  projectId,
+                  endpointId,
+                  selectedDatasetId!,
+                  useAll ? undefined : runIds,
+                  filters
+                );
               } catch (e) {
                 toast({
                   title: 'Error exporting traces'

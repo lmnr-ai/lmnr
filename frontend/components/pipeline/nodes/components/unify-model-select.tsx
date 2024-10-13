@@ -25,10 +25,18 @@ interface ModelSelectProps {
   onModelChange: (model: UnifyNode) => void
 }
 
-export default function UnifyModelSelect({ savedUploadedBy, savedModelName, savedProviderName, savedMetrics, onModelChange }: ModelSelectProps) {
+export default function UnifyModelSelect({
+  savedUploadedBy,
+  savedModelName,
+  savedProviderName,
+  savedMetrics,
+  onModelChange
+}: ModelSelectProps) {
   const [uploadedBy, setUploadedBy] = useState(savedUploadedBy);
 
-  const [selectedModelName, setSelectedModelName] = useState(selectableModelNames.includes(savedModelName) ? savedModelName : TYPE_MANUALLY);
+  const [selectedModelName, setSelectedModelName] = useState(
+    selectableModelNames.includes(savedModelName) ? savedModelName : TYPE_MANUALLY
+  );
   const [typedModelName, setTypedModelName] = useState(selectableModelNames.includes(savedModelName) ? '' : savedModelName);
 
   const [selectedProvider, setSelectedProvider] = useState(savedProviderName);

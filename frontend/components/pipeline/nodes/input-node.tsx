@@ -32,11 +32,14 @@ const InputNodeComponent = ({ id, data }: { id: string, data: InputNode }) => {
         </SelectTrigger>
         <SelectContent>
           {
-            Object.values(NodeHandleType).filter(t => [NodeHandleType.STRING, NodeHandleType.STRING_LIST, NodeHandleType.CHAT_MESSAGE_LIST].includes(t)).map((nodeType, i) => (
-              <SelectItem key={i} value={nodeType}>
-                {nodeType}
-              </SelectItem>
-            ))
+            Object.values(NodeHandleType)
+              .filter(t =>
+                [NodeHandleType.STRING, NodeHandleType.STRING_LIST, NodeHandleType.CHAT_MESSAGE_LIST].includes(t))
+              .map((nodeType, i) => (
+                <SelectItem key={i} value={nodeType}>
+                  {nodeType}
+                </SelectItem>
+              ))
           }
         </SelectContent>
       </Select>

@@ -74,7 +74,11 @@ export default function DatasetPanel({ datasetId, datapoint, onClose }: DatasetP
           variant='outline'
           // disable if no changes or invalid json
           disabled={!isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata ||
-            (deepEqual(datapoint.data, newData) && deepEqual(datapoint.target, newTarget)) && deepEqual(datapoint.metadata, newMetadata)}
+            (
+              deepEqual(datapoint.data, newData)
+            && deepEqual(datapoint.target, newTarget)
+            && deepEqual(datapoint.metadata, newMetadata))
+          }
           onClick={async () => {
             const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapoint.id}`, {
               method: 'POST',

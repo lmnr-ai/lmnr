@@ -24,7 +24,9 @@ export default function LLM({
   const updateNodeData = useStore((state) => state.updateNodeData);
   const dropEdgeForHandle = useStore((state) => state.dropEdgeForHandle);
 
-  const defaultInputs = new Map<string, GenericNodeHandle>(data.dynamicInputs?.map((input) => [input.name!, input]) ?? []);
+  const defaultInputs = new Map<string, GenericNodeHandle>(
+    data.dynamicInputs?.map((input) => [input.name!, input]) ?? []
+  );
 
   // stores what was last selected in the model select, so we can restore it after re-disabling the model input
   const [selectedModelId, setSelectedModelId] = useState<string>(data.model ?? 'openai:gpt-3.5-turbo');

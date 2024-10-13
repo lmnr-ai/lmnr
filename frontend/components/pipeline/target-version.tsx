@@ -26,7 +26,11 @@ interface SetTargetVersionButtonProps {
 /**
  * Button which overrides the current workshop version (unsaved changes) with one of the commit's contents.
  */
-export default function SetTargetVersionButton({ pipelineId, pipelineVersionId, onTargetVersionChanged: onPipelineVersionsChange }: SetTargetVersionButtonProps) {
+export default function SetTargetVersionButton({
+  pipelineId,
+  pipelineVersionId,
+  onTargetVersionChanged: onPipelineVersionsChange
+}: SetTargetVersionButtonProps) {
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useProjectContext();

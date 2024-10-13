@@ -91,11 +91,13 @@ const compareArgTypeToHandleType = (argType: string, handleType: NodeHandleType)
   }
 };
 
-const compareArgToHandle = (arg: ParsedArgument, handle: GenericNodeHandle) => arg.name === handle.name && compareArgTypeToHandleType(arg.type, handle.type);
+const compareArgToHandle = (arg: ParsedArgument, handle: GenericNodeHandle) =>
+  arg.name === handle.name && compareArgTypeToHandleType(arg.type, handle.type);
 
 // TODO: Update [^)] to handle only valid Python function arguments
 const functionPattern = /def\s+main\(([^)]*)\)\s*->\s*([\w\[\]]+):/;
-const argumentPattern = /\s*([\w]+)\s*:\s*([\w\[\]]+)\s*(,|$)/g; // /(\w+):\s*(str|list\[str\]|List\[str\]|list\[ChatMessage\]|List\[ChatMessage\]|float)/g;
+// /(\w+):\s*(str|list\[str\]|List\[str\]|list\[ChatMessage\]|List\[ChatMessage\]|float)/g;
+const argumentPattern = /\s*([\w]+)\s*:\s*([\w\[\]]+)\s*(,|$)/g;
 
 
 // Function to parse Python code and extract function details
@@ -145,7 +147,10 @@ export default function Code({
               fnName: parsedFunction.functionName,
             } as CodeNode;
 
-            if (parsedFunction.arguments.length != data.inputs.length || !parsedFunction.arguments.every((arg, index) => compareArgToHandle(arg, data.inputs[index]))) {
+            if (
+              parsedFunction.arguments.length != data.inputs.length
+              || !parsedFunction.arguments.every((arg, index) => compareArgToHandle(arg, data.inputs[index]))
+            ) {
               for (const input of data.inputs) {
                 dropEdgeForHandle(input.id);
               }
@@ -157,7 +162,10 @@ export default function Code({
               }));
             }
 
-            if (data.outputs.length === 0 || !compareArgTypeToHandleType(parsedFunction.returnType, data.outputs[0].type)) {
+            if (
+              data.outputs.length === 0
+              || !compareArgTypeToHandleType(parsedFunction.returnType, data.outputs[0].type)
+            ) {
               if (data.outputs.length > 0) {
                 dropEdgeForHandle(data.outputs[0].id);
               }
