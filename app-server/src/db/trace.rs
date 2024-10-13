@@ -37,11 +37,7 @@ pub enum TraceType {
     EVALUATION,
 }
 
-fn default_true() -> bool {
-    true
-}
-
-#[derive(Deserialize, Serialize, sqlx::FromRow, Clone, Debug)]
+#[derive(Serialize, sqlx::FromRow, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Trace {
     pub id: Uuid,
@@ -57,14 +53,13 @@ pub struct Trace {
     user_id: Option<String>,
     session_id: Option<String>,
     metadata: Option<Value>,
-    #[serde(default)]
+    input_token_count: i64,
+    output_token_count: i64,
     total_token_count: i64,
-    #[serde(default)]
+    input_cost: f64,
+    output_cost: f64,
     cost: f64,
-    #[serde(default = "default_true")]
     success: bool,
-    // Project id is default because it's added later based on the ProjectApiKey
-    #[serde(default)]
     pub project_id: Uuid,
 }
 
@@ -82,7 +77,11 @@ pub struct TraceWithParentSpanAndEvents {
     user_id: Option<String>,
     session_id: Option<String>,
     metadata: Option<Value>,
+    input_token_count: i64,
+    output_token_count: i64,
     total_token_count: i64,
+    input_cost: f64,
+    output_cost: f64,
     cost: f64,
     success: bool,
     project_id: Uuid,
@@ -111,7 +110,11 @@ pub async fn update_trace_attributes(
         INSERT INTO traces (
             id,
             project_id,
+            input_token_count,
+            output_token_count,
             total_token_count,
+            input_cost,
+            output_cost,
             cost,
             success,
             start_time,
@@ -125,31 +128,43 @@ pub async fn update_trace_attributes(
             $1,
             $2,
             COALESCE($3, 0::int8),
-            COALESCE($4, 0::float8),
-            COALESCE($5, true),
-            $6,
-            $7,
-            $8,
-            $9,
+            COALESCE($4, 0::int8),
+            COALESCE($5, 0::int8),
+            COALESCE($6, 0::float8),
+            COALESCE($7, 0::float8),
+            COALESCE($8, 0::float8),
+            COALESCE($9, true),
             $10,
-            COALESCE($11, 'DEFAULT'::trace_type)
+            $11,
+            $12,
+            $13,
+            $14,
+            COALESCE($15, 'DEFAULT'::trace_type)
         )
         ON CONFLICT(id) DO
         UPDATE
-        SET 
-            total_token_count = traces.total_token_count + COALESCE($3, 0),
-            cost = traces.cost + COALESCE($4, 0),
-            success = CASE WHEN $5 IS NULL THEN traces.success ELSE $5 END,
-            start_time = CASE WHEN traces.start_time IS NULL OR traces.start_time > $6 THEN $6 ELSE traces.start_time END,
-            end_time = CASE WHEN traces.end_time IS NULL OR traces.end_time < $7 THEN $7 ELSE traces.end_time END,
-            session_id = CASE WHEN traces.session_id IS NULL THEN $9 ELSE traces.session_id END,
-            user_id = CASE WHEN traces.user_id IS NULL THEN $10 ELSE traces.user_id END,
-            trace_type = CASE WHEN $11 IS NULL THEN traces.trace_type ELSE COALESCE($11, 'DEFAULT'::trace_type) END
+        SET
+            input_token_count = traces.input_token_count + COALESCE($3, 0),
+            output_token_count = traces.output_token_count + COALESCE($4, 0),
+            total_token_count = traces.total_token_count + COALESCE($5, 0),
+            input_cost = traces.input_cost + COALESCE($6, 0),
+            output_cost = traces.output_cost + COALESCE($7, 0),
+            cost = traces.cost + COALESCE($8, 0),
+            success = CASE WHEN $9 IS NULL THEN traces.success ELSE $9 END,
+            start_time = CASE WHEN traces.start_time IS NULL OR traces.start_time > $10 THEN $10 ELSE traces.start_time END,
+            end_time = CASE WHEN traces.end_time IS NULL OR traces.end_time < $11 THEN $11 ELSE traces.end_time END,
+            session_id = CASE WHEN traces.session_id IS NULL THEN $13 ELSE traces.session_id END,
+            user_id = CASE WHEN traces.user_id IS NULL THEN $14 ELSE traces.user_id END,
+            trace_type = CASE WHEN $15 IS NULL THEN traces.trace_type ELSE COALESCE($15, 'DEFAULT'::trace_type) END
         "
     )
     .bind(attributes.id)
     .bind(project_id)
+    .bind(attributes.input_token_count)
+    .bind(attributes.output_token_count)
     .bind(attributes.total_token_count)
+    .bind(attributes.input_cost)
+    .bind(attributes.output_cost)
     .bind(attributes.cost)
     .bind(attributes.success)
     .bind(attributes.start_time)
@@ -163,7 +178,7 @@ pub async fn update_trace_attributes(
     Ok(())
 }
 
-pub fn add_traces_info_expression(
+fn add_traces_info_expression(
     query: &mut QueryBuilder<Postgres>,
     date_range: &Option<DateRange>,
     project_id: Uuid,
@@ -181,7 +196,11 @@ pub fn add_traces_info_expression(
             session_id,
             metadata,
             project_id,
+            input_token_count,
+            output_token_count,
             total_token_count,
+            input_cost,
+            output_cost,
             cost,
             success,
             trace_type,
@@ -319,9 +338,17 @@ fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Opt
                 .any(|col| col == &filter.filter_column.as_str())
             {
                 query.push_bind(Uuid::parse_str(&filter_value_str).unwrap_or_default());
-            } else if ["latency", "cost", "total_token_count"]
-                .iter()
-                .any(|col| col == &filter.filter_column.as_str())
+            } else if [
+                "latency",
+                "cost",
+                "total_token_count",
+                "input_token_count",
+                "output_token_count",
+                "input_cost",
+                "output_cost",
+            ]
+            .iter()
+            .any(|col| col == &filter.filter_column.as_str())
             {
                 query.push_bind(filter_value_str.parse::<f64>().unwrap_or_default());
             } else if filter.filter_column == "trace_type" {
@@ -406,7 +433,11 @@ pub async fn get_traces(
             session_id,
             metadata,
             project_id,
+            input_token_count,
+            output_token_count,
             total_token_count,
+            input_cost,
+            output_cost,
             cost,
             success,
             COALESCE(trace_events.events, '[]'::jsonb) AS events,
@@ -502,7 +533,11 @@ pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
             session_id,
             metadata,
             project_id,
+            input_token_count,
+            output_token_count,
             total_token_count,
+            input_cost,
+            output_cost,
             cost,
             success
         FROM traces

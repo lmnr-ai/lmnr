@@ -85,8 +85,13 @@ pub async fn process_queue_spans(
         trace_attributes.update_trace_type(span_attributes.trace_type());
 
         if span.span_type == SpanType::LLM {
-            trace_attributes.add_cost(span_usage.total_cost);
-            trace_attributes.add_tokens(span_usage.total_tokens);
+            trace_attributes.add_input_cost(span_usage.input_cost);
+            trace_attributes.add_output_cost(span_usage.output_cost);
+            trace_attributes.add_total_cost(span_usage.total_cost);
+
+            trace_attributes.add_input_tokens(span_usage.input_tokens);
+            trace_attributes.add_output_tokens(span_usage.output_tokens);
+            trace_attributes.add_total_tokens(span_usage.total_tokens);
             span_attributes.set_usage(&span_usage);
         }
 
