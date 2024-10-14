@@ -31,13 +31,13 @@ export default async function SignInPage({
         {process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET &&
           <>
             or
-            <GoogleSignInButton className='text-[16px] py-6 px-4 pr-8 mb-4' callbackUrl={callbackUrl} />
+            <GitHubSignInButton className='text-[16px] py-6 px-4 pr-8 mb-4' callbackUrl={callbackUrl} />
           </>
         }
         {process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET &&
         <>
           or
-          <GitHubSignInButton className='text-[16px] py-6 px-4 pr-8' callbackUrl={callbackUrl} />
+          <GoogleSignInButton className='text-[16px] py-6 px-4 pr-8' callbackUrl={callbackUrl} />
         </>
         }
       </div>
