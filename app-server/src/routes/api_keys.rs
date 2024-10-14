@@ -1,13 +1,24 @@
 use crate::db::{self, api_keys::ProjectApiKey, utils::generate_random_key, DB};
 use actix_web::{delete, get, post, web, HttpResponse};
+use serde::{Deserialize, Serialize};
+use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
 use super::ResponseResult;
 use crate::cache::Cache;
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize)]
 struct CreateProjectApiKeyRequest {
     name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateProjectApiKeyResponse {
+    value: String,
+    project_id: Uuid,
+    name: Option<String>,
+    shorthand: String,
 }
 
 #[post("api-keys")]
@@ -18,17 +29,27 @@ async fn create_project_api_key(
     cache: web::Data<Cache>,
 ) -> ResponseResult {
     let req = req.into_inner();
+    let project_id = project_id.into_inner();
 
-    // TODO: value should be a hash of genereted key
-    let api_key = ProjectApiKey {
-        value: generate_random_key(),
-        project_id: project_id.into_inner(),
-        name: req.name,
+    let value = generate_random_key();
+    let shorthand = format!("{}...{}", &value[..4], &value[value.len() - 4..]);
+
+    let hash = hash_api_key(&value);
+
+    let key =
+        db::api_keys::create_project_api_key(&db.pool, &project_id, &req.name, &hash, &shorthand)
+            .await?;
+
+    let _ = cache.insert::<ProjectApiKey>(key.hash.clone(), &key).await;
+
+    let response = CreateProjectApiKeyResponse {
+        value,
+        project_id,
+        name: key.name,
+        shorthand: key.shorthand,
     };
 
-    db::api_keys::create_project_api_key(&db.pool, &api_key, cache.into_inner()).await?;
-
-    Ok(HttpResponse::Ok().json(api_key))
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[get("api-keys")]
@@ -44,7 +65,7 @@ async fn get_api_keys_for_project(
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DeleteProjectApiKeyRequest {
-    api_key: String,
+    id: Uuid,
 }
 
 #[delete("api-keys")]
@@ -55,9 +76,16 @@ async fn revoke_project_api_key(
     cache: web::Data<Cache>,
 ) -> ResponseResult {
     let req = req.into_inner();
-    let _ = cache.remove::<ProjectApiKey>(&req.api_key).await;
 
-    db::api_keys::delete_api_key(&db.pool, &req.api_key, &project_id).await?;
+    let hash = db::api_keys::delete_api_key(&db.pool, &req.id, &project_id).await?;
+
+    let _ = cache.remove::<ProjectApiKey>(&hash).await;
 
     Ok(HttpResponse::Ok().finish())
+}
+
+pub fn hash_api_key(api_key: &str) -> String {
+    let mut hasher = Sha3_256::new();
+    hasher.update(api_key.as_bytes());
+    format!("{:x}", hasher.finalize())
 }

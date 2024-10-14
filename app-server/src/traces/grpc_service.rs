@@ -4,11 +4,9 @@ use lapin::Connection;
 use sqlx::PgPool;
 
 use crate::{
+    api::utils::get_api_key_from_raw_value,
     cache::Cache,
-    db::{
-        api_keys::{get_api_key, ProjectApiKey},
-        DB,
-    },
+    db::{api_keys::ProjectApiKey, DB},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
@@ -58,11 +56,11 @@ impl TraceService for ProcessTracesService {
 
 async fn authenticate_request(
     metadata: &tonic::metadata::MetadataMap,
-    db: &PgPool,
+    pool: &PgPool,
     cache: Arc<Cache>,
 ) -> anyhow::Result<ProjectApiKey> {
     let token = extract_bearer_token(metadata)?;
-    get_api_key(db, &token, cache).await
+    get_api_key_from_raw_value(pool, cache, token).await
 }
 
 fn extract_bearer_token(metadata: &tonic::metadata::MetadataMap) -> anyhow::Result<String> {

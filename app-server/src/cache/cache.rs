@@ -4,8 +4,6 @@ use std::result::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use sqlx::postgres::PgRow;
-use sqlx::FromRow;
 
 #[derive(thiserror::Error, Debug)]
 pub enum CacheError {
@@ -25,7 +23,7 @@ pub trait CacheTrait: Sync + Send {
 #[async_trait]
 impl<T> CacheTrait for moka::future::Cache<String, T>
 where
-    T: for<'a> FromRow<'a, PgRow> + 'static + Send + Sync + Clone,
+    T: 'static + Send + Sync + Clone,
 {
     async fn get(&self, key: &str) -> Option<Box<dyn Any>> {
         self.get(key)

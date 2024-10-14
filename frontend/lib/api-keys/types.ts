@@ -1,5 +1,13 @@
 export type ProjectApiKey = {
-    value: string
-    projectId: string
-    name?: string
+  shorthand: string
+  projectId: string
+  name?: string
+  id: string
+}
+
+export type GenerateProjectApiKeyResponse = {
+  value: string
+  name?: string
+  projectId: string
+  shorthand: string
 }

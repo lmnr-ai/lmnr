@@ -20,7 +20,7 @@ use super::span_attributes::{
     ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST,
     GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS,
     GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST,
-    LLM_NODE_RENDERED_PROMPT, SPAN_PATH, SPAN_TYPE,
+    GEN_AI_TOTAL_TOKENS, LLM_NODE_RENDERED_PROMPT, SPAN_PATH, SPAN_TYPE,
 };
 
 const INPUT_ATTRIBUTE_NAME: &str = "lmnr.span.input";
@@ -432,7 +432,7 @@ impl Span {
                     trace_id,
                     parent_span_id: Some(parent_span_id),
                     name: message.node_name.clone(),
-                    attributes: span_attributes_from_data(message.meta_log.clone(), span_path),
+                    attributes: span_attributes_from_meta_log(message.meta_log.clone(), span_path),
                     input: Some(serde_json::to_value(input_values).unwrap()),
                     output: Some(message.value.clone().into()),
                     span_type: match message.node_type.as_str() {
@@ -448,7 +448,7 @@ impl Span {
     }
 }
 
-fn span_attributes_from_data(meta_log: Option<MetaLog>, span_path: String) -> Value {
+fn span_attributes_from_meta_log(meta_log: Option<MetaLog>, span_path: String) -> Value {
     let mut attributes = HashMap::new();
 
     if let Some(MetaLog::LLM(llm_log)) = meta_log {
@@ -459,6 +459,10 @@ fn span_attributes_from_data(meta_log: Option<MetaLog>, span_path: String) -> Va
         attributes.insert(
             GEN_AI_OUTPUT_TOKENS.to_string(),
             json!(llm_log.output_token_count),
+        );
+        attributes.insert(
+            GEN_AI_TOTAL_TOKENS.to_string(),
+            json!(llm_log.total_token_count),
         );
         attributes.insert(GEN_AI_RESPONSE_MODEL.to_string(), json!(llm_log.model));
         attributes.insert(GEN_AI_SYSTEM.to_string(), json!(llm_log.provider));

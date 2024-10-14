@@ -246,36 +246,32 @@ fn add_traces_info_expression(
     Ok(())
 }
 
-fn add_matching_spans_query(
+fn add_text_join(
     query: &mut QueryBuilder<Postgres>,
     date_range: &Option<DateRange>,
-    text_search_filter: Option<String>,
+    text_search_filter: &String,
 ) -> Result<()> {
     query.push(
         "
-        matching_spans_trace_ids AS (
+        JOIN (
             SELECT DISTINCT trace_id
-            FROM spans
-            WHERE 1=1
-            ",
+            FROM spans 
+            WHERE ",
     );
+    query
+        .push("(input::TEXT ILIKE ")
+        .push_bind(format!("%{text_search_filter}%"))
+        .push(" OR output::TEXT ILIKE ")
+        .push_bind(format!("%{text_search_filter}%"))
+        .push(" OR name::TEXT ILIKE ")
+        .push_bind(format!("%{text_search_filter}%"))
+        .push(" OR attributes::TEXT ILIKE ")
+        .push_bind(format!("%{text_search_filter}%"))
+        .push(")");
 
     add_date_range_to_query(query, date_range, "start_time", Some("end_time"))?;
 
-    if let Some(text_search_filter) = text_search_filter {
-        query
-            .push(" AND (input::TEXT ILIKE ")
-            .push_bind(format!("%{text_search_filter}%"))
-            .push(" OR output::TEXT ILIKE ")
-            .push_bind(format!("%{text_search_filter}%"))
-            .push(" OR name::TEXT ILIKE ")
-            .push_bind(format!("%{text_search_filter}%"))
-            .push(" OR attributes::TEXT ILIKE ")
-            .push_bind(format!("%{text_search_filter}%"))
-            .push(")");
-    };
-
-    query.push(")");
+    query.push(") matching_spans ON traces_info.id = matching_spans.trace_id");
     Ok(())
 }
 
@@ -417,8 +413,6 @@ pub async fn get_traces(
     let mut query = QueryBuilder::<Postgres>::new("WITH ");
     add_traces_info_expression(&mut query, date_range, project_id)?;
     query.push(", ");
-    add_matching_spans_query(&mut query, date_range, text_search_filter)?;
-    query.push(", ");
     query.push(TRACE_EVENTS_EXPRESSION);
 
     query.push(
@@ -447,10 +441,12 @@ pub async fn get_traces(
             parent_span_type,
             status
         FROM traces_info
-        JOIN matching_spans_trace_ids ON traces_info.id = matching_spans_trace_ids.trace_id
-        LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id
-        WHERE project_id = ",
+        LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id ",
     );
+    if let Some(search) = text_search_filter {
+        add_text_join(&mut query, date_range, &search)?;
+    }
+    query.push(" WHERE project_id = ");
     query.push_bind(project_id);
 
     add_filters_to_traces_query(&mut query, &filters);
@@ -480,18 +476,19 @@ pub async fn count_traces(
     let mut query = QueryBuilder::<Postgres>::new("WITH ");
     add_traces_info_expression(&mut query, date_range, project_id)?;
     query.push(", ");
-    add_matching_spans_query(&mut query, date_range, text_search_filter)?;
-    query.push(", ");
     query.push(TRACE_EVENTS_EXPRESSION);
     query.push(
         "
         SELECT
             COUNT(DISTINCT(id)) as total_count
         FROM traces_info
-        JOIN matching_spans_trace_ids ON traces_info.id = matching_spans_trace_ids.trace_id
         LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id
-        WHERE project_id = ",
+        ",
     );
+    if let Some(search) = text_search_filter {
+        add_text_join(&mut query, date_range, &search)?;
+    }
+    query.push(" WHERE project_id = ");
     query.push_bind(project_id);
 
     add_filters_to_traces_query(&mut query, &filters);
