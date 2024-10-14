@@ -1,18 +1,18 @@
-import { ProjectApiKey } from '@/lib/api-keys/types';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { useState } from 'react';
-import { Button } from '../ui/button';
-import { Loader, Trash2 } from 'lucide-react';
-import { Label } from '../ui/label';
-import { cn } from '@/lib/utils';
+import { ProjectApiKey } from "@/lib/api-keys/types";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import { useState } from "react";
+import { Button } from "../ui/button";
+import { Loader, Trash2 } from "lucide-react";
+import { Label } from "../ui/label";
+import { cn } from "@/lib/utils";
 
 interface RevokeApiKeyDialogProps {
-  obj: { name?: string, value: string };
+  apiKey: ProjectApiKey;
   entity: string;
-  onRevoke: (value: string) => Promise<void>;
+  onRevoke: (id: string) => Promise<void>;
 }
 
-export default function RevokeDialog({ obj, onRevoke, entity }: RevokeApiKeyDialogProps) {
+export default function RevokeDialog({ apiKey, onRevoke, entity }: RevokeApiKeyDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   return (
@@ -26,11 +26,11 @@ export default function RevokeDialog({ obj, onRevoke, entity }: RevokeApiKeyDial
             Revoke {entity}
           </DialogTitle>
         </DialogHeader>
-        <Label>Are you sure you want to revoke the {entity} {obj.name ?? ''}?</Label>
+        <Label>Are you sure you want to revoke the {entity} {apiKey.name ?? ''}?</Label>
         <DialogFooter>
           <Button onClick={async () => {
             setIsLoading(true);
-            await onRevoke(obj.value);
+            await onRevoke(apiKey.id);
             setIsLoading(false);
             setIsOpen(false);
           }}>

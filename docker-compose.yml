@@ -61,6 +61,7 @@ services:
       - QDRANT_URL=http://qdrant:6334
       - COHERE_ENDPOINT=https://api.cohere.ai/v1/embed
       - COHERE_API_KEY=${COHERE_API_KEY}
+    pull_policy: always
 
   postgres:
     build:
@@ -71,7 +72,7 @@ services:
         POSTGRES_DB: ${POSTGRES_DB}
     container_name: postgres
     ports:
-      - "5432:5432"
+      - "5433:5433"
     volumes:
       - type: volume
         source: postgres-data
@@ -91,6 +92,7 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
+    pull_policy: always
     environment:
       - PORT=8000
       - GRPC_PORT=8001
@@ -106,6 +108,7 @@ services:
     ports:
       - "3000:3000"
     env_file: ./frontend/.env.local.example
+    pull_policy: always
     environment:
       - PORT=3000
       - BACKEND_URL=http://app-server:8000

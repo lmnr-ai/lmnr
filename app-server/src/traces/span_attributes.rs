@@ -10,7 +10,7 @@ pub const GEN_AI_OUTPUT_TOKENS: &str = "gen_ai.usage.output_tokens";
 pub const GEN_AI_PROMPT_TOKENS: &str = "gen_ai.usage.prompt_tokens";
 pub const GEN_AI_COMPLETION_TOKENS: &str = "gen_ai.usage.completion_tokens";
 
-// pub const GEN_AI_TOTAL_TOKENS: &str = "gen_ai.usage.total_tokens";
+pub const GEN_AI_TOTAL_TOKENS: &str = "llm.usage.total_tokens";
 pub const GEN_AI_REQUEST_MODEL: &str = "gen_ai.request.model";
 pub const GEN_AI_RESPONSE_MODEL: &str = "gen_ai.response.model";
 // pub const GEN_AI_REQUEST_IS_STREAM: &str = "gen_ai.request.is_stream";
