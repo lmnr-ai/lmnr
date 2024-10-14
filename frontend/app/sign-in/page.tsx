@@ -3,6 +3,8 @@ import logo from '@/assets/logo/laminar_light.svg';
 import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { DefaultSignInButton } from '@/components/sign-in/dummy-signin';
+import { GoogleSignInButton } from '@/components/sign-in/google-signin';
+import { GitHubSignInButton } from '@/components/sign-in/github-signin';
 
 export default async function SignInPage({
   params,
@@ -26,6 +28,18 @@ export default async function SignInPage({
         <Image alt='' src={logo} width={200} className='mb-16' />
         <h1 className="text-[24px] text-center mb-16">Start building next-gen AI apps now.</h1>
         <DefaultSignInButton callbackUrl={callbackUrl} />
+        {process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET &&
+          <>
+            or
+            <GoogleSignInButton className='text-[16px] py-6 px-4 pr-8 mb-4' callbackUrl={callbackUrl} />
+          </>
+        }
+        {process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET &&
+        <>
+          or
+          <GitHubSignInButton className='text-[16px] py-6 px-4 pr-8' callbackUrl={callbackUrl} />
+        </>
+        }
       </div>
     </div>
   );

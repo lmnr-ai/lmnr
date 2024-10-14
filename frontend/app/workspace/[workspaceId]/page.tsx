@@ -41,7 +41,12 @@ export default async function WorkspacePage(
 
 
   return (
-    <UserContextProvider email={user.email!} supabaseAccessToken={session.supabaseAccessToken} username={user.name!} imageUrl={user.image!}>
+    <UserContextProvider
+      email={user.email!}
+      supabaseAccessToken={session.supabaseAccessToken}
+      username={user.name!}
+      imageUrl={user.image!}
+    >
       <WorkspacesNavbar />
       <div className="flex flex-col min-h-screen flex-grow overflow-auto ml-64">
         <Header path={`workspaces/${workspace.name}`} className="border-none" />
