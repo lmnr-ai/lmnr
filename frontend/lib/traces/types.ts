@@ -1,5 +1,5 @@
-import { Event } from '../events/types';
-import { GraphMessagePreview } from '../pipeline/types';
+import { Event } from "../events/types";
+import { GraphMessagePreview } from "../pipeline/types";
 
 export type TraceMessages = { [key: string]: GraphMessagePreview }
 
@@ -33,11 +33,11 @@ export type SpanLabel = {
 }
 
 export enum SpanType {
-  DEFAULT = 'DEFAULT',
-  LLM = 'LLM',
-  EXECUTOR = 'EXECUTOR',
-  EVALUATOR = 'EVALUATOR',
-  EVALUATION = 'EVALUATION',
+  DEFAULT = "DEFAULT",
+  LLM = "LLM",
+  EXECUTOR = "EXECUTOR",
+  EVALUATOR = "EVALUATOR",
+  EVALUATION = "EVALUATION",
 }
 
 export type Span = {
@@ -125,10 +125,14 @@ export type TraceMetricDatapoint = {
 export type SessionPreview = {
   id: string;
   traceCount: number;
+  inputCost: number;
+  outputCost: number;
   cost: number;
   startTime: string;
   endTime: string;
   duration: number;
+  inputTokenCount: number;
+  outputTokenCount: number;
   totalTokenCount: number;
 }
 

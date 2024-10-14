@@ -1,5 +1,5 @@
-import { ProjectApiKey } from '@/lib/api-keys/types';
-import { Button } from '../ui/button';
+import { GenerateProjectApiKeyResponse, ProjectApiKey } from "@/lib/api-keys/types";
+import { Button } from "../ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,14 +8,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Copy, Plus } from 'lucide-react';
-import { Label } from '../ui/label';
-import { Input } from '../ui/input';
-import { useCallback, useState } from 'react';
-import { useProjectContext } from '@/contexts/project-context';
-import { useToast } from '@/lib/hooks/use-toast';
-import DeleteProject from './delete-project';
-import RevokeDialog from './revoke-dialog';
+import { Copy, Plus } from "lucide-react";
+import { Label } from "../ui/label";
+import { Input } from "../ui/input";
+import { useCallback, useState } from "react";
+import { useProjectContext } from "@/contexts/project-context";
+import { useToast } from "@/lib/hooks/use-toast";
+import RevokeDialog from "./revoke-dialog";
 
 interface ApiKeysProps {
   apiKeys: ProjectApiKey[]
@@ -26,23 +25,24 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [isGenerateKeyDialogOpen, setIsGenerateKeyDialogOpen] = useState(false);
   const [projectApiKeys, setProjectApiKeys] = useState<ProjectApiKey[]>(apiKeys);
   const [newApiKeyName, setNewApiKeyName] = useState<string>('');
+  const [newApiKey, setNewApiKey] = useState<GenerateProjectApiKeyResponse | null>(null);
+  const [isGenerated, setIsGenerated] = useState(false);
   const { projectId } = useProjectContext();
-  const { toast } = useToast();
 
   const generateNewAPIKey = useCallback(async (newName: string) => {
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {
       method: 'POST',
       body: JSON.stringify({ name: newName })
     });
-    await res.json();
+    const newKey = await res.json() as GenerateProjectApiKeyResponse;
 
-    getProjectApiKeys();
+    setNewApiKey(newKey);
   }, []);
 
-  const deleteApiKey = useCallback(async (apiKeyVal: string) => {
+  const deleteApiKey = useCallback(async (id: string) => {
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {
       method: 'DELETE',
-      body: JSON.stringify({ apiKey: apiKeyVal })
+      body: JSON.stringify({ id: id })
     });
     await res.text();
 
@@ -68,6 +68,8 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
         <Dialog open={isGenerateKeyDialogOpen} onOpenChange={() => {
           setIsGenerateKeyDialogOpen(!isGenerateKeyDialogOpen);
           setNewApiKeyName('');
+          setNewApiKey(null);
+          setIsGenerated(false);
         }}>
           <DialogTrigger asChild>
             <Button variant="outline" className="h-8 max-w-80">
@@ -75,28 +77,28 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
               Generate API key
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent
+            className="sm:max-w-[425px]"
+            // prevent closing dialog when clicking outside when copying api key
+            onInteractOutside={(e) => isGenerated && newApiKey && e.preventDefault()}
+          >
             <DialogHeader>
-              <DialogTitle>Generate API key</DialogTitle>
+              <DialogTitle>{isGenerated && newApiKey ? 'API key generated' : 'Generate API key'}</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Label>Name</Label>
-              <Input
-                autoFocus
-                placeholder="API key name"
-                onChange={(e) => setNewApiKeyName(e.target.value)}
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                onClick={() => {
-                  setIsGenerateKeyDialogOpen(false);
-                  generateNewAPIKey(newApiKeyName);
-                }}
-                handleEnter>
-                Create
-              </Button>
-            </DialogFooter>
+            {
+              isGenerated && newApiKey
+                ? <DisplayKeyDialogContent
+                  apiKey={newApiKey}
+                  onClose={() => { setIsGenerateKeyDialogOpen(false); getProjectApiKeys();}}
+                />
+                : <GenerateKeyDialogContent
+                  onClick={() => {
+                    generateNewAPIKey(newApiKeyName);
+                    setIsGenerated(true);
+                  }}
+                  onNameChange={(name) => setNewApiKeyName(name)}
+                />
+            }
           </DialogContent>
         </Dialog>
         <table className="w-1/2 border-t">
@@ -106,23 +108,12 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
                 <tr className="border-b h-14" key={id}>
                   <td className="">{apiKey.name}</td>
                   <td className="ml-4 text-[16px] font-mono text-xs">
-                    <div>{apiKey.value.slice(0, 4)} ... {apiKey.value.slice(-4)}</div>
+                    <div>{apiKey.shorthand}</div>
                   </td>
                   <td>
                     <div className="flex justify-end">
-                      <button
-                        className="mr-4 text-gray-400"
-                        onClick={() => {
-                          // copy api key to clipboard
-                          navigator.clipboard.writeText(apiKey.value);
-                          toast({
-                            title: 'API key copied to clipboard'
-                          });
-                        }}
-                      >
-                        <Copy className="h-4" />
-                      </button>
-                      <RevokeDialog obj={apiKey} onRevoke={deleteApiKey} entity="API key" />
+
+                      <RevokeDialog apiKey={apiKey} onRevoke={deleteApiKey} entity="API key" />
                     </div>
                   </td>
                 </tr>
@@ -131,6 +122,80 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
           </tbody>
         </table>
       </div>
+    </>
+  );
+}
+
+function GenerateKeyDialogContent({
+  onClick,
+  onNameChange,
+}: {
+  onClick: () => void
+  onNameChange: (name: string) => void
+}) {
+  return (
+    <>
+      <div className="grid gap-4 py-4">
+        <Label>Name</Label>
+        <Input
+          autoFocus
+          placeholder="API key name"
+          onChange={(e) => onNameChange(e.target.value)}
+        />
+      </div>
+      <DialogFooter>
+        <Button
+          onClick={onClick}
+          handleEnter>
+          Create
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function DisplayKeyDialogContent({
+  apiKey,
+  onClose
+}: {
+  apiKey: GenerateProjectApiKeyResponse
+  onClose?: () => void
+}) {
+  const { toast } = useToast();
+  return (
+    <>
+      <div className="flex flex-col space-y-2">
+        <p className="text-secondary-foreground"> For security reasons, you will not be able to see this key again. Make sure to copy and save it somewhere safe. </p>
+        <div className="flex space-x-2">
+          <Input
+            className="flex h-8 text-sm"
+            value={apiKey.value}
+            readOnly
+          />
+          <Button
+            className="flex h-8"
+            variant="secondary"
+            onClick={() => {
+              // copy api key to clipboard
+              navigator.clipboard.writeText(apiKey.value);
+              toast({
+                title: 'API key copied to clipboard'
+              });
+            }}
+          >
+            <Copy size={12} />
+          </Button>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button
+          onClick={onClose}
+          handleEnter
+          variant="secondary"
+        >
+          Close
+        </Button>
+      </DialogFooter>
     </>
   );
 }

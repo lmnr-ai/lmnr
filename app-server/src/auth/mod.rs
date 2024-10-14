@@ -11,8 +11,9 @@ use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
 
+use crate::api::utils::get_api_key_from_raw_value;
 use crate::cache::Cache;
-use crate::db::api_keys::{get_api_key, ProjectApiKey};
+use crate::db::api_keys::ProjectApiKey;
 use crate::db::user::{get_user_from_api_key, User};
 use crate::db::DB;
 
@@ -96,7 +97,7 @@ pub async fn project_validator(
         .unwrap()
         .into_inner();
 
-    match get_api_key(&db.pool, &credentials.token().to_string(), cache.clone()).await {
+    match get_api_key_from_raw_value(&db.pool, cache, credentials.token().to_string()).await {
         Ok(api_key) => {
             req.extensions_mut().insert(api_key);
             Ok(req)

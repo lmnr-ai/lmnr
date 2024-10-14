@@ -28,7 +28,7 @@ The easiest way to get started is with a generous free tier on our managed platf
 
 Start local version with docker compose.
 ```sh
-git clone git@github.com:lmnr-ai/lmnr
+git clone https://github.com/lmnr-ai/lmnr
 cd lmnr
 docker compose up
 ```

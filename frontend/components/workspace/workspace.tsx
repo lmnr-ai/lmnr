@@ -1,7 +1,8 @@
 'use client';
 
 import { WorkspaceWithUsers } from '@/lib/workspaces/types';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import Link from 'next/link';
+import { Label } from '../ui/label';
 
 interface WorkspaceProps {
   workspace: WorkspaceWithUsers;
@@ -14,7 +15,11 @@ export default function WorkspaceComponent({
 }: WorkspaceProps) {
   return (
     <div className="flex flex-col">
-      {workspace.name}
+      <Label className='p-2'>
+        <Link href="/projects">
+          Back to all projects
+        </Link>
+      </Label>
     </div>
   );
 }

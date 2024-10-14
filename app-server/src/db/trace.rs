@@ -246,36 +246,32 @@ fn add_traces_info_expression(
     Ok(())
 }
 
-fn add_matching_spans_query(
+fn add_text_join(
     query: &mut QueryBuilder<Postgres>,
     date_range: &Option<DateRange>,
-    text_search_filter: Option<String>,
+    text_search_filter: &String,
 ) -> Result<()> {
     query.push(
         "
-        matching_spans_trace_ids AS (
+        JOIN (
             SELECT DISTINCT trace_id
-            FROM spans
-            WHERE 1=1
-            ",
+            FROM spans 
+            WHERE ",
     );
+    query
+        .push("(input::TEXT ILIKE ")
+        .push_bind(format!("%{text_search_filter}%"))
+        .push(" OR output::TEXT ILIKE ")
+        .push_bind(format!("%{text_search_filter}%"))
+        .push(" OR name::TEXT ILIKE ")
+        .push_bind(format!("%{text_search_filter}%"))
+        .push(" OR attributes::TEXT ILIKE ")
+        .push_bind(format!("%{text_search_filter}%"))
+        .push(")");
 
     add_date_range_to_query(query, date_range, "start_time", Some("end_time"))?;
 
-    if let Some(text_search_filter) = text_search_filter {
-        query
-            .push(" AND (input::TEXT ILIKE ")
-            .push_bind(format!("%{text_search_filter}%"))
-            .push(" OR output::TEXT ILIKE ")
-            .push_bind(format!("%{text_search_filter}%"))
-            .push(" OR name::TEXT ILIKE ")
-            .push_bind(format!("%{text_search_filter}%"))
-            .push(" OR attributes::TEXT ILIKE ")
-            .push_bind(format!("%{text_search_filter}%"))
-            .push(")");
-    };
-
-    query.push(")");
+    query.push(") matching_spans ON traces_info.id = matching_spans.trace_id");
     Ok(())
 }
 
@@ -417,8 +413,6 @@ pub async fn get_traces(
     let mut query = QueryBuilder::<Postgres>::new("WITH ");
     add_traces_info_expression(&mut query, date_range, project_id)?;
     query.push(", ");
-    add_matching_spans_query(&mut query, date_range, text_search_filter)?;
-    query.push(", ");
     query.push(TRACE_EVENTS_EXPRESSION);
 
     query.push(
@@ -447,10 +441,12 @@ pub async fn get_traces(
             parent_span_type,
             status
         FROM traces_info
-        JOIN matching_spans_trace_ids ON traces_info.id = matching_spans_trace_ids.trace_id
-        LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id
-        WHERE project_id = ",
+        LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id ",
     );
+    if let Some(search) = text_search_filter {
+        add_text_join(&mut query, date_range, &search)?;
+    }
+    query.push(" WHERE project_id = ");
     query.push_bind(project_id);
 
     add_filters_to_traces_query(&mut query, &filters);
@@ -480,18 +476,19 @@ pub async fn count_traces(
     let mut query = QueryBuilder::<Postgres>::new("WITH ");
     add_traces_info_expression(&mut query, date_range, project_id)?;
     query.push(", ");
-    add_matching_spans_query(&mut query, date_range, text_search_filter)?;
-    query.push(", ");
     query.push(TRACE_EVENTS_EXPRESSION);
     query.push(
         "
         SELECT
             COUNT(DISTINCT(id)) as total_count
         FROM traces_info
-        JOIN matching_spans_trace_ids ON traces_info.id = matching_spans_trace_ids.trace_id
         LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id
-        WHERE project_id = ",
+        ",
     );
+    if let Some(search) = text_search_filter {
+        add_text_join(&mut query, date_range, &search)?;
+    }
+    query.push(" WHERE project_id = ");
     query.push_bind(project_id);
 
     add_filters_to_traces_query(&mut query, &filters);
@@ -555,10 +552,14 @@ pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
 #[serde(rename_all = "camelCase")]
 pub struct Session {
     pub id: String,
+    pub input_token_count: i64,
+    pub output_token_count: i64,
     pub total_token_count: i64,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub duration: f64,
+    pub input_cost: f64,
+    pub output_cost: f64,
     pub cost: f64,
     pub trace_count: i64,
 }
@@ -575,10 +576,14 @@ pub async fn get_sessions(
         "SELECT
             session_id as id,
             count(id)::int8 as trace_count,
+            sum(input_token_count)::int8 as input_token_count,
+            sum(output_token_count)::int8 as output_token_count,
             sum(total_token_count)::int8 as total_token_count,
             min(start_time) as start_time,
             max(end_time) as end_time,
             sum(extract(epoch from (end_time - start_time)))::float8 as duration,
+            sum(input_cost)::float8 as input_cost,
+            sum(output_cost)::float8 as output_cost,
             sum(cost)::float8 as cost
             FROM traces
             WHERE session_id is not null and project_id = ",

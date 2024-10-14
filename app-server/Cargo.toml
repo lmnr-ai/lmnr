@@ -64,6 +64,7 @@ time = "0.3.36"
 rustls = { version = "0.23.12", features = ["ring"] }
 serde_repr = "0.1.19"
 num_cpus = "1.16.0"
+sha3 = "0.10.8"
 
 [build-dependencies]
 tonic-build = "0.12.3"
