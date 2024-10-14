@@ -9,7 +9,7 @@ import { IconSpinner } from '@/components/ui/icons';
 import google from '@/assets/logo/google.svg';
 import Image from 'next/image';
 
-interface GitHubSignInButtonProps extends ButtonProps {
+interface GoogleSignInButtonProps extends ButtonProps {
   showIcon?: boolean
   text?: string
   callbackUrl: string
@@ -20,7 +20,7 @@ export function GoogleSignInButton({
   callbackUrl,
   className,
   ...props
-}: GitHubSignInButtonProps) {
+}: GoogleSignInButtonProps) {
   const [isLoading, setIsLoading] = React.useState(false);
   return (
     <Button
