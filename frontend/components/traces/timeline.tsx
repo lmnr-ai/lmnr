@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { getDuration, getDurationString } from '@/lib/flow/utils';
-import { ScrollArea, ScrollBar } from '../ui/scroll-area';
-import { Table } from '../ui/table';
-import { Span } from '@/lib/traces/types';
-import { cn } from '@/lib/utils';
-import { SPAN_TYPE_TO_COLOR } from '@/lib/traces/utils';
+import { useEffect, useRef, useState } from "react";
+import { getDuration, getDurationString } from "@/lib/flow/utils";
+import { ScrollArea, ScrollBar } from "../ui/scroll-area";
+import { Table } from "../ui/table";
+import { Span } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
 interface TimelineProps {
   spans: Span[]
@@ -102,7 +102,7 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
 
     const timeIntervals = [];
     for (let i = 0; i < 10; i++) {
-      timeIntervals.push((i * unit).toFixed(2) + 's');
+      timeIntervals.push((i * unit).toFixed(2) + "s");
     }
     setTimeIntervals(timeIntervals);
 
@@ -117,8 +117,7 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
 
       const segmentEvents = [] as SegmentEvent[];
       for (const event of span.events) {
-        const eventLeft =
-          ((new Date(event.timestamp)).getTime() - (new Date(span.startTime)).getTime()) / 1000 / duration * 100;
+        const eventLeft = ((new Date(event.timestamp)).getTime() - (new Date(span.startTime)).getTime()) / 1000 / duration * 100;
 
         segmentEvents.push({
           id: event.id,
@@ -149,7 +148,7 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
           timeIntervals.map((interval, index) => (
             <div
               className="border-l text-secondary-foreground pl-1 flex items-center min-w-12 relative z-0"
-              style={{ width: '10%' }}
+              style={{ width: "10%" }}
               key={index}
             >
               {interval}
@@ -160,35 +159,42 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
       </div>
       <div className="px-4">
         <div
-          className="flex flex-col space-y-1 w-full pt-[6px]"
+          className="flex flex-col space-y-1 w-full pt-[6px] relative"
         >
           {
             segments.map((segment, index) => (
               <div
                 key={index}
-                className="rounded relative z-20"
-                style={
-                  {
-                    backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
-                    marginLeft: segment.left + '%',
-                    width: 'max(' + segment.width + '%, 2px)',
-                    height: HEIGHT,
-                  }
-                }
+                className="relative border-secondary-foreground/20"
+                style={{
+                  height: HEIGHT
+                }}
               >
-                {
-                  segment.events.map((event, index) => (
-                    <div
-                      key={index}
-                      className="absolute bg-orange-400 w-1 rounded"
-                      style={{
-                        left: event.left + '%',
-                        top: 0,
-                        height: HEIGHT
-                      }}
-                    />
-                  ))
-                }
+                <div
+                  className="rounded relative z-20"
+                  style={
+                    {
+                      backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
+                      marginLeft: segment.left + "%",
+                      width: "max(" + segment.width + "%, 2px)",
+                      height: HEIGHT
+                    }
+                  }
+                >
+                  {
+                    segment.events.map((event, index) => (
+                      <div
+                        key={index}
+                        className="absolute bg-orange-400 w-1 rounded"
+                        style={{
+                          left: event.left + "%",
+                          top: 0,
+                          height: HEIGHT
+                        }}
+                      />
+                    ))
+                  }
+                </div>
               </div>
             ))
           }

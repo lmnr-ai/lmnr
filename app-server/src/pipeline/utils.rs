@@ -1,8 +1,11 @@
 use anyhow::Result;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 use uuid::Uuid;
 
-use crate::engine::Task;
+use crate::{
+    engine::Task,
+    language_model::{ChatMessage, ChatMessageContent, ChatMessageContentPart},
+};
 
 use super::{nodes::Node, Graph};
 
@@ -131,6 +134,66 @@ fn task_from_node(node: Node) -> Task {
 //     stack
 // }
 
+/// Quick hack: Iterate over graph's nodes and based on that return the updated environment.
+pub fn to_env_with_provided_env_vars(
+    env: &HashMap<String, String>,
+    graph: &Graph,
+) -> HashMap<String, String> {
+    let mut env = env.clone();
+
+    if env.contains_key("OPENAI_API_KEY") {
+        return env;
+    }
+
+    let mut add_provided_openai_api_key = false;
+    for node in graph.nodes.values() {
+        if let Node::LLM(llm_node) = node {
+            if let Some(model_name) = &llm_node.model {
+                if model_name.starts_with("openai:") {
+                    if model_name.starts_with("openai:gpt-3.5")
+                        || model_name == "openai:gpt-4o-mini"
+                    {
+                        add_provided_openai_api_key = true;
+                    } else {
+                        add_provided_openai_api_key = false;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if add_provided_openai_api_key {
+        let openai_api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
+        env.insert(String::from("OPENAI_API_KEY"), openai_api_key);
+    }
+
+    env
+}
+
 pub fn get_target_pipeline_version_cache_key(project_id: &str, pipeline_name: &str) -> String {
     format!("{}:{}", project_id, pipeline_name)
+}
+
+pub fn render_chat_message_list(messages: Vec<ChatMessage>) -> String {
+    messages
+        .iter()
+        .map(|message| match message.content {
+            ChatMessageContent::Text(ref text) => {
+                format!("<{}>\n{}\n</{}>", message.role, text, message.role)
+            }
+            ChatMessageContent::ContentPartList(ref parts) => {
+                let text_message = parts
+                    .iter()
+                    .map(|part| match part {
+                        ChatMessageContentPart::Text(ref text) => text.text.clone(), // TODO: Do it more efficiently than clone
+                        _ => String::new(),
+                    })
+                    .collect::<Vec<String>>()
+                    .join("");
+                format!("<{}>\n{}\n</{}>", message.role, text_message, message.role)
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("\n\n")
 }

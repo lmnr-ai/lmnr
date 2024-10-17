@@ -347,12 +347,12 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
         type: NodeHandleType.STRING
       }],
       detectors: [
-        { type: 'prompt_injection', enabled: false },
-        { type: 'pii', enabled: false },
-        { type: 'topics/allowed', enabled: false },
-        { type: 'topics/banned', enabled: false },
-        { type: 'keywords', enabled: false },
-        { type: 'secrets', enabled: false }
+        { type: "prompt_injection", enabled: false },
+        { type: "pii", enabled: false },
+        { type: "topics/allowed", enabled: false },
+        { type: "topics/banned", enabled: false },
+        { type: "keywords", enabled: false },
+        { type: "secrets", enabled: false }
       ],
       isCondtional: true
     } as ZenguardNode;
@@ -630,6 +630,26 @@ export const renderNodeInput = (input: NodeInput): string => {
     return JSON.stringify(input, null, 2);
   }
 };
+
+export const renderChatMessageList = (messages: ChatMessage[]): string => messages.map(message => {
+
+  let tag = '';
+
+  if (message.role === 'user') {
+    tag = 'User';
+  } else if (message.role === 'assistant') {
+    tag = 'Assistant';
+  } else if (message.role === 'system') {
+    tag = 'System';
+  }
+
+  if (isStringType(message.content)) {
+    return `<${tag}>\n${message.content}\n</${tag}>\n`;
+  } else {
+    return `<${tag}>\n${renderChatMessageContentParts(message.content)}\n</${tag}>\n`;
+  }
+
+}).join('\n\n');
 
 export const getDurationString = (startTime: string, endTime: string) => {
   const start = new Date(startTime);

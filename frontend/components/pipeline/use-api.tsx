@@ -9,7 +9,7 @@ import { Button } from '../ui/button';
 import { Code2, Copy } from 'lucide-react';
 import { InputNode, NodeType, RunnableGraph } from '@/lib/flow/types';
 import { getDefaultGraphInputs } from '@/lib/flow/utils';
-import Code from '../ui/code';
+import CodeHighlighter from '../ui/code-highlighter';
 import { getRequiredEnvVars } from '@/lib/env/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { useState } from 'react';
@@ -123,13 +123,13 @@ console.log(result);
             <TabsTrigger value="curl">cURL</TabsTrigger>
           </TabsList>
           <TabsContent value="python" className='w-full'>
-            <Code className='text-xs' code={pythonString} language='python' />
+            <CodeHighlighter className='text-xs' code={pythonString} language='python' />
           </TabsContent>
           <TabsContent value="ts">
-            <Code className='text-xs' code={tsString} language='javascript' />
+            <CodeHighlighter className='text-xs' code={tsString} language='javascript' />
           </TabsContent>
           <TabsContent value="curl">
-            <Code className='text-xs' code={curlString} language='shell' />
+            <CodeHighlighter className='text-xs' code={curlString} language='shell' />
           </TabsContent>
         </Tabs>
 

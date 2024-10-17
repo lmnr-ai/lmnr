@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import Code from '../ui/code';
+import CodeHighlighter from '../ui/code-highlighter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
 import { useProjectContext } from '@/contexts/project-context';
@@ -61,10 +61,10 @@ evaluate({
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={PYTHON_INSTALL} language='bash' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={PYTHON_INSTALL} language='bash' />
               </TabsContent>
               <TabsContent value="typescript">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={TYPESCRIPT_INSTALL} language='bash' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={TYPESCRIPT_INSTALL} language='bash' />
               </TabsContent>
             </div>
           </Tabs>
@@ -82,10 +82,10 @@ evaluate({
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={pythonEval} language='python' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={pythonEval} language='python' />
               </TabsContent>
               <TabsContent value="typescript">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={tsEval} language='typescript' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={tsEval} language='typescript' />
               </TabsContent>
             </div>
           </Tabs>
