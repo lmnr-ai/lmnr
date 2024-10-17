@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { fetcher } from '@/lib/utils';
 
 export async function POST(req: Request, { params }: { params: { projectId: string } }): Promise<Response> {
   const projectId = params.projectId;
@@ -15,14 +16,19 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
   });
 
   try {
-    const response = await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/pipelines/run/graph`, {
+    const response = await fetcher(`/projects/${projectId}/pipelines/run/graph`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
         Authorization: `Bearer ${user.apiKey}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        ...body,
+        env: {
+          OPENAI_API_KEY: process.env.OPENAI_API_KEY
+        }
+      }),
     });
 
     if (!response.ok) {

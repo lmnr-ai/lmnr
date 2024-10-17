@@ -30,7 +30,7 @@ struct CreateLabelClassRequest {
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
-    pipeline_version_id: Option<Uuid>,
+    evaluator_runnable_graph: Option<Value>,
 }
 
 #[post("label-classes")]
@@ -45,7 +45,7 @@ pub async fn create_label_class(
     let label_type = req.label_type;
     let value_map = req.value_map;
     let description = req.description;
-    let pipeline_version_id = req.pipeline_version_id;
+    let evaluator_runnable_graph = req.evaluator_runnable_graph;
 
     let id = Uuid::new_v4();
     let label_class = db::labels::create_label_class(
@@ -56,7 +56,7 @@ pub async fn create_label_class(
         &label_type,
         value_map,
         description,
-        pipeline_version_id,
+        evaluator_runnable_graph,
     )
     .await?;
 
@@ -69,7 +69,7 @@ struct UpdateLabelClassRequest {
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
-    pipeline_version_id: Option<Uuid>,
+    evaluator_runnable_graph: Option<Value>,
 }
 
 #[post("label-classes/{class_id}")]
@@ -81,14 +81,14 @@ pub async fn update_label_class(
     let (project_id, class_id) = path.into_inner();
     let req = req.into_inner();
     let description = req.description;
-    let pipeline_version_id = req.pipeline_version_id;
+    let evaluator_runnable_graph = req.evaluator_runnable_graph;
 
     let label_class = db::labels::update_label_class(
         &db.pool,
         project_id,
         class_id,
         description,
-        pipeline_version_id,
+        evaluator_runnable_graph,
     )
     .await?;
 
@@ -97,10 +97,64 @@ pub async fn update_label_class(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RegisterLabelClassRequest {
+    path: String,
+}
+
+#[post("label-classes/{class_id}/registered-paths")]
+pub async fn register_label_class_for_path(
+    path: web::Path<(Uuid, Uuid)>,
+    req: web::Json<RegisterLabelClassRequest>,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    let (project_id, class_id) = path.into_inner();
+    let req = req.into_inner();
+    let path = req.path;
+
+    db::labels::register_label_class_for_path(&db.pool, project_id, class_id, &path).await?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[delete("label-classes/{class_id}/registered-paths/{id}")]
+pub async fn remove_label_class_from_path(
+    path: web::Path<(Uuid, Uuid, Uuid)>,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    let (project_id, class_id, id) = path.into_inner();
+
+    db::labels::remove_label_class_from_path(&db.pool, project_id, class_id, id).await?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[derive(Deserialize)]
+struct PathQuery {
+    path: String,
+}
+
+#[get("label-classes/registered-paths")]
+pub async fn get_registered_label_classes_for_path(
+    project_id: web::Path<Uuid>,
+    query: web::Query<PathQuery>,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    let project_id = project_id.into_inner();
+    let path = &query.path;
+
+    let label_classes =
+        db::labels::get_registered_label_classes_for_path(&db.pool, project_id, path).await?;
+
+    Ok(HttpResponse::Ok().json(label_classes))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct UpdateSpanLabelRequest {
     value: f64,
     class_id: Uuid,
     reasoning: Option<String>,
+    source: LabelSource,
 }
 
 #[post("spans/{span_id}/labels")]
@@ -115,15 +169,23 @@ pub async fn update_span_label(
     let class_id = req.class_id;
     let value = req.value;
     let reasoning = req.reasoning;
-    let user_id = user.id;
+    let source = req.source;
+
+    // evaluator was triggered from the UI
+    // so the source is AUTO
+    let user_id = if source == LabelSource::AUTO {
+        None
+    } else {
+        Some(user.id)
+    };
 
     let label = db::labels::update_span_label(
         &db.pool,
         span_id,
         Some(value),
-        Some(user_id),
+        user_id,
         class_id,
-        LabelSource::MANUAL,
+        source,
         Some(LabelJobStatus::DONE),
         reasoning,
     )

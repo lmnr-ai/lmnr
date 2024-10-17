@@ -1,9 +1,10 @@
-import { getDurationString } from '@/lib/flow/utils';
-import React, { useEffect, useRef, useState } from 'react';
-import { Label } from '../ui/label';
-import { Span, SpanType } from '@/lib/traces/types';
-import { Activity, ArrowRight, Braces, Gauge, MessageCircleMore } from 'lucide-react';
-import { SPAN_TYPE_TO_COLOR } from '@/lib/traces/utils';
+import { getDurationString } from "@/lib/flow/utils";
+import React, { useEffect, useRef, useState } from "react";
+import { Label } from "../ui/label";
+import { Span, SpanType } from "@/lib/traces/types";
+import { Activity, ArrowRight, Braces, Gauge, MessageCircleMore } from "lucide-react";
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
+import SpanLabels from "./span-labels";
 
 const ROW_HEIGHT = 36;
 const SQUARE_SIZE = 22;
@@ -52,67 +53,61 @@ export function SpanCard({ span, childSpans, parentY, onSpanSelect, containerWid
           width: SQUARE_SIZE / 2,
         }}
       />
-      <div
-        className="flex w-full items-center space-x-2 cursor-pointer group relative"
-        style={{
-          height: ROW_HEIGHT,
-        }}
-      >
+      <div className="flex flex-col">
         <div
-          className="flex items-center justify-center z-30 rounded"
+          className="flex w-full items-center space-x-2 cursor-pointer group relative"
           style={{
-            backgroundColor: SPAN_TYPE_TO_COLOR[span.spanType],
-            width: SQUARE_SIZE,
-            height: SQUARE_SIZE,
+            height: ROW_HEIGHT,
           }}
         >
+          <div
+            className="flex items-center justify-center z-30 rounded"
+            style={{
+              backgroundColor: SPAN_TYPE_TO_COLOR[span.spanType],
+              width: SQUARE_SIZE,
+              height: SQUARE_SIZE,
+            }}
+          >
+            {
+              span.spanType === SpanType.DEFAULT && <Braces size={SQUARE_ICON_SIZE} />
+            }
+            {
+              span.spanType === SpanType.LLM && <MessageCircleMore size={SQUARE_ICON_SIZE} />
+            }
+            {
+              span.spanType === SpanType.EXECUTOR && <Activity size={SQUARE_ICON_SIZE} />
+            }
+            {
+              span.spanType === SpanType.EVALUATOR && <ArrowRight size={SQUARE_ICON_SIZE} />
+            }
+            {
+              span.spanType === SpanType.EVALUATION && <Gauge size={SQUARE_ICON_SIZE} />
+            }
+          </div>
+          <div className='text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[200px]'>{span.name}</div>
+          <Label className='text-secondary-foreground'>{getDurationString(span.startTime, span.endTime)}</Label>
+          <div className="z-30 top-[-px]  hover:bg-red-100/10 absolute transition-all"
+            style={{
+              width: containerWidth,
+              height: ROW_HEIGHT,
+              left: -depth * 24 - 16,
+            }}
+            onClick={() => {
+              onSpanSelect?.(span);
+            }}
+          />
           {
-            span.spanType === SpanType.DEFAULT && <Braces size={SQUARE_ICON_SIZE} />
-          }
-          {
-            span.spanType === SpanType.LLM && <MessageCircleMore size={SQUARE_ICON_SIZE} />
-          }
-          {
-            span.spanType === SpanType.EXECUTOR && <Activity size={SQUARE_ICON_SIZE} />
-          }
-          {
-            span.spanType === SpanType.EVALUATOR && <ArrowRight size={SQUARE_ICON_SIZE} />
-          }
-          {
-            span.spanType === SpanType.EVALUATION && <Gauge size={SQUARE_ICON_SIZE} />
+            isSelected && (
+              <div className="absolute top-0 w-full bg-blue-400/10 z-30 border-l-2 border-l-blue-400"
+                style={{
+                  width: containerWidth,
+                  height: ROW_HEIGHT,
+                  left: -depth * 24 - 16,
+                }}
+              />
+            )
           }
         </div>
-        <div className='text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[200px]'>{span.name}</div>
-        <Label className='text-secondary-foreground'>{getDurationString(span.startTime, span.endTime)}</Label>
-        {
-          span.events.length > 0 && (
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-              <Label className='text-secondary-foreground'>{span.events.length}</Label>
-            </div>
-          )
-        }
-        <div className="z-30 top-[-px]  hover:bg-red-100/10 absolute transition-all"
-          style={{
-            width: containerWidth,
-            height: ROW_HEIGHT,
-            left: -depth * 24 - 16,
-          }}
-          onClick={() => {
-            onSpanSelect?.(span);
-          }}
-        />
-        {
-          isSelected && (
-            <div className="absolute top-0 w-full bg-blue-400/10 z-30 border-l-2 border-l-blue-400"
-              style={{
-                width: containerWidth,
-                height: ROW_HEIGHT,
-                left: -depth * 24 - 16,
-              }}
-            />
-          )
-        }
       </div>
       <div className="flex flex-col">
         {childrenSpans && childrenSpans.map((child, index) => (

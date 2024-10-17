@@ -14,6 +14,8 @@ import { Label } from "../ui/label";
 import SpanLabels from "./span-labels";
 import { AddLabelPopover } from "./add-label-popover";
 import ExportSpansDialog from "./export-spans-dialog";
+import { EvaluatorEditorDialog } from "../evaluator/evaluator-editor-dialog";
+import { SpanViewSpan } from "./span-view-span";
 import StatsShields from "./stats-shields";
 
 interface SpanViewProps {
@@ -58,7 +60,7 @@ export function SpanView({ spanId }: SpanViewProps) {
               </div>
               <div>
                 <AddLabelPopover
-                  spanId={span.spanId}
+                  span={span}
                 />
               </div>
             </div>
@@ -79,7 +81,6 @@ export function SpanView({ spanId }: SpanViewProps) {
             <TabsTrigger value="span" className="z-50">Span</TabsTrigger>
             <TabsTrigger value="attributes" className="z-50">Attributes</TabsTrigger>
             <TabsTrigger value="events" className="z-50">Events</TabsTrigger>
-            <TabsTrigger value="labels" className="z-50">Labels</TabsTrigger>
           </TabsList>
         </div >
         <div className='flex-grow flex'>
@@ -87,43 +88,7 @@ export function SpanView({ spanId }: SpanViewProps) {
             value="span"
             className='h-full w-full mt-0'
           >
-            <div className='flex h-full w-full'>
-              <ScrollArea className='flex overflow-auto w-full mt-0'>
-                <div className='flex flex-col max-h-0'>
-                  {
-                    span ? (
-                      <div>
-                        <div className='p-4 w-full h-full'>
-                          <div className="pb-2 font-medium text-lg">
-                            Input
-                          </div>
-                          {(isChatMessageList(span.input)) ?
-                            <ChatMessageListTab messages={span.input} />
-                            : (
-                              <Formatter className="max-h-1/3" value={JSON.stringify(span.input)} />
-                            )
-                          }
-                        </div>
-                        <div className='p-4 w-full h-full'>
-                          <div className="pb-2 font-medium text-lg">
-                            Output
-                          </div>
-                          <Formatter
-                            className="max-h-[600px]"
-                            value={typeof span.output === 'string' ? span.output : JSON.stringify(span.output)} />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col space-y-2 p-4">
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                      </div>
-                    )
-                  }
-                </div>
-              </ScrollArea>
-            </div>
+            <SpanViewSpan span={span} />
           </TabsContent>
           <TabsContent
             value="attributes"
@@ -147,14 +112,6 @@ export function SpanView({ spanId }: SpanViewProps) {
           >
             <div className='flex h-full w-full relative'>
               <SpanEvents span={span} />
-            </div>
-          </TabsContent>
-          <TabsContent
-            value='labels'
-            className='w-full h-full mt-0'
-          >
-            <div className='flex h-full w-full relative'>
-              <SpanLabels spanId={span.spanId} />
             </div>
           </TabsContent>
         </div>

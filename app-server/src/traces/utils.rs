@@ -1,10 +1,24 @@
 use std::sync::Arc;
 
+use serde_json::Value;
+
 use crate::language_model::{
     ExecuteChatCompletion, LanguageModelProviderName, LanguageModelRunner,
 };
 
 use super::spans::{SpanAttributes, SpanUsage};
+
+pub fn json_value_to_string(v: Value) -> String {
+    match v {
+        Value::String(s) => s,
+        Value::Array(a) => a
+            .iter()
+            .map(|v| json_value_to_string(v.clone()))
+            .collect::<Vec<_>>()
+            .join(", "),
+        _ => v.to_string(),
+    }
+}
 
 /// Calculate usage for both default and LLM spans
 pub fn get_llm_usage_for_span(

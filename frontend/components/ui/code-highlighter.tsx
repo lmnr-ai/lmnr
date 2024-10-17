@@ -7,7 +7,7 @@ interface CodeProps {
   className?: string;
 }
 
-export default function Code({ language, code, className }: CodeProps) {
+export default function CodeHighlighter({ language, code, className }: CodeProps) {
   return (
     <div className={className}>
       <SyntaxHighlighter

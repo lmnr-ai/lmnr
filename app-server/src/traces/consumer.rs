@@ -7,23 +7,31 @@ use futures::StreamExt;
 use lapin::{options::BasicConsumeOptions, options::*, types::FieldTable, Connection};
 
 use super::{
-    attributes::TraceAttributes, events::create_events, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
+    attributes::TraceAttributes, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
     OBSERVATIONS_ROUTING_KEY,
 };
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
+    cache::Cache,
     ch::{self, spans::CHSpan},
+    chunk,
     db::{
         self,
-        events::EventSource,
+        labels::get_registered_label_classes_for_path,
         spans::{Span, SpanType},
         trace, DB,
     },
     language_model::LanguageModelRunner,
+    pipeline::runner::PipelineRunner,
+    semantic_search::SemanticSearch,
+    traces::evaluators::run_evaluator,
 };
 
 pub async fn process_queue_spans(
+    pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
+    cache: Arc<Cache>,
+    _semantic_search: Arc<SemanticSearch>,
     language_model_runner: Arc<LanguageModelRunner>,
     rabbitmq_connection: Arc<Connection>,
     clickhouse: clickhouse::Client,
@@ -69,6 +77,7 @@ pub async fn process_queue_spans(
         };
 
         let mut span: Span = rabbitmq_span_message.span;
+        let events_count = rabbitmq_span_message.events.len();
 
         let mut trace_attributes = TraceAttributes::new(span.trace_id);
         let span_usage = super::utils::get_llm_usage_for_span(
@@ -108,9 +117,14 @@ pub async fn process_queue_spans(
             log::error!("Failed to update trace attributes: {:?}", e);
         }
 
-        let record_span_res = db::spans::record_span(&db.pool, &span).await;
-        if let Err(e) = record_span_res {
+        if let Err(e) = db::spans::record_span(&db.pool, &span).await {
             log::error!("Failed to record span: {:?}", e);
+        } else {
+            // ack the message as soon as the span is recorded
+            let _ = delivery
+                .ack(BasicAckOptions::default())
+                .await
+                .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
         }
 
         let ch_span = CHSpan::from_db_span(&span, span_usage, rabbitmq_span_message.project_id);
@@ -120,22 +134,34 @@ pub async fn process_queue_spans(
             log::error!("Failed to insert span into Clickhouse: {:?}", e);
         }
 
-        let add_instrumentation_events_res = create_events(
-            db.clone(),
-            clickhouse.clone(),
-            rabbitmq_span_message.events,
-            EventSource::CODE,
+        let registered_label_classes = match get_registered_label_classes_for_path(
+            &db.pool,
             rabbitmq_span_message.project_id,
+            &span.get_attributes().path().unwrap_or_default(),
         )
-        .await;
-        if let Err(e) = add_instrumentation_events_res {
-            log::error!("Failed to add instrumentation events: {:?}", e);
-        }
+        .await
+        {
+            Ok(classes) => classes,
+            Err(e) => {
+                log::error!("Failed to get registered label classes: {:?}", e);
+                Vec::new() // Return an empty vector if there's an error
+            }
+        };
 
-        let _ = delivery
-            .ack(BasicAckOptions::default())
+        for registered_label_class in registered_label_classes {
+            match run_evaluator(
+                pipeline_runner.clone(),
+                rabbitmq_span_message.project_id,
+                registered_label_class.label_class_id,
+                &span,
+                db.clone(),
+            )
             .await
-            .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
+            {
+                Ok(_) => (),
+                Err(e) => log::error!("Failed to run evaluator: {:?}", e),
+            }
+        }
     }
 
     log::info!("Shutting down span listener");

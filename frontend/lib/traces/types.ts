@@ -1,11 +1,17 @@
 import { Event } from "../events/types";
+import { Graph } from "../flow/graph";
 import { GraphMessagePreview } from "../pipeline/types";
 
 export type TraceMessages = { [key: string]: GraphMessagePreview }
 
 export enum LabelType {
-  CATEGORICAL = 'Categorical',
-  BOOLEAN = 'Boolean',
+  CATEGORICAL = 'CATEGORICAL',
+  BOOLEAN = 'BOOLEAN',
+}
+
+export enum LabelSource {
+  AUTO = 'AUTO',
+  MANUAL = 'MANUAL',
 }
 
 export type LabelClass = {
@@ -16,6 +22,15 @@ export type LabelClass = {
   labelType: LabelType;
   valueMap: string[];
   description: string | null;
+  evaluatorRunnableGraph: any | null;
+}
+
+export type RegisteredLabelClassForPath = {
+  id: string;
+  labelClassId: string;
+  path: string;
+  projectId: string;
+  createdAt: string;
 }
 
 export type SpanLabel = {
@@ -25,8 +40,12 @@ export type SpanLabel = {
   createdAt: string;
   value: number;
   valueMap: string[];
+  status: string;
+  userId: string | null;
+  jobStatus: string | null;
   className: string;
-  labelSource: 'Auto' | 'Manual';
+  reasoning: string | null;
+  labelSource: LabelSource;
   userEmail: string | null;
   description: string | null;
   updatedAt: string;
@@ -55,6 +74,7 @@ export type Span = {
   output: any | null
   spanType: SpanType
   events: Event[]
+  labels: SpanLabel[];
 }
 
 
