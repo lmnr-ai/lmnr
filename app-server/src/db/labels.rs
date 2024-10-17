@@ -8,27 +8,21 @@ use uuid::Uuid;
 #[derive(sqlx::Type, Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[sqlx(type_name = "label_type")]
 pub enum LabelType {
-    #[serde(rename = "Boolean")]
     BOOLEAN,
-    #[serde(rename = "Categorical")]
     CATEGORICAL,
 }
 
-#[derive(sqlx::Type, Serialize, Clone, PartialEq)]
+#[derive(sqlx::Type, Serialize, Deserialize, Clone, PartialEq)]
 #[sqlx(type_name = "label_source")]
 pub enum LabelSource {
-    #[serde(rename = "Manual")]
     MANUAL,
-    #[serde(rename = "Auto")]
     AUTO,
 }
 
 #[derive(sqlx::Type, Serialize, Clone, PartialEq)]
 #[sqlx(type_name = "label_job_status")]
 pub enum LabelJobStatus {
-    #[serde(rename = "Running")]
     RUNNING,
-    #[serde(rename = "Done")]
     DONE,
 }
 
@@ -42,7 +36,7 @@ pub struct LabelClass {
     pub label_type: LabelType,
     pub value_map: Value, // Vec<Value>
     pub description: Option<String>,
-    pub pipeline_version_id: Option<Uuid>,
+    pub evaluator_runnable_graph: Option<Value>,
 }
 
 // (type_id, span_id) is a unique constraint
@@ -61,7 +55,7 @@ pub struct DBSpanLabel {
     pub reasoning: Option<String>,
 }
 
-#[derive(Serialize, sqlx::FromRow)]
+#[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct SpanLabel {
     pub id: Uuid,
@@ -83,6 +77,16 @@ pub struct SpanLabel {
     pub user_email: Option<String>,
 }
 
+#[derive(Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisteredLabelClassForPath {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub path: String,
+    pub project_id: Uuid,
+    pub label_class_id: Uuid,
+}
+
 pub async fn get_label_classes_by_project_id(
     pool: &PgPool,
     project_id: Uuid,
@@ -97,7 +101,7 @@ pub async fn get_label_classes_by_project_id(
             label_type,
             value_map,
             description,
-            pipeline_version_id
+            evaluator_runnable_graph
         FROM label_classes
         WHERE project_id = ",
     );
@@ -120,7 +124,7 @@ pub async fn create_label_class(
     label_type: &LabelType,
     value_map: Vec<Value>,
     description: Option<String>,
-    pipeline_version_id: Option<Uuid>,
+    evaluator_runnable_graph: Option<Value>,
 ) -> Result<LabelClass> {
     let label_class = sqlx::query_as::<_, LabelClass>(
         "INSERT INTO label_classes (
@@ -130,7 +134,7 @@ pub async fn create_label_class(
             label_type,
             value_map,
             description,
-            pipeline_version_id
+            evaluator_runnable_graph
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING
@@ -141,7 +145,7 @@ pub async fn create_label_class(
             label_type,
             value_map,
             description,
-            pipeline_version_id
+            evaluator_runnable_graph
         ",
     )
     .bind(id)
@@ -150,8 +154,24 @@ pub async fn create_label_class(
     .bind(label_type)
     .bind(serde_json::to_value(value_map).unwrap())
     .bind(description)
-    .bind(pipeline_version_id)
+    .bind(evaluator_runnable_graph)
     .fetch_one(pool)
+    .await?;
+
+    Ok(label_class)
+}
+
+pub async fn get_label_class(
+    pool: &PgPool,
+    project_id: Uuid,
+    label_class_id: Uuid,
+) -> Result<Option<LabelClass>> {
+    let label_class = sqlx::query_as::<_, LabelClass>(
+        "SELECT * FROM label_classes WHERE project_id = $1 AND id = $2",
+    )
+    .bind(project_id)
+    .bind(label_class_id)
+    .fetch_optional(pool)
     .await?;
 
     Ok(label_class)
@@ -162,11 +182,11 @@ pub async fn update_label_class(
     project_id: Uuid,
     class_id: Uuid,
     description: Option<String>,
-    pipeline_version_id: Option<Uuid>,
+    evaluator_runnable_graph: Option<Value>,
 ) -> Result<Option<LabelClass>> {
     let label_class = sqlx::query_as::<_, LabelClass>(
         "UPDATE label_classes
-        SET description = $1, pipeline_version_id = $2
+        SET description = $1, evaluator_runnable_graph = $2
         WHERE project_id = $3 AND id = $4
         RETURNING
             id,
@@ -176,10 +196,10 @@ pub async fn update_label_class(
             label_type,
             value_map,
             description,
-            pipeline_version_id",
+            evaluator_runnable_graph",
     )
     .bind(description)
-    .bind(pipeline_version_id)
+    .bind(evaluator_runnable_graph)
     .bind(project_id)
     .bind(class_id)
     .fetch_optional(pool)
@@ -287,4 +307,106 @@ pub async fn get_span_labels(pool: &PgPool, span_id: Uuid) -> Result<Vec<SpanLab
     .await?;
 
     Ok(span_labels)
+}
+
+#[derive(FromRow)]
+pub struct SpanLabelInstance {
+    pub input: Option<Value>,
+    pub output: Option<Value>,
+    pub value: f64,
+    pub reasoning: Option<String>,
+}
+
+/// filter down `span_ids` to only those that are labeled with `label_class_id`
+pub async fn get_labeled_spans(
+    pool: &PgPool,
+    project_id: Uuid,
+    span_ids: &Vec<Uuid>,
+    label_class_id: Uuid,
+    manual_only: bool,
+) -> Result<Vec<SpanLabelInstance>> {
+    let spans = sqlx::query_as::<_, SpanLabelInstance>(
+        "SELECT
+            spans.input,
+            spans.output,
+            labels.value,
+            labels.reasoning
+        FROM spans
+        JOIN labels ON spans.span_id = labels.span_id
+            -- only get the latest label for now
+            AND labels.updated_at = (
+                SELECT MAX(updated_at)
+                FROM labels
+                WHERE span_id = spans.span_id
+                AND CASE WHEN $4 THEN labels.label_source = 'MANUAL' ELSE TRUE END
+                AND class_id = $3
+            )
+        JOIN label_classes ON labels.class_id = label_classes.id AND label_classes.id = $3
+        WHERE label_classes.project_id = $1
+        AND spans.span_id = ANY($2)
+        AND labels.value IS NOT NULL",
+    )
+    .bind(project_id)
+    .bind(&span_ids)
+    .bind(label_class_id)
+    .bind(manual_only)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(spans)
+}
+
+pub async fn register_label_class_for_path(
+    pool: &PgPool,
+    project_id: Uuid,
+    label_class_id: Uuid,
+    path: &str,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO registered_labels_for_spans (project_id, label_class_id, path)
+        VALUES ($1, $2, $3)",
+    )
+    .bind(project_id)
+    .bind(label_class_id)
+    .bind(path)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn remove_label_class_from_path(
+    pool: &PgPool,
+    project_id: Uuid,
+    label_class_id: Uuid,
+    id: Uuid,
+) -> Result<()> {
+    sqlx::query(
+        "DELETE FROM registered_labels_for_spans
+        WHERE project_id = $1 AND label_class_id = $2 AND id = $3",
+    )
+    .bind(project_id)
+    .bind(label_class_id)
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_registered_label_classes_for_path(
+    pool: &PgPool,
+    project_id: Uuid,
+    path: &str,
+) -> Result<Vec<RegisteredLabelClassForPath>> {
+    let registered_paths = sqlx::query_as::<_, RegisteredLabelClassForPath>(
+        "SELECT * FROM registered_labels_for_spans
+        WHERE project_id = $1 AND path = $2",
+    )
+    .bind(project_id)
+    .bind(path)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(registered_paths)
 }

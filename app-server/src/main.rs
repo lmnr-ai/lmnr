@@ -133,6 +133,7 @@ fn main() -> anyhow::Result<()> {
     let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
     // https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts -> Create client which will wait for async inserts
     // For now, we're not waiting for inserts to finish, but later need to add queue and batch on client-side
+
     let mut clickhouse = clickhouse::Client::default()
         .with_url(clickhouse_url)
         .with_user(clickhouse_user)
@@ -254,7 +255,10 @@ fn main() -> anyhow::Result<()> {
                     ));
 
                     tokio::task::spawn(process_queue_spans(
+                        pipeline_runner.clone(),
                         db_for_http.clone(),
+                        cache_for_http.clone(),
+                        semantic_search.clone(),
                         language_model_runner.clone(),
                         rabbitmq_connection.clone(),
                         clickhouse.clone(),
@@ -388,6 +392,12 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::labels::get_span_labels)
                                         .service(routes::labels::update_span_label)
                                         .service(routes::labels::delete_span_label)
+                                        .service(routes::labels::register_label_class_for_path)
+                                        .service(routes::labels::remove_label_class_from_path)
+                                        .service(
+                                            routes::labels::get_registered_label_classes_for_path,
+                                        )
+                                        .service(routes::labels::update_label_class)
                                         .service(routes::events::get_event_templates)
                                         .service(routes::events::get_event_template)
                                         .service(routes::events::update_event_template)

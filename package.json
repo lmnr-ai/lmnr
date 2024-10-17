@@ -1,0 +1,5 @@
+{
+	"dependencies": {
+		"@codemirror/lang-python": "^6.1.6"
+	}
+}

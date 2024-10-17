@@ -1,24 +1,28 @@
-import { useProjectContext } from '@/contexts/project-context';
-import { useUserContext } from '@/contexts/user-context';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, USE_REALTIME } from '@/lib/const';
-import { LabelClass, Trace } from '@/lib/traces/types';
-import { createClient } from '@supabase/supabase-js';
-import { ColumnDef } from '@tanstack/react-table';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect, useMemo } from 'react';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import StatusLabel from '../ui/status-label';
-import TracesPagePlaceholder from './page-placeholder';
+import { useProjectContext } from "@/contexts/project-context";
+import { useUserContext } from "@/contexts/user-context";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/const";
+import { LabelClass, Trace } from "@/lib/traces/types";
+import { createClient } from "@supabase/supabase-js";
+import { ColumnDef } from "@tanstack/react-table";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import ClientTimestampFormatter from "../client-timestamp-formatter";
+import StatusLabel from "../ui/status-label";
+import TracesPagePlaceholder from "./page-placeholder";
 import { Event, EventTemplate } from '@/lib/events/types';
-import DateRangeFilter from '../ui/date-range-filter';
-import { DataTable } from '../ui/datatable';
-import DataTableFilter from '../ui/datatable-filter';
-import TextSearchFilter from '../ui/text-search-filter';
-import { Button } from '../ui/button';
-import { RefreshCcw } from 'lucide-react';
-import { PaginatedResponse } from '@/lib/types';
-import useSWR from 'swr';
-import { swrFetcher } from '@/lib/utils';
+import DateRangeFilter from "../ui/date-range-filter";
+import { DataTable } from "../ui/datatable";
+import DataTableFilter from "../ui/datatable-filter";
+import TextSearchFilter from "../ui/text-search-filter";
+import { Button } from "../ui/button";
+import { RefreshCcw } from "lucide-react";
+import { PaginatedResponse } from "@/lib/types";
+import Mono from "../ui/mono";
+import useSWR from "swr";
+import { swrFetcher } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { ScrollArea } from "../ui/scroll-area";
+import { renderNodeInput } from "@/lib/flow/utils";
 
 interface TracesTableProps {
   onRowClick?: (rowId: string) => void;
@@ -82,9 +86,9 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     }
 
     const res = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
@@ -113,17 +117,84 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       accessorFn: (row) => row.success ? 'Success' : 'Failed',
       header: 'Status',
       cell: (row) => <StatusLabel success={row.getValue() === 'Success'} />,
-      id: 'status'
+      id: 'status',
+      size: 100
     },
     {
-      accessorKey: 'id',
+      cell: (row) => <Mono>{row.getValue()}</Mono>,
       header: 'ID',
+      accessorKey: 'id',
       id: 'id',
     },
     {
       accessorKey: 'sessionId',
       header: 'Session ID',
       id: 'session_id',
+    },
+    {
+      cell: (row) => (
+        <TooltipProvider delayDuration={250}>
+          <Tooltip>
+            <TooltipTrigger className="relative">
+              <div
+                style={{
+                  width: row.column.getSize() - 32,
+                }}
+                className='relative'
+              >
+                <div className='absolute inset-0 top-[-4px] items-center h-full flex'>
+                  <div className='text-ellipsis overflow-hidden whitespace-nowrap'>
+                    {row.getValue()}
+                  </div>
+                </div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="p-0 border">
+              <ScrollArea className="max-h-48 overflow-y-auto p-4">
+                <p className="max-w-sm break-words whitespace-pre-wrap">{row.getValue()}</p>
+              </ScrollArea>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ),
+      accessorFn: (row) => renderNodeInput(row.parentSpanInput),
+      header: 'Input',
+      id: 'input',
+      size: 150
+    },
+    {
+      cell: (row) => (
+        <TooltipProvider delayDuration={250}>
+          <Tooltip>
+            <TooltipTrigger className="relative p-0">
+              <div
+                style={{
+                  width: row.column.getSize() - 32,
+                }}
+                className='relative'
+              >
+                <div className='absolute inset-0 top-[-4px] items-center h-full flex'>
+                  <div className='text-ellipsis overflow-hidden whitespace-nowrap'>
+
+                    {row.getValue()}
+                  </div>
+                </div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="p-0 border">
+              <ScrollArea className="max-h-48 overflow-y-auto p-4">
+                <div>
+                  <p className="max-w-sm break-words whitespace-pre-wrap">{row.getValue()}</p>
+                </div>
+              </ScrollArea>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ),
+      accessorFn: (row) => renderNodeInput(row.parentSpanOutput),
+      header: 'Output',
+      id: 'output',
+      size: 150
     },
     {
       accessorFn: (row) => row.startTime,
@@ -148,13 +219,12 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       id: 'input_cost'
     },
     {
-      accessorFn: (row) =>  "$" + row.outputCost?.toFixed(5),
+      accessorFn: (row) => "$" + row.outputCost?.toFixed(5),
       header: 'Output cost',
       id: 'output_cost'
     },
     {
-      accessorFn: (row) => "$" + row.cost?.toFixed(5)
-      ,
+      accessorFn: (row) => "$" + row.cost?.toFixed(5),
       header: 'Cost',
       id: 'cost'
     },
@@ -172,38 +242,17 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       accessorKey: 'totalTokenCount',
       header: 'Total tokens',
       id: 'total_token_count'
-    },
-    {
-      accessorFn: (row) => row.events,
-      id: 'events',
-      cell: (row) => {
-        const eventNames = [...new Set((row.getValue() as Event[]).map((event) => event.templateName))];
-
-        return (
-          <div className='flex space-x-2'>
-            {eventNames.map((eventName, index) => (
-              <div key={index}
-                className='flex items-center rounded p-0.5 border text-xs text-secondary-foreground px-2 bg-secondary'
-              >
-                <span>{eventName}</span>
-              </div>
-            ))}
-          </div>
-        );
-      },
-      header: 'events',
     }
-
   ];
 
   const extraFilterCols = [
     {
-      header: 'events',
-      id: 'event',
+      header: "events",
+      id: `event`,
     },
     {
-      header: 'labels',
-      id: 'label',
+      header: "labels",
+      id: `label`,
     }
   ];
 
@@ -220,65 +269,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     'event': events?.map(event => event.name) ?? [],
     'label': labels?.map(label => label.name) ?? [],
   };
-
-  const { supabaseAccessToken } = useUserContext();
-  const supabase = useMemo(() => USE_REALTIME
-    ? createClient(
-      SUPABASE_URL,
-      SUPABASE_ANON_KEY,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${supabaseAccessToken}`,
-          },
-        },
-      }
-    )
-    : null, []);
-
-  supabase?.realtime.setAuth(supabaseAccessToken);
-
-  useEffect(() => {
-    // When enableStreaming changes, need to remove all channels and, if enabled, re-subscribe
-    supabase?.channel('table-db-changes').unsubscribe();
-
-    supabase
-      ?.channel('table-db-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'traces',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setCanRefresh(isCurrentTimestampIncluded);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'traces',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'UPDATE') {
-            setCanRefresh(isCurrentTimestampIncluded);
-          }
-        }
-      )
-      .subscribe();
-
-    // remove all channels on unmount
-    return () => {
-      supabase?.removeAllChannels();
-    };
-  }, []);
 
   if (traces != undefined && totalCount === 0 && !anyInProject) {
     return <TracesPagePlaceholder />;

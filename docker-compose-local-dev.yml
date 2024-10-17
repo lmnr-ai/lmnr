@@ -31,6 +31,7 @@ services:
     build:
       context: ./clickhouse
     container_name: clickhouse
+    hostname: clickhouse
     ports:
       - "8123:8123"
     volumes:

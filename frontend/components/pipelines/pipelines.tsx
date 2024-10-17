@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import { useProjectContext } from '@/contexts/project-context';
 import { MoreVertical } from 'lucide-react';
 import { swrFetcher } from '@/lib/utils';
@@ -16,45 +16,15 @@ import ClientTimestampFormatter from '../client-timestamp-formatter';
 import useSWR from 'swr';
 import { CreatePipelineDialog } from './create-pipeline-dialog';
 import { UpdatePipelineDialog } from './update-pipeline-dialog';
-import { useToast } from '@/lib/hooks/use-toast';
 import { DataTable } from '../ui/datatable';
 import { useRouter } from 'next/navigation';
 import Header from '../ui/header';
 import { TableCell, TableRow } from '../ui/table';
-import { useUserContext } from '@/contexts/user-context';
 
-function capitalizeFirstLetter(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-}
 
 export default function Pipelines() {
   const { projectId } = useProjectContext();
   const { data, mutate } = useSWR<Pipeline[]>(`/api/projects/${projectId}/pipelines/`, swrFetcher);
-  const { toast } = useToast();
-
-  const updateVisibility = async (oldPipeline: Pipeline, newVisibility: PipelineVisibility) => {
-    const res = await fetch(`/api/projects/${projectId}/pipelines/${oldPipeline.id!}`, {
-      method: 'POST',
-      body: JSON.stringify({
-        ...oldPipeline,
-        visibility: newVisibility,
-        projectId,
-      })
-    });
-    const json = await res.json();
-    mutate();
-
-    if (newVisibility === 'PUBLIC') {
-      navigator.clipboard.writeText(`https://www.lmnr.ai/pub/${oldPipeline.id!}`);
-      toast({
-        title: 'Share URL copied to clipboard',
-      });
-    } else if (newVisibility === 'PRIVATE') {
-      toast({
-        title: 'Pipeline has been changed to private',
-      });
-    }
-  };
 
   const deletePipeline = async (pipelineId: string) => {
     const res = await fetch(`/api/projects/${projectId}/pipelines/${pipelineId}`, {
@@ -65,23 +35,23 @@ export default function Pipelines() {
 
   const columns: ColumnDef<Pipeline>[] = [
     {
-      accessorKey: 'id',
+      accessorKey: "id",
       cell: (row) => <span className='font-mono text-[12px]'>{String(row.getValue())}</span>,
-      header: 'ID',
+      header: "ID",
       size: 320
     },
     {
-      accessorKey: 'name',
-      header: 'Name',
+      accessorKey: "name",
+      header: "Name",
       size: 240
     },
     {
-      header: 'Created at',
+      header: "Created at",
       accessorFn: (pipeline) => pipeline.createdAt!,
       cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     },
     {
-      id: 'actions',
+      id: "actions",
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -90,21 +60,7 @@ export default function Pipelines() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {/* {(row.original.visibility! === "PRIVATE") && (<DropdownMenuItem onClick={(e) => {
-                updateVisibility(row.original, 'PUBLIC')
-                e.stopPropagation()
-              }}>
-                Make public
-              </DropdownMenuItem>
-              )}
-              {(row.original.visibility! === "PUBLIC") && (<DropdownMenuItem onClick={(e) => {
-                updateVisibility(row.original, 'PRIVATE')
-                e.stopPropagation()
-              }}>
-                Make private
-              </DropdownMenuItem>
-              )} */}
-            {(row.original.visibility! === 'PUBLIC') && (<DropdownMenuItem onClick={(e) => { e.stopPropagation(); }}>
+            {(row.original.visibility! === "PUBLIC") && (<DropdownMenuItem onClick={(e) => { e.stopPropagation(); }}>
               <a target="_blank" href={`/pub/${row.original.id!}`} className='w-full h-full'>
                   View public
               </a>

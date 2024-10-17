@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
-import Code from '../ui/code';
+import CodeHighlighter from '../ui/code-highlighter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
 
@@ -47,8 +47,8 @@ const function_to_trace =
         <div className="flex-col p-4 mb-32 space-y-4 w-[800px]">
           <h1 className="text-2xl font-semibold mb-4">Quickstart</h1>
           <h3 className="text-secondary-foreground/80 font-light">
-          You don{'\''}t have any traces in this project yet.
-          Let{'\''}s send first few traces.
+            You don{'\''}t have any traces in this project yet.
+            Let{'\''}s send first few traces.
           </h3>
           <h2 className="text-xl font-semibold mb-4">Install Laminar</h2>
           <Tabs value={tabValue} onValueChange={setTabValue}>
@@ -58,10 +58,10 @@ const function_to_trace =
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={PYTHON_INSTALL} language='bash' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={PYTHON_INSTALL} language='bash' />
               </TabsContent>
               <TabsContent value="typescript">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={TYPESCRIPT_INSTALL} language='bash' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={TYPESCRIPT_INSTALL} language='bash' />
               </TabsContent>
             </div>
           </Tabs>
@@ -85,10 +85,10 @@ const function_to_trace =
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={pythonInitialization} language='python' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={pythonInitialization} language='python' />
               </TabsContent>
               <TabsContent value="typescript">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={typescriptInitialization} language='typescript' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={typescriptInitialization} language='typescript' />
               </TabsContent>
             </div>
           </Tabs>
@@ -110,10 +110,10 @@ const function_to_trace =
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={pythonString} language='python' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={pythonString} language='python' />
               </TabsContent>
               <TabsContent value="typescript">
-                <Code className='text-xs bg-background p-4 rounded-md border' code={typescriptString} language='typescript' />
+                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={typescriptString} language='typescript' />
               </TabsContent>
             </div>
           </Tabs>

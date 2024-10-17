@@ -135,8 +135,14 @@ export class Graph {
     };
   }
 
-  // Note: this is to run only one node as a singletion graph; it
-  // may be incompatible with the current implementation now that addNode resets inputsMappings
+  static fromObject(object: any) {
+    const graph = new Graph();
+    graph.nodes = new Map(Object.entries(object.nodes));
+    graph.pred = new Map(Object.entries(object.pred));
+    return graph;
+  }
+
+  // Note: this is to run only one node as a singletion graph;
   static fromNode(node: GenericNode) {
 
     const graph = new Graph();
