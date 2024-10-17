@@ -10,29 +10,37 @@ use crate::{
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
+    storage::Storage,
 };
 use tonic::{Request, Response, Status};
 
-use super::producer::push_spans_to_queue;
+use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue};
 
-pub struct ProcessTracesService {
+pub struct ProcessTracesService<S: Storage> {
     db: Arc<DB>,
     cache: Arc<Cache>,
     rabbitmq_connection: Arc<Connection>,
+    storage: Arc<S>,
 }
 
-impl ProcessTracesService {
-    pub fn new(db: Arc<DB>, cache: Arc<Cache>, rabbitmq_connection: Arc<Connection>) -> Self {
+impl<S: Storage> ProcessTracesService<S> {
+    pub fn new(
+        db: Arc<DB>,
+        cache: Arc<Cache>,
+        rabbitmq_connection: Arc<Connection>,
+        storage: Arc<S>,
+    ) -> Self {
         Self {
             db,
             cache,
             rabbitmq_connection,
+            storage,
         }
     }
 }
 
 #[tonic::async_trait]
-impl TraceService for ProcessTracesService {
+impl<S: Storage + 'static> TraceService for ProcessTracesService<S> {
     async fn export(
         &self,
         request: Request<ExportTraceServiceRequest>,
@@ -43,12 +51,33 @@ impl TraceService for ProcessTracesService {
         let project_id = api_key.project_id;
         let request = request.into_inner();
 
-        let response = push_spans_to_queue(request, project_id, self.rabbitmq_connection.clone())
-            .await
-            .map_err(|e| {
-                log::error!("Failed to process traces: {:?}", e);
-                Status::internal("Failed to process traces")
-            })?;
+        let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
+            self.db.clone(),
+            self.cache.clone(),
+            project_id,
+        )
+        .await
+        .map_err(|e| {
+            log::error!("Failed to get workspace limits: {:?}", e);
+            Status::internal("Failed to get workspace limits")
+        })?;
+
+        // TODO: do the same for events
+        if limits_exceeded.spans {
+            return Err(Status::resource_exhausted("Workspace span limit exceeded"));
+        }
+
+        let response = push_spans_to_queue(
+            request,
+            project_id,
+            self.rabbitmq_connection.clone(),
+            self.storage.clone(),
+        )
+        .await
+        .map_err(|e| {
+            log::error!("Failed to process traces: {:?}", e);
+            Status::internal("Failed to process traces")
+        })?;
 
         Ok(Response::new(response))
     }

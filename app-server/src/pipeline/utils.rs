@@ -90,49 +90,9 @@ fn task_from_node(node: Node) -> Task {
             semantic_similarity_node.id.clone(),
             Arc::new(semantic_similarity_node),
         ),
+        Node::Code(code_node) => Task::with_action(code_node.id.clone(), Arc::new(code_node)),
     }
 }
-
-// fn top_sort_util(
-//     node_id: &str,
-//     visited: &mut HashMap<String, bool>,
-//     stack: &mut Vec<String>,
-//     graph: &Graph,
-// ) {
-//     visited.insert(node_id.to_string(), true);
-
-//     if !graph.pred.contains_key(node_id) {
-//         stack.push(node_id.to_string());
-//         return;
-//     }
-
-//     for pred in graph.pred.get(node_id).unwrap() {
-//         if !visited.get(pred).unwrap() {
-//             top_sort_util(pred, visited, stack, graph);
-//         }
-//     }
-
-//     stack.push(node_id.to_string());
-// }
-
-// fn top_sort(graph: &Graph) -> Vec<String> {
-//     let mut visited: HashMap<String, bool> = graph
-//         .nodes
-//         .iter()
-//         .map(|(node_id, _)| (node_id.clone(), false))
-//         .collect();
-
-//     let mut stack: Vec<String> = Vec::new();
-
-//     for (node_id, _) in graph.nodes.iter() {
-//         if !visited.get(node_id).unwrap() {
-//             top_sort_util(node_id, &mut visited, &mut stack, graph);
-//         }
-//     }
-
-//     assert!(visited.len() == graph.nodes.len());
-//     stack
-// }
 
 /// Quick hack: Iterate over graph's nodes and based on that return the updated environment.
 pub fn to_env_with_provided_env_vars(

@@ -11,7 +11,9 @@ use super::ResponseResult;
 use crate::db::pipelines::pipeline_version::PipelineVersionInfo;
 use crate::pipeline::nodes::{GraphOutput, GraphRunOutput, Message};
 use crate::pipeline::trace::{RunTrace, RunTraceStats};
-use crate::pipeline::utils::get_target_pipeline_version_cache_key;
+use crate::pipeline::utils::{
+    get_target_pipeline_version_cache_key, to_env_with_provided_env_vars,
+};
 use crate::routes::error::pipeline_runner_to_http_error;
 use crate::{
     cache::Cache,
@@ -99,6 +101,7 @@ async fn run_pipeline_graph(
     interrupt_senders.insert(run_id, interrupt_tx);
 
     let mut env = params.env;
+    env = to_env_with_provided_env_vars(&env, &graph); // Quick hack
     env.insert("collection_name".to_string(), project_id.to_string());
 
     graph

@@ -119,7 +119,7 @@ pub async fn shared_secret_validator(
         .unwrap_or_else(Default::default);
 
     if credentials.token().to_string()
-        == env::var("FRONTEND_SHARED_SECRET").expect("FRONTEND_SHARED_SECRET must be set")
+        == env::var("SHARED_SECRET_TOKEN").expect("SHARED_SECRET_TOKEN must be set")
     {
         Ok(req)
     } else {

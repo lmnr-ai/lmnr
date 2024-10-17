@@ -5,10 +5,13 @@ pub mod error;
 pub mod evaluations;
 pub mod events;
 pub mod labels;
+pub mod limits;
 pub mod pipelines;
 pub mod projects;
+pub mod subscriptions;
 pub mod traces;
 pub mod types;
+pub mod users;
 pub mod workspace;
 
 use serde::{Deserialize, Serialize};

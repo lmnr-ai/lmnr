@@ -19,7 +19,7 @@ use crate::{
         self,
         labels::get_registered_label_classes_for_path,
         spans::{Span, SpanType},
-        trace, DB,
+        stats, trace, DB,
     },
     language_model::LanguageModelRunner,
     pipeline::runner::PipelineRunner,
@@ -35,6 +35,7 @@ pub async fn process_queue_spans(
     language_model_runner: Arc<LanguageModelRunner>,
     rabbitmq_connection: Arc<Connection>,
     clickhouse: clickhouse::Client,
+    _chunker_runner: Arc<chunk::runner::ChunkerRunner>,
 ) {
     let channel = rabbitmq_connection.create_channel().await.unwrap();
 
@@ -78,6 +79,46 @@ pub async fn process_queue_spans(
 
         let mut span: Span = rabbitmq_span_message.span;
         let events_count = rabbitmq_span_message.events.len();
+
+        if let Err(e) = stats::add_spans_and_events_to_project_usage_stats(
+            &db.pool,
+            &rabbitmq_span_message.project_id,
+            1,
+            events_count as i64,
+        )
+        .await
+        {
+            log::error!(
+                "Failed to add spans and events to project usage stats: {:?}",
+                e
+            );
+        }
+
+        match super::limits::update_workspace_limit_exceeded_by_project_id(
+            db.clone(),
+            cache.clone(),
+            rabbitmq_span_message.project_id,
+        )
+        .await
+        {
+            Err(e) => {
+                log::error!(
+                    "Failed to update workspace limit exceeded by project id: {:?}",
+                    e
+                );
+            }
+            // ignore the span if the limit is exceeded
+            Ok(limits_exceeded) => {
+                // TODO: do the same for events
+                if limits_exceeded.spans {
+                    let _ = delivery
+                        .ack(BasicAckOptions::default())
+                        .await
+                        .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
+                    continue;
+                }
+            }
+        }
 
         let mut trace_attributes = TraceAttributes::new(span.trace_id);
         let span_usage = super::utils::get_llm_usage_for_span(

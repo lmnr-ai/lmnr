@@ -5,16 +5,18 @@ use actix_web::{
     App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
+use aws_config::BehaviorVersion;
+use code_executor::code_executor_grpc::code_executor_client::CodeExecutorClient;
 use dashmap::DashMap;
 use db::{api_keys::ProjectApiKey, pipelines::PipelineVersion, user::User};
-use files::FileManager;
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
+use projects::Project;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use tonic::transport::Server;
 use traces::{
-    consumer::process_queue_spans, grpc_service::ProcessTracesService, OBSERVATIONS_EXCHANGE,
-    OBSERVATIONS_QUEUE,
+    consumer::process_queue_spans, grpc_service::ProcessTracesService,
+    limits::WorkspaceLimitsExceeded, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
 };
 
 use cache::{cache::CacheTrait, Cache};
@@ -47,11 +49,11 @@ mod auth;
 mod cache;
 mod ch;
 mod chunk;
+mod code_executor;
 mod datasets;
 mod db;
 mod engine;
 mod evaluations;
-mod files;
 mod language_model;
 mod names;
 mod opentelemetry;
@@ -60,6 +62,7 @@ mod projects;
 mod routes;
 mod runtime;
 mod semantic_search;
+mod storage;
 mod traces;
 
 const DEFAULT_CACHE_SIZE: u64 = 100; // entries
@@ -103,6 +106,15 @@ fn main() -> anyhow::Result<()> {
     let pipeline_version_cache: Arc<MokaCache<String, PipelineVersion>> =
         Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
     caches.insert(TypeId::of::<PipelineVersion>(), pipeline_version_cache);
+    let project_cache: Arc<MokaCache<String, Project>> =
+        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
+    caches.insert(TypeId::of::<Project>(), project_cache);
+    let workspace_limits_cache: Arc<MokaCache<String, WorkspaceLimitsExceeded>> =
+        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
+    caches.insert(
+        TypeId::of::<WorkspaceLimitsExceeded>(),
+        workspace_limits_cache,
+    );
 
     let cache = Arc::new(Cache::new(caches));
 
@@ -110,13 +122,23 @@ fn main() -> anyhow::Result<()> {
 
     let mut pool = None;
     runtime_handle.block_on(async {
-        pool = Some(sqlx::postgres::PgPool::connect(&db_url).await.unwrap());
+        pool = Some(
+            sqlx::postgres::PgPoolOptions::new()
+                .max_connections(
+                    env::var("DATABASE_MAX_CONNECTIONS")
+                        .unwrap_or(String::from("10"))
+                        .parse()
+                        .unwrap_or(10),
+                )
+                .connect(&db_url)
+                .await
+                .unwrap(),
+        );
     });
     let pool = pool.unwrap();
 
     let db = Arc::new(db::DB::new(pool));
 
-    let document_client = reqwest::Client::new();
     let mut chunkers = HashMap::new();
     let character_split_chunker = CharacterSplitChunker {};
     chunkers.insert(
@@ -124,7 +146,6 @@ fn main() -> anyhow::Result<()> {
         Chunker::CharacterSplit(character_split_chunker),
     );
     let chunker_runner = Arc::new(ChunkerRunner::new(chunkers));
-    let file_manager = Arc::new(FileManager::new(document_client, chunker_runner.clone()));
 
     let interrupt_senders = Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
@@ -146,6 +167,25 @@ fn main() -> anyhow::Result<()> {
         log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
     }
 
+    let mut aws_sdk_config = None;
+    runtime_handle.block_on(async {
+        aws_sdk_config = Some(
+            aws_config::defaults(BehaviorVersion::latest())
+                .region(aws_config::Region::new(
+                    env::var("AWS_REGION").unwrap_or("us-east-1".to_string()),
+                ))
+                .load()
+                .await,
+        );
+    });
+    let aws_sdk_config = aws_sdk_config.unwrap();
+    let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
+    let s3_storage = storage::s3::S3Storage::new(
+        s3_client,
+        env::var("S3_IMGS_BUCKET").expect("S3_IMGS_BUCKET must be set"),
+    );
+    let s3_storage_clone = s3_storage.clone();
+
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
@@ -163,6 +203,16 @@ fn main() -> anyhow::Result<()> {
                 );
                 let semantic_search =
                     Arc::new(semantic_search::SemanticSearch::new(semantic_search_client));
+
+                let code_executor_url =
+                    env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
+                let code_executor_client = Arc::new(
+                    CodeExecutorClient::connect(code_executor_url)
+                        .await
+                        .unwrap(),
+                );
+                let code_executor =
+                    Arc::new(code_executor::CodeExecutor::new(code_executor_client));
 
                 let client = reqwest::Client::new();
                 let anthropic = language_model::Anthropic::new(client.clone());
@@ -245,13 +295,13 @@ fn main() -> anyhow::Result<()> {
                 HttpServer::new(move || {
                     let auth = HttpAuthentication::bearer(auth::validator);
                     let project_auth = HttpAuthentication::bearer(auth::project_validator);
-                    let shared_secret_auth =
-                        HttpAuthentication::bearer(auth::shared_secret_validator);
 
                     let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
                         language_model_runner.clone(),
+                        chunker_runner.clone(),
                         semantic_search.clone(),
                         rabbitmq_connection.clone(),
+                        code_executor.clone(),
                     ));
 
                     tokio::task::spawn(process_queue_spans(
@@ -262,6 +312,7 @@ fn main() -> anyhow::Result<()> {
                         language_model_runner.clone(),
                         rabbitmq_connection.clone(),
                         clickhouse.clone(),
+                        chunker_runner.clone(),
                     ));
 
                     App::new()
@@ -270,23 +321,26 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::from(cache_for_http.clone()))
                         .app_data(web::Data::from(db_for_http.clone()))
                         .app_data(web::Data::new(pipeline_runner.clone()))
-                        .app_data(web::Data::new(file_manager.clone()))
                         .app_data(web::Data::new(semantic_search.clone()))
                         .app_data(web::Data::new(interrupt_senders.clone()))
                         .app_data(web::Data::new(language_model_runner.clone()))
                         .app_data(web::Data::new(rabbitmq_connection.clone()))
                         .app_data(web::Data::new(clickhouse.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
+                        .app_data(web::Data::new(semantic_search.clone()))
+                        .app_data(web::Data::new(chunker_runner.clone()))
+                        .app_data(web::Data::new(s3_storage.clone()))
                         // Scopes with specific auth or no auth
+                        .service(web::scope("api/v1/auth").service(routes::auth::signin))
                         .service(
-                            web::scope("api/v1/auth")
-                                .wrap(shared_secret_auth)
-                                .service(routes::auth::signin),
+                            web::scope("api/v1/manage-subscriptions")
+                                .service(routes::subscriptions::update_subscription),
                         )
                         .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
                                 .service(api::v1::pipelines::run_pipeline_graph)
+                                .service(api::v1::pipelines::ping_healthcheck)
                                 .service(api::v1::traces::get_events_for_session)
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
@@ -301,6 +355,23 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::workspace::get_workspace)
                                 .service(routes::workspace::create_workspace)
                                 .service(routes::workspace::add_user_to_workspace),
+                        )
+                        .service(
+                            web::scope("/api/v1/limits")
+                                .wrap(auth.clone())
+                                .service(routes::limits::get_workspace_stats)
+                                .service(routes::limits::get_workspace_storage_stats),
+                        )
+                        .service(
+                            web::scope("/api/v1/subscriptions")
+                                .wrap(auth.clone())
+                                .service(routes::subscriptions::save_stripe_customer_id)
+                                .service(routes::subscriptions::get_user_subscription_info),
+                        )
+                        .service(
+                            web::scope("/api/v1/users")
+                                // No auth, Next JS backend will call this after verifying stripe's signature
+                                .service(routes::users::get_user_from_stripe_customer_id),
                         )
                         .service(
                             web::scope("/api/v1/projects")
@@ -356,6 +427,7 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::pipelines::get_pipeline_version)
                                         .service(routes::pipelines::get_version)
                                         .service(routes::pipelines::get_templates)
+                                        .service(routes::pipelines::create_template)
                                         .service(routes::pipelines::run_pipeline_interrupt_graph)
                                         .service(routes::pipelines::update_target_pipeline_version)
                                         .service(routes::api_keys::create_project_api_key)
@@ -453,6 +525,7 @@ fn main() -> anyhow::Result<()> {
                     db.clone(),
                     cache.clone(),
                     rabbitmq_connection.clone(),
+                    Arc::new(s3_storage_clone),
                 );
 
                 Server::builder()

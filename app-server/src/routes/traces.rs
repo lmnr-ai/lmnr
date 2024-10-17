@@ -37,30 +37,50 @@ pub async fn get_traces(
     });
     let date_range = query_params.date_range;
     let text_search_filter = query_params.search;
+    let db = db.into_inner().clone();
+    let pool = db.pool.clone();
+    let filters_vec_clone = filters_vec.clone();
+    let date_range_clone = date_range.clone();
+    let text_search_filter_clone = text_search_filter.clone();
 
-    let traces = db::trace::get_traces(
-        &db.pool,
-        project_id,
-        limit,
-        offset,
-        &Some(filters_vec.clone()),
-        &date_range,
-        text_search_filter.clone(),
-    )
-    .await?;
-    let total_count = db::trace::count_traces(
-        &db.pool,
-        project_id,
-        &Some(filters_vec),
-        &date_range,
-        text_search_filter,
-    )
-    .await?;
-    let any_in_project = if total_count == 0 {
-        db::trace::count_all_traces_in_project(&db.pool, project_id).await? > 0
-    } else {
-        true
-    };
+    let get_traces_task = tokio::spawn(async move {
+        db::trace::get_traces(
+            &pool,
+            project_id,
+            limit,
+            offset,
+            &Some(filters_vec_clone),
+            &date_range_clone,
+            text_search_filter_clone,
+        )
+        .await
+    });
+    let count_traces_task = tokio::spawn(async move {
+        let total_count = db::trace::count_traces(
+            &db.pool,
+            project_id,
+            &Some(filters_vec),
+            &date_range,
+            text_search_filter,
+        )
+        .await
+        .unwrap_or(0);
+        let any_in_project = if total_count == 0 {
+            db::trace::count_all_traces_in_project(&db.pool, project_id)
+                .await
+                .unwrap_or(1)
+                > 0
+        } else {
+            true
+        };
+        (total_count, any_in_project)
+    });
+
+    let (traces_result, count_result) = tokio::join!(get_traces_task, count_traces_task);
+    let traces = traces_result.map_err(|e| anyhow::anyhow!("Failed to get traces: {:?}", e))??;
+
+    let (total_count, any_in_project) =
+        count_result.map_err(|e| anyhow::anyhow!("Failed to count traces: {:?}", e))?;
 
     let response = PaginatedResponse::<TraceWithParentSpanAndEvents> {
         total_count,
@@ -79,15 +99,25 @@ struct TraceWithSpanPreviews {
     spans: Vec<Span>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetTraceParams {
+    #[serde(default)]
+    search: Option<String>,
+}
+
 #[get("traces/{trace_id}")]
 pub async fn get_single_trace(
     params: web::Path<(Uuid, Uuid)>,
     db: web::Data<DB>,
+    query_params: web::Query<GetTraceParams>,
 ) -> ResponseResult {
     let (_project_id, trace_id) = params.into_inner();
+    let search = query_params.search.clone();
 
     let trace = db::trace::get_single_trace(&db.pool, trace_id).await?;
-    let span_previews = db::spans::get_span_previews(&db.pool, trace_id).await?;
+
+    let span_previews = db::spans::get_trace_spans(&db.pool, trace_id, search).await?;
 
     let trace_with_spans = TraceWithSpanPreviews {
         trace,

@@ -3,6 +3,8 @@ pub mod consumer;
 mod evaluators;
 pub mod events;
 pub mod grpc_service;
+mod index;
+pub mod limits;
 pub mod producer;
 pub mod span_attributes;
 pub mod spans;

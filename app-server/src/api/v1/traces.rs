@@ -15,7 +15,7 @@ use crate::{
     },
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    traces::producer::push_spans_to_queue,
+    traces::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue},
 };
 use prost::Message;
 
@@ -32,14 +32,36 @@ pub async fn process_traces(
     body: Bytes,
     project_api_key: ProjectApiKey,
     rabbitmq_connection: web::Data<Arc<Connection>>,
+    db: web::Data<DB>,
+    cache: web::Data<crate::cache::Cache>,
+    s3_storage: web::Data<crate::storage::s3::S3Storage>,
 ) -> ResponseResult {
+    let db = db.into_inner();
+    let cache = cache.into_inner();
     let request = ExportTraceServiceRequest::decode(body).map_err(|e| {
         anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
     })?;
     let rabbitmq_connection = rabbitmq_connection.as_ref().clone();
 
-    let response =
-        push_spans_to_queue(request, project_api_key.project_id, rabbitmq_connection).await?;
+    let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
+        db.clone(),
+        cache.clone(),
+        project_api_key.project_id,
+    )
+    .await?;
+
+    // TODO: do the same for events
+    if limits_exceeded.spans {
+        return Ok(HttpResponse::Forbidden().json("Workspace span limit exceeded"));
+    }
+
+    let response = push_spans_to_queue(
+        request,
+        project_api_key.project_id,
+        rabbitmq_connection,
+        s3_storage.into_inner(),
+    )
+    .await?;
     if response.partial_success.is_some() {
         return Err(anyhow::anyhow!("There has been an error during trace processing.").into());
     }
