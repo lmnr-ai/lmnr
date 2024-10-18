@@ -1,6 +1,6 @@
 pub mod attributes;
 pub mod consumer;
-mod evaluators;
+pub mod evaluators;
 pub mod events;
 pub mod grpc_service;
 mod index;

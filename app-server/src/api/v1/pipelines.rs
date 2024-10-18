@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     api::utils::query_target_pipeline_version,
     cache::Cache,
-    db::{api_keys::ProjectApiKey, trace::CurrentTraceAndSpan, DB},
+    db::{project_api_keys::ProjectApiKey, trace::CurrentTraceAndSpan, DB},
     pipeline::{
         nodes::{GraphOutput, GraphRunOutput, NodeInput, RunEndpointEventError, StreamChunk},
         runner::{PipelineRunner, PipelineRunnerError},

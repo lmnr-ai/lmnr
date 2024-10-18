@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::Deserialize;
-use std::{collections::HashMap, env, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
@@ -12,6 +12,7 @@ use crate::{
     },
     language_model::ChatMessage,
     pipeline::{runner::PipelineRunner, utils::render_chat_message_list, Graph, RunType},
+    provider_api_keys,
     traces::utils::json_value_to_string,
 };
 
@@ -75,7 +76,8 @@ pub async fn run_evaluator(
         ),
         ("span_output".to_string(), span_output.into()),
     ]);
-    let env = HashMap::from([("OPENAI_API_KEY".to_string(), env::var("OPENAI_API_KEY")?)]);
+    // let env = HashMap::from([("OPENAI_API_KEY".to_string(), std::env::var("OPENAI_API_KEY")?)]);
+    let env = get_stored_env(db.clone(), project_id).await?;
 
     let run_type = RunType::AutoLabel;
     graph.setup(&inputs, &env, &HashMap::new(), &run_type)?;
@@ -122,4 +124,27 @@ pub async fn run_evaluator(
     .await?;
 
     Ok(())
+}
+
+pub async fn get_stored_env(db: Arc<DB>, project_id: Uuid) -> Result<HashMap<String, String>> {
+    let stored_provider_keys =
+        db::provider_api_keys::get_api_keys_with_value(&db.pool, &project_id).await?;
+
+    let env = stored_provider_keys
+        .iter()
+        .filter_map(|db_key| {
+            let nonce_hex = &db_key.nonce_hex;
+            let encrypted_value = &db_key.value;
+            let value =
+                provider_api_keys::decode_api_key(&db_key.name, &nonce_hex, &encrypted_value)
+                    .map_err(|e| {
+                        log::error!("Failed to decode API key: {:?}", e);
+                        e
+                    })
+                    .ok()?;
+            Some((db_key.name.clone(), value))
+        })
+        .collect::<HashMap<_, _>>();
+
+    Ok(env)
 }

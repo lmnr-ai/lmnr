@@ -21,17 +21,23 @@ import {
 } from '@/components/ui/select';
 import { EnvVars } from '@/lib/env/utils';
 
-interface AddEnvVarDialogProps {
-  onAdd: (name: string, value: string) => void;
+interface AddProviderApiKeyDialogProps {
+  existingKeyNames: string[]
+  onAdd: (name: string, value: string) => void
 }
 
-export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
+export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: AddProviderApiKeyDialogProps) {
+
   const [envVarType, setEnvVarType] = useState<string>('');
   const [envVarName, setEnvVarName] = useState<string>('');
   const [envVarValue, setEnvVarValue] = useState<string>('');
 
   return (
-    <Dialog>
+    <Dialog onOpenChange={() => {
+      setEnvVarName('');
+      setEnvVarType('');
+      setEnvVarValue('');
+    }}>
       <DialogTrigger asChild>
         <Button variant="outline" className="h-8">
           <Plus className="w-4 mr-1 text-gray-500" />
@@ -40,7 +46,7 @@ export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add/edit env variable</DialogTitle>
+          <DialogTitle>Add env variable</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <Label>Name</Label>
@@ -58,11 +64,13 @@ export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
               <SelectValue placeholder="Choose env var..." />
             </SelectTrigger>
             <SelectContent>
-              {Object.values(EnvVars).map((v) => (
-                <SelectItem key={v} value={v}>
-                  {v}
-                </SelectItem>
-              ))}
+              {
+                Object.values(EnvVars).filter(e => !existingKeyNames.includes(e)).map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v}
+                  </SelectItem>
+                ))
+              }
               <SelectItem key={-1} value={'custom'}>
                 Custom
               </SelectItem>
@@ -88,8 +96,10 @@ export default function AddEnvVarDialog({ onAdd }: AddEnvVarDialogProps) {
         <DialogFooter>
           <DialogClose asChild>
             <Button
-              disabled={
-                envVarValue === '' || envVarName === '' || envVarType === ''
+              disabled={envVarValue === ''
+                || envVarName === ''
+                || envVarType === ''
+                || existingKeyNames.includes(envVarName)
               }
               onClick={() => {
                 setEnvVarName('');
