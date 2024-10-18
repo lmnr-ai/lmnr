@@ -1,9 +1,7 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
 import { db } from '@/lib/db/drizzle';
 import { labelClassesForPath } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 
 export async function DELETE(
   req: Request,
@@ -11,12 +9,13 @@ export async function DELETE(
     params
   }: { params: { projectId: string; labelClassId: string; id: string } }
 ): Promise<Response> {
-  const projectId = params.projectId;
-  const labelClassId = params.labelClassId;
-  const id = params.id;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
 
+  const projectId = params.projectId;
+  const id = params.id;
+
+  if (!(await isCurrentUserMemberOfProject(projectId))) {
+    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
+  }
 
   const registeredPath = await db.delete(labelClassesForPath).where(eq(labelClassesForPath.id, id));
 
@@ -25,15 +24,4 @@ export async function DELETE(
   }
 
   return new Response(null, { status: 200 });
-
-  // return await fetcher(
-  //   `/projects/${projectId}/label-classes/${labelClassId}/registered-paths/${id}`,
-  //   {
-  //     method: 'DELETE',
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       Authorization: `Bearer ${user.apiKey}`
-  //     }
-  //   }
-  // );
 }
