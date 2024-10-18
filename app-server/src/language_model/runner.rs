@@ -3,14 +3,18 @@ use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
-use crate::pipeline::nodes::StreamChunk;
+use crate::{cache::Cache, db::DB, pipeline::nodes::StreamChunk};
 
 use super::{
     chat_message::ChatCompletion,
+    costs::TokensKind,
     providers::{
         anthropic_bedrock::{AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY},
         openai_azure::{OPENAI_AZURE_DEPLOYMENT_NAME, OPENAI_AZURE_RESOURCE_ID},
@@ -31,7 +35,7 @@ pub enum LanguageModelProviderName {
 }
 
 #[derive(Clone, Debug)]
-#[enum_dispatch(ExecuteChatCompletion)]
+#[enum_dispatch]
 pub enum LanguageModelProvider {
     Anthropic(Anthropic),
     Gemini(Gemini),
@@ -42,7 +46,7 @@ pub enum LanguageModelProvider {
     Bedrock(AnthropicBedrock),
 }
 
-#[enum_dispatch]
+#[enum_dispatch(LanguageModelProvider)]
 pub trait ExecuteChatCompletion {
     async fn chat_completion(
         &self,
@@ -53,14 +57,76 @@ pub trait ExecuteChatCompletion {
         env: &HashMap<String, String>,
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Result<ChatCompletion>;
+}
 
-    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64>;
+#[enum_dispatch(LanguageModelProvider)]
+pub trait EstimateCost {
+    fn db_provider_name(&self) -> &str;
 
-    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64>;
+    async fn estimate_input_cost(
+        &self,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
+        model: &str,
+        input_tokens: u32,
+    ) -> Option<f64> {
+        super::costs::estimate_cost(
+            db.clone(),
+            cache.clone(),
+            self.db_provider_name(),
+            model,
+            input_tokens,
+            TokensKind::Input,
+        )
+        .await
+    }
 
-    fn estimate_cost(&self, model: &str, completion_tokens: u32, prompt_tokens: u32)
-        -> Option<f64>;
+    async fn estimate_output_cost(
+        &self,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
+        model: &str,
+        output_tokens: u32,
+    ) -> Option<f64> {
+        super::costs::estimate_cost(
+            db.clone(),
+            cache.clone(),
+            self.db_provider_name(),
+            model,
+            output_tokens,
+            TokensKind::Output,
+        )
+        .await
+    }
+
+    async fn estimate_cost(
+        &self,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
+        model: &str,
+        input_tokens: u32,
+        output_tokens: u32,
+    ) -> Option<f64> {
+        let input_cost = self
+            .estimate_input_cost(db.clone(), cache.clone(), model, input_tokens)
+            .await
+            .or_else(|| {
+                log::warn!(
+                    "No stored price found for provider: {}, model: {}",
+                    self.db_provider_name(),
+                    model,
+                );
+                None
+            })?;
+        let output_cost = self
+            .estimate_output_cost(db.clone(), cache.clone(), model, output_tokens)
+            .await?;
+
+        Some(input_cost + output_cost)
+    }
 }
 
 impl LanguageModelProviderName {
@@ -74,18 +140,6 @@ impl LanguageModelProviderName {
             "groq" => Ok(Self::Groq),
             "bedrock" => Ok(Self::Bedrock),
             _ => Err(anyhow::anyhow!("Invalid language model provider: {}", s)),
-        }
-    }
-
-    pub fn _to_str(&self) -> &str {
-        match self {
-            Self::Anthropic => "anthropic",
-            Self::Mistral => "mistral",
-            Self::OpenAI => "openai",
-            Self::OpenAIAzure => "openai-azure",
-            Self::Gemini => "gemini",
-            Self::Groq => "groq",
-            Self::Bedrock => "bedrock",
         }
     }
 
@@ -153,6 +207,8 @@ impl LanguageModelRunner {
         env: &HashMap<String, String>,
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Result<ChatCompletion> {
         let provider = get_provider(model).context("Invalid model format")?;
         let model_name = model.split(":").skip(1).join(":");
@@ -171,6 +227,8 @@ impl LanguageModelRunner {
                 env,
                 tx,
                 node_info,
+                db,
+                cache,
             )
             .await
     }

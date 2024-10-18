@@ -1,4 +1,5 @@
 mod chat_message;
+pub mod costs;
 pub mod providers;
 mod runner;
 

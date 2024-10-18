@@ -1,6 +1,8 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
+import { db } from '@/lib/db/drizzle';
+import { labelClasses } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 
 export async function GET(
   req: Request,
@@ -8,16 +10,14 @@ export async function GET(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+  if (!(await isCurrentUserMemberOfProject(projectId))) {
+    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
+  }
 
-  return await fetcher(`/projects/${projectId}/label-classes`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    }
-  });
+  const res = await db.select().from(labelClasses).where(eq(labelClasses.projectId, projectId));
+
+  return new Response(JSON.stringify(res), { status: 200 });
+
 }
 
 export async function POST(
@@ -25,17 +25,21 @@ export async function POST(
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+
+  if (!(await isCurrentUserMemberOfProject(projectId))) {
+    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
+  }
 
   const body = await req.json();
 
-  return await fetcher(`/projects/${projectId}/label-classes`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    },
-    body: JSON.stringify(body)
+  const res = await db.insert(labelClasses).values({
+    projectId: projectId,
+    name: body.name,
+    description: body.description,
+    labelType: body.labelType,
+    evaluatorRunnableGraph: body.evaluatorRunnableGraph
   });
+
+  return new Response(JSON.stringify(res), { status: 200 });
+
 }

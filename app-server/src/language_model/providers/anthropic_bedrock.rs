@@ -1,9 +1,12 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use crate::cache::Cache;
+use crate::db::DB;
 use crate::language_model::chat_message::{ChatCompletion, ChatMessage};
 use crate::language_model::runner::ExecuteChatCompletion;
 use crate::language_model::{
-    ChatChoice, ChatMessageContent, ChatUsage, LanguageModelProviderName, NodeInfo,
+    ChatChoice, ChatMessageContent, ChatUsage, EstimateCost, LanguageModelProviderName, NodeInfo,
 };
 use crate::pipeline::nodes::{NodeStreamChunk, StreamChunk};
 use anyhow::Result;
@@ -15,8 +18,6 @@ use aws_sdk_bedrockruntime::types::{
 use itertools::Itertools;
 use serde_json::Value;
 use tokio::sync::mpsc::Sender;
-
-use super::utils::calculate_cost;
 
 pub const AWS_REGION: &str = "AWS_REGION";
 pub const AWS_ACCESS_KEY_ID: &str = "AWS_ACCESS_KEY_ID";
@@ -43,6 +44,8 @@ impl ExecuteChatCompletion for AnthropicBedrock {
         env: &HashMap<String, String>,
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Result<ChatCompletion> {
         let params = serde_json::from_value::<HashMap<String, Value>>(params.clone())?;
         let mut inference_config_builder = InferenceConfiguration::builder().max_tokens(4096);
@@ -204,7 +207,9 @@ impl ExecuteChatCompletion for AnthropicBedrock {
                 }
             }
 
-            let estimated_cost = self.estimate_cost(model, completion_tokens, prompt_tokens);
+            let estimated_cost = self
+                .estimate_cost(db, cache, model, prompt_tokens, completion_tokens)
+                .await;
 
             let completion = ChatCompletion {
                 choices: vec![ChatChoice::new(ChatMessage {
@@ -244,8 +249,15 @@ impl ExecuteChatCompletion for AnthropicBedrock {
             let content = body.as_message().unwrap();
             let usage = res.usage().unwrap();
 
-            let approximate_cost =
-                self.estimate_cost(model, usage.output_tokens as u32, usage.input_tokens as u32);
+            let approximate_cost = self
+                .estimate_cost(
+                    db,
+                    cache,
+                    model,
+                    usage.input_tokens as u32,
+                    usage.output_tokens as u32,
+                )
+                .await;
 
             let completion = ChatCompletion {
                 choices: vec![ChatChoice::new(ChatMessage {
@@ -270,44 +282,10 @@ impl ExecuteChatCompletion for AnthropicBedrock {
             Ok(completion)
         }
     }
+}
 
-    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
-        if model.contains("claude-3-haiku") {
-            Some(calculate_cost(prompt_tokens, 0.25))
-        } else if model.contains("claude-3-sonnet") {
-            Some(calculate_cost(prompt_tokens, 3.0))
-        } else if model.contains("claude-3-opus") {
-            Some(calculate_cost(prompt_tokens, 15.0))
-        } else if model.contains("claude-3-5-sonnet") {
-            Some(calculate_cost(prompt_tokens, 3.0))
-        } else {
-            None
-        }
-    }
-
-    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
-        if model.contains("claude-3-haiku") {
-            Some(calculate_cost(completion_tokens, 1.25))
-        } else if model.contains("claude-3-sonnet") {
-            Some(calculate_cost(completion_tokens, 15.0))
-        } else if model.contains("claude-3-opus") {
-            Some(calculate_cost(completion_tokens, 75.0))
-        } else if model.contains("claude-3-5-sonnet") {
-            Some(calculate_cost(completion_tokens, 15.0))
-        } else {
-            None
-        }
-    }
-
-    fn estimate_cost(
-        &self,
-        model: &str,
-        completion_tokens: u32,
-        prompt_tokens: u32,
-    ) -> Option<f64> {
-        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
-        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
-
-        Some(input_cost + output_cost)
+impl EstimateCost for AnthropicBedrock {
+    fn db_provider_name(&self) -> &str {
+        "bedrock-anthropic"
     }
 }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use futures::stream::StreamExt;
 use json_value_merge::Merge;
@@ -12,15 +13,15 @@ use tiktoken_rs::get_bpe_from_tokenizer;
 use tiktoken_rs::tokenizer::get_tokenizer;
 use tokio::sync::mpsc::Sender;
 
+use crate::cache::Cache;
+use crate::db::DB;
 use crate::language_model::{
     ChatChoice, ChatCompletion, ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatUsage,
-    LanguageModelProviderName, NodeInfo,
+    EstimateCost, LanguageModelProviderName, NodeInfo,
 };
 
 use crate::language_model::runner::ExecuteChatCompletion;
 use crate::pipeline::nodes::{NodeStreamChunk, StreamChunk};
-
-use crate::language_model::providers::utils::calculate_cost;
 
 #[derive(Clone, Debug)]
 pub struct OpenAI {
@@ -210,6 +211,8 @@ impl ExecuteChatCompletion for OpenAI {
         env: &HashMap<String, String>,
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Result<ChatCompletion> {
         let is_o1 = model.starts_with("o1-preview") || model.starts_with("o1-mini");
         let messages = if is_o1 {
@@ -360,7 +363,9 @@ impl ExecuteChatCompletion for OpenAI {
                     completion_tokens,
                     prompt_tokens,
                     total_tokens: completion_tokens + prompt_tokens,
-                    approximate_cost: self.estimate_cost(model, completion_tokens, prompt_tokens),
+                    approximate_cost: self
+                        .estimate_cost(db, cache, model, prompt_tokens, completion_tokens)
+                        .await,
                 },
                 model: model.to_string(),
             };
@@ -382,11 +387,15 @@ impl ExecuteChatCompletion for OpenAI {
             }
 
             let mut res_body = res.json::<OpenAIChatCompletion>().await?;
-            res_body.usage.approximate_cost = self.estimate_cost(
-                model,
-                res_body.usage.completion_tokens,
-                res_body.usage.prompt_tokens,
-            );
+            res_body.usage.approximate_cost = self
+                .estimate_cost(
+                    db,
+                    cache,
+                    model,
+                    res_body.usage.prompt_tokens,
+                    res_body.usage.completion_tokens,
+                )
+                .await;
 
             let chat_completion = ChatCompletion {
                 choices: res_body
@@ -418,53 +427,10 @@ impl ExecuteChatCompletion for OpenAI {
             Ok(chat_completion)
         }
     }
+}
 
-    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
-        let model = model.to_lowercase();
-        if model.starts_with("gpt-3.5") {
-            Some(calculate_cost(prompt_tokens, 0.5))
-        } else if model.starts_with("gpt-4-turbo") {
-            Some(calculate_cost(prompt_tokens, 10.0))
-        } else if model.starts_with("gpt-4o-mini") {
-            Some(calculate_cost(prompt_tokens, 0.15))
-        } else if model.starts_with("gpt-4o") {
-            Some(calculate_cost(prompt_tokens, 5.0))
-        } else if model.starts_with("o1-preview") {
-            Some(calculate_cost(prompt_tokens, 15.0))
-        } else if model.starts_with("o1-mini") {
-            Some(calculate_cost(prompt_tokens, 3.0))
-        } else {
-            None
-        }
-    }
-
-    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
-        let model = model.to_lowercase();
-        if model.starts_with("gpt-3.5") {
-            Some(calculate_cost(completion_tokens, 1.5))
-        } else if model.starts_with("gpt-4-turbo") {
-            Some(calculate_cost(completion_tokens, 30.0))
-        } else if model.starts_with("gpt-4o-mini") {
-            Some(calculate_cost(completion_tokens, 0.6))
-        } else if model.starts_with("gpt-4o") {
-            Some(calculate_cost(completion_tokens, 15.0))
-        } else if model.starts_with("o1-preview") {
-            Some(calculate_cost(completion_tokens, 60.0))
-        } else if model.starts_with("o1-mini") {
-            Some(calculate_cost(completion_tokens, 12.0))
-        } else {
-            None
-        }
-    }
-
-    fn estimate_cost(
-        &self,
-        model: &str,
-        completion_tokens: u32,
-        prompt_tokens: u32,
-    ) -> Option<f64> {
-        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
-        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
-        Some(input_cost + output_cost)
+impl EstimateCost for OpenAI {
+    fn db_provider_name(&self) -> &str {
+        "openai"
     }
 }

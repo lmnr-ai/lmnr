@@ -172,6 +172,8 @@ impl RunnableNode for LLMNode {
             _ => return Err(anyhow::anyhow!("Model not found in LLM node {}", self.id)),
         };
         let provider_name = get_provider(&model).unwrap_or_default();
+        let db = context.db.clone();
+        let cache = context.cache.clone();
         loop {
             let completion = context
                 .language_model
@@ -182,6 +184,8 @@ impl RunnableNode for LLMNode {
                     &env_vars,
                     tx.clone(),
                     &node_info,
+                    db.clone(),
+                    cache.clone(),
                 )
                 .await?;
             let response_message = completion.text_message();

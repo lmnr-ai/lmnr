@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::{TimeZone, Utc};
 use regex::Regex;
+use serde::Serialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -254,55 +255,11 @@ impl Span {
 
         // to handle Traceloop's prompt/completion messages
         if span.span_type == SpanType::LLM && attributes.get("gen_ai.prompt.0.content").is_some() {
-            let mut input_messages: Vec<ChatMessage> = vec![];
-
-            let mut i = 0;
-            while attributes
-                .get(format!("gen_ai.prompt.{}.content", i).as_str())
-                .is_some()
-            {
-                let content = if let Some(serde_json::Value::String(s)) =
-                    attributes.get(format!("gen_ai.prompt.{}.content", i).as_str())
-                {
-                    s.clone()
-                } else {
-                    "".to_string()
-                };
-
-                let role = if let Some(serde_json::Value::String(s)) =
-                    attributes.get(format!("gen_ai.prompt.{}.role", i).as_str())
-                {
-                    s.clone()
-                } else {
-                    "user".to_string()
-                };
-
-                input_messages.push(ChatMessage {
-                    role,
-                    content: match serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(
-                        &content,
-                    ){
-                        Ok(otel_parts) => {
-                            let mut parts = Vec::new();
-                            for part in otel_parts {
-                                parts.push(ChatMessageContentPart::from_instrumentation_content_part(part, project_id, storage.clone()).await);
-                            }
-                            ChatMessageContent::ContentPartList(parts)
-                        }
-                        Err(_) => ChatMessageContent::Text(content.clone()),
-                    },
-                });
-                i += 1;
-            }
+            let input_messages =
+                input_chat_messages_from_prompt_content(&attributes, project_id, storage).await;
 
             span.input = Some(json!(input_messages));
-            span.output = if let Some(serde_json::Value::String(s)) =
-                attributes.get("gen_ai.completion.0.content")
-            {
-                Some(serde_json::Value::String(s.clone()))
-            } else {
-                None
-            };
+            span.output = output_from_completion_content(&attributes);
         } else if span.span_type == SpanType::LLM && attributes.get("ai.prompt.message").is_some() {
             // handling the AI SDK auto-instrumentation
             if let Ok(input_messages) = serde_json::from_str::<Vec<ChatMessage>>(
@@ -509,4 +466,134 @@ pub struct SpanUsage {
     pub request_model: Option<String>,
     pub response_model: Option<String>,
     pub provider_name: Option<String>,
+}
+
+async fn input_chat_messages_from_prompt_content(
+    attributes: &serde_json::Map<String, serde_json::Value>,
+    project_id: &Uuid,
+    storage: Arc<dyn Storage>,
+) -> Vec<ChatMessage> {
+    let mut input_messages: Vec<ChatMessage> = vec![];
+
+    let mut i = 0;
+    while attributes
+        .get(format!("gen_ai.prompt.{}.content", i).as_str())
+        .is_some()
+    {
+        let content = if let Some(serde_json::Value::String(s)) =
+            attributes.get(format!("gen_ai.prompt.{}.content", i).as_str())
+        {
+            s.clone()
+        } else {
+            "".to_string()
+        };
+
+        let role = if let Some(serde_json::Value::String(s)) =
+            attributes.get(format!("gen_ai.prompt.{i}.role").as_str())
+        {
+            s.clone()
+        } else {
+            "user".to_string()
+        };
+
+        input_messages.push(ChatMessage {
+            role,
+            content: match serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(
+                &content,
+            ) {
+                Ok(otel_parts) => {
+                    let mut parts = Vec::new();
+                    for part in otel_parts {
+                        parts.push(
+                            ChatMessageContentPart::from_instrumentation_content_part(
+                                part,
+                                project_id,
+                                storage.clone(),
+                            )
+                            .await,
+                        );
+                    }
+                    ChatMessageContent::ContentPartList(parts)
+                }
+                Err(_) => ChatMessageContent::Text(content.clone()),
+            },
+        });
+        i += 1;
+    }
+
+    input_messages
+}
+
+#[derive(Serialize)]
+struct ToolCall {
+    name: String,
+    id: Option<String>,
+    arguments: Option<serde_json::Value>,
+    #[serde(rename = "type")]
+    content_block_type: String,
+}
+
+#[derive(Serialize)]
+struct TextBlock {
+    content: String,
+    #[serde(rename = "type")]
+    content_block_type: String,
+}
+
+fn output_from_completion_content(
+    attributes: &serde_json::Map<String, serde_json::Value>,
+) -> Option<serde_json::Value> {
+    let text_msg = attributes.get("gen_ai.completion.0.content");
+
+    let mut tool_calls = Vec::new();
+    let mut i = 0;
+    while let Some(serde_json::Value::String(tool_call_name)) =
+        attributes.get(format!("gen_ai.completion.0.tool_calls.{i}.name").as_str())
+    {
+        let tool_call_id = attributes
+            .get(format!("gen_ai.completion.0.tool_calls.{i}.id").as_str())
+            .and_then(|id| id.as_str())
+            .map(String::from);
+        let tool_call_arguments_raw =
+            attributes.get(format!("gen_ai.completion.0.tool_calls.{i}.arguments").as_str());
+        let tool_call_arguments = match tool_call_arguments_raw {
+            Some(serde_json::Value::String(s)) => {
+                let parsed = serde_json::from_str::<HashMap<String, Value>>(s);
+                if let Ok(parsed) = parsed {
+                    serde_json::to_value(parsed).ok()
+                } else {
+                    Some(serde_json::Value::String(s.clone()))
+                }
+            }
+            _ => tool_call_arguments_raw.cloned(),
+        };
+        let tool_call = ToolCall {
+            name: tool_call_name.clone(),
+            id: tool_call_id,
+            arguments: tool_call_arguments,
+            content_block_type: "tool_call".to_string(),
+        };
+        tool_calls.push(serde_json::to_value(tool_call).unwrap());
+        i += 1;
+    }
+
+    if tool_calls.is_empty() {
+        if let Some(Value::String(s)) = text_msg {
+            Some(serde_json::Value::String(s.clone()))
+        } else {
+            None
+        }
+    } else {
+        let mut out_vec = if let Some(Value::String(s)) = text_msg {
+            let text_block = TextBlock {
+                content: s.clone(),
+                content_block_type: "text".to_string(),
+            };
+            vec![serde_json::to_value(text_block).unwrap()]
+        } else {
+            vec![]
+        };
+        out_vec.extend(tool_calls);
+        Some(Value::Array(out_vec))
+    }
 }
