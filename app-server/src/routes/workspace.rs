@@ -126,22 +126,6 @@ async fn add_user_to_workspace(
         }
     }
 
-    if is_feature_enabled(Feature::UsageLimit) {
-        let limits = stats::get_workspace_stats(&db.pool, &workspace_id).await?;
-        let user_limit = limits.members_limit;
-        let num_users = limits.members;
-
-        if num_users >= user_limit {
-            return Err(workspace_error_to_http_error(
-                WorkspaceError::LimitReached {
-                    entity: "users".to_string(),
-                    limit: user_limit,
-                    usage: num_users,
-                },
-            ));
-        }
-    }
-
     let user = get_by_email(&db.pool, &email).await?;
     let Some(user) = user else {
         return Err(workspace_error_to_http_error(WorkspaceError::UserNotFound(

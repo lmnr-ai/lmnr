@@ -55,10 +55,12 @@ pub async fn estimate_cost(
     num_tokens: u32,
     tokens_kind: TokensKind,
 ) -> Option<f64> {
-    let cache_res = cache
-        .get::<LLMPriceEntry>(&format!("{}:{}", provider, model))
-        .await
-        .ok()?;
+    // TODO: uncomment the cache when we figure out how to refresh it
+    let cache_res: Option<LLMPriceEntry> = None;
+    // let cache_res = cache
+    //     .get::<LLMPriceEntry>(&format!("{}:{}", provider, model))
+    //     .await
+    //     .ok()?;
     let price_per_million_tokens = match cache_res {
         Some(price) => price.input_price_per_million,
         None => {
