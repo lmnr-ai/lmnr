@@ -50,9 +50,9 @@ export default function ProviderApiKeys() {
   return (
     <>
       <div className="flex flex-col items-start space-y-4 ">
-        <h1 className="text-lg">Environment variables</h1>
+        <h1 className="text-lg">Model provider API keys.</h1>
         <Label className="">
-          Set your environment variables to use in pipelines.
+          Set your model provider API keys for use in LLM calls.
           Variables are encrypted and stored securely.
         </Label>
         <AddProviderApiKeyVarDialog

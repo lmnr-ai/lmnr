@@ -46,7 +46,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add env variable</DialogTitle>
+          <DialogTitle>Add API key</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <Label>Name</Label>
