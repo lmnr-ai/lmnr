@@ -23,6 +23,9 @@ jobs:
           - dockerfile: ./semantic-search-service/Dockerfile
             context: ./semantic-search-service
             image: ghcr.io/lmnr-ai/semantic-search-service
+          - dockerfile: ./python-executor/Dockerfile
+            context: ./python-executor
+            image: ghcr.io/lmnr-ai/python-executor
     permissions:
       contents: read
       packages: write

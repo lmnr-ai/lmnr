@@ -39,6 +39,7 @@ This will spin up the following containers:
 - qdrant – vector database
 - semantic-search-service – service for interacting with qdrant and embeddings
 - frontend – the visual front-end dashboard for interacting with traces
+- python-executor – a small python sandbox that can run arbitrary code wrapped under a thin gRPC service
 - postgres – the database for all the application data
 - clickhouse – columnar OLAP database for more efficient event and trace analytics
 

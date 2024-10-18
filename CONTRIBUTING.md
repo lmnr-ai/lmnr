@@ -46,7 +46,18 @@ cargo r
 Rust is compiled and not hot reloadable, so you will need to rerun `cargo r` every time you want
 to test a change.
 
-### 3. Run app server in develop mode
+### 3. Run python code executor in development mode
+
+```sh
+cd python_executor/python_executor
+poetry shell # or another virtual env, such as python venv or uv venv activation
+python server.py
+```
+
+### 4. Run app server in development mode
+
+Note, it is important to start semantic search service and python executor _before_ running
+app server, because it tries to connect to them before starting the server
 
 ```sh
 # app-server
@@ -54,10 +65,10 @@ cd app-server
 cargo r
 ```
 
-Rust is compiled and not hot reloadable, so you will need to rerun `cargo r` every time you want
+Rust is compiled and not hot-reloadable, so you will need to rerun `cargo r` every time you want
 to test a change.
 
-### 4. Run frontend in develop mode
+### 5. Run frontend in development mode
 
 ```sh
 # frontend
@@ -65,7 +76,7 @@ cd frontend
 pnpm run dev
 ```
 
-### 5. After finishing your changes
+### 6. After finishing your changes
 
 Make sure everything runs well in integration in dockers.
 
@@ -76,8 +87,6 @@ Make sure everything runs well in integration in dockers.
 docker compose -f docker-compose-local-build.yml up
 ```
 
-Note, that this is a different Docker compose file. This one will not only spin up
-dependency containers, but also build semantic search service, app server and frontend
-from local code and run them in production mode.
-
-
+Note that this is a different Docker compose file. This one will not only spin up
+dependency containers, but also build semantic search service, python executor,
+app server and frontend from local code and run them in production mode.
