@@ -13,7 +13,7 @@ pub enum Feature {
 pub fn is_feature_enabled(feature: Feature) -> bool {
     match feature {
         Feature::UsageLimit | Feature::Subscription => {
-            env::var("ENVIRONMENT") == Ok("production".to_string())
+            env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
         }
         Feature::Storage => {
             env::var("AWS_ACCESS_KEY_ID").is_ok()
