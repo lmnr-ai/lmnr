@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
 #### Sending events
 
-To send an evant, call `L.event(name, value)`.
+To send an event, call `L.event(name, value)`.
 
 Read our [docs](https://docs.lmnr.ai) to learn more about events and how they are created.
 
