@@ -298,22 +298,19 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
 
   const { supabaseAccessToken } = useUserContext();
 
-  const supabase = useMemo(
-    () => {
-      if (!isFeatureEnabled(Feature.SUPABASE) || !supabaseAccessToken) {
-        return null;
-      }
+  const supabase = useMemo(() => {
+    if (!isFeatureEnabled(Feature.SUPABASE) || !supabaseAccessToken) {
+      return null;
+    }
 
-      return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: {
-          headers: {
-            Authorization: `Bearer ${supabaseAccessToken}`
-          }
+    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${supabaseAccessToken}`
         }
-      });
-    },
-    []
-  );
+      }
+    });
+  }, []);
 
   if (supabase) {
     supabase.realtime.setAuth(supabaseAccessToken);

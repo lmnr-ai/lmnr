@@ -198,17 +198,17 @@ export default function PipelineSelect({
               pipelineVersions.filter(
                 (version) => version.pipelineType === 'COMMIT'
               ).length > 0 && (
-                <SelectGroup>
-                  <SelectLabel>Commits</SelectLabel>
-                  {pipelineVersions
-                    .filter((version) => version.pipelineType === 'COMMIT')
-                    .map((version) => (
-                      <SelectItem key={version.id} value={version.id!}>
-                        {version.name}
-                      </SelectItem>
-                    ))}
-                </SelectGroup>
-              )}
+              <SelectGroup>
+                <SelectLabel>Commits</SelectLabel>
+                {pipelineVersions
+                  .filter((version) => version.pipelineType === 'COMMIT')
+                  .map((version) => (
+                    <SelectItem key={version.id} value={version.id!}>
+                      {version.name}
+                    </SelectItem>
+                  ))}
+              </SelectGroup>
+            )}
             {!hideWorkshopVersions && (
               <SelectGroup>
                 <SelectLabel>Workshop</SelectLabel>

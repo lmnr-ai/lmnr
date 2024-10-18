@@ -10,7 +10,6 @@ export const enum Feature {
 
 // right now all managed-version features are disabled in local environment
 export const isFeatureEnabled = (feature: Feature) => {
-
   if (feature === Feature.EMAIL_AUTH) {
     return process.env.ENVIRONMENT === 'PRODUCTION' ? false : true;
   }

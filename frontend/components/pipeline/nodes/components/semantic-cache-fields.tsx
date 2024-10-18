@@ -39,17 +39,17 @@ export default function SemanticCacheFields({
           />
           {data.semanticCacheEnabled &&
             (!data.semanticCacheDatasetId || !data.semanticCacheDataKey) && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <AlertTriangle className="text-red-500 group-hover:text-red-400 h-4" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Dataset and output data key are not selected</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <AlertTriangle className="text-red-500 group-hover:text-red-400 h-4" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Dataset and output data key are not selected</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </div>
       {data.semanticCacheEnabled && (

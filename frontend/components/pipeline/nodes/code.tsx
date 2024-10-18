@@ -57,18 +57,18 @@ type ParsedFunction = {
 
 const argTypeToNodeHandleType = (returnType: string): NodeHandleType => {
   switch (returnType) {
-    case 'str':
-      return NodeHandleType.STRING;
-    case 'list[str]':
-    case 'List[str]':
-      return NodeHandleType.STRING_LIST;
-    case 'list[ChatMessage]':
-    case 'List[ChatMessage]':
-      return NodeHandleType.CHAT_MESSAGE_LIST;
-    case 'float':
-      return NodeHandleType.FLOAT;
-    default:
-      return NodeHandleType.ANY;
+  case 'str':
+    return NodeHandleType.STRING;
+  case 'list[str]':
+  case 'List[str]':
+    return NodeHandleType.STRING_LIST;
+  case 'list[ChatMessage]':
+  case 'List[ChatMessage]':
+    return NodeHandleType.CHAT_MESSAGE_LIST;
+  case 'float':
+    return NodeHandleType.FLOAT;
+  default:
+    return NodeHandleType.ANY;
   }
 };
 
@@ -77,18 +77,18 @@ const compareArgTypeToHandleType = (
   handleType: NodeHandleType
 ) => {
   switch (argType) {
-    case 'str':
-      return handleType === NodeHandleType.STRING;
-    case 'list[str]':
-    case 'List[str]':
-      return handleType === NodeHandleType.STRING_LIST;
-    case 'list[ChatMessage]':
-    case 'List[ChatMessage]':
-      return handleType === NodeHandleType.CHAT_MESSAGE_LIST;
-    case 'float':
-      return handleType === NodeHandleType.FLOAT;
-    default:
-      return false;
+  case 'str':
+    return handleType === NodeHandleType.STRING;
+  case 'list[str]':
+  case 'List[str]':
+    return handleType === NodeHandleType.STRING_LIST;
+  case 'list[ChatMessage]':
+  case 'List[ChatMessage]':
+    return handleType === NodeHandleType.CHAT_MESSAGE_LIST;
+  case 'float':
+    return handleType === NodeHandleType.FLOAT;
+  default:
+    return false;
   }
 };
 

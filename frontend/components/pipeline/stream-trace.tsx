@@ -168,56 +168,56 @@ export default function StreamTrace({
                   <div className="pl-2">
                     {runTrace &&
                       selectedMessage.nodeType !== NodeType.INPUT && (
-                        <Button
-                          variant="secondary"
-                          className="h-6"
-                          onClick={() => {
-                            if (!selectedMessage) {
-                              return;
+                      <Button
+                        variant="secondary"
+                        className="h-6"
+                        onClick={() => {
+                          if (!selectedMessage) {
+                            return;
+                          }
+
+                          let messages = streamMessages.map(
+                            (node) => node.message!
+                          );
+
+                          // updating message ids
+                          for (const message of messages) {
+                            if (!message) {
+                              continue;
                             }
 
-                            let messages = streamMessages.map(
-                              (node) => node.message!
-                            );
+                            const oldId = message.id;
+                            const newId = v4();
 
-                            // updating message ids
-                            for (const message of messages) {
-                              if (!message) {
-                                continue;
-                              }
-
-                              const oldId = message.id;
-                              const newId = v4();
-
-                              if (
-                                typeof message?.value === 'object' &&
+                            if (
+                              typeof message?.value === 'object' &&
                                 (message?.value as ConditionValue).value
-                              ) {
-                                message.value = (
+                            ) {
+                              message.value = (
                                   message?.value as ConditionValue
-                                ).value;
-                              }
+                              ).value;
+                            }
 
-                              if (message?.inputMessageIds.includes(oldId)) {
-                                message.inputMessageIds =
+                            if (message?.inputMessageIds.includes(oldId)) {
+                              message.inputMessageIds =
                                   message.inputMessageIds.map((id) =>
                                     id === oldId ? newId : id
                                   );
-                              }
-
-                              message.id = newId;
-                              const now = new Date();
-                              const nowISO = now.toISOString();
-                              message.startTime = nowISO;
-                              message.endTime = nowISO;
                             }
 
-                            onNodeRun?.(selectedMessage);
-                          }}
-                        >
-                          <Play size={12} />
-                        </Button>
-                      )}
+                            message.id = newId;
+                            const now = new Date();
+                            const nowISO = now.toISOString();
+                            message.startTime = nowISO;
+                            message.endTime = nowISO;
+                          }
+
+                          onNodeRun?.(selectedMessage);
+                        }}
+                      >
+                        <Play size={12} />
+                      </Button>
+                    )}
                     {selectedMessage?.reachedBreakpoint && (
                       <Button
                         variant="secondary"

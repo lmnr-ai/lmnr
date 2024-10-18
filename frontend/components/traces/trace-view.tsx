@@ -70,8 +70,8 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     setSelectedSpan(
       searchParams.get('spanId')
         ? spans.find(
-            (span: Span) => span.spanId === searchParams.get('spanId')
-          ) || null
+          (span: Span) => span.spanId === searchParams.get('spanId')
+        ) || null
         : null
     );
   }, [trace]);

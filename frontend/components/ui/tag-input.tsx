@@ -277,12 +277,12 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
 
     const truncatedTags = truncate
       ? tags.map((tag) => ({
-          id: tag.id,
-          text:
+        id: tag.id,
+        text:
             tag.text?.length > truncate
               ? `${tag.text.substring(0, truncate)}...`
               : tag.text
-        }))
+      }))
       : displayedTags;
 
     return (

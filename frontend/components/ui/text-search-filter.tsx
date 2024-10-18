@@ -6,7 +6,6 @@ import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
-
 export default function TextSearchFilter() {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();

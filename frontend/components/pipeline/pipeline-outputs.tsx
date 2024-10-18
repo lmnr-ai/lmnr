@@ -93,103 +93,103 @@ export default function PipelineOutputs({
     let type = (event as ParsedEvent).event;
     let content = JSON.parse((event as ParsedEvent).data).content;
     switch (type) {
-      case 'Breakpoint': {
-        const breakpoint = content as BreakpointChunk;
+    case 'Breakpoint': {
+      const breakpoint = content as BreakpointChunk;
 
-        setStreamMessages((prev) => {
-          const node = findMostRecentStreamMessage(prev, breakpoint.nodeId);
-          if (node !== null) {
-            return prev.map((n) => {
-              if (n.nodeId === breakpoint.nodeId) {
-                return {
-                  ...n,
-                  reachedBreakpoint: true
-                };
-              }
-              return n;
-            });
-          } else {
-            throw new Error(
-              `Breakpoint received for node ${breakpoint.nodeId} but no NodeChunk found`
-            );
-          }
-        });
-
-        break;
-      }
-      case 'NodeChunk': {
-        let chunk = content as NodeStreamChunk;
-        const nodeId = chunk.nodeId;
-        const nodeType = chunk.nodeType;
-
-        if (nodeType === NodeType.CONDITION) {
-          break;
-        }
-
-        setStreamMessages((prev) => {
-          const message = findMostRecentStreamMessage(prev, nodeId);
-          // if node is not found, create a new one
-          // if found node is not completed, append the chunk to the value
-          if (message !== null && !message.message) {
-            return prev.map((n) => {
-              if (n.id === message.id) {
-                return {
-                  ...n,
-                  value: n.value + content.content
-                };
-              }
+      setStreamMessages((prev) => {
+        const node = findMostRecentStreamMessage(prev, breakpoint.nodeId);
+        if (node !== null) {
+          return prev.map((n) => {
+            if (n.nodeId === breakpoint.nodeId) {
               return {
-                ...n
+                ...n,
+                reachedBreakpoint: true
               };
-            });
-          } else {
-            return [
-              ...prev,
-              {
-                id: v4(),
-                nodeId: nodeId,
-                nodeName: content.nodeName,
-                value: content.content,
-                nodeType: content.nodeType
-              }
-            ];
-          }
-        });
-        break;
-      }
-      case 'NodeEnd': {
-        if (content.message.nodeType === NodeType.CONDITION) {
-          break;
+            }
+            return n;
+          });
+        } else {
+          throw new Error(
+            `Breakpoint received for node ${breakpoint.nodeId} but no NodeChunk found`
+          );
         }
+      });
 
-        const nodeId = content.message.nodeId;
+      break;
+    }
+    case 'NodeChunk': {
+      let chunk = content as NodeStreamChunk;
+      const nodeId = chunk.nodeId;
+      const nodeType = chunk.nodeType;
 
-        setStreamMessages((prev) => {
-          const message = findMostRecentStreamMessage(prev, nodeId);
-          if (message !== null) {
-            return prev.map((n) => {
-              if (n.id === message.id) {
-                return {
-                  ...n,
-                  message: content.message
-                };
-              }
-              return n;
-            });
-          } else {
-            throw new Error(
-              `NodeEnd received for node ${nodeId} but no NodeChunk found`
-            );
-          }
-        });
+      if (nodeType === NodeType.CONDITION) {
         break;
       }
-      case 'RunTrace':
-        setRunTrace(content);
+
+      setStreamMessages((prev) => {
+        const message = findMostRecentStreamMessage(prev, nodeId);
+        // if node is not found, create a new one
+        // if found node is not completed, append the chunk to the value
+        if (message !== null && !message.message) {
+          return prev.map((n) => {
+            if (n.id === message.id) {
+              return {
+                ...n,
+                value: n.value + content.content
+              };
+            }
+            return {
+              ...n
+            };
+          });
+        } else {
+          return [
+            ...prev,
+            {
+              id: v4(),
+              nodeId: nodeId,
+              nodeName: content.nodeName,
+              value: content.content,
+              nodeType: content.nodeType
+            }
+          ];
+        }
+      });
+      break;
+    }
+    case 'NodeEnd': {
+      if (content.message.nodeType === NodeType.CONDITION) {
         break;
-      case 'Error':
-        setError(content);
-        break;
+      }
+
+      const nodeId = content.message.nodeId;
+
+      setStreamMessages((prev) => {
+        const message = findMostRecentStreamMessage(prev, nodeId);
+        if (message !== null) {
+          return prev.map((n) => {
+            if (n.id === message.id) {
+              return {
+                ...n,
+                message: content.message
+              };
+            }
+            return n;
+          });
+        } else {
+          throw new Error(
+            `NodeEnd received for node ${nodeId} but no NodeChunk found`
+          );
+        }
+      });
+      break;
+    }
+    case 'RunTrace':
+      setRunTrace(content);
+      break;
+    case 'Error':
+      setError(content);
+      break;
     }
   };
 

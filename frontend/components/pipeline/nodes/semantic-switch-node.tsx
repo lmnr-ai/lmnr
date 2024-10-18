@@ -73,11 +73,11 @@ export default function SemanticSwitchNodeComponent({
                           routes: data.routes.map((r, j) =>
                             j === index
                               ? {
-                                  ...r,
-                                  examples: r.examples?.map((_, k) =>
-                                    k === i ? e.currentTarget.value : _
-                                  )
-                                }
+                                ...r,
+                                examples: r.examples?.map((_, k) =>
+                                  k === i ? e.currentTarget.value : _
+                                )
+                              }
                               : r
                           )
                         } as SemanticSwitchNode);
@@ -91,11 +91,11 @@ export default function SemanticSwitchNodeComponent({
                           routes: data.routes.map((r, j) =>
                             j === index
                               ? {
-                                  ...r,
-                                  examples: r.examples?.filter(
-                                    (_, k) => k !== i
-                                  )
-                                }
+                                ...r,
+                                examples: r.examples?.filter(
+                                  (_, k) => k !== i
+                                )
+                              }
                               : r
                           )
                         } as SemanticSwitchNode);
@@ -112,9 +112,9 @@ export default function SemanticSwitchNodeComponent({
                       routes: data.routes.map((r, i) =>
                         i === index
                           ? {
-                              ...r,
-                              examples: [...(r.examples ?? []), '']
-                            }
+                            ...r,
+                            examples: [...(r.examples ?? []), '']
+                          }
                           : r
                       )
                     } as SemanticSwitchNode);

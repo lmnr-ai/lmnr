@@ -69,9 +69,9 @@ enum RunGraphState {
 
 export default function Pipeline({ pipeline }: PipelineProps) {
   const posthog = usePostHog();
+  const { email } = useUserContext();
 
   if (isFeatureEnabled(Feature.POSTHOG)) {
-    const { email } = useUserContext();
     posthog.identify(email);
   }
 
@@ -131,22 +131,19 @@ export default function Pipeline({ pipeline }: PipelineProps) {
 
   const { supabaseAccessToken, username, imageUrl } = useUserContext();
 
-  const supabase = useMemo(
-    () => {
-      if (!isFeatureEnabled(Feature.SUPABASE) || !supabaseAccessToken) {
-        return null;
-      }
+  const supabase = useMemo(() => {
+    if (!isFeatureEnabled(Feature.SUPABASE) || !supabaseAccessToken) {
+      return null;
+    }
 
-      return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: {
-          headers: {
-            Authorization: `Bearer ${supabaseAccessToken}`
-          }
+    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${supabaseAccessToken}`
         }
-      });
-    },
-    []
-  );
+      }
+    });
+  }, []);
 
   if (supabase) {
     supabase.realtime.setAuth(supabaseAccessToken);

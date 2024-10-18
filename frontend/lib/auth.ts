@@ -30,20 +30,24 @@ declare module 'next-auth/jwt' {
 }
 
 const getProviders = () => {
-  let providers = []
+  let providers = [];
 
   if (isFeatureEnabled(Feature.GITHUB_AUTH)) {
-    providers.push(GithubProvider({
-      clientId: process.env.AUTH_GITHUB_ID!,
-      clientSecret: process.env.AUTH_GITHUB_SECRET!
-    }))
+    providers.push(
+      GithubProvider({
+        clientId: process.env.AUTH_GITHUB_ID!,
+        clientSecret: process.env.AUTH_GITHUB_SECRET!
+      })
+    );
   }
 
   if (isFeatureEnabled(Feature.GOOGLE_AUTH)) {
-    providers.push(GoogleProvider({
-      clientId: process.env.AUTH_GOOGLE_ID!,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET!
-    }))
+    providers.push(
+      GoogleProvider({
+        clientId: process.env.AUTH_GOOGLE_ID!,
+        clientSecret: process.env.AUTH_GOOGLE_SECRET!
+      })
+    );
   }
 
   // this is only for local deployments
@@ -54,22 +58,30 @@ const getProviders = () => {
         id: 'email',
         name: 'Email',
         credentials: {
-          email: { label: 'Email', type: 'email', placeholder: 'username@example.com' },
+          email: {
+            label: 'Email',
+            type: 'email',
+            placeholder: 'username@example.com'
+          },
           name: { label: 'Name', type: 'text', placeholder: 'username' }
         },
         async authorize(credentials, req) {
           if (!credentials?.email) {
             return null;
           }
-          const user = { id: credentials.email, name: credentials.name, email: credentials.email } as User;
+          const user = {
+            id: credentials.email,
+            name: credentials.name,
+            email: credentials.email
+          } as User;
           return user;
         }
-      }),
+      })
     );
   }
 
-  return providers
-}
+  return providers;
+};
 
 export const authOptions: NextAuthOptions = {
   providers: getProviders(),
@@ -79,7 +91,6 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, profile, trigger }) {
       if (trigger === 'signIn') {
-
         // token always contains name, email and picture keys
         // name and email should always be provided, picture is optional
 
@@ -129,7 +140,6 @@ export const authOptions: NextAuthOptions = {
       // injecting user info into Supabase parsable JWT
 
       if (isFeatureEnabled(Feature.SUPABASE)) {
-
         const signingSecret = process.env.SUPABASE_JWT_SECRET;
         if (signingSecret) {
           const payload = {

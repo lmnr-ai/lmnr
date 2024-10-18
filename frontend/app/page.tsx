@@ -31,7 +31,6 @@ export default async function LandingPage() {
     redirect('/projects');
   }
 
-
   return (
     <>
       <LandingHeader hasSession={session !== null && session !== undefined} />

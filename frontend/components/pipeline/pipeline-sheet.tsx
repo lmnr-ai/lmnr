@@ -36,28 +36,28 @@ function RenderNode({
   editable: boolean;
 }) {
   switch (data.type) {
-    case NodeType.LLM:
-      return <LLM data={data as LLMNode} editable={editable} />;
-    case NodeType.SEMANTIC_SEARCH:
-      return <SemanticSearchNodeComponent data={data as SemanticSearchNode} />;
-    case NodeType.SWITCH:
-      return <SwitchNodeComponent data={data as RouterNode} />;
-    case NodeType.STRING_TEMPLATE:
-      return <StringTemplateNodeComponent data={data as StringTemplateNode} />;
-    case NodeType.SEMANTIC_SWITCH:
-      return <SemanticSwitchNodeComponent data={data as SemanticSwitchNode} />;
-    case NodeType.JSON_EXTRACTOR:
-      return <JsonExtractorNodeComponent data={data as JsonExtractorNode} />;
-    case NodeType.WEB_SEARCH:
-      return <WebSearchNodeComponent data={data as WebSearchNode} />;
-    case NodeType.CODE:
-      return (
-        <div className="p-0 w-full h-[300px] flex">
-          <CodeNodeComponent data={data as CodeNode} />
-        </div>
-      );
-    default:
-      return null;
+  case NodeType.LLM:
+    return <LLM data={data as LLMNode} editable={editable} />;
+  case NodeType.SEMANTIC_SEARCH:
+    return <SemanticSearchNodeComponent data={data as SemanticSearchNode} />;
+  case NodeType.SWITCH:
+    return <SwitchNodeComponent data={data as RouterNode} />;
+  case NodeType.STRING_TEMPLATE:
+    return <StringTemplateNodeComponent data={data as StringTemplateNode} />;
+  case NodeType.SEMANTIC_SWITCH:
+    return <SemanticSwitchNodeComponent data={data as SemanticSwitchNode} />;
+  case NodeType.JSON_EXTRACTOR:
+    return <JsonExtractorNodeComponent data={data as JsonExtractorNode} />;
+  case NodeType.WEB_SEARCH:
+    return <WebSearchNodeComponent data={data as WebSearchNode} />;
+  case NodeType.CODE:
+    return (
+      <div className="p-0 w-full h-[300px] flex">
+        <CodeNodeComponent data={data as CodeNode} />
+      </div>
+    );
+  default:
+    return null;
   }
 }
 

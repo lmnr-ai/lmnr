@@ -71,13 +71,13 @@ export default function ScoreCard({ scoreName }: ScoreCardProps) {
                 comparedData &&
                 !isComparedError &&
                 comparedData.averageValue != null && (
-                  <div className="flex flex-row items-center">
-                    <div className="text-5xl font-bold mr-2">
-                      {comparedData.averageValue?.toFixed(2)}
-                    </div>
-                    <ArrowRight className="text-5xl font-bold mr-2" size={24} />
+                <div className="flex flex-row items-center">
+                  <div className="text-5xl font-bold mr-2">
+                    {comparedData.averageValue?.toFixed(2)}
                   </div>
-                )}
+                  <ArrowRight className="text-5xl font-bold mr-2" size={24} />
+                </div>
+              )}
               <div className="text-5xl font-bold">
                 {data.averageValue?.toFixed(2)}
               </div>
@@ -86,29 +86,29 @@ export default function ScoreCard({ scoreName }: ScoreCardProps) {
               comparedData &&
               !isComparedError &&
               comparedData.averageValue != null && (
-                <div
-                  className={`text-md font-medium ${data.averageValue >= comparedData.averageValue ? 'text-green-400' : 'text-red-400'}`}
-                >
-                  <span className="mx-1">
-                    {data.averageValue >= comparedData.averageValue ? '▲' : '▼'}
-                  </span>
-                  {Math.abs(
-                    data.averageValue - comparedData.averageValue
-                  ).toFixed(2)}
-                  {comparedData.averageValue !== 0 && (
-                    <span>
-                      {' '}
+              <div
+                className={`text-md font-medium ${data.averageValue >= comparedData.averageValue ? 'text-green-400' : 'text-red-400'}`}
+              >
+                <span className="mx-1">
+                  {data.averageValue >= comparedData.averageValue ? '▲' : '▼'}
+                </span>
+                {Math.abs(
+                  data.averageValue - comparedData.averageValue
+                ).toFixed(2)}
+                {comparedData.averageValue !== 0 && (
+                  <span>
+                    {' '}
                       (
-                      {(
-                        ((data.averageValue - comparedData.averageValue) /
+                    {(
+                      ((data.averageValue - comparedData.averageValue) /
                           comparedData.averageValue) *
                         100
-                      ).toFixed(2)}
+                    ).toFixed(2)}
                       %)
-                    </span>
-                  )}
-                </div>
-              )}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

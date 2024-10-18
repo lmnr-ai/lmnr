@@ -407,8 +407,8 @@ export const isGroupByIntervalAvailable = (
     ? parseInt(pastHours) * 60
     : startDate && endDate
       ? Math.floor(
-          (new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000
-        )
+        (new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000
+      )
       : 0;
   if (interval === 'minute') {
     return minutes <= 12 * 60;

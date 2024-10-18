@@ -176,14 +176,14 @@ export default function PipelineHeader({
           </div>
           {selectedPipelineVersionPreview.pipelineType === 'COMMIT' &&
             targetVersionId !== selectedPipelineVersionPreview.id && (
-              <SetTargetVersionButton
-                pipelineId={pipeline.id}
-                pipelineVersionId={selectedPipelineVersion?.id ?? ''}
-                onTargetVersionChanged={(targetVersionId) => {
-                  setTargetVersionId(targetVersionId);
-                }}
-              />
-            )}
+            <SetTargetVersionButton
+              pipelineId={pipeline.id}
+              pipelineVersionId={selectedPipelineVersion?.id ?? ''}
+              onTargetVersionChanged={(targetVersionId) => {
+                setTargetVersionId(targetVersionId);
+              }}
+            />
+          )}
           {selectedPipelineVersionPreview.pipelineType === 'WORKSHOP' && (
             <CommitButton
               selectedPipelineVersion={selectedPipelineVersionPreview!}

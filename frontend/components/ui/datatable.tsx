@@ -335,19 +335,19 @@ export function DataTable<TData>({
                 pageCount > 1 &&
                 table.getIsAllRowsSelected() &&
                 !allRowsAcrossAllPagesSelected && (
-                  <>
-                    <Label
-                      className="text-blue-500 hover:cursor-pointer"
-                      onClick={() => {
-                        setAllRowsAcrossAllPagesSelected(true);
-                        onSelectAllAcrossPages?.(true);
-                      }}
-                    >
-                      {' '}
+                <>
+                  <Label
+                    className="text-blue-500 hover:cursor-pointer"
+                    onClick={() => {
+                      setAllRowsAcrossAllPagesSelected(true);
+                      onSelectAllAcrossPages?.(true);
+                    }}
+                  >
+                    {' '}
                       Select all {totalItemsCount}
-                    </Label>
-                  </>
-                )}
+                  </Label>
+                </>
+              )}
             </>
           )}
         </div>

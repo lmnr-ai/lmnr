@@ -116,35 +116,35 @@ export async function POST(req: NextRequest): Promise<Response> {
   // Handle the event
   console.log(event.type);
   switch (event.type) {
-    case 'invoice.payment_succeeded':
-      const invoice = event.data.object;
-      const lookupKey =
+  case 'invoice.payment_succeeded':
+    const invoice = event.data.object;
+    const lookupKey =
         invoice.lines.data[0].price?.lookup_key ?? 'pro_monthly_2024_09';
-      const productDescription = invoice.lines.data[0].description;
-      const stripeCustomerId = getIdFromStripeObject(invoice.customer);
-      if (stripeCustomerId) {
-        await sendEmailOnInvoiceReceived(
-          lookupKey,
-          productDescription ?? '',
-          stripeCustomerId
-        );
-      }
-      break;
-    case 'customer.subscription.deleted':
-      await handleSubscriptionChange(event, true);
-      break;
+    const productDescription = invoice.lines.data[0].description;
+    const stripeCustomerId = getIdFromStripeObject(invoice.customer);
+    if (stripeCustomerId) {
+      await sendEmailOnInvoiceReceived(
+        lookupKey,
+        productDescription ?? '',
+        stripeCustomerId
+      );
+    }
+    break;
+  case 'customer.subscription.deleted':
+    await handleSubscriptionChange(event, true);
+    break;
     // Then define and call a method to handle the subscription deleted.
     // handleSubscriptionDeleted(subscriptionDeleted);
-    case 'customer.subscription.created':
-      handleSubscriptionChange(event);
-      break;
-    case 'customer.subscription.updated':
-      handleSubscriptionChange(event);
-      break;
-    default:
-      // Unexpected event type
-      // console.log(`Stripe Webhook. Unhandled event type ${event.type}.`);
-      break;
+  case 'customer.subscription.created':
+    handleSubscriptionChange(event);
+    break;
+  case 'customer.subscription.updated':
+    handleSubscriptionChange(event);
+    break;
+  default:
+    // Unexpected event type
+    // console.log(`Stripe Webhook. Unhandled event type ${event.type}.`);
+    break;
   }
   return new Response('Webhook received.', { status: 200 });
 }

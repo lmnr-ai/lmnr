@@ -69,11 +69,11 @@ export default async function PipelinePage({
   );
   const selectedVersion = selectedVersionId
     ? await getPipelineVersion(
-        session,
-        projectId,
-        pipelineId,
+      session,
+      projectId,
+      pipelineId,
         selectedVersionId as string
-      )
+    )
     : undefined;
 
   return (
