@@ -1,4 +1,4 @@
-# Hummingbird
+# Frontend
 
 ## Setup instructions
 
