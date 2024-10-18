@@ -5,21 +5,18 @@ import { Metadata } from 'next';
 import Datasets from '@/components/datasets/datasets';
 
 export const metadata: Metadata = {
-  title: 'Datasets',
+  title: 'Datasets'
 };
 
 export default async function LogsPage({
-  params,
+  params
 }: {
-  params: { projectId: string },
+  params: { projectId: string };
 }) {
-
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
   }
 
-  return (
-    <Datasets />
-  );
+  return <Datasets />;
 }

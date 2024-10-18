@@ -16,13 +16,11 @@ import { PipelineVersionInfo } from '@/lib/pipeline/types';
 import { useProjectContext } from '@/contexts/project-context';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-
 interface OverwriteWorkshopButtonProps {
   workshopVersionId: string;
   selectedPipelineVersion: PipelineVersionInfo;
   onPipelineVersionsChange: () => void;
 }
-
 
 /**
  * Button which overrides the current workshop version (unsaved changes) with one of the commit's contents.
@@ -42,7 +40,6 @@ export default function OverwriteWorkshopButton({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const overwriteWorkshopVersion = async () => {
-
     setIsLoading(true);
 
     let res = await fetch(
@@ -50,10 +47,11 @@ export default function OverwriteWorkshopButton({
       {
         method: 'POST',
         body: JSON.stringify({
-          refVersionId: selectedPipelineVersion.id,
+          refVersionId: selectedPipelineVersion.id
         }),
-        cache: 'no-cache',
-      });
+        cache: 'no-cache'
+      }
+    );
 
     if (res.status != 200) {
       toast({
@@ -79,10 +77,7 @@ export default function OverwriteWorkshopButton({
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className="h-7"
-        >
+        <Button variant="outline" className="h-7">
           Overwrite workshop
         </Button>
       </DialogTrigger>
@@ -94,19 +89,15 @@ export default function OverwriteWorkshopButton({
           <Label>Overwrite workshop version?</Label>
         </div>
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setIsDialogOpen(false)}>
+          <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
             Cancel
           </Button>
-          <Button
-            handleEnter={true}
-            onClick={overwriteWorkshopVersion}>
-            {isLoading && <Loader className='animate-spin h-4 w-4 mr-2' />}
+          <Button handleEnter={true} onClick={overwriteWorkshopVersion}>
+            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
             Overwrite
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog >
+    </Dialog>
   );
 }

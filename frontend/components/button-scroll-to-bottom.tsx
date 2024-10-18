@@ -7,7 +7,7 @@ import { useAtBottom } from '@/lib/hooks/use-at-bottom';
 import { Button, type ButtonProps } from '@/components/ui/button';
 import { IconArrowDown } from '@/components/ui/icons';
 
-export function ButtonScrollToBottom ({ className, ...props }: ButtonProps) {
+export function ButtonScrollToBottom({ className, ...props }: ButtonProps) {
   const isAtBottom = useAtBottom();
 
   return (
@@ -24,8 +24,7 @@ export function ButtonScrollToBottom ({ className, ...props }: ButtonProps) {
           top: document.body.offsetHeight,
           behavior: 'smooth'
         });
-      }
-      }
+      }}
       {...props}
     >
       <IconArrowDown />

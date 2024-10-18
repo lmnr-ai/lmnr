@@ -50,8 +50,8 @@ evaluate({
         <div className="flex-col p-4 mb-32 space-y-4 w-[800px]">
           <h1 className="text-2xl font-semibold mb-4">Evaluations</h1>
           <h3 className="text-secondary-foreground/80 font-light">
-            You don{'\''}t have any evaluations in this project yet.
-            To run an evaluation you can start by following the example below.
+            You don{"'"}t have any evaluations in this project yet. To run an
+            evaluation you can start by following the example below.
           </h3>
           <h2 className="text-xl font-semibold mb-4">Install Laminar</h2>
           <Tabs value={tabValue} onValueChange={setTabValue}>
@@ -61,20 +61,37 @@ evaluate({
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={PYTHON_INSTALL} language='bash' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={PYTHON_INSTALL}
+                  language="bash"
+                />
               </TabsContent>
               <TabsContent value="typescript">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={TYPESCRIPT_INSTALL} language='bash' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={TYPESCRIPT_INSTALL}
+                  language="bash"
+                />
               </TabsContent>
             </div>
           </Tabs>
           <h2 className="text-xl font-semibold mb-4">Generate API key</h2>
           <h3 className="text-secondary-foreground/80 font-light">
             Go to
-            <a href={`/project/${projectId}/settings`} className="text-primary-foreground font-medium" target="_blank"> settings page </a>
+            <a
+              href={`/project/${projectId}/settings`}
+              className="text-primary-foreground font-medium"
+              target="_blank"
+            >
+              {' '}
+              settings page{' '}
+            </a>
             to generate an API key and use it in your code.
           </h3>
-          <h2 className="text-xl font-semibold mb-4">Run your first evaluation</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Run your first evaluation
+          </h2>
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">
               <TabsTrigger value="python">Python</TabsTrigger>
@@ -82,25 +99,48 @@ evaluate({
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={pythonEval} language='python' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={pythonEval}
+                  language="python"
+                />
               </TabsContent>
               <TabsContent value="typescript">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={tsEval} language='typescript' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={tsEval}
+                  language="typescript"
+                />
               </TabsContent>
             </div>
           </Tabs>
           <h3 className="text-secondary-foreground/80 font-light">
-            <a href="https://docs.lmnr.ai/evaluations/introduction" className="text-primary-foreground font-medium" target="_blank">Read the docs </a>
+            <a
+              href="https://docs.lmnr.ai/evaluations/introduction"
+              className="text-primary-foreground font-medium"
+              target="_blank"
+            >
+              Read the docs{' '}
+            </a>
             to learn more.
           </h3>
           <h2 className="text-xl font-semibold mb-4">Run your app</h2>
           <h3 className="text-secondary-foreground/80 font-light">
-            Run your Python or Typescript app. Refresh the page to see evaluations.
+            Run your Python or Typescript app. Refresh the page to see
+            evaluations.
           </h3>
-          <h2 className="text-xl font-semibold mb-4">Cannot run evaluations?</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Cannot run evaluations?
+          </h2>
           <h3 className="text-secondary-foreground/80 font-light">
-            <a href="https://discord.com/invite/nNFUUDAKub" className="text-primary-foreground font-medium" target="_blank">Message us </a>
-            and we{'\''}ll be happy to help.
+            <a
+              href="https://discord.com/invite/nNFUUDAKub"
+              className="text-primary-foreground font-medium"
+              target="_blank"
+            >
+              Message us{' '}
+            </a>
+            and we{"'"}ll be happy to help.
           </h3>
         </div>
       </div>

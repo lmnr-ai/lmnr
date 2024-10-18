@@ -14,12 +14,11 @@ const buttonVariants = cva(
           'bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border-white/20 border hover:border-white/50',
         destructive:
           'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
-        outline:
-          'border border-input bg-background hover:bg-accent',
+        outline: 'border border-input bg-background hover:bg-accent',
         secondary:
           'bg-secondary text-secondary-foreground hover:bg-secondary/60 border',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
+        link: 'text-primary underline-offset-4 hover:underline'
       },
       size: {
         default: 'h-7 px-3',
@@ -38,13 +37,13 @@ const buttonVariants = cva(
 type HandledKey = {
   key: string;
   ctrlKey?: boolean;
-  metaKey?: boolean;  // Ctrl on Windows, Command on Mac
-}
+  metaKey?: boolean; // Ctrl on Windows, Command on Mac
+};
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-  VariantProps<typeof buttonVariants> {
-  asChild?: boolean
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
 
   // Must only be used for dialogs or other pop-ups where there is only 1 button to handle at the moment
   // Used for backwards compatibility, use handleKeys instead
@@ -53,7 +52,18 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, handleEnter, handleKeys, ...props }, ref) => {
+  (
+    {
+      className,
+      variant,
+      size,
+      asChild = false,
+      handleEnter,
+      handleKeys,
+      ...props
+    },
+    ref
+  ) => {
     const Comp = asChild ? Slot : 'button';
 
     const handleKeysUp = React.useMemo(() => {
@@ -69,23 +79,37 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       return Array.from(handleKeysUp);
     }, [handleEnter, handleKeys]);
 
-    const isHandledKey = React.useCallback((e: React.KeyboardEvent) => handleKeysUp.some((key) => e.key === key.key &&
-          (key.ctrlKey === undefined || key.ctrlKey === e.ctrlKey) &&
-          (key.metaKey === undefined || key.metaKey === e.metaKey)), [handleKeysUp]);
+    const isHandledKey = React.useCallback(
+      (e: React.KeyboardEvent) =>
+        handleKeysUp.some(
+          (key) =>
+            e.key === key.key &&
+            (key.ctrlKey === undefined || key.ctrlKey === e.ctrlKey) &&
+            (key.metaKey === undefined || key.metaKey === e.metaKey)
+        ),
+      [handleKeysUp]
+    );
 
-    const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
-      // Both keyup and keydown work well for all keys and Ctrl+Key,
-      // However, keyup does not work for Meta+Key on Mac (Command+Key)
-      if (!props.disabled && isHandledKey(e)) {
-        props.onClick?.(e as any);
-      }
-    }, [props.onClick]);
+    const handleKeyDown = React.useCallback(
+      (e: React.KeyboardEvent) => {
+        // Both keyup and keydown work well for all keys and Ctrl+Key,
+        // However, keyup does not work for Meta+Key on Mac (Command+Key)
+        if (!props.disabled && isHandledKey(e)) {
+          props.onClick?.(e as any);
+        }
+      },
+      [props.onClick]
+    );
 
     React.useEffect(() => {
-      if (handleKeysUp.length > 0) { window.addEventListener('keydown', handleKeyDown as any); }
+      if (handleKeysUp.length > 0) {
+        window.addEventListener('keydown', handleKeyDown as any);
+      }
 
       return () => {
-        if (handleKeysUp.length > 0) { window.removeEventListener('keydown', handleKeyDown as any); }
+        if (handleKeysUp.length > 0) {
+          window.removeEventListener('keydown', handleKeyDown as any);
+        }
       };
     }, [props.onClick]);
 

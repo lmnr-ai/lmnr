@@ -13,7 +13,7 @@ import { Label } from './label';
 type DateRange = {
   name: string;
   value: string;
-}
+};
 
 const RANGES: DateRange[] = [
   {
@@ -35,7 +35,7 @@ const RANGES: DateRange[] = [
   {
     name: 'All',
     value: 'all'
-  },
+  }
 ];
 
 function AbsoluteDateRangeFilter() {
@@ -43,7 +43,9 @@ function AbsoluteDateRangeFilter() {
   const pathName = usePathname();
   const router = useRouter();
   const pastHours = searchParams.get('pastHours');
-  const [calendarDate, setCalendarDate] = useState<ReactDateRange | undefined>(undefined);
+  const [calendarDate, setCalendarDate] = useState<ReactDateRange | undefined>(
+    undefined
+  );
   useEffect(() => {
     let urlFrom: Date | undefined = undefined;
     try {
@@ -51,7 +53,7 @@ function AbsoluteDateRangeFilter() {
       if (param != undefined) {
         urlFrom = new Date(searchParams.get('startDate') as string);
       }
-    } catch (e) { }
+    } catch (e) {}
 
     let urlTo: Date | undefined = undefined;
     try {
@@ -59,9 +61,13 @@ function AbsoluteDateRangeFilter() {
       if (param != undefined) {
         urlTo = new Date(searchParams.get('endDate') as string);
       }
-    } catch (e) { }
+    } catch (e) {}
 
-    if (calendarDate === undefined || urlFrom === undefined || urlTo === undefined) {
+    if (
+      calendarDate === undefined ||
+      urlFrom === undefined ||
+      urlTo === undefined
+    ) {
       setCalendarDate({
         from: urlFrom,
         to: urlTo
@@ -93,7 +99,9 @@ function AbsoluteDateRangeFilter() {
                   formatDate(calendarDate?.from, 'LLL dd, y HH:mm')
                 )
               ) : (
-                <div className="flex space-x-2 text-foreground"><CalendarIcon size={14} /> <div>Custom </div> </div>
+                <div className="flex space-x-2 text-foreground">
+                  <CalendarIcon size={14} /> <div>Custom </div>{' '}
+                </div>
               )}
             </div>
           </Button>
@@ -110,7 +118,9 @@ function AbsoluteDateRangeFilter() {
           <div className="flex p-2 space-x-1">
             <div className="flex p-1 flex-grow">
               <Label className="py-2 flex-grow">
-                {calendarDate?.from ? formatDate(calendarDate.from, 'LLL dd, y') : 'Select start date'}
+                {calendarDate?.from
+                  ? formatDate(calendarDate.from, 'LLL dd, y')
+                  : 'Select start date'}
               </Label>
               <Input
                 type="time"
@@ -129,12 +139,14 @@ function AbsoluteDateRangeFilter() {
                       to: calendarDate.to
                     });
                   }
-                }
-                } />
+                }}
+              />
             </div>
             <div className="flex p-1 flex-grow">
               <Label className="py-2 flex-grow">
-                {calendarDate?.to ? formatDate(calendarDate.to, 'LLL dd, y') : 'Select end date'}
+                {calendarDate?.to
+                  ? formatDate(calendarDate.to, 'LLL dd, y')
+                  : 'Select end date'}
               </Label>
               <Input
                 type="time"
@@ -153,17 +165,26 @@ function AbsoluteDateRangeFilter() {
                       to
                     });
                   }
-                }
-                } />
+                }}
+              />
             </div>
           </div>
           <div className="flex justify-end p-2">
             <Button
-              disabled={calendarDate?.from === undefined || calendarDate?.to === undefined}
+              disabled={
+                calendarDate?.from === undefined ||
+                calendarDate?.to === undefined
+              }
               onClick={() => {
                 searchParams.delete('pastHours');
-                searchParams.set('startDate', calendarDate?.from?.toISOString() ?? '');
-                searchParams.set('endDate', calendarDate?.to?.toISOString() ?? '');
+                searchParams.set(
+                  'startDate',
+                  calendarDate?.from?.toISOString() ?? ''
+                );
+                searchParams.set(
+                  'endDate',
+                  calendarDate?.to?.toISOString() ?? ''
+                );
                 setIsPopoverOpen(false);
                 router.push(`${pathName}?${searchParams.toString()}`);
               }}
@@ -172,11 +193,9 @@ function AbsoluteDateRangeFilter() {
               Apply
             </Button>
           </div>
-
         </PopoverContent>
       </Popover>
     </div>
-
   );
 }
 
@@ -188,9 +207,9 @@ export default function DateRangeFilter() {
 
   let selectedRange: DateRange | undefined = undefined;
   if (pastHours !== null) {
-    selectedRange = RANGES.find((range) => range.value === pastHours) ?? RANGES[1];
+    selectedRange =
+      RANGES.find((range) => range.value === pastHours) ?? RANGES[1];
   }
-
 
   return (
     <div className="flex items-start flex-none space-x-4">
@@ -200,8 +219,12 @@ export default function DateRangeFilter() {
             {RANGES.map((range, index) => (
               <div
                 key={index}
-                className={cn('h-full items-center flex px-2 cursor-pointer border-r',
-                  range.value === selectedRange?.value ? 'bg-secondary/80' : 'hover:bg-secondary/80')}
+                className={cn(
+                  'h-full items-center flex px-2 cursor-pointer border-r',
+                  range.value === selectedRange?.value
+                    ? 'bg-secondary/80'
+                    : 'hover:bg-secondary/80'
+                )}
                 onClick={() => {
                   searchParams.delete('startDate');
                   searchParams.delete('endDate');
@@ -213,7 +236,7 @@ export default function DateRangeFilter() {
                 {range.name}
               </div>
             ))}
-            < AbsoluteDateRangeFilter />
+            <AbsoluteDateRangeFilter />
           </>
         }
       </div>

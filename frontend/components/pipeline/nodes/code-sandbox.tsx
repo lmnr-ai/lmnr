@@ -4,13 +4,17 @@ import { Label } from '@/components/ui/label';
 import { v4 } from 'uuid';
 import { Switch } from '@/components/ui/switch';
 
-export default function CodeSandboxNodeComponent({ data }: { data: CodeSandboxNode }) {
+export default function CodeSandboxNodeComponent({
+  data
+}: {
+  data: CodeSandboxNode;
+}) {
   const { updateNodeData, dropEdgeForHandle } = useStore((state) => state);
 
   return (
-    <div className='p-4 flex flex-col space-y-2'>
-      <div className='flex flex-row space-between'>
-        <Label className='flex-grow'>Output error</Label>
+    <div className="p-4 flex flex-col space-y-2">
+      <div className="flex flex-row space-between">
+        <Label className="flex-grow">Output error</Label>
         <Switch
           checked={data.enableErrorPassing}
           onCheckedChange={(checked) => {
@@ -24,7 +28,7 @@ export default function CodeSandboxNodeComponent({ data }: { data: CodeSandboxNo
                     name: 'error',
                     type: NodeHandleType.STRING
                   }
-                ],
+                ]
               } as CodeSandboxNode);
             } else {
               dropEdgeForHandle(data.outputs[data.outputs.length - 1].id);
@@ -36,7 +40,7 @@ export default function CodeSandboxNodeComponent({ data }: { data: CodeSandboxNo
           }}
         />
       </div>
-      <Label className='text-secondary-foreground text-sm'>
+      <Label className="text-secondary-foreground text-sm">
         If an error occurs during code execution, pass it as an output
       </Label>
     </div>

@@ -1,4 +1,11 @@
-import { Dialog, DialogHeader, DialogContent, DialogTrigger, DialogTitle, DialogFooter } from '../ui/dialog';
+import {
+  Dialog,
+  DialogHeader,
+  DialogContent,
+  DialogTrigger,
+  DialogTitle,
+  DialogFooter
+} from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { useState } from 'react';
@@ -21,26 +28,31 @@ export default function DeleteDatapointsDialog({
   const count = useAll ? totalDatapointsCount : selectedDatapointIds.length;
   const [open, setOpen] = useState(false);
   return (
-    <Dialog open={open} onOpenChange={(open) => {
-      setOpen(open);
-      if (!open) {
-        setIsLoading(false);
-      }
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(open) => {
+        setOpen(open);
+        if (!open) {
+          setIsLoading(false);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button
           variant="outline"
           disabled={selectedDatapointIds.length === 0 && !useAll}
-          onClick={() => setOpen(true)}>Delete</Button>
+          onClick={() => setOpen(true)}
+        >
+          Delete
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            Delete Datapoints
-          </DialogTitle>
+          <DialogTitle>Delete Datapoints</DialogTitle>
         </DialogHeader>
         <Label>
-          Are you sure you want to delete {count} datapoint{count === 1 ? '' : 's'}?
+          Are you sure you want to delete {count} datapoint
+          {count === 1 ? '' : 's'}?
         </Label>
         <DialogFooter>
           <Button
@@ -50,8 +62,9 @@ export default function DeleteDatapointsDialog({
               await onDelete(selectedDatapointIds, useAll);
               setIsLoading(false);
               setOpen(false);
-            }}>
-            {isLoading && <Loader className='animate-spin h-4 w-4 mr-2' />}
+            }}
+          >
+            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
             Delete
           </Button>
         </DialogFooter>

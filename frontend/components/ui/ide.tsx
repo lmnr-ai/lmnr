@@ -11,17 +11,15 @@ import 'ace-builds/src-noconflict/mode-handlebars';
 import 'ace-builds/src-noconflict/mode-typescript';
 import 'ace-builds/src-noconflict/mode-markdown';
 
-interface IdeProps extends IAceEditorProps {
-}
+interface IdeProps extends IAceEditorProps {}
 
 export default function Ide({ ...props }: IdeProps) {
-
   return (
     <div className="w-full h-full py-2 bg-secondary">
       <ReactAce
         setOptions={{
           useWorker: false,
-          indentedSoftWrap: false,
+          indentedSoftWrap: false
         }}
         wrapEnabled={true}
         theme="one_dark"

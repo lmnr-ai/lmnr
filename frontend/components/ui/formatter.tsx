@@ -1,8 +1,14 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
-import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from './select';
+import { useState } from 'react';
 import YAML from 'yaml';
-import { cn } from "@/lib/utils";
-import CodeEditor from "./code-editor";
+import { cn } from '@/lib/utils';
+import CodeEditor from './code-editor';
 
 interface OutputFormatterProps {
   value: string;
@@ -12,20 +18,25 @@ interface OutputFormatterProps {
   onChange?: (value: string) => void;
 }
 
-export default function Formatter({ value, defaultMode = "text", editable = false, onChange, className }: OutputFormatterProps) {
-
+export default function Formatter({
+  value,
+  defaultMode = 'text',
+  editable = false,
+  onChange,
+  className
+}: OutputFormatterProps) {
   const [mode, setMode] = useState(defaultMode);
 
   const renderText = (value: string) => {
     // if mode is YAML try to parse it as YAML
-    if (mode === "yaml") {
+    if (mode === 'yaml') {
       try {
         const yamlFormatted = YAML.stringify(JSON.parse(value));
         return yamlFormatted;
       } catch (e) {
         return value;
       }
-    } else if (mode === "json") {
+    } else if (mode === 'json') {
       try {
         if (JSON.parse(value) === value) {
           return value;
@@ -42,7 +53,9 @@ export default function Formatter({ value, defaultMode = "text", editable = fals
   };
 
   return (
-    <div className={cn("w-full h-full flex flex-col border rounded", className)}>
+    <div
+      className={cn('w-full h-full flex flex-col border rounded', className)}
+    >
       <div className="flex w-full flex-none">
         <div className="flex justify-start p-2 w-full border-b">
           <div>
@@ -74,7 +87,7 @@ export default function Formatter({ value, defaultMode = "text", editable = fals
           editable={editable}
           language={mode}
           onChange={(v) => {
-            if (mode === "yaml") {
+            if (mode === 'yaml') {
               try {
                 const parsedYaml = YAML.parse(v);
                 onChange?.(JSON.stringify(parsedYaml, null, 2));

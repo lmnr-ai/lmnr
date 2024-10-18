@@ -8,17 +8,18 @@ import { PipelineVersion } from '@/lib/pipeline/types';
 import { Skeleton } from '../ui/skeleton';
 
 interface PipelineBottomPanelProps {
-  pipelineVersion: PipelineVersion
-  flowPanelRef: React.RefObject<ImperativePanelHandle>
-  onTraceHover?: (nodeId?: string) => void
+  pipelineVersion: PipelineVersion;
+  flowPanelRef: React.RefObject<ImperativePanelHandle>;
+  onTraceHover?: (nodeId?: string) => void;
 }
 
-export default function PipelineBottomPanel({ pipelineVersion, onTraceHover }: PipelineBottomPanelProps) {
-
+export default function PipelineBottomPanel({
+  pipelineVersion,
+  onTraceHover
+}: PipelineBottomPanelProps) {
   const [selectedTab, setSelectedTab] = useState<'runs' | 'history'>('runs');
 
   return (
-
     <Tabs
       defaultValue="runs"
       className="h-full z-50 bg-background flex flex-col"
@@ -58,12 +59,18 @@ export default function PipelineBottomPanel({ pipelineVersion, onTraceHover }: P
           forceMount
           hidden={selectedTab !== 'history'}
         >
-          {pipelineVersion?.id ? (<div className="absolute inset-0">
-            <PipelineHistory pipelineVersion={pipelineVersion} onTraceHover={onTraceHover} />
-          </div>) : <Skeleton className="w-full h-full" />
-          }
+          {pipelineVersion?.id ? (
+            <div className="absolute inset-0">
+              <PipelineHistory
+                pipelineVersion={pipelineVersion}
+                onTraceHover={onTraceHover}
+              />
+            </div>
+          ) : (
+            <Skeleton className="w-full h-full" />
+          )}
         </TabsContent>
       </div>
-    </Tabs >
+    </Tabs>
   );
 }

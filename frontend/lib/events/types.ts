@@ -1,7 +1,7 @@
 export enum EventType {
   BOOLEAN = 'BOOLEAN',
   STRING = 'STRING',
-  NUMBER = 'NUMBER',
+  NUMBER = 'NUMBER'
 }
 
 export type EventTemplate = {
@@ -11,7 +11,7 @@ export type EventTemplate = {
   eventType: EventType;
   projectId: string;
   latestTimestamp: string | null;
-}
+};
 
 export type Event = {
   id: string;
@@ -24,4 +24,4 @@ export type Event = {
   value: string | number | boolean | null;
   metadata: Record<string, string> | null;
   inputs: Record<string, any> | null;
-}
+};

@@ -5,9 +5,14 @@ import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
+  ChartTooltipContent
 } from '@/components/ui/chart';
-import { cn, formatTimestampFromSeconds, formatTimestampFromSecondsWithInterval, getGroupByInterval } from '@/lib/utils';
+import {
+  cn,
+  formatTimestampFromSeconds,
+  formatTimestampFromSecondsWithInterval,
+  getGroupByInterval
+} from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import DateRangeFilter from '../ui/date-range-filter';
 import { Skeleton } from '../ui/skeleton';
@@ -17,20 +22,19 @@ import { TraceMetricDatapoint } from '@/lib/traces/types';
 import Header from '../ui/header';
 import { useProjectContext } from '@/contexts/project-context';
 
-
 interface CustomChartProps {
-  className?: string
-  metric: string
-  aggregation: string
-  title: string
-  xAxisKey: string
-  yAxisKey: string
-  pastHours?: string
-  startDate?: string
-  endDate?: string
-  defaultGroupByInterval?: string
-  projectId: string
-  countComponent?: (data: TraceMetricDatapoint[]) => React.ReactNode
+  className?: string;
+  metric: string;
+  aggregation: string;
+  title: string;
+  xAxisKey: string;
+  yAxisKey: string;
+  pastHours?: string;
+  startDate?: string;
+  endDate?: string;
+  defaultGroupByInterval?: string;
+  projectId: string;
+  countComponent?: (data: TraceMetricDatapoint[]) => React.ReactNode;
 }
 
 export function CustomChart({
@@ -51,8 +55,8 @@ export function CustomChart({
 
   const chartConfig = {
     [xAxisKey]: {
-      color: 'hsl(var(--chart-2))',
-    },
+      color: 'hsl(var(--chart-2))'
+    }
   } satisfies ChartConfig;
 
   useEffect(() => {
@@ -74,14 +78,14 @@ export function CustomChart({
     fetch(`/api/projects/${projectId}/traces/metrics`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(body)
     })
-      .then(res => res.json()).then((data: any) => {
+      .then((res) => res.json())
+      .then((data: any) => {
         setData(data);
       });
-
   }, [defaultGroupByInterval, pastHours, startDate, endDate]);
 
   return (
@@ -93,14 +97,19 @@ export function CustomChart({
         </div>
       </div>
       <div className="flex-1">
-        {(data === null) ? <Skeleton className="h-full w-full" /> :
-          <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+        {data === null ? (
+          <Skeleton className="h-full w-full" />
+        ) : (
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-full w-full"
+          >
             <LineChart
               accessibilityLayer
               data={data}
               margin={{
                 left: 0,
-                right: 0,
+                right: 0
               }}
             >
               <CartesianGrid vertical={false} />
@@ -108,7 +117,12 @@ export function CustomChart({
                 type="category"
                 domain={['dataMin', 'dataMax']}
                 tickLine={false}
-                tickFormatter={(value) => formatTimestampFromSecondsWithInterval(value, defaultGroupByInterval ?? 'hour')}
+                tickFormatter={(value) =>
+                  formatTimestampFromSecondsWithInterval(
+                    value,
+                    defaultGroupByInterval ?? 'hour'
+                  )
+                }
                 axisLine={false}
                 tickMargin={8}
                 dataKey={xAxisKey}
@@ -121,43 +135,41 @@ export function CustomChart({
               />
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent
-                  labelKey={xAxisKey}
-                  labelFormatter={(_, p) => formatTimestampFromSeconds(p[0].payload[xAxisKey])}
-                />}
+                content={
+                  <ChartTooltipContent
+                    labelKey={xAxisKey}
+                    labelFormatter={(_, p) =>
+                      formatTimestampFromSeconds(p[0].payload[xAxisKey])
+                    }
+                  />
+                }
               />
-              <Line
-                dataKey={yAxisKey}
-                dot={false}
-                fill="hsl(var(--chart-1))"
-              />
+              <Line dataKey={yAxisKey} dot={false} fill="hsl(var(--chart-1))" />
             </LineChart>
           </ChartContainer>
-        }
+        )}
       </div>
     </div>
   );
 }
 
-export interface DashboardProps {
-}
+export interface DashboardProps {}
 
 export default function Dashboard() {
-
   const { projectId } = useProjectContext();
 
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pastHours = searchParams.get('pastHours') as string | undefined;
   const startDate = searchParams.get('startDate') as string | undefined;
   const endDate = searchParams.get('endDate') as string | undefined;
-  const groupByInterval = searchParams.get('groupByInterval') ?? getGroupByInterval(pastHours, startDate, endDate, undefined);
+  const groupByInterval =
+    searchParams.get('groupByInterval') ??
+    getGroupByInterval(pastHours, startDate, endDate, undefined);
 
   const router = useRouter();
 
   useEffect(() => {
-
     if (!pastHours && !startDate && !endDate) {
-
       const sp = new URLSearchParams(searchParams);
       sp.set('pastHours', '24');
       router.push(`/project/${projectId}/dashboard?${sp.toString()}`);
@@ -167,7 +179,7 @@ export default function Dashboard() {
   return (
     <>
       <Header path={'dashboard'}>
-        <div className='h-12 flex space-x-2 items-center'>
+        <div className="h-12 flex space-x-2 items-center">
           <DateRangeFilter />
           <GroupByPeriodSelect />
         </div>
@@ -187,7 +199,11 @@ export default function Dashboard() {
               startDate={startDate}
               endDate={endDate}
               defaultGroupByInterval={groupByInterval}
-              countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{data?.reduce((acc, curr) => acc + curr.value, 0)}</span>}
+              countComponent={(data: TraceMetricDatapoint[]) => (
+                <span className="text-2xl">
+                  {data?.reduce((acc, curr) => acc + curr.value, 0)}
+                </span>
+              )}
             />
           </div>
           <div className="flex space-x-4">
@@ -204,7 +220,15 @@ export default function Dashboard() {
                 startDate={startDate}
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
-                countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{(data?.reduce((acc, curr) => acc + curr.value, 0) / data?.length).toFixed(2)}s</span>}
+                countComponent={(data: TraceMetricDatapoint[]) => (
+                  <span className="text-2xl">
+                    {(
+                      data?.reduce((acc, curr) => acc + curr.value, 0) /
+                      data?.length
+                    ).toFixed(2)}
+                    s
+                  </span>
+                )}
               />
             </div>
             <div className="flex-1">
@@ -220,7 +244,11 @@ export default function Dashboard() {
                 startDate={startDate}
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
-                countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{data?.reduce((acc, curr) => acc + curr.value, 0)}</span>}
+                countComponent={(data: TraceMetricDatapoint[]) => (
+                  <span className="text-2xl">
+                    {data?.reduce((acc, curr) => acc + curr.value, 0)}
+                  </span>
+                )}
               />
             </div>
             <div className="flex-1">
@@ -236,7 +264,14 @@ export default function Dashboard() {
                 startDate={startDate}
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
-                countComponent={(data: TraceMetricDatapoint[]) => <span className="text-2xl">{'$' + data?.reduce((acc, curr) => acc + curr.value, 0).toFixed(5)}</span>}
+                countComponent={(data: TraceMetricDatapoint[]) => (
+                  <span className="text-2xl">
+                    {'$' +
+                      data
+                        ?.reduce((acc, curr) => acc + curr.value, 0)
+                        .toFixed(5)}
+                  </span>
+                )}
               />
             </div>
           </div>

@@ -7,11 +7,18 @@ import useStore from '@/lib/flow/store';
 import { Button } from '@/components/ui/button';
 import { IconZenguard } from '@/components/ui/icons';
 
-const DETECTOR_TYPE_TO_DISPLAY_NAME_MAP: Record<DetectorType, string> = { 'prompt_injection': 'Prompt Injection', 'pii': 'PII (Personally Identifiable Info)', 'topics/allowed': 'Allowed Topics', 'topics/banned': 'Banned Topics', 'keywords': 'Keywords', 'secrets': 'Secrets' };
+const DETECTOR_TYPE_TO_DISPLAY_NAME_MAP: Record<DetectorType, string> = {
+  prompt_injection: 'Prompt Injection',
+  pii: 'PII (Personally Identifiable Info)',
+  'topics/allowed': 'Allowed Topics',
+  'topics/banned': 'Banned Topics',
+  keywords: 'Keywords',
+  secrets: 'Secrets'
+};
 
 const ZenguardNodeComponent = ({
   id,
-  data,
+  data
 }: {
   id: string;
   data: ZenguardNode;
@@ -20,7 +27,7 @@ const ZenguardNodeComponent = ({
 
   return (
     <>
-      <GenericNodeComponent id={id} data={data} className='w-64'>
+      <GenericNodeComponent id={id} data={data} className="w-64">
         <div className="flex flex-col">
           <Label className="mt-6 mb-1">Select detectors</Label>
           {data.detectors.map((detector, i) => (
@@ -30,11 +37,15 @@ const ZenguardNodeComponent = ({
                 checked={detector.enabled}
                 onCheckedChange={(checked) => {
                   updateNodeData(id, {
-                    detectors: data.detectors.map((d) => d.type === detector.type ? { ...d, enabled: checked } : d)
+                    detectors: data.detectors.map((d) =>
+                      d.type === detector.type ? { ...d, enabled: checked } : d
+                    )
                   } as ZenguardNode);
                 }}
               />
-              <Label className="ml-1">{DETECTOR_TYPE_TO_DISPLAY_NAME_MAP[detector.type]}</Label>
+              <Label className="ml-1">
+                {DETECTOR_TYPE_TO_DISPLAY_NAME_MAP[detector.type]}
+              </Label>
             </div>
           ))}
           <Label className="mt-6 mb-2">Configure detectors</Label>
@@ -45,7 +56,7 @@ const ZenguardNodeComponent = ({
             </Button>
           </a>
         </div>
-      </GenericNodeComponent >
+      </GenericNodeComponent>
     </>
   );
 };

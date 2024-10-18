@@ -7,7 +7,11 @@ interface CodeProps {
   className?: string;
 }
 
-export default function CodeHighlighter({ language, code, className }: CodeProps) {
+export default function CodeHighlighter({
+  language,
+  code,
+  className
+}: CodeProps) {
   return (
     <div className={className}>
       <SyntaxHighlighter
@@ -20,12 +24,12 @@ export default function CodeHighlighter({ language, code, className }: CodeProps
           padding: '0',
           margin: '0',
           fontSize: '0.9rem',
-          lineHeight: '1.5',
+          lineHeight: '1.5'
         }}
         codeTagProps={{
           style: {
-            backgroundColor: 'transparent !important',
-          },
+            backgroundColor: 'transparent !important'
+          }
         }}
       >
         {code}

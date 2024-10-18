@@ -4,24 +4,26 @@ import { signIn } from 'next-auth/react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { useState } from 'react';
+import { Label } from '../ui/label';
 
-interface DefaultSigninProps {
+interface EmailSignInProps {
   showIcon?: boolean
   text?: string
   callbackUrl: string
   className?: string
 }
 
-export function DefaultSignInButton({
+export function EmailSignInButton({
   text = 'Sign in',
   callbackUrl,
   className,
   ...props
-}: DefaultSigninProps) {
+}: EmailSignInProps) {
   const [email, setEmail] = useState('');
 
   return (
-    <div className='w-full h-full flex flex-col space-y-2 mb-2 items-center'>
+    <div className='h-full flex flex-col space-y-2 mb-2 w-[350px]'>
+      <Label className='text-sm text-gray-500'>This is a local-only feature. Simply put any email.</Label>
       <Input
         type='email'
         placeholder='Email'
@@ -34,7 +36,6 @@ export function DefaultSignInButton({
         onClick={() => {
           signIn('email', { callbackUrl: callbackUrl, email: email, name: email });
         }}
-        variant="secondary"
         handleEnter
       >
         Sign in

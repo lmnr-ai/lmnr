@@ -23,20 +23,26 @@ const InputPassword = React.forwardRef<HTMLInputElement, InputPasswordProps>(
     const toggleVisibility = () => setShowPassword((prev) => !prev);
 
     return (
-      <div {...props} className={cn(
-        'flex items-center w-full bg-transparent',
-        className
-      )}>
+      <div
+        {...props}
+        className={cn('flex items-center w-full bg-transparent', className)}
+      >
         <input
-          type='text'
+          type="text"
           placeholder={placeholder ?? ''}
-          className={cn((showPassword || !value) ? fontSans.variable : fontSecurity.className, 'flex h-9 px-3 w-full py-1 rounded-l-md border border-input border-r-0 text-sm transition-colors focus-visible:outline-none file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50')}
+          className={cn(
+            showPassword || !value ? fontSans.variable : fontSecurity.className,
+            'flex h-9 px-3 w-full py-1 rounded-l-md border border-input border-r-0 text-sm transition-colors focus-visible:outline-none file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50'
+          )}
           ref={ref}
           key={inputKey}
           value={value}
           onChange={onChange}
         />
-        <div onClick={toggleVisibility} className="cursor-pointer rounded-r-md border border-input border-l-0 p-1">
+        <div
+          onClick={toggleVisibility}
+          className="cursor-pointer rounded-r-md border border-input border-l-0 p-1"
+        >
           <div className="p-1">
             {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
           </div>

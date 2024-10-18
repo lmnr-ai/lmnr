@@ -4,7 +4,6 @@ import CodeHighlighter from '../ui/code-highlighter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
 
-
 export default function TracesPagePlaceholder() {
   const { projectId } = useProjectContext();
   const [tabValue, setTabValue] = useState('python');
@@ -47,8 +46,8 @@ const function_to_trace =
         <div className="flex-col p-4 mb-32 space-y-4 w-[800px]">
           <h1 className="text-2xl font-semibold mb-4">Quickstart</h1>
           <h3 className="text-secondary-foreground/80 font-light">
-            You don{'\''}t have any traces in this project yet.
-            Let{'\''}s send first few traces.
+            You don{"'"}t have any traces in this project yet. Let{"'"}s send
+            first few traces.
           </h3>
           <h2 className="text-xl font-semibold mb-4">Install Laminar</h2>
           <Tabs value={tabValue} onValueChange={setTabValue}>
@@ -58,25 +57,43 @@ const function_to_trace =
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={PYTHON_INSTALL} language='bash' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={PYTHON_INSTALL}
+                  language="bash"
+                />
               </TabsContent>
               <TabsContent value="typescript">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={TYPESCRIPT_INSTALL} language='bash' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={TYPESCRIPT_INSTALL}
+                  language="bash"
+                />
               </TabsContent>
             </div>
           </Tabs>
           <h2 className="text-xl font-semibold mb-4">Generate API key</h2>
           <h3 className="text-secondary-foreground/80 font-light">
             Go to
-            <a href={`/project/${projectId}/settings`} className="text-primary-foreground font-medium" target="_blank"> settings page </a>
+            <a
+              href={`/project/${projectId}/settings`}
+              className="text-primary-foreground font-medium"
+              target="_blank"
+            >
+              {' '}
+              settings page{' '}
+            </a>
             to generate an API key and use it in your code.
           </h3>
-          <h2 className="text-xl font-semibold mb-4">Kickstart with just 2 lines</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Kickstart with just 2 lines
+          </h2>
           <h3 className="text-secondary-foreground/80 font-light">
-            If you already have Python or Typescript code, which uses LLM provider libraries, add 2 lines
-            to auto-instrument your app.
-            This will automatically instrument all major LLM providers (e.g. OpenAI, Anthropic),
-            LLM frameworks including LangChain and LlamaIndex, and even vector DB calls.
+            If you already have Python or Typescript code, which uses LLM
+            provider libraries, add 2 lines to auto-instrument your app. This
+            will automatically instrument all major LLM providers (e.g. OpenAI,
+            Anthropic), LLM frameworks including LangChain and LlamaIndex, and
+            even vector DB calls.
           </h3>
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">
@@ -85,23 +102,39 @@ const function_to_trace =
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={pythonInitialization} language='python' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={pythonInitialization}
+                  language="python"
+                />
               </TabsContent>
               <TabsContent value="typescript">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={typescriptInitialization} language='typescript' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={typescriptInitialization}
+                  language="typescript"
+                />
               </TabsContent>
             </div>
           </Tabs>
           <h3 className="text-secondary-foreground/80 font-light">
-            <a href="https://docs.lmnr.ai/tracing/introduction" className="text-primary-foreground font-medium" target="_blank">Read the docs </a>
-            to learn more.
-            Also you can see simple app examples in the docs.
+            <a
+              href="https://docs.lmnr.ai/tracing/introduction"
+              className="text-primary-foreground font-medium"
+              target="_blank"
+            >
+              Read the docs{' '}
+            </a>
+            to learn more. Also you can see simple app examples in the docs.
           </h3>
-          <h2 className="text-xl font-semibold mb-4">Adding manual instrumentation (Optional)</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Adding manual instrumentation (Optional)
+          </h2>
           <h3 className="text-secondary-foreground/80 font-light">
-            If you want to trace your own functions to see their durations, inputs and outputs,
-            or want to group LLM calls or other spans into one trace, you can use @observe decorator
-            in Python or async observe function in JavaScript/TypeScript.
+            If you want to trace your own functions to see their durations,
+            inputs and outputs, or want to group LLM calls or other spans into
+            one trace, you can use @observe decorator in Python or async observe
+            function in JavaScript/TypeScript.
           </h3>
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">
@@ -110,10 +143,18 @@ const function_to_trace =
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={pythonString} language='python' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={pythonString}
+                  language="python"
+                />
               </TabsContent>
               <TabsContent value="typescript">
-                <CodeHighlighter className='text-xs bg-background p-4 rounded-md border' code={typescriptString} language='typescript' />
+                <CodeHighlighter
+                  className="text-xs bg-background p-4 rounded-md border"
+                  code={typescriptString}
+                  language="typescript"
+                />
               </TabsContent>
             </div>
           </Tabs>
@@ -123,10 +164,23 @@ const function_to_trace =
           </h3>
           <h2 className="text-xl font-semibold mb-4">Cannot send traces?</h2>
           <h3 className="text-secondary-foreground/80 font-light">
-            <a href="https://docs.lmnr.ai/tracing/troubleshooting" className="text-primary-foreground font-medium" target="_blank">Check troubleshooting guide </a>
+            <a
+              href="https://docs.lmnr.ai/tracing/troubleshooting"
+              className="text-primary-foreground font-medium"
+              target="_blank"
+            >
+              Check troubleshooting guide{' '}
+            </a>
             to learn more or
-            <a href="https://discord.com/invite/nNFUUDAKub" className="text-primary-foreground font-medium" target="_blank"> message us </a>
-            and we{'\''}ll be happy to help.
+            <a
+              href="https://discord.com/invite/nNFUUDAKub"
+              className="text-primary-foreground font-medium"
+              target="_blank"
+            >
+              {' '}
+              message us{' '}
+            </a>
+            and we{"'"}ll be happy to help.
           </h3>
         </div>
       </div>

@@ -7,24 +7,20 @@ import useStore from '@/lib/flow/store';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 
-const WebSearchNodeComponent = ({
-  data,
-}: {
-  data: WebSearchNode;
-}) => {
-
+const WebSearchNodeComponent = ({ data }: { data: WebSearchNode }) => {
   const { updateNodeData } = useStore();
 
   return (
-    <div className='p-4 flex flex-col space-y-2'>
+    <div className="p-4 flex flex-col space-y-2">
       <Label>Scraped pages</Label>
       <Input
-        id='limit'
-        placeholder='top results to return'
+        id="limit"
+        placeholder="top results to return"
         defaultValue={data.limit}
         onChange={(e) => {
-
-          const l = Number.isNaN(Number(e.currentTarget.value)) ? 0 : Number(e.currentTarget.value);
+          const l = Number.isNaN(Number(e.currentTarget.value))
+            ? 0
+            : Number(e.currentTarget.value);
 
           updateNodeData(data.id, {
             limit: l
@@ -33,7 +29,7 @@ const WebSearchNodeComponent = ({
       />
       <Label>Template</Label>
       <DefaultTextarea
-        className='nodrag nowheel'
+        className="nodrag nowheel"
         defaultValue={data.template}
         onChange={(e) => {
           updateNodeData(data.id, {
@@ -41,13 +37,13 @@ const WebSearchNodeComponent = ({
           } as WebSearchNode);
         }}
       />
-      <div className='flex items-center w-full justify-between'>
-        <Label className='mr-2'>Only semantically similar chunks</Label>
+      <div className="flex items-center w-full justify-between">
+        <Label className="mr-2">Only semantically similar chunks</Label>
         <Switch
           checked={data.semanticTextSearchEnabled}
           onCheckedChange={(semanticTextSearchEnabled) => {
             updateNodeData(data.id, {
-              semanticTextSearchEnabled,
+              semanticTextSearchEnabled
             } as WebSearchNode);
           }}
         />
@@ -56,11 +52,13 @@ const WebSearchNodeComponent = ({
         <div>
           <Label>Limit</Label>
           <Input
-            id='limit'
+            id="limit"
             defaultValue={data.semanticTextSearchLimit ?? 10}
             onChange={(e) => {
               updateNodeData(data.id, {
-                semanticTextSearchLimit: Number.isNaN(Number(e.currentTarget.value))
+                semanticTextSearchLimit: Number.isNaN(
+                  Number(e.currentTarget.value)
+                )
                   ? 10
                   : Number(e.currentTarget.value)
               } as WebSearchNode);

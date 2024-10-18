@@ -9,7 +9,7 @@ import {
   EdgeProps,
   MarkerType,
   getBezierPath,
-  useReactFlow,
+  useReactFlow
 } from 'reactflow';
 
 const onEdgeClick = (evt: any, id: any) => {
@@ -46,11 +46,15 @@ export default function CustomEdge({
 
   return (
     <>
-      <BaseEdge path={edgePath} markerEnd={markerEnd} style={{
-        ...style,
-        strokeWidth: 2,
-        stroke: data?.isHover && editable ? '#60a5fa' : style.stroke,
-      }} />
+      <BaseEdge
+        path={edgePath}
+        markerEnd={markerEnd}
+        style={{
+          ...style,
+          strokeWidth: 2,
+          stroke: data?.isHover && editable ? '#60a5fa' : style.stroke
+        }}
+      />
       <EdgeLabelRenderer>
         <div
           style={{
@@ -59,16 +63,21 @@ export default function CustomEdge({
             fontSize: 12,
             // everything inside EdgeLabelRenderer has no pointer events by default
             // if you have an interactive element, set pointer-events: all
-            pointerEvents: 'all',
+            pointerEvents: 'all'
           }}
-          className={cn('nodrag border nopan bg-primary rounded-full w-6 h-6', data?.isHover && editable ? 'flex items-center justify-center' : 'hidden')}
+          className={cn(
+            'nodrag border nopan bg-primary rounded-full w-6 h-6',
+            data?.isHover && editable
+              ? 'flex items-center justify-center'
+              : 'hidden'
+          )}
           onClick={onEdgeClick}
         >
           {/* <button className="" > */}
           <X size={12} strokeWidth={3} />
           {/* </button> */}
         </div>
-      </EdgeLabelRenderer >
+      </EdgeLabelRenderer>
     </>
   );
 }

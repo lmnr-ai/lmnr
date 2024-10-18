@@ -9,7 +9,9 @@ import { DataTable } from '../ui/datatable';
 import Mono from '../ui/mono';
 import Header from '../ui/header';
 import EvalsPagePlaceholder from './page-placeholder';
+import { usePostHog } from 'posthog-js/react';
 import { useUserContext } from '@/contexts/user-context';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 export interface EvaluationProps {
   evaluations: Evaluation[];
@@ -18,8 +20,12 @@ export interface EvaluationProps {
 export default function Evaluations({ evaluations }: EvaluationProps) {
   const { projectId } = useProjectContext();
   const router = useRouter();
-
+  const posthog = usePostHog();
   const { email } = useUserContext();
+
+  if (isFeatureEnabled(Feature.POSTHOG)) {
+    posthog.identify(email);
+  }
 
   const columns: ColumnDef<Evaluation>[] = [
     {
@@ -35,12 +41,14 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
     },
     {
       accessorKey: 'name',
-      header: 'Name',
+      header: 'Name'
     },
     {
       header: 'Created at',
       accessorKey: 'createdAt',
-      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+      cell: (row) => (
+        <ClientTimestampFormatter timestamp={String(row.getValue())} />
+      )
     }
   ];
 
@@ -64,9 +72,13 @@ export default function Evaluations({ evaluations }: EvaluationProps) {
         {/* <CreateEvaluationDialog /> */}
       </div>
       <div className="flex-grow">
-        <DataTable columns={columns} data={evaluations} onRowClick={(row) => {
-          router.push(`/project/${projectId}/evaluations/${row.original.id}`);
-        }} />
+        <DataTable
+          columns={columns}
+          data={evaluations}
+          onRowClick={(row) => {
+            router.push(`/project/${projectId}/evaluations/${row.original.id}`);
+          }}
+        />
       </div>
     </div>
   );

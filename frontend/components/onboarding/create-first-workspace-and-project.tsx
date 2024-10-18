@@ -9,12 +9,16 @@ import { WorkspaceWithProjects } from '@/lib/workspaces/types';
 import { Loader } from 'lucide-react';
 
 interface CreateFirstWorkspaceAndProjectProps {
-    name?: string | null;
+  name?: string | null;
 }
 
 // TODO: Pass user's name, so that we can pre-fill the workspace name with "{user's name} workspace"
-export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWorkspaceAndProjectProps) {
-  const [workspaceName, setWorkspaceName] = useState(name ? `${name}'s workspace` : '');
+export default function CreateFirstWorkspaceAndProject({
+  name
+}: CreateFirstWorkspaceAndProjectProps) {
+  const [workspaceName, setWorkspaceName] = useState(
+    name ? `${name}'s workspace` : ''
+  );
   const [projectName, setProjectName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -31,7 +35,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
       })
     });
 
-    const newWorkspace = await res.json() as WorkspaceWithProjects;
+    const newWorkspace = (await res.json()) as WorkspaceWithProjects;
 
     setIsLoading(false);
 
@@ -43,9 +47,13 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
   return (
     <div className="max-w-4xl mx-auto mt-12 p-6 rounded-lg shadow-md">
       <div className="flex flex-col">
-        <h2 className="text-2xl font-semibold mb-4">Create workspace and first project</h2>
+        <h2 className="text-2xl font-semibold mb-4">
+          Create workspace and first project
+        </h2>
         <div className="flex flex-col mb-6">
-          <Label className="block text-sm font-medium text-secondary-foreground mb-2">Workspace Name</Label>
+          <Label className="block text-sm font-medium text-secondary-foreground mb-2">
+            Workspace Name
+          </Label>
           <Input
             type="text"
             placeholder="Workspace name"
@@ -54,7 +62,9 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
           />
         </div>
         <div className="flex flex-col mb-6">
-          <Label className="block text-sm font-medium text-secondary-foreground mb-2">Project Name</Label>
+          <Label className="block text-sm font-medium text-secondary-foreground mb-2">
+            Project Name
+          </Label>
           <Input
             type="text"
             placeholder="Project name"
@@ -69,7 +79,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
             disabled={!workspaceName || !projectName || isLoading}
             handleEnter={true}
           >
-            {isLoading && <Loader className='animate-spin h-4 w-4 mr-2' />}
+            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
             Create
           </Button>
         </div>

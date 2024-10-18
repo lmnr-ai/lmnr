@@ -2,7 +2,6 @@
 
 import { Button } from '@/components/ui/button';
 
-
 import { useProjectContext } from '@/contexts/project-context';
 import { useRouter } from 'next/navigation';
 import { Loader, MoreVertical } from 'lucide-react';
@@ -13,7 +12,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import useSWR from 'swr';
 import CreateDatasetDialog from './create-dataset-dialog';
@@ -25,28 +24,36 @@ import { TableCell, TableRow } from '../ui/table';
 import { PaginatedResponse } from '@/lib/types';
 import Mono from '../ui/mono';
 
-
 export default function Datasets() {
   const { projectId } = useProjectContext();
-  const fetcher = (url: string) => fetch(url).then(res => res.json());
+  const fetcher = (url: string) => fetch(url).then((res) => res.json());
   const router = useRouter();
-  const { data, isLoading, mutate } = useSWR<PaginatedResponse<Dataset>>(`/api/projects/${projectId}/datasets/`, fetcher);
+  const { data, isLoading, mutate } = useSWR<PaginatedResponse<Dataset>>(
+    `/api/projects/${projectId}/datasets/`,
+    fetcher
+  );
 
   const updateDataset = async (datasetId: string, dataset: Dataset) => {
-    const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}`, {
-      method: 'POST',
-      body: JSON.stringify({
-        newName: dataset.name,
-      }),
-    });
+    const res = await fetch(
+      `/api/projects/${projectId}/datasets/${datasetId}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          newName: dataset.name
+        })
+      }
+    );
     res.json();
     mutate();
   };
 
   const deleteDataset = async (datasetId: string) => {
-    const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}`, {
-      method: 'DELETE',
-    });
+    const res = await fetch(
+      `/api/projects/${projectId}/datasets/${datasetId}`,
+      {
+        method: 'DELETE'
+      }
+    );
     mutate();
   };
 
@@ -54,16 +61,18 @@ export default function Datasets() {
     {
       cell: ({ row }) => <Mono>{row.original.id}</Mono>,
       size: 300,
-      header: 'ID',
+      header: 'ID'
     },
     {
       accessorKey: 'name',
-      header: 'name',
+      header: 'name'
     },
     {
       header: 'Created at',
       accessorKey: 'createdAt',
-      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+      cell: (row) => (
+        <ClientTimestampFormatter timestamp={String(row.getValue())} />
+      )
     },
     {
       id: 'actions',
@@ -76,14 +85,21 @@ export default function Datasets() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem
-              onClick={(e) => { deleteDataset(row.original.id); e.stopPropagation(); }}
+              onClick={(e) => {
+                deleteDataset(row.original.id);
+                e.stopPropagation();
+              }}
             >
-                Delete
+              Delete
             </DropdownMenuItem>
-            <UpdateDatasetDialog oldDataset={row.original} doUpdate={updateDataset} isDropdown={true} />
+            <UpdateDatasetDialog
+              oldDataset={row.original}
+              doUpdate={updateDataset}
+              isDropdown={true}
+            />
           </DropdownMenuContent>
         </DropdownMenu>
-      ),
+      )
     }
   ];
 
@@ -91,15 +107,18 @@ export default function Datasets() {
     <div className="h-full flex flex-col">
       <Header path="datasets" />
       <div className="flex justify-between items-center p-4 h-14 flex-none">
-        <div className='flex'>
+        <div className="flex">
           <h3 className="scroll-m-20 text-lg font-semibold tracking-tight">
             Datasets
           </h3>
-          <Loader className={cn('m-2 hidden', isLoading ? 'animate-spin block' : '')} size={12} />
+          <Loader
+            className={cn('m-2 hidden', isLoading ? 'animate-spin block' : '')}
+            size={12}
+          />
         </div>
         <CreateDatasetDialog />
       </div>
-      <div className='flex-grow'>
+      <div className="flex-grow">
         <DataTable
           onRowClick={(row) => {
             router.push(`/project/${projectId}/datasets/${row.original.id}`);
@@ -108,7 +127,7 @@ export default function Datasets() {
           data={data?.items}
           emptyRow={
             <TableRow>
-              <TableCell colSpan={columns.length} className='text-center text'>
+              <TableCell colSpan={columns.length} className="text-center text">
                 Create a new dataset to get started
               </TableCell>
             </TableRow>

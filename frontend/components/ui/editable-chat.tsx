@@ -4,8 +4,8 @@ import { ChatMessage } from '@/lib/types';
 import { useEffect, useRef, useState } from 'react';
 
 interface EditableChatProps {
-  messages: ChatMessage[]
-  setMessages: (messages: ChatMessage[]) => void
+  messages: ChatMessage[];
+  setMessages: (messages: ChatMessage[]) => void;
 }
 
 /**
@@ -21,7 +21,10 @@ interface EditableChatProps {
  * with deleting message from the middle of the list. Without these ids, if you delete in the middle, the ids will
  * be rendered wrongly.
  */
-export default function EditableChat({ messages, setMessages }: EditableChatProps) {
+export default function EditableChat({
+  messages,
+  setMessages
+}: EditableChatProps) {
   const idsRef = useRef<number[] | null>(null);
   const [_, forceUpdate] = useState(0);
 
@@ -31,7 +34,7 @@ export default function EditableChat({ messages, setMessages }: EditableChatProp
 
   useEffect(() => {
     // Force re-render, otherwise when switching the mode, it doesn't render anything thinking that the idsRef.current is null.
-    forceUpdate(n => n + 1);
+    forceUpdate((n) => n + 1);
   }, [idsRef.current]);
 
   const addMessage = () => {
@@ -40,7 +43,10 @@ export default function EditableChat({ messages, setMessages }: EditableChatProp
       content: ''
     };
 
-    const newId = idsRef.current!.length > 0 ? idsRef.current![idsRef.current!.length - 1] + 1 : 0;
+    const newId =
+      idsRef.current!.length > 0
+        ? idsRef.current![idsRef.current!.length - 1] + 1
+        : 0;
     idsRef.current!.push(newId);
     setMessages([...messages, newMessage]);
   };
@@ -59,21 +65,24 @@ export default function EditableChat({ messages, setMessages }: EditableChatProp
   };
 
   return (
-    (idsRef.current !== null) && (
+    idsRef.current !== null && (
       <div className="flex flex-col h-full">
-        {messages && messages.map((message, index) => (
-          <EditableChatMessage
-            key={idsRef.current![index]}
-            index={index}
-            defaultMessage={message}
-            onDelete={deleteMessage}
-            onEdit={editMessage}
-          />
-        ))}
-        <div className='p-2'>
-          <Button className="h-6" onClick={addMessage} variant={'secondary'}>Add message</Button>
+        {messages &&
+          messages.map((message, index) => (
+            <EditableChatMessage
+              key={idsRef.current![index]}
+              index={index}
+              defaultMessage={message}
+              onDelete={deleteMessage}
+              onEdit={editMessage}
+            />
+          ))}
+        <div className="p-2">
+          <Button className="h-6" onClick={addMessage} variant={'secondary'}>
+            Add message
+          </Button>
         </div>
-      </div >
+      </div>
     )
   );
 }

@@ -1,5 +1,13 @@
 import { v4 } from 'uuid';
-import { type GenericNode, NodeHandleType, NodeType, type OutputNode, InputNode, ConditionNode, GenericNodeHandle } from './types';
+import {
+  type GenericNode,
+  NodeHandleType,
+  NodeType,
+  type OutputNode,
+  InputNode,
+  ConditionNode,
+  GenericNodeHandle
+} from './types';
 import { getRequiredEnvVars } from '@/lib/env/utils';
 import { GraphMessagePreview } from '../pipeline/types';
 import { TraceMessages } from '../traces/types';
@@ -19,16 +27,16 @@ export class Graph {
     const newNode = { ...node, inputsMappings: {} } as GenericNode;
 
     if (newNode.isCondtional === true) {
-
       const outputHandleId = v4();
 
-      newNode.outputs = [{
-        id: outputHandleId,
-        type: NodeHandleType.STRING
-      } as GenericNodeHandle];
+      newNode.outputs = [
+        {
+          id: outputHandleId,
+          type: NodeHandleType.STRING
+        } as GenericNodeHandle
+      ];
 
       for (let i = 0; i < node.outputs.length; i++) {
-
         const output = node.outputs[i];
 
         // it is safe to force unwrap here because we know that if there's more than 1 output, it has a name
@@ -36,21 +44,30 @@ export class Graph {
           id: v4(),
           name: output.name!,
           type: NodeType.CONDITION,
-          inputs: [{
-            id: v4(),
-            name: 'input',
-            type: NodeHandleType.STRING
-          } as GenericNodeHandle],
-          outputs: [{
-            id: output.id,
-            type: NodeHandleType.STRING
-          } as GenericNodeHandle],
+          inputs: [
+            {
+              id: v4(),
+              name: 'input',
+              type: NodeHandleType.STRING
+            } as GenericNodeHandle
+          ],
+          outputs: [
+            {
+              id: output.id,
+              type: NodeHandleType.STRING
+            } as GenericNodeHandle
+          ],
           condition: output.name!,
           inputsMappings: {}
         };
 
         this.nodes.set(conditionNode.id, conditionNode);
-        this.addEdge(node.id, conditionNode.id, outputHandleId, conditionNode.inputs[0].id);
+        this.addEdge(
+          node.id,
+          conditionNode.id,
+          outputHandleId,
+          conditionNode.inputs[0].id
+        );
       }
     }
 
@@ -63,26 +80,26 @@ export class Graph {
     }
 
     if (this.nodes.get(from)?.isCondtional === true) {
-
       // for router nodes, we add extra condition node in between
-      const conditionNode = Array.from(this.nodes.values()).find((node) =>
-        node.type === NodeType.CONDITION && node.outputs[0].id === fromHandle
+      const conditionNode = Array.from(this.nodes.values()).find(
+        (node) =>
+          node.type === NodeType.CONDITION && node.outputs[0].id === fromHandle
       );
       this.pred.get(to)?.add(conditionNode?.id!);
-
     } else {
       this.pred.get(to)?.add(from);
     }
     const targetNode: GenericNode = this.nodes.get(to)!;
 
-    const targetInputs = targetNode.inputs.concat(targetNode.dynamicInputs?.map(input => ({
-      ...input,
-    })) ?? []);
+    const targetInputs = targetNode.inputs.concat(
+      targetNode.dynamicInputs?.map((input) => ({
+        ...input
+      })) ?? []
+    );
 
     // it means we have a connection between two nodes that already have a connection
     // in this case create new handle for the target node
     if (targetNode.inputsMappings![toHandle] !== undefined) {
-
       // if (targetInputs.find((input) => input.id === fromHandle) !== undefined) {
       //   return
       // }
@@ -92,10 +109,13 @@ export class Graph {
       const newHandle = {
         id: v4(),
         type: handle.type,
-        name: handle.name,
+        name: handle.name
       };
 
-      if (targetNode.dynamicInputs?.find((input) => input.id === toHandle) !== undefined) {
+      if (
+        targetNode.dynamicInputs?.find((input) => input.id === toHandle) !==
+        undefined
+      ) {
         targetNode.dynamicInputs = targetNode.dynamicInputs?.concat(newHandle);
       } else {
         targetNode.inputs = targetNode.inputs.concat(newHandle);
@@ -105,9 +125,7 @@ export class Graph {
         ...targetNode.inputsMappings,
         [newHandle.id]: fromHandle
       };
-
     } else {
-
       targetNode.inputsMappings = {
         ...targetNode.inputsMappings,
         [toHandle]: fromHandle
@@ -144,7 +162,6 @@ export class Graph {
 
   // Note: this is to run only one node as a singletion graph;
   static fromNode(node: GenericNode) {
-
     const graph = new Graph();
     graph.addNode({ ...node });
 
@@ -159,35 +176,42 @@ export class Graph {
         type: NodeType.INPUT,
         inputs: [],
         inputType: input.type,
-        outputs: [{
-          id: v4(),
-          type: input.type
-        }]
+        outputs: [
+          {
+            id: v4(),
+            type: input.type
+          }
+        ]
       };
 
       graph.addNode(inputNode);
       graph.addEdge(inputNode.id, node.id, inputNode.outputs[0].id, input.id);
-
     }
 
     for (const output of node.outputs) {
-
       const outputNode: OutputNode = {
         id: v4(),
         name: 'output',
         type: NodeType.OUTPUT,
-        inputs: [{
-          id: v4(),
-          name: 'output',
-          type: output.type
-        }],
+        inputs: [
+          {
+            id: v4(),
+            name: 'output',
+            type: output.type
+          }
+        ],
         inputType: output.type,
         outputs: [],
         outputCastType: null
       };
 
       graph.addNode(outputNode);
-      graph.addEdge(node.id, outputNode.id, node.outputs[0].id, outputNode.inputs[0].id);
+      graph.addEdge(
+        node.id,
+        outputNode.id,
+        node.outputs[0].id,
+        outputNode.inputs[0].id
+      );
     }
 
     return graph;
@@ -196,10 +220,13 @@ export class Graph {
   requiredEnvVars(): Set<string> {
     return getRequiredEnvVars(Array.from(this.nodes.values()));
   }
-
 }
 
-export const traverseGraph = (messages: TraceMessages, startMsgId: string, list: GraphMessagePreview[] = []) => {
+export const traverseGraph = (
+  messages: TraceMessages,
+  startMsgId: string,
+  list: GraphMessagePreview[] = []
+) => {
   const message = messages[startMsgId];
   if (!message || message.nodeName === null) {
     return;
@@ -211,8 +238,10 @@ export const traverseGraph = (messages: TraceMessages, startMsgId: string, list:
     });
   }
 
-  if (!list.find((m) => m.id === message.id) && message.nodeType != NodeType.CONDITION) {
+  if (
+    !list.find((m) => m.id === message.id) &&
+    message.nodeType != NodeType.CONDITION
+  ) {
     list.push(message);
   }
-
 };

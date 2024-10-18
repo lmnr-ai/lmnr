@@ -16,7 +16,7 @@ export async function fetcher<JSON = any>(
 ): Promise<Response> {
   const res = await fetch(`${process.env.BACKEND_URL}/api/v1${url}`, {
     ...init,
-    cache: 'no-store',
+    cache: 'no-store'
   });
 
   if (!res.ok) {
@@ -34,7 +34,7 @@ export async function fetcherJSON<JSON = any>(
 ): Promise<JSON> {
   const res = await fetch(`${process.env.BACKEND_URL}/api/v1${url}`, {
     ...init,
-    cache: 'no-store',
+    cache: 'no-store'
   });
 
   if (!res.ok) {
@@ -42,10 +42,13 @@ export async function fetcherJSON<JSON = any>(
     throw new Error(text);
   }
 
-  return await res.json() as JSON;
+  return (await res.json()) as JSON;
 }
 
-export const swrFetcher = (url: string) => fetch(url).then(res => res.json()).catch(err => console.error(err));
+export const swrFetcher = (url: string) =>
+  fetch(url)
+    .then((res) => res.json())
+    .catch((err) => console.error(err));
 
 // return string such as 0319 for March 19 or 1201 for December 1
 // Note that the date is calculated for local time
@@ -96,24 +99,47 @@ export function formatTimestampFromSeconds(seconds: number): string {
   return _innerFormatTimestamp(date);
 }
 
-export function formatTimestampFromSecondsWithInterval(seconds: number, interval: string): string {
+export function formatTimestampFromSecondsWithInterval(
+  seconds: number,
+  interval: string
+): string {
   const date = new Date(seconds * 1000);
 
   if (interval === 'day') {
-    return date.toLocaleDateString('en-US', { day: '2-digit', month: 'numeric' });
+    return date.toLocaleDateString('en-US', {
+      day: '2-digit',
+      month: 'numeric'
+    });
   } else if (interval === 'hour') {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
   } else {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
   }
 }
 
 // Note that the formatted time is calculated for local time
 function _innerFormatTimestamp(date: Date): string {
-  const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
-  const dateOptions: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+  const timeOptions: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  };
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    day: '2-digit',
+    month: 'short'
+  };
 
-  const timeStr = date.toLocaleString('en-US', timeOptions).replace(/^24:/, '00:');
+  const timeStr = date
+    .toLocaleString('en-US', timeOptions)
+    .replace(/^24:/, '00:');
   const dateStr = date.toLocaleString('en-US', dateOptions);
 
   // TODO: Add year, if it's not equal to current year
@@ -121,12 +147,19 @@ function _innerFormatTimestamp(date: Date): string {
   return `${dateStr}, ${timeStr}`;
 }
 
+export const getLocalEnvVars = (projectId: string): Record<string, string> =>
+  JSON.parse(localStorage?.getItem(`env-${projectId}`) ?? '{}');
 
-export const getLocalEnvVars = (projectId: string): Record<string, string> => JSON.parse(localStorage?.getItem(`env-${projectId}`) ?? '{}');
-
-export const setLocalEnvVar = (projectId: string, key: string, value: string) => {
+export const setLocalEnvVar = (
+  projectId: string,
+  key: string,
+  value: string
+) => {
   const localEnvVars = getLocalEnvVars(projectId);
-  localStorage.setItem(`env-${projectId}`, JSON.stringify({ ...localEnvVars, [key]: value }));
+  localStorage.setItem(
+    `env-${projectId}`,
+    JSON.stringify({ ...localEnvVars, [key]: value })
+  );
 };
 
 export const deleteLocalEnvVar = (projectId: string, key: string) => {
@@ -135,17 +168,30 @@ export const deleteLocalEnvVar = (projectId: string, key: string) => {
   localStorage.setItem(`env-${projectId}`, JSON.stringify(localEnvVars));
 };
 
-export const getLocalDevSessions = (projectId: string): Record<string, string> => JSON.parse(localStorage?.getItem(`dev-sessions-${projectId}`) ?? '{}');
+export const getLocalDevSessions = (
+  projectId: string
+): Record<string, string> =>
+  JSON.parse(localStorage?.getItem(`dev-sessions-${projectId}`) ?? '{}');
 
-export const setLocalDevSession = (projectId: string, key: string, value: string) => {
+export const setLocalDevSession = (
+  projectId: string,
+  key: string,
+  value: string
+) => {
   const localDevSessions = getLocalDevSessions(projectId);
-  localStorage.setItem(`dev-sessions-${projectId}`, JSON.stringify({ ...localDevSessions, [key]: value }));
+  localStorage.setItem(
+    `dev-sessions-${projectId}`,
+    JSON.stringify({ ...localDevSessions, [key]: value })
+  );
 };
 
 export const deleteLocalDevSession = (projectId: string, key: string) => {
   const localDevSessions = getLocalDevSessions(projectId);
   delete localDevSessions[key];
-  localStorage.setItem(`dev-sessions-${projectId}`, JSON.stringify(localDevSessions));
+  localStorage.setItem(
+    `dev-sessions-${projectId}`,
+    JSON.stringify(localDevSessions)
+  );
 };
 
 // If unseen state, then use it to fill out inputs
@@ -153,8 +199,13 @@ export const STORED_INPUTS_STATE_UNSEEN = 'INPUTS_UNSEEN_STATE';
 // If seen state, then use allInputs to fill out inputs
 export const STORED_INPUTS_STATE_SEEN = 'INPUTS_SEEN_STATE';
 
-export const getStoredInputs = (pipelineVersionId: string, focusedNodeId: string | null, pipelineVisibility: PipelineVisibility = 'PRIVATE') => {
-  const innerKey = (focusedNodeId === null) ? 'pipeline' : `node-${focusedNodeId}`;
+export const getStoredInputs = (
+  pipelineVersionId: string,
+  focusedNodeId: string | null,
+  pipelineVisibility: PipelineVisibility = 'PRIVATE'
+) => {
+  const innerKey =
+    focusedNodeId === null ? 'pipeline' : `node-${focusedNodeId}`;
   const key = `${pipelineVisibility === 'PUBLIC' ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
   const localPipelineInputs = JSON.parse(localStorage.getItem(key) ?? '{}');
 
@@ -171,32 +222,66 @@ export const getStoredInputs = (pipelineVersionId: string, focusedNodeId: string
 /**
  * Set local pipeline inputs to the UNSEEN_STATE
  */
-export const convertAllStoredInputsToUnseen = (pipelineVersionId: string, pipelineVisibility: PipelineVisibility = 'PRIVATE') => {
+export const convertAllStoredInputsToUnseen = (
+  pipelineVersionId: string,
+  pipelineVisibility: PipelineVisibility = 'PRIVATE'
+) => {
   const inputsKey = `${pipelineVisibility === 'PUBLIC' ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
-  const localPipelineInputs = JSON.parse(localStorage.getItem(inputsKey) ?? '{}');
-  const preparedLocalPipelineInputs = Object.keys(localPipelineInputs).reduce((acc, key) => ({ ...acc, [key]: { state: STORED_INPUTS_STATE_UNSEEN, inputs: localPipelineInputs[key].inputs } }), {});
+  const localPipelineInputs = JSON.parse(
+    localStorage.getItem(inputsKey) ?? '{}'
+  );
+  const preparedLocalPipelineInputs = Object.keys(localPipelineInputs).reduce(
+    (acc, key) => ({
+      ...acc,
+      [key]: {
+        state: STORED_INPUTS_STATE_UNSEEN,
+        inputs: localPipelineInputs[key].inputs
+      }
+    }),
+    {}
+  );
   localStorage.setItem(inputsKey, JSON.stringify(preparedLocalPipelineInputs));
 };
 
 /**
  * Set local inputs for focusedNodeid to UNSEEN_STATE
  */
-export const convertStoredInputToUnseen = (pipelineVersionId: string, focusedNodeId: string | null, pipelineVisibility: PipelineVisibility = 'PRIVATE') => {
-  const innerKey = (focusedNodeId === null) ? 'pipeline' : `node-${focusedNodeId}`;
+export const convertStoredInputToUnseen = (
+  pipelineVersionId: string,
+  focusedNodeId: string | null,
+  pipelineVisibility: PipelineVisibility = 'PRIVATE'
+) => {
+  const innerKey =
+    focusedNodeId === null ? 'pipeline' : `node-${focusedNodeId}`;
   const key = `${pipelineVisibility === 'PUBLIC' ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
   const localPipelineInputs = JSON.parse(localStorage.getItem(key) ?? '{}');
 
   if (!!localPipelineInputs[innerKey]) {
-    localPipelineInputs[innerKey] = { ...localPipelineInputs[innerKey], state: STORED_INPUTS_STATE_UNSEEN };
+    localPipelineInputs[innerKey] = {
+      ...localPipelineInputs[innerKey],
+      state: STORED_INPUTS_STATE_UNSEEN
+    };
     localStorage.setItem(key, JSON.stringify(localPipelineInputs));
   }
 };
 
-export const setStoredInputs = (pipelineVersionId: string, focusedNodeId: string | null, inputs: InputVariable[][], pipelineVisibility: PipelineVisibility = 'PRIVATE') => {
-  const innerKey = (focusedNodeId === null) ? 'pipeline' : `node-${focusedNodeId}`;
+export const setStoredInputs = (
+  pipelineVersionId: string,
+  focusedNodeId: string | null,
+  inputs: InputVariable[][],
+  pipelineVisibility: PipelineVisibility = 'PRIVATE'
+) => {
+  const innerKey =
+    focusedNodeId === null ? 'pipeline' : `node-${focusedNodeId}`;
   const key = `${pipelineVisibility === 'PUBLIC' ? 'public-' : ''}pipeline-inputs-${pipelineVersionId}`;
   const localPipelineInputs = JSON.parse(localStorage.getItem(key) ?? '{}');
-  localStorage.setItem(key, JSON.stringify({ ...localPipelineInputs, [innerKey]: { state: STORED_INPUTS_STATE_SEEN, inputs } }));
+  localStorage.setItem(
+    key,
+    JSON.stringify({
+      ...localPipelineInputs,
+      [innerKey]: { state: STORED_INPUTS_STATE_SEEN, inputs }
+    })
+  );
 };
 
 /**
@@ -213,7 +298,10 @@ export function generateShortHash() {
   return hash;
 }
 
-export const isStringType = (content: string | ChatMessageContentPart[]): content is string => (typeof content === 'string' || content instanceof String);
+export const isStringType = (
+  content: string | ChatMessageContentPart[]
+): content is string =>
+  typeof content === 'string' || content instanceof String;
 
 export function deep<T>(value: T): T {
   if (typeof value !== 'object' || value === null) {
@@ -246,7 +334,6 @@ export function toYjsObject(obj: any): any {
   const ymap = new Y.Map();
 
   for (let key of Object.keys(obj)) {
-
     const value = obj[key];
     if (value === null || value === undefined) {
       ymap.set(key, new Y.Text());
@@ -262,10 +349,14 @@ export function toYjsObject(obj: any): any {
   return ymap;
 }
 
-export const getFilterFromUrlParams = (filter: string): DatatableFilter[] | undefined => {
+export const getFilterFromUrlParams = (
+  filter: string
+): DatatableFilter[] | undefined => {
   const filters = JSON.parse(filter);
   if (Array.isArray(filters)) {
-    return filters.filter((f: any) => typeof f === 'object' && f.column && f.operator && f.value) as DatatableFilter[];
+    return filters.filter(
+      (f: any) => typeof f === 'object' && f.column && f.operator && f.value
+    ) as DatatableFilter[];
   }
   return undefined;
 };
@@ -274,7 +365,8 @@ export const getGroupByInterval = (
   pastHours: string | undefined,
   startDate: string | undefined,
   endDate: string | undefined,
-  defaultGroupByInterval: string | undefined): string => {
+  defaultGroupByInterval: string | undefined
+): string => {
   let groupByInterval = 'hour';
   // If explicitly specified in the URL, then use it
   if (defaultGroupByInterval != undefined) {
@@ -288,16 +380,17 @@ export const getGroupByInterval = (
     groupByInterval = 'hour';
   } else if (parseInt(pastHours ?? '0') > 24) {
     groupByInterval = 'day';
-  }
-  else if (pastHours === 'all') {
+  } else if (pastHours === 'all') {
     groupByInterval = 'day';
   } else if (startDate && endDate) {
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diff = end.getTime() - start.getTime();
-    if (diff > 48 * 60 * 60 * 1000) {  // 2 days
+    if (diff > 48 * 60 * 60 * 1000) {
+      // 2 days
       groupByInterval = 'day';
-    } else if (diff < 6 * 60 * 60 * 1000) { // 6 hours
+    } else if (diff < 6 * 60 * 60 * 1000) {
+      // 6 hours
       groupByInterval = 'minute';
     }
   }
@@ -308,11 +401,14 @@ export const isGroupByIntervalAvailable = (
   pastHours: string | undefined,
   startDate: string | undefined,
   endDate: string | undefined,
-  interval: string | undefined): boolean => {
+  interval: string | undefined
+): boolean => {
   const minutes = pastHours
     ? parseInt(pastHours) * 60
     : startDate && endDate
-      ? Math.floor((new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000)
+      ? Math.floor(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000
+        )
       : 0;
   if (interval === 'minute') {
     return minutes <= 12 * 60;

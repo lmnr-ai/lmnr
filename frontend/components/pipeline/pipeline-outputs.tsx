@@ -3,32 +3,48 @@ import useStore from '@/lib/flow/store';
 import { useProjectContext } from '@/contexts/project-context';
 import { useToast } from '../../lib/hooks/use-toast';
 import { useCallback } from 'react';
-import { GRAPH_VALID, validateGraph, validateInputs } from '@/lib/pipeline/utils';
+import {
+  GRAPH_VALID,
+  validateGraph,
+  validateInputs
+} from '@/lib/pipeline/utils';
 import { getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
-import { BreakpointChunk, GraphMessage, InputVariable, NodeStreamChunk, PipelineVersion } from '@/lib/pipeline/types';
+import {
+  BreakpointChunk,
+  GraphMessage,
+  InputVariable,
+  NodeStreamChunk,
+  PipelineVersion
+} from '@/lib/pipeline/types';
 import { Graph } from '@/lib/flow/graph';
 import { NodeInput, NodeType } from '@/lib/flow/types';
-import { createParser, type ParsedEvent, type ReconnectInterval } from 'eventsource-parser';
+import {
+  createParser,
+  type ParsedEvent,
+  type ReconnectInterval
+} from 'eventsource-parser';
 import StreamTrace from './stream-trace';
 import { filterRunRequiredEnvVars } from '@/lib/flow/utils';
 import { RunTrace } from '@/lib/traces/types';
 import { v4 } from 'uuid';
 import eventEmitter from '@/lib/pipeline/eventEmitter';
 
-
 export type StreamMessage = {
-  id: string
-  nodeType: NodeType
-  nodeId: string
-  nodeName: string
+  id: string;
+  nodeType: NodeType;
+  nodeId: string;
+  nodeName: string;
   // the value which dynamically gets filled out during stream
-  value: string
+  value: string;
   // the final value after stream is done
-  message?: GraphMessage
-  reachedBreakpoint?: boolean
-}
+  message?: GraphMessage;
+  reachedBreakpoint?: boolean;
+};
 
-function findMostRecentStreamMessage(streamMessages: StreamMessage[], id: string): StreamMessage | null {
+function findMostRecentStreamMessage(
+  streamMessages: StreamMessage[],
+  id: string
+): StreamMessage | null {
   for (let i = streamMessages.length - 1; i >= 0; i--) {
     if (streamMessages[i].nodeId === id) {
       return streamMessages[i];
@@ -41,8 +57,9 @@ interface PipelineOutputsProps {
   pipelineVersion: PipelineVersion;
 }
 
-
-export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProps) {
+export default function PipelineOutputs({
+  pipelineVersion
+}: PipelineOutputsProps) {
   const { toast } = useToast();
 
   let { projectId } = useProjectContext();
@@ -52,113 +69,128 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
   const [streamMessages, setStreamMessages] = useState<StreamMessage[]>([]);
   const [runTrace, setRunTrace] = useState<RunTrace | undefined>(undefined);
 
-  const { getRunGraph, getEdges, allInputs, focusedNodeId, setIsMissingEnvVars, breakpointNodeIds } = useStore();
+  const {
+    getRunGraph,
+    getEdges,
+    allInputs,
+    focusedNodeId,
+    setIsMissingEnvVars,
+    breakpointNodeIds
+  } = useStore();
 
   const [error, setError] = useState<string | undefined>(undefined);
 
   const showError = useCallback((message: string) => {
-    toast({ title: 'Pipeline running error', variant: 'destructive', description: message, duration: 10000 });
+    toast({
+      title: 'Pipeline running error',
+      variant: 'destructive',
+      description: message,
+      duration: 10000
+    });
   }, []);
-
 
   const onParse = async (event: ParsedEvent | ReconnectInterval) => {
     let type = (event as ParsedEvent).event;
     let content = JSON.parse((event as ParsedEvent).data).content;
     switch (type) {
-    case 'Breakpoint': {
-      const breakpoint = content as BreakpointChunk;
+      case 'Breakpoint': {
+        const breakpoint = content as BreakpointChunk;
 
-      setStreamMessages((prev) => {
-        const node = findMostRecentStreamMessage(prev, breakpoint.nodeId);
-        if (node !== null) {
-          return prev.map((n) => {
-            if (n.nodeId === breakpoint.nodeId) {
-              return {
-                ...n,
-                reachedBreakpoint: true
-              };
-            }
-            return n;
-          });
-        } else {
-          throw new Error(`Breakpoint received for node ${breakpoint.nodeId} but no NodeChunk found`);
-        }
-      });
+        setStreamMessages((prev) => {
+          const node = findMostRecentStreamMessage(prev, breakpoint.nodeId);
+          if (node !== null) {
+            return prev.map((n) => {
+              if (n.nodeId === breakpoint.nodeId) {
+                return {
+                  ...n,
+                  reachedBreakpoint: true
+                };
+              }
+              return n;
+            });
+          } else {
+            throw new Error(
+              `Breakpoint received for node ${breakpoint.nodeId} but no NodeChunk found`
+            );
+          }
+        });
 
-      break;
-    }
-    case 'NodeChunk': {
-
-      let chunk = content as NodeStreamChunk;
-      const nodeId = chunk.nodeId;
-      const nodeType = chunk.nodeType;
-
-      if (nodeType === NodeType.CONDITION) {
         break;
-      };
+      }
+      case 'NodeChunk': {
+        let chunk = content as NodeStreamChunk;
+        const nodeId = chunk.nodeId;
+        const nodeType = chunk.nodeType;
 
-      setStreamMessages((prev) => {
-
-        const message = findMostRecentStreamMessage(prev, nodeId);
-        // if node is not found, create a new one
-        // if found node is not completed, append the chunk to the value
-        if (message !== null && !message.message) {
-          return prev.map((n) => {
-            if (n.id === message.id) {
-              return {
-                ...n,
-                value: n.value + content.content
-              };
-            }
-            return {
-              ...n
-            };
-          });
-
-        } else {
-          return [...prev, {
-            id: v4(),
-            nodeId: nodeId,
-            nodeName: content.nodeName,
-            value: content.content,
-            nodeType: content.nodeType
-          }];
+        if (nodeType === NodeType.CONDITION) {
+          break;
         }
-      });
-      break;
-    }
-    case 'NodeEnd': {
-      if (content.message.nodeType === NodeType.CONDITION) {
+
+        setStreamMessages((prev) => {
+          const message = findMostRecentStreamMessage(prev, nodeId);
+          // if node is not found, create a new one
+          // if found node is not completed, append the chunk to the value
+          if (message !== null && !message.message) {
+            return prev.map((n) => {
+              if (n.id === message.id) {
+                return {
+                  ...n,
+                  value: n.value + content.content
+                };
+              }
+              return {
+                ...n
+              };
+            });
+          } else {
+            return [
+              ...prev,
+              {
+                id: v4(),
+                nodeId: nodeId,
+                nodeName: content.nodeName,
+                value: content.content,
+                nodeType: content.nodeType
+              }
+            ];
+          }
+        });
         break;
-      };
-
-      const nodeId = content.message.nodeId;
-
-      setStreamMessages((prev) => {
-        const message = findMostRecentStreamMessage(prev, nodeId);
-        if (message !== null) {
-          return prev.map((n) => {
-            if (n.id === message.id) {
-              return {
-                ...n,
-                message: content.message
-              };
-            }
-            return n;
-          });
-        } else {
-          throw new Error(`NodeEnd received for node ${nodeId} but no NodeChunk found`);
+      }
+      case 'NodeEnd': {
+        if (content.message.nodeType === NodeType.CONDITION) {
+          break;
         }
-      });
-      break;
+
+        const nodeId = content.message.nodeId;
+
+        setStreamMessages((prev) => {
+          const message = findMostRecentStreamMessage(prev, nodeId);
+          if (message !== null) {
+            return prev.map((n) => {
+              if (n.id === message.id) {
+                return {
+                  ...n,
+                  message: content.message
+                };
+              }
+              return n;
+            });
+          } else {
+            throw new Error(
+              `NodeEnd received for node ${nodeId} but no NodeChunk found`
+            );
+          }
+        });
+        break;
+      }
+      case 'RunTrace':
+        setRunTrace(content);
+        break;
+      case 'Error':
+        setError(content);
+        break;
     }
-    case 'RunTrace':
-      setRunTrace(content);
-      break;
-    case 'Error':
-      setError(content);
-      break;
-    };
   };
 
   useEffect(() => {
@@ -168,7 +200,6 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
       eventEmitter.off('graph', handleGraphEvent);
     };
   }, [pipelineVersion, allInputs, breakpointNodeIds]);
-
 
   const handleGraphEvent = (content: string) => {
     if (content === 'run') {
@@ -181,27 +212,27 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
   };
 
   const interruptRun = async (message: string) => {
-
-    const response = await fetch(`/api/projects/${projectId}/pipelines/interrupt/graph`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        runId: runId.current,
-        interruptMessage: message
-      })
-    });
+    const response = await fetch(
+      `/api/projects/${projectId}/pipelines/interrupt/graph`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          runId: runId.current,
+          interruptMessage: message
+        })
+      }
+    );
 
     if (!response.ok) {
       setError(await response.text());
       return;
     }
-
   };
 
   const runGraph = async () => {
-
     setError(undefined);
     const graph = getRunGraph();
 
@@ -225,7 +256,10 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
     }
 
     let requiredEnvVars = graph.requiredEnvVars();
-    requiredEnvVars = filterRunRequiredEnvVars(requiredEnvVars, Array.from(graph.nodes.values()));
+    requiredEnvVars = filterRunRequiredEnvVars(
+      requiredEnvVars,
+      Array.from(graph.nodes.values())
+    );
     const envVars = getLocalEnvVars(projectId);
     for (const envVar of requiredEnvVars) {
       if (!envVars[envVar]) {
@@ -236,7 +270,7 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
         }, 1000);
         return;
       }
-    };
+    }
 
     const devSessionIds = getLocalDevSessions(projectId);
 
@@ -249,7 +283,6 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
       let prefilledMessages = [];
 
       for (const m of streamMessages) {
-
         const message = {
           ...m
         };
@@ -261,7 +294,6 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
           message.message = undefined;
           break;
         }
-
       }
 
       setStreamMessages(prefilledMessages);
@@ -277,25 +309,28 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
     runId.current = v4();
     setRunTrace(undefined);
 
-    const response = await fetch(`/api/projects/${projectId}/pipelines/run/graph`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-      },
-      body: JSON.stringify({
-        runId: runId.current,
-        graph: graph.toObject(),
-        inputs: inputVars,
-        env: envVars,
-        breakpointTaskIds: breakpointNodeIds,
-        pipelineVersionId: pipelineVersion.id!,
-        prefilledMessages: startMessage.current ? allMessages : null,
-        startTaskId: startMessage.current?.nodeId,
-        devSessionIds,
-        stream: true
-      })
-    });
+    const response = await fetch(
+      `/api/projects/${projectId}/pipelines/run/graph`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream'
+        },
+        body: JSON.stringify({
+          runId: runId.current,
+          graph: graph.toObject(),
+          inputs: inputVars,
+          env: envVars,
+          breakpointTaskIds: breakpointNodeIds,
+          pipelineVersionId: pipelineVersion.id!,
+          prefilledMessages: startMessage.current ? allMessages : null,
+          startTaskId: startMessage.current?.nodeId,
+          devSessionIds,
+          stream: true
+        })
+      }
+    );
 
     if (!response.ok) {
       setError(await response.text());
@@ -320,36 +355,41 @@ export default function PipelineOutputs({ pipelineVersion }: PipelineOutputsProp
     startMessage.current = null;
 
     // reset breakpoint info
-    setStreamMessages((prev) => prev.map((n) => ({
-      ...n,
-      reachedBreakpoint: false
-    })));
+    setStreamMessages((prev) =>
+      prev.map((n) => ({
+        ...n,
+        reachedBreakpoint: false
+      }))
+    );
   };
 
   return (
     <>
       <div className="h-full flex w-full">
         <div className="flex h-full w-full">
-          {!error && <StreamTrace
-            streamMessages={streamMessages}
-            runTrace={runTrace}
-            onNodeRun={(message) => {
-              startMessage.current = message;
-              runGraph();
-              eventEmitter.emit('run', 'run');
-            }} />
-          }
-          {error &&
+          {!error && (
+            <StreamTrace
+              streamMessages={streamMessages}
+              runTrace={runTrace}
+              onNodeRun={(message) => {
+                startMessage.current = message;
+                runGraph();
+                eventEmitter.emit('run', 'run');
+              }}
+            />
+          )}
+          {error && (
             <div className="flex p-4 items-center justify-center w-ful">
               <div className="p-4 border rounded">
                 Error:
-                <h4 className="text-base text-white whitespace-pre-wrap">{error}</h4>
+                <h4 className="text-base text-white whitespace-pre-wrap">
+                  {error}
+                </h4>
               </div>
             </div>
-          }
+          )}
         </div>
       </div>
     </>
   );
-
 }

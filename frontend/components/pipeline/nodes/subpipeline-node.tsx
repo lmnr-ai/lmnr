@@ -3,7 +3,7 @@ import {
   InputNode,
   NodeType,
   RunnableGraph,
-  SubpipelineNode,
+  SubpipelineNode
 } from '@/lib/flow/types';
 import { Label } from '@/components/ui/label';
 import useStore from '@/lib/flow/store';
@@ -18,13 +18,19 @@ export default function SubpipelineNodeComponent({
   const dropEdgeForHandle = useStore((state) => state.dropEdgeForHandle);
 
   return (
-    <div className='p-4 flex flex-col space-y-2'>
+    <div className="p-4 flex flex-col space-y-2">
       <Label>Committed pipeline version</Label>
       <PipelineSelect
         hideWorkshopVersions={true}
-        defaultPipelineName={data.pipelineName.length > 0 ? data.pipelineName : undefined}
+        defaultPipelineName={
+          data.pipelineName.length > 0 ? data.pipelineName : undefined
+        }
         defaultPipelineId={data.pipelineId ?? undefined}
-        defaultPipelineVersionName={data.pipelineVersionName.length > 0 ? data.pipelineVersionName : undefined}
+        defaultPipelineVersionName={
+          data.pipelineVersionName.length > 0
+            ? data.pipelineVersionName
+            : undefined
+        }
         onPipelineChange={(pipeline) => {
           updateNodeData(data.id, {
             pipelineName: pipeline.name,
@@ -40,11 +46,14 @@ export default function SubpipelineNodeComponent({
             updateNodeData(data.id, {
               inputs: Object.values(pv.runnableGraph.nodes)
                 .filter((node) => node.type === NodeType.INPUT)
-                .map((node) => ({
-                  id: node.id,
-                  name: node.name,
-                  type: (node as InputNode).inputType
-                } as GenericNodeHandle)),
+                .map(
+                  (node) =>
+                    ({
+                      id: node.id,
+                      name: node.name,
+                      type: (node as InputNode).inputType
+                    }) as GenericNodeHandle
+                ),
               pipelineVersionName: pv.name,
               pipelineVersionId: pv.id,
               runnableGraph: pv.runnableGraph
@@ -61,4 +70,4 @@ export default function SubpipelineNodeComponent({
       />
     </div>
   );
-};
+}

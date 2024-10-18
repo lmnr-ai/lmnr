@@ -8,12 +8,12 @@ import { DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE } from '@/lib/flow/utils';
 import { v4 as uuidv4 } from 'uuid';
 import { PipelineExecutionMode } from '@/lib/pipeline/types';
 
-interface PipelineTraceProps {
-}
+interface PipelineTraceProps {}
 
-export default function PipelineTrace({ }: PipelineTraceProps) {
-  const nodes = useStore(state => state.nodes);
-  const { mode, allInputs, setAllInputs, getRunGraph, focusedNodeId } = useStore();
+export default function PipelineTrace({}: PipelineTraceProps) {
+  const nodes = useStore((state) => state.nodes);
+  const { mode, allInputs, setAllInputs, getRunGraph, focusedNodeId } =
+    useStore();
 
   const deleteInput = (index: number) => {
     setAllInputs(allInputs.filter((_, i) => i !== index));
@@ -23,21 +23,31 @@ export default function PipelineTrace({ }: PipelineTraceProps) {
     <div className="flex flex-col h-full">
       <ScrollArea className="flex flex-grow h-0 w-full overflow-y-auto">
         {allInputs.map((inputs, i) => (
-          <div key={(inputs.length > 0) ? inputs[0].executionId : 'unreachable'}>
-            {allInputs.length > 1 && <div className="flex flex-none h-14 justify-between items-center p-4">
-              <h4 className="text-base font-medium">Execution {i + 1} inputs</h4>
-              <div className="pt-2">
-                <button className="w-8 group-hover:block" onClick={() => deleteInput(i)}>
-                  <AiOutlineMinusCircle className="text-gray-600" />
-                </button>
+          <div key={inputs.length > 0 ? inputs[0].executionId : 'unreachable'}>
+            {allInputs.length > 1 && (
+              <div className="flex flex-none h-14 justify-between items-center p-4">
+                <h4 className="text-base font-medium">
+                  Execution {i + 1} inputs
+                </h4>
+                <div className="pt-2">
+                  <button
+                    className="w-8 group-hover:block"
+                    onClick={() => deleteInput(i)}
+                  >
+                    <AiOutlineMinusCircle className="text-gray-600" />
+                  </button>
+                </div>
               </div>
-            </div>}
+            )}
 
-            <PipelineInput inputs={inputs} onInputsChange={inputs => {
-              const newInputs = [...allInputs];
-              newInputs[i] = inputs;
-              setAllInputs(newInputs);
-            }} />
+            <PipelineInput
+              inputs={inputs}
+              onInputsChange={(inputs) => {
+                const newInputs = [...allInputs];
+                newInputs[i] = inputs;
+                setAllInputs(newInputs);
+              }}
+            />
           </div>
         ))}
         {/* {allInputs.length > 0 && allInputs[0].length > 0 &&
@@ -48,8 +58,7 @@ export default function PipelineTrace({ }: PipelineTraceProps) {
               let inputNodes
 
               if (mode === PipelineExecutionMode.Node && focusedNodeId) {
-                inputNodes = Array.from(getRunGraph().nodes.values())
-                  .filter(node => node.type === NodeType.INPUT) as InputNode[];
+                inputNodes = Array.from(getRunGraph().nodes.values()).filter(node => node.type === NodeType.INPUT) as InputNode[];
               } else {
                 // Private pipelines will only come here if they are not in Unit test mode
                 // Public pipelines don't have Unit test mode and will always come here

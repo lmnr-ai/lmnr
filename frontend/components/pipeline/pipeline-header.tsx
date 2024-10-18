@@ -10,8 +10,13 @@ import {
 } from '@/components/ui/select';
 import Link from 'next/link';
 import { GitCommitVertical, PanelLeft, PanelRight } from 'lucide-react';
-import { Pipeline, PipelineVersion, PipelineVersionInfo } from '@/lib/pipeline/types';
+import {
+  Pipeline,
+  PipelineVersion,
+  PipelineVersionInfo
+} from '@/lib/pipeline/types';
 import { useProjectContext } from '@/contexts/project-context';
+import DeployButton from './deploy-button';
 import { cn } from '@/lib/utils';
 import CommitButton from './commit-button';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -24,7 +29,8 @@ import ForkButton from './fork-button';
 import UseApi from './use-api';
 import SetTargetVersionButton from './target-version';
 
-const getWorkshopVersionId = (pipelineVersions: PipelineVersionInfo[]) => pipelineVersions.filter(pv => pv.pipelineType === 'WORKSHOP')[0].id;
+const getWorkshopVersionId = (pipelineVersions: PipelineVersionInfo[]) =>
+  pipelineVersions.filter((pv) => pv.pipelineType === 'WORKSHOP')[0].id;
 
 interface PipelineHeaderProps {
   pipeline: Pipeline;
@@ -50,9 +56,14 @@ export default function PipelineHeader({
   const router = useRouter();
   const pathName = usePathname();
 
-  const [pipelineVersions, setPipelineVersions] = useState<PipelineVersionInfo[]>([]);
-  const [selectedPipelineVersionPreview, setSelectedPipelineVersionPreview] = useState<PipelineVersionInfo | null>();
-  const [targetVersionId, setTargetVersionId] = useState<string | null>(pipeline.targetVersionId);
+  const [pipelineVersions, setPipelineVersions] = useState<
+    PipelineVersionInfo[]
+  >([]);
+  const [selectedPipelineVersionPreview, setSelectedPipelineVersionPreview] =
+    useState<PipelineVersionInfo | null>();
+  const [targetVersionId, setTargetVersionId] = useState<string | null>(
+    pipeline.targetVersionId
+  );
   const { projectId } = useProjectContext();
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -61,27 +72,31 @@ export default function PipelineHeader({
   const getPipelineVersions = (selectVersionId: string | null = null) => {
     fetch(`/api/projects/${projectId}/pipelines/${pipeline.id}/versions-info`, {
       method: 'GET'
-    }).then(res => res.json()).then(res => {
-      let pipelineVersions = [...res.commitVersions, res.workshopVersion];
-      setPipelineVersions(pipelineVersions);
+    })
+      .then((res) => res.json())
+      .then((res) => {
+        let pipelineVersions = [...res.commitVersions, res.workshopVersion];
+        setPipelineVersions(pipelineVersions);
 
-      // first, try to see if any callback explicitly sets versionId using selectVersionId
-      const versionId = selectVersionId || searchParams.get('versionId');
+        // first, try to see if any callback explicitly sets versionId using selectVersionId
+        const versionId = selectVersionId || searchParams.get('versionId');
 
-      let selectedPipelineVersion = null;
-      if (versionId) {
-        selectedPipelineVersion = (pipelineVersions as PipelineVersionInfo[]).filter(pv => pv.id === versionId)[0];
-      } else {
-        selectedPipelineVersion = res.workshopVersion;
-      }
+        let selectedPipelineVersion = null;
+        if (versionId) {
+          selectedPipelineVersion = (
+            pipelineVersions as PipelineVersionInfo[]
+          ).filter((pv) => pv.id === versionId)[0];
+        } else {
+          selectedPipelineVersion = res.workshopVersion;
+        }
 
-      // TODO: Set focusedNodeId to null when switching versions, apply in Public Header too
-      // simply setFocusedNodeId(null) doesn't work
-      setSelectedPipelineVersionPreview(selectedPipelineVersion);
+        // TODO: Set focusedNodeId to null when switching versions, apply in Public Header too
+        // simply setFocusedNodeId(null) doesn't work
+        setSelectedPipelineVersionPreview(selectedPipelineVersion);
 
-      // TODO: Figure out how not to call it twice here and in Select.onValueChange
-      onPipelineVersionSelect(selectedPipelineVersion);
-    });
+        // TODO: Figure out how not to call it twice here and in Select.onValueChange
+        onPipelineVersionSelect(selectedPipelineVersion);
+      });
   };
 
   useEffect(() => {
@@ -98,83 +113,83 @@ export default function PipelineHeader({
 
   return (
     <div className="flex items-center h-14 border-b pl-4 space-x-4 pr-4">
-      {
-        !selectedPipelineVersionPreview && (
-          <Skeleton className='h-8 w-80' />
-        )
-      }
+      {!selectedPipelineVersionPreview && <Skeleton className="h-8 w-80" />}
       {selectedPipelineVersionPreview && (
         <>
-          <div className='max-w-48'>
+          <div className="max-w-48">
             <Select
               defaultValue={selectedPipelineVersionPreview.id}
               value={selectedPipelineVersionPreview.id}
               onValueChange={(value) => {
                 router.push(`${pathName}?versionId=${value}`);
 
-                const selectedPipelineVersion = pipelineVersions.find((version) => version.id === value);
+                const selectedPipelineVersion = pipelineVersions.find(
+                  (version) => version.id === value
+                );
                 setSelectedPipelineVersionPreview(selectedPipelineVersion!);
                 onPipelineVersionSelect(selectedPipelineVersion!);
               }}
             >
               <SelectTrigger className="h-7 font-medium bg-secondary">
-                <GitCommitVertical size={16} className='min-h-4 w-4' />
-                <SelectValue placeholder="version" className='' />
+                <GitCommitVertical size={16} className="min-h-4 w-4" />
+                <SelectValue placeholder="version" className="" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
                   <SelectLabel>Workshop</SelectLabel>
-                  {
-                    pipelineVersions.filter((version) => version.pipelineType == 'WORKSHOP').map((version) => (
-                      <SelectItem key={version.id} value={version.id!} className='flex'>
-                        <div className='truncate mx-1'>
-                          workshop
-                        </div>
+                  {pipelineVersions
+                    .filter((version) => version.pipelineType == 'WORKSHOP')
+                    .map((version) => (
+                      <SelectItem
+                        key={version.id}
+                        value={version.id!}
+                        className="flex"
+                      >
+                        <div className="truncate mx-1">workshop</div>
                       </SelectItem>
-                    ))
-                  }
+                    ))}
                 </SelectGroup>
-                {pipelineVersions.filter((version) => version.pipelineType == 'COMMIT').length > 0 && (
+                {pipelineVersions.filter(
+                  (version) => version.pipelineType == 'COMMIT'
+                ).length > 0 && (
                   <SelectGroup>
                     <SelectLabel>Commits</SelectLabel>
-                    {
-                      pipelineVersions.filter((version) => version.pipelineType == 'COMMIT').map((version) => (
+                    {pipelineVersions
+                      .filter((version) => version.pipelineType == 'COMMIT')
+                      .map((version) => (
                         <SelectItem key={version.id} value={version.id!}>
-                          <div className='flex items-center truncate'>
-                            <div className='truncate mx-1'>
-                              {version.name}
-                            </div>
-                            {
-                              version.id === targetVersionId && (
-                                <span className="text-xs text-gray-400"> (target)</span>
-                              )
-                            }
+                          <div className="flex items-center truncate">
+                            <div className="truncate mx-1">{version.name}</div>
+                            {version.id === targetVersionId && (
+                              <span className="text-xs text-gray-400">
+                                {' '}
+                                (target)
+                              </span>
+                            )}
                           </div>
                         </SelectItem>
-                      ))
-                    }
+                      ))}
                   </SelectGroup>
                 )}
               </SelectContent>
             </Select>
           </div>
-          {selectedPipelineVersionPreview.pipelineType === 'COMMIT' && targetVersionId !== selectedPipelineVersionPreview.id &&
-            <SetTargetVersionButton
-              pipelineId={pipeline.id}
-              pipelineVersionId={selectedPipelineVersion?.id ?? ''}
-              onTargetVersionChanged={(targetVersionId) => {
-                setTargetVersionId(targetVersionId);
-              }}
-            />
-          }
-          {
-            (selectedPipelineVersionPreview.pipelineType === 'WORKSHOP') && (
-              <CommitButton
-                selectedPipelineVersion={selectedPipelineVersionPreview!}
-                onPipelineVersionsChange={getPipelineVersions}
+          {selectedPipelineVersionPreview.pipelineType === 'COMMIT' &&
+            targetVersionId !== selectedPipelineVersionPreview.id && (
+              <SetTargetVersionButton
+                pipelineId={pipeline.id}
+                pipelineVersionId={selectedPipelineVersion?.id ?? ''}
+                onTargetVersionChanged={(targetVersionId) => {
+                  setTargetVersionId(targetVersionId);
+                }}
               />
-            )
-          }
+            )}
+          {selectedPipelineVersionPreview.pipelineType === 'WORKSHOP' && (
+            <CommitButton
+              selectedPipelineVersion={selectedPipelineVersionPreview!}
+              onPipelineVersionsChange={getPipelineVersions}
+            />
+          )}
           {/* {
             (selectedPipelineVersion.pipelineType === "WORKSHOP") && (
               <div className="flex space-x-4">
@@ -191,35 +206,38 @@ export default function PipelineHeader({
               </div>
             )
           } */}
-          {
-            (selectedPipelineVersionPreview.pipelineType === 'COMMIT') && (
-              <OverwriteWorkshopButton
-                workshopVersionId={getWorkshopVersionId(pipelineVersions)}
-                selectedPipelineVersion={selectedPipelineVersionPreview}
-                onPipelineVersionsChange={() => {
-                  let workshopVersionId = getWorkshopVersionId(pipelineVersions);
-                  router.push(`${pathName}?versionId=${workshopVersionId}`);
-                  getPipelineVersions(workshopVersionId);
-                }}
-              />
-            )
-          }
+          {selectedPipelineVersionPreview.pipelineType === 'COMMIT' && (
+            <OverwriteWorkshopButton
+              workshopVersionId={getWorkshopVersionId(pipelineVersions)}
+              selectedPipelineVersion={selectedPipelineVersionPreview}
+              onPipelineVersionsChange={() => {
+                let workshopVersionId = getWorkshopVersionId(pipelineVersions);
+                router.push(`${pathName}?versionId=${workshopVersionId}`);
+                getPipelineVersions(workshopVersionId);
+              }}
+            />
+          )}
           <ForkButton
             defaultNewPipelineName={`${pipeline.name} copy`}
             selectedPipelineVersion={selectedPipelineVersionPreview}
           />
           <PipelineEnv projectId={projectId} />
-          {selectedPipelineVersion && pipelineVersions.length > 1 &&
-            <UseApi pipelineName={pipeline.name} targetRunnableGraph={selectedPipelineVersion.runnableGraph} />
-          }
+          {selectedPipelineVersion && pipelineVersions.length > 1 && (
+            <UseApi
+              pipelineName={pipeline.name}
+              targetRunnableGraph={selectedPipelineVersion.runnableGraph}
+            />
+          )}
 
           {/*pipelineVersions.length > 1 && (
             <DeletePipelineVersionButton selectedPipelineVersion={selectedPipelineVersion!} />
           )*/}
           <div className="w-1.5 h-7 flex items-center">
-            {unsavedChanges && <div className='w-1.5 h-1.5 rounded-full bg-yellow-500'></div>}
+            {unsavedChanges && (
+              <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
+            )}
           </div>
-          <div className='flex space-x-1'>
+          <div className="flex space-x-1">
             <PanelLeft
               onClick={() => {
                 setLeftPanelOpen((prev) => {
@@ -228,7 +246,10 @@ export default function PipelineHeader({
                 });
               }}
               size={20}
-              className={cn('cursor-pointer', leftPanelOpen ? '' : ' text-gray-300')}
+              className={cn(
+                'cursor-pointer',
+                leftPanelOpen ? '' : ' text-gray-300'
+              )}
             />
             <PanelRight
               onClick={() => {
@@ -238,7 +259,10 @@ export default function PipelineHeader({
                 });
               }}
               size={20}
-              className={cn('cursor-pointer', rightPanelOpen ? '' : ' text-gray-300')}
+              className={cn(
+                'cursor-pointer',
+                rightPanelOpen ? '' : ' text-gray-300'
+              )}
             />
           </div>
           <div className="flex space-x-1">
@@ -248,6 +272,6 @@ export default function PipelineHeader({
           </div>
         </>
       )}
-    </div >
+    </div>
   );
 }

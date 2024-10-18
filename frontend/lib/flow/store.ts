@@ -22,40 +22,40 @@ import * as Y from 'yjs';
 // duplicating here because we can't export enums
 enum PipelineExecutionMode {
   Pipeline = 'pipeline',
-  Node = 'node',
+  Node = 'node'
 }
 
 interface RFState {
-  ydoc: Y.Doc
-  nodes: Node[]
-  edges: Edge[]
-  isMissingEnvVars: boolean
-  breakpointNodeIds: string[]
-  setIsMissingEnvVars: (isMissingEnvVars: boolean) => void
-  focusedNodeId: string | null,
-  mode: PipelineExecutionMode,
-  allInputs: InputVariable[][]
+  ydoc: Y.Doc;
+  nodes: Node[];
+  edges: Edge[];
+  isMissingEnvVars: boolean;
+  breakpointNodeIds: string[];
+  setIsMissingEnvVars: (isMissingEnvVars: boolean) => void;
+  focusedNodeId: string | null;
+  mode: PipelineExecutionMode;
+  allInputs: InputVariable[][];
   // used to trigger a run of the pipeline
   // managed via state to avoid prop drilling
-  highlightedNodeId: string | undefined
-  getNode: (id: string) => NodeData | undefined
-  getNodes: () => Node[]
-  getEdges: () => Edge[]
-  setNodes: (f: ((nodes: Node[]) => Node[])) => void
-  setEdges: (f: ((edges: Edge[]) => Edge[])) => void
-  onNodesChange: OnNodesChange
-  onEdgesChange: OnEdgesChange
-  onConnect: OnConnect
-  updateNodeData: (nodeId: string, data: GenericNode) => void
-  getGraph: () => Graph
-  getRunGraph: () => Graph
-  dropEdgeForHandle: (handleId: string) => void
-  setFocusedNodeId: (id: string | null) => void
-  setAllInputs: (inputs: InputVariable[][]) => void
-  setMode: (mode: PipelineExecutionMode) => void
-  highlightNode: (nodeId?: string) => void
-  syncNodesWithYDoc: () => void
-  setBreakpointNodeIds: (f: (ids: string[]) => string[]) => void
+  highlightedNodeId: string | undefined;
+  getNode: (id: string) => NodeData | undefined;
+  getNodes: () => Node[];
+  getEdges: () => Edge[];
+  setNodes: (f: (nodes: Node[]) => Node[]) => void;
+  setEdges: (f: (edges: Edge[]) => Edge[]) => void;
+  onNodesChange: OnNodesChange;
+  onEdgesChange: OnEdgesChange;
+  onConnect: OnConnect;
+  updateNodeData: (nodeId: string, data: GenericNode) => void;
+  getGraph: () => Graph;
+  getRunGraph: () => Graph;
+  dropEdgeForHandle: (handleId: string) => void;
+  setFocusedNodeId: (id: string | null) => void;
+  setAllInputs: (inputs: InputVariable[][]) => void;
+  setMode: (mode: PipelineExecutionMode) => void;
+  highlightNode: (nodeId?: string) => void;
+  syncNodesWithYDoc: () => void;
+  setBreakpointNodeIds: (f: (ids: string[]) => string[]) => void;
 }
 
 const useStore = create<RFState>()((set, get) => ({
@@ -76,13 +76,11 @@ const useStore = create<RFState>()((set, get) => ({
   getNode: (id: string) => get().nodes.find((node) => node.id === id),
   getNodes: () => get().nodes,
   getEdges: () => get().edges,
-  setNodes: (f: ((nodes: Node[]) => Node[])) => {
-
+  setNodes: (f: (nodes: Node[]) => Node[]) => {
     const newNodes = f(get().nodes);
     const ynodes = get().ydoc.getMap('nodes');
 
     for (let node of newNodes) {
-
       const ynode = new Y.Map();
 
       ynode.set('id', node.id);
@@ -91,10 +89,7 @@ const useStore = create<RFState>()((set, get) => ({
       ynode.set('data', node.data);
 
       ynodes.set(node.id, ynode);
-
     }
-
-
 
     // remove nodes that are not in the new list
     for (const key of ynodes.keys()) {
@@ -105,8 +100,7 @@ const useStore = create<RFState>()((set, get) => ({
 
     set({ nodes: newNodes });
   },
-  setEdges: (f: ((edges: Edge[]) => Edge[])) => {
-
+  setEdges: (f: (edges: Edge[]) => Edge[]) => {
     const newEdges = f(get().edges);
 
     const yedges = get().ydoc.getMap('edges');
@@ -125,9 +119,7 @@ const useStore = create<RFState>()((set, get) => ({
     set({ edges: newEdges });
   },
   onNodesChange: (changes: NodeChange[]) => {
-
     for (let change of changes) {
-
       if (change.type === 'position' && change.position) {
         const ynode = get().ydoc.getMap('nodes').get(change.id) as any;
         ynode.set('position', change.position);
@@ -139,7 +131,6 @@ const useStore = create<RFState>()((set, get) => ({
     });
   },
   onEdgesChange: (changes: EdgeChange[]) => {
-
     for (let change of changes) {
       if (change.type === 'add') {
         get().ydoc.getMap('edges').set(change.item.id, change.item);
@@ -165,7 +156,6 @@ const useStore = create<RFState>()((set, get) => ({
     });
   },
   updateNodeData: (nodeId: string, data: GenericNode) => {
-
     const ynode = get().ydoc.getMap('nodes').get(nodeId) as any;
 
     set({
@@ -185,15 +175,21 @@ const useStore = create<RFState>()((set, get) => ({
     });
 
     get().edges.forEach((edge) => {
-      graph.addEdge(edge.source.split('_')[0], edge.target.split('_')[0], edge.sourceHandle!, edge.targetHandle!);
+      graph.addEdge(
+        edge.source.split('_')[0],
+        edge.target.split('_')[0],
+        edge.sourceHandle!,
+        edge.targetHandle!
+      );
     });
 
     return graph;
   },
   getRunGraph: () => {
-
     if (get().focusedNodeId && get().mode === PipelineExecutionMode.Node) {
-      const focusedNode = get().nodes.find((node) => node.id === get().focusedNodeId);
+      const focusedNode = get().nodes.find(
+        (node) => node.id === get().focusedNodeId
+      );
       return Graph.fromNode(focusedNode?.data ?? {});
     }
 
@@ -203,14 +199,20 @@ const useStore = create<RFState>()((set, get) => ({
     });
 
     get().edges.forEach((edge) => {
-      graph.addEdge(edge.source.split('_')[0], edge.target.split('_')[0], edge.sourceHandle!, edge.targetHandle!);
+      graph.addEdge(
+        edge.source.split('_')[0],
+        edge.target.split('_')[0],
+        edge.sourceHandle!,
+        edge.targetHandle!
+      );
     });
 
     return graph;
   },
   dropEdgeForHandle: (handleId: string) => {
-
-    const newEdges = get().edges.filter((edge) => edge.sourceHandle !== handleId && edge.targetHandle !== handleId);
+    const newEdges = get().edges.filter(
+      (edge) => edge.sourceHandle !== handleId && edge.targetHandle !== handleId
+    );
 
     // remove edge from yedges
     const yedges = get().ydoc.getMap('edges');
@@ -257,7 +259,6 @@ const useStore = create<RFState>()((set, get) => ({
 
     set({ nodes: nodes });
     set({ edges: edges });
-
   },
   setBreakpointNodeIds: (f: (ids: string[]) => string[]) => {
     set({ breakpointNodeIds: f(get().breakpointNodeIds) });

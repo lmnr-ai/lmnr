@@ -1,66 +1,73 @@
-import { RunnableGraph, DisplayableGraph, NodeInput, NodeHandleType } from '@/lib/flow/types';
+import {
+  RunnableGraph,
+  DisplayableGraph,
+  NodeInput,
+  NodeHandleType
+} from '@/lib/flow/types';
+import { CheckJobStatus } from '@/lib/check/types';
 
-export type PipelineType = 'WORKSHOP' | 'COMMIT'
-export type PipelineVisibility = 'PUBLIC' | 'PRIVATE'
+export type PipelineType = 'WORKSHOP' | 'COMMIT';
+export type PipelineVisibility = 'PUBLIC' | 'PRIVATE';
 
 export type Pipeline = {
-  id: string
-  name: string
-  projectId?: string
-  createdAt?: string
-  visibility?: PipelineVisibility
-  targetVersionId: string | null
-}
+  id: string;
+  name: string;
+  projectId?: string;
+  createdAt?: string;
+  visibility?: PipelineVisibility;
+  targetVersionId: string | null;
+};
 
 export type PipelineVersion = {
-  id?: string
-  pipelineId: string
-  name: string
-  displayableGraph: DisplayableGraph
-  runnableGraph: RunnableGraph
-  pipelineType: PipelineType
-  createdAt: string
-}
+  id?: string;
+  pipelineId: string;
+  name: string;
+  displayableGraph: DisplayableGraph;
+  runnableGraph: RunnableGraph;
+  pipelineType: PipelineType;
+  createdAt: string;
+};
 
 export type PipelineVersionInfo = {
-  id: string
-  name: string
-  createdAt: string
-  pipelineId: string
-  pipelineType: PipelineType
-}
+  id: string;
+  name: string;
+  createdAt: string;
+  pipelineId: string;
+  pipelineType: PipelineType;
+};
 
 export type EndpointPipelineVersion = {
-  endpointId: string
-  pipelineVersionId: string
-  checkJobIds: string[]
-  name?: string
-  runnableGraph: RunnableGraph
-  deployedAt: string
-}
+  endpointId: string;
+  pipelineVersionId: string;
+  checkJobsStatus: CheckJobStatus;
+  checkJobIds: string[];
+  name?: string;
+  runnableGraph: RunnableGraph;
+  deployedAt: string;
+};
 
 export type GraphMessagePreview = {
-  id: string
-  startTime: string
-  endTime: string
-  nodeId: string
-  nodeName: string
-  nodeType: string
-  inputMessageIds: string[]
-}
+  id: string;
+  startTime: string;
+  endTime: string;
+  nodeId: string;
+  nodeName: string;
+  nodeType: string;
+  inputMessageIds: string[];
+};
 
 export type GraphMessage = GraphMessagePreview & {
-  value: NodeInput
-  inputs?: GraphMessage[]
-  metaLog: any
-}
+  value: NodeInput;
+  inputs?: GraphMessage[];
+  metaLog: any;
+};
 
 export type TemplateInfo = {
   id: string;
   name: string;
   description: string;
   displayGroup: string;
-}
+};
 
 /**
  * Frontend side type for handling input variables
@@ -73,36 +80,36 @@ export type TemplateInfo = {
  * rather a single set of inputs for a pipeline version. Purely frontend concept.
  */
 export type InputVariable = {
-  id: string
-  name: string
-  value: NodeInput
-  type: NodeHandleType
-  executionId: string
-}
+  id: string;
+  name: string;
+  value: NodeInput;
+  type: NodeHandleType;
+  executionId: string;
+};
 
 export enum PipelineExecutionMode {
   Pipeline = 'pipeline',
-  Node = 'node',
+  Node = 'node'
 }
 
 export type NodeStreamChunk = {
-  id: string
-  nodeId: string
-  nodeName: string
-  nodeType: string
-  content: NodeInput
-}
+  id: string;
+  nodeId: string;
+  nodeName: string;
+  nodeType: string;
+  content: NodeInput;
+};
 
 export type BreakpointChunk = {
-  nodeId: string
-}
+  nodeId: string;
+};
 
 export type LanguageModel = {
   id: string;
   name: string;
-}
+};
 
-const providerMapping: { provider: string, models: LanguageModel[] }[] = [
+const providerMapping: { provider: string; models: LanguageModel[] }[] = [
   {
     provider: 'openai',
     models: [
@@ -268,5 +275,7 @@ const providerMapping: { provider: string, models: LanguageModel[] }[] = [
   }
 ];
 
-export const PROVIDERS = providerMapping.map(provider => provider.provider);
-export const LANGUAGE_MODELS = providerMapping.flatMap(provider => provider.models);
+export const PROVIDERS = providerMapping.map((provider) => provider.provider);
+export const LANGUAGE_MODELS = providerMapping.flatMap(
+  (provider) => provider.models
+);

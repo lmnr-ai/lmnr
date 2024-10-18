@@ -15,9 +15,9 @@ import { useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
 import { useRouter } from 'next/navigation';
 
-interface CreateDatasetDialogProps { }
+interface CreateDatasetDialogProps {}
 
-export default function CreateDatasetDialog({ }: CreateDatasetDialogProps) {
+export default function CreateDatasetDialog({}: CreateDatasetDialogProps) {
   const [newDatasetName, setNewDatasetName] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -54,14 +54,15 @@ export default function CreateDatasetDialog({ }: CreateDatasetDialogProps) {
 
   return (
     <>
-      <Dialog open={isDialogOpen} onOpenChange={(open) => {
-        setIsDialogOpen(open);
-        setNewDatasetName('');
-      }}>
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          setNewDatasetName('');
+        }}
+      >
         <DialogTrigger asChild>
-          <Button variant="default">
-            New dataset
-          </Button>
+          <Button variant="default">New dataset</Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -76,8 +77,18 @@ export default function CreateDatasetDialog({ }: CreateDatasetDialogProps) {
             />
           </div>
           <DialogFooter>
-            <Button onClick={createNewDataset} disabled={!newDatasetName || isLoading} handleEnter>
-              <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
+            <Button
+              onClick={createNewDataset}
+              disabled={!newDatasetName || isLoading}
+              handleEnter
+            >
+              <Loader
+                className={cn(
+                  'mr-2 hidden',
+                  isLoading ? 'animate-spin block' : ''
+                )}
+                size={16}
+              />
               Create
             </Button>
           </DialogFooter>

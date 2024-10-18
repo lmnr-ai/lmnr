@@ -10,23 +10,21 @@ import {
 } from '@/components/ui/dialog';
 import DatasetUpload from './dataset-upload';
 
-
 interface AddDatapointsDialogProps {
   datasetId: string;
   onUpdate?: () => void;
 }
 
-export default function AddDatapointsDialog({ datasetId, onUpdate }: AddDatapointsDialogProps) {
+export default function AddDatapointsDialog({
+  datasetId,
+  onUpdate
+}: AddDatapointsDialogProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-        >
-          Import file
-        </Button>
+        <Button variant="outline">Import file</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>

@@ -39,7 +39,7 @@ export const Autocomplete: React.FC<AutocompleteProps> = ({
                 if (maxTags && tags.length >= maxTags) return;
                 if (
                   !allowDuplicates &&
-                    tags.some((tag) => tag.text === option.text)
+                  tags.some((tag) => tag.text === option.text)
                 )
                   return;
                 setTags([...tags, option]);

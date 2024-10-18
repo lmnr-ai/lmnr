@@ -82,11 +82,13 @@ export function DataTable<TData>({
   enableRowSelection = false,
   onSelectedRowsChange,
   onSelectAllAcrossPages,
-  children,
+  children
 }: DataTableProps<TData>) {
-
-  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
-  const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = React.useState(false);
+  const [rowSelection, setRowSelection] = React.useState<
+    Record<string, boolean>
+  >({});
+  const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] =
+    React.useState(false);
   const [expandedRows, setExpandedRows] = React.useState<ExpandedState>({});
 
   useEffect(() => {
@@ -130,7 +132,7 @@ export function DataTable<TData>({
             row.toggleSelected(!row.getIsSelected());
           }}
         />
-      ),
+      )
     });
   }
 
@@ -145,26 +147,31 @@ export function DataTable<TData>({
     getRowCanExpand: (row) => true,
     onExpandedChange: setExpandedRows,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: !manualPagination ? getPaginationRowModel() : undefined,
+    getPaginationRowModel: !manualPagination
+      ? getPaginationRowModel()
+      : undefined,
     initialState: {
       pagination: {
         pageIndex: defaultPageNumber ?? 0,
-        pageSize: defaultPageSize ?? DEFAULT_PAGE_SIZE,
+        pageSize: defaultPageSize ?? DEFAULT_PAGE_SIZE
       }
     },
     defaultColumn: {
-      minSize: 100,
+      minSize: 54
     },
     state: {
-      rowSelection: allRowsAcrossAllPagesSelected && getRowId ? Object.fromEntries(data?.map(row => ([getRowId(row), true])) ?? []) : rowSelection,
-      expanded: expandedRows,
+      rowSelection:
+        allRowsAcrossAllPagesSelected && getRowId
+          ? Object.fromEntries(data?.map((row) => [getRowId(row), true]) ?? [])
+          : rowSelection,
+      expanded: expandedRows
     },
     manualPagination: manualPagination,
     pageCount: pageCount == -1 ? undefined : pageCount,
     enableRowSelection, //enable or disable row selection for all rows
     enableMultiRowSelection: true,
     onRowSelectionChange: setRowSelection,
-    getRowId: getRowId,
+    getRowId: getRowId
   });
 
   // for manual pagination, we need to set the page index if it is updated externally
@@ -177,78 +184,82 @@ export function DataTable<TData>({
   }, [defaultPageNumber]);
 
   const renderRow = (row: Row<TData>) => {
-    const isSelected = (row.id === focusedRowId || row.getIsSelected());
+    const isSelected = row.id === focusedRowId || row.getIsSelected();
     return (
       <TableRow
-        className={cn('flex min-w-full border-b', isSelected && 'bg-secondary/50', !!onRowClick && 'cursor-pointer', row.depth > 0 && 'bg-secondary/40')}
+        className={cn(
+          'flex min-w-full border-b',
+          isSelected && 'bg-secondary/50',
+          !!onRowClick && 'cursor-pointer',
+          row.depth > 0 && 'bg-secondary/40'
+        )}
         key={row.id}
         data-state={row.getIsSelected() && 'selected'}
         onClick={() => {
           onRowClick?.(row);
         }}
       >
-        {
-          row.getVisibleCells().map((cell: any, index) =>
-            <TableCell
-              className='relative p-0 m-0'
-              key={cell.id}
-              style={{
-                height: '38px',
-                width: cell.column.getSize(),
-              }}
-            >
-              {
-                row.getIsSelected() && (index === 0) && (
-                  <div className="border-l-2 border-l-blue-400 absolute h-full left-0 top-0"></div>
-                )
-              }
-              <div className='absolute inset-0 items-center h-full flex px-4'>
-                <div className='text-ellipsis overflow-hidden whitespace-nowrap'>
-                  {flexRender(
-                    cell.column.columnDef.cell,
-                    cell.getContext()
-                  )}
-                </div>
+        {row.getVisibleCells().map((cell: any, index) => (
+          <TableCell
+            className="relative p-0 m-0"
+            key={cell.id}
+            style={{
+              height: '38px',
+              width: cell.column.getSize()
+            }}
+          >
+            {row.getIsSelected() && index === 0 && (
+              <div className="border-l-2 border-l-blue-400 absolute h-full left-0 top-0"></div>
+            )}
+            <div className="absolute inset-0 items-center h-full flex px-4">
+              <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </div>
-            </TableCell>
-          )
-        }
-        <TableCell className='flex-1'>
-        </TableCell>
-      </TableRow >
+            </div>
+          </TableCell>
+        ))}
+        <TableCell className="flex-1"></TableCell>
+      </TableRow>
     );
   };
 
   const content = (
     <Table
-      className='border-separate border-spacing-0 relative'
+      className="border-separate border-spacing-0 relative"
       style={{
-        width: table.getHeaderGroups()[0].headers.reduce((acc, header) => acc + header.getSize(), 0)
+        width: table
+          .getHeaderGroups()[0]
+          .headers.reduce((acc, header) => acc + header.getSize(), 0)
       }}
     >
       <TableHeader className="sticky top-0 z-20 text-xs bg-background flex hover:bg-background">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow
-            className='hover:bg-background p-0 m-0 w-full'
+            className="hover:bg-background p-0 m-0 w-full"
             key={headerGroup.id}
           >
             {headerGroup.headers.map((header) => (
               <TableHead
                 colSpan={header.colSpan}
                 style={{
-                  width: header.getSize(),
+                  width: header.getSize()
                 }}
                 className="p-0 m-0 relative"
                 key={header.id}
               >
-                <div className='absolute inset-0 items-center h-full border-r flex px-4 group'>
-                  <div className='text-ellipsis overflow-hidden whitespace-nowrap'>
+                <div className="absolute inset-0 items-center h-full border-r flex px-4 group">
+                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">
                     {flexRender(
                       header.column.columnDef.header,
                       header.getContext()
                     )}
                     <div
-                      className={cn(' group-hover:bg-blue-300 group-hover:w-[2px] absolute w-[1px] bottom-0 top-0 right-0 bg-primary h-full cursor-col-resize transition-colors', header.column.getIsResizing() ? 'bg-blue-400' : 'bg-secondary')}
+                      className={cn(
+                        ' group-hover:bg-blue-300 group-hover:w-[2px] absolute w-[1px] bottom-0 top-0 right-0 bg-primary h-full cursor-col-resize transition-colors',
+                        header.column.getIsResizing()
+                          ? 'bg-blue-400'
+                          : 'bg-secondary'
+                      )}
                       onMouseDown={header.getResizeHandler()}
                       onDoubleClick={() => header.column.resetSize()}
                     ></div>
@@ -259,48 +270,47 @@ export function DataTable<TData>({
           </TableRow>
         ))}
       </TableHeader>
-      <TableBody className=''>
-        {
-          table.getRowModel().rows.length > 0
-            ? (table.getRowModel().rows.map(renderRow))
-            : (data !== undefined)
-              ? (emptyRow ?? (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="text-center p-4 text-secondary-foreground"
-                  >
-                    No results
-                  </TableCell>
-                </TableRow>
-              ))
-              :
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="text-center"
-                >
-                  <div className='flex flex-col space-y-2'>
-                    <Skeleton className='w-full h-8' />
-                    <Skeleton className='w-full h-8' />
-                    <Skeleton className='w-full h-8' />
-                  </div>
-                </TableCell>
-              </TableRow>
-        }
+      <TableBody className="">
+        {table.getRowModel().rows.length > 0 ? (
+          table.getRowModel().rows.map(renderRow)
+        ) : data !== undefined ? (
+          (emptyRow ?? (
+            <TableRow>
+              <TableCell
+                colSpan={columns.length}
+                className="text-center p-4 text-secondary-foreground"
+              >
+                No results
+              </TableCell>
+            </TableRow>
+          ))
+        ) : (
+          <TableRow>
+            <TableCell colSpan={columns.length} className="text-center">
+              <div className="flex flex-col space-y-2">
+                <Skeleton className="w-full h-8" />
+                <Skeleton className="w-full h-8" />
+                <Skeleton className="w-full h-8" />
+              </div>
+            </TableCell>
+          </TableRow>
+        )}
       </TableBody>
     </Table>
   );
 
-  const showSelection = Object.keys(rowSelection).length > 0 || allRowsAcrossAllPagesSelected || enableRowSelection;
+  const showSelection =
+    Object.keys(rowSelection).length > 0 ||
+    allRowsAcrossAllPagesSelected ||
+    enableRowSelection;
 
   return (
     <div className={cn('flex flex-col h-full border-t relative', className)}>
-      {(showSelection && Object.keys(rowSelection).length > 0) &&
-        <div className='h-12 flex flex-none px-2 items-center rounded-lg border absolute bottom-20 z-50 left-1/2 transform -translate-x-1/2'>
-          {(showSelection) &&
+      {showSelection && Object.keys(rowSelection).length > 0 && (
+        <div className="h-12 flex flex-none px-2 items-center rounded-lg border absolute bottom-20 z-50 left-1/2 transform -translate-x-1/2">
+          {showSelection && (
             <>
-              {Object.keys(rowSelection).length > 0 &&
+              {Object.keys(rowSelection).length > 0 && (
                 <>
                   <Button
                     variant="ghost"
@@ -309,7 +319,8 @@ export function DataTable<TData>({
                       setAllRowsAcrossAllPagesSelected(false);
                       onSelectAllAcrossPages?.(false);
                       setRowSelection({});
-                    }}>
+                    }}
+                  >
                     <X size={12} />
                   </Button>
                   <Label className="">
@@ -319,49 +330,55 @@ export function DataTable<TData>({
                     selected
                   </Label>
                 </>
-              }
-              {
-                manualPagination && pageCount > 1 && table.getIsAllRowsSelected() && !allRowsAcrossAllPagesSelected && (
+              )}
+              {manualPagination &&
+                pageCount > 1 &&
+                table.getIsAllRowsSelected() &&
+                !allRowsAcrossAllPagesSelected && (
                   <>
                     <Label
-                      className='text-blue-500 hover:cursor-pointer'
+                      className="text-blue-500 hover:cursor-pointer"
                       onClick={() => {
                         setAllRowsAcrossAllPagesSelected(true);
                         onSelectAllAcrossPages?.(true);
                       }}
-                    > Select all {totalItemsCount}
+                    >
+                      {' '}
+                      Select all {totalItemsCount}
                     </Label>
                   </>
-                )
-              }
+                )}
             </>
-          }
+          )}
         </div>
-      }
-      {children && <div className='flex items-center space-x-2 h-12 px-4 border-b'>
-        {children}
-      </div>}
+      )}
+      {children && (
+        <div className="flex items-center space-x-2 h-12 px-4 border-b">
+          {children}
+        </div>
+      )}
       <ScrollArea className="flex-grow overflow-auto border-b">
-        <div className='max-h-0'>
-          {content}
-        </div>
-        <ScrollBar orientation='horizontal' />
+        <div className="max-h-0">{content}</div>
+        <ScrollBar orientation="horizontal" />
       </ScrollArea>
-      {
-        paginated && <div className='flex-none p-4'>
+      {paginated && (
+        <div className="flex-none p-4">
           <DataTablePagination
             table={table}
             defaultPageSize={defaultPageSize ?? DEFAULT_PAGE_SIZE}
             onPageChange={() => {
               // using timeout to ensure that the page index is updated
               setTimeout(() => {
-                onPageChange?.(table.getState().pagination.pageIndex, table.getState().pagination.pageSize);
+                onPageChange?.(
+                  table.getState().pagination.pageIndex,
+                  table.getState().pagination.pageSize
+                );
               }, 100);
             }}
             totalItemsCount={totalItemsCount}
           />
         </div>
-      }
-    </div >
+      )}
+    </div>
   );
 }

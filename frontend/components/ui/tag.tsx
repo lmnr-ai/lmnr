@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Button } from './button';
 import { TagInputProps, type Tag as TagType } from './tag-input';
 import { cn } from '@/lib/utils';
 import { cva } from 'class-variance-authority';

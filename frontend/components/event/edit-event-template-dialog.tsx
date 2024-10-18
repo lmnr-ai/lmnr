@@ -16,7 +16,13 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProjectContext } from '@/contexts/project-context';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '../ui/select';
 import { EventTemplate, EventType } from '@/lib/events/types';
 
 interface EditEventTemplateProps {
@@ -24,7 +30,7 @@ interface EditEventTemplateProps {
 }
 
 export default function EditEventTemplateDialog({
-  defaultEventTemplate,
+  defaultEventTemplate
 }: EditEventTemplateProps) {
   const { projectId } = useProjectContext();
   const router = useRouter();
@@ -33,19 +39,23 @@ export default function EditEventTemplateDialog({
   const [isLoading, setIsLoading] = useState(false);
 
   const name = defaultEventTemplate.name;
-  const [eventType, setEventType] = useState<EventType | null>(defaultEventTemplate.eventType);
-
+  const [eventType, setEventType] = useState<EventType | null>(
+    defaultEventTemplate.eventType
+  );
 
   const updateEvent = async () => {
     setIsLoading(true);
 
-    const res = await fetch(`/api/projects/${projectId}/event-templates/${defaultEventTemplate.id}`, {
-      method: 'POST',
-      body: JSON.stringify({
-        name,
-        eventType,
-      }),
-    });
+    const res = await fetch(
+      `/api/projects/${projectId}/event-templates/${defaultEventTemplate.id}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          eventType
+        })
+      }
+    );
 
     const data = await res.json();
 
@@ -61,9 +71,7 @@ export default function EditEventTemplateDialog({
     <>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
-          <Button variant="secondary">
-            Edit
-          </Button>
+          <Button variant="secondary">Edit</Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -71,11 +79,7 @@ export default function EditEventTemplateDialog({
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <Label>Name</Label>
-            <Input
-              placeholder="Name"
-              disabled
-              value={name}
-            />
+            <Input placeholder="Name" disabled value={name} />
             <Label>Event type</Label>
             <Select
               defaultValue={eventType?.toString()}
@@ -87,19 +91,27 @@ export default function EditEventTemplateDialog({
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem key="boolean" value={EventType.BOOLEAN}>Boolean</SelectItem>
-                <SelectItem key="string" value={EventType.STRING}>String</SelectItem>
-                <SelectItem key="number" value={EventType.NUMBER}>Number</SelectItem>
+                <SelectItem key="boolean" value={EventType.BOOLEAN}>
+                  Boolean
+                </SelectItem>
+                <SelectItem key="string" value={EventType.STRING}>
+                  String
+                </SelectItem>
+                <SelectItem key="number" value={EventType.NUMBER}>
+                  Number
+                </SelectItem>
               </SelectContent>
             </Select>
-
           </div>
           <DialogFooter>
-            <Button
-              onClick={updateEvent}
-              disabled={isLoading || !isReady()}
-            >
-              <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
+            <Button onClick={updateEvent} disabled={isLoading || !isReady()}>
+              <Loader
+                className={cn(
+                  'mr-2 hidden',
+                  isLoading ? 'animate-spin block' : ''
+                )}
+                size={16}
+              />
               Save
             </Button>
           </DialogFooter>
