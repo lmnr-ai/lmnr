@@ -7,6 +7,7 @@ use crate::{
     api::utils::get_api_key_from_raw_value,
     cache::Cache,
     db::{api_keys::ProjectApiKey, DB},
+    features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
@@ -16,19 +17,19 @@ use tonic::{Request, Response, Status};
 
 use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue};
 
-pub struct ProcessTracesService<S: Storage> {
+pub struct ProcessTracesService {
     db: Arc<DB>,
     cache: Arc<Cache>,
     rabbitmq_connection: Arc<Connection>,
-    storage: Arc<S>,
+    storage: Arc<dyn Storage>,
 }
 
-impl<S: Storage> ProcessTracesService<S> {
+impl ProcessTracesService {
     pub fn new(
         db: Arc<DB>,
         cache: Arc<Cache>,
         rabbitmq_connection: Arc<Connection>,
-        storage: Arc<S>,
+        storage: Arc<dyn Storage>,
     ) -> Self {
         Self {
             db,
@@ -40,7 +41,7 @@ impl<S: Storage> ProcessTracesService<S> {
 }
 
 #[tonic::async_trait]
-impl<S: Storage + 'static> TraceService for ProcessTracesService<S> {
+impl TraceService for ProcessTracesService {
     async fn export(
         &self,
         request: Request<ExportTraceServiceRequest>,
@@ -51,20 +52,22 @@ impl<S: Storage + 'static> TraceService for ProcessTracesService<S> {
         let project_id = api_key.project_id;
         let request = request.into_inner();
 
-        let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
-            self.db.clone(),
-            self.cache.clone(),
-            project_id,
-        )
-        .await
-        .map_err(|e| {
-            log::error!("Failed to get workspace limits: {:?}", e);
-            Status::internal("Failed to get workspace limits")
-        })?;
+        if is_feature_enabled(Feature::UsageLimit) {
+            let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
+                self.db.clone(),
+                self.cache.clone(),
+                project_id,
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Failed to get workspace limits: {:?}", e);
+                Status::internal("Failed to get workspace limits")
+            })?;
 
-        // TODO: do the same for events
-        if limits_exceeded.spans {
-            return Err(Status::resource_exhausted("Workspace span limit exceeded"));
+            // TODO: do the same for events
+            if limits_exceeded.spans {
+                return Err(Status::resource_exhausted("Workspace span limit exceeded"));
+            }
         }
 
         let response = push_spans_to_queue(

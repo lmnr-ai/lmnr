@@ -21,6 +21,7 @@ use crate::{
         spans::{Span, SpanType},
         stats, trace, DB,
     },
+    features::{is_feature_enabled, Feature},
     language_model::LanguageModelRunner,
     pipeline::runner::PipelineRunner,
     semantic_search::SemanticSearch,
@@ -94,28 +95,30 @@ pub async fn process_queue_spans(
             );
         }
 
-        match super::limits::update_workspace_limit_exceeded_by_project_id(
-            db.clone(),
-            cache.clone(),
-            rabbitmq_span_message.project_id,
-        )
-        .await
-        {
-            Err(e) => {
-                log::error!(
-                    "Failed to update workspace limit exceeded by project id: {:?}",
-                    e
-                );
-            }
-            // ignore the span if the limit is exceeded
-            Ok(limits_exceeded) => {
-                // TODO: do the same for events
-                if limits_exceeded.spans {
-                    let _ = delivery
-                        .ack(BasicAckOptions::default())
-                        .await
-                        .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
-                    continue;
+        if is_feature_enabled(Feature::UsageLimit) {
+            match super::limits::update_workspace_limit_exceeded_by_project_id(
+                db.clone(),
+                cache.clone(),
+                rabbitmq_span_message.project_id,
+            )
+            .await
+            {
+                Err(e) => {
+                    log::error!(
+                        "Failed to update workspace limit exceeded by project id: {:?}",
+                        e
+                    );
+                }
+                // ignore the span if the limit is exceeded
+                Ok(limits_exceeded) => {
+                    // TODO: do the same for events
+                    if limits_exceeded.spans {
+                        let _ = delivery
+                            .ack(BasicAckOptions::default())
+                            .await
+                            .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
+                        continue;
+                    }
                 }
             }
         }

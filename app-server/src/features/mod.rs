@@ -3,20 +3,20 @@
 use std::env;
 
 pub enum Feature {
-    USAGE_LIMIT,
+    UsageLimit,
     /// User subscription management
-    SUBSCRIPTION,
+    Subscription,
     /// Remote storage, such as S3
-    STORAGE,
+    Storage,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
     match feature {
-        Feature::USAGE_LIMIT => env::var("USAGE_LIMIT").is_ok(),
-        Feature::SUBSCRIPTION => env::var("SUBSCRIPTION").is_ok(),
-        Feature::STORAGE => {
-            env::var("STORAGE").is_ok()
-                && env::var("AWS_ACCESS_KEY_ID").is_ok()
+        Feature::UsageLimit | Feature::Subscription => {
+            env::var("ENVIRONMENT") == Ok("production".to_string())
+        }
+        Feature::Storage => {
+            env::var("AWS_ACCESS_KEY_ID").is_ok()
                 && env::var("AWS_SECRET_ACCESS_KEY").is_ok()
                 && env::var("S3_IMGS_BUCKET").is_ok()
         }

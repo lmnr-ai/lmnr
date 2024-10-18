@@ -205,10 +205,10 @@ impl Span {
         self.attributes = serde_json::to_value(&attributes.attributes).unwrap();
     }
 
-    pub async fn from_otel_span<S: Storage>(
+    pub async fn from_otel_span(
         otel_span: OtelSpan,
         project_id: &Uuid,
-        storage: Arc<S>,
+        storage: Arc<dyn Storage>,
     ) -> Self {
         let trace_id = Uuid::from_slice(&otel_span.trace_id).unwrap();
 

@@ -19,11 +19,11 @@ use crate::{
 use super::{span_attributes::EVENT_TYPE, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
 
 // TODO: Implement partial_success
-pub async fn push_spans_to_queue<S: Storage + Send + Sync>(
+pub async fn push_spans_to_queue(
     request: ExportTraceServiceRequest,
     project_id: Uuid,
     rabbitmq_connection: Arc<Connection>,
-    storage: Arc<S>,
+    storage: Arc<dyn Storage>,
 ) -> Result<ExportTraceServiceResponse> {
     let channel = rabbitmq_connection.create_channel().await?;
 
@@ -42,8 +42,6 @@ pub async fn push_spans_to_queue<S: Storage + Send + Sync>(
                         .into_iter()
                         .map(|kv| (kv.key, convert_any_value_to_json_value(kv.value)))
                         .collect::<serde_json::Map<String, serde_json::Value>>();
-
-                    println!("{:?}", event);
 
                     let Some(serde_json::Value::String(event_type)) =
                         event_attributes.get(EVENT_TYPE)

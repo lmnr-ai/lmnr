@@ -9,10 +9,12 @@ use aws_config::BehaviorVersion;
 use code_executor::code_executor_grpc::code_executor_client::CodeExecutorClient;
 use dashmap::DashMap;
 use db::{api_keys::ProjectApiKey, pipelines::PipelineVersion, user::User};
+use features::{is_feature_enabled, Feature};
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use projects::Project;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
+use storage::{dummy::DummyStorage, Storage};
 use tonic::transport::Server;
 use traces::{
     consumer::process_queue_spans, grpc_service::ProcessTracesService,
@@ -54,6 +56,7 @@ mod datasets;
 mod db;
 mod engine;
 mod evaluations;
+mod features;
 mod language_model;
 mod names;
 mod opentelemetry;
@@ -179,12 +182,17 @@ fn main() -> anyhow::Result<()> {
         );
     });
     let aws_sdk_config = aws_sdk_config.unwrap();
-    let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
-    let s3_storage = storage::s3::S3Storage::new(
-        s3_client,
-        env::var("S3_IMGS_BUCKET").expect("S3_IMGS_BUCKET must be set"),
-    );
-    let s3_storage_clone = s3_storage.clone();
+    let storage: Arc<dyn Storage> = if is_feature_enabled(Feature::Storage) {
+        let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
+        let s3_storage = storage::s3::S3Storage::new(
+            s3_client,
+            env::var("S3_IMGS_BUCKET").expect("S3_IMGS_BUCKET must be set"),
+        );
+        Arc::new(s3_storage)
+    } else {
+        Arc::new(DummyStorage {})
+    };
+    let storage_clone = storage.clone();
 
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
@@ -251,12 +259,7 @@ fn main() -> anyhow::Result<()> {
                 language_models.insert(
                     LanguageModelProviderName::Bedrock,
                     LanguageModelProvider::Bedrock(language_model::AnthropicBedrock::new(
-                        aws_sdk_bedrockruntime::Client::new(
-                            &aws_config::defaults(aws_config::BehaviorVersion::latest())
-                                .region(aws_config::Region::new("us-east-1"))
-                                .load()
-                                .await,
-                        ),
+                        aws_sdk_bedrockruntime::Client::new(&aws_sdk_config),
                     )),
                 );
                 let language_model_runner =
@@ -295,6 +298,8 @@ fn main() -> anyhow::Result<()> {
                 HttpServer::new(move || {
                     let auth = HttpAuthentication::bearer(auth::validator);
                     let project_auth = HttpAuthentication::bearer(auth::project_validator);
+                    let shared_secret_auth =
+                        HttpAuthentication::bearer(auth::shared_secret_validator);
 
                     let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
                         language_model_runner.clone(),
@@ -329,11 +334,16 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(name_generator.clone()))
                         .app_data(web::Data::new(semantic_search.clone()))
                         .app_data(web::Data::new(chunker_runner.clone()))
-                        .app_data(web::Data::new(s3_storage.clone()))
+                        .app_data(web::Data::new(storage.clone()))
                         // Scopes with specific auth or no auth
-                        .service(web::scope("api/v1/auth").service(routes::auth::signin))
+                        .service(
+                            web::scope("api/v1/auth")
+                                .wrap(shared_secret_auth.clone())
+                                .service(routes::auth::signin),
+                        )
                         .service(
                             web::scope("api/v1/manage-subscriptions")
+                                .wrap(shared_secret_auth)
                                 .service(routes::subscriptions::update_subscription),
                         )
                         .service(
@@ -525,7 +535,7 @@ fn main() -> anyhow::Result<()> {
                     db.clone(),
                     cache.clone(),
                     rabbitmq_connection.clone(),
-                    Arc::new(s3_storage_clone),
+                    storage_clone,
                 );
 
                 Server::builder()

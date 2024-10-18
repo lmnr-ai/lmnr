@@ -3,7 +3,10 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::storage::Storage;
+use crate::{
+    features::{is_feature_enabled, Feature},
+    storage::Storage,
+};
 
 use super::providers::openai::OpenAIImageUrl;
 
@@ -148,10 +151,10 @@ pub enum InstrumentationChatMessageContentPart {
 }
 
 impl ChatMessageContentPart {
-    pub async fn from_instrumentation_content_part<S: Storage>(
+    pub async fn from_instrumentation_content_part(
         part: InstrumentationChatMessageContentPart,
         project_id: &Uuid,
-        storage: Arc<S>,
+        storage: Arc<dyn Storage>,
     ) -> ChatMessageContentPart {
         match part {
             InstrumentationChatMessageContentPart::Text(text) => ChatMessageContentPart::Text(text),
@@ -164,15 +167,22 @@ impl ChatMessageContentPart {
                 }
             },
             InstrumentationChatMessageContentPart::Image(image) => {
-                let source = image.source;
-                let key = crate::storage::create_key(project_id, &None);
-                let data = crate::storage::base64_to_bytes(&source.data).unwrap();
-                let url = storage.store(data, &key).await;
+                if is_feature_enabled(Feature::Storage) {
+                    let source = image.source;
+                    let key = crate::storage::create_key(project_id, &None);
+                    let data = crate::storage::base64_to_bytes(&source.data).unwrap();
+                    let url = storage.store(data, &key).await;
 
-                ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
-                    url: url.unwrap(),
-                    detail: Some(format!("media_type:{};base64", source.media_type)),
-                })
+                    ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                        url: url.unwrap(),
+                        detail: Some(format!("media_type:{};base64", source.media_type)),
+                    })
+                } else {
+                    ChatMessageContentPart::Image(ChatMessageImage {
+                        media_type: image.source.media_type,
+                        data: image.source.data,
+                    })
+                }
             }
         }
     }

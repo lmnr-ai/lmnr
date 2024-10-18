@@ -23,6 +23,7 @@ use uuid::Uuid;
 
 use crate::{
     db::{self, user::User},
+    features::{is_feature_enabled, Feature},
     routes::ResponseResult,
     traces::limits::update_workspace_limit_exceeded_by_workspace_id,
 };
@@ -39,6 +40,9 @@ pub async fn save_stripe_customer_id(
     request: web::Json<SubscriptionRequest>,
     user: User,
 ) -> ResponseResult {
+    if !is_feature_enabled(Feature::Storage) {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
     db::subscriptions::save_stripe_customer_id(&db.pool, &user.id, &request.stripe_customer_id)
         .await?;
 
@@ -47,6 +51,9 @@ pub async fn save_stripe_customer_id(
 
 #[get("")] // GET /api/v1/subscriptions
 pub async fn get_user_subscription_info(db: web::Data<db::DB>, user: User) -> ResponseResult {
+    if !is_feature_enabled(Feature::Storage) {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
     let stripe_customer_id =
         db::subscriptions::get_user_subscription_info(&db.pool, &user.id).await?;
 
@@ -73,6 +80,9 @@ pub async fn update_subscription(
     cache: web::Data<crate::cache::Cache>,
     request: web::Json<ManageSubscriptionRequest>,
 ) -> ResponseResult {
+    if !is_feature_enabled(Feature::Storage) {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
     let db = db.into_inner();
     let cache = cache.into_inner();
     let request = request.into_inner();
