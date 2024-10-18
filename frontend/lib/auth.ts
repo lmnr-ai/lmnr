@@ -138,7 +138,6 @@ export const authOptions: NextAuthOptions = {
       session.user.isNewUserCreated = token.isNewUserCreated;
 
       // injecting user info into Supabase parsable JWT
-
       if (isFeatureEnabled(Feature.SUPABASE)) {
         const signingSecret = process.env.SUPABASE_JWT_SECRET;
         if (signingSecret) {
