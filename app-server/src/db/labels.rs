@@ -363,7 +363,7 @@ pub async fn register_label_class_for_path(
     path: &str,
 ) -> Result<()> {
     sqlx::query(
-        "INSERT INTO registered_labels_for_spans (project_id, label_class_id, path)
+        "INSERT INTO label_classes_for_path (project_id, label_class_id, path)
         VALUES ($1, $2, $3)",
     )
     .bind(project_id)
@@ -382,7 +382,7 @@ pub async fn remove_label_class_from_path(
     id: Uuid,
 ) -> Result<()> {
     sqlx::query(
-        "DELETE FROM registered_labels_for_spans
+        "DELETE FROM label_classes_for_path
         WHERE project_id = $1 AND label_class_id = $2 AND id = $3",
     )
     .bind(project_id)
@@ -400,7 +400,7 @@ pub async fn get_registered_label_classes_for_path(
     path: &str,
 ) -> Result<Vec<RegisteredLabelClassForPath>> {
     let registered_paths = sqlx::query_as::<_, RegisteredLabelClassForPath>(
-        "SELECT * FROM registered_labels_for_spans
+        "SELECT * FROM label_classes_for_path
         WHERE project_id = $1 AND path = $2",
     )
     .bind(project_id)

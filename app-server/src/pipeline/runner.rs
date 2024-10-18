@@ -2,6 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
+    code_executor::CodeExecutor,
     db::{
         spans::Span,
         trace::{CurrentTraceAndSpan, TraceType},
@@ -17,7 +18,10 @@ use serde::Serialize;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
-use crate::{language_model::LanguageModelRunner, semantic_search::SemanticSearch};
+use crate::{
+    chunk::runner::ChunkerRunner, language_model::LanguageModelRunner,
+    semantic_search::SemanticSearch,
+};
 
 use super::{
     context::Context,
@@ -91,20 +95,26 @@ impl Serialize for PipelineRunnerError {
 #[derive(Debug, Clone)]
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
+    chunker_runner: Arc<ChunkerRunner>,
     semantic_search: Arc<SemanticSearch>,
     rabbitmq_connection: Arc<Connection>,
+    code_executor: Arc<CodeExecutor>,
 }
 
 impl PipelineRunner {
     pub fn new(
         language_model: Arc<LanguageModelRunner>,
+        chunker_runner: Arc<ChunkerRunner>,
         semantic_search: Arc<SemanticSearch>,
         rabbitmq_connection: Arc<Connection>,
+        code_executor: Arc<CodeExecutor>,
     ) -> Self {
         Self {
             language_model,
+            chunker_runner,
             semantic_search,
             rabbitmq_connection,
+            code_executor,
         }
     }
 
@@ -124,6 +134,7 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
+            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
@@ -131,6 +142,7 @@ impl PipelineRunner {
             run_type: graph.run_type.clone(),
             pipeline_runner: self.clone(),
             baml_schemas: validated_schemas,
+            code_executor: self.code_executor.clone(),
         };
 
         let tasks = parse_graph(graph)?;
@@ -165,6 +177,7 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
+            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
@@ -172,6 +185,7 @@ impl PipelineRunner {
             run_type: graph.run_type.clone(),
             pipeline_runner: self.clone(),
             baml_schemas: validated_schemas,
+            code_executor: self.code_executor.clone(),
         };
 
         let tasks = parse_graph(graph)?;
@@ -195,6 +209,7 @@ impl PipelineRunner {
         }
     }
 
+    /// Write the engine output to the observations (spans) queue
     pub async fn record_observations(
         &self,
         run_output: &Result<EngineOutput, PipelineRunnerError>,

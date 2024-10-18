@@ -13,6 +13,7 @@ use crate::{
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
+    storage::Storage,
 };
 
 use super::{span_attributes::EVENT_TYPE, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
@@ -22,13 +23,15 @@ pub async fn push_spans_to_queue(
     request: ExportTraceServiceRequest,
     project_id: Uuid,
     rabbitmq_connection: Arc<Connection>,
+    storage: Arc<dyn Storage>,
 ) -> Result<ExportTraceServiceResponse> {
     let channel = rabbitmq_connection.create_channel().await?;
 
     for resource_span in request.resource_spans {
         for scope_span in resource_span.scope_spans {
             for otel_span in scope_span.spans {
-                let span = Span::from_otel_span(otel_span.clone());
+                let span =
+                    Span::from_otel_span(otel_span.clone(), &project_id, storage.clone()).await;
 
                 let mut events = vec![];
 

@@ -4,13 +4,17 @@ use lmnr_baml::BamlContext;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
-use crate::{language_model::LanguageModelRunner, semantic_search::SemanticSearch};
+use crate::{
+    chunk::runner::ChunkerRunner, code_executor::CodeExecutor, language_model::LanguageModelRunner,
+    semantic_search::SemanticSearch,
+};
 
 use super::{nodes::StreamChunk, runner::PipelineRunner, RunType};
 
 #[derive(Debug)]
 pub struct Context {
     pub language_model: Arc<LanguageModelRunner>,
+    pub chunker_runner: Arc<ChunkerRunner>,
     pub semantic_search: Arc<SemanticSearch>,
     pub env: HashMap<String, String>,
     pub tx: Option<Sender<StreamChunk>>,
@@ -21,4 +25,5 @@ pub struct Context {
     /// This is stored in the context before runtime
     /// to avoid the schema being validated on every LLM node run.
     pub baml_schemas: HashMap<Uuid, BamlContext>,
+    pub code_executor: Arc<CodeExecutor>,
 }

@@ -4,6 +4,8 @@ use uuid::Uuid;
 
 use crate::projects::Project;
 
+use super::stats::create_usage_stats_for_workspace;
+
 #[derive(Deserialize, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Workspace {
@@ -13,6 +15,7 @@ pub struct Workspace {
     pub is_free_tier: bool,
 }
 
+// create an error type with multiple variants
 #[derive(thiserror::Error, Debug)]
 pub enum WorkspaceError {
     #[error("User with email {0} not found")]
@@ -21,6 +24,12 @@ pub enum WorkspaceError {
     NotAllowed,
     #[error("{0}")]
     UnhandledError(#[from] anyhow::Error),
+    #[error("Hit limit of maximum {entity:?}: {limit:?}, current usage: {usage:?}")]
+    LimitReached {
+        entity: String,
+        limit: i64,
+        usage: i64,
+    },
 }
 
 #[derive(Serialize)]
@@ -118,6 +127,8 @@ pub async fn create_new_workspace(
     .bind(name)
     .fetch_one(pool)
     .await?;
+
+    create_usage_stats_for_workspace(pool, &workspace.id).await?;
 
     Ok(workspace)
 }
