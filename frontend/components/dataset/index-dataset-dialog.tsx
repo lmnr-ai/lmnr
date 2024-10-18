@@ -22,11 +22,17 @@ interface IndexDatasetDialogProps {
   onUpdate?: () => void;
 }
 
-export default function IndexDatasetDialog({ datasetId, defaultDataset, onUpdate }: IndexDatasetDialogProps) {
+export default function IndexDatasetDialog({
+  datasetId,
+  defaultDataset,
+  onUpdate
+}: IndexDatasetDialogProps) {
   const { projectId } = useProjectContext();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const [selectedIndexKey, setSelectedIndexKey] = useState<string>(defaultDataset.indexedOn ?? '');
+  const [selectedIndexKey, setSelectedIndexKey] = useState<string>(
+    defaultDataset.indexedOn ?? ''
+  );
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -38,19 +44,20 @@ export default function IndexDatasetDialog({ datasetId, defaultDataset, onUpdate
       {
         method: 'POST',
         body: JSON.stringify({ indexColumn: selectedIndexKey }),
-        cache: 'no-cache',
-      });
+        cache: 'no-cache'
+      }
+    );
 
     if (res.status != 200) {
       setIsLoading(false);
       toast({
-        title: 'Error indexing dataset',
+        title: 'Error indexing dataset'
       });
       return;
     }
 
     toast({
-      title: 'Successfully indexed dataset',
+      title: 'Successfully indexed dataset'
     });
 
     const newDataset = await res.json();
@@ -64,11 +71,8 @@ export default function IndexDatasetDialog({ datasetId, defaultDataset, onUpdate
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className="h-7 ml-4"
-        >
-          <NotepadText className='w-4 mr-1 text-gray-500' />
+        <Button variant="outline" className="h-7 ml-4">
+          <NotepadText className="w-4 mr-1 text-gray-500" />
           Index
         </Button>
       </DialogTrigger>
@@ -76,17 +80,29 @@ export default function IndexDatasetDialog({ datasetId, defaultDataset, onUpdate
         <DialogHeader>
           <DialogTitle>Index dataset</DialogTitle>
         </DialogHeader>
-        <Label>Type the key to index this dataset on for semantic search.</Label>
-        <Label className='text-sm text-slate-400'>{'New datapoints are indexed automatically. ' +
-          'Only datapoints with this key in data" will be indexed.'}</Label>
-        <Input defaultValue={defaultDataset?.indexedOn ?? ''} onChange={(e) => setSelectedIndexKey(e.target.value)} />
+        <Label>
+          Type the key to index this dataset on for semantic search.
+        </Label>
+        <Label className="text-sm text-slate-400">
+          {'New datapoints are indexed automatically. ' +
+            'Only datapoints with this key in data" will be indexed.'}
+        </Label>
+        <Input
+          defaultValue={defaultDataset?.indexedOn ?? ''}
+          onChange={(e) => setSelectedIndexKey(e.target.value)}
+        />
         <DialogFooter>
           <Button
-            className='my-4'
-            disabled={isLoading || !selectedIndexKey || selectedIndexKey === defaultDataset.indexedOn}
+            className="my-4"
+            disabled={
+              isLoading ||
+              !selectedIndexKey ||
+              selectedIndexKey === defaultDataset.indexedOn
+            }
             onClick={async () => await indexDataset()}
-            handleEnter>
-            {isLoading && <Loader className='animate-spin h-4 w-4 mr-2' />}
+            handleEnter
+          >
+            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
             Index
           </Button>
         </DialogFooter>

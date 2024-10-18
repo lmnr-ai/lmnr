@@ -1,7 +1,13 @@
 import Ide from '@/components/ui/ide';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import useStore from '@/lib/flow/store';
 import { LLMNode } from '@/lib/flow/types';
@@ -9,13 +15,12 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 interface StructuredOutputFieldsProps {
-  className?: string
-  data: LLMNode,
-  editable?: boolean
+  className?: string;
+  data: LLMNode;
+  editable?: boolean;
 }
 
-const DEFAULT_SCHEMA =
-  `class User {
+const DEFAULT_SCHEMA = `class User {
   id int
   name string
   contact_info ContactInfo
@@ -35,26 +40,39 @@ enum ContactPreference {
 `;
 const extractTargets = (schema: string): string[] => {
   const targets = schema.match(/(class|enum)\s+(\w+)/g);
-  return (targets?.map(target => target.replace('class', '').replace('enum', '').trim()) ?? []).filter((v) => v.length > 0);
+  return (
+    targets?.map((target) =>
+      target.replace('class', '').replace('enum', '').trim()
+    ) ?? []
+  ).filter((v) => v.length > 0);
 };
 
 const DEFAULT_TARGET = 'User';
 const DEFAULT_SCHEMA_TARGETS = extractTargets(DEFAULT_SCHEMA);
 
-export default function StructuredOutputFields({ className, editable = true, data }: StructuredOutputFieldsProps) {
+export default function StructuredOutputFields({
+  className,
+  editable = true,
+  data
+}: StructuredOutputFieldsProps) {
   const { updateNodeData } = useStore();
-  const [schemaClasses, setSchemaClasses] = useState<string[]>(DEFAULT_SCHEMA_TARGETS);
+  const [schemaClasses, setSchemaClasses] = useState<string[]>(
+    DEFAULT_SCHEMA_TARGETS
+  );
   // temporarily store the selected class so we can reset it if it dissapears from the schema
-  const [selectedTargetClass, setSelectedTargetClass] = useState<string>(DEFAULT_TARGET);
+  const [selectedTargetClass, setSelectedTargetClass] =
+    useState<string>(DEFAULT_TARGET);
 
   useEffect(() => {
-    setSchemaClasses(extractTargets(data.structuredOutputSchema ?? DEFAULT_SCHEMA));
+    setSchemaClasses(
+      extractTargets(data.structuredOutputSchema ?? DEFAULT_SCHEMA)
+    );
     setSelectedTargetClass(data.structuredOutputSchemaTarget ?? DEFAULT_TARGET);
   }, [data]);
 
   return (
     <div className={className}>
-      <div className='flex items-center w-full justify-between'>
+      <div className="flex items-center w-full justify-between">
         <Label>Structured output</Label>
         <Switch
           disabled={!editable}
@@ -64,18 +82,18 @@ export default function StructuredOutputFields({ className, editable = true, dat
               structuredOutputEnabled: checked,
               structuredOutputMaxRetries: 3,
               structuredOutputSchema: DEFAULT_SCHEMA,
-              structuredOutputSchemaTarget: DEFAULT_TARGET,
+              structuredOutputSchemaTarget: DEFAULT_TARGET
             } as LLMNode);
           }}
         />
       </div>
-      {(!!data.structuredOutputEnabled) && (
+      {!!data.structuredOutputEnabled && (
         <div className="flex flex-col space-y-2 border rounded p-2 mt-2">
           <Label>Max retries</Label>
           <Input
             disabled={!editable}
-            type='number'
-            placeholder='Enter the number of max retries'
+            type="number"
+            placeholder="Enter the number of max retries"
             value={data.structuredOutputMaxRetries}
             min={0}
             onChange={(e) => {
@@ -85,7 +103,9 @@ export default function StructuredOutputFields({ className, editable = true, dat
             }}
           />
           <Label>Schema</Label>
-          <Label className='text-gray-500'>Schema for the enforced JSON output</Label>
+          <Label className="text-gray-500">
+            Schema for the enforced JSON output
+          </Label>
           <Ide
             readOnly={!editable}
             maxLines={Infinity}
@@ -99,18 +119,24 @@ export default function StructuredOutputFields({ className, editable = true, dat
                 updateNodeData(data.id, {
                   structuredOutputSchemaTarget: null
                 } as LLMNode);
-              };
+              }
               setSchemaClasses(classes);
               try {
                 updateNodeData(data.id, {
-                  structuredOutputSchema: (value.length > 0) ? value : null
+                  structuredOutputSchema: value.length > 0 ? value : null
                 } as LLMNode);
-              } catch (e) {
-              }
+              } catch (e) {}
             }}
           />
-          <Label className="text-gray-500">Read more about BAML syntax at&nbsp;
-            <Link href="https://docs.boundaryml.com/docs/snippets/class" className="text-primary" target="blank">https://docs.boundaryml.com/docs/snippets/class</Link>
+          <Label className="text-gray-500">
+            Read more about BAML syntax at&nbsp;
+            <Link
+              href="https://docs.boundaryml.com/docs/snippets/class"
+              className="text-primary"
+              target="blank"
+            >
+              https://docs.boundaryml.com/docs/snippets/class
+            </Link>
           </Label>
           <Label>Target for schema</Label>
           <Select
@@ -119,7 +145,7 @@ export default function StructuredOutputFields({ className, editable = true, dat
             onValueChange={(value) => {
               setSelectedTargetClass(value);
               updateNodeData(data.id, {
-                structuredOutputSchemaTarget: (value.length > 0) ? value : null
+                structuredOutputSchemaTarget: value.length > 0 ? value : null
               } as LLMNode);
             }}
           >
@@ -128,11 +154,12 @@ export default function StructuredOutputFields({ className, editable = true, dat
             </SelectTrigger>
             <SelectContent>
               {schemaClasses.map((className) => (
-                <SelectItem key={className} value={className ?? 'f'}>{className}</SelectItem>
+                <SelectItem key={className} value={className ?? 'f'}>
+                  {className}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
-
         </div>
       )}
     </div>

@@ -1,10 +1,20 @@
 import { useEffect, useState } from 'react';
-import { TIME_MILLISECONDS_FORMAT, convertToLocalTimeWithMillis, formatTimestamp } from '@/lib/utils';
+import {
+  TIME_MILLISECONDS_FORMAT,
+  convertToLocalTimeWithMillis,
+  formatTimestamp
+} from '@/lib/utils';
 
 // This component is a client-side only component that will format a timestamp
 // If it's not used, then there will be error because SSR will try to render
 // this component with server's rather than user's timezone.
-export default function ClientTimestampFormatter({ timestamp, format = null }: { timestamp: string, format?: string | null }) {
+export default function ClientTimestampFormatter({
+  timestamp,
+  format = null
+}: {
+  timestamp: string;
+  format?: string | null;
+}) {
   const [formattedTimestamp, setFormattedTimestamp] = useState('');
 
   // This function will now run on the client side after mounting
@@ -16,5 +26,5 @@ export default function ClientTimestampFormatter({ timestamp, format = null }: {
     }
   }, []);
 
-  return (<span>{formattedTimestamp}</span>);
-};
+  return <span>{formattedTimestamp}</span>;
+}

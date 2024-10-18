@@ -15,10 +15,12 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 
 interface WorkspaceCreateDialogProps {
-  onWorkspaceCreate?: () => void
+  onWorkspaceCreate?: () => void;
 }
 
-export default function WorkspaceCreateDialog({ onWorkspaceCreate }: WorkspaceCreateDialogProps) {
+export default function WorkspaceCreateDialog({
+  onWorkspaceCreate
+}: WorkspaceCreateDialogProps) {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
 
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
@@ -29,11 +31,11 @@ export default function WorkspaceCreateDialog({ onWorkspaceCreate }: WorkspaceCr
     const res = await fetch('/api/workspaces', {
       method: 'POST',
       body: JSON.stringify({
-        name: newWorkspaceName,
+        name: newWorkspaceName
       })
     });
 
-    const newWorkspace = await res.json() as WorkspaceWithProjects;
+    const newWorkspace = (await res.json()) as WorkspaceWithProjects;
 
     onWorkspaceCreate?.();
     router.push(`/workspace/${newWorkspace.id}`);
@@ -45,7 +47,7 @@ export default function WorkspaceCreateDialog({ onWorkspaceCreate }: WorkspaceCr
       <DialogTrigger asChild>
         <div tabIndex={0}>
           <Button variant="outline">
-            <Plus size={16} className='mr-1' />
+            <Plus size={16} className="mr-1" />
             New workspace
           </Button>
         </div>
@@ -63,8 +65,14 @@ export default function WorkspaceCreateDialog({ onWorkspaceCreate }: WorkspaceCr
           />
         </div>
         <DialogFooter>
-          <Button onClick={createNewWorkspace} handleEnter={true} disabled={!newWorkspaceName}>
-            {isCreatingWorkspace && <Loader className='mr-2 animate-spin' size={16} />}
+          <Button
+            onClick={createNewWorkspace}
+            handleEnter={true}
+            disabled={!newWorkspaceName}
+          >
+            {isCreatingWorkspace && (
+              <Loader className="mr-2 animate-spin" size={16} />
+            )}
             Create
           </Button>
         </DialogFooter>

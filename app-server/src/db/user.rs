@@ -46,6 +46,27 @@ pub async fn get_by_email(pool: &PgPool, email: &str) -> Result<Option<User>> {
     .map_err(|e| e.into())
 }
 
+pub async fn get_by_stripe_customer_id(
+    pool: &PgPool,
+    stripe_customer_id: &str,
+) -> Result<UserInfo> {
+    let user = sqlx::query_as::<_, UserInfo>(
+        "SELECT 
+            users.id, 
+            users.name, 
+            users.email
+        FROM
+            users
+            left join user_subscription_info on users.id = user_subscription_info.user_id
+        WHERE user_subscription_info.stripe_customer_id = $1",
+    )
+    .bind(stripe_customer_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(user)
+}
+
 pub async fn write_user(pool: &PgPool, id: &Uuid, email: &String, name: &String) -> Result<()> {
     sqlx::query("INSERT INTO users (id, name, email) values ($1, $2, $3)")
         .bind(id)

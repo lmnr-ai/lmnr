@@ -26,14 +26,15 @@ interface CreatePipelineDialogProps {
 }
 
 export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
-
   const [pipelineName, setPipelineName] = useState<string>('');
   const { projectId } = useProjectContext();
   const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>(undefined);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<
+    string | undefined
+  >(undefined);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
-  const {toast} = useToast();
+  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -41,9 +42,13 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
     // Allow to click "Create" with an empty pipeline name. Otherwise, if the button is simply disabled,
     // then it's hard to understand that name is required.
     if (!pipelineName) {
-      toast({ title: 'Set the pipeline name', description: 'Pipelines need a name to be created', variant: 'default' });
+      toast({
+        title: 'Set the pipeline name',
+        description: 'Pipelines need a name to be created',
+        variant: 'default'
+      });
       return;
-    };
+    }
 
     setIsLoading(true);
 
@@ -53,13 +58,12 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
         name: pipelineName,
         projectId,
         visibility: 'PRIVATE',
-        templateId: selectedTemplateId,
-      }),
+        templateId: selectedTemplateId
+      })
     });
 
     if (res.status !== 200) {
-      // Just a generic error message, since most likely the error has happened
-      // because the pipeline with the same name already exists.
+      // Just a generic error message, since most likely the error has happened because the pipeline with the same name already exists.
       toast({
         title: 'Error creating pipeline',
         description: 'Pipeline name must be unique in the project',
@@ -81,7 +85,7 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
   useEffect(() => {
     const fetchTemplates = async () => {
       const res = await fetch(`/api/projects/${projectId}/templates`);
-      const json = await res.json() as TemplateInfo[];
+      const json = (await res.json()) as TemplateInfo[];
       setTemplates(json);
       if (json.length > 0) {
         setSelectedTemplateId(json[0].id);
@@ -91,21 +95,22 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
   }, []);
 
   return (
-    <Dialog open={isDialogOpen} onOpenChange={(open) => {
-      setIsDialogOpen(open);
-      setPipelineName('');
-      if (!open) {
-        if (templates.length > 0) {
-          setSelectedTemplateId(templates[0].id);
-        } else {
-          setSelectedTemplateId(undefined);
+    <Dialog
+      open={isDialogOpen}
+      onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        setPipelineName('');
+        if (!open) {
+          if (templates.length > 0) {
+            setSelectedTemplateId(templates[0].id);
+          } else {
+            setSelectedTemplateId(undefined);
+          }
         }
-      }
-    }}>
+      }}
+    >
       <DialogTrigger asChild>
-        <Button variant="default">
-          New pipeline
-        </Button>
+        <Button variant="default">New pipeline</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] min-w-[800px]">
         <DialogHeader>
@@ -123,7 +128,7 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
             <Skeleton className="h-10 mt-2" />
           ) : (
             <TemplateSelect
-              className='mt-4'
+              className="mt-4"
               templateId={selectedTemplateId ?? ''}
               setTemplateId={setSelectedTemplateId}
               templates={templates}
@@ -133,10 +138,16 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
         <DialogFooter>
           <Button
             onClick={createNewPipeline}
+            handleEnter={true}
             disabled={selectedTemplateId === undefined || isLoading}
-            handleEnter
           >
-            <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
+            <Loader
+              className={cn(
+                'mr-2 hidden',
+                isLoading ? 'animate-spin block' : ''
+              )}
+              size={16}
+            />
             Create
           </Button>
         </DialogFooter>

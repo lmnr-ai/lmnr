@@ -2,7 +2,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 
-export async function POST(req: Request, { params }: { params: { projectId: string, datasetId: string } }): Promise<Response> {
+export async function POST(
+  req: Request,
+  { params }: { params: { projectId: string; datasetId: string } }
+): Promise<Response> {
   const projectId = params.projectId;
   const datasetId = params.datasetId;
   const session = await getServerSession(authOptions);
@@ -22,7 +25,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
   return new Response(res.body);
 }
 
-export async function GET(req: Request, { params }: { params: { projectId: string, datasetId: string } }): Promise<Response> {
+export async function GET(
+  req: Request,
+  { params }: { params: { projectId: string; datasetId: string } }
+): Promise<Response> {
   const projectId = params.projectId;
   const datasetId = params.datasetId;
   const session = await getServerSession(authOptions);
@@ -39,7 +45,10 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
   return new Response(res.body);
 }
 
-export async function DELETE(req: Request, { params }: { params: { projectId: string, datasetId: string } }): Promise<Response> {
+export async function DELETE(
+  req: Request,
+  { params }: { params: { projectId: string; datasetId: string } }
+): Promise<Response> {
   const projectId = params.projectId;
   const datasetId = params.datasetId;
   const session = await getServerSession(authOptions);

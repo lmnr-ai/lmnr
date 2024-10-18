@@ -99,12 +99,27 @@ Set the target version for the pipeline in the pipeline builder."),
             error_message: Some(Value::String(format!("User not found: {}", email))),
         }
     }
+
+    pub fn limit_error(error_message: &str) -> Self {
+        Self::RequestError {
+            error_code: "api.LimitReached".to_string(),
+            error_message: Some(Value::String(error_message.to_string())),
+        }
+    }
 }
 
 pub fn workspace_error_to_http_error(e: WorkspaceError) -> Error {
     match e {
         WorkspaceError::UserNotFound(email) => Error::user_not_found(email),
         WorkspaceError::UnhandledError(e) => Error::InternalAnyhowError(e),
+        WorkspaceError::LimitReached {
+            entity,
+            limit,
+            usage,
+        } => Error::limit_error(&format!(
+            "Limit reached for {}. Limit: {}. Current {}: {}",
+            entity, limit, entity, usage
+        )),
         WorkspaceError::NotAllowed => Error::Forbidden,
     }
 }

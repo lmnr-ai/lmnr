@@ -9,22 +9,26 @@ import { PipelineVersion } from '@/lib/pipeline/types';
 import { use, useEffect, useState } from 'react';
 import { ChevronsRight } from 'lucide-react';
 import StatusLabel from '../ui/status-label';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup
+} from '../ui/resizable';
 import { Skeleton } from '../ui/skeleton';
 
 export const TRACE_COLUMNS: ColumnDef<RunTrace, any>[] = [
   {
     accessorFn: (row) => row.success,
     header: 'Status',
-    cell: (row) =>
-      <StatusLabel success={row.getValue()} />
-    ,
+    cell: (row) => <StatusLabel success={row.getValue()} />,
     size: 80
   },
   {
     accessorFn: (row) => row.startTime,
     header: 'Timestamp',
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => (
+      <ClientTimestampFormatter timestamp={String(row.getValue())} />
+    ),
     size: 140
   },
   {
@@ -44,34 +48,40 @@ export const TRACE_COLUMNS: ColumnDef<RunTrace, any>[] = [
     size: 100
   },
   {
-    accessorFn: (row) => (row.approximateCost != null ? `$${row.approximateCost.toFixed(5)}` : 'Unknown'),
+    accessorFn: (row) =>
+      row.approximateCost != null
+        ? `$${row.approximateCost.toFixed(5)}`
+        : 'Unknown',
     header: 'Cost',
     size: 120
-  },
+  }
 ];
 
 interface PipelineHistoryProps {
-  pipelineVersion: PipelineVersion,
-  onTraceHover?: (nodeId?: string) => void
+  pipelineVersion: PipelineVersion;
+  onTraceHover?: (nodeId?: string) => void;
 }
 
-export default function PipelineHistory({ pipelineVersion, onTraceHover }: PipelineHistoryProps) {
-
+export default function PipelineHistory({
+  pipelineVersion,
+  onTraceHover
+}: PipelineHistoryProps) {
   const { projectId } = useProjectContext();
 
   const columns = TRACE_COLUMNS;
 
   // const { data, mutate } = useSWR(`/api/projects/${projectId}/traces/workshop/${pipelineVersion.id}`, swrFetcher)
-  const [selectedRunTrace, setSelectedRunTrace] = useState<TracePreview | null>(null);
+  const [selectedRunTrace, setSelectedRunTrace] = useState<TracePreview | null>(
+    null
+  );
   const [fullTrace, setFullTrace] = useState<RunTrace | null>(null);
   // useEffect(() => {
   //   if (!selectedRunTrace) {
   //     return;
   //   }
-  //   fetch(`/api/projects/${projectId}/traces/trace/${selectedRunTrace?.runId}`)
-  //     .then((res) => res.json()).then((data) => {
-  //       setFullTrace(data)
-  //     })
+  //   fetch(`/api/projects/${projectId}/traces/trace/${selectedRunTrace?.runId}`).then((res) => res.json()).then((data) => {
+  //     setFullTrace(data)
+  //   })
   // }, [selectedRunTrace])
 
   // useEffect(() => {
@@ -79,9 +89,7 @@ export default function PipelineHistory({ pipelineVersion, onTraceHover }: Pipel
   // }, [])
 
   if (!pipelineVersion.id) {
-    return (
-      <Skeleton className="w-full h-full" />
-    );
+    return <Skeleton className="w-full h-full" />;
   }
 
   return (

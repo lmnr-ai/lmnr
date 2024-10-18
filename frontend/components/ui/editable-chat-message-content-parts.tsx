@@ -4,11 +4,14 @@ import EditableChatMessageContentPart from './editable-chat-message-content-part
 import { AiOutlinePlusCircle } from 'react-icons/ai';
 
 interface EditableChatMessageContentPartsProps {
-  parts: ChatMessageContentPart[]
-  setParts: (parts: ChatMessageContentPart[]) => void
+  parts: ChatMessageContentPart[];
+  setParts: (parts: ChatMessageContentPart[]) => void;
 }
 
-export default function EditableChatMessageContentParts({ parts, setParts }: EditableChatMessageContentPartsProps) {
+export default function EditableChatMessageContentParts({
+  parts,
+  setParts
+}: EditableChatMessageContentPartsProps) {
   // TODO: Find something better than using 0 here.
   // When we switch from string content to ContentParts, we only need the first one.
   // When we open the pre-loaded page with default parts, this error doesn't happen.
@@ -24,7 +27,10 @@ export default function EditableChatMessageContentParts({ parts, setParts }: Edi
       text: ''
     };
 
-    const newId = idsRef.current!.length > 0 ? idsRef.current![idsRef.current!.length - 1] + 1 : 0;
+    const newId =
+      idsRef.current!.length > 0
+        ? idsRef.current![idsRef.current!.length - 1] + 1
+        : 0;
     idsRef.current!.push(newId);
     setParts([...parts, newPart]);
   };
@@ -54,8 +60,11 @@ export default function EditableChatMessageContentParts({ parts, setParts }: Edi
         />
       ))}
       <button onClick={addPart} className="mt-0 ml-2">
-        <AiOutlinePlusCircle size={16} className="text-gray-600 hover:bg-secondary rounded" />
+        <AiOutlinePlusCircle
+          size={16}
+          className="text-gray-600 hover:bg-secondary rounded"
+        />
       </button>
-    </div >
+    </div>
   );
 }

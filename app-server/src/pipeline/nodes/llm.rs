@@ -33,14 +33,6 @@ pub struct LLMNode {
     pub model: Option<String>,
     #[serde(default)]
     pub model_params: Option<String>,
-    #[serde(default)]
-    pub semantic_cache_enabled: bool,
-    #[serde(default)]
-    pub semantic_cache_dataset_id: Option<Uuid>,
-    #[serde(default)]
-    pub semantic_similarity_threshold: Option<f32>,
-    #[serde(default)]
-    pub semantic_cache_data_key: Option<String>,
     /// Controls streaming for endpoint runs. Workshop runs are always streaming.
     #[serde(default)]
     pub stream: bool,
@@ -290,6 +282,54 @@ impl LLMNode {
             RunOutput::Success((response_chat_messages.into(), Some(MetaLog::LLM(meta_log))))
         } else {
             RunOutput::Success((result.into(), Some(MetaLog::LLM(meta_log))))
+        }
+    }
+
+    pub fn from_params(
+        name: &str,
+        prompt: String,
+        model: &str, //provider:model_name
+        model_params: Option<String>,
+        input_names: Vec<String>, // Assume all string
+        structured_output_schema: Option<String>,
+        structured_output_schema_target: Option<String>,
+    ) -> Self {
+        let inputs = input_names
+            .iter()
+            .map(|name| Handle {
+                id: Uuid::new_v4(),
+                name: Some(name.to_string()),
+                handle_type: HandleType::String,
+                is_cyclic: false,
+            })
+            .collect::<Vec<Handle>>();
+
+        let outputs = vec![Handle {
+            id: Uuid::new_v4(),
+            name: Some("output".to_string()),
+            handle_type: HandleType::String,
+            is_cyclic: false,
+        }];
+
+        let structured_output_params = StructuredOutputParams {
+            structured_output_enabled: structured_output_schema.is_some(),
+            structured_output_max_retries: 0,
+            structured_output_schema,
+            structured_output_schema_target,
+        };
+
+        LLMNode {
+            id: Uuid::new_v4(),
+            name: name.to_string(),
+            inputs,
+            dynamic_inputs: vec![],
+            outputs,
+            inputs_mappings: HashMap::new(),
+            prompt,
+            model: Some(model.to_string()),
+            model_params,
+            stream: false,
+            structured_output_params,
         }
     }
 }

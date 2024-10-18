@@ -6,39 +6,62 @@ import { Metadata } from 'next';
 import { WorkspaceWithUsers } from '@/lib/workspaces/types';
 import WorkspacesNavbar from '@/components/projects/workspaces-navbar';
 import { UserContextProvider } from '@/contexts/user-context';
+import { WorkspaceStats } from '@/lib/usage/types';
 import WorkspaceComponent from '@/components/workspace/workspace';
 import Header from '@/components/ui/header';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 export const metadata: Metadata = {
-  title: 'Workspace',
+  title: 'Workspace'
 };
 
-const getWorkspace = async (workspaceId: string): Promise<WorkspaceWithUsers> => {
+const getWorkspace = async (
+  workspaceId: string
+): Promise<WorkspaceWithUsers> => {
   const session = await getServerSession(authOptions);
   const user = session!.user;
   const res = await fetcherJSON(`/workspaces/${workspaceId}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${user.apiKey}`
-    },
+    }
   });
   return await res;
 };
 
+const getWorkspaceStats = async (
+  workspaceId: string
+): Promise<WorkspaceStats> => {
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
+  return (await fetcherJSON(`/limits/workspace/${workspaceId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${user.apiKey}`
+    }
+  })) as WorkspaceStats;
+};
 
-
-export default async function WorkspacePage(
-  { params }: { params: { workspaceId: string } }
-) {
+export default async function WorkspacePage({
+  params
+}: {
+  params: { workspaceId: string };
+}) {
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
   }
   const user = session.user;
 
-  const workspace = await getWorkspace(params.workspaceId);
-  const isOwner = workspace.users.find(u => u.email === user.email)?.role === 'owner';
+  if (!isFeatureEnabled(Feature.WORKSPACE)) {
+    redirect('/projects');
+  }
 
+  const workspace = await getWorkspace(params.workspaceId);
+  const isOwner =
+    workspace.users.find((u) => u.email === user.email)?.role === 'owner';
+
+  const stats = await getWorkspaceStats(params.workspaceId);
 
   return (
     <UserContextProvider
@@ -52,6 +75,7 @@ export default async function WorkspacePage(
         <Header path={`workspaces/${workspace.name}`} className="border-none" />
         <WorkspaceComponent
           workspace={workspace}
+          workspaceStats={stats}
           isOwner={isOwner}
         />
       </div>

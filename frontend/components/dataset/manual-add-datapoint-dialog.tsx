@@ -1,7 +1,14 @@
 import { useProjectContext } from '@/contexts/project-context';
 import { useCallback, useState } from 'react';
 import { useToast } from '../../lib/hooks/use-toast';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Loader, Plus } from 'lucide-react';
 import Ide from '../ui/ide';
@@ -14,7 +21,10 @@ interface TypeDatapointDialogProps {
 }
 
 // Dialog to add a single datapoint to a dataset by manually typing
-export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDatapointDialogProps) {
+export default function ManualAddDatapointDialog({
+  datasetId,
+  onUpdate
+}: TypeDatapointDialogProps) {
   const { projectId } = useProjectContext();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -22,23 +32,28 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
   const [data, setData] = useState(DEFAULT_DATA); // Datapoint's "data" field
 
   const showError = useCallback((message: string) => {
-    toast({ title: 'Add datapoint error', variant: 'destructive', description: message, duration: 10000 });
+    toast({
+      title: 'Add datapoint error',
+      variant: 'destructive',
+      description: message,
+      duration: 10000
+    });
   }, []);
 
   const addDatapoint = async () => {
     setIsLoading(true);
 
     try {
-
       let res = await fetch(
         `/api/projects/${projectId}/datasets/${datasetId}/datapoints`,
         {
           method: 'POST',
           body: JSON.stringify({
-            datapoints: [JSON.parse(data)],
+            datapoints: [JSON.parse(data)]
           }),
-          cache: 'no-cache',
-        });
+          cache: 'no-cache'
+        }
+      );
 
       if (res.status != 200) {
         showError('Error adding datapoint');
@@ -61,16 +76,15 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
   };
 
   return (
-    <Dialog open={isDialogOpen} onOpenChange={() => {
-      setIsDialogOpen(!isDialogOpen);
-      setData(DEFAULT_DATA);
-    }}>
+    <Dialog
+      open={isDialogOpen}
+      onOpenChange={() => {
+        setIsDialogOpen(!isDialogOpen);
+        setData(DEFAULT_DATA);
+      }}
+    >
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-        >
-          Add row
-        </Button>
+        <Button variant="outline">Add row</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
@@ -80,11 +94,12 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
         <div className="h-80">
           <Ide value={data} onChange={setData} mode="json" />
         </div>
-        <DialogFooter className='mt-4'>
+        <DialogFooter className="mt-4">
           <Button
             disabled={isLoading}
-            onClick={async () => await addDatapoint()}>
-            {isLoading && <Loader className='animate-spin h-4 w-4 mr-2' />}
+            onClick={async () => await addDatapoint()}
+          >
+            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
             Add datapoint
           </Button>
         </DialogFooter>

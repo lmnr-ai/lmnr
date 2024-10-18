@@ -172,38 +172,24 @@ pub fn read_bytes_csv(bytes: &Vec<u8>) -> Result<Vec<Value>> {
 pub async fn insert_datapoints_from_file(
     file_bytes: &Vec<u8>,
     filename: &String,
-    is_unstructured_file: bool,
     dataset_id: Uuid,
     db: Arc<DB>,
-    file_manager: Arc<crate::files::FileManager>,
 ) -> Result<Vec<Datapoint>> {
-    if !is_unstructured_file {
-        let mut records = None;
-        let extension = filename.split(".").last().unwrap_or_default();
-        if extension == "jsonl" {
-            records = Some(read_bytes_jsonl(&file_bytes)?);
-        } else if extension == "json" {
-            records = Some(read_bytes_json(&file_bytes)?);
-        } else if extension == "csv" {
-            records = Some(read_bytes_csv(&file_bytes)?);
-        }
+    let mut records = None;
+    let extension = filename.split(".").last().unwrap_or_default();
+    if extension == "jsonl" {
+        records = Some(read_bytes_jsonl(&file_bytes)?);
+    } else if extension == "json" {
+        records = Some(read_bytes_json(&file_bytes)?);
+    } else if extension == "csv" {
+        records = Some(read_bytes_csv(&file_bytes)?);
+    }
 
-        if let Some(data) = records {
-            Ok(db::datapoints::insert_raw_data(&db.pool, &dataset_id, &data).await?)
-        } else {
-            Err(anyhow::anyhow!(
-                "Attempting to process file as unstructured even though requested as structured"
-            ))
-        }
+    if let Some(data) = records {
+        Ok(db::datapoints::insert_raw_data(&db.pool, &dataset_id, &data).await?)
     } else {
-        let vector_db_datapoints = file_manager
-            .chunk_doc(&file_bytes, &filename, dataset_id)
-            .await?;
-        let datapoints = vector_db_datapoints
-            .into_iter()
-            .map(|dp| Datapoint::from(dp))
-            .collect::<Vec<_>>();
-
-        Ok(db::datapoints::insert_datapoints(&db.pool, &dataset_id, datapoints).await?)
+        Err(anyhow::anyhow!(
+            "Attempting to process file as unstructured even though requested as structured"
+        ))
     }
 }

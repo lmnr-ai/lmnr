@@ -17,7 +17,6 @@ interface TagsProps {
 }
 
 export default function SpanEvents({ span }: TagsProps) {
-
   const [events, setEvents] = useState<Event[]>([]);
 
   useEffect(() => {
@@ -28,14 +27,17 @@ export default function SpanEvents({ span }: TagsProps) {
   const columns: ColumnDef<Event>[] = [
     {
       accessorKey: 'templateName',
-      header: 'Event Name',
+      header: 'Event Name'
     },
     {
       accessorKey: 'timestamp',
       header: 'Timestamp',
       cell: ({ row }) => (
-        <ClientTimestampFormatter timestamp={row.original.timestamp} format={TIME_MILLISECONDS_FORMAT} />
-      ),
+        <ClientTimestampFormatter
+          timestamp={row.original.timestamp}
+          format={TIME_MILLISECONDS_FORMAT}
+        />
+      )
     },
     {
       accessorKey: 'value',
@@ -44,15 +46,18 @@ export default function SpanEvents({ span }: TagsProps) {
         <div className="max-w-[300px] truncate">
           {JSON.stringify(row.original.value)}
         </div>
-      ),
-    },
+      )
+    }
   ];
 
   return (
     <div className="border-none flex inset-0 absolute flex-grow">
-
       <div className="flex flex-grow h-full w-full">
-        <DataTable columns={columns} data={events} className="h-full w-full border-none" />
+        <DataTable
+          columns={columns}
+          data={events}
+          className="h-full w-full border-none"
+        />
       </div>
     </div>
   );

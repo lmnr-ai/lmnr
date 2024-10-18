@@ -6,26 +6,29 @@ import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
+  ChartTooltipContent
 } from '@/components/ui/chart';
-import { formatTimestampFromSeconds, getGroupByInterval, isGroupByIntervalAvailable } from '@/lib/utils';
+import {
+  formatTimestampFromSeconds,
+  getGroupByInterval,
+  isGroupByIntervalAvailable
+} from '@/lib/utils';
 import { use, useEffect, useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
 import { TraceMetricDatapoint } from '@/lib/traces/types';
 import { Skeleton } from '../ui/skeleton';
 import { useSearchParams } from 'next/navigation';
 
-
 interface CustomChartProps {
-  metric: string
-  aggregation: string
-  title: string
-  xAxisKey: string
-  yAxisKey: string
-  pastHours?: string
-  startDate?: string
-  endDate?: string
-  defaultGroupByInterval?: string
+  metric: string;
+  aggregation: string;
+  title: string;
+  xAxisKey: string;
+  yAxisKey: string;
+  pastHours?: string;
+  startDate?: string;
+  endDate?: string;
+  defaultGroupByInterval?: string;
 }
 
 export function CustomChart({
@@ -37,17 +40,22 @@ export function CustomChart({
   pastHours,
   startDate,
   endDate,
-  defaultGroupByInterval,
+  defaultGroupByInterval
 }: CustomChartProps) {
   const [data, setData] = useState<TraceMetricDatapoint[] | null>(null);
   const { projectId } = useProjectContext();
 
   const chartConfig = {
     [xAxisKey]: {
-      color: 'hsl(var(--chart-2))',
-    },
+      color: 'hsl(var(--chart-2))'
+    }
   } satisfies ChartConfig;
-  const inferredGroupBy = getGroupByInterval(pastHours, startDate, endDate, defaultGroupByInterval);
+  const inferredGroupBy = getGroupByInterval(
+    pastHours,
+    startDate,
+    endDate,
+    defaultGroupByInterval
+  );
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
@@ -68,11 +76,12 @@ export function CustomChart({
     fetch(`/api/projects/${projectId}/traces/metrics`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(body)
     })
-      .then(res => res.json()).then((data: any) => {
+      .then((res) => res.json())
+      .then((data: any) => {
         setData(data);
       });
   }, [defaultGroupByInterval, pastHours, startDate, endDate]);
@@ -80,51 +89,44 @@ export function CustomChart({
   return (
     <div className="">
       <div className="flex space-x-2 justify-between text-sm font-medium text-secondary-foreground ">
-        <div className="flex-grow">
-          {title}
-        </div>
+        <div className="flex-grow">{title}</div>
       </div>
       <div className="">
         <ChartContainer config={chartConfig} className="max-h-40 w-full">
-          {
-            (data === null) ? <Skeleton className="h-40" /> :
-              <LineChart
-                accessibilityLayer
-                data={data}
-                margin={{ top: 10, right: 10, bottom: 10, left: 0 }}
-              >
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  type="category"
-                  domain={['dataMin', 'dataMax']}
-                  tickLine={false}
-                  tickCount={data.length + 1}
-                  tickFormatter={formatTimestampFromSeconds}
-                  axisLine={false}
-                  dataKey={xAxisKey}
-                  padding="no-gap"
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickCount={4}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      labelKey={xAxisKey}
-                      labelFormatter={(label, p) => formatTimestampFromSeconds(p[0].payload[xAxisKey])}
-                    />
-                  }
-                />
-                <Line
-                  dataKey={yAxisKey}
-                  dot={false}
-                  fill="hsl(var(--chart-1))"
-                />
-              </LineChart>
-          }
+          {data === null ? (
+            <Skeleton className="h-40" />
+          ) : (
+            <LineChart
+              accessibilityLayer
+              data={data}
+              margin={{ top: 10, right: 10, bottom: 10, left: 0 }}
+            >
+              <CartesianGrid vertical={false} />
+              <XAxis
+                type="category"
+                domain={['dataMin', 'dataMax']}
+                tickLine={false}
+                tickCount={data.length + 1}
+                tickFormatter={formatTimestampFromSeconds}
+                axisLine={false}
+                dataKey={xAxisKey}
+                padding="no-gap"
+              />
+              <YAxis tickLine={false} axisLine={false} tickCount={4} />
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    labelKey={xAxisKey}
+                    labelFormatter={(label, p) =>
+                      formatTimestampFromSeconds(p[0].payload[xAxisKey])
+                    }
+                  />
+                }
+              />
+              <Line dataKey={yAxisKey} dot={false} fill="hsl(var(--chart-1))" />
+            </LineChart>
+          )}
         </ChartContainer>
       </div>
     </div>
@@ -132,9 +134,9 @@ export function CustomChart({
 }
 
 export interface TracesMetricsProps {
-  pastHours?: string
-  startDate?: string
-  endDate?: string
+  pastHours?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export default function TracesMetrics() {
@@ -142,7 +144,9 @@ export default function TracesMetrics() {
   const pastHours = searchParams.get('pastHours') as string | undefined;
   const startDate = searchParams.get('startDate') as string | undefined;
   const endDate = searchParams.get('endDate') as string | undefined;
-  const groupByInterval = searchParams.get('groupByInterval') as string | undefined;
+  const groupByInterval = searchParams.get('groupByInterval') as
+    | string
+    | undefined;
 
   return (
     <div className="flex p-4 space-x-4 border-b">

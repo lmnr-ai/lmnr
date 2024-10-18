@@ -14,7 +14,7 @@ import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
+  ChartTooltipContent
 } from '@/components/ui/chart';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import DateRangeFilter from '../ui/date-range-filter';
@@ -34,7 +34,7 @@ const getEvents = async (
   filter: string | string[] | undefined,
   pastHours: string | null,
   startDate: string | null | undefined,
-  endDate: string | null | undefined,
+  endDate: string | null | undefined
 ): Promise<PaginatedResponse<Event>> => {
   let url = `/api/projects/${projectId}/event-templates/${templateId}/events?pageNumber=${pageNumber}&pageSize=${pageSize}`;
   if (pastHours !== null) {
@@ -55,29 +55,28 @@ const getEvents = async (
   const res = await fetch(url, {
     method: 'GET',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     },
-    cache: 'no-cache',
+    cache: 'no-cache'
   });
-  return await res.json() as PaginatedResponse<Event>;
+  return (await res.json()) as PaginatedResponse<Event>;
 };
-
 
 interface EventProps {
   eventTemplate: EventTemplate;
   metrics: { [key: string]: { [key: string]: number }[] };
 }
 
-export default function EventComponent({
-  eventTemplate,
-  metrics,
-}: EventProps) {
+export default function EventComponent({ eventTemplate, metrics }: EventProps) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const { projectId } = useProjectContext();
 
-  const parseNumericSearchParam = (key: string, defaultValue: number): number => {
+  const parseNumericSearchParam = (
+    key: string,
+    defaultValue: number
+  ): number => {
     const param = searchParams.get(key);
     if (Array.isArray(param)) {
       return defaultValue;
@@ -96,7 +95,7 @@ export default function EventComponent({
   const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [events, setEvents] = useState<Event[] | undefined>(undefined);
-  const [totalCount, setTotalCount] = useState<number>(0);  // including the filtering
+  const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
   const [anyInProject, setAnyInProject] = useState<boolean>(true);
 
   const pageCount = Math.ceil(totalCount / pageSize);
@@ -130,38 +129,51 @@ export default function EventComponent({
       pastHours,
       startDate,
       endDate
-    ).then((result) => {
-      console.log(result);
-      setEvents(result.items);
-      setTotalCount(result.totalCount);
-      setAnyInProject(result.anyInProject);
-    }).catch((err) => {
-      console.error(err);
-    });
-  }, [projectId, pageNumber, pageSize, filter, pastHours, startDate, endDate, eventTemplate.id]);
+    )
+      .then((result) => {
+        console.log(result);
+        setEvents(result.items);
+        setTotalCount(result.totalCount);
+        setAnyInProject(result.anyInProject);
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  }, [
+    projectId,
+    pageNumber,
+    pageSize,
+    filter,
+    pastHours,
+    startDate,
+    endDate,
+    eventTemplate.id
+  ]);
 
   const columns: ColumnDef<Event>[] = [
     {
       accessorKey: 'id',
       header: 'ID',
-      id: 'id',
+      id: 'id'
     },
     {
       header: 'Occurrence',
       accessorKey: 'createdAt',
       id: 'created_at',
-      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+      cell: (row) => (
+        <ClientTimestampFormatter timestamp={String(row.getValue())} />
+      )
     },
     {
-      accessorFn: row => row.spanId.replace(/^00000000-0000-0000-/g, ''),
+      accessorFn: (row) => row.spanId.replace(/^00000000-0000-0000-/g, ''),
       header: 'Span ID',
-      id: 'span_id',
+      id: 'span_id'
     },
     {
       accessorKey: 'value',
       header: 'Value',
-      id: 'value',
-    },
+      id: 'value'
+    }
   ];
 
   return (
@@ -173,7 +185,9 @@ export default function EventComponent({
             <p className="text-2xl font-bold">{eventTemplate.name}</p>
             <div className="flex space-x-2 w-full">
               <div className="flex flex-grow">
-                <Label className="p-2 border rounded">{eventTemplate.eventType}</Label>
+                <Label className="p-2 border rounded">
+                  {eventTemplate.eventType}
+                </Label>
               </div>
             </div>
           </div>
@@ -205,30 +219,30 @@ export default function EventComponent({
             }}
             totalItemsCount={totalCount}
           >
-            <DataTableFilter columns={columns.filter(col => col.id !== 'created_at')} />
+            <DataTableFilter
+              columns={columns.filter((col) => col.id !== 'created_at')}
+            />
             <DateRangeFilter />
           </DataTable>
         </div>
         {isSidePanelOpen && (
-          <div className='absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex'>
+          <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
             <Resizable
-              enable={
-                {
-                  top: false,
-                  right: false,
-                  bottom: false,
-                  left: true,
-                  topRight: false,
-                  bottomRight: false,
-                  bottomLeft: false,
-                  topLeft: false
-                }
-              }
+              enable={{
+                top: false,
+                right: false,
+                bottom: false,
+                left: true,
+                topRight: false,
+                bottomRight: false,
+                bottomLeft: false,
+                topLeft: false
+              }}
               defaultSize={{
-                width: 800,
+                width: 800
               }}
             >
-              <div className='w-full h-full flex'>
+              <div className="w-full h-full flex">
                 <EventView
                   onClose={() => {
                     //   searchParams.delete('selectedid');
@@ -238,7 +252,6 @@ export default function EventComponent({
                   }}
                   event={selectedEvent!}
                 />
-
               </div>
             </Resizable>
           </div>
@@ -249,19 +262,24 @@ export default function EventComponent({
 }
 
 interface CustomChartProps {
-  data: any
-  title: string
-  xAxisKey: string
-  yAxisKey: string
-  className?: string
+  data: any;
+  title: string;
+  xAxisKey: string;
+  yAxisKey: string;
+  className?: string;
 }
 
-function CustomChart({ data, title, xAxisKey, yAxisKey, className }: CustomChartProps) {
-
+function CustomChart({
+  data,
+  title,
+  xAxisKey,
+  yAxisKey,
+  className
+}: CustomChartProps) {
   const chartConfig = {
     [xAxisKey]: {
-      color: 'hsl(var(--chart-2))',
-    },
+      color: 'hsl(var(--chart-2))'
+    }
   } satisfies ChartConfig;
 
   return (
@@ -294,16 +312,16 @@ function CustomChart({ data, title, xAxisKey, yAxisKey, className }: CustomChart
             />
             <ChartTooltip
               cursor={false}
-              content={<ChartTooltipContent
-                labelKey={xAxisKey}
-                labelFormatter={(label, p) => formatTimestampFromSeconds(p[0].payload[xAxisKey])}
-              />}
+              content={
+                <ChartTooltipContent
+                  labelKey={xAxisKey}
+                  labelFormatter={(label, p) =>
+                    formatTimestampFromSeconds(p[0].payload[xAxisKey])
+                  }
+                />
+              }
             />
-            <Line
-              dataKey={yAxisKey}
-              dot={false}
-              fill="hsl(var(--chart-1))"
-            />
+            <Line dataKey={yAxisKey} dot={false} fill="hsl(var(--chart-1))" />
           </LineChart>
         </ChartContainer>
       </div>

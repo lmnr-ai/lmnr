@@ -24,8 +24,11 @@ interface UpdatePipelineDialogProps {
   isDropdown?: boolean;
 }
 
-export function UpdatePipelineDialog({ oldPipeline, onUpdate, isDropdown = true }: UpdatePipelineDialogProps) {
-
+export function UpdatePipelineDialog({
+  oldPipeline,
+  onUpdate,
+  isDropdown = true
+}: UpdatePipelineDialogProps) {
   const [pipeline, setPipeline] = useState<Pipeline>(oldPipeline);
   const { projectId } = useProjectContext();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -35,13 +38,16 @@ export function UpdatePipelineDialog({ oldPipeline, onUpdate, isDropdown = true 
   const createNewPipeline = async () => {
     setIsLoading(true);
 
-    const res = await fetch(`/api/projects/${projectId}/pipelines/${oldPipeline.id!}`, {
-      method: 'POST',
-      body: JSON.stringify({
-        ...pipeline,
-        projectId,
-      }),
-    });
+    const res = await fetch(
+      `/api/projects/${projectId}/pipelines/${oldPipeline.id!}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ...pipeline,
+          projectId
+        })
+      }
+    );
     const json = await res.json();
     onUpdate?.();
     setIsLoading(false);
@@ -49,20 +55,26 @@ export function UpdatePipelineDialog({ oldPipeline, onUpdate, isDropdown = true 
   };
 
   return (
-    <div onClick={e => e.stopPropagation()}>
+    <div onClick={(e) => e.stopPropagation()}>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
           {isDropdown ? (
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()}> Edit </DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              {' '}
+              Edit{' '}
+            </DropdownMenuItem>
           ) : (
-            <div className='h-full align-middle'>
-              <Button variant='outline' className='my-auto'>
+            <div className="h-full align-middle">
+              <Button variant="outline" className="my-auto">
                 <Pencil size={16} /> Edit
               </Button>
             </div>
           )}
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent
+          className="sm:max-w-[425px]"
+          aria-description="Edit pipeline"
+        >
           <DialogHeader>
             <DialogTitle>Edit pipeline {oldPipeline.name}</DialogTitle>
           </DialogHeader>
@@ -72,12 +84,27 @@ export function UpdatePipelineDialog({ oldPipeline, onUpdate, isDropdown = true 
               defaultValue={oldPipeline.name}
               autoFocus
               placeholder="Name"
-              onChange={(e) => setPipeline((prev: Pipeline) => ({ ...prev, name: e.target.value } as Pipeline))}
+              onChange={(e) =>
+                setPipeline(
+                  (prev: Pipeline) =>
+                    ({ ...prev, name: e.target.value }) as Pipeline
+                )
+              }
             />
           </div>
           <DialogFooter>
-            <Button onClick={createNewPipeline} disabled={!pipeline.name || isLoading} handleEnter>
-              <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
+            <Button
+              onClick={createNewPipeline}
+              disabled={!pipeline.name || isLoading}
+              handleEnter
+            >
+              <Loader
+                className={cn(
+                  'mr-2 hidden',
+                  isLoading ? 'animate-spin block' : ''
+                )}
+                size={16}
+              />
               Save
             </Button>
           </DialogFooter>

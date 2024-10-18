@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "python-executor"
+version = "0.1.0"
+description = ""
+authors = ["Laminar <founders@lmnr.ai>"]
+readme = "README.md"
+package-mode = true
+
+[tool.poetry.dependencies]
+python = "^3.12"
+grpcio = "^1.63.0"
+grpcio-tools = "^1.63.0"
+requests = "^2.31.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

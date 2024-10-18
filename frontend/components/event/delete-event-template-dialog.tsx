@@ -20,7 +20,7 @@ interface DeleteEventTemplateProps {
 }
 
 export default function DeleteEventTemplateDialog({
-  defaultEventTemplate,
+  defaultEventTemplate
 }: DeleteEventTemplateProps) {
   const { projectId } = useProjectContext();
   const router = useRouter();
@@ -31,9 +31,12 @@ export default function DeleteEventTemplateDialog({
   const deleteEventTemplate = async () => {
     setIsLoading(true);
 
-    const res = await fetch(`/api/projects/${projectId}/event-templates/${defaultEventTemplate.id}`, {
-      method: 'DELETE',
-    });
+    const res = await fetch(
+      `/api/projects/${projectId}/event-templates/${defaultEventTemplate.id}`,
+      {
+        method: 'DELETE'
+      }
+    );
 
     await res.text();
 
@@ -43,22 +46,19 @@ export default function DeleteEventTemplateDialog({
     router.refresh();
   };
 
-
   return (
     <>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
-          <Button variant="secondary">
-            Delete
-          </Button>
+          <Button variant="secondary">Delete</Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Delete event {defaultEventTemplate.name}</DialogTitle>
           </DialogHeader>
-          <Label className='text-secondary-foreground'>
-            Are you sure you want to delete this event template?
-            This will remove all events associated with this template.
+          <Label className="text-secondary-foreground">
+            Are you sure you want to delete this event template? This will
+            remove all events associated with this template.
           </Label>
           <DialogFooter>
             <Button

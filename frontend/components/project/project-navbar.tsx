@@ -1,7 +1,14 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Cable, Database, Gauge, LockKeyhole, Rocket, Rows4 } from 'lucide-react';
+import {
+  Cable,
+  Database,
+  Gauge,
+  LockKeyhole,
+  Rocket,
+  Rows4
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
@@ -13,7 +20,6 @@ interface ProjectNavBarProps {
 }
 
 export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
-
   const pathname = usePathname();
 
   const navbarOptions = [
@@ -51,20 +57,29 @@ export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
 
   return (
     <div className="flex flex-col h-screen border-r w-48 text-md items-center">
-      <Link href={'/projects'} className='flex h-14 items-center justify-center mb-4'>
-        <Image alt='' src={logo} width={120} />
+      <Link
+        href={'/projects'}
+        className="flex h-14 items-center justify-center mb-4"
+      >
+        <Image alt="" src={logo} width={120} />
       </Link>
       <div className="flex flex-col w-32">
         {navbarOptions.map((option, i) => (
-
-          <Link key={i} href={option.href} className={cn('flex items-center p-2 rounded', pathname.includes(option.href) ? 'bg-gray-200' : '')}>
-            <option.icon size={20} className='mr-4' />
+          <Link
+            key={i}
+            href={option.href}
+            className={cn(
+              'flex items-center p-2 rounded',
+              pathname.includes(option.href) ? 'bg-gray-200' : ''
+            )}
+          >
+            <option.icon size={20} className="mr-4" />
             {option.name}
           </Link>
         ))}
       </div>
-      <div className='flex-grow'></div>
-      <div className='mb-8'>
+      <div className="flex-grow"></div>
+      <div className="mb-8">
         <AvatarMenu />
       </div>
     </div>

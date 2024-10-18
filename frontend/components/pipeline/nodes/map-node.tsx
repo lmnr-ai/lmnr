@@ -3,28 +3,30 @@ import {
   InputNode,
   NodeType,
   RunnableGraph,
-  MapNode,
+  MapNode
 } from '@/lib/flow/types';
 import { Label } from '@/components/ui/label';
 import useStore from '@/lib/flow/store';
 import PipelineSelect from '@/components/ui/pipeline-select';
 
-export default function MapNodeComponent({
-  data
-}: {
-  data: MapNode;
-}) {
+export default function MapNodeComponent({ data }: { data: MapNode }) {
   const updateNodeData = useStore((state) => state.updateNodeData);
   const dropEdgeForHandle = useStore((state) => state.dropEdgeForHandle);
 
   return (
-    <div className='p-4 flex flex-col space-y-2'>
+    <div className="p-4 flex flex-col space-y-2">
       <Label>Committed pipeline version</Label>
       <PipelineSelect
         hideWorkshopVersions={true}
-        defaultPipelineName={data.pipelineName.length > 0 ? data.pipelineName : undefined}
+        defaultPipelineName={
+          data.pipelineName.length > 0 ? data.pipelineName : undefined
+        }
         defaultPipelineId={data.pipelineId ?? undefined}
-        defaultPipelineVersionName={data.pipelineVersionName.length > 0 ? data.pipelineVersionName : undefined}
+        defaultPipelineVersionName={
+          data.pipelineVersionName.length > 0
+            ? data.pipelineVersionName
+            : undefined
+        }
         onPipelineChange={(pipeline) => {
           updateNodeData(data.id, {
             pipelineName: pipeline.name,
@@ -49,4 +51,4 @@ export default function MapNodeComponent({
       />
     </div>
   );
-};
+}

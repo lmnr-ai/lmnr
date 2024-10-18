@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use actix_web::{post, web, HttpResponse};
+use actix_web::{get, post, web, HttpResponse};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -162,4 +162,9 @@ async fn run_pipeline_graph(
 
         Ok(HttpResponse::Ok().json(res))
     }
+}
+
+#[get("healthcheck")]
+async fn ping_healthcheck() -> ResponseResult {
+    Ok(HttpResponse::Ok().finish())
 }

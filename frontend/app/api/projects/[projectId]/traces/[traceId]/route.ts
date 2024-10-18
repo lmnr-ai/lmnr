@@ -2,7 +2,10 @@ import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 import { getServerSession } from 'next-auth';
 
-export async function GET(req: Request, { params }: { params: { projectId: string, traceId: string } }): Promise<Response> {
+export async function GET(
+  req: Request,
+  { params }: { params: { projectId: string; traceId: string } }
+): Promise<Response> {
   const projectId = params.projectId;
   const traceId = params.traceId;
 
@@ -13,6 +16,6 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     method: 'GET',
     headers: {
       Authorization: `Bearer ${user.apiKey}`
-    },
+    }
   });
 }

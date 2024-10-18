@@ -9,6 +9,7 @@ import {
   WebSearchNode,
   JsonExtractorNode,
   FunctionNode,
+  CodeNode
 } from '@/lib/flow/types';
 import useStore from '@/lib/flow/store';
 import LLM from './nodes/llm';
@@ -19,47 +20,41 @@ import StringTemplateNodeComponent from './nodes/string-template-node';
 import SemanticSwitchNodeComponent from './nodes/semantic-switch-node';
 import JsonExtractorNodeComponent from './nodes/json-extractor-node';
 import WebSearchNodeComponent from './nodes/web-search-node';
-import FunctionNodeComponent from './nodes/function-node';
+import CodeNodeComponent from './nodes/code';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 
 interface PipelineSheetProps {
-  editable: boolean
+  editable: boolean;
 }
 
-function RenderNode({ data, editable }: { data: GenericNode, editable: boolean }) {
+function RenderNode({
+  data,
+  editable
+}: {
+  data: GenericNode;
+  editable: boolean;
+}) {
   switch (data.type) {
   case NodeType.LLM:
-    return (
-      <LLM data={data as LLMNode} editable={editable} />
-    );
+    return <LLM data={data as LLMNode} editable={editable} />;
   case NodeType.SEMANTIC_SEARCH:
-    return (
-      <SemanticSearchNodeComponent data={data as SemanticSearchNode} />
-    );
+    return <SemanticSearchNodeComponent data={data as SemanticSearchNode} />;
   case NodeType.SWITCH:
-    return (
-      <SwitchNodeComponent data={data as RouterNode} />
-    );
+    return <SwitchNodeComponent data={data as RouterNode} />;
   case NodeType.STRING_TEMPLATE:
-    return (
-      <StringTemplateNodeComponent data={data as StringTemplateNode} />
-    );
+    return <StringTemplateNodeComponent data={data as StringTemplateNode} />;
   case NodeType.SEMANTIC_SWITCH:
-    return (
-      <SemanticSwitchNodeComponent data={data as SemanticSwitchNode} />
-    );
+    return <SemanticSwitchNodeComponent data={data as SemanticSwitchNode} />;
   case NodeType.JSON_EXTRACTOR:
-    return (
-      <JsonExtractorNodeComponent data={data as JsonExtractorNode} />
-    );
+    return <JsonExtractorNodeComponent data={data as JsonExtractorNode} />;
   case NodeType.WEB_SEARCH:
+    return <WebSearchNodeComponent data={data as WebSearchNode} />;
+  case NodeType.CODE:
     return (
-      <WebSearchNodeComponent data={data as WebSearchNode} />
-    );
-  case NodeType.FUNCTION:
-    return (
-      <FunctionNodeComponent data={data as FunctionNode} />
+      <div className="p-0 w-full h-[300px] flex">
+        <CodeNodeComponent data={data as CodeNode} />
+      </div>
     );
   default:
     return null;
@@ -67,13 +62,13 @@ function RenderNode({ data, editable }: { data: GenericNode, editable: boolean }
 }
 
 export default function PipelineSheet({ editable }: PipelineSheetProps) {
-  const { focusedNodeId, getNode, updateNodeData } = useStore(store => store);
+  const { focusedNodeId, getNode, updateNodeData } = useStore((store) => store);
 
   const data = getNode(focusedNodeId ?? '')?.data;
 
   return (
     <div className="w-full h-full relative">
-      {data &&
+      {data && (
         <ScrollArea className="h-full w-full">
           <div className="max-h-0">
             <div className="flex flex-col p-4 space-y-2 bg-background pb-0">
@@ -98,8 +93,7 @@ export default function PipelineSheet({ editable }: PipelineSheetProps) {
             <RenderNode data={data} editable={editable} key={data.id} />
           </div>
         </ScrollArea>
-      }
+      )}
     </div>
   );
-
 }

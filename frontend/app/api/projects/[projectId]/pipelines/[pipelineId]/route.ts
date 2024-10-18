@@ -2,8 +2,10 @@ import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 import { getServerSession } from 'next-auth';
 
-export async function DELETE(req: Request, { params }: { params: { projectId: string, pipelineId: string } }): Promise<Response> {
-
+export async function DELETE(
+  req: Request,
+  { params }: { params: { projectId: string; pipelineId: string } }
+): Promise<Response> {
   const projectId = params.projectId;
   const pipelineId = params.pipelineId;
 
@@ -14,14 +16,16 @@ export async function DELETE(req: Request, { params }: { params: { projectId: st
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${user.apiKey}`
-    },
+    }
   });
 
   return new Response(res.body);
 }
 
-export async function GET(req: Request, { params }: { params: { projectId: string, pipelineId: string } }): Promise<Response> {
-
+export async function GET(
+  req: Request,
+  { params }: { params: { projectId: string; pipelineId: string } }
+): Promise<Response> {
   const projectId = params.projectId;
   const pipelineId = params.pipelineId;
 
@@ -32,13 +36,16 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     method: 'GET',
     headers: {
       Authorization: `Bearer ${user.apiKey}`
-    },
+    }
   });
 
   return new Response(res.body);
 }
 
-export async function POST(req: Request, { params }: { params: { projectId: string, pipelineId: string } }): Promise<Response> {
+export async function POST(
+  req: Request,
+  { params }: { params: { projectId: string; pipelineId: string } }
+): Promise<Response> {
   const projectId = params.projectId;
   const pipelineId = params.pipelineId;
   const session = await getServerSession(authOptions);

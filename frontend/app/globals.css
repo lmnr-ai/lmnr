@@ -71,10 +71,9 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    /* line numers styling in ReactAce Editor */
-    .ace_gutter {
-      background-color: hsl(var(--background-secondary) / 0.9);
-      color: hsl(var(--foreground) / 0.5);
+    /* line gutter styling in ReactAce Editor */
+    .CodeMirror * {
+      font-size: 29px;
     }
   }
 

@@ -7,15 +7,27 @@ import { Resizable } from 're-resizable';
 import TracesTable from './traces-table-traces-view';
 import { Tabs, TabsTrigger, TabsList, TabsContent } from '../ui/tabs';
 import SessionsTable from './traces-table-sessions-view';
-
+import { usePostHog } from 'posthog-js/react';
+import { useUserContext } from '@/contexts/user-context';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 export default function Traces() {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
+  const { email } = useUserContext();
+  const posthog = usePostHog();
 
-  const [traceId, setTraceId] = useState<string | null>(searchParams.get('traceId') ?? null);
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(traceId != null);
+  if (isFeatureEnabled(Feature.POSTHOG)) {
+    posthog.identify(email);
+  }
+
+  const [traceId, setTraceId] = useState<string | null>(
+    searchParams.get('traceId') ?? null
+  );
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(
+    traceId != null
+  );
 
   useEffect(() => {
     setIsSidePanelOpen(traceId != null);
@@ -23,10 +35,10 @@ export default function Traces() {
 
   return (
     <div className="flex flex-col h-full flex-grow">
-      <div className='flex-grow flex'>
+      <div className="flex-grow flex">
         <Tabs
           defaultValue={searchParams.get('view') ?? 'traces'}
-          className='flex flex-col w-full'
+          className="flex flex-col w-full"
           onValueChange={(v) => {
             searchParams.delete('filter');
             searchParams.delete('selectedId');
@@ -37,43 +49,42 @@ export default function Traces() {
             setIsSidePanelOpen(false);
             setTraceId(null);
             router.push(`${pathName}?${searchParams.toString()}`);
-          }}>
-          <div className='flex-none'>
-            <TabsList className='w-full flex px-4 border-b'>
-              <TabsTrigger value='traces'>Traces</TabsTrigger>
-              <TabsTrigger value='sessions'>Sessions</TabsTrigger>
+          }}
+        >
+          <div className="flex-none">
+            <TabsList className="w-full flex px-4 border-b">
+              <TabsTrigger value="traces">Traces</TabsTrigger>
+              <TabsTrigger value="sessions">Sessions</TabsTrigger>
             </TabsList>
           </div>
-          <div className='flex-grow flex'>
-            <TabsContent value='traces' className='w-full'>
+          <div className="flex-grow flex">
+            <TabsContent value="traces" className="w-full">
               <TracesTable onRowClick={setTraceId} />
             </TabsContent>
-            <TabsContent value='sessions' className='w-full'>
+            <TabsContent value="sessions" className="w-full">
               <SessionsTable onRowClick={setTraceId} />
             </TabsContent>
           </div>
-        </Tabs >
-      </div >
+        </Tabs>
+      </div>
       {isSidePanelOpen && (
-        <div className='absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex'>
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
-            enable={
-              {
-                top: false,
-                right: false,
-                bottom: false,
-                left: true,
-                topRight: false,
-                bottomRight: false,
-                bottomLeft: false,
-                topLeft: false
-              }
-            }
+            enable={{
+              top: false,
+              right: false,
+              bottom: false,
+              left: true,
+              topRight: false,
+              bottomRight: false,
+              bottomLeft: false,
+              topLeft: false
+            }}
             defaultSize={{
-              width: 1000,
+              width: 1000
             }}
           >
-            <div className='w-full h-full flex'>
+            <div className="w-full h-full flex">
               <TraceView
                 onClose={() => {
                   searchParams.delete('traceId');
@@ -86,8 +97,7 @@ export default function Traces() {
             </div>
           </Resizable>
         </div>
-      )
-      }
-    </div >
+      )}
+    </div>
   );
 }

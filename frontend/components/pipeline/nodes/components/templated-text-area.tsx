@@ -9,18 +9,24 @@ import { cn } from '@/lib/utils';
 import DefaultTextarea from '@/components/ui/default-textarea';
 
 interface TemplatedTextAreaProps extends IAceEditorProps {
-  defaultInputs: Map<string, GenericNodeHandle>
-  onUpdate: (value: string, inputs: GenericNodeHandle[], edgeIdsToRemove: string[]) => void
-  disabled?: boolean
+  defaultInputs: Map<string, GenericNodeHandle>;
+  onUpdate: (
+    value: string,
+    inputs: GenericNodeHandle[],
+    edgeIdsToRemove: string[]
+  ) => void;
+  disabled?: boolean;
 }
 
 export default function TemplatedTextArea({
   defaultInputs,
   onUpdate,
   disabled,
-  ...props }: TemplatedTextAreaProps) {
-
-  const prevInputVars = useRef(new Map<string, GenericNodeHandle>(defaultInputs));
+  ...props
+}: TemplatedTextAreaProps) {
+  const prevInputVars = useRef(
+    new Map<string, GenericNodeHandle>(defaultInputs)
+  );
 
   // regex to match {{input_variable}}
   const regex = /{{(?:json\s+)?([A-Za-z0-9_\-\$]+)}}/g;
@@ -58,20 +64,25 @@ export default function TemplatedTextArea({
     }
 
     onUpdate(value, inputs, edgeIdsToRemove);
-    prevInputVars.current = new Map(inputs.map((input) => [input.name!, input]));
+    prevInputVars.current = new Map(
+      inputs.map((input) => [input.name!, input])
+    );
   }, []);
 
   return (
     <>
-      <Label className='text-gray-500'>{'enclose {{input_variable}} in double curly braces'}</Label>
-      {disabled ?
+      <Label className="text-gray-500">
+        {'enclose {{input_variable}} in double curly braces'}
+      </Label>
+      {disabled ? (
         <DefaultTextarea
           readOnly={disabled}
           disabled={disabled}
           value={props.value}
           className="cursor-not-allowed bg-secondary-background text-secondary-foreground"
         />
-        : <Ide
+      ) : (
+        <Ide
           {...props}
           minLines={3}
           maxLines={Infinity}
@@ -79,7 +90,8 @@ export default function TemplatedTextArea({
           onChange={(val) => {
             handleChange(val);
           }}
-        />}
+        />
+      )}
     </>
   );
 }

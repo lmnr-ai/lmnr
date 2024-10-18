@@ -1,6 +1,12 @@
-import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from './types';
+import {
+  EvaluationDatapointPreview,
+  EvaluationDatapointPreviewWithCompared
+} from './types';
 
-export function mergeOriginalWithComparedDatapoints(results: EvaluationDatapointPreview[], comparedResults: EvaluationDatapointPreview[]): EvaluationDatapointPreviewWithCompared[] {
+export function mergeOriginalWithComparedDatapoints(
+  results: EvaluationDatapointPreview[],
+  comparedResults: EvaluationDatapointPreview[]
+): EvaluationDatapointPreviewWithCompared[] {
   // Assumes that the results and comparedResults are of the same length
   // but for safety, we'll take the minimum length
   const minLen = Math.min(results.length, comparedResults.length);
@@ -13,7 +19,7 @@ export function mergeOriginalWithComparedDatapoints(results: EvaluationDatapoint
       ...original,
       comparedId: compared.id,
       comparedEvaluationId: compared.evaluationId,
-      comparedScores: compared.scores,
+      comparedScores: compared.scores
     };
     mergedResults.push(merged);
   }

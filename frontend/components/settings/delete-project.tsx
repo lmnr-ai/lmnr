@@ -16,13 +16,14 @@ import { useProjectContext } from '@/contexts/project-context';
 import { Loader, Trash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface DeleteProjectProps { }
+interface DeleteProjectProps {}
 
-export default function DeleteProject({ }: DeleteProjectProps) {
+export default function DeleteProject({}: DeleteProjectProps) {
   const { projectId, projectName } = useProjectContext();
 
   const [inputProjectName, setInputProjectName] = useState<string>('');
-  const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] = useState(false);
+  const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] =
+    useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const deleteProject = async () => {
@@ -42,16 +43,25 @@ export default function DeleteProject({ }: DeleteProjectProps) {
       <div className="flex flex-col items-start space-y-4">
         <h1 className="text-lg">Delete project</h1>
         <Label>
-                    Delect project and all of its data. This action cannot be undone.
+          Delect project and all of its data. This action cannot be undone.
         </Label>
-        <Dialog open={isDeleteProjectDialogOpen} onOpenChange={() => {
-          setIsDeleteProjectDialogOpen(!isDeleteProjectDialogOpen);
-          setInputProjectName('');
-        }}>
+        <Dialog
+          open={isDeleteProjectDialogOpen}
+          onOpenChange={() => {
+            setIsDeleteProjectDialogOpen(!isDeleteProjectDialogOpen);
+            setInputProjectName('');
+          }}
+        >
           <DialogTrigger asChild>
-            <Button onClick={() => { setIsDeleteProjectDialogOpen(true); }} variant="outline" className="h-8 max-w-80 text-red-500">
-              <Trash className='w-4 mr-1' />
-                            Delete project
+            <Button
+              onClick={() => {
+                setIsDeleteProjectDialogOpen(true);
+              }}
+              variant="outline"
+              className="h-8 max-w-80 text-red-500"
+            >
+              <Trash className="w-4 mr-1" />
+              Delete project
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
@@ -68,11 +78,17 @@ export default function DeleteProject({ }: DeleteProjectProps) {
             </div>
             <DialogFooter>
               <Button
-                disabled={(inputProjectName !== projectName) || isLoading}
+                disabled={inputProjectName !== projectName || isLoading}
                 onClick={deleteProject}
-                handleEnter
+                handleEnter={true}
               >
-                <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
+                <Loader
+                  className={cn(
+                    'mr-2 hidden',
+                    isLoading ? 'animate-spin block' : ''
+                  )}
+                  size={16}
+                />
                 Delete
               </Button>
             </DialogFooter>

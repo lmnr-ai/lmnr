@@ -42,7 +42,10 @@ import FunctionNodePreview from '@/assets/pipeline/node-previews/function-node-p
 import SemanticSearchNodePreview from '@/assets/pipeline/node-previews/semantic-search-node-preview.png';
 import WebSearchNodePreview from '@/assets/pipeline/node-previews/web-search-node-preview.png';
 import SemanticSimilarityNodePreview from '@/assets/pipeline/node-previews/semantic-similarity-node-preview.png';
-import { StaticImageData, StaticImport } from 'next/dist/shared/lib/get-img-props';
+import {
+  StaticImageData,
+  StaticImport
+} from 'next/dist/shared/lib/get-img-props';
 import { DEFAULT_CODE } from '@/components/pipeline/nodes/code';
 
 export const NODE_TYPE_TO_DOCS = {
@@ -65,21 +68,30 @@ export const NODE_TYPE_TO_DOCS = {
   [NodeType.CODE]: 'https://docs.lmnr.ai/nodes/code',
   [NodeType.TOOL_CALL]: 'https://docs.lmnr.ai/nodes/tool-call',
   [NodeType.FUNCTION]: 'https://docs.lmnr.ai/nodes/function-call',
-  [NodeType.SEMANTIC_SIMILARITY]: 'https://docs.lmnr.ai/nodes/semantic-similarity',
-  [NodeType.CODE_SANDBOX]: 'https://docs.lmnr.ai/nodes/code-sandbox',
+  [NodeType.SEMANTIC_SIMILARITY]:
+    'https://docs.lmnr.ai/nodes/semantic-similarity',
+  [NodeType.CODE_SANDBOX]: 'https://docs.lmnr.ai/nodes/code-sandbox'
 };
 
-export const NODE_PREVIEWS: Partial<Record<NodeType, { description: string, imageSrc: StaticImport | StaticImageData, }>> = {
+export const NODE_PREVIEWS: Partial<
+  Record<
+    NodeType,
+    { description: string; imageSrc: StaticImport | StaticImageData }
+  >
+> = {
   [NodeType.INPUT]: {
-    description: 'Input data into the pipeline. This defines the JSON schema of endpoint requests to Laminar',
-    imageSrc: InputNodePreview,
+    description:
+      'Input data into the pipeline. This defines the JSON schema of endpoint requests to Laminar',
+    imageSrc: InputNodePreview
   },
   [NodeType.OUTPUT]: {
-    description: 'Output data from the pipeline. This defines the JSON schema of endpoint responses from Laminar',
-    imageSrc: OutputNodePreview,
+    description:
+      'Output data from the pipeline. This defines the JSON schema of endpoint responses from Laminar',
+    imageSrc: OutputNodePreview
   },
   [NodeType.STRING_TEMPLATE]: {
-    description: 'Templated string that creates node input for every {{variable}} and replaces it with the corresponding value',
+    description:
+      'Templated string that creates node input for every {{variable}} and replaces it with the corresponding value',
     imageSrc: StringTemplateNodePreview
   },
   [NodeType.JSON_EXTRACTOR]: {
@@ -93,18 +105,21 @@ export const NODE_PREVIEWS: Partial<Record<NodeType, { description: string, imag
   [NodeType.MAP]: {
     description: `Takes a list of strings and runs another pipeline for each string.
     Each element is sent to the pipeline as input, and the output is collected in a list`,
-    imageSrc: MapNodePreview,
+    imageSrc: MapNodePreview
   },
   [NodeType.SWITCH]: {
-    description: 'Conditionaly direct the input to the a branch output based on the exact match to the condition',
+    description:
+      'Conditionaly direct the input to the a branch output based on the exact match to the condition',
     imageSrc: SwitchNodePreview
   },
   [NodeType.SEMANTIC_SWITCH]: {
-    description: 'Classify the input based on the semantic similarity to the given classes and direct it to the corresponding branch output',
+    description:
+      'Classify the input based on the semantic similarity to the given classes and direct it to the corresponding branch output',
     imageSrc: SemanticSwitchNodePreview
   },
   [NodeType.LLM]: {
-    description: 'Run a Language Model. Supports streaming, tools, params, models from many providers, and structured JSON output',
+    description:
+      'Run a Language Model. Supports streaming, tools, params, models from many providers, and structured JSON output',
     imageSrc: LLMNodePreview
   },
   [NodeType.CODE]: {
@@ -122,25 +137,30 @@ export const NODE_PREVIEWS: Partial<Record<NodeType, { description: string, imag
     imageSrc: ToolCallNodePreview
   },
   [NodeType.FUNCTION]: {
-    description: 'Call a function defined in your local codebase. Define the function signature and the node will call the function',
+    description:
+      'Call a function defined in your local codebase. Define the function signature and the node will call the function',
     imageSrc: FunctionNodePreview
   },
   [NodeType.SEMANTIC_SEARCH]: {
-    description: 'Search for the most semantically relevant contexts in the dataset. We fully manage the vector DB infrastructure',
+    description:
+      'Search for the most semantically relevant contexts in the dataset. We fully manage the vector DB infrastructure',
     imageSrc: SemanticSearchNodePreview
   },
   [NodeType.WEB_SEARCH]: {
-    description: 'Search the web for the most relevant contexts. Uses Google search API',
+    description:
+      'Search the web for the most relevant contexts. Uses Google search API',
     imageSrc: WebSearchNodePreview
   },
 
   [NodeType.SEMANTIC_SIMILARITY]: {
     description: 'Calculate the semantic similarity between two strings',
     imageSrc: SemanticSimilarityNodePreview
-  },
+  }
 };
 
-export function getDefaultGraphInputs(inputNodes: InputNode[]): Record<string, any> {
+export function getDefaultGraphInputs(
+  inputNodes: InputNode[]
+): Record<string, any> {
   const inputs = {} as Record<string, any>;
 
   for (const node of inputNodes) {
@@ -149,10 +169,12 @@ export function getDefaultGraphInputs(inputNodes: InputNode[]): Record<string, a
       inputs[node.name] = '';
       break;
     case NodeHandleType.CHAT_MESSAGE_LIST:
-      inputs[node.name] = [{
-        role: 'user',
-        content: '',
-      }];
+      inputs[node.name] = [
+        {
+          role: 'user',
+          content: ''
+        }
+      ];
       break;
     }
   }
@@ -175,11 +197,13 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       type: NodeType.INPUT,
       name: 'Input' + '_' + generateShortHash(),
       inputs: [],
-      outputs: [{
-        id: uuidv4(),
-        name: 'output',
-        type: NodeHandleType.STRING // default value
-      }],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'output',
+          type: NodeHandleType.STRING // default value
+        }
+      ],
       input: '',
       inputType: NodeHandleType.STRING
     } as InputNode;
@@ -189,11 +213,13 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       type: NodeType.STRING_TEMPLATE,
       name: 'String Template' + '_' + generateShortHash(),
       inputs: [],
-      outputs: [{
-        id: uuidv4(),
-        name: 'output',
-        type: NodeHandleType.STRING
-      }],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'output',
+          type: NodeHandleType.STRING
+        }
+      ],
       text: '',
       inputsMappings: {}
     } as StringTemplateNode;
@@ -203,11 +229,13 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       type: NodeType.SUBPIPELINE,
       name: 'Subpipeline' + '_' + generateShortHash(),
       inputs: [],
-      outputs: [{
-        id: uuidv4(),
-        name: 'output',
-        type: NodeHandleType.ANY
-      }],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'output',
+          type: NodeHandleType.ANY
+        }
+      ],
       pipelineName: '',
       pipelineId: null,
       pipelineVersionName: '',
@@ -222,16 +250,20 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.MAP,
       name: 'Map' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'inputs',
-        type: NodeHandleType.STRING_LIST
-      }],
-      outputs: [{
-        id: uuidv4(),
-        name: 'outputs',
-        type: NodeHandleType.STRING_LIST
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'inputs',
+          type: NodeHandleType.STRING_LIST
+        }
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'outputs',
+          type: NodeHandleType.STRING_LIST
+        }
+      ],
       pipelineName: '',
       pipelineId: null,
       pipelineVersionName: '',
@@ -246,20 +278,24 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.SEMANTIC_SEARCH,
       name: 'Semantic Search' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'query',
-        type: NodeHandleType.STRING,
-      }],
-      outputs: [{
-        id: uuidv4(),
-        name: 'output',
-        type: NodeHandleType.STRING
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'query',
+          type: NodeHandleType.STRING
+        }
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'output',
+          type: NodeHandleType.STRING
+        }
+      ],
       limit: 10,
       threshold: 0.5,
       datasets: [],
-      template: '[{{relevance_index}}]\n{{content}}\n---\n',
+      template: '[{{relevance_index}}]\n{{content}}\n---\n'
     } as SemanticSearchNode;
   case NodeType.OUTPUT:
     return {
@@ -267,24 +303,28 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.OUTPUT,
       name: 'Output' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'output',
-        type: NodeHandleType.ANY
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'output',
+          type: NodeHandleType.ANY
+        }
+      ],
       outputs: [],
-      outputCastType: null,
+      outputCastType: null
     } as GenericNode;
   case NodeType.ERROR:
     return {
       id,
       type: NodeType.ERROR,
       name: 'Error' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'error',
-        type: NodeHandleType.ANY
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'error',
+          type: NodeHandleType.ANY
+        }
+      ],
       inputType: NodeHandleType.STRING,
       outputs: []
     } as ErrorNode;
@@ -293,11 +333,13 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.SEMANTIC_SWITCH,
       name: 'Semantic Switch' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'input',
-        type: NodeHandleType.STRING
-      },],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'input',
+          type: NodeHandleType.STRING
+        }
+      ],
       outputs: [],
       conditionNodes: [],
       routes: [],
@@ -308,21 +350,25 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.FORMAT_VALIDATOR,
       name: 'Format Validator' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'input',
-        type: NodeHandleType.STRING
-      }],
-      outputs: [{
-        id: uuidv4(),
-        name: 'correct',
-        type: NodeHandleType.STRING
-      },
-      {
-        id: uuidv4(),
-        name: 'incorrect',
-        type: NodeHandleType.STRING
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'input',
+          type: NodeHandleType.STRING
+        }
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'correct',
+          type: NodeHandleType.STRING
+        },
+        {
+          id: uuidv4(),
+          name: 'incorrect',
+          type: NodeHandleType.STRING
+        }
+      ],
       format: '',
       isCondtional: true
     } as FormatValidatorNode;
@@ -331,28 +377,32 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.ZENGUARD,
       name: 'Zenguard' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'input',
-        type: NodeHandleType.STRING
-      }],
-      outputs: [{
-        id: uuidv4(),
-        name: 'passthrough',
-        type: NodeHandleType.STRING
-      },
-      {
-        id: uuidv4(),
-        name: 'block',
-        type: NodeHandleType.STRING
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'input',
+          type: NodeHandleType.STRING
+        }
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'passthrough',
+          type: NodeHandleType.STRING
+        },
+        {
+          id: uuidv4(),
+          name: 'block',
+          type: NodeHandleType.STRING
+        }
+      ],
       detectors: [
-        { type: "prompt_injection", enabled: false },
-        { type: "pii", enabled: false },
-        { type: "topics/allowed", enabled: false },
-        { type: "topics/banned", enabled: false },
-        { type: "keywords", enabled: false },
-        { type: "secrets", enabled: false }
+        { type: 'prompt_injection', enabled: false },
+        { type: 'pii', enabled: false },
+        { type: 'topics/allowed', enabled: false },
+        { type: 'topics/banned', enabled: false },
+        { type: 'keywords', enabled: false },
+        { type: 'secrets', enabled: false }
       ],
       isCondtional: true
     } as ZenguardNode;
@@ -361,15 +411,19 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.EXTRACTOR,
       name: 'Extractor' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'input',
-        type: NodeHandleType.STRING
-      }],
-      outputs: [{
-        id: uuidv4(),
-        type: NodeHandleType.STRING
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'input',
+          type: NodeHandleType.STRING
+        }
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          type: NodeHandleType.STRING
+        }
+      ],
       format: ''
     } as ExtractorNode;
   case NodeType.JSON_EXTRACTOR:
@@ -377,15 +431,19 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.JSON_EXTRACTOR,
       name: 'JSON Extractor' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'input',
-        type: NodeHandleType.STRING
-      }],
-      outputs: [{
-        id: uuidv4(),
-        type: NodeHandleType.STRING
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'input',
+          type: NodeHandleType.STRING
+        }
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          type: NodeHandleType.STRING
+        }
+      ],
       template: ''
     } as JsonExtractorNode;
   case NodeType.LLM:
@@ -393,39 +451,47 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.LLM,
       name: 'LLM' + '_' + generateShortHash(),
-      dynamicInputs: [{
-        id: uuidv4(),
-        name: 'prompt',
-        type: NodeHandleType.STRING
-      }],
+      dynamicInputs: [
+        {
+          id: uuidv4(),
+          name: 'prompt',
+          type: NodeHandleType.STRING
+        }
+      ],
       inputs: [],
-      outputs: [{
-        id: uuidv4(),
-        type: NodeHandleType.STRING
-      }],
+      outputs: [
+        {
+          id: uuidv4(),
+          type: NodeHandleType.STRING
+        }
+      ],
       model: 'openai:gpt-3.5-turbo',
       prompt: '{{prompt}}',
       modelParams: null,
-      stream: false,
+      stream: false
     } as GenericNode;
   case NodeType.WEB_SEARCH:
     return {
       id,
       type: NodeType.WEB_SEARCH,
       name: 'Web Search' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'query',
-        type: NodeHandleType.STRING
-      }],
-      outputs: [{
-        id: uuidv4(),
-        type: NodeHandleType.STRING
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'query',
+          type: NodeHandleType.STRING
+        }
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          type: NodeHandleType.STRING
+        }
+      ],
       limit: 10,
       template: '{{title}}\n{{url}}\n{{content}}\n---',
       semanticTextSearchEnabled: false,
-      semanticTextSearchLimit: 10,
+      semanticTextSearchLimit: 10
     } as WebSearchNode;
   case NodeType.SWITCH:
     return {
@@ -442,7 +508,8 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
           id: uuidv4(),
           name: 'input',
           type: NodeHandleType.ANY
-        }],
+        }
+      ],
       outputs: [],
       routes: [],
       hasDefaultRoute: false,
@@ -453,39 +520,47 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
       id,
       type: NodeType.CODE,
       name: 'Code' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'string_list',
-        type: NodeHandleType.STRING_LIST
-      },
-      {
-        id: uuidv4(),
-        name: 'chat_messages',
-        type: NodeHandleType.CHAT_MESSAGE_LIST
-      }],
-      outputs: [{
-        id: uuidv4(),
-        name: 'output',
-        type: NodeHandleType.STRING
-      }],
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'string_list',
+          type: NodeHandleType.STRING_LIST
+        },
+        {
+          id: uuidv4(),
+          name: 'chat_messages',
+          type: NodeHandleType.CHAT_MESSAGE_LIST
+        }
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'output',
+          type: NodeHandleType.STRING
+        }
+      ],
       code: DEFAULT_CODE,
-      fnName: 'main',
+      fnName: 'main'
     } as CodeNode;
   case NodeType.TOOL_CALL:
     return {
       id,
       type: NodeType.TOOL_CALL,
       name: 'Tool Call' + '_' + generateShortHash(),
-      inputs: [{
-        id: uuidv4(),
-        name: 'input',
-        type: NodeHandleType.STRING
-      }],
-      outputs: [{
-        id: uuidv4(),
-        name: 'output',
-        type: NodeHandleType.STRING
-      }]
+      inputs: [
+        {
+          id: uuidv4(),
+          name: 'input',
+          type: NodeHandleType.STRING
+        }
+      ],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'output',
+          type: NodeHandleType.STRING
+        }
+      ]
     } as ToolCallNode;
   case NodeType.FUNCTION:
     return {
@@ -505,11 +580,13 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
           type: NodeHandleType.ANY
         }
       ],
-      outputs: [{
-        id: uuidv4(),
-        name: 'output',
-        type: NodeHandleType.ANY
-      }],
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'output',
+          type: NodeHandleType.ANY
+        }
+      ],
       parameterNames: ['first', 'second']
     } as FunctionNode;
 
@@ -523,17 +600,20 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
           id: uuidv4(),
           name: 'first',
           type: NodeHandleType.STRING
-        }, {
+        },
+        {
           id: uuidv4(),
           name: 'second',
           type: NodeHandleType.STRING
-        },
+        }
       ],
-      outputs: [{
-        id: uuidv4(),
-        name: 'output',
-        type: NodeHandleType.FLOAT
-      }]
+      outputs: [
+        {
+          id: uuidv4(),
+          name: 'output',
+          type: NodeHandleType.FLOAT
+        }
+      ]
     } as ToolCallNode;
   case NodeType.CODE_SANDBOX:
     return {
@@ -545,7 +625,7 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
           id: uuidv4(),
           name: 'code',
           type: NodeHandleType.STRING
-        },
+        }
       ],
       outputs: [
         {
@@ -565,12 +645,14 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
 export const DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE = {
   [NodeHandleType.STRING]: '',
   [NodeHandleType.STRING_LIST]: [''],
-  [NodeHandleType.CHAT_MESSAGE_LIST]: [{
-    role: 'user',
-    content: ''
-  }] as ChatMessage[],
+  [NodeHandleType.CHAT_MESSAGE_LIST]: [
+    {
+      role: 'user',
+      content: ''
+    }
+  ] as ChatMessage[],
   [NodeHandleType.FLOAT]: 0,
-  [NodeHandleType.ANY]: '',
+  [NodeHandleType.ANY]: ''
 };
 
 export function isStringList(input: NodeInput): input is string[] {
@@ -582,29 +664,38 @@ export function isStringList(input: NodeInput): input is string[] {
 export function isChatMessageList(input: NodeInput): input is ChatMessage[] {
   if (input === undefined) return false;
   if (!Array.isArray(input)) return false;
-  return input.every((item) =>
-    // Check for !== null first, because typeof null is 'object'
-    item !== null && typeof item === 'object' && 'role' in item && 'content' in item
+  return input.every(
+    (item) =>
+      // Check for !== null first, because typeof null is 'object'
+      item !== null &&
+      typeof item === 'object' &&
+      'role' in item &&
+      'content' in item
   );
 }
 
-export const renderChatMessageContentParts = (parts: ChatMessageContentPart[]): string => parts.map(part => {
-  if (part.type === 'text') {
-    return part.text;
-  } else if (part.type === 'image_url') {
-    return part.url;
-  } else {
-    let data;
-    if (part.data.length <= 30) {
-      data = part.data;
-    } else {
-      const firstPart = part.data.slice(0, 10);
-      const lastPart = part.data.slice(-10);
-      data = `${firstPart}...${lastPart}`;
-    }
-    return `Image\nMedia type: ${part.mediaType}\nData: ${data}`;
-  }
-}).join('\n\n');
+export const renderChatMessageContentParts = (
+  parts: ChatMessageContentPart[]
+): string =>
+  parts
+    .map((part) => {
+      if (part.type === 'text') {
+        return part.text;
+      } else if (part.type === 'image_url') {
+        return part.url;
+      } else {
+        let data;
+        if (part.data.length <= 30) {
+          data = part.data;
+        } else {
+          const firstPart = part.data.slice(0, 10);
+          const lastPart = part.data.slice(-10);
+          data = `${firstPart}...${lastPart}`;
+        }
+        return `Image\nMedia type: ${part.mediaType}\nData: ${data}`;
+      }
+    })
+    .join('\n\n');
 
 /**
  * Render the node input as a string for display in the UI.
@@ -618,38 +709,40 @@ export const renderNodeInput = (input: NodeInput): string => {
   } else if (isStringList(input)) {
     return JSON.stringify(input, null, 2); // `[\n  ${(input as string[]).join(',\n  ')}\n]`
   } else if (isChatMessageList(input)) {
-    return (input as ChatMessage[]).map(message => {
-      if (isStringType(message.content)) {
-        return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${message.content}`;
-      } else {
-        return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${renderChatMessageContentParts(message.content)}`;
-      }
-    })
+    return (input as ChatMessage[])
+      .map((message) => {
+        if (isStringType(message.content)) {
+          return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${message.content}`;
+        } else {
+          return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${renderChatMessageContentParts(message.content)}`;
+        }
+      })
       .join('\n\n---\n\n');
   } else {
     return JSON.stringify(input, null, 2);
   }
 };
 
-export const renderChatMessageList = (messages: ChatMessage[]): string => messages.map(message => {
+export const renderChatMessageList = (messages: ChatMessage[]): string =>
+  messages
+    .map((message) => {
+      let tag = '';
 
-  let tag = '';
+      if (message.role === 'user') {
+        tag = 'User';
+      } else if (message.role === 'assistant') {
+        tag = 'Assistant';
+      } else if (message.role === 'system') {
+        tag = 'System';
+      }
 
-  if (message.role === 'user') {
-    tag = 'User';
-  } else if (message.role === 'assistant') {
-    tag = 'Assistant';
-  } else if (message.role === 'system') {
-    tag = 'System';
-  }
-
-  if (isStringType(message.content)) {
-    return `<${tag}>\n${message.content}\n</${tag}>\n`;
-  } else {
-    return `<${tag}>\n${renderChatMessageContentParts(message.content)}\n</${tag}>\n`;
-  }
-
-}).join('\n\n');
+      if (isStringType(message.content)) {
+        return `<${tag}>\n${message.content}\n</${tag}>\n`;
+      } else {
+        return `<${tag}>\n${renderChatMessageContentParts(message.content)}\n</${tag}>\n`;
+      }
+    })
+    .join('\n\n');
 
 export const getDurationString = (startTime: string, endTime: string) => {
   const start = new Date(startTime);
@@ -662,7 +755,7 @@ export const getDurationString = (startTime: string, endTime: string) => {
 export const getDuration = (startTime: string, endTime: string) => {
   const start = new Date(startTime);
   const end = new Date(endTime);
-  return (end.getTime() - start.getTime());
+  return end.getTime() - start.getTime();
 };
 
 /**
@@ -670,13 +763,22 @@ export const getDuration = (startTime: string, endTime: string) => {
  *
  * NOTE: Use it only for pipeline runs, not for other components such as PipelineEnv, UseAPI, etc.
  */
-export const filterRunRequiredEnvVars = (requiredEnvVars: Set<string>, nodes: GenericNode[]): Set<string> => {
+export const filterRunRequiredEnvVars = (
+  requiredEnvVars: Set<string>,
+  nodes: GenericNode[]
+): Set<string> => {
   const filteredEnvVars = new Set(requiredEnvVars);
 
   let removeOpenaiAPIKey = false;
   for (const node of nodes) {
-    if (node.type === NodeType.LLM && (node as LLMNode).model?.startsWith('openai:')) {
-      if ((node as LLMNode).model?.startsWith('openai:gpt-3.5') || (node as LLMNode).model === 'openai:gpt-4o-mini') {
+    if (
+      node.type === NodeType.LLM &&
+      (node as LLMNode).model?.startsWith('openai:')
+    ) {
+      if (
+        (node as LLMNode).model?.startsWith('openai:gpt-3.5') ||
+        (node as LLMNode).model === 'openai:gpt-4o-mini'
+      ) {
         removeOpenaiAPIKey = true;
       } else {
         removeOpenaiAPIKey = false;

@@ -12,6 +12,15 @@ use crate::{
     routes::ResponseResult,
 };
 
+fn validate_user_email(email: &str) -> Result<()> {
+    let email_regex =
+        regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+    if !email_regex.is_match(email) {
+        return Err(anyhow::anyhow!("Invalid email format"));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 struct SignInParams {
     name: String,
@@ -54,6 +63,7 @@ async fn signin(params: web::Json<SignInParams>, db: web::Data<DB>) -> ResponseR
         user_id,
         name: String::from("default"),
     };
+
     validate_user_email(&user.email)?;
 
     write_user(&db.pool, &user.id, &user.email, &user.name).await?;
@@ -63,17 +73,7 @@ async fn signin(params: web::Json<SignInParams>, db: web::Data<DB>) -> ResponseR
         api_key: api_key.api_key,
         is_new_user_created: true,
     };
-
     Ok(HttpResponse::Ok().json(res))
-}
-
-fn validate_user_email(email: &str) -> Result<()> {
-    let email_regex =
-        regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
-    if !email_regex.is_match(email) {
-        return Err(anyhow::anyhow!("Invalid email format"));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

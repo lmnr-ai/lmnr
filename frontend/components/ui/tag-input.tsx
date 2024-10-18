@@ -30,7 +30,7 @@ export type Tag = {
 
 export interface TagInputProps
   extends OmittedInputProps,
-  VariantProps<typeof tagVariants> {
+    VariantProps<typeof tagVariants> {
   placeholder?: string;
   tags: Tag[];
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
@@ -279,19 +279,20 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       ? tags.map((tag) => ({
         id: tag.id,
         text:
-          tag.text?.length > truncate
-            ? `${tag.text.substring(0, truncate)}...`
-            : tag.text
+            tag.text?.length > truncate
+              ? `${tag.text.substring(0, truncate)}...`
+              : tag.text
       }))
       : displayedTags;
 
     return (
       <div
-        className={`w-full flex gap-3 ${inputFieldPostion === 'bottom'
-          ? 'flex-col'
-          : inputFieldPostion === 'top'
-            ? 'flex-col-reverse'
-            : 'flex-row'
+        className={`w-full flex gap-3 ${
+          inputFieldPostion === 'bottom'
+            ? 'flex-col'
+            : inputFieldPostion === 'top'
+              ? 'flex-col-reverse'
+              : 'flex-row'
         }`}
       >
         {!usePopoverForTags ? (
@@ -338,7 +339,9 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   onChangeCapture={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onFocus={onFocus}
-                  onBlur={(e) => { handleOnBlur(e, onBlur); }}
+                  onBlur={(e) => {
+                    handleOnBlur(e, onBlur);
+                  }}
                   className="w-full"
                 />
               ) : (
@@ -373,7 +376,9 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                     onChangeCapture={handleInputChange}
                     onKeyDown={handleKeyDown}
                     onFocus={onFocus}
-                    onBlur={(e) => { handleOnBlur(e, onBlur); }}
+                    onBlur={(e) => {
+                      handleOnBlur(e, onBlur);
+                    }}
                     className="w-full"
                   />
                 </TagPopover>
@@ -396,7 +401,9 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onFocus={onFocus}
-                onBlur={(e) => { handleOnBlur(e, onBlur); }}
+                onBlur={(e) => {
+                  handleOnBlur(e, onBlur);
+                }}
                 {...inputProps}
                 className={className}
                 autoComplete={enableAutocomplete ? 'on' : 'off'}
@@ -436,7 +443,9 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onFocus={onFocus}
-                  onBlur={(e) => { handleOnBlur(e, onBlur); }}
+                  onBlur={(e) => {
+                    handleOnBlur(e, onBlur);
+                  }}
                   {...inputProps}
                   className={className}
                   autoComplete={enableAutocomplete ? 'on' : 'off'}

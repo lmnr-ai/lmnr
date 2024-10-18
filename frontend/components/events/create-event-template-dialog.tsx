@@ -16,9 +16,14 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProjectContext } from '@/contexts/project-context';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '../ui/select';
 import { EventType } from '@/lib/events/types';
-
 
 export default function CreateEventTemplateDialog() {
   const { projectId } = useProjectContext();
@@ -30,7 +35,6 @@ export default function CreateEventTemplateDialog() {
   const [name, setName] = useState<string>('');
   const [eventType, setEventType] = useState<EventType | null>(null);
 
-
   const createNewEvent = async () => {
     setIsLoading(true);
 
@@ -38,8 +42,8 @@ export default function CreateEventTemplateDialog() {
       method: 'POST',
       body: JSON.stringify({
         name,
-        eventType,
-      }),
+        eventType
+      })
     });
 
     await res.json();
@@ -56,9 +60,7 @@ export default function CreateEventTemplateDialog() {
     <>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
-          <Button variant="default">
-            New event
-          </Button>
+          <Button variant="default">New event</Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -81,19 +83,27 @@ export default function CreateEventTemplateDialog() {
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem key="boolean" value={EventType.BOOLEAN}>Boolean</SelectItem>
-                <SelectItem key="string" value={EventType.STRING}>String</SelectItem>
-                <SelectItem key="number" value={EventType.NUMBER}>Number</SelectItem>
+                <SelectItem key="boolean" value={EventType.BOOLEAN}>
+                  Boolean
+                </SelectItem>
+                <SelectItem key="string" value={EventType.STRING}>
+                  String
+                </SelectItem>
+                <SelectItem key="number" value={EventType.NUMBER}>
+                  Number
+                </SelectItem>
               </SelectContent>
             </Select>
-
           </div>
           <DialogFooter>
-            <Button
-              onClick={createNewEvent}
-              disabled={isLoading || !isReady()}
-            >
-              <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
+            <Button onClick={createNewEvent} disabled={isLoading || !isReady()}>
+              <Loader
+                className={cn(
+                  'mr-2 hidden',
+                  isLoading ? 'animate-spin block' : ''
+                )}
+                size={16}
+              />
               Create
             </Button>
           </DialogFooter>

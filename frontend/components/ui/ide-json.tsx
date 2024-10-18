@@ -2,14 +2,12 @@ import ReactAce from 'react-ace';
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/theme-tomorrow';
 
-
 interface IdeJsonProps {
-  value?: string
-  onChange?: (value: string) => void
+  value?: string;
+  onChange?: (value: string) => void;
 }
 
 export default function IdeJson({ value, onChange }: IdeJsonProps) {
-
   return (
     <div>
       <ReactAce
@@ -28,5 +26,4 @@ export default function IdeJson({ value, onChange }: IdeJsonProps) {
       />
     </div>
   );
-
 }

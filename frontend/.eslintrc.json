@@ -1,11 +1,36 @@
 {
-  "extends": ["next/core-web-vitals", "prettier"],
+  "extends": [
+    "next/core-web-vitals",
+    "prettier"
+  ],
   "rules": {
-    "indent": ["error", 2],
-    "eol-last": ["error", "always"],
-    "max-len": ["warn", { "code": 120, "ignoreUrls": true, "ignoreStrings": true, "ignoreTemplateLiterals": true }],
-    "semi": ["error", "always"], 
-    "no-trailing-spaces": ["error"], 
-    "arrow-body-style": ["warn", "as-needed"] 
+    "indent": [
+      "error",
+      2
+    ],
+    "eol-last": [
+      "error",
+      "always"
+    ],
+    "max-len": [
+      "warn",
+      {
+        "code": 120,
+        "ignoreUrls": true,
+        "ignoreStrings": true,
+        "ignoreTemplateLiterals": true
+      }
+    ],
+    "semi": [
+      "error",
+      "always"
+    ],
+    "no-trailing-spaces": [
+      "error"
+    ],
+    "arrow-body-style": [
+      "warn",
+      "as-needed"
+    ]
   }
 }
