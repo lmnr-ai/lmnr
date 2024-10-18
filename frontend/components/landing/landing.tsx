@@ -5,7 +5,7 @@ import yc from '@/assets/landing/yc.svg';
 import traces from '@/assets/landing/traces.png';
 import { ArrowRight, ArrowUpRight, Github } from 'lucide-react';
 import smallTrace from '@/assets/landing/small-trace.png';
-import moa from '@/assets/landing/moa.png';
+import moa from '@/assets/landing/MoA.png';
 import palantir from '@/assets/landing/palantir.svg';
 import amazon from '@/assets/landing/amazon.svg';
 import github from '@/assets/landing/github-mark-white.svg';
