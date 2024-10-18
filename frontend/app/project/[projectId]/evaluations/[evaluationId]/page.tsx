@@ -6,11 +6,14 @@ import { fetcherJSON } from '@/lib/utils';
 import Evaluation from '@/components/evaluation/evaluation';
 
 export const metadata: Metadata = {
-  title: 'Evaluation results',
+  title: 'Evaluation results'
 };
 
-export default async function EvaluationPage({params}: {params: { projectId: string, evaluationId: string }}) {
-
+export default async function EvaluationPage({
+  params
+}: {
+  params: { projectId: string; evaluationId: string };
+}) {
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
@@ -18,27 +21,33 @@ export default async function EvaluationPage({params}: {params: { projectId: str
 
   const user = session.user;
 
-  const getEvaluationInfo = fetcherJSON(`/projects/${params.projectId}/evaluations/${params.evaluationId}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
+  const getEvaluationInfo = fetcherJSON(
+    `/projects/${params.projectId}/evaluations/${params.evaluationId}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${user.apiKey}`
+      }
     }
-  });
+  );
 
   // Expect backend to return only evaluations from the current group based on the current evaluation id
-  const getEvaluations = fetcherJSON(`/projects/${params.projectId}/evaluations?currentEvaluationId=${params.evaluationId}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
+  const getEvaluations = fetcherJSON(
+    `/projects/${params.projectId}/evaluations?currentEvaluationId=${params.evaluationId}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${user.apiKey}`
+      }
     }
-  });
+  );
 
-  const [evaluationInfo, evaluations] = await Promise.all([getEvaluationInfo, getEvaluations]);
+  const [evaluationInfo, evaluations] = await Promise.all([
+    getEvaluationInfo,
+    getEvaluations
+  ]);
 
   return (
-    <Evaluation
-      evaluationInfo={evaluationInfo}
-      evaluations={evaluations}
-    />
+    <Evaluation evaluationInfo={evaluationInfo} evaluations={evaluations} />
   );
 }

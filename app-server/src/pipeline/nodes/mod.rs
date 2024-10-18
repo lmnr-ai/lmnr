@@ -6,21 +6,23 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::code_executor::code_executor_grpc::HandleType as GrpcHandleType;
 use crate::language_model::ChatMessage;
 use crate::language_model::{ChatMessageContent, ChatMessageContentPart};
 
 use super::runner::PipelineRunnerError;
 use super::trace::{MetaLog, RunTrace};
 
+pub mod code;
 mod condition;
 mod error;
 mod extractor;
 mod format_validator;
-mod input;
+pub mod input;
 mod json_extractor;
 pub mod llm;
 pub mod map;
-mod output;
+pub mod output;
 mod semantic_search;
 mod semantic_search_utils;
 mod semantic_similarity;
@@ -32,7 +34,7 @@ pub mod utils;
 pub mod zenguard;
 use anyhow::Error;
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum NodeInput {
     Boolean(bool),
@@ -49,7 +51,7 @@ pub enum NodeInput {
     ConditionedValue(ConditionedValue),
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ConditionedValue {
     pub condition: String,
     pub value: Box<NodeInput>,
@@ -223,6 +225,18 @@ pub enum HandleType {
     Any,
 }
 
+impl Into<GrpcHandleType> for HandleType {
+    fn into(self) -> GrpcHandleType {
+        match self {
+            HandleType::String => GrpcHandleType::String,
+            HandleType::StringList => GrpcHandleType::StringList,
+            HandleType::ChatMessageList => GrpcHandleType::ChatMessageList,
+            HandleType::Float => GrpcHandleType::Float,
+            HandleType::Any => GrpcHandleType::Any,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct Handle {
     pub id: Uuid,
@@ -259,6 +273,7 @@ pub enum Node {
     LLM(llm::LLMNode),
     Switch(switch::SwitchNode),
     SemanticSimilarity(semantic_similarity::SemanticSimilarityNode),
+    Code(code::CodeNode),
 }
 
 impl Node {
@@ -282,6 +297,7 @@ impl Node {
             Self::Switch(node) => node.id,
             Self::JsonExtractor(node) => node.id,
             Self::SemanticSimilarity(node) => node.id,
+            Self::Code(node) => node.id,
         }
         .clone()
     }
@@ -319,6 +335,7 @@ impl Node {
             Self::Switch(node) => node.name.as_str(),
             Self::JsonExtractor(node) => node.name.as_str(),
             Self::SemanticSimilarity(node) => node.name.as_str(),
+            Self::Code(node) => node.name.as_str(),
         }
         .to_owned()
     }

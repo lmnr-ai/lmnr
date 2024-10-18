@@ -1,5 +1,11 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
-import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from './select';
+import { useState } from 'react';
 import YAML from 'yaml';
 import CodeMirror from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
@@ -7,8 +13,8 @@ import { githubDarkStyle, githubDark } from '@uiw/codemirror-theme-github';
 import { json } from '@codemirror/lang-json';
 import { yaml } from '@codemirror/lang-yaml';
 import { python } from '@codemirror/lang-python';
-import { EditorView } from "@codemirror/view";
-import { cn } from "@/lib/utils";
+import { EditorView } from '@codemirror/view';
+import { cn } from '@/lib/utils';
 
 interface CodeEditorProps {
   value: string;
@@ -25,39 +31,44 @@ const myTheme = createTheme({
     background: 'transparent',
     lineHighlight: 'transparent',
     gutterBackground: 'transparent',
-    gutterBorder: 'transparent',
+    gutterBorder: 'transparent'
   },
-  styles: githubDarkStyle,
+  styles: githubDarkStyle
 });
 
-export default function CodeEditor({ value, language = "text", editable = true, onChange, className }: CodeEditorProps) {
+export default function CodeEditor({
+  value,
+  language = 'text',
+  editable = true,
+  onChange,
+  className
+}: CodeEditorProps) {
+  const extensions = [
+    EditorView.lineWrapping,
+    EditorView.theme({
+      '&.cm-focused': {
+        outline: 'none !important'
+      }
+    })
+  ];
 
-  const extensions = [EditorView.lineWrapping, EditorView.theme({
-    '&.cm-focused': {
-      outline: 'none !important',
-    },
-  })];
-
-
-  if (language === "python") {
+  if (language === 'python') {
     extensions.push(python());
-  } else if (language === "json") {
+  } else if (language === 'json') {
     extensions.push(json());
-  } else if (language === "yaml") {
+  } else if (language === 'yaml') {
     extensions.push(yaml());
   }
 
-
   return (
-    <div className={cn("w-full h-full flex flex-col p-2", className)}>
-
+    <div className={cn('w-full h-full flex flex-col p-2', className)}>
       <CodeMirror
         className="border-none"
         theme={myTheme}
         extensions={extensions}
         editable={editable}
         value={value}
-        onChange={v => {
+        onChange={(v) => {
           onChange?.(v);
         }}
       />

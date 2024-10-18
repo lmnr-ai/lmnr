@@ -3,7 +3,13 @@ import { Popover, PopoverTrigger } from './popover';
 import { Button } from './button';
 import { PopoverContent } from '@radix-ui/react-popover';
 import { ColumnDef } from '@tanstack/react-table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from './select';
 import { Input } from './input';
 import { useEffect, useState } from 'react';
 import { ListFilter, X } from 'lucide-react';
@@ -17,7 +23,8 @@ interface DataTableFilterProps<TData> {
   className?: string;
 }
 
-const toFilterUrlParam = (filters: DatatableFilter[]): string => JSON.stringify(filters);
+const toFilterUrlParam = (filters: DatatableFilter[]): string =>
+  JSON.stringify(filters);
 
 const SELECT_OPERATORS = [
   { key: 'eq', label: '=' },
@@ -25,31 +32,50 @@ const SELECT_OPERATORS = [
   { key: 'gt', label: '>' },
   { key: 'lte', label: '<=' },
   { key: 'gte', label: '>=' },
-  { key: 'ne', label: '!=' },
+  { key: 'ne', label: '!=' }
 ];
 
-export default function DataTableFilter<TData>({ columns, className, customFilterColumns }: DataTableFilterProps<TData>) {
+export default function DataTableFilter<TData>({
+  columns,
+  className,
+  customFilterColumns
+}: DataTableFilterProps<TData>) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const queryParamFilters = searchParams.get('filter');
 
-  const [filters, setFilters] = useState<DatatableFilter[]>(queryParamFilters ? (getFilterFromUrlParams(queryParamFilters) ?? []) : []);
+  const [filters, setFilters] = useState<DatatableFilter[]>(
+    queryParamFilters ? (getFilterFromUrlParams(queryParamFilters) ?? []) : []
+  );
   const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
 
   const isFilterFilled = (filter: DatatableFilter): boolean => {
-    if (filter.column && Object.keys(customFilterColumns ?? {}).includes(filter.column?.split('.')[0])) {
-      return filter.column.split('.')[1].length > 0 && !!filter.operator && !!filter.value;
+    if (
+      filter.column &&
+      Object.keys(customFilterColumns ?? {}).includes(
+        filter.column?.split('.')[0]
+      )
+    ) {
+      return (
+        filter.column.split('.')[1].length > 0 &&
+        !!filter.operator &&
+        !!filter.value
+      );
     }
     return !!filter.column && !!filter.operator && !!filter.value;
   };
 
   return (
-    <Popover open={popoverOpen} onOpenChange={setPopoverOpen} key={useSearchParams().toString()}>
+    <Popover
+      open={popoverOpen}
+      onOpenChange={setPopoverOpen}
+      key={useSearchParams().toString()}
+    >
       <PopoverTrigger asChild className={className}>
         <Button
           variant={filters.length > 0 ? 'secondary' : 'outline'}
-          className='text-secondary-foreground h-8'
+          className="text-secondary-foreground h-8"
         >
           <ListFilter size={16} className="mr-2" />
           Filters
@@ -57,8 +83,8 @@ export default function DataTableFilter<TData>({ columns, className, customFilte
       </PopoverTrigger>
       <PopoverContent className="z-30">
         <div className="p-2 mt-1 md:min-w-[600px] sm:min-w-[200px] bg-background border rounded">
-          {filters.length > 0
-            ? <table key={filters.length.toString()}>
+          {filters.length > 0 ? (
+            <table key={filters.length.toString()}>
               <tbody>
                 {filters.map((filter, i) => (
                   <DataTableFilterRow
@@ -72,25 +98,29 @@ export default function DataTableFilter<TData>({ columns, className, customFilte
                 ))}
               </tbody>
             </table>
-            : <div className="p-2">
-              <Label className="text-sm text-secondary-foreground">No filters applied</Label>
+          ) : (
+            <div className="p-2">
+              <Label className="text-sm text-secondary-foreground">
+                No filters applied
+              </Label>
             </div>
-          }
+          )}
           <div className="flex flex-row justify-between m-2">
             <Button
               variant="secondary"
               className="mx-2"
               onClick={() => {
-                setFilters(filters => [...filters, { column: columns[0].id, operator: 'eq', value: undefined }]);
+                setFilters((filters) => [
+                  ...filters,
+                  { column: columns[0].id, operator: 'eq', value: undefined }
+                ]);
               }}
             >
               Add Filter
             </Button>
             <Button
               className="mx-2"
-              disabled={
-                filters.some(filter => !isFilterFilled(filter))
-              }
+              disabled={filters.some((filter) => !isFilterFilled(filter))}
               onClick={() => {
                 searchParams.delete('filter');
                 searchParams.delete('pageNumber');
@@ -123,11 +153,13 @@ function DataTableFilterRow<TData>({
   columns,
   customFilterColumns,
   filters,
-  setFilters,
+  setFilters
 }: RowProps<TData>) {
   const filter = filters[i];
   const [additionalColumnId, setAdditionalColumnId] = useState<string | null>(
-    Object.keys(customFilterColumns ?? {}).find(n => n === filter?.column?.split('.')[0]) ?? null
+    Object.keys(customFilterColumns ?? {}).find(
+      (n) => n === filter?.column?.split('.')[0]
+    ) ?? null
   );
   return (
     <tr key={i} className="w-full">
@@ -135,37 +167,45 @@ function DataTableFilterRow<TData>({
         <div className="flex space-x-1 w-80">
           <Select
             defaultValue={
-              Object.keys(customFilterColumns ?? {}).some(n => filter?.column?.startsWith(n))
+              Object.keys(customFilterColumns ?? {}).some((n) =>
+                filter?.column?.startsWith(n)
+              )
                 ? filter?.column?.split('.')[0]
-                : filter?.column ?? columns[i].id!}
-            onValueChange={value => {
+                : (filter?.column ?? columns[i].id!)
+            }
+            onValueChange={(value) => {
               const newFilters = [...filters];
               if (Object.keys(customFilterColumns ?? {}).includes(value)) {
                 newFilters[i].column = `${value}.`;
               } else {
                 newFilters[i].column = value;
               }
-              setAdditionalColumnId(Object.keys(customFilterColumns ?? {}).find(n => n === value) ?? null);
+              setAdditionalColumnId(
+                Object.keys(customFilterColumns ?? {}).find(
+                  (n) => n === value
+                ) ?? null
+              );
               setFilters(newFilters);
             }}
           >
             <SelectTrigger className="flex font-medium">
               <SelectValue placeholder="Choose column..." />
             </SelectTrigger>
-            <SelectContent>{
-              columns.map((column, colIdx) =>
+            <SelectContent>
+              {columns.map((column, colIdx) => (
                 <SelectItem key={colIdx} value={column.id!}>
                   {column.header?.toString()}
                 </SelectItem>
-              )
-            }</SelectContent>
+              ))}
+            </SelectContent>
           </Select>
-          {additionalColumnId != null &&
+          {additionalColumnId != null && (
             <Select
               defaultValue={
-                filter?.column?.replace(`${additionalColumnId}.`, '') ?? undefined
+                filter?.column?.replace(`${additionalColumnId}.`, '') ??
+                undefined
               }
-              onValueChange={value => {
+              onValueChange={(value) => {
                 const newFilters = [...filters];
                 newFilters[i].column = `${additionalColumnId}.${value}`;
                 setFilters(newFilters);
@@ -182,13 +222,13 @@ function DataTableFilterRow<TData>({
                 ))}
               </SelectContent>
             </Select>
-          }
+          )}
         </div>
       </td>
       <td className="px-2">
         <Select
           defaultValue={filter?.operator ?? 'eq'}
-          onValueChange={value => {
+          onValueChange={(value) => {
             const newFilters = [...filters];
             newFilters[i].operator = value;
             setFilters(newFilters);
@@ -198,7 +238,7 @@ function DataTableFilterRow<TData>({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SELECT_OPERATORS.map(operator => (
+            {SELECT_OPERATORS.map((operator) => (
               <SelectItem key={operator.key} value={operator.key}>
                 {operator.label}
               </SelectItem>
@@ -210,7 +250,7 @@ function DataTableFilterRow<TData>({
         <Input
           defaultValue={filter?.value ?? ''}
           placeholder="value..."
-          onChange={e => {
+          onChange={(e) => {
             const newFilters = [...filters];
             let value = e.target.value;
             if (value.length > 0) {
@@ -220,7 +260,8 @@ function DataTableFilterRow<TData>({
                 // do nothing
               }
             }
-            newFilters[i].value = e.target.value?.length > 0 ? value : undefined;
+            newFilters[i].value =
+              e.target.value?.length > 0 ? value : undefined;
             setFilters(newFilters);
           }}
         />

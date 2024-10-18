@@ -16,7 +16,6 @@ import { PipelineVersionInfo } from '@/lib/pipeline/types';
 import { useProjectContext } from '@/contexts/project-context';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-
 interface SetTargetVersionButtonProps {
   pipelineId: string;
   pipelineVersionId: string;
@@ -41,7 +40,6 @@ export default function SetTargetVersionButton({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const overwriteWorkshopVersion = async () => {
-
     setIsLoading(true);
 
     let res = await fetch(
@@ -49,10 +47,11 @@ export default function SetTargetVersionButton({
       {
         method: 'POST',
         body: JSON.stringify({
-          pipelineVersionId: pipelineVersionId,
+          pipelineVersionId: pipelineVersionId
         }),
-        cache: 'no-cache',
-      });
+        cache: 'no-cache'
+      }
+    );
 
     if (res.status != 200) {
       toast({
@@ -65,7 +64,7 @@ export default function SetTargetVersionButton({
     }
 
     toast({
-      title: 'Target pipeline version is set',
+      title: 'Target pipeline version is set'
     });
 
     setIsLoading(false);
@@ -78,10 +77,7 @@ export default function SetTargetVersionButton({
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className="h-7"
-        >
+        <Button variant="outline" className="h-7">
           Set as target
         </Button>
       </DialogTrigger>
@@ -93,19 +89,15 @@ export default function SetTargetVersionButton({
           <Label>Are you sure you want to set this version as a target?</Label>
         </div>
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setIsDialogOpen(false)}>
+          <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
             Cancel
           </Button>
-          <Button
-            handleEnter={true}
-            onClick={overwriteWorkshopVersion}>
-            {isLoading && <Loader className='animate-spin h-4 w-4 mr-2' />}
+          <Button handleEnter={true} onClick={overwriteWorkshopVersion}>
+            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
             Confirm
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog >
+    </Dialog>
   );
 }

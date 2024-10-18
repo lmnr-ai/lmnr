@@ -2,8 +2,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 
-export async function POST(req: Request, { params }: { params: { projectId: string } }): Promise<Response> {
-
+export async function POST(
+  req: Request,
+  { params }: { params: { projectId: string } }
+): Promise<Response> {
   const projectId = params.projectId;
 
   const session = await getServerSession(authOptions);
@@ -19,5 +21,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     body: JSON.stringify(body)
   });
 
-  return new Response(res.body, { status: res.status, statusText: res.statusText });
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText
+  });
 }

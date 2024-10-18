@@ -7,15 +7,14 @@ import { fetcherJSON } from '@/lib/utils';
 import { Evaluation } from '@/lib/evaluation/types';
 
 export const metadata: Metadata = {
-  title: 'Evaluations',
+  title: 'Evaluations'
 };
 
 export default async function EvaluationsPage({
-  params,
+  params
 }: {
-  params: { projectId: string },
+  params: { projectId: string };
 }) {
-
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
@@ -23,14 +22,15 @@ export default async function EvaluationsPage({
 
   const user = session.user;
 
-  const evaluations = await fetcherJSON(`/projects/${params.projectId}/evaluations/`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
+  const evaluations = (await fetcherJSON(
+    `/projects/${params.projectId}/evaluations/`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${user.apiKey}`
+      }
     }
-  }) as Evaluation[];
+  )) as Evaluation[];
 
-  return (
-    <Evaluations evaluations={evaluations} />
-  );
+  return <Evaluations evaluations={evaluations} />;
 }

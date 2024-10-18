@@ -9,10 +9,10 @@ import { IconSpinner } from '@/components/ui/icons';
 import google from '@/assets/logo/google.svg';
 import Image from 'next/image';
 
-interface GoogleSignInButtonProps extends ButtonProps {
-  showIcon?: boolean
-  text?: string
-  callbackUrl: string
+interface GitHubSignInButtonProps extends ButtonProps {
+  showIcon?: boolean;
+  text?: string;
+  callbackUrl: string;
 }
 
 export function GoogleSignInButton({
@@ -20,11 +20,11 @@ export function GoogleSignInButton({
   callbackUrl,
   className,
   ...props
-}: GoogleSignInButtonProps) {
+}: GitHubSignInButtonProps) {
   const [isLoading, setIsLoading] = React.useState(false);
   return (
     <Button
-      variant={"secondary"}
+      variant={'secondary'}
       onClick={() => {
         setIsLoading(true);
         signIn('google', { callbackUrl: callbackUrl });
@@ -33,18 +33,14 @@ export function GoogleSignInButton({
       className={cn(className)}
       {...props}
     >
-      <div className='h-5 w-5'>
-        {isLoading
-          ? (
-            <IconSpinner className="animate-spin" />
-          )
-          : (
-            <Image src={google} alt='Google Icon' width={20} height={20} />
-          )
-        }
+      <div className="h-5 w-5">
+        {isLoading ? (
+          <IconSpinner className="animate-spin" />
+        ) : (
+          <Image src={google} alt="Google Icon" width={20} height={20} />
+        )}
       </div>
-      <div className='ml-4'>{text}</div>
-
+      <div className="ml-4">{text}</div>
     </Button>
   );
 }

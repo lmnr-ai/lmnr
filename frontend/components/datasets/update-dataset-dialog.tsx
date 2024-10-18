@@ -23,8 +23,11 @@ interface UpdateDatasetDialogProps {
   isDropdown?: boolean;
 }
 
-export default function UpdateDatasetDialog({ oldDataset, doUpdate, isDropdown = false }: UpdateDatasetDialogProps) {
-
+export default function UpdateDatasetDialog({
+  oldDataset,
+  doUpdate,
+  isDropdown = false
+}: UpdateDatasetDialogProps) {
   const [dataset, setDataset] = useState<Dataset | undefined>(oldDataset);
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -36,14 +39,17 @@ export default function UpdateDatasetDialog({ oldDataset, doUpdate, isDropdown =
   };
 
   return (
-    <div onClick={e => e.stopPropagation()}>
+    <div onClick={(e) => e.stopPropagation()}>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           {isDropdown ? (
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()}> Edit </DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              {' '}
+              Edit{' '}
+            </DropdownMenuItem>
           ) : (
-            <Button variant='outline'>
-              <Pencil size={16} className='mr-2' /> Edit
+            <Button variant="outline">
+              <Pencil size={16} className="mr-2" /> Edit
             </Button>
           )}
         </DialogTrigger>
@@ -57,12 +63,25 @@ export default function UpdateDatasetDialog({ oldDataset, doUpdate, isDropdown =
               autoFocus
               placeholder="Enter name"
               value={dataset?.name ?? ''}
-              onChange={(e) => setDataset({ ...dataset, name: e.target.value } as Dataset)}
+              onChange={(e) =>
+                setDataset({ ...dataset, name: e.target.value } as Dataset)
+              }
             />
           </div>
           <DialogFooter>
-            <Button onClick={async (_) => { await updateDataset(dataset?.id!); }} disabled={!dataset || isLoading}>
-              <Loader className={cn('mr-2 hidden', isLoading ? 'animate-spin block' : '')} size={16} />
+            <Button
+              onClick={async (_) => {
+                await updateDataset(dataset?.id!);
+              }}
+              disabled={!dataset || isLoading}
+            >
+              <Loader
+                className={cn(
+                  'mr-2 hidden',
+                  isLoading ? 'animate-spin block' : ''
+                )}
+                size={16}
+              />
               Save
             </Button>
           </DialogFooter>

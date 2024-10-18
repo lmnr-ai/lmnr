@@ -1,7 +1,4 @@
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-} from '@radix-ui/react-icons';
+import { ChevronLeftIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { type Table } from '@tanstack/react-table';
 
 import { Button } from '@/components/ui/button';
@@ -10,15 +7,15 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from '@/components/ui/select';
 
 interface DataTablePaginationProps<TData> {
-  table: Table<TData>
-  pageSizeOptions?: number[]
-  defaultPageSize: number
-  onPageChange?: () => void
-  totalItemsCount?: number
+  table: Table<TData>;
+  pageSizeOptions?: number[];
+  defaultPageSize: number;
+  onPageChange?: () => void;
+  totalItemsCount?: number;
 }
 
 export function DataTablePagination<TData>({
@@ -26,16 +23,19 @@ export function DataTablePagination<TData>({
   pageSizeOptions = [10, 20, 50, 100, 200, 500],
   defaultPageSize,
   onPageChange,
-  totalItemsCount,
+  totalItemsCount
 }: DataTablePaginationProps<TData>) {
   return (
     <div className="flex w-full flex-col items-center justify-between gap-4 overflow-auto sm:flex-row sm:gap-8">
       <div className="flex-1 whitespace-nowrap text-sm text-muted-foreground">
-        Total {totalItemsCount ?? (table.getFilteredRowModel().rows.length)} item(s)
+        Total {totalItemsCount ?? table.getFilteredRowModel().rows.length}{' '}
+        item(s)
       </div>
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6 lg:gap-8">
         <div className="flex items-center space-x-2">
-          <p className="whitespace-nowrap text-sm font-medium">Items per page</p>
+          <p className="whitespace-nowrap text-sm font-medium">
+            Items per page
+          </p>
           <Select
             defaultValue={`${defaultPageSize}`}
             value={`${table.getState().pagination.pageSize}`}
@@ -57,7 +57,8 @@ export function DataTablePagination<TData>({
           </Select>
         </div>
         <div className="flex w-24 items-center justify-center text-sm font-medium">
-          Page {table.getState().pagination.pageIndex + 1} of {(!table.getPageCount()) ? 1 : table.getPageCount()}
+          Page {table.getState().pagination.pageIndex + 1} of{' '}
+          {!table.getPageCount() ? 1 : table.getPageCount()}
         </div>
         <div className="flex items-center space-x-2">
           {/* <Button

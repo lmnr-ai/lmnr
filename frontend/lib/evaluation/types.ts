@@ -1,13 +1,12 @@
 import { TracePreview } from '../traces/types';
 
-
 export type Evaluation = {
-  id: string,
-  createdAt: string,
-  groupId: string,
-  name: string,
-  projectId: string,
-}
+  id: string;
+  createdAt: string;
+  groupId: string;
+  name: string;
+  projectId: string;
+};
 
 export type EvaluationDatapoint = {
   id: string;
@@ -18,7 +17,7 @@ export type EvaluationDatapoint = {
   executorOutput: Record<string, any> | null;
   executorTrace: TracePreview | null;
   evaluatorTrace: TracePreview | null;
-}
+};
 
 export type EvaluationDatapointPreview = {
   id: string;
@@ -29,13 +28,13 @@ export type EvaluationDatapointPreview = {
   target: Record<string, any>;
   executorOutput: Record<string, any>;
   traceId: string;
-}
+};
 
 export type EvaluationDatapointPreviewWithCompared = {
   comparedId?: string;
   comparedEvaluationId?: string;
   comparedScores?: Record<string, any>;
-} & EvaluationDatapointPreview
+} & EvaluationDatapointPreview;
 
 export type EvaluationStats = {
   averageScores: Record<string, number>;
@@ -44,4 +43,4 @@ export type EvaluationStats = {
 export type EvaluationResultsInfo = {
   evaluation: Evaluation;
   results: EvaluationDatapointPreview[];
-}
+};

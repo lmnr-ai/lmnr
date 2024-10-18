@@ -18,17 +18,18 @@ import { useProjectContext } from '@/contexts/project-context';
 import useStore from '@/lib/flow/store';
 import { GRAPH_VALID, validateGraph } from '@/lib/pipeline/utils';
 
-
 interface CommitButtonProps {
-  selectedPipelineVersion: PipelineVersionInfo
-  onPipelineVersionsChange: () => void
+  selectedPipelineVersion: PipelineVersionInfo;
+  onPipelineVersionsChange: () => void;
 }
-
 
 /**
  * Commit button which creates a commit - an immutable clone of current version.
  */
-export default function CommitButton({ selectedPipelineVersion, onPipelineVersionsChange }: CommitButtonProps) {
+export default function CommitButton({
+  selectedPipelineVersion,
+  onPipelineVersionsChange
+}: CommitButtonProps) {
   const { projectId } = useProjectContext();
   const { toast } = useToast();
   const { getGraph, getEdges } = useStore();
@@ -38,7 +39,6 @@ export default function CommitButton({ selectedPipelineVersion, onPipelineVersio
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const commitPipelineVersion = async () => {
-
     setIsLoading(true);
 
     const validationRes = validateGraph(getGraph(), getEdges());
@@ -61,10 +61,11 @@ export default function CommitButton({ selectedPipelineVersion, onPipelineVersio
         body: JSON.stringify({
           refVersionId: selectedPipelineVersion.id,
           newPipelineName: commitVersionName,
-          newPipelineType: 'COMMIT',
+          newPipelineType: 'COMMIT'
         }),
-        cache: 'no-cache',
-      });
+        cache: 'no-cache'
+      }
+    );
 
     if (res.status != 200) {
       toast({
@@ -86,17 +87,16 @@ export default function CommitButton({ selectedPipelineVersion, onPipelineVersio
   };
 
   return (
-    <Dialog open={isDialogOpen} onOpenChange={(open) => {
-      setIsDialogOpen(open);
-      setCommitVersionName('');
-    }}
+    <Dialog
+      open={isDialogOpen}
+      onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        setCommitVersionName('');
+      }}
     >
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className="h-7 text-purple-400"
-        >
-          <PlusCircle className='h-4' />
+        <Button variant="outline" className="h-7 text-purple-400">
+          <PlusCircle className="h-4" />
           Commit
         </Button>
       </DialogTrigger>
@@ -104,22 +104,23 @@ export default function CommitButton({ selectedPipelineVersion, onPipelineVersio
         <DialogHeader>
           <DialogTitle>Commit version</DialogTitle>
         </DialogHeader>
-        <Label className='mb-8'>Save immutable copy of pipeline in history</Label>
+        <Label className="mb-8">
+          Save immutable copy of pipeline in history
+        </Label>
         <Label>Commit version name</Label>
         <Input
           autoFocus
-          placeholder='Enter commit version name'
+          placeholder="Enter commit version name"
           value={commitVersionName}
-          onChange={(e) =>
-            setCommitVersionName(e.target.value)
-          }
+          onChange={(e) => setCommitVersionName(e.target.value)}
         />
         <DialogFooter>
           <Button
             disabled={!commitVersionName || isLoading}
             handleEnter={true}
-            onClick={commitPipelineVersion}>
-            {isLoading && <Loader className='animate-spin h-4 w-4 mr-2' />}
+            onClick={commitPipelineVersion}
+          >
+            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
             Commit
           </Button>
         </DialogFooter>

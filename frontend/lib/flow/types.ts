@@ -1,5 +1,6 @@
 import { Edge, type Node } from 'reactflow';
 import { ChatMessage } from '../types';
+import { PromptCopilotMessage } from '../prompt-copilot/types';
 import { GraphMessage } from '../pipeline/types';
 import { Dataset } from '../dataset/types';
 import { EventType } from '../events/types';
@@ -25,27 +26,27 @@ export enum NodeType {
   TOOL_CALL = 'ToolCall',
   FUNCTION = 'Function',
   SEMANTIC_SIMILARITY = 'SemanticSimilarity',
-  CODE_SANDBOX = 'CodeSandbox',
+  CODE_SANDBOX = 'CodeSandbox'
 }
 
 export interface GenericNode {
-  version?: number
-  collapsed?: boolean
-  isCondtional?: boolean
-  id: string
-  name: string
-  type: NodeType
-  inputs: GenericNodeHandle[]
-  dynamicInputs?: GenericNodeHandle[]
-  inputsMappings?: Record<string, string>
-  outputs: GenericNodeHandle[]
+  version?: number;
+  collapsed?: boolean;
+  isCondtional?: boolean;
+  id: string;
+  name: string;
+  type: NodeType;
+  inputs: GenericNodeHandle[];
+  dynamicInputs?: GenericNodeHandle[];
+  inputsMappings?: Record<string, string>;
+  outputs: GenericNodeHandle[];
 }
 
 export interface GenericNodeHandle {
-  id: string
-  name?: string
-  type: NodeHandleType
-  secondType?: NodeHandleType
+  id: string;
+  name?: string;
+  type: NodeHandleType;
+  secondType?: NodeHandleType;
   // Cyclic handles are input handles that may be visited more than once during
   // the execution. We need to reset their values after each node execution,
   // so that they don't keep the value from the previous execution of the loop.
@@ -56,7 +57,7 @@ export interface GenericNodeHandle {
   //                   ^------------'
   // In this case h2 is a cyclic handle and node1 may start with the value from the previous execution
   // In the back-end engine, we will reset the value of h2 after each execution of node1, but keep the value of h1
-  isCyclic?: boolean
+  isCyclic?: boolean;
 }
 
 export enum NodeHandleType {
@@ -64,138 +65,145 @@ export enum NodeHandleType {
   STRING_LIST = 'StringList',
   CHAT_MESSAGE_LIST = 'ChatMessageList',
   FLOAT = 'Float',
-  ANY = 'Any',
+  ANY = 'Any'
 }
 
 export interface NodeData extends Node {
-  data: GenericNode
+  data: GenericNode;
 }
 
 export interface InputNode extends GenericNode {
-  inputType: NodeHandleType
+  inputType: NodeHandleType;
 }
 
 export interface OutputNode extends GenericNode {
-  inputType: NodeHandleType
-  outputCastType: EventType | null
+  inputType: NodeHandleType;
+  outputCastType: EventType | null;
 }
 
 export interface ErrorNode extends GenericNode {
-  inputType: NodeHandleType
+  inputType: NodeHandleType;
 }
 
 export interface StringTemplateNode extends GenericNode {
-  text: string
+  text: string;
 }
 
 export interface SubpipelineNode extends GenericNode {
-  pipelineName: string
-  pipelineId: string | null
-  pipelineVersionName: string
-  pipelineVersionId: string | null
-  runnableGraph: RunnableGraph
+  pipelineName: string;
+  pipelineId: string | null;
+  pipelineVersionName: string;
+  pipelineVersionId: string | null;
+  runnableGraph: RunnableGraph;
 }
 
 export interface MapNode extends GenericNode {
-  pipelineName: string
-  pipelineId: string | null
-  pipelineVersionName: string
-  pipelineVersionId: string | null
-  runnableGraph: RunnableGraph
+  pipelineName: string;
+  pipelineId: string | null;
+  pipelineVersionName: string;
+  pipelineVersionId: string | null;
+  runnableGraph: RunnableGraph;
 }
 
 export interface SemantiSwitchRoute {
-  name: string
-  examples: string[]
+  name: string;
+  examples: string[];
 }
 
 export interface SemanticSwitchNode extends GenericNode {
-  routes: SemantiSwitchRoute[]
+  routes: SemantiSwitchRoute[];
 }
 
 export interface Route {
-  name: string
+  name: string;
 }
 
 export interface RouterNode extends GenericNode {
-  routes: Route[]
-  hasDefaultRoute: boolean
+  routes: Route[];
+  hasDefaultRoute: boolean;
 }
 
 export interface ConditionNode extends GenericNode {
-  condition: string
+  condition: string;
 }
 
 export interface CodeSandboxNode extends GenericNode {
-  enableErrorPassing: boolean
+  enableErrorPassing: boolean;
 }
 
 export interface LLMNode extends GenericNode {
-  model?: string
-  modelParams?: string
-  prompt: string
-  semanticCacheEnabled?: boolean
-  semanticCacheDatasetId?: string
-  semanticSimilarityThreshold?: number
-  semanticCacheDataKey?: string
-  stream?: boolean
-  structuredOutputEnabled?: boolean
-  structuredOutputMaxRetries?: number
-  structuredOutputSchema?: string | null
-  structuredOutputSchemaTarget?: string | null
+  model?: string;
+  modelParams?: string;
+  prompt: string;
+  semanticCacheEnabled?: boolean;
+  semanticCacheDatasetId?: string;
+  semanticSimilarityThreshold?: number;
+  semanticCacheDataKey?: string;
+  copilotMessages?: PromptCopilotMessage[] | null;
+  stream?: boolean;
+  structuredOutputEnabled?: boolean;
+  structuredOutputMaxRetries?: number;
+  structuredOutputSchema?: string | null;
+  structuredOutputSchemaTarget?: string | null;
 }
 
 export interface UnifyThreshold {
-  float: number
-  metric: string
+  float: number;
+  metric: string;
 }
 
 export interface UnifyNode extends GenericNode {
-  uploadedBy: string,
-  modelName: string,
-  providerName: string,
-  metrics: UnifyThreshold[]
-  modelParams?: Record<string, any> | null
-  prompt: string
+  uploadedBy: string;
+  modelName: string;
+  providerName: string;
+  metrics: UnifyThreshold[];
+  modelParams?: Record<string, any> | null;
+  prompt: string;
+  copilotMessages?: PromptCopilotMessage[] | null;
 }
 
 export interface CodeNode extends GenericNode {
-  code: string,
-  fnName: string,
+  code: string;
+  fnName: string;
 }
 
-export type DetectorType = 'prompt_injection' | 'pii' | 'topics/allowed' | 'topics/banned' | 'keywords' | 'secrets';
+export type DetectorType =
+  | 'prompt_injection'
+  | 'pii'
+  | 'topics/allowed'
+  | 'topics/banned'
+  | 'keywords'
+  | 'secrets';
 
 export interface Detector {
-  type: DetectorType,
-  enabled: boolean,
+  type: DetectorType;
+  enabled: boolean;
 }
 
 export interface ZenguardNode extends GenericNode {
-  detectors: Detector[]
+  detectors: Detector[];
 }
 
 export interface WebSearchNode extends GenericNode {
-  limit: number
-  template: string
-  semanticTextSearchEnabled?: boolean
-  semanticTextSearchLimit?: number
+  limit: number;
+  template: string;
+  semanticTextSearchEnabled?: boolean;
+  semanticTextSearchLimit?: number;
 }
 
-
 export interface SemanticSearchNode extends GenericNode {
-  limit: number
-  threshold: number
-  template: string
-  datasets: Dataset[]
+  limit: number;
+  threshold: number;
+  template: string;
+  datasets: Dataset[];
 }
 
 export interface FormatValidatorNode extends GenericNode {
-  format: string
+  format: string;
 }
 
 export interface ExtractorNode extends GenericNode {
-  format: string
+  format: string;
 }
 
 export interface JsonExtractorNode extends GenericNode {
@@ -203,30 +211,35 @@ export interface JsonExtractorNode extends GenericNode {
 }
 
 // for now, node name must match the function being called
-export interface ToolCallNode extends GenericNode { };
+export interface ToolCallNode extends GenericNode {}
 
 export interface FunctionNode extends GenericNode {
   parameterNames: string[];
 }
 
-export interface SemanticSimilarityNode extends GenericNode { };
+export interface SemanticSimilarityNode extends GenericNode {}
 
 export type ConditionValue = {
-  condition: string
-  value: string
-}
-export type NodeInput = string | string[] | ChatMessage[] | number | ConditionValue;
+  condition: string;
+  value: string;
+};
+export type NodeInput =
+  | string
+  | string[]
+  | ChatMessage[]
+  | number
+  | ConditionValue;
 
 export type RunnableGraph = {
-  nodes: Record<string, GenericNode>
-  pred: Record<string, string[]>
-}
+  nodes: Record<string, GenericNode>;
+  pred: Record<string, string[]>;
+};
 
 export type DisplayableGraph = {
-  nodes: Node[]
-  edges: Edge[]
-}
+  nodes: Node[];
+  edges: Edge[];
+};
 
 export interface Trace {
-  [key: string]: GraphMessage
+  [key: string]: GraphMessage;
 }

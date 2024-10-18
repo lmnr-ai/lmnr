@@ -1,9 +1,9 @@
 interface SelectNodeInputTypeProps {
-  onNodeInputTypeChange: (value: string) => void
+  onNodeInputTypeChange: (value: string) => void;
 }
 
-export default function SelectNodeInputType({ onNodeInputTypeChange }: SelectNodeInputTypeProps) {
-  return (
-    'TODO'
-  );
+export default function SelectNodeInputType({
+  onNodeInputTypeChange
+}: SelectNodeInputTypeProps) {
+  return 'TODO';
 }

@@ -6,9 +6,8 @@ import { Metadata } from 'next';
 import Settings from '@/components/settings/settings';
 
 export const metadata: Metadata = {
-  title: 'Settings',
+  title: 'Settings'
 };
-
 
 const getProjectApiKeys = async (projectId: string) => {
   const session = await getServerSession(authOptions);
@@ -17,14 +16,16 @@ const getProjectApiKeys = async (projectId: string) => {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${user.apiKey}`
-    },
+    }
   });
   return await res;
 };
 
-export default async function ApiKeysPage(
-  { params }: { params: { projectId: string } }
-) {
+export default async function ApiKeysPage({
+  params
+}: {
+  params: { projectId: string };
+}) {
   const apiKeys = await getProjectApiKeys(params.projectId);
 
   const session = await getServerSession(authOptions);

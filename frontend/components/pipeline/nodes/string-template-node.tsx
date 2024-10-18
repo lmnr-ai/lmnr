@@ -14,7 +14,6 @@ const StringTemplateNodeComponent = ({
 }: {
   data: StringTemplateNode;
 }) => {
-
   const updateNodeData = useStore((state) => state.updateNodeData);
   const dropEdgeForHandle = useStore((state) => state.dropEdgeForHandle);
 
@@ -25,15 +24,15 @@ const StringTemplateNodeComponent = ({
 
   return (
     <>
-      <div className='flex flex-col p-4 space-y-2'>
-        <div className='flex flex-col'>
+      <div className="flex flex-col p-4 space-y-2">
+        <div className="flex flex-col">
           <Label>String template</Label>
         </div>
         <TemplatedTextArea
-          className='w-full nowheel nodrag'
+          className="w-full nowheel nodrag"
           value={data.text}
           defaultInputs={defaultInputs}
-          placeholder='String template'
+          placeholder="String template"
           onUpdate={(value, inputs, edgeIdsToRemove) => {
             updateNodeData(id, {
               dynamicInputs: inputs,
@@ -43,7 +42,6 @@ const StringTemplateNodeComponent = ({
             edgeIdsToRemove.forEach((id) => {
               dropEdgeForHandle(id);
             });
-
           }}
         />
       </div>

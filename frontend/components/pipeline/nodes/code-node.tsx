@@ -7,22 +7,17 @@ import { useUpdateNodeInternals } from 'reactflow';
 const pythonFunctionPattern = /def\s+(\w+)\s*\(([^)]*)\)/;
 
 const compareArrays = (array1: string[], array2: string[]): boolean =>
-  array1.length === array2.length && array1.every((value, index) => value === array2[index]);
+  array1.length === array2.length &&
+  array1.every((value, index) => value === array2[index]);
 
-const CodeNodeComponent = ({
-  id,
-  data,
-}: {
-  id: string;
-  data: CodeNode;
-}) => {
+const CodeNodeComponent = ({ id, data }: { id: string; data: CodeNode }) => {
   const updateNodeData = useStore((state) => state.updateNodeData);
   const dropEdgeForHandle = useStore((state) => state.dropEdgeForHandle);
   const updateNodeInternals = useUpdateNodeInternals();
   const setFocusedNodeId = useStore((state) => state.setFocusedNodeId);
 
   return (
-    <GenericNodeComponent id={id} data={data} className='w-60'>
+    <GenericNodeComponent id={id} data={data} className="w-60">
       {/* <div className='mt-2 h-[400px] nowheel nodrag'>
         <Ide
           value={data.code}
@@ -63,7 +58,7 @@ const CodeNodeComponent = ({
             }
           }} />
       </div> */}
-    </GenericNodeComponent >
+    </GenericNodeComponent>
   );
 };
 

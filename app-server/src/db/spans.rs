@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow, PgPool, Postgres};
 use uuid::Uuid;
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
@@ -81,8 +81,12 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
     Ok(())
 }
 
-pub async fn get_span_previews(pool: &PgPool, trace_id: Uuid) -> Result<Vec<Span>> {
-    let spans = sqlx::query_as::<_, Span>(
+pub async fn get_trace_spans(
+    pool: &PgPool,
+    trace_id: Uuid,
+    search: Option<String>,
+) -> Result<Vec<Span>> {
+    let mut query = sqlx::QueryBuilder::<Postgres>::new(
         "WITH span_events AS (
             SELECT
                 events.span_id,
@@ -121,30 +125,53 @@ pub async fn get_span_previews(pool: &PgPool, trace_id: Uuid) -> Result<Vec<Span
             FROM labels
             JOIN label_classes ON labels.class_id = label_classes.id
             GROUP BY labels.span_id
-        )
-        SELECT
-            spans.span_id,
-            spans.start_time,
-            spans.end_time,
-            spans.version,
-            spans.trace_id,
-            '{}'::jsonb as input,
-            '{}'::jsonb as output,
-            spans.parent_span_id,
-            spans.name,
-            '{}'::jsonb as attributes,
-            spans.span_type,
-            COALESCE(span_events.events, '[]'::jsonb) AS events,
-            COALESCE(span_labels.labels, '[]'::jsonb) AS labels
-        FROM spans
-        LEFT JOIN span_events ON spans.span_id = span_events.span_id
-        LEFT JOIN span_labels ON spans.span_id = span_labels.span_id
-        WHERE trace_id = $1
-        ORDER BY start_time ASC",
-    )
-    .bind(trace_id)
-    .fetch_all(pool)
-    .await?;
+        ),
+        spans_info AS (
+            SELECT
+                spans.span_id,
+                spans.start_time,
+                spans.end_time,
+                spans.version,
+                spans.trace_id,
+                spans.input,
+                spans.output,
+                spans.parent_span_id,
+                spans.name,
+                spans.attributes,
+                spans.span_type,
+                COALESCE(span_events.events, '[]'::jsonb) AS events,
+                COALESCE(span_labels.labels, '[]'::jsonb) AS labels
+            FROM spans
+            LEFT JOIN span_events ON spans.span_id = span_events.span_id
+            LEFT JOIN span_labels ON spans.span_id = span_labels.span_id
+            WHERE spans.trace_id = ",
+    );
+    query.push_bind(trace_id);
+    query.push(
+        ")
+        SELECT * FROM spans_info WHERE 1=1
+    ",
+    );
+
+    if let Some(search) = search {
+        query
+            .push(" AND (input::TEXT ILIKE ")
+            .push_bind(format!("%{search}%"))
+            .push(" OR output::TEXT ILIKE ")
+            .push_bind(format!("%{search}%"))
+            .push(" OR name::TEXT ILIKE ")
+            .push_bind(format!("%{search}%"))
+            .push(" OR attributes::TEXT ILIKE ")
+            .push_bind(format!("%{search}%"))
+            .push(" OR to_tsvector('english', input::text || ' ' || output::text)")
+            .push(" @@ plainto_tsquery(")
+            .push_bind(search)
+            .push("))");
+    }
+
+    query.push(" ORDER BY start_time ASC");
+
+    let spans = query.build_query_as().fetch_all(pool).await?;
 
     Ok(spans)
 }

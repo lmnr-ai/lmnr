@@ -10,7 +10,6 @@ import ReactFlow, {
   MarkerType
 } from 'reactflow';
 
-
 import InputNodeComponent from './nodes/input-node';
 import OutputNodeComponent from './nodes/output-node';
 import GenericNodeComponent from './nodes/generic-node';
@@ -42,16 +41,16 @@ const nodeTypes = {
   [NodeType.TOOL_CALL]: GenericNodeComponent,
   [NodeType.FUNCTION]: GenericNodeComponent,
   [NodeType.SEMANTIC_SIMILARITY]: GenericNodeComponent,
-  [NodeType.CODE_SANDBOX]: GenericNodeComponent,
+  [NodeType.CODE_SANDBOX]: GenericNodeComponent
 };
 
 const defaultEdgeOptions = {
   type: 'custom',
-  markerEnd: { type: MarkerType.ArrowClosed },
+  markerEnd: { type: MarkerType.ArrowClosed }
 };
 
 const edgeTypes = {
-  custom: CustomEdge,
+  custom: CustomEdge
 };
 
 function Flow() {
@@ -64,7 +63,7 @@ function Flow() {
     setEdges,
     onNodesChange,
     onEdgesChange,
-    onConnect,
+    onConnect
   } = useStore();
   const edgeUpdateSuccessful = useRef(true);
   const { editable } = useFlowContext();
@@ -74,39 +73,46 @@ function Flow() {
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const onDrop = useCallback((event: DragEvent) => {
-    event.preventDefault();
+  const onDrop = useCallback(
+    (event: DragEvent) => {
+      event.preventDefault();
 
-    const nodeType: string = event.dataTransfer.getData('application/reactflow');
+      const nodeType: string = event.dataTransfer.getData(
+        'application/reactflow'
+      );
 
-    const position = reactFlowInstance!.screenToFlowPosition({
-      x: event.clientX,
-      y: event.clientY
-    });
+      const position = reactFlowInstance!.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY
+      });
 
-    const nodeId = uuidv4();
-    const nodeData = createNodeData(nodeId, nodeType as NodeType);
-    nodeData.inputsMappings = {};
+      const nodeId = uuidv4();
+      const nodeData = createNodeData(nodeId, nodeType as NodeType);
+      nodeData.inputsMappings = {};
 
+      const newNode: Node = {
+        data: nodeData,
+        id: nodeId,
+        type: nodeType,
+        position
+      };
 
-    const newNode: Node = {
-      data: nodeData,
-      id: nodeId,
-      type: nodeType,
-      position
-    };
-
-    setNodes((nodes) => nodes.concat(newNode));
-  }, [reactFlowInstance]);
+      setNodes((nodes) => nodes.concat(newNode));
+    },
+    [reactFlowInstance]
+  );
 
   const onEdgeUpdateStart = useCallback(() => {
     edgeUpdateSuccessful.current = false;
   }, []);
 
-  const onEdgeUpdate = useCallback((oldEdge: Edge, newConnection: Connection) => {
-    edgeUpdateSuccessful.current = true;
-    updateEdge(oldEdge, newConnection, edges);
-  }, []);
+  const onEdgeUpdate = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      edgeUpdateSuccessful.current = true;
+      updateEdge(oldEdge, newConnection, edges);
+    },
+    []
+  );
 
   const onEdgeUpdateEnd = useCallback((_: any, edge: Edge) => {
     if (!edgeUpdateSuccessful.current) {
@@ -116,7 +122,8 @@ function Flow() {
   }, []);
 
   return (
-    <ReactFlow className="bg-gray-50 w-full h-full"
+    <ReactFlow
+      className="bg-gray-50 w-full h-full"
       proOptions={{
         hideAttribution: true
       }}
@@ -141,27 +148,33 @@ function Flow() {
       fitView
       deleteKeyCode={null}
       onEdgeMouseEnter={(_event, edge) => {
-        setEdges((edges) => edges.map((e) => {
-          if (e.id === edge.id) {
-            return { ...e, data: { ...e.data, isHover: true } };
-          }
-          return e;
-        }));
+        setEdges((edges) =>
+          edges.map((e) => {
+            if (e.id === edge.id) {
+              return { ...e, data: { ...e.data, isHover: true } };
+            }
+            return e;
+          })
+        );
       }}
       onEdgeMouseLeave={(_event, edge) => {
-        setEdges((edges) => edges.map((e) => {
-          if (e.id === edge.id) {
-            return { ...e, data: { ...e.data, isHover: false } };
-          }
-          return e;
-        }));
-
+        setEdges((edges) =>
+          edges.map((e) => {
+            if (e.id === edge.id) {
+              return { ...e, data: { ...e.data, isHover: false } };
+            }
+            return e;
+          })
+        );
       }}
       edgesFocusable={editable}
       edgesUpdatable={editable}
       nodesDraggable={editable}
     >
-      <Background className='bg-background brightness-125 text-foreground/5' gap={16} />
+      <Background
+        className="bg-background brightness-125 text-foreground/5"
+        gap={16}
+      />
     </ReactFlow>
   );
 }

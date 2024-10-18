@@ -7,33 +7,35 @@ import { fetcherJSON } from '@/lib/utils';
 import { EventTemplate } from '@/lib/events/types';
 
 export const metadata: Metadata = {
-  title: 'Events',
+  title: 'Events'
 };
 
 export default async function EventTemplatesPage({
   params,
-  searchParams,
+  searchParams
 }: {
-  params: { projectId: string },
-  searchParams: { [key: string]: string | string[] | undefined },
+  params: { projectId: string };
+  searchParams: { [key: string]: string | string[] | undefined };
 }) {
-
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
   }
 
   const user = session.user;
-  const pastHours = searchParams.pastHours ? Number(searchParams.pastHours) : 24;
+  const pastHours = searchParams.pastHours
+    ? Number(searchParams.pastHours)
+    : 24;
 
-  const events = await fetcherJSON(`/projects/${params.projectId}/event-templates?pastHours=${pastHours}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
+  const events = (await fetcherJSON(
+    `/projects/${params.projectId}/event-templates?pastHours=${pastHours}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${user.apiKey}`
+      }
     }
-  }) as EventTemplate[];
+  )) as EventTemplate[];
 
-  return (
-    <Events events={events} />
-  );
+  return <Events events={events} />;
 }

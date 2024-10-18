@@ -148,9 +148,11 @@ function IconGoogle({ className, ...props }: React.ComponentProps<'svg'>) {
       {...props}
     >
       <title>Google</title>
-      <path d="M0,105C0,47.103,47.103,0,105,0c23.383,0,45.515,7.523,64.004,21.756l-24.4,31.696C133.172,44.652,119.477,40,105,40
+      <path
+        d="M0,105C0,47.103,47.103,0,105,0c23.383,0,45.515,7.523,64.004,21.756l-24.4,31.696C133.172,44.652,119.477,40,105,40
 	c-35.841,0-65,29.159-65,65s29.159,65,65,65c28.867,0,53.398-18.913,61.852-45H105V85h105v20c0,57.897-47.103,105-105,105
-	S0,162.897,0,105z" />
+	S0,162.897,0,105z"
+      />
     </svg>
   );
 }
@@ -494,10 +496,7 @@ function IconChevronUpDown({
   );
 }
 
-function IconMinusCircle({
-  className,
-  ...props
-}: React.ComponentProps<'svg'>) {
+function IconMinusCircle({ className, ...props }: React.ComponentProps<'svg'>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -511,10 +510,7 @@ function IconMinusCircle({
   );
 }
 
-function IconGear({
-  className,
-  ...props
-}: React.ComponentProps<'svg'>) {
+function IconGear({ className, ...props }: React.ComponentProps<'svg'>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -528,10 +524,7 @@ function IconGear({
   );
 }
 
-function IconZenguard({
-  className,
-  ...props
-}: React.ComponentProps<'svg'>) {
+function IconZenguard({ className, ...props }: React.ComponentProps<'svg'>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -540,7 +533,12 @@ function IconZenguard({
       viewBox="0 0 21 24"
       {...props}
     >
-      <path fill="#fff" fillRule="evenodd" d="M20.754 0H0v11.118h10.377v4.063h10.377zm0 19.243H10.377v-4.062H0v8.623h20.754z" clipRule="evenodd" />
+      <path
+        fill="#fff"
+        fillRule="evenodd"
+        d="M20.754 0H0v11.118h10.377v4.063h10.377zm0 19.243H10.377v-4.062H0v8.623h20.754z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 }

@@ -7,20 +7,24 @@ import { InputVariable } from '@/lib/pipeline/types';
 import EditableStringList from '../ui/editable-string-list';
 
 interface PipelineTraceProps {
-  onInputsChange: (inputs: InputVariable[]) => void
-  inputs: InputVariable[],
+  onInputsChange: (inputs: InputVariable[]) => void;
+  inputs: InputVariable[];
 }
 
-
-export default function PipelineInput({ onInputsChange, inputs }: PipelineTraceProps) {
-
+export default function PipelineInput({
+  onInputsChange,
+  inputs
+}: PipelineTraceProps) {
   return (
-    <div className='flex flex-col border-b p-4'>
+    <div className="flex flex-col border-b p-4">
       {inputs?.length > 0 && (
         <>
           {inputs.map((input, i) => (
-            <div key={`pipeline-input-mapped-${input.executionId}-${input.id}`} className='mb-2 flex flex-col space-y-2'>
-              <Label className=''>{input.name}</Label>
+            <div
+              key={`pipeline-input-mapped-${input.executionId}-${input.id}`}
+              className="mb-2 flex flex-col space-y-2"
+            >
+              <Label className="">{input.name}</Label>
 
               {input.type == NodeHandleType.STRING && (
                 <DefaultTextarea
@@ -59,21 +63,19 @@ export default function PipelineInput({ onInputsChange, inputs }: PipelineTraceP
                   />
                 </div>
               )}
-              {
-                input.type == NodeHandleType.ANY && (
-                  <DefaultTextarea
-                    placeholder={'example ' + input.name}
-                    spellCheck={true}
-                    value={input.value as string}
-                    className="w-full"
-                    onChange={(e) => {
-                      const newInputs = [...inputs];
-                      newInputs[i].value = e.currentTarget.value;
-                      onInputsChange(newInputs);
-                    }}
-                  />
-                )
-              }
+              {input.type == NodeHandleType.ANY && (
+                <DefaultTextarea
+                  placeholder={'example ' + input.name}
+                  spellCheck={true}
+                  value={input.value as string}
+                  className="w-full"
+                  onChange={(e) => {
+                    const newInputs = [...inputs];
+                    newInputs[i].value = e.currentTarget.value;
+                    onInputsChange(newInputs);
+                  }}
+                />
+              )}
             </div>
           ))}
         </>

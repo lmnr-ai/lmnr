@@ -9,7 +9,6 @@ use uuid::Uuid;
 use crate::{
     datasets::{datapoints, utils::read_multipart_file, Dataset},
     db::{self, datapoints::DatapointView, datasets, DB},
-    files::FileManager,
     routes::{PaginatedGetQueryParams, PaginatedResponse, ResponseResult},
     semantic_search::SemanticSearch,
 };
@@ -121,7 +120,6 @@ async fn upload_datapoint_file(
     path: web::Path<(Uuid, Uuid)>,
     db: web::Data<DB>,
     semantic_search: web::Data<Arc<SemanticSearch>>,
-    file_manager: web::Data<Arc<FileManager>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let db = db.into_inner();
@@ -140,15 +138,8 @@ async fn upload_datapoint_file(
         }
     }
 
-    let datapoints = datapoints::insert_datapoints_from_file(
-        &bytes,
-        &filename,
-        is_unstructured_file,
-        dataset_id,
-        db.clone(),
-        file_manager.as_ref().clone(),
-    )
-    .await?;
+    let datapoints =
+        datapoints::insert_datapoints_from_file(&bytes, &filename, dataset_id, db.clone()).await?;
 
     if indexed_on.is_some() {
         dataset

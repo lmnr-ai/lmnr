@@ -1,4 +1,4 @@
-# Frontend
+# Hummingbird
 
 ## Setup instructions
 
@@ -9,7 +9,7 @@
 
 3. Run the following commands:
 
-`pnpm i`
+`npm install`
 
 ## Run instructions
 

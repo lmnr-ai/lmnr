@@ -24,4 +24,6 @@ ALTER ROLE "authenticated" SET "statement_timeout" TO '8s';
 
 ALTER ROLE "authenticator" SET "statement_timeout" TO '8s';
 
+CREATE PUBLICATION "supabase_realtime";
+
 RESET ALL;

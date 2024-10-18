@@ -8,13 +8,13 @@ import { Metadata } from 'next';
 import Dataset from '@/components/dataset/dataset';
 
 export const metadata: Metadata = {
-  title: 'Dataset',
+  title: 'Dataset'
 };
 
 export default async function DatasetPage({
-  params,
+  params
 }: {
-  params: { projectId: string; datasetId: string },
+  params: { projectId: string; datasetId: string };
 }) {
   const projectId = params.projectId;
   const datasetId = params.datasetId;
@@ -37,10 +37,5 @@ export default async function DatasetPage({
     }
   );
 
-
-  return (
-    <Dataset
-      dataset={dataset}
-    />
-  );
+  return <Dataset dataset={dataset} />;
 }

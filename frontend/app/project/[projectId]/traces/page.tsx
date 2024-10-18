@@ -7,12 +7,10 @@ import { Metadata } from 'next';
 import Header from '@/components/ui/header';
 
 export const metadata: Metadata = {
-  title: 'Traces',
+  title: 'Traces'
 };
 
-
 export default async function TracesPage() {
-
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');
@@ -25,5 +23,3 @@ export default async function TracesPage() {
     </>
   );
 }
-
-

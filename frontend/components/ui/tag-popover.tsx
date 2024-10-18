@@ -25,7 +25,7 @@ export const TagPopover: React.FC<TagPopoverProps> = ({
       <div className="space-y-1">
         <h4 className="text-sm font-medium leading-none">Entered Tags</h4>
         <p className="text-sm text-muted-foreground text-left">
-            These are the tags you&apos;ve entered.
+          These are the tags you&apos;ve entered.
         </p>
       </div>
       <TagList

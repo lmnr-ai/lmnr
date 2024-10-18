@@ -77,6 +77,13 @@ services:
         source: postgres-data
         target: /var/lib/postgresql/data
 
+  python-executor:
+    build:
+      context: ./python-executor
+    container_name: python-executor
+    ports: 
+      - "8811:8811"
+
   app-server:
     build:
       context: ./app-server
@@ -95,15 +102,18 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
+      python-executor:
+        condition: service_started
     environment:
       - PORT=8000
       - GRPC_PORT=8001
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SEMANTIC_SEARCH_URL=http://semantic-search-service:8080
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
-      - FRONTEND_SHARED_SECRET=${SHARED_SECRET}
+      - SHARED_SECRET_TOKEN=${SHARED_SECRET}
       - CLICKHOUSE_URL=http://clickhouse:8123
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CODE_EXECUTOR_URL=http://python-executor:8811
 
   frontend:
     build:

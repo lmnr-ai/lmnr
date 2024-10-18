@@ -21,11 +21,16 @@ interface AutoEvalsProps {
   onEvaluatorAdded?: (evaluatorRunnableGraph: Graph) => void;
 }
 
-export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEvalsProps) {
-
+export function EvaluatorEditor({
+  span,
+  labelClass,
+  onEvaluatorAdded
+}: AutoEvalsProps) {
   const { projectId } = useProjectContext();
   const [evalType, setEvalType] = useState<'LLM' | 'CODE'>('LLM');
-  const [code, setCode] = useState<string>('def main(span_input, span_output):\n    return True');
+  const [code, setCode] = useState<string>(
+    'def main(span_input, span_output):\n    return True'
+  );
   const [prompt, setPrompt] = useState<string>('');
   const [inputs, setInputs] = useState<string>('');
   const [output, setOutput] = useState<string>('');
@@ -40,7 +45,6 @@ export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEval
   }, [span]);
 
   useEffect(() => {
-
     if (!labelClass.evaluatorRunnableGraph) {
       return;
     }
@@ -49,61 +53,60 @@ export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEval
     runnableGraph.current = graph;
 
     if (graph) {
-      const codeNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.CODE) as CodeNode;
+      const codeNode = Array.from(graph.nodes.values()).find(
+        (node) => node.type === NodeType.CODE
+      ) as CodeNode;
       if (codeNode) {
         setCode(codeNode.code);
         setEvalType('CODE');
       }
-      const llmNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.LLM) as LLMNode;
+      const llmNode = Array.from(graph.nodes.values()).find(
+        (node) => node.type === NodeType.LLM
+      ) as LLMNode;
       if (llmNode) {
         setPrompt(llmNode.prompt);
         setEvalType('LLM');
       }
     }
-
   }, [labelClass.evaluatorRunnableGraph]);
 
   const runGraph = async () => {
-    console.log(process.env.OPENAI_API_KEY);
-    const response = await fetch(`/api/projects/${projectId}/pipelines/run/graph`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-      },
-      body: JSON.stringify({
-        runId: v4(),
-        graph: runnableGraph.current?.toObject(),
-        inputs: JSON.parse(inputs),
-        env: {
-          "OPENAI_API_KEY": process.env.OPENAI_API_KEY
+    const response = await fetch(
+      `/api/projects/${projectId}/pipelines/run/graph`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream'
         },
-        breakpointTaskIds: [],
-        pipelineVersionId: v4(),
-        devSessionIds: [],
-        stream: false
-      })
-    });
+        body: JSON.stringify({
+          runId: v4(),
+          graph: runnableGraph.current?.toObject(),
+          inputs: JSON.parse(inputs),
+          env: {},
+          breakpointTaskIds: [],
+          pipelineVersionId: v4(),
+          devSessionIds: [],
+          stream: false
+        })
+      }
+    );
 
     if (!response.ok) {
       setIsRunning(false);
       toast({
         title: 'Error',
         description: 'Failed to run evaluator',
-        variant: 'destructive',
+        variant: 'destructive'
       });
     }
 
     const res = await response.json();
-    try {
-      setOutput(res["outputs"]["output"]["value"]);
-    } catch (e) {
-      setOutput(JSON.stringify(res));
-    }
+
+    setOutput(res['outputs']['output']['value']);
   };
 
   const updateCodeRunnableGraph = (code: string) => {
-
     const node = createNodeData(v4(), NodeType.CODE) as CodeNode;
     node.code = code;
     node.fnName = 'main';
@@ -124,7 +127,6 @@ export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEval
   };
 
   const updateLLMRunnableGraph = (prompt: string) => {
-
     const node = createNodeData(v4(), NodeType.LLM) as LLMNode;
     node.prompt = prompt;
     node.model = 'openai:gpt-4o-mini';
@@ -166,15 +168,12 @@ export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEval
     }
   };
 
-
   return (
-    <div className="flex flex-col h-full w-full" >
+    <div className="flex flex-col h-full w-full">
       <div className="flex h-full space-x-4 w-full flex-grow">
         <div className="flex-1 items-center flex p-4 pr-0">
-          <div className='flex flex-col h-full w-full flex-grow'>
-            <div className="pb-2 font-medium text-lg flex-none">
-              Input
-            </div>
+          <div className="flex flex-col h-full w-full flex-grow">
+            <div className="pb-2 font-medium text-lg flex-none">Input</div>
             <div className="flex-grow relative">
               <div className="absolute inset-0 overflow-auto">
                 <Formatter
@@ -187,10 +186,11 @@ export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEval
             </div>
           </div>
         </div>
-        <div className='flex-1 flex flex-col space-y-2'>
+        <div className="flex-1 flex flex-col space-y-2">
           <Tabs
             className="flex flex-col flex-grow"
-            value={evalType} onValueChange={(value) => setEvalType(value as 'LLM' | 'CODE')}
+            value={evalType}
+            onValueChange={(value) => setEvalType(value as 'LLM' | 'CODE')}
           >
             <div className="flex-none pt-4 pr-4">
               <h1 className="text-lg">Evaluator for {labelClass.name}</h1>
@@ -231,13 +231,14 @@ export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEval
                 <div className="text-secondary-foreground flex flex-col space-y-2">
                   <Label>Expected range of values</Label>
                   <div className="flex space-x-1">
-                    {
-                      labelClass.valueMap.map((value, index) => (
-                        <div key={index} className="border rounded-md p-0.5 px-2 text-sm">
-                          {value}
-                        </div>
-                      ))
-                    }
+                    {labelClass.valueMap.map((value, index) => (
+                      <div
+                        key={index}
+                        className="border rounded-md p-0.5 px-2 text-sm"
+                      >
+                        {value}
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="flex flex-col flex-none h-[200px] space-y-2">
@@ -281,6 +282,6 @@ export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEval
           </Button>
         </DialogClose>
       </div>
-    </div >
+    </div>
   );
 }

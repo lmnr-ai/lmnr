@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use chrono::{TimeZone, Utc};
 use regex::Regex;
@@ -11,9 +11,13 @@ use crate::{
         trace::{CurrentTraceAndSpan, TraceType, DEFAULT_VERSION},
         utils::{convert_any_value_to_json_value, span_id_to_uuid},
     },
-    language_model::{ChatMessage, ChatMessageContent, InstrumentationChatMessageContentPart},
+    language_model::{
+        ChatMessage, ChatMessageContent, ChatMessageContentPart,
+        InstrumentationChatMessageContentPart,
+    },
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     pipeline::{nodes::Message, trace::MetaLog},
+    storage::Storage,
 };
 
 use super::span_attributes::{
@@ -201,7 +205,11 @@ impl Span {
         self.attributes = serde_json::to_value(&attributes.attributes).unwrap();
     }
 
-    pub fn from_otel_span(otel_span: OtelSpan) -> Self {
+    pub async fn from_otel_span(
+        otel_span: OtelSpan,
+        project_id: &Uuid,
+        storage: Arc<dyn Storage>,
+    ) -> Self {
         let trace_id = Uuid::from_slice(&otel_span.trace_id).unwrap();
 
         let span_id = span_id_to_uuid(&otel_span.span_id);
@@ -271,15 +279,18 @@ impl Span {
 
                 input_messages.push(ChatMessage {
                     role,
-                    content: serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(
+                    content: match serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(
                         &content,
-                    )
-                    .map(|parts| {
-                        ChatMessageContent::ContentPartList(
-                            parts.into_iter().map(|part| part.into()).collect(),
-                        )
-                    })
-                    .unwrap_or(ChatMessageContent::Text(content.clone())),
+                    ){
+                        Ok(otel_parts) => {
+                            let mut parts = Vec::new();
+                            for part in otel_parts {
+                                parts.push(ChatMessageContentPart::from_instrumentation_content_part(part, project_id, storage.clone()).await);
+                            }
+                            ChatMessageContent::ContentPartList(parts)
+                        }
+                        Err(_) => ChatMessageContent::Text(content.clone()),
+                    },
                 });
                 i += 1;
             }

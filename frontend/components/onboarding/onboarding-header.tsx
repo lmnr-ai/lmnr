@@ -8,8 +8,11 @@ interface OnboardingHeaderProps {}
 export default function OnboardingHeader({}: OnboardingHeaderProps) {
   return (
     <div className="flex items-center h-14 border-b pl-1 space-x-2 pr-4">
-      <Link href={'/projects'} className='flex h-10 items-center justify-center'>
-        <Image alt='Laminar AI icon' src={icon} width={32} />
+      <Link
+        href={'/projects'}
+        className="flex h-10 items-center justify-center"
+      >
+        <Image alt="Laminar AI icon" src={icon} width={32} />
       </Link>
       <ChevronRight className="w-5 h-5 text-gray-500" />
       <div className="font-medium flex items-center h-14">

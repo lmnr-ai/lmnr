@@ -1,17 +1,17 @@
-import { Event } from "../events/types";
-import { Graph } from "../flow/graph";
-import { GraphMessagePreview } from "../pipeline/types";
+import { Event } from '../events/types';
+import { Graph } from '../flow/graph';
+import { GraphMessagePreview } from '../pipeline/types';
 
-export type TraceMessages = { [key: string]: GraphMessagePreview }
+export type TraceMessages = { [key: string]: GraphMessagePreview };
 
 export enum LabelType {
   CATEGORICAL = 'CATEGORICAL',
-  BOOLEAN = 'BOOLEAN',
+  BOOLEAN = 'BOOLEAN'
 }
 
 export enum LabelSource {
   AUTO = 'AUTO',
-  MANUAL = 'MANUAL',
+  MANUAL = 'MANUAL'
 }
 
 export type LabelClass = {
@@ -23,7 +23,7 @@ export type LabelClass = {
   valueMap: string[];
   description: string | null;
   evaluatorRunnableGraph: any | null;
-}
+};
 
 export type RegisteredLabelClassForPath = {
   id: string;
@@ -31,7 +31,7 @@ export type RegisteredLabelClassForPath = {
   path: string;
   projectId: string;
   createdAt: string;
-}
+};
 
 export type SpanLabel = {
   id: string;
@@ -49,34 +49,33 @@ export type SpanLabel = {
   userEmail: string | null;
   description: string | null;
   updatedAt: string;
-}
+};
 
 export enum SpanType {
-  DEFAULT = "DEFAULT",
-  LLM = "LLM",
-  EXECUTOR = "EXECUTOR",
-  EVALUATOR = "EVALUATOR",
-  EVALUATION = "EVALUATION",
+  DEFAULT = 'DEFAULT',
+  LLM = 'LLM',
+  EXECUTOR = 'EXECUTOR',
+  EVALUATOR = 'EVALUATOR',
+  EVALUATION = 'EVALUATION'
 }
 
 export type Span = {
-  version: string
-  spanId: string
-  success: boolean
-  parentSpanId?: string | null
-  traceId: string
-  name: string
-  startTime: string
-  endTime: string
-  attributes: any
-  metadata: any | null
-  input: any | null
-  output: any | null
-  spanType: SpanType
-  events: Event[]
+  version: string;
+  spanId: string;
+  success: boolean;
+  parentSpanId?: string | null;
+  traceId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  attributes: any;
+  metadata: any | null;
+  input: any | null;
+  output: any | null;
+  spanType: SpanType;
+  events: Event[];
   labels: SpanLabel[];
-}
-
+};
 
 export type TraceWithSpans = {
   id: string;
@@ -92,7 +91,7 @@ export type TraceWithSpans = {
   metadata: Record<string, string> | null;
   projectId: string;
   spans: Span[];
-}
+};
 
 export type Trace = {
   startTime: string;
@@ -111,16 +110,16 @@ export type Trace = {
   parentSpanOutput: any | null;
   parentSpanName: string | null;
   parentSpanType: SpanType | null;
-  events: TraceEvent[]
-}
+  events: TraceEvent[];
+};
 
 export type TraceEvent = {
   id: string;
   templateName: string;
   templateId: string;
-}
+};
 
-export type RunTrace = TracePreview & { messagePreviews: TraceMessages }
+export type RunTrace = TracePreview & { messagePreviews: TraceMessages };
 export type TracePreview = {
   startTime: string;
   endTime: string;
@@ -134,13 +133,13 @@ export type TracePreview = {
   approximateCost: number | null;
   metadata: Record<string, string> | null;
   outputMessageIds: string[];
-}
+};
 
 export type TraceMetricDatapoint = {
   // epoch seconds
   time: number;
   value: number;
-}
+};
 
 export type SessionPreview = {
   id: string;
@@ -154,7 +153,7 @@ export type SessionPreview = {
   inputTokenCount: number;
   outputTokenCount: number;
   totalTokenCount: number;
-}
+};
 
 export enum ExportableSpanColumns {
   SpanId = 'spanId',
@@ -165,5 +164,5 @@ export enum ExportableSpanColumns {
   ParentSpanId = 'parentSpanId',
   Input = 'input',
   Output = 'output',
-  SpanType = 'spanType',
+  SpanType = 'spanType'
 }

@@ -9,6 +9,8 @@ import Mono from '../ui/mono';
 import Header from '../ui/header';
 import { EventTemplate } from '@/lib/events/types';
 import { useUserContext } from '@/contexts/user-context';
+import { usePostHog } from 'posthog-js/react';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 export interface EventsProps {
   events: EventTemplate[];
@@ -17,7 +19,12 @@ export interface EventsProps {
 export default function Events({ events }: EventsProps) {
   const { projectId } = useProjectContext();
   const router = useRouter();
+  const posthog = usePostHog();
   const { email } = useUserContext();
+
+  if (isFeatureEnabled(Feature.POSTHOG)) {
+    posthog.identify(email);
+  }
 
   const columns: ColumnDef<EventTemplate>[] = [
     {
@@ -28,17 +35,19 @@ export default function Events({ events }: EventsProps) {
     },
     {
       accessorKey: 'name',
-      header: 'Name',
+      header: 'Name'
     },
     {
       header: 'Last occurrence',
       accessorKey: 'latestTimestamp',
-      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+      cell: (row) => (
+        <ClientTimestampFormatter timestamp={String(row.getValue())} />
+      )
     },
     {
       header: 'Type',
-      accessorKey: 'eventType',
-    },
+      accessorKey: 'eventType'
+    }
   ];
 
   return (
