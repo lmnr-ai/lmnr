@@ -9,6 +9,7 @@ pub mod events;
 pub mod labels;
 pub mod modifiers;
 pub mod pipelines;
+pub mod prices;
 pub mod projects;
 pub mod spans;
 pub mod stats;

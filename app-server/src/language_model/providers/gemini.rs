@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use futures::stream::StreamExt;
@@ -8,15 +8,15 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc::Sender;
 
 use crate::{
+    cache::Cache,
+    db::DB,
     language_model::{
         chat_message::{ChatCompletion, ChatMessage},
-        ChatChoice, ChatMessageContent, ChatMessageContentPart, ChatUsage, ExecuteChatCompletion,
-        LanguageModelProviderName, NodeInfo,
+        ChatChoice, ChatMessageContent, ChatMessageContentPart, ChatUsage, EstimateCost,
+        ExecuteChatCompletion, LanguageModelProviderName, NodeInfo,
     },
     pipeline::nodes::{NodeStreamChunk, StreamChunk},
 };
-
-use crate::language_model::providers::utils::calculate_cost;
 
 #[derive(Clone, Debug)]
 pub struct Gemini {
@@ -143,6 +143,8 @@ impl ExecuteChatCompletion for Gemini {
         env: &HashMap<String, String>,
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Result<ChatCompletion> {
         let mut body = json!({});
 
@@ -252,7 +254,9 @@ impl ExecuteChatCompletion for Gemini {
                     completion_tokens,
                     prompt_tokens,
                     total_tokens: completion_tokens + prompt_tokens,
-                    approximate_cost: self.estimate_cost(model, completion_tokens, prompt_tokens),
+                    approximate_cost: self
+                        .estimate_cost(db, cache, model, prompt_tokens, completion_tokens)
+                        .await,
                 },
                 model: model.to_string(),
             };
@@ -285,72 +289,55 @@ impl ExecuteChatCompletion for Gemini {
             let res_body = res.json::<GeminiResponse>().await?;
             let mut completion = to_chat_completion(res_body, model);
 
-            completion.usage.approximate_cost = self.estimate_cost(
-                model,
-                completion.usage.completion_tokens,
-                completion.usage.prompt_tokens,
-            );
+            completion.usage.approximate_cost = self
+                .estimate_cost(
+                    db,
+                    cache,
+                    model,
+                    completion.usage.prompt_tokens,
+                    completion.usage.completion_tokens,
+                )
+                .await;
 
             Ok(completion)
         }
     }
+}
 
-    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
-        let input_price_per_million_tokens = match model.to_lowercase().as_str() {
-            "gemini-1.5-flash" => {
-                if prompt_tokens <= 128_000 {
-                    0.35
-                } else {
-                    0.70
-                }
-            }
-            "gemini-1.5-pro" => {
-                if prompt_tokens <= 128_000 {
-                    3.5
-                } else {
-                    7.0
-                }
-            }
-            _ => return None,
-        };
-        Some(calculate_cost(
-            prompt_tokens,
-            input_price_per_million_tokens,
-        ))
+impl EstimateCost for Gemini {
+    fn db_provider_name(&self) -> &str {
+        "gemini"
     }
 
-    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
-        let output_price_per_million_tokens = match model.to_lowercase().as_str() {
-            "gemini-1.5-flash" => {
-                if completion_tokens <= 128_000 {
-                    1.05
-                } else {
-                    2.10
-                }
-            }
-            "gemini-1.5-pro" => {
-                if completion_tokens <= 128_000 {
-                    10.50
-                } else {
-                    21.00
-                }
-            }
-            _ => return None,
-        };
-        Some(calculate_cost(
-            completion_tokens,
-            output_price_per_million_tokens,
-        ))
-    }
-
-    fn estimate_cost(
+    // override the default implementation, because Gemini charges differently when input_tokens > 128_000
+    async fn estimate_cost(
         &self,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
         model: &str,
-        completion_tokens: u32,
-        prompt_tokens: u32,
+        input_tokens: u32,
+        output_tokens: u32,
     ) -> Option<f64> {
-        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
-        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
+        let model = if model.starts_with("gemini-1.5") && input_tokens > 128_000 {
+            format!("{model}--long-context")
+        } else {
+            model.to_string()
+        };
+        let input_cost = self
+            .estimate_input_cost(db.clone(), cache.clone(), model.as_str(), input_tokens)
+            .await
+            .or_else(|| {
+                log::warn!(
+                    "No stored price found for provider: {}, model: {}",
+                    self.db_provider_name(),
+                    model,
+                );
+                None
+            })?;
+        let output_cost = self
+            .estimate_output_cost(db.clone(), cache.clone(), model.as_str(), output_tokens)
+            .await?;
+
         Some(input_cost + output_cost)
     }
 }
