@@ -16,7 +16,7 @@ use crate::{
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    storage::{s3::S3Storage, Storage},
+    storage::Storage,
     traces::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue},
 };
 use prost::Message;
