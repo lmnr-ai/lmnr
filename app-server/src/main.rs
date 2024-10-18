@@ -26,7 +26,7 @@ use chunk::{
     character_split::CharacterSplitChunker,
     runner::{Chunker, ChunkerRunner, ChunkerType},
 };
-use language_model::{LanguageModelProvider, LanguageModelProviderName};
+use language_model::{costs::LLMPriceEntry, LanguageModelProvider, LanguageModelProviderName};
 use lapin::{
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::FieldTable,
@@ -118,6 +118,9 @@ fn main() -> anyhow::Result<()> {
         TypeId::of::<WorkspaceLimitsExceeded>(),
         workspace_limits_cache,
     );
+    let llm_costs_cache: Arc<MokaCache<String, LLMPriceEntry>> =
+        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
+    caches.insert(TypeId::of::<LLMPriceEntry>(), llm_costs_cache);
 
     let cache = Arc::new(Cache::new(caches));
 
@@ -307,6 +310,8 @@ fn main() -> anyhow::Result<()> {
                         semantic_search.clone(),
                         rabbitmq_connection.clone(),
                         code_executor.clone(),
+                        db_for_http.clone(),
+                        cache_for_http.clone(),
                     ));
 
                     tokio::task::spawn(process_queue_spans(
@@ -336,6 +341,11 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(chunker_runner.clone()))
                         .app_data(web::Data::new(storage.clone()))
                         // Scopes with specific auth or no auth
+                        .service(
+                            web::scope("api/v1/auth")
+                                .wrap(shared_secret_auth.clone())
+                                .service(routes::auth::signin),
+                        )
                         .service(
                             web::scope("api/v1/auth")
                                 .wrap(shared_secret_auth.clone())

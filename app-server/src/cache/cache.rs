@@ -44,7 +44,7 @@ where
 
 /// Write-through and/or cache-aside cache when doing read-write operations with the database
 ///
-/// It has get operations where the keys are strings and the values are FromRow
+/// It has get operations where the keys are strings and the values are any Send + Sync + Clone type
 pub struct Cache {
     caches: HashMap<TypeId, Arc<dyn CacheTrait>>,
 }

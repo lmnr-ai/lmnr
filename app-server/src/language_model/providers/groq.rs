@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use futures::StreamExt;
 use json_value_merge::Merge;
@@ -10,15 +10,15 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc::Sender;
 
 use crate::{
+    cache::Cache,
+    db::DB,
     language_model::{
         chat_message::{ChatCompletion, ChatMessage},
-        ChatChoice, ChatMessageContent, ChatUsage, ExecuteChatCompletion,
+        ChatChoice, ChatMessageContent, ChatUsage, EstimateCost, ExecuteChatCompletion,
         LanguageModelProviderName, NodeInfo,
     },
     pipeline::nodes::{NodeStreamChunk, StreamChunk},
 };
-
-use crate::language_model::providers::utils::calculate_cost;
 
 #[derive(Clone, Debug)]
 pub struct Groq {
@@ -65,6 +65,8 @@ impl ExecuteChatCompletion for Groq {
         env: &HashMap<String, String>,
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Result<ChatCompletion> {
         let mut body = json!({
             "model": model,
@@ -161,7 +163,9 @@ impl ExecuteChatCompletion for Groq {
                     completion_tokens,
                     prompt_tokens,
                     total_tokens: completion_tokens + prompt_tokens,
-                    approximate_cost: self.estimate_cost(model, completion_tokens, prompt_tokens),
+                    approximate_cost: self
+                        .estimate_cost(db, cache, model, prompt_tokens, completion_tokens)
+                        .await,
                 },
                 model: model.to_string(),
             };
@@ -183,60 +187,23 @@ impl ExecuteChatCompletion for Groq {
             }
 
             let mut res_body = res.json::<ChatCompletion>().await?;
-            res_body.usage.approximate_cost = self.estimate_cost(
-                model,
-                res_body.usage.completion_tokens,
-                res_body.usage.prompt_tokens,
-            );
+            res_body.usage.approximate_cost = self
+                .estimate_cost(
+                    db,
+                    cache,
+                    model,
+                    res_body.usage.prompt_tokens,
+                    res_body.usage.completion_tokens,
+                )
+                .await;
 
             Ok(res_body)
         }
     }
+}
 
-    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
-        if model.starts_with("gemma-7b") {
-            Some(calculate_cost(prompt_tokens, 0.07))
-        } else if model.starts_with("gemma2-9b") {
-            Some(calculate_cost(prompt_tokens, 0.2))
-        } else if model.starts_with("mixtral-8x7b-32768") {
-            Some(calculate_cost(prompt_tokens, 0.24))
-        } else if model.starts_with("llama3-8b-8192") || model.starts_with("llama3-groq-8b-8192") {
-            Some(calculate_cost(prompt_tokens, 0.05))
-        } else if model.starts_with("llama3-70b-8192") {
-            Some(calculate_cost(prompt_tokens, 0.59))
-        } else if model.starts_with("llama-3.1") {
-            Some(0.0) // TODO: watch https://wow.groq.com/ for pricing
-        } else {
-            None
-        }
-    }
-
-    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
-        if model.starts_with("gemma-7b") {
-            Some(calculate_cost(completion_tokens, 0.07))
-        } else if model.starts_with("gemma2-9b") {
-            Some(calculate_cost(completion_tokens, 0.2))
-        } else if model.starts_with("mixtral-8x7b-32768") {
-            Some(calculate_cost(completion_tokens, 0.24))
-        } else if model.starts_with("llama3-8b-8192") || model.starts_with("llama3-groq-8b-8192") {
-            Some(calculate_cost(completion_tokens, 0.08))
-        } else if model.starts_with("llama3-70b-8192") {
-            Some(calculate_cost(completion_tokens, 0.79))
-        } else if model.starts_with("llama-3.1") {
-            Some(0.0) // TODO: watch https://wow.groq.com/ for pricing
-        } else {
-            None
-        }
-    }
-
-    fn estimate_cost(
-        &self,
-        model: &str,
-        completion_tokens: u32,
-        prompt_tokens: u32,
-    ) -> Option<f64> {
-        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
-        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
-        Some(input_cost + output_cost)
+impl EstimateCost for Groq {
+    fn db_provider_name(&self) -> &str {
+        "groq"
     }
 }

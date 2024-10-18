@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use crate::cache::Cache;
+use crate::db::DB;
 use crate::language_model::chat_message::{ChatChoice, ChatCompletion, ChatMessage, ChatUsage};
-use crate::language_model::providers::utils::calculate_cost;
 use crate::language_model::runner::ExecuteChatCompletion;
 use crate::language_model::{
-    ChatMessageContent, ChatMessageContentPart, LanguageModelProviderName, NodeInfo,
+    ChatMessageContent, ChatMessageContentPart, EstimateCost, LanguageModelProviderName, NodeInfo,
 };
 use crate::pipeline::nodes::{NodeStreamChunk, StreamChunk};
 use anyhow::Result;
@@ -159,6 +161,8 @@ impl ExecuteChatCompletion for Anthropic {
         env: &HashMap<String, String>,
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Result<ChatCompletion> {
         let mut body = json!({
             "model": model,
@@ -272,7 +276,9 @@ impl ExecuteChatCompletion for Anthropic {
                 completion_tokens,
                 prompt_tokens,
                 total_tokens: completion_tokens + prompt_tokens,
-                approximate_cost: self.estimate_cost(model, completion_tokens, prompt_tokens),
+                approximate_cost: self
+                    .estimate_cost(db, cache, model, prompt_tokens, completion_tokens)
+                    .await,
             };
 
             let chat_completion = ChatCompletion {
@@ -310,50 +316,22 @@ impl ExecuteChatCompletion for Anthropic {
                 return result;
             }
             let mut res = result.unwrap();
-            res.usage.approximate_cost =
-                self.estimate_cost(model, res.usage.completion_tokens, res.usage.prompt_tokens);
+            res.usage.approximate_cost = self
+                .estimate_cost(
+                    db,
+                    cache,
+                    model,
+                    res.usage.prompt_tokens,
+                    res.usage.completion_tokens,
+                )
+                .await;
             Ok(res)
         }
     }
+}
 
-    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
-        let model = String::from(model).to_lowercase();
-        if model.starts_with("claude-3-haiku") {
-            Some(calculate_cost(prompt_tokens, 0.25))
-        } else if model.starts_with("claude-3-sonnet") {
-            Some(calculate_cost(prompt_tokens, 3.0))
-        } else if model.starts_with("claude-3-opus") {
-            Some(calculate_cost(prompt_tokens, 15.0))
-        } else if model.starts_with("claude-3-5-sonnet") {
-            Some(calculate_cost(prompt_tokens, 3.0))
-        } else {
-            None
-        }
-    }
-
-    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
-        let model = String::from(model).to_lowercase();
-        if model.starts_with("claude-3-haiku") {
-            Some(calculate_cost(completion_tokens, 1.25))
-        } else if model.starts_with("claude-3-sonnet") {
-            Some(calculate_cost(completion_tokens, 15.0))
-        } else if model.starts_with("claude-3-opus") {
-            Some(calculate_cost(completion_tokens, 75.0))
-        } else if model.starts_with("claude-3-5-sonnet") {
-            Some(calculate_cost(completion_tokens, 15.0))
-        } else {
-            None
-        }
-    }
-
-    fn estimate_cost(
-        &self,
-        model: &str,
-        completion_tokens: u32,
-        prompt_tokens: u32,
-    ) -> Option<f64> {
-        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
-        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
-        Some(input_cost + output_cost)
+impl EstimateCost for Anthropic {
+    fn db_provider_name(&self) -> &str {
+        "anthropic"
     }
 }

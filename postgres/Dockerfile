@@ -10,3 +10,5 @@ ENV POSTGRES_DB=$POSTGRES_DB
 COPY ./001000-roles.sql /docker-entrypoint-initdb.d/
 COPY ./supabase/migrations/* /docker-entrypoint-initdb.d/
 COPY ./data-prefill.sql /docker-entrypoint-initdb.d/
+
+RUN chown -R postgres:postgres /docker-entrypoint-initdb.d
