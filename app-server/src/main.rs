@@ -501,8 +501,6 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::events::get_events_by_template_id)
                                         .service(routes::events::get_events_metrics)
                                         .service(routes::traces::get_traces_metrics)
-                                        .service(routes::provider_api_keys::delete_api_key)
-                                        .service(routes::provider_api_keys::get_api_keys)
                                         .service(routes::provider_api_keys::save_api_key),
                                 ),
                         )

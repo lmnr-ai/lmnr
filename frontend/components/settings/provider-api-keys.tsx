@@ -4,8 +4,8 @@ import { Label } from '@/components/ui/label';
 import { useEffect, useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
 import AddProviderApiKeyVarDialog from './add-provider-api-key-dialog';
-import { Trash } from 'lucide-react';
-import { swrFetcher } from '@/lib/utils';
+import { Trash, Trash2 } from 'lucide-react';
+import { formatTimestamp, swrFetcher } from '@/lib/utils';
 import useSWR from 'swr';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -14,7 +14,7 @@ import { ProviderApiKey } from '@/lib/settings/types';
 export default function ProviderApiKeys() {
 
   const { projectId } = useProjectContext();
-  const {data: envVars, mutate} = useSWR<ProviderApiKey[]>(`/api/projects/${projectId}/provider-api-keys`, swrFetcher);
+  const { data: providerApiKeys, mutate } = useSWR<ProviderApiKey[]>(`/api/projects/${projectId}/provider-api-keys`, swrFetcher);
 
   const postProviderApiKey = async (name: string, value: string) => {
     const res = await fetch(`/api/projects/${projectId}/provider-api-keys`, {
@@ -43,41 +43,38 @@ export default function ProviderApiKeys() {
     }
   };
 
-  if (!envVars) {
-    return <Skeleton />;
-  }
-
   return (
     <>
       <div className="flex flex-col items-start space-y-4 ">
-        <h1 className="text-lg">Model provider API keys.</h1>
+        <h1 className="text-lg">Model provider API keys</h1>
         <Label className="">
           Set your model provider API keys for use in LLM calls.
           Variables are encrypted and stored securely.
         </Label>
         <AddProviderApiKeyVarDialog
-          existingKeyNames={envVars.map(apiKey => apiKey.name)}
+          existingKeyNames={providerApiKeys?.map(apiKey => apiKey.name) ?? []}
           onAdd={(name, value) => {
             postProviderApiKey(name, value);
           }} />
-        <table className="w-2/3 table-fixed border-t">
+        <table className="w-1/2 table-fixed border-t">
           <tbody>
             {
-              envVars.map((apiKey, index) => (
+              providerApiKeys?.map((apiKey, index) => (
                 <tr key={index} className="border-b h-14">
-
                   <td className="">{apiKey.name}</td>
+                  <td className="">
+                    {formatTimestamp(apiKey.createdAt)}
+                  </td>
                   <td>
                     <div className="flex justify-end">
-                      {/* TODO: replace with a dialog with warning */}
                       <Button
-                        variant="secondary"
-                        className="mr-4 text-gray-400"
+                        variant="ghost"
+                        className=""
                         onClick={() => {
                           deleteProviderApiKey(apiKey.name);
                         }}
                       >
-                        <Trash className='w-4' />
+                        <Trash2 size={14} />
                       </Button>
                     </div>
                   </td>

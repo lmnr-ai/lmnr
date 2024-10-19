@@ -14,9 +14,6 @@ pub fn encode_api_key(name: &String, api_key: &String) -> ValueAndNonceHex {
     let key = Key::from_slice(hex::decode(key_hex).unwrap().as_slice()).unwrap();
 
     let nonce = gen_nonce();
-
-    dbg!(&nonce.0);
-
     let encrypted = seal(api_key.as_bytes(), Some(name.as_bytes()), &nonce, &key);
 
     ValueAndNonceHex {

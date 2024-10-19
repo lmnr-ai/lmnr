@@ -1,5 +1,6 @@
 export type ProviderApiKey = {
   id: string
-  project_id: string
+  projectId: string
   name: string
+  createdAt: string
 }

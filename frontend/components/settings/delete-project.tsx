@@ -13,12 +13,12 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
-import { Loader, Trash } from 'lucide-react';
+import { Loader, Trash, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface DeleteProjectProps {}
+interface DeleteProjectProps { }
 
-export default function DeleteProject({}: DeleteProjectProps) {
+export default function DeleteProject({ }: DeleteProjectProps) {
   const { projectId, projectName } = useProjectContext();
 
   const [inputProjectName, setInputProjectName] = useState<string>('');
@@ -42,8 +42,8 @@ export default function DeleteProject({}: DeleteProjectProps) {
     <div>
       <div className="flex flex-col items-start space-y-4">
         <h1 className="text-lg">Delete project</h1>
-        <Label>
-          Delect project and all of its data. This action cannot be undone.
+        <Label className="text-sm text-secondary-foreground">
+          Delete project and all of its data. This action cannot be undone.
         </Label>
         <Dialog
           open={isDeleteProjectDialogOpen}
@@ -60,7 +60,7 @@ export default function DeleteProject({}: DeleteProjectProps) {
               variant="outline"
               className="h-8 max-w-80 text-red-500"
             >
-              <Trash className="w-4 mr-1" />
+              <Trash2 className="w-4 mr-1" />
               Delete project
             </Button>
           </DialogTrigger>

@@ -60,36 +60,3 @@ pub async fn save_api_key(
 
     Ok(api_key)
 }
-
-pub async fn delete_api_key(pool: &PgPool, project_id: &Uuid, name: &String) -> Result<()> {
-    sqlx::query(
-        "DELETE FROM provider_api_keys
-            WHERE project_id = $1
-            AND name = $2",
-    )
-    .bind(project_id)
-    .bind(name)
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
-pub async fn get_api_keys(pool: &PgPool, project_id: &Uuid) -> Result<Vec<SavedApiKeyResponse>> {
-    let api_keys = sqlx::query_as::<_, SavedApiKeyResponse>(
-        "SELECT
-            id,
-            project_id,
-            name
-        FROM
-            provider_api_keys
-        WHERE
-            project_id = $1
-        ",
-    )
-    .bind(project_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(api_keys)
-}

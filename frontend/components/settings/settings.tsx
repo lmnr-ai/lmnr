@@ -14,7 +14,7 @@ export default function Settings({ apiKeys }: SettingsProps) {
   return (
     <div className="flex flex-col">
       <Header path="settings" />
-      <div className="flex flex-col space-y-4 p-4">
+      <div className="flex flex-col space-y-8 p-4">
         <ProjectApiKeys apiKeys={apiKeys} />
         <ProviderApiKeys />
         <DeleteProject />

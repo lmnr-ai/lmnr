@@ -41,7 +41,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
       <DialogTrigger asChild>
         <Button variant="outline" className="h-8">
           <Plus className="w-4 mr-1 text-gray-500" />
-          Add variable
+          Add API key
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
@@ -61,7 +61,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Choose env var..." />
+              <SelectValue placeholder="API key provider" />
             </SelectTrigger>
             <SelectContent>
               {
@@ -71,9 +71,6 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
                   </SelectItem>
                 ))
               }
-              <SelectItem key={-1} value={'custom'}>
-                Custom
-              </SelectItem>
             </SelectContent>
           </Select>
           {envVarType === 'custom' && (
@@ -85,8 +82,9 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
             />
           )}
           <Label>Value</Label>
+          <p className="text-sm text-secondary-foreground">All keys are encrypted at rest and stored securely.</p>
           <Input
-            placeholder="Value"
+            placeholder="API key"
             spellCheck={false}
             onChange={(e) => {
               setEnvVarValue(e.target.value);
