@@ -23,7 +23,6 @@ pub fn encode_api_key(name: &String, api_key: &String) -> ValueAndNonceHex {
 }
 
 pub fn decode_api_key(name: &String, nonce: &String, value: &String) -> Result<String> {
-    dbg!(name, value, nonce);
     let key_hex = std::env::var("AEAD_SECRET_KEY").unwrap();
     let key = Key::from_slice(hex::decode(key_hex).unwrap().as_slice()).unwrap();
 

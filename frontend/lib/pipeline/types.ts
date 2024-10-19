@@ -114,12 +114,8 @@ const providerMapping: { provider: string; models: LanguageModel[] }[] = [
     provider: 'openai',
     models: [
       {
-        id: 'openai:gpt-3.5-turbo',
-        name: 'openai:gpt-3.5-turbo'
-      },
-      {
-        id: 'openai:gpt-3.5-turbo-16k',
-        name: 'openai:gpt-3.5-turbo-16k'
+        id: 'openai:gpt-4o-mini',
+        name: 'openai:gpt-4o-mini'
       },
       {
         id: 'openai:gpt-4-turbo',
@@ -128,10 +124,6 @@ const providerMapping: { provider: string; models: LanguageModel[] }[] = [
       {
         id: 'openai:gpt-4o',
         name: 'openai:gpt-4o'
-      },
-      {
-        id: 'openai:gpt-4o-mini',
-        name: 'openai:gpt-4o-mini'
       },
       {
         id: 'openai:o1-mini',
