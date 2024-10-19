@@ -49,9 +49,7 @@ export default function LanguageModelSelect({
     setModel(LANGUAGE_MODELS.find((model) => model.id === modelId));
   }, [modelId]);
 
-  const isProviderKeySet = (provider: string) => {
-    return providerApiKeys?.some(key => key.name.toLowerCase().includes(provider.toLowerCase()));
-  };
+  const isProviderKeySet = (provider: string) => providerApiKeys?.some(key => key.name.toLowerCase().includes(provider.toLowerCase()));
 
   return (
     <>
