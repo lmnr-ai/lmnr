@@ -1,6 +1,5 @@
 import { Edge, type Node } from 'reactflow';
 import { ChatMessage } from '../types';
-import { PromptCopilotMessage } from '../prompt-copilot/types';
 import { GraphMessage } from '../pipeline/types';
 import { Dataset } from '../dataset/types';
 import { EventType } from '../events/types';
@@ -139,7 +138,6 @@ export interface LLMNode extends GenericNode {
   semanticCacheDatasetId?: string;
   semanticSimilarityThreshold?: number;
   semanticCacheDataKey?: string;
-  copilotMessages?: PromptCopilotMessage[] | null;
   stream?: boolean;
   structuredOutputEnabled?: boolean;
   structuredOutputMaxRetries?: number;
@@ -159,7 +157,6 @@ export interface UnifyNode extends GenericNode {
   metrics: UnifyThreshold[];
   modelParams?: Record<string, any> | null;
   prompt: string;
-  copilotMessages?: PromptCopilotMessage[] | null;
 }
 
 export interface CodeNode extends GenericNode {
@@ -211,13 +208,13 @@ export interface JsonExtractorNode extends GenericNode {
 }
 
 // for now, node name must match the function being called
-export interface ToolCallNode extends GenericNode {}
+export interface ToolCallNode extends GenericNode { }
 
 export interface FunctionNode extends GenericNode {
   parameterNames: string[];
 }
 
-export interface SemanticSimilarityNode extends GenericNode {}
+export interface SemanticSimilarityNode extends GenericNode { }
 
 export type ConditionValue = {
   condition: string;

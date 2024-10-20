@@ -1,7 +1,7 @@
 import { LabelClass, SpanLabel, LabelType, Span } from '@/lib/traces/types';
 import { cn, swrFetcher } from '@/lib/utils';
 import { useState } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 import { Label } from '../ui/label';
 import {
   Select,
@@ -13,9 +13,7 @@ import {
 import { ArrowLeft, Loader, PlusCircle, Trash2 } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { useProjectContext } from '@/contexts/project-context';
-import { Table, TableBody, TableCell, TableRow } from '../ui/table';
 import DefaultTextarea from '../ui/default-textarea';
 import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
 import { Switch } from '../ui/switch';
@@ -39,7 +37,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
     projectId: projectId,
     createdAt: '',
     labelType: LabelType.BOOLEAN,
-    valueMap: [],
+    valueMap: ["false", "true"],
     description: null,
     evaluatorRunnableGraph: null
   });
@@ -112,6 +110,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
       <div className="flex-col space-y-1">
         <Label>Type</Label>
         <Select
+          value={selectedType}
           onValueChange={(labelType) => {
             setSelectedType(labelType as LabelType);
 

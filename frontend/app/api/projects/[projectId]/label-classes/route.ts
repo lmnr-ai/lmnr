@@ -37,9 +37,14 @@ export async function POST(
     name: body.name,
     description: body.description,
     labelType: body.labelType,
-    evaluatorRunnableGraph: body.evaluatorRunnableGraph
-  });
+    evaluatorRunnableGraph: body.evaluatorRunnableGraph,
+    valueMap: body.valueMap
+  }).returning();
 
-  return new Response(JSON.stringify(res), { status: 200 });
+  if (res.length === 0) {
+    return new Response(JSON.stringify({ error: "Failed to create label class" }), { status: 500 });
+  }
+
+  return new Response(JSON.stringify(res[0]), { status: 200 });
 
 }

@@ -283,6 +283,7 @@ export function AddLabelPopover({ span }: AddLabelPopoverProps) {
                 onClose={() => {
                   setMode('list');
                   mutateLabelClasses();
+                  mutateRegisteredLabelClasses();
                 }}
               />
             )}

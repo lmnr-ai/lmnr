@@ -8,7 +8,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use aws_config::BehaviorVersion;
 use code_executor::code_executor_grpc::code_executor_client::CodeExecutorClient;
 use dashmap::DashMap;
-use db::{api_keys::ProjectApiKey, pipelines::PipelineVersion, user::User};
+use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
 use features::{is_feature_enabled, Feature};
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
@@ -35,6 +35,7 @@ use lapin::{
 use moka::future::Cache as MokaCache;
 use routes::pipelines::GraphInterruptMessage;
 use semantic_search::semantic_search_grpc::semantic_search_client::SemanticSearchClient;
+use sodiumoxide;
 use std::{
     any::TypeId,
     collections::HashMap,
@@ -62,6 +63,7 @@ mod names;
 mod opentelemetry;
 mod pipeline;
 mod projects;
+mod provider_api_keys;
 mod routes;
 mod runtime;
 mod semantic_search;
@@ -75,6 +77,8 @@ fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
 }
 
 fn main() -> anyhow::Result<()> {
+    sodiumoxide::init().expect("failed to initialize sodiumoxide");
+
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
@@ -479,7 +483,6 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::traces::get_single_trace)
                                         .service(routes::traces::get_single_span)
                                         .service(routes::traces::get_sessions)
-                                        .service(routes::labels::create_label_class)
                                         .service(routes::labels::get_label_types)
                                         .service(routes::labels::get_span_labels)
                                         .service(routes::labels::update_span_label)
@@ -496,7 +499,8 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::events::delete_event_template)
                                         .service(routes::events::get_events_by_template_id)
                                         .service(routes::events::get_events_metrics)
-                                        .service(routes::traces::get_traces_metrics),
+                                        .service(routes::traces::get_traces_metrics)
+                                        .service(routes::provider_api_keys::save_api_key),
                                 ),
                         )
                 })

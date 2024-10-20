@@ -14,6 +14,8 @@ import { Label } from '../ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { DialogClose } from '../ui/dialog';
 import { toast } from '@/lib/hooks/use-toast';
+import LanguageModelSelect from '../pipeline/nodes/components/model-select';
+import { LanguageModel } from '@/lib/pipeline/types';
 
 interface AutoEvalsProps {
   span: Span;
@@ -28,10 +30,6 @@ export function EvaluatorEditor({
 }: AutoEvalsProps) {
   const { projectId } = useProjectContext();
   const [evalType, setEvalType] = useState<'LLM' | 'CODE'>('LLM');
-  const [code, setCode] = useState<string>(
-    'def main(span_input, span_output):\n    return True'
-  );
-  const [prompt, setPrompt] = useState<string>('');
   const [inputs, setInputs] = useState<string>('');
   const [output, setOutput] = useState<string>('');
   const runnableGraph = useRef<Graph | null>(null);
@@ -57,14 +55,12 @@ export function EvaluatorEditor({
         (node) => node.type === NodeType.CODE
       ) as CodeNode;
       if (codeNode) {
-        setCode(codeNode.code);
         setEvalType('CODE');
       }
       const llmNode = Array.from(graph.nodes.values()).find(
         (node) => node.type === NodeType.LLM
       ) as LLMNode;
       if (llmNode) {
-        setPrompt(llmNode.prompt);
         setEvalType('LLM');
       }
     }
@@ -94,11 +90,17 @@ export function EvaluatorEditor({
 
     if (!response.ok) {
       setIsRunning(false);
+
+      const err = await response.text();
+      setOutput('');
+
       toast({
         title: 'Error',
-        description: 'Failed to run evaluator',
+        description: err,
         variant: 'destructive'
       });
+
+      return;
     }
 
     const res = await response.json();
@@ -126,43 +128,10 @@ export function EvaluatorEditor({
     runnableGraph.current = graph;
   };
 
-  const updateLLMRunnableGraph = (prompt: string) => {
-    const node = createNodeData(v4(), NodeType.LLM) as LLMNode;
-    node.prompt = prompt;
-    node.model = 'openai:gpt-4o-mini';
-    node.structuredOutputEnabled = true;
-    node.structuredOutputSchema = `class Output {
-  reasoning string @description("Reasoning for the value.")
-  value string @description("One of ${labelClass.valueMap.join(', ')}.")
-}`;
-    node.structuredOutputSchemaTarget = 'Output';
-    node.dynamicInputs = [
-      {
-        id: v4(),
-        name: 'span_input',
-        type: NodeHandleType.STRING
-      },
-      {
-        id: v4(),
-        name: 'span_output',
-        type: NodeHandleType.STRING
-      }
-    ];
-
-    const graph = Graph.fromNode(node);
-    runnableGraph.current = graph;
-  };
-
   const runEval = async () => {
     setIsRunning(true);
     try {
-      if (evalType === 'CODE') {
-        await runGraph();
-      } else if (evalType === 'LLM') {
-        await runGraph();
-      } else {
-        throw new Error('Invalid evaluator type');
-      }
+      await runGraph();
     } finally {
       setIsRunning(false);
     }
@@ -193,75 +162,66 @@ export function EvaluatorEditor({
             onValueChange={(value) => setEvalType(value as 'LLM' | 'CODE')}
           >
             <div className="flex-none pt-4 pr-4">
-              <h1 className="text-lg">Evaluator for {labelClass.name}</h1>
-              <TabsList className="mb-4 flex-none">
+              <TabsList className="mb-4 flex-none m-0">
                 <TabsTrigger value="LLM">LLM as a judge</TabsTrigger>
                 <TabsTrigger value="CODE">Python</TabsTrigger>
               </TabsList>
             </div>
             <ScrollArea className="flex-grow">
-              <div className="flex flex-col space-y-2 p-4 pl-0 pt-0">
-                <TabsContent value="LLM">
-                  <div className="flex flex-col space-y-2">
-                    <Label>Prompt</Label>
-                    <CodeEditor
-                      className="border rounded"
-                      value={prompt}
-                      language="plaintext"
-                      editable={true}
-                      onChange={(value) => {
-                        setPrompt(value);
-                        updateLLMRunnableGraph(value);
+              <div className='max-h-0'>
+                <div className="flex flex-col space-y-2 p-4 pl-0">
+                  <TabsContent value="LLM">
+                    <LLMEvaluator
+                      graph={runnableGraph.current}
+                      onGraphChanged={(graph) => {
+                        runnableGraph.current = graph;
+                      }}
+                      labelClass={labelClass}
+                    />
+                  </TabsContent>
+                  <TabsContent value="CODE">
+                    <CodeEvaluator
+                      graph={runnableGraph.current}
+                      onGraphChanged={(graph) => {
+                        runnableGraph.current = graph;
                       }}
                     />
+                  </TabsContent>
+                  <div className="text-secondary-foreground flex flex-col space-y-2">
+                    <Label>Expected range of values</Label>
+                    <div className="flex space-x-1">
+                      {labelClass.valueMap.map((value, index) => (
+                        <div
+                          key={index}
+                          className="border rounded-md p-0.5 px-2 text-sm"
+                        >
+                          {value}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </TabsContent>
-                <TabsContent value="CODE">
-                  <CodeEditor
-                    className="border rounded"
-                    value={code}
-                    language="python"
-                    editable={true}
-                    onChange={(value) => {
-                      setCode(value);
-                      updateCodeRunnableGraph(value);
-                    }}
-                  />
-                </TabsContent>
-                <div className="text-secondary-foreground flex flex-col space-y-2">
-                  <Label>Expected range of values</Label>
-                  <div className="flex space-x-1">
-                    {labelClass.valueMap.map((value, index) => (
-                      <div
-                        key={index}
-                        className="border rounded-md p-0.5 px-2 text-sm"
+                  <div className="flex flex-col flex-none space-y-2">
+                    <div className="">
+                      <Button
+                        variant="outline"
+                        onClick={runEval}
+                        disabled={isRunning}
                       >
-                        {value}
-                      </div>
-                    ))}
+                        {isRunning ? (
+                          <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                        ) : (
+                          <Play className="w-3 h-3 mr-2" />
+                        )}
+                        {isRunning ? 'Running...' : 'Run'}
+                      </Button>
+                    </div>
+                    <Label>Output</Label>
+                    <Formatter
+                      className="max-h-[200px]"
+                      defaultMode="json"
+                      value={output}
+                    />
                   </div>
-                </div>
-                <div className="flex flex-col flex-none h-[200px] space-y-2">
-                  <div className="">
-                    <Button
-                      variant="outline"
-                      onClick={runEval}
-                      disabled={isRunning}
-                    >
-                      {isRunning ? (
-                        <Loader2 className="w-3 h-3 mr-2 animate-spin" />
-                      ) : (
-                        <Play className="w-3 h-3 mr-2" />
-                      )}
-                      {isRunning ? 'Running...' : 'Run'}
-                    </Button>
-                  </div>
-                  <Label>Output</Label>
-                  <Formatter
-                    defaultMode="json"
-                    value={output}
-                    editable={false}
-                  />
                 </div>
               </div>
             </ScrollArea>
@@ -282,6 +242,176 @@ export function EvaluatorEditor({
           </Button>
         </DialogClose>
       </div>
+    </div>
+  );
+}
+
+interface LLMEvaluatorProps {
+  graph: Graph | null;
+  onGraphChanged: (graph: Graph) => void;
+  labelClass: LabelClass;
+}
+
+export default function LLMEvaluator({
+  graph,
+  onGraphChanged,
+  labelClass
+}: LLMEvaluatorProps) {
+
+  const [prompt, setPrompt] = useState<string>(`You are an evaluator tasked with checking whether the output of a language model follows the given instruction. Your job is to assess if the model's response accurately addresses the task it was given.
+
+
+Review the input provided to the model and its corresponding output. Then, determine if the output follows the instruction and provides an appropriate response.
+
+
+Provide your reasoning for the assessment, explaining why you believe the output does or does not follow the instruction. Then, give a final verdict of either 'true' if the instruction was followed, or 'false' if it was not.
+
+
+<llm_input>{{span_input}}</llm_input>
+
+
+<llm_output>{{span_output}}</llm_output>`);
+  const [model, setModel] = useState<LanguageModel>({
+    id: 'openai:gpt-4o-mini',
+    name: 'openai:gpt-4o-mini'
+  });
+
+  const [structuredOutputSchema, setStructuredOutputSchema] = useState<string>(`class Output {
+  reasoning string @description("Explanation of why the output does or does not follow the instruction")
+  value string @description("'true' if the instruction was followed, 'false' if it was not")
+}`);
+
+  useEffect(() => {
+    if (graph) {
+      const llmNode = Array.from(graph.nodes.values()).find(
+        (node) => node.type === NodeType.LLM
+      ) as LLMNode;
+      if (llmNode) {
+        setPrompt(llmNode.prompt);
+        setModel({
+          id: llmNode.model!,
+          name: llmNode.model!
+        });
+        setStructuredOutputSchema(llmNode.structuredOutputSchema!);
+      }
+    }
+  }, [graph]);
+
+  const updateGraph = (prompt: string, modelId: string, structuredOutputSchema: string) => {
+    const node = createNodeData(v4(), NodeType.LLM) as LLMNode;
+    node.prompt = prompt;
+    node.model = modelId;
+    node.structuredOutputEnabled = true;
+    node.structuredOutputSchema = structuredOutputSchema;
+    node.structuredOutputSchemaTarget = 'Output';
+    node.dynamicInputs = [
+      {
+        id: v4(),
+        name: 'span_input',
+        type: NodeHandleType.STRING
+      },
+      {
+        id: v4(),
+        name: 'span_output',
+        type: NodeHandleType.STRING
+      }
+    ];
+
+    const graph = Graph.fromNode(node);
+    onGraphChanged(graph);
+  };
+
+  useEffect(() => {
+    updateGraph(prompt, model.id, structuredOutputSchema);
+  }, [prompt, model, structuredOutputSchema]);
+
+  return (
+    <div className="flex flex-col space-y-2">
+      <LanguageModelSelect
+        modelId={model.id}
+        onModelChange={(value) => setModel(value)}
+      />
+      <Label>Prompt</Label>
+      <CodeEditor
+        placeholder="You are a smart evaluator..."
+        className="border rounded"
+        value={prompt}
+        language="plaintext"
+        editable={true}
+        onChange={(value) => setPrompt(value)}
+      />
+      <Label>Output schema</Label>
+      <CodeEditor
+        className="border rounded"
+        value={structuredOutputSchema}
+        language="json"
+        editable={true}
+        onChange={(value) => setStructuredOutputSchema(value)}
+      />
+    </div>
+  );
+}
+
+interface CodeEvaluatorProps {
+  graph: Graph | null;
+  onGraphChanged: (graph: Graph) => void;
+}
+
+function CodeEvaluator({
+  graph,
+  onGraphChanged,
+}: CodeEvaluatorProps) {
+  const [code, setCode] = useState<string>(
+    'def main(span_input, span_output):\n    return True'
+  );
+
+
+  useEffect(() => {
+    if (graph) {
+      const codeNode = Array.from(graph.nodes.values()).find(
+        (node) => node.type === NodeType.CODE
+      ) as CodeNode;
+
+      if (codeNode) {
+        setCode(codeNode.code!);
+      }
+    }
+  }, [graph]);
+
+  const updateGraph = (code: string) => {
+    const node = createNodeData(v4(), NodeType.CODE) as CodeNode;
+    node.code = code;
+    node.fnName = 'main';
+    node.inputs = [
+      {
+        id: v4(),
+        name: 'span_input',
+        type: NodeHandleType.STRING
+      },
+      {
+        id: v4(),
+        name: 'span_output',
+        type: NodeHandleType.STRING
+      }
+    ];
+    const graph = Graph.fromNode(node);
+    onGraphChanged(graph);
+  };
+
+  useEffect(() => {
+    updateGraph(code);
+  }, [code]);
+
+  return (
+    <div className="flex flex-col space-y-2">
+      <Label>Python Code</Label>
+      <CodeEditor
+        className="border rounded"
+        value={code}
+        language="python"
+        editable={true}
+        onChange={(value) => setCode(value)}
+      />
     </div>
   );
 }

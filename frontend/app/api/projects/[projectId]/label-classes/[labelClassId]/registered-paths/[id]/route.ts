@@ -17,7 +17,7 @@ export async function DELETE(
     return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
   }
 
-  const affectedRows = await db.delete(labelClassesForPath).where(eq(labelClassesForPath.id, id));
+  const affectedRows = await db.delete(labelClassesForPath).where(eq(labelClassesForPath.id, id)).returning();
 
   if (affectedRows.length === 0) {
     return new Response('Registered path not found', { status: 404 });

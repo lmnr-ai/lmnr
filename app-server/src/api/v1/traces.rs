@@ -8,8 +8,8 @@ use uuid::Uuid;
 
 use crate::{
     db::{
-        api_keys::ProjectApiKey,
         events::{self, EventObservation},
+        project_api_keys::ProjectApiKey,
         spans::Span,
         DB,
     },

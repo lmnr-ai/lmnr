@@ -22,6 +22,7 @@ interface CodeEditorProps {
   language?: string;
   editable?: boolean;
   onChange?: (value: string) => void;
+  placeholder?: string;
 }
 
 const myTheme = createTheme({
@@ -31,7 +32,8 @@ const myTheme = createTheme({
     background: 'transparent',
     lineHighlight: 'transparent',
     gutterBackground: 'transparent',
-    gutterBorder: 'transparent'
+    gutterBorder: 'transparent',
+    gutterForeground: 'gray !important'
   },
   styles: githubDarkStyle
 });
@@ -41,7 +43,8 @@ export default function CodeEditor({
   language = 'text',
   editable = true,
   onChange,
-  className
+  className,
+  placeholder
 }: CodeEditorProps) {
   const extensions = [
     EditorView.lineWrapping,
@@ -63,6 +66,7 @@ export default function CodeEditor({
   return (
     <div className={cn('w-full h-full flex flex-col p-2', className)}>
       <CodeMirror
+        placeholder={placeholder}
         className="border-none"
         theme={myTheme}
         extensions={extensions}

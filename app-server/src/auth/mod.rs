@@ -13,7 +13,7 @@ use actix_web_httpauth::extractors::AuthenticationError;
 
 use crate::api::utils::get_api_key_from_raw_value;
 use crate::cache::Cache;
-use crate::db::api_keys::ProjectApiKey;
+use crate::db::project_api_keys::ProjectApiKey;
 use crate::db::user::{get_user_from_api_key, User};
 use crate::db::DB;
 
