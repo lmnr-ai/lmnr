@@ -34,7 +34,7 @@ export default function StatsShields({
   className
 }: StatsShieldsProps) {
   return (
-    <div className={cn('flex items-center space-x-2', className)}>
+    <div className={cn('flex items-center space-x-2 font-mono', className)}>
       <div className="flex space-x-1 items-center p-0.5 px-2 border rounded-md">
         <Clock3 size={12} />
         <Label className="text-sm">

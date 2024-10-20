@@ -35,7 +35,7 @@ const myTheme = createTheme({
     gutterBorder: 'transparent',
     gutterForeground: 'gray !important'
   },
-  styles: githubDarkStyle
+  styles: githubDarkStyle,
 });
 
 export default function CodeEditor({
@@ -51,6 +51,9 @@ export default function CodeEditor({
     EditorView.theme({
       '&.cm-focused': {
         outline: 'none !important'
+      },
+      '&': {
+        fontSize: '10pt !important',
       }
     })
   ];
