@@ -10,6 +10,7 @@ import SessionsTable from './traces-table-sessions-view';
 import { usePostHog } from 'posthog-js/react';
 import { useUserContext } from '@/contexts/user-context';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import SpansTable from './spans-table';
 
 export default function Traces() {
   const searchParams = new URLSearchParams(useSearchParams().toString());
@@ -41,11 +42,10 @@ export default function Traces() {
           className="flex flex-col w-full"
           onValueChange={(v) => {
             searchParams.delete('filter');
-            searchParams.delete('selectedId');
             searchParams.delete('textSearch');
-            searchParams.delete('startDate');
-            searchParams.delete('endDate');
-            searchParams.set('pastHours', '24');
+            searchParams.delete('traceId');
+            searchParams.delete('spanId');
+            searchParams.set('view', v);
             setIsSidePanelOpen(false);
             setTraceId(null);
             router.push(`${pathName}?${searchParams.toString()}`);
@@ -55,6 +55,7 @@ export default function Traces() {
             <TabsList className="w-full flex px-4 border-b">
               <TabsTrigger value="traces">Traces</TabsTrigger>
               <TabsTrigger value="sessions">Sessions</TabsTrigger>
+              <TabsTrigger value="spans">Spans</TabsTrigger>
             </TabsList>
           </div>
           <div className="flex-grow flex">
@@ -63,6 +64,9 @@ export default function Traces() {
             </TabsContent>
             <TabsContent value="sessions" className="w-full">
               <SessionsTable onRowClick={setTraceId} />
+            </TabsContent>
+            <TabsContent value="spans" className="w-full">
+              <SpansTable onRowClick={setTraceId}/>
             </TabsContent>
           </div>
         </Tabs>
@@ -88,6 +92,7 @@ export default function Traces() {
               <TraceView
                 onClose={() => {
                   searchParams.delete('traceId');
+                  searchParams.delete('spanId');
                   router.push(`${pathName}?${searchParams.toString()}`);
                   setIsSidePanelOpen(false);
                   setTraceId(null);

@@ -1,16 +1,8 @@
 import { getDurationString } from '@/lib/flow/utils';
 import React, { useEffect, useRef, useState } from 'react';
 import { Label } from '../ui/label';
-import { Span, SpanType } from '@/lib/traces/types';
-import {
-  Activity,
-  ArrowRight,
-  Braces,
-  Gauge,
-  MessageCircleMore
-} from 'lucide-react';
-import { SPAN_TYPE_TO_COLOR } from '@/lib/traces/utils';
-import SpanLabels from './span-labels';
+import { Span } from '@/lib/traces/types';
+import SpanTypeIcon from './span-type-icon';
 
 const ROW_HEIGHT = 36;
 const SQUARE_SIZE = 22;
@@ -73,30 +65,12 @@ export function SpanCard({
             height: ROW_HEIGHT
           }}
         >
-          <div
-            className="flex items-center justify-center z-30 rounded"
-            style={{
-              backgroundColor: SPAN_TYPE_TO_COLOR[span.spanType],
-              width: SQUARE_SIZE,
-              height: SQUARE_SIZE
-            }}
-          >
-            {span.spanType === SpanType.DEFAULT && (
-              <Braces size={SQUARE_ICON_SIZE} />
-            )}
-            {span.spanType === SpanType.LLM && (
-              <MessageCircleMore size={SQUARE_ICON_SIZE} />
-            )}
-            {span.spanType === SpanType.EXECUTOR && (
-              <Activity size={SQUARE_ICON_SIZE} />
-            )}
-            {span.spanType === SpanType.EVALUATOR && (
-              <ArrowRight size={SQUARE_ICON_SIZE} />
-            )}
-            {span.spanType === SpanType.EVALUATION && (
-              <Gauge size={SQUARE_ICON_SIZE} />
-            )}
-          </div>
+          <SpanTypeIcon
+            spanType={span.spanType}
+            containerWidth = {SQUARE_SIZE}
+            containerHeight = {SQUARE_SIZE}
+            size = {SQUARE_ICON_SIZE}
+          />
           <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[200px]">
             {span.name}
           </div>
