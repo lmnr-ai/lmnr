@@ -197,7 +197,7 @@ export class Graph {
           {
             id: v4(),
             name: 'output',
-            type: output.type
+            type: NodeHandleType.ANY
           }
         ],
         inputType: output.type,

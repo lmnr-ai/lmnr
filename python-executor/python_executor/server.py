@@ -97,12 +97,13 @@ def to_response(
         elif all(isinstance(item, ChatMessage) for item in exec_result):
             return handle_chat_message_list(exec_result, expected_return_type)
 
+    # bool is a subclass of int
+    elif isinstance(exec_result, bool):
+        return handle_bool(exec_result, expected_return_type)
+
     # both float and int will be treated as float
     elif isinstance(exec_result, (float, int)):
         return handle_float(exec_result, expected_return_type)
-    
-    elif isinstance(exec_result, bool):
-        return handle_bool(exec_result, expected_return_type)
 
     return ExecuteCodeResponse(
         error=ExecuteCodeResponse.ErrorMessage(

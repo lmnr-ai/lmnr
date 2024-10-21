@@ -76,7 +76,7 @@ pub async fn run_evaluator(
         ),
         ("span_output".to_string(), span_output.into()),
     ]);
-    // let env = HashMap::from([("OPENAI_API_KEY".to_string(), std::env::var("OPENAI_API_KEY")?)]);
+
     let env = get_stored_env(db.clone(), project_id).await?;
 
     let run_type = RunType::AutoLabel;

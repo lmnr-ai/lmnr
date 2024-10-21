@@ -6,6 +6,8 @@ This is a service which executes Python code.
 
 ```
 poetry shell
+poetry install
+
 cd python_executor
 # if you've updated proto files, run
 python -m grpc_tools.protoc -I../proto/ --python_out=. --grpc_python_out=. --pyi_out=. ../proto/code_executor_grpc.proto
