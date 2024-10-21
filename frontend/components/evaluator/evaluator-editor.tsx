@@ -5,7 +5,7 @@ import { useProjectContext } from '@/contexts/project-context';
 import { Button } from '../ui/button';
 import { createNodeData, renderNodeInput } from '@/lib/flow/utils';
 import { useEffect, useRef, useState } from 'react';
-import { CodeNode, LLMNode, NodeHandleType, NodeType } from '@/lib/flow/types';
+import { CodeNode, LLMNode, NodeHandleType, NodeType, OutputNode } from '@/lib/flow/types';
 import { v4 } from 'uuid';
 import { Graph } from '@/lib/flow/graph';
 import { Play, Loader2 } from 'lucide-react';
@@ -16,6 +16,7 @@ import { DialogClose } from '../ui/dialog';
 import { toast } from '@/lib/hooks/use-toast';
 import LanguageModelSelect from '../pipeline/nodes/components/model-select';
 import { LanguageModel } from '@/lib/pipeline/types';
+import { EventType } from '@/lib/events/types';
 
 interface AutoEvalsProps {
   span: Span;
@@ -108,26 +109,6 @@ export function EvaluatorEditor({
     setOutput(res['outputs']['output']['value']);
   };
 
-  const updateCodeRunnableGraph = (code: string) => {
-    const node = createNodeData(v4(), NodeType.CODE) as CodeNode;
-    node.code = code;
-    node.fnName = 'main';
-    node.inputs = [
-      {
-        id: v4(),
-        name: 'span_input',
-        type: NodeHandleType.STRING
-      },
-      {
-        id: v4(),
-        name: 'span_output',
-        type: NodeHandleType.STRING
-      }
-    ];
-    const graph = Graph.fromNode(node);
-    runnableGraph.current = graph;
-  };
-
   const runEval = async () => {
     setIsRunning(true);
     try {
@@ -187,8 +168,8 @@ export function EvaluatorEditor({
                       }}
                     />
                   </TabsContent>
-                  <div className="text-secondary-foreground flex flex-col space-y-2">
-                    <Label>Expected range of values</Label>
+                  <div className="flex flex-col space-y-2">
+                    <Label className="text-secondary-foreground">Expected output</Label>
                     <div className="flex space-x-1">
                       {labelClass.valueMap.map((value, index) => (
                         <div
@@ -394,7 +375,19 @@ function CodeEvaluator({
         type: NodeHandleType.STRING
       }
     ];
+    node.outputs = [
+      {
+        id: v4(),
+        type: NodeHandleType.ANY
+      }
+    ];
+
     const graph = Graph.fromNode(node);
+    const outputNode = Array.from(graph.nodes.values()).find(
+      (node) => node.type === NodeType.OUTPUT
+    ) as OutputNode;
+    outputNode.outputCastType = EventType.STRING;
+
     onGraphChanged(graph);
   };
 

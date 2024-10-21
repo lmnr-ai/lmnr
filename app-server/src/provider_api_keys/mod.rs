@@ -40,7 +40,8 @@ pub fn decode_api_key(name: &String, nonce: &String, value: &String) -> Result<S
         name
     ))?;
 
-    let decrypted = open(encrypted.as_slice(), Some(name.as_bytes()), &nonce, &key).unwrap();
+    let decrypted = open(encrypted.as_slice(), Some(name.as_bytes()), &nonce, &key)
+        .expect(&format!("Failed to decrypt api_key {}", name));
 
     String::from_utf8(decrypted).or(Err(anyhow::anyhow!(
         "Failed to convert decrypted bytes to utf8 for api_key {}",
