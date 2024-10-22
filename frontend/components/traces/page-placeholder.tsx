@@ -3,8 +3,6 @@ import { useProjectContext } from '@/contexts/project-context';
 import CodeHighlighter from '../ui/code-highlighter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 
 
