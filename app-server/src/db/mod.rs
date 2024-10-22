@@ -1,6 +1,5 @@
 use sqlx::PgPool;
 
-pub mod api_keys;
 pub mod datapoints;
 pub mod datasets;
 pub mod evaluations;
@@ -9,7 +8,10 @@ pub mod events;
 pub mod labels;
 pub mod modifiers;
 pub mod pipelines;
+pub mod prices;
+pub mod project_api_keys;
 pub mod projects;
+pub mod provider_api_keys;
 pub mod spans;
 pub mod stats;
 pub mod subscriptions;

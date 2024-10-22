@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     ch::evaluation_scores::{insert_evaluation_scores, EvaluationScore},
-    db::{self, api_keys::ProjectApiKey, DB},
+    db::{self, project_api_keys::ProjectApiKey, DB},
     evaluations::utils::{get_columns_from_points, EvaluationDatapointResult},
     names::NameGenerator,
     routes::types::ResponseResult,

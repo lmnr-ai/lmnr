@@ -709,15 +709,7 @@ export const renderNodeInput = (input: NodeInput): string => {
   } else if (isStringList(input)) {
     return JSON.stringify(input, null, 2); // `[\n  ${(input as string[]).join(',\n  ')}\n]`
   } else if (isChatMessageList(input)) {
-    return (input as ChatMessage[])
-      .map((message) => {
-        if (isStringType(message.content)) {
-          return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${message.content}`;
-        } else {
-          return `${message.role == 'user' ? 'User' : 'Assistant'}:\n${renderChatMessageContentParts(message.content)}`;
-        }
-      })
-      .join('\n\n---\n\n');
+    return renderChatMessageList(input);
   } else {
     return JSON.stringify(input, null, 2);
   }
@@ -726,15 +718,7 @@ export const renderNodeInput = (input: NodeInput): string => {
 export const renderChatMessageList = (messages: ChatMessage[]): string =>
   messages
     .map((message) => {
-      let tag = '';
-
-      if (message.role === 'user') {
-        tag = 'User';
-      } else if (message.role === 'assistant') {
-        tag = 'Assistant';
-      } else if (message.role === 'system') {
-        tag = 'System';
-      }
+      let tag = message.role;
 
       if (isStringType(message.content)) {
         return `<${tag}>\n${message.content}\n</${tag}>\n`;

@@ -71,10 +71,6 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    /* line gutter styling in ReactAce Editor */
-    .CodeMirror * {
-      font-size: 29px;
-    }
   }
 
   .dark {

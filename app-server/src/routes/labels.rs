@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::db::{
     self,
-    labels::{LabelJobStatus, LabelSource, LabelType},
+    labels::{LabelJobStatus, LabelSource},
     user::User,
     DB,
 };
@@ -19,48 +19,6 @@ pub async fn get_label_types(path: web::Path<Uuid>, db: web::Data<DB>) -> Respon
         db::labels::get_label_classes_by_project_id(&db.pool, project_id, None).await?;
 
     Ok(HttpResponse::Ok().json(label_classes))
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CreateLabelClassRequest {
-    name: String,
-    label_type: LabelType,
-    value_map: Vec<Value>,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    evaluator_runnable_graph: Option<Value>,
-}
-
-#[post("label-classes")]
-pub async fn create_label_class(
-    path: web::Path<Uuid>,
-    req: web::Json<CreateLabelClassRequest>,
-    db: web::Data<DB>,
-) -> ResponseResult {
-    let project_id = path.into_inner();
-    let req = req.into_inner();
-    let name = req.name;
-    let label_type = req.label_type;
-    let value_map = req.value_map;
-    let description = req.description;
-    let evaluator_runnable_graph = req.evaluator_runnable_graph;
-
-    let id = Uuid::new_v4();
-    let label_class = db::labels::create_label_class(
-        &db.pool,
-        id,
-        name,
-        project_id,
-        &label_type,
-        value_map,
-        description,
-        evaluator_runnable_graph,
-    )
-    .await?;
-
-    Ok(HttpResponse::Ok().json(label_class))
 }
 
 #[derive(Deserialize)]

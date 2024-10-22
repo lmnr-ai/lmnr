@@ -1,15 +1,16 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use crate::cache::Cache;
+use crate::db::DB;
 use crate::language_model::chat_message::{ChatCompletion, ChatMessage};
 use crate::language_model::runner::ExecuteChatCompletion;
-use crate::language_model::{LanguageModelProviderName, NodeInfo};
+use crate::language_model::{EstimateCost, LanguageModelProviderName, NodeInfo};
 use crate::pipeline::nodes::StreamChunk;
 use anyhow::Result;
 use json_value_merge::Merge;
 use serde_json::{json, Value};
 use tokio::sync::mpsc::Sender;
-
-use crate::language_model::providers::utils::calculate_cost;
 
 #[derive(Clone, Debug)]
 pub struct Mistral {
@@ -32,6 +33,8 @@ impl ExecuteChatCompletion for Mistral {
         env: &HashMap<String, String>,
         _tx: Option<Sender<StreamChunk>>,
         _node_info: &NodeInfo,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Result<ChatCompletion> {
         let mut body = json!({
             "model": model,
@@ -59,43 +62,22 @@ impl ExecuteChatCompletion for Mistral {
 
         let mut res_body = res.json::<ChatCompletion>().await?;
 
-        res_body.usage.approximate_cost = self.estimate_cost(
-            model,
-            res_body.usage.completion_tokens,
-            res_body.usage.prompt_tokens,
-        );
+        res_body.usage.approximate_cost = self
+            .estimate_cost(
+                db,
+                cache,
+                model,
+                res_body.usage.prompt_tokens,
+                res_body.usage.completion_tokens,
+            )
+            .await;
 
         Ok(res_body)
     }
+}
 
-    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
-        match model.to_lowercase().as_str() {
-            "mistral-tiny" => Some((prompt_tokens) as f64 / 4e6), // 0.25/Mtok
-            "mistral-small" => Some(calculate_cost(prompt_tokens, 1.0)),
-            "mistral-medium" => Some(calculate_cost(prompt_tokens, 2.7)),
-            "mistral-large" => Some(calculate_cost(prompt_tokens, 4.0)),
-            _ => None,
-        }
-    }
-
-    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
-        match model.to_lowercase().as_str() {
-            "mistral-tiny" => Some((completion_tokens) as f64 / 4e6), // 0.25/Mtok
-            "mistral-small" => Some(calculate_cost(completion_tokens, 3.0)),
-            "mistral-medium" => Some(calculate_cost(completion_tokens, 8.1)),
-            "mistral-large" => Some(calculate_cost(completion_tokens, 12.0)),
-            _ => None,
-        }
-    }
-
-    fn estimate_cost(
-        &self,
-        model: &str,
-        completion_tokens: u32,
-        prompt_tokens: u32,
-    ) -> Option<f64> {
-        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
-        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
-        Some(input_cost + output_cost)
+impl EstimateCost for Mistral {
+    fn db_provider_name(&self) -> &str {
+        "mistral"
     }
 }

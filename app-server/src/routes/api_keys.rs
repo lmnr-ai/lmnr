@@ -1,4 +1,4 @@
-use crate::db::{self, api_keys::ProjectApiKey, utils::generate_random_key, DB};
+use crate::db::{self, project_api_keys::ProjectApiKey, utils::generate_random_key, DB};
 use actix_web::{delete, get, post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -36,9 +36,14 @@ async fn create_project_api_key(
 
     let hash = hash_api_key(&value);
 
-    let key =
-        db::api_keys::create_project_api_key(&db.pool, &project_id, &req.name, &hash, &shorthand)
-            .await?;
+    let key = db::project_api_keys::create_project_api_key(
+        &db.pool,
+        &project_id,
+        &req.name,
+        &hash,
+        &shorthand,
+    )
+    .await?;
 
     let _ = cache.insert::<ProjectApiKey>(key.hash.clone(), &key).await;
 
@@ -57,7 +62,7 @@ async fn get_api_keys_for_project(
     project_id: web::Path<Uuid>,
     db: web::Data<DB>,
 ) -> ResponseResult {
-    let api_keys = db::api_keys::get_api_keys_for_project(&db.pool, &project_id).await?;
+    let api_keys = db::project_api_keys::get_api_keys_for_project(&db.pool, &project_id).await?;
 
     Ok(HttpResponse::Ok().json(api_keys))
 }
@@ -77,7 +82,7 @@ async fn revoke_project_api_key(
 ) -> ResponseResult {
     let req = req.into_inner();
 
-    let hash = db::api_keys::delete_api_key(&db.pool, &req.id, &project_id).await?;
+    let hash = db::project_api_keys::delete_api_key(&db.pool, &req.id, &project_id).await?;
 
     let _ = cache.remove::<ProjectApiKey>(&hash).await;
 

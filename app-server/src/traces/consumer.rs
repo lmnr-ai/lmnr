@@ -127,7 +127,10 @@ pub async fn process_queue_spans(
         let span_usage = super::utils::get_llm_usage_for_span(
             &mut span.get_attributes(),
             language_model_runner.clone(),
-        );
+            db.clone(),
+            cache.clone(),
+        )
+        .await;
         trace_attributes.update_start_time(span.start_time);
         trace_attributes.update_end_time(span.end_time);
 

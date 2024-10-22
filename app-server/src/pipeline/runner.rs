@@ -2,10 +2,12 @@ use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
+    cache::Cache,
     code_executor::CodeExecutor,
     db::{
         spans::Span,
         trace::{CurrentTraceAndSpan, TraceType},
+        DB,
     },
     engine::{engine::EngineOutput, Engine},
     routes::pipelines::GraphInterruptMessage,
@@ -92,13 +94,15 @@ impl Serialize for PipelineRunnerError {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
     chunker_runner: Arc<ChunkerRunner>,
     semantic_search: Arc<SemanticSearch>,
     rabbitmq_connection: Arc<Connection>,
     code_executor: Arc<CodeExecutor>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
 }
 
 impl PipelineRunner {
@@ -108,6 +112,8 @@ impl PipelineRunner {
         semantic_search: Arc<SemanticSearch>,
         rabbitmq_connection: Arc<Connection>,
         code_executor: Arc<CodeExecutor>,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Self {
         Self {
             language_model,
@@ -115,6 +121,8 @@ impl PipelineRunner {
             semantic_search,
             rabbitmq_connection,
             code_executor,
+            db,
+            cache,
         }
     }
 
@@ -143,6 +151,8 @@ impl PipelineRunner {
             pipeline_runner: self.clone(),
             baml_schemas: validated_schemas,
             code_executor: self.code_executor.clone(),
+            db: self.db.clone(),
+            cache: self.cache.clone(),
         };
 
         let tasks = parse_graph(graph)?;
@@ -186,6 +196,8 @@ impl PipelineRunner {
             pipeline_runner: self.clone(),
             baml_schemas: validated_schemas,
             code_executor: self.code_executor.clone(),
+            db: self.db.clone(),
+            cache: self.cache.clone(),
         };
 
         let tasks = parse_graph(graph)?;

@@ -18,7 +18,7 @@ export default function WorkspacesNavbar() {
     <div className="flex flex-col h-screen fixed border-r w-64 items-center justify-start">
       <Link
         href={'/projects'}
-        className="flex h-14 items-center justify-center mb-4"
+        className="flex h-14 items-center justify-center mb-4 mt-2"
       >
         <Image alt="" src={logo} width={120} />
       </Link>

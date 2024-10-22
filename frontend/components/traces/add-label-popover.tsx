@@ -63,15 +63,11 @@ const evaluatorType = (labelClass: LabelClass) => {
   const graph = Graph.fromObject(labelClass.evaluatorRunnableGraph as any);
 
   if (graph) {
-    const codeNode = graph.nodes
-      .values()
-      .find((node) => node.type === NodeType.CODE) as CodeNode;
+    const codeNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.CODE) as CodeNode;
     if (codeNode) {
       return 'CODE';
     }
-    const llmNode = graph.nodes
-      .values()
-      .find((node) => node.type === NodeType.LLM) as LLMNode;
+    const llmNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.LLM) as LLMNode;
     if (llmNode) {
       return 'LLM';
     }
@@ -87,9 +83,7 @@ interface AddLabelPopoverProps {
 export function AddLabelPopover({ span }: AddLabelPopoverProps) {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const { projectId } = useProjectContext();
-  const { data: labelClasses, mutate: mutateLabelClasses } = useSWR<
-    LabelClass[]
-  >(`/api/projects/${projectId}/label-classes`, swrFetcher);
+  const { data: labelClasses, mutate: mutateLabelClasses } = useSWR<LabelClass[]>(`/api/projects/${projectId}/label-classes`, swrFetcher);
   const { data: registeredLabelClasses, mutate: mutateRegisteredLabelClasses } =
     useSWR<RegisteredLabelClassForPath[]>(
       `/api/projects/${projectId}/label-classes/registered-paths?path=${span.attributes['lmnr.span.path']}`,
@@ -289,6 +283,7 @@ export function AddLabelPopover({ span }: AddLabelPopoverProps) {
                 onClose={() => {
                   setMode('list');
                   mutateLabelClasses();
+                  mutateRegisteredLabelClasses();
                 }}
               />
             )}

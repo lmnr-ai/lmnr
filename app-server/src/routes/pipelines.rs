@@ -13,6 +13,7 @@ use crate::pipeline::nodes::{GraphOutput, GraphRunOutput, Message};
 use crate::pipeline::trace::{RunTrace, RunTraceStats};
 use crate::pipeline::utils::get_target_pipeline_version_cache_key;
 use crate::routes::error::pipeline_runner_to_http_error;
+use crate::traces::evaluators::get_stored_env;
 use crate::{
     cache::Cache,
     db::{
@@ -83,6 +84,7 @@ async fn run_pipeline_graph(
     pipeline_runner: web::Data<Arc<PipelineRunner>>,
     params: web::Json<GraphRunRequest>,
     interrupt_senders: web::Data<Arc<DashMap<Uuid, mpsc::Sender<GraphInterruptMessage>>>>,
+    db: web::Data<DB>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
     let params = params.into_inner();
@@ -94,11 +96,15 @@ async fn run_pipeline_graph(
     let prefilled_messages = params.prefilled_messages;
     let start_task_id = params.start_task_id;
     let breakpoint_task_ids = params.breakpoint_task_ids;
+    let db = db.into_inner();
 
     let (interrupt_tx, interrupt_rx) = mpsc::channel::<GraphInterruptMessage>(1);
     interrupt_senders.insert(run_id, interrupt_tx);
 
+    // TODO: remove env from the request and used stored env only
     let mut env = params.env;
+    let stored_env = get_stored_env(db, project_id).await?;
+    env.extend(stored_env);
     env.insert("collection_name".to_string(), project_id.to_string());
 
     graph

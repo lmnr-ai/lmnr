@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use futures::StreamExt;
 use json_value_merge::Merge;
@@ -9,16 +10,17 @@ use serde_json::{json, Value};
 
 use tokio::sync::mpsc::Sender;
 
+use crate::cache::Cache;
+use crate::db::DB;
 use crate::language_model::chat_message::{ChatCompletion, ChatMessage};
 
 use crate::language_model::runner::ExecuteChatCompletion;
 use crate::language_model::{
-    ChatChoice, ChatMessageContent, ChatUsage, LanguageModelProviderName, NodeInfo,
+    ChatChoice, ChatMessageContent, ChatUsage, EstimateCost, LanguageModelProviderName, NodeInfo,
 };
 use crate::pipeline::nodes::{NodeStreamChunk, StreamChunk};
 
 use super::openai::{num_tokens_from_messages, ChatCompletionChunk};
-use crate::language_model::providers::utils::calculate_cost;
 
 pub const OPENAI_AZURE_RESOURCE_ID: &str = "OPENAI_AZURE_RESOURCE_ID";
 pub const OPENAI_AZURE_DEPLOYMENT_NAME: &str = "OPENAI_AZURE_DEPLOYMENT_NAME";
@@ -53,6 +55,8 @@ impl ExecuteChatCompletion for OpenAIAzure {
         env: &HashMap<String, String>,
         tx: Option<Sender<StreamChunk>>,
         node_info: &NodeInfo,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Result<ChatCompletion> {
         let mut body = json!({
             "messages": messages,
@@ -152,7 +156,9 @@ impl ExecuteChatCompletion for OpenAIAzure {
                     completion_tokens,
                     prompt_tokens,
                     total_tokens: completion_tokens + prompt_tokens,
-                    approximate_cost: self.estimate_cost(&model, completion_tokens, prompt_tokens),
+                    approximate_cost: self
+                        .estimate_cost(db, cache, &model, prompt_tokens, completion_tokens)
+                        .await,
                 },
                 model: model.to_string(),
             };
@@ -175,85 +181,24 @@ impl ExecuteChatCompletion for OpenAIAzure {
 
             let mut res_body = res.json::<ChatCompletion>().await?;
 
-            res_body.usage.approximate_cost = self.estimate_cost(
-                &res_body.model,
-                res_body.usage.completion_tokens,
-                res_body.usage.prompt_tokens,
-            );
+            res_body.usage.approximate_cost = self
+                .estimate_cost(
+                    db,
+                    cache,
+                    &res_body.model,
+                    res_body.usage.prompt_tokens,
+                    res_body.usage.completion_tokens,
+                )
+                .await;
 
             Ok(res_body)
         }
     }
+}
 
-    fn estimate_input_cost(&self, model: &str, prompt_tokens: u32) -> Option<f64> {
-        let model = model.to_ascii_lowercase();
-        let price_per_million_tokens = if model.contains("gpt-4o") {
-            5.0
-        } else if model.contains("gpt-3.5-turbo") {
-            if model.contains("instruct") {
-                1.5
-            } else {
-                0.5
-            }
-        } else if model.contains("gpt-4-turbo") {
-            10.0
-        } else if model.contains("gpt-4") {
-            if model.contains("8k") {
-                30.0
-            } else if model.contains("32k") {
-                60.0
-            } else {
-                return None;
-            }
-        } else if model.contains("babbage") {
-            0.4
-        } else if model.contains("davinci") {
-            2.0
-        } else {
-            return None;
-        };
-        Some(calculate_cost(prompt_tokens, price_per_million_tokens))
-    }
-
-    fn estimate_output_cost(&self, model: &str, completion_tokens: u32) -> Option<f64> {
-        let model = model.to_ascii_lowercase();
-        let price_per_million_tokens = if model.contains("gpt-4o") {
-            15.0
-        } else if model.contains("gpt-3.5-turbo") {
-            if model.contains("instruct") {
-                2.0
-            } else {
-                1.5
-            }
-        } else if model.contains("gpt-4-turbo") {
-            30.0
-        } else if model.contains("gpt-4") {
-            if model.contains("8k") {
-                60.0
-            } else if model.contains("32k") {
-                120.0
-            } else {
-                return None;
-            }
-        } else if model.contains("babbage") {
-            0.4
-        } else if model.contains("davinci") {
-            2.0
-        } else {
-            return None;
-        };
-        Some(calculate_cost(completion_tokens, price_per_million_tokens))
-    }
-
-    fn estimate_cost(
-        &self,
-        model: &str,
-        completion_tokens: u32,
-        prompt_tokens: u32,
-    ) -> Option<f64> {
-        let input_cost = self.estimate_input_cost(model, prompt_tokens)?;
-        let output_cost = self.estimate_output_cost(model, completion_tokens)?;
-        Some(input_cost + output_cost)
+impl EstimateCost for OpenAIAzure {
+    fn db_provider_name(&self) -> &str {
+        "azure-openai"
     }
 }
 

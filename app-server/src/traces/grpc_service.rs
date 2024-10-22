@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use crate::{
     api::utils::get_api_key_from_raw_value,
     cache::Cache,
-    db::{api_keys::ProjectApiKey, DB},
+    db::{project_api_keys::ProjectApiKey, DB},
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
