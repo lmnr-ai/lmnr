@@ -9,68 +9,89 @@ import moa from '@/assets/landing/MoA.png';
 import palantir from '@/assets/landing/palantir.svg';
 import amazon from '@/assets/landing/amazon.svg';
 import github from '@/assets/landing/github-mark-white.svg';
-import noise from '@/assets/landing/noise.png';
+import noise from '@/assets/landing/noise.jpeg';
 
 import Link from 'next/link';
 import Footer from './footer';
 import { Button } from '../ui/button';
+import { useState, useEffect } from 'react';
+
+async function fetchGitHubStars() {
+  try {
+    const response = await fetch('https://api.github.com/repos/lmnr-ai/lmnr');
+    const data = await response.json();
+    return data.stargazers_count;
+  } catch (error) {
+    console.error('Error fetching GitHub stars:', error);
+    return null;
+  }
+}
 
 export default function Landing() {
+  const [starCount, setStarCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchGitHubStars().then(setStarCount);
+  }, []);
+
   return (
     <>
       {/* <div className="inset-0 backdrop-blur-lg fixed">
         <Image src={noise} alt="" className="opacity-20 w-full h-full" />
-      </div>
-      <div className="fixed inset-0 bg-gradient-to-b from-transparent to-background pointer-events-none">
       </div> */}
 
       <div className="flex flex-col z-30 items-center space-y-16">
         <div className="flex flex-col md:w-[1000px] space-y-8">
-          <div className="flex flex-col mt-28">
-            {/* GitHub button */}
-            <div className="flex w-full justify-center">
-              <Link target="_blank" href="https://github.com/lmnr-ai/lmnr">
-                <Button
-                  className="h-10 text-sm bg-transparent border-white/20"
-                  variant="outline"
-                >
-                  <Image
-                    src={github}
-                    alt="GitHub"
-                    width={20}
-                    height={20}
-                    className="mr-2"
-                  />
-                  We are fully Open-Source. Star us on GitHub ⭐️
-                  <ArrowUpRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-            </div>
+          {/* <div className="fixed inset-0 bg-gradient-to-b from-transparent to-background pointer-events-none">
+          </div> */}
 
-            {/* Main content */}
-            <div className="flex flex-col items-center space-y-8 pt-4 text-center">
-              <p className="text-6xl px-2 md:px-0 md:text-7xl md:leading-tight text-white">
-                LLM engineering <br /> from first principles
-              </p>
-              <p className="md:w-[560px] md:text-xl md:2xl:tracking-normal font-normal">
-                Laminar is an open-source platform for engineering LLM products.
-                Trace, evaluate, annotate, and analyze LLM data. Bring LLM
-                applications to production with confidence.
-              </p>
-              <div className="flex space-x-4 items-center">
-                <Link href="/projects">
-                  <Button className="w-40 h-12 text-base" variant="default">
-                    Get started
-                  </Button>
-                </Link>
-                <Link target="_blank" href="https://docs.lmnr.ai">
-                  <Button
-                    className="w-40 h-12 text-base bg-transparent border-white/20"
-                    variant="outline"
-                  >
-                    Read the docs
-                  </Button>
-                </Link>
+          <div className="flex flex-col mt-28">
+            <div className="flex flex-col items-center space-y-8 pt-4 text-center relative">
+              <div className="inset-0 absolute z-10 rounded-lg overflow-hidden">
+                <Image src={noise} alt="" className="w-full h-full" />
+              </div>
+              <div className="z-20 flex flex-col items-center space-y-8 p-8">
+
+                <p className="text-6xl md:px-0 md:text-7xl md:leading-tight text-white font-medium">
+                  LLM engineering <br /> from first principles
+                </p>
+                <p className="md:text-2xl md:tracking-normal font-medium text-white">
+                  Laminar is an open-source all-in-one platform <br />
+                  for engineering best-in-class LLM products.
+                </p>
+                <div className="flex w-full justify-center">
+                  <Link target="_blank" href="https://github.com/lmnr-ai/lmnr">
+                    <Button
+                      className="h-10 bg-transparent border-white text-white hover:bg-white/10"
+                      variant="outline"
+                    >
+                      <Image
+                        src={github}
+                        alt="GitHub"
+                        width={20}
+                        height={20}
+                        className="mr-2"
+                      />
+                      Star us on GitHub {starCount !== null ? `(${starCount}⭐️)` : ''}
+                      <ArrowUpRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+                <div className="flex space-x-4 items-center">
+                  <Link href="/projects">
+                    <Button className="w-40 h-12 text-base bg-white/90 text-black hover:bg-white/70">
+                      Get started
+                    </Button>
+                  </Link>
+                  <Link target="_blank" href="https://docs.lmnr.ai">
+                    <Button
+                      className="w-40 h-12 text-base bg-transparent border-white text-white hover:bg-white/10"
+                      variant="outline"
+                    >
+                      Read the docs
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
@@ -104,6 +125,42 @@ export default function Landing() {
                 width={105}
                 height={20}
                 className="opacity-80 transition-opacity mt-2"
+              />
+            </div>
+          </div>
+        </div>
+        <div>
+          Core principals of LLM engineering involve data
+        </div>
+
+        <div className="flex flex-col md:items-center space-y-16 md:w-[1000px] md:px-0">
+          <div className="flex flex-col space-y-4 w-full">
+            <div className='flex justify-between'>
+              <div className="flex flex-col space-y-2">
+                <h1 className="text-2xl md:text-3xl font-semibold">
+                  Evals
+                </h1>
+                <p className="text-xl md:text-xl font-normal">
+                  Data is the new code
+                </p>
+              </div>
+              <div className="flex flex-col space-y-2 relative">
+                <div className="absolute right-1 top-0 w-[2px] h-full bg-secondary-foreground" />
+                {
+                  Array.from(["evals", "evaluations", "metrics"]).map((text, i) => (
+                    <div key={i} className="flex items-center space-x-2 justify-between">
+                      <div className="text-secondary-foreground bg-secondary rounded-full px-2 py-1 w-full">{text}</div>
+                      <div className="bg-secondary-foreground w-4 h-4 rounded-full" />
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+            <div className="bg-secondary w-full border rounded overflow-hidden shadow-lg">
+              <Image
+                alt="Traces visualization"
+                src={traces}
+                className="overflow-hidden rounded md:shadow-lg w-full h-full"
               />
             </div>
           </div>

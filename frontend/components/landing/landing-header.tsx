@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import logo from '@/assets/logo/laminar_light.svg';
+import logo from '@/assets/logo/logo.svg';
 import { useState } from 'react';
 import { Menu, X, XCircle } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -23,7 +23,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
         <div className="w-full px-8 md:px-0 flex flex-col md:flex-row md:w-[1000px] justify-between items-center">
           <div className="flex justify-between w-full items-center h-20">
             <Link href="/">
-              <Image alt="logo" src={logo} width={130} height={40} priority />
+              <Image alt="logo" src={logo} width={150} priority />
             </Link>
             <div className="md:hidden">
               {isMenuOpen ? (
