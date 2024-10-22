@@ -105,7 +105,6 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SEMANTIC_SEARCH_URL=http://semantic-search-service:8080
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
-      - SHARED_SECRET_TOKEN=${SHARED_SECRET}
       - CLICKHOUSE_URL=http://clickhouse:8123
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
       - CODE_EXECUTOR_URL=http://python-executor:8811
