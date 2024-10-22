@@ -3,6 +3,10 @@ import { useProjectContext } from '@/contexts/project-context';
 import CodeHighlighter from '../ui/code-highlighter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
+
 
 export default function TracesPagePlaceholder() {
   const { projectId } = useProjectContext();
@@ -53,7 +57,7 @@ const function_to_trace =
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">
               <TabsTrigger value="python">Python</TabsTrigger>
-              <TabsTrigger value="typescript">Typescript</TabsTrigger>
+              <TabsTrigger value="typescript">TypeScript</TabsTrigger>
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
@@ -89,7 +93,7 @@ const function_to_trace =
             Kickstart with just 2 lines
           </h2>
           <h3 className="text-secondary-foreground/80 font-light">
-            If you already have Python or Typescript code, which uses LLM
+            If you already have Python or TypeScript code, which uses LLM
             provider libraries, add 2 lines to auto-instrument your app. This
             will automatically instrument all major LLM providers (e.g. OpenAI,
             Anthropic), LLM frameworks including LangChain and LlamaIndex, and
@@ -98,7 +102,7 @@ const function_to_trace =
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">
               <TabsTrigger value="python">Python</TabsTrigger>
-              <TabsTrigger value="typescript">Typescript</TabsTrigger>
+              <TabsTrigger value="typescript">TypeScript</TabsTrigger>
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
@@ -114,6 +118,42 @@ const function_to_trace =
                   code={typescriptInitialization}
                   language="typescript"
                 />
+              <Accordion
+                type = 'single'
+                className='w-full'
+                collapsible
+              >
+                <AccordionItem value = "next-js-additional">
+                <AccordionTrigger className='w-full px-2 my-2 bg-amber-500/10 border-amber-500/30 border rounded-md'>
+                <div className='flex justify-between space-x-2 cursor-pointer w-full'>
+                  <div className='flex'>If you are using Next.js</div>
+                </div>
+                </AccordionTrigger>
+                  <AccordionContent>
+                    <div className='flex flex-col space-y-2'>
+                      <h3 className="text-secondary-foreground/80 font-light">
+                        In some JavaScript setups, including Next.js, it is required to initialize
+                        Laminar before importing LLM libraries. For example
+                      </h3>
+                      <CodeHighlighter
+                        className="text-xs bg-background p-4 rounded-md border"
+                        code={typescriptInitialization + 'import { OpenAI } from "openai";'}
+                        language="typescript"
+                      />
+                      <h3 className="text-secondary-foreground/80 font-light">
+                        We enable OpenTelemetry, and Next.js instruments all network calls.
+                        This may result in excessive tracing.
+                        Disable Next.js instrumentation by setting the environment variable.
+                      </h3>
+                      <CodeHighlighter
+                        className="text-xs bg-background p-4 rounded-md border"
+                        code={'export NEXT_OTEL_FETCH_DISABLED=1'}
+                        language="bash"
+                      />
+                    </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </TabsContent>
             </div>
           </Tabs>
@@ -125,7 +165,7 @@ const function_to_trace =
             >
               Read the docs{' '}
             </a>
-            to learn more. Also you can see simple app examples in the docs.
+            to learn more. You can also see simple app examples in the docs.
           </h3>
           <h2 className="text-xl font-semibold mb-4">
             Adding manual instrumentation (Optional)
@@ -139,7 +179,7 @@ const function_to_trace =
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">
               <TabsTrigger value="python">Python</TabsTrigger>
-              <TabsTrigger value="typescript">Typescript</TabsTrigger>
+              <TabsTrigger value="typescript">TypeScript</TabsTrigger>
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
@@ -160,7 +200,7 @@ const function_to_trace =
           </Tabs>
           <h2 className="text-xl font-semibold mb-4">Run your app</h2>
           <h3 className="text-secondary-foreground/80 font-light">
-            Run your Python or Typescript app. Refresh the page to see traces.
+            Run your Python or TypeScript app. Refresh the page to see traces.
           </h3>
           <h2 className="text-xl font-semibold mb-4">Cannot send traces?</h2>
           <h3 className="text-secondary-foreground/80 font-light">
