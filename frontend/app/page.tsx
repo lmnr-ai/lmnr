@@ -28,7 +28,11 @@ export default async function LandingPage() {
   const session = await getServerSession(authOptions);
 
   if (!isFeatureEnabled(Feature.WORKSPACE)) {
-    redirect('/projects');
+    if (!session) {
+      redirect('/sign-in');
+    } else {
+      redirect('/projects');
+    }
   }
 
   return (
