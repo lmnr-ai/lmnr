@@ -109,17 +109,21 @@ services:
       - CLICKHOUSE_URL=http://clickhouse:8123
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
       - CODE_EXECUTOR_URL=http://python-executor:8811
+      - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
 
   frontend:
     image: ghcr.io/lmnr-ai/frontend
     ports:
       - "3000:3000"
-    env_file: ./frontend/.env.local.example
     pull_policy: always
     environment:
       - PORT=3000
       - BACKEND_URL=http://app-server:8000
-      - BACKEND_SHARED_SECRET=${SHARED_SECRET}
+      - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=some_secret
+      - NEXT_PUBLIC_URL=http://localhost:3000
 
 volumes:
   qdrant-data:
