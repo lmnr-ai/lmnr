@@ -89,9 +89,9 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       url += `&endDate=${endDate}`;
     }
     if (typeof filter === 'string') {
-      url += `&filter=${encodeURI(filter)}`;
+      url += `&filter=${encodeURIComponent(filter)}`;
     } else if (Array.isArray(filter)) {
-      const filters = encodeURI(JSON.stringify(filter));
+      const filters = encodeURIComponent(JSON.stringify(filter));
       url += `&filter=${filters}`;
     }
     if (typeof textSearchFilter === 'string' && textSearchFilter.length > 0) {
