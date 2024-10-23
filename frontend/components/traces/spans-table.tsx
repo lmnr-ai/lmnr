@@ -1,15 +1,10 @@
+'use client';
 import { useProjectContext } from '@/contexts/project-context';
-import { useUserContext } from '@/contexts/user-context';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/const';
-import { LabelClass, Trace } from '@/lib/traces/types';
-import { createClient } from '@supabase/supabase-js';
+import { LabelClass, Span } from '@/lib/traces/types';
 import { ColumnDef } from '@tanstack/react-table';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
-import StatusLabel from '../ui/status-label';
-import TracesPagePlaceholder from './page-placeholder';
-import { Event, EventTemplate } from '@/lib/events/types';
 import DateRangeFilter from '../ui/date-range-filter';
 import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
@@ -18,8 +13,6 @@ import { Button } from '../ui/button';
 import { RefreshCcw } from 'lucide-react';
 import { PaginatedResponse } from '@/lib/types';
 import Mono from '../ui/mono';
-import useSWR from 'swr';
-import { swrFetcher } from '@/lib/utils';
 import {
   Tooltip,
   TooltipContent,
@@ -28,14 +21,15 @@ import {
 } from '../ui/tooltip';
 import { ScrollArea } from '../ui/scroll-area';
 import { renderNodeInput } from '@/lib/flow/utils';
-import { Feature } from '@/lib/features/features';
-import { isFeatureEnabled } from '@/lib/features/features';
+import { EventTemplate } from '@/lib/events/types';
+import SpanTypeIcon from './span-type-icon';
 
-interface TracesTableProps {
-  onRowClick?: (rowId: string) => void;
+interface SpansTableProps {
+  onRowClick?: (traceId: string) => void;
 }
 
-export default function TracesTable({ onRowClick }: TracesTableProps) {
+export default function SpansTable({ onRowClick }: SpansTableProps) {
+  const { projectId } = useProjectContext();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
@@ -50,21 +44,16 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const endDate = searchParams.get('endDate');
   const pastHours = searchParams.get('pastHours');
   const textSearchFilter = searchParams.get('search');
-  const { projectId } = useProjectContext();
-  const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
+  const [spans, setSpans] = useState<Span[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
   const [anyInProject, setAnyInProject] = useState<boolean>(true);
-  const [canRefresh, setCanRefresh] = useState<boolean>(false);
   const pageCount = Math.ceil(totalCount / pageSize);
-  const [traceId, setTraceId] = useState<string | null>(
-    searchParams.get('traceId') ?? null
+  const [spanId, setSpanId] = useState<string | null>(
+    searchParams.get('spanId') ?? null
   );
 
-  const isCurrentTimestampIncluded =
-    !!pastHours || (!!endDate && new Date(endDate) >= new Date());
-
-  const getTraces = async () => {
-    setTraces(undefined);
+  const getSpans = async () => {
+    setSpans(undefined);
 
     if (!pastHours && !startDate && !endDate) {
       const sp = new URLSearchParams();
@@ -78,7 +67,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       return;
     }
 
-    let url = `/api/projects/${projectId}/traces?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+    let url = `/api/projects/${projectId}/spans?pageNumber=${pageNumber}&pageSize=${pageSize}`;
     if (pastHours != null) {
       url += `&pastHours=${pastHours}`;
     }
@@ -105,15 +94,14 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       }
     });
 
-    const data = (await res.json()) as PaginatedResponse<Trace>;
+    const data = (await res.json()) as PaginatedResponse<Span>;
 
-    setTraces(data.items);
+    setSpans(data.items);
     setTotalCount(data.totalCount);
     setAnyInProject(data.anyInProject);
   };
-
   useEffect(() => {
-    getTraces();
+    getSpans();
   }, [
     projectId,
     pageNumber,
@@ -125,32 +113,44 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     textSearchFilter
   ]);
 
-  const handleRowClick = (row: Trace) => {
-    searchParams.set('traceId', row.id!);
-    searchParams.delete('spanId');
-    onRowClick?.(row.id!);
-    setTraceId(row.id);
+  const handleRowClick = (row: Span) => {
+    searchParams.set('traceId', row.traceId!);
+    searchParams.set('spanId', row.spanId);
     router.push(`${pathName}?${searchParams.toString()}`);
+    setSpanId(row.spanId);
+    onRowClick?.(row.traceId);
   };
-
-  const columns: ColumnDef<Trace, any>[] = [
-    {
-      accessorFn: (row) => (row.success ? 'Success' : 'Failed'),
-      header: 'Status',
-      cell: (row) => <StatusLabel success={row.getValue() === 'Success'} />,
-      id: 'status',
-      size: 100
-    },
+  const columns: ColumnDef<Span, any>[] = [
     {
       cell: (row) => <Mono>{row.getValue()}</Mono>,
       header: 'ID',
-      accessorKey: 'id',
-      id: 'id'
+      accessorFn: (row) => row.spanId.replace(/^00000000-0000-0000-/g, ''),
+      id: 'span_id'
     },
     {
-      accessorKey: 'sessionId',
-      header: 'Session ID',
-      id: 'session_id'
+      cell: (row) => <Mono>{row.getValue()}</Mono>,
+      accessorKey: 'traceId',
+      header: 'Trace ID',
+      id: 'trace_id'
+    },
+    {
+      accessorKey: 'path',
+      header: 'Path',
+      id: 'path'
+    },
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      id: 'name'
+    },
+    {
+      accessorKey: 'spanType',
+      header: 'Type',
+      id: 'span_type',
+      cell: (row) => <div className='flex space-x-2'>
+        <SpanTypeIcon className='z-20' spanType={row.getValue()} />
+        <div className='flex'>{row.getValue()}</div>
+      </div>
     },
     {
       cell: (row) => (
@@ -180,7 +180,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
           </Tooltip>
         </TooltipProvider>
       ),
-      accessorFn: (row) => renderNodeInput(row.parentSpanInput),
+      accessorFn: (row) => renderNodeInput(row.input),
       header: 'Input',
       id: 'input',
       size: 150
@@ -215,7 +215,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
           </Tooltip>
         </TooltipProvider>
       ),
-      accessorFn: (row) => renderNodeInput(row.parentSpanOutput),
+      accessorFn: (row) => renderNodeInput(row.output),
       header: 'Output',
       id: 'output',
       size: 150
@@ -240,135 +240,53 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       id: 'latency'
     },
     {
-      accessorFn: (row) => '$' + row.inputCost?.toFixed(5),
-      header: 'Input cost',
-      id: 'input_cost'
-    },
-    {
-      accessorFn: (row) => '$' + row.outputCost?.toFixed(5),
-      header: 'Output cost',
-      id: 'output_cost'
-    },
-    {
-      accessorFn: (row) => '$' + row.cost?.toFixed(5),
-      header: 'Cost',
-      id: 'cost'
-    },
-    {
-      accessorKey: 'inputTokenCount',
+      accessorFn: (row) => (row.attributes as Record<string, any>)['gen_ai.usage.input_tokens'],
       header: 'Input tokens',
       id: 'input_token_count'
     },
     {
-      accessorKey: 'outputTokenCount',
+      accessorFn: (row) => (row.attributes as Record<string, any>)['gen_ai.usage.output_tokens'],
       header: 'Output tokens',
       id: 'output_token_count'
     },
     {
-      accessorKey: 'totalTokenCount',
+      accessorFn: (row) => (row.attributes as Record<string, any>)['llm.usage.total_tokens'],
       header: 'Total tokens',
       id: 'total_token_count'
     }
   ];
 
-  const extraFilterCols = [
-    {
-      header: 'events',
-      id: `event`
-    },
-    {
-      header: 'labels',
-      id: `label`
-    }
-  ];
+  const extraFilterCols: ColumnDef<Span>[] = [];
+  const events: EventTemplate[] = [];
+  const labels: LabelClass[] = [];
+  // const extraFilterCols = [
+  //   {
+  //     header: 'events',
+  //     id: `event`
+  //   },
+  //   {
+  //     header: 'labels',
+  //     id: `label`
+  //   }
+  // ];
 
-  const { data: events } = useSWR<EventTemplate[]>(
-    `/api/projects/${projectId}/event-templates`,
-    swrFetcher
-  );
-  const { data: labels } = useSWR<LabelClass[]>(
-    `/api/projects/${projectId}/label-classes`,
-    swrFetcher
-  );
+  // const { data: events } = useSWR<EventTemplate[]>(
+  //   `/api/projects/${projectId}/event-templates`,
+  //   swrFetcher
+  // );
+  // const { data: labels } = useSWR<LabelClass[]>(
+  //   `/api/projects/${projectId}/label-classes`,
+  //   swrFetcher
+  // );
 
   const customFilterColumns = {
     event: events?.map((event) => event.name) ?? [],
     label: labels?.map((label) => label.name) ?? []
   };
 
-  const { supabaseAccessToken } = useUserContext();
-
-  const supabase = useMemo(() => {
-    if (!isFeatureEnabled(Feature.SUPABASE) || !supabaseAccessToken) {
-      return null;
-    }
-
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${supabaseAccessToken}`
-        }
-      }
-    });
-  }, []);
-
-  if (supabase) {
-    supabase.realtime.setAuth(supabaseAccessToken);
-  }
-
-  useEffect(() => {
-    if (!supabase) {
-      return;
-    }
-
-    // When enableStreaming changes, need to remove all channels and, if enabled, re-subscribe
-    supabase.channel('table-db-changes').unsubscribe();
-
-    supabase
-      .channel('table-db-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'traces',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setCanRefresh(isCurrentTimestampIncluded);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'traces',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'UPDATE') {
-            setCanRefresh(isCurrentTimestampIncluded);
-          }
-        }
-      )
-      .subscribe();
-
-    // remove all channels on unmount
-    return () => {
-      supabase.removeAllChannels();
-    };
-  }, []);
-
-  if (traces != undefined && totalCount === 0 && !anyInProject) {
-    return <TracesPagePlaceholder />;
-  }
-
   const filterColumns = columns
     .filter(
-      (column) => !['actions', 'start_time', 'events'].includes(column.id!)
+      (column) => !['input', 'output', 'start_time'].includes(column.id!)
     )
     .concat(extraFilterCols);
 
@@ -376,13 +294,13 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     <DataTable
       className="border-none w-full"
       columns={columns}
-      data={traces}
-      getRowId={(trace) => trace.id}
+      data={spans}
+      getRowId={(span) => span.spanId}
       onRowClick={(row) => {
         handleRowClick(row.original);
       }}
       paginated
-      focusedRowId={traceId}
+      focusedRowId={spanId}
       manualPagination
       pageCount={pageCount}
       defaultPageSize={pageSize}
@@ -395,7 +313,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       totalItemsCount={totalCount}
       enableRowSelection
     >
-      <TextSearchFilter />
+      {/* <TextSearchFilter /> */}
       <DataTableFilter
         columns={filterColumns}
         customFilterColumns={customFilterColumns}
@@ -403,8 +321,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       <DateRangeFilter />
       <Button
         onClick={() => {
-          setCanRefresh(false);
-          getTraces();
+          getSpans();
         }}
         variant="outline"
       >

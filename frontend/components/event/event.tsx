@@ -47,9 +47,9 @@ const getEvents = async (
     url += `&endDate=${endDate}`;
   }
   if (typeof filter === 'string') {
-    url += `&filter=${encodeURI(filter)}`;
+    url += `&filter=${encodeURIComponent(filter)}`;
   } else if (Array.isArray(filter)) {
-    const filters = encodeURI(`[${filter.toString()}]`);
+    const filters = encodeURIComponent(`[${filter.toString()}]`);
     url += `&filter=${filters}`;
   }
   const res = await fetch(url, {
