@@ -1,5 +1,5 @@
 import '@/app/globals.css';
-import { fontMono, fontSans } from '@/lib/fonts';
+import { fontMono, fontSans, fontSans2 } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { Metadata } from 'next';
@@ -27,6 +27,7 @@ export default async function RootLayout({
           className={cn(
             'flex flex-col h-full font-sans antialiased',
             fontSans.variable,
+            fontSans2.variable,
             fontMono.variable
           )}
         >

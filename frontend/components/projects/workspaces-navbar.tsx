@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import logo from '@/assets/logo/laminar_light.svg';
+import logo from '@/assets/logo/logo.svg';
 import AvatarMenu from '../user/avatar-menu';
 import useSWR from 'swr';
 import { WorkspaceWithProjects } from '@/lib/workspaces/types';
@@ -20,7 +20,7 @@ export default function WorkspacesNavbar() {
         href={'/projects'}
         className="flex h-14 items-center justify-center mb-4 mt-2"
       >
-        <Image alt="" src={logo} width={120} />
+        <Image alt="" src={logo} width={130} />
       </Link>
       <div className="flex flex-col w-full items-start">
         <div className="flex flex-col w-full pl-4 pb-8 border-b space-y-2">

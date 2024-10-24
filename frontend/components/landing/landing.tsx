@@ -3,18 +3,26 @@
 import Image from 'next/image';
 import yc from '@/assets/landing/yc.svg';
 import traces from '@/assets/landing/traces.png';
-import { ArrowRight, ArrowUpRight, Github } from 'lucide-react';
+import evals from '@/assets/landing/evals.png';
+import labels from '@/assets/landing/labels.png';
+import onlineEvals from '@/assets/landing/online-evals.png';
+
+import { ArrowUpRight } from 'lucide-react';
 import smallTrace from '@/assets/landing/small-trace.png';
 import moa from '@/assets/landing/MoA.png';
+import dataset from '@/assets/landing/dataset.png';
 import palantir from '@/assets/landing/palantir.svg';
 import amazon from '@/assets/landing/amazon.svg';
 import github from '@/assets/landing/github-mark-white.svg';
 import noise from '@/assets/landing/noise.jpeg';
+import noise1 from '@/assets/landing/noise1.jpeg';
 
 import Link from 'next/link';
 import Footer from './footer';
 import { Button } from '../ui/button';
 import { useState, useEffect } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CodeEditor from '../ui/code-editor';
 
 async function fetchGitHubStars() {
   try {
@@ -34,26 +42,69 @@ export default function Landing() {
     fetchGitHubStars().then(setStarCount);
   }, []);
 
+  const sections = [
+    {
+      id: 'traces',
+      title: 'Traces',
+      description: 'When you trace your LLM application, you get a clear picture of every step of execution and simultaneously collect invaluable data. Data and insights can be used to set up better evaluations, as dynamic few-shot examples and for fine-tuning.',
+      codeExample: `from lmnr import Laminar as L, observe
+
+# automatically instruments common 
+# LLM frameworks and libraries
+L.initialize(project_api_key="...")
+
+@observe() # annotate all functions you want to trace
+def my_function():
+  ...
+`,
+      image: traces,
+      docsLink: 'https://docs.lmnr.ai/tracing/introduction'
+    },
+    {
+      id: 'evals',
+      title: 'Evals',
+      description: 'Evaluations are unit tests for your prompts. Without them, any iteration attempt is blind. Laminar gives you simple but powerful tools to build and run evaluations to facilitate the iteration process. Run them from the code, terminal or as a part of your CI/CD pipeline.',
+      image: evals,
+      codeExample: `from lmnr import evaluate
+
+evaluate(
+    data=[
+        {
+          "data": { ... },
+          "target": { ... }
+        },
+    ],
+    executor=my_function,
+    evaluators={
+      "accuracy": lambda output, target: ...
+    }
+)`,
+      docsLink: 'https://docs.lmnr.ai/evaluations/introduction'
+    },
+    {
+      id: 'labels',
+      title: 'Labels',
+      description: 'Labeling LLM outputs helps you identify exactly where your AI succeeds or fails. Laminar helps you build labeled datasets, which you can use to fine-tune your models, add successful examples to your prompts, and fix problem areas.',
+      image: labels,
+      docsLink: 'https://docs.lmnr.ai/labels/introduction'
+    }
+  ];
+
   return (
     <>
-      {/* <div className="inset-0 backdrop-blur-lg fixed">
-        <Image src={noise} alt="" className="opacity-20 w-full h-full" />
-      </div> */}
-
-      <div className="flex flex-col z-30 items-center space-y-16">
+      <div className="flex flex-col z-30 items-center space-y-16 pt-28">
         <div className="flex flex-col md:w-[1000px] space-y-8">
-          {/* <div className="fixed inset-0 bg-gradient-to-b from-transparent to-background pointer-events-none">
-          </div> */}
-
-          <div className="flex flex-col mt-28">
-            <div className="flex flex-col items-center space-y-8 pt-4 text-center relative">
+          <div className="flex flex-col">
+            <div className="flex flex-col items-center pt-4 text-center relative">
               <div className="inset-0 absolute z-10 rounded-lg overflow-hidden">
-                <Image src={noise} alt="" className="w-full h-full" />
+                <Image src={noise} alt="" className="w-full h-full" priority />
               </div>
-              <div className="z-20 flex flex-col items-center space-y-8 p-8">
+              <div className="z-20 flex flex-col items-center space-y-10 p-8">
 
-                <p className="text-6xl md:px-0 md:text-7xl md:leading-tight text-white font-medium">
-                  LLM engineering <br /> from first principles
+                <p className="text-6xl md:px-0 md:text-7xl md:leading-tight text-white font-medium"
+                // style={{ fontFamily: 'var(--font-sans2)' }}
+                >
+                  AI engineering <br /> from first principles
                 </p>
                 <p className="md:text-2xl md:tracking-normal font-medium text-white">
                   Laminar is an open-source all-in-one platform <br />
@@ -62,7 +113,7 @@ export default function Landing() {
                 <div className="flex w-full justify-center">
                   <Link target="_blank" href="https://github.com/lmnr-ai/lmnr">
                     <Button
-                      className="h-10 bg-transparent border-white text-white hover:bg-white/10"
+                      className="h-10 bg-white/10 border-white text-white hover:bg-white/20"
                       variant="outline"
                     >
                       <Image
@@ -92,108 +143,137 @@ export default function Landing() {
                     </Button>
                   </Link>
                 </div>
+                <div className="flex justify-center items-center text-sm space-x-8">
+                  <Image
+                    className=""
+                    src={yc}
+                    alt="backed by Y Combinator"
+                    width={180}
+                    height={40}
+                  />
+                  <Image
+                    src={palantir}
+                    alt="Palantir"
+                    width={120}
+                    height={40}
+                    className=""
+                  />
+                  <Image
+                    src={amazon}
+                    alt="Amazon"
+                    width={100}
+                    height={40}
+                    className="mt-4"
+                  />
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Backed by and Made by sections */}
-          <div className="flex flex-col items-center text-sm">
-            <p>Backed by</p>
-            <Image
-              className="pt-4"
-              src={yc}
-              alt="backed by Y Combinator"
-              width={180}
-              height={200}
-            />
-          </div>
-          <div className="pt-4 flex flex-col items-center">
-            <p className="text-sm font-medium text-secondary-foreground">
-              Made by the team from
-            </p>
-            <div className="flex space-x-8 mt-2">
-              <Image
-                src={palantir}
-                alt="Palantir"
-                width={120}
-                height={40}
-                className="opacity-80 transition-opacity"
-              />
-              <Image
-                src={amazon}
-                alt="Amazon"
-                width={105}
-                height={20}
-                className="opacity-80 transition-opacity mt-2"
-              />
-            </div>
-          </div>
         </div>
-        <div>
-          Core principals of LLM engineering involve data
+        <div className="flex flex-col md:items-center md:w-[1000px] md:px-0">
+          <p
+            // style={{ fontFamily: 'var(--font-sans2)' }}
+            className="text-center md:my-16 font-medium md:text-4xl md:2xl:tracking-tighter md:leading-relaxed text-white"
+          >
+            Data governs the quality of your LLM application. <br />
+            Laminar helps you collect it, understand it, and use it.
+          </p>
         </div>
 
         <div className="flex flex-col md:items-center space-y-16 md:w-[1000px] md:px-0">
-          <div className="flex flex-col space-y-4 w-full">
-            <div className='flex justify-between'>
-              <div className="flex flex-col space-y-2">
-                <h1 className="text-2xl md:text-3xl font-semibold">
-                  Evals
-                </h1>
-                <p className="text-xl md:text-xl font-normal">
-                  Data is the new code
-                </p>
+          <Tabs
+            defaultValue="traces"
+            className="w-full"
+          >
+            <div className="flex flex-col space-y-4 w-full relative mb-8">
+              <div className="absolute inset-0 z-0 rounded-lg overflow-hidden">
+                <Image
+                  src={noise1}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
               </div>
-              <div className="flex flex-col space-y-2 relative">
-                <div className="absolute right-1 top-0 w-[2px] h-full bg-secondary-foreground" />
+              <div className="z-20 text-white">
+                <TabsList
+                  className="flex justify-center border-none mb-8"
+                >
+                  {
+                    sections.map((section, i) => (
+                      <TabsTrigger key={i} value={section.id}
+                        className="border-none data-[state=active]:bg-white data-[state=active]:text-black data-[state=inactive]:text-white data-[state=inactive]:font-medium h-8 px-2 rounded">
+                        {section.title}
+                      </TabsTrigger>
+                    ))
+                  }
+                </TabsList>
                 {
-                  Array.from(["evals", "evaluations", "metrics"]).map((text, i) => (
-                    <div key={i} className="flex items-center space-x-2 justify-between">
-                      <div className="text-secondary-foreground bg-secondary rounded-full px-2 py-1 w-full">{text}</div>
-                      <div className="bg-secondary-foreground w-4 h-4 rounded-full" />
-                    </div>
+                  sections.map((section, i) => (
+                    <TabsContent key={i} value={section.id}>
+                      <div className="flex-col w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex flex-col space-y-4 p-8">
+                          <h1 className="text-4xl font-semibold">
+                            {section.title}
+                          </h1>
+                          <p className="leading-tight font-medium text-lg text-white/90">
+                            {section.description}
+                          </p>
+                          {section.docsLink && (
+                            <div className="flex flex-col space-y-2 justify-start">
+                              <Link
+                                href={section.docsLink}
+                                target="_blank"
+                                className="text-white/90 flex items-center mt-4 border border-white/80 rounded-lg p-2"
+                              >
+                                Read more about {section.title.toLowerCase()} <ArrowUpRight className="ml-2 h-4 w-4" />
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col w-full">
+                          {section.codeExample && (
+                            <CodeEditor
+                              className="bg-black rounded-tl-lg rounded-br-lg border-white"
+                              value={section.codeExample}
+                              language="python"
+                              editable={false}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </TabsContent>
                   ))
                 }
               </div>
             </div>
-            <div className="bg-secondary w-full border rounded overflow-hidden shadow-lg">
-              <Image
-                alt="Traces visualization"
-                src={traces}
-                className="overflow-hidden rounded md:shadow-lg w-full h-full"
-              />
+            <div>
+              {
+                sections.map((section, i) => (
+                  <TabsContent key={i} value={section.id}>
+                    <div className="bg-secondary border rounded overflow-hidden w-full">
+                      <Image
+                        alt={section.title}
+                        src={section.image}
+                        className="overflow-hidden rounded md:shadow-lg w-full h-full"
+                      />
+                    </div>
+                  </TabsContent>
+                ))
+              }
             </div>
-          </div>
-        </div>
-        <div className="flex flex-col md:items-center space-y-16 md:w-[1200px] md:px-0">
-          <div className="flex flex-col space-y-4 w-full">
-            <div className="bg-secondary w-full border rounded overflow-hidden shadow-lg">
-              <Image
-                alt="Traces visualization"
-                src={traces}
-                className="overflow-hidden rounded md:shadow-lg w-full h-full"
-              />
-            </div>
-          </div>
+          </Tabs>
         </div>
         <div className="flex flex-col md:items-center md:w-[1000px] px-8 md:px-0">
-          <div>
-            <p className="pb-8 text-3xl md:text-3xl text-center font-normal">
-              Everything you need to understand <br /> and optimize your LLM
-              application
-            </p>
-          </div>
-          <div className="flex flex-col pt-8 w-full space-y-4">
+          <div className="flex flex-col w-full space-y-4">
             <div className="flex flex-col space-y-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <TracingCard />
-                <EventsCard />
+                <EvaluationsCard />
+
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex flex-col space-y-4 md:col-span-1">
-                <EvaluationsCard />
-                <RustCard />
+              <div className="flex flex-col">
+                <DatasetCard />
               </div>
               <div className="md:col-span-2 h-full">
                 <PromptChainsCard className="h-full" />
@@ -209,19 +289,31 @@ export default function Landing() {
 
 function TracingCard() {
   return (
-    <div className="bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer hover:border-secondary-foreground flex flex-col">
+    <div
+      className="bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group">
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <Image
+          src={noise1}
+          alt=""
+          layout="fill"
+          objectFit="cover"
+        />
+      </div>
       <Link
         href="https://docs.lmnr.ai/tracing/introduction"
-        className="flex flex-col h-full"
+        target="_blank"
+        className="flex flex-col h-full relative z-10"
       >
         <div className="p-6 flex-grow space-y-2">
-          <h3 className="text-xl font-normal">Full Tracing</h3>
-          <p className="text-secondary-foreground/80 text-sm">
-            Track and understand every step of execution in your LLM app by
-            simply adding a few lines of code.
+          <h1 className="text-xl font-medium group-hover:text-white transition-colors duration-200">Zero-overhead observability</h1>
+          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
+            All traces are sent in the background via gRPC with minimal overhead.
+            Tracing of text and image models is supported, audio models are coming soon.
           </p>
-          <div className="flex items-center mt-4">
-            Start tracing <ArrowRight className="ml-2 h-4 w-4" />
+          <div className="flex">
+            <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
+              Start tracing <ArrowUpRight className="ml-2 h-4 w-4" />
+            </div>
           </div>
         </div>
         <div className="mt-auto px-6">
@@ -229,7 +321,7 @@ function TracingCard() {
             <Image
               src={smallTrace}
               alt="Tracing visualization"
-              className="w-full h-auto object-cover"
+              className="w-full max-h-[200px] object-cover object-top"
             />
           </div>
         </div>
@@ -238,103 +330,115 @@ function TracingCard() {
   );
 }
 
-function EventsCard() {
+function DatasetCard() {
   return (
-    <div className="p-6 h-full bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer hover:border-secondary-foreground">
+    <div className="bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group">
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <Image
+          src={noise1}
+          alt=""
+          layout="fill"
+          objectFit="cover"
+        />
+      </div>
       <Link
         href="https://docs.lmnr.ai/events/introduction"
-        className="flex flex-col h-full space-y-2"
+        target="_blank"
+        className="flex flex-col h-full relative z-10"
       >
-        <h3 className="text-xl font-normal">Semantic events</h3>
-        <p className="text-secondary-foreground/80 text-sm">
-          Have a clear understanding of how your LLM app is being used by
-          tracking semantic events. Define events, such as user sentiment, in
-          plain English. We will catch them in the background and turn them into
-          metrics.
-        </p>
-        <div className="flex items-center mt-4">
-          Learn about events <ArrowRight className="ml-2 h-4 w-4" />
+        <div className="p-6 flex-grow space-y-2">
+          <h3 className="text-xl font-medium group-hover:text-white transition-colors duration-200">Datasets</h3>
+          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
+            You can build datasets from your traces, and use them in evaluations, fine-tuning and prompt engineering.
+          </p>
+          <div className="flex">
+            <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
+              Create a dataset <ArrowUpRight className="ml-2 h-4 w-4" />
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col space-y-4 p-4">
-          <div className="z-30 flex">
-            <EventCard title="USER_SENTIMENT" />
-          </div>
-          <div className="z-20 flex ml-8">
-            <EventCard title="CORRECT_TOOL_USED" />
-          </div>
-          <div className="z-10 flex ml-16">
-            <EventCard title="COMPREHENSION_SCORE" />
+        <div className="mt-auto">
+          <div className="flex overflow-hidden border-t">
+            <Image
+              src={dataset}
+              alt="Dataset visualization"
+              className="w-full object-cover object-top max-h-[215px]"
+            />
           </div>
         </div>
       </Link>
-    </div>
-  );
-}
-
-function EventCard({ title }: { title: string }) {
-  return (
-    <div className="bg-gradient-to-br to-transparent from-gray-500 rounded-lg p-[0.5px]">
-      <div className="bg-[#1C1C21] rounded-lg p-3 text-center flex items-center space-x-2">
-        <div className="rounded-full bg-orange-400 w-2 h-2" />{' '}
-        <h4 className="text-sm  bg-gradient-to-r from-gray-400 via-white/90 to-gray-400 bg-clip-text text-transparent">
-          {title}
-        </h4>
-      </div>
     </div>
   );
 }
 
 function EvaluationsCard() {
   return (
-    <div className="p-6 bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer hover:border-secondary-foreground">
+    <div className="bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group">
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <Image
+          src={noise1}
+          alt=""
+          layout="fill"
+          objectFit="cover"
+        />
+      </div>
       <Link
-        href="https://docs.lmnr.ai/evaluations/introduction"
-        className="space-y-2"
+        href="https://docs.lmnr.ai/events/introduction"
+        target="_blank"
+        className="flex flex-col h-full relative z-10"
       >
-        <h3 className="text-xl font-normal">Evaluations</h3>
-        <p className="text-secondary-foreground/80 text-sm">
-          Run custom evaluations at scale. Build custom evaluation pipelines,
-          including LLM evaluations, and run them on custom datasets.
-        </p>
-        <div className="flex items-center mt-4">
-          Discover evaluations <ArrowRight className="ml-2 h-4 w-4" />
+        <div className="p-6 flex-grow space-y-2">
+          <h3 className="text-xl font-medium group-hover:text-white transition-colors duration-200">Online evaluations</h3>
+          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
+            You can setup LLM-as-a-judge or Python script evaluators to run on each received span. Evaluators label spans, which is more scalable than human labeling, and especially helpful for smaller teams.
+          </p>
+          <div className="flex">
+            <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
+              Setup online evaluations <ArrowUpRight className="ml-2 h-4 w-4" />
+            </div>
+          </div>
+        </div>
+        <div className="mt-auto px-6">
+          <div className="flex rounded-t-lg overflow-hidden border-t border-r border-l">
+            <Image
+              src={onlineEvals}
+              alt="Online evaluations"
+              className="w-full max-h-[200px] object-cover object-top"
+            />
+          </div>
         </div>
       </Link>
     </div>
   );
 }
 
-function RustCard() {
-  return (
-    <div className="space-y-2 p-6 bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer hover:border-secondary-foreground h-full">
-      <h3 className="text-xl font-normal">Powered by Rust 🦀</h3>
-      <p className="text-secondary-foreground/80 text-sm">
-        Rust allowed us to deliver unparalleled performance and reliability.
-        Laminar can sustain high-throughput and effortlessly scale to processing
-        of millions of tokens per second.
-      </p>
-    </div>
-  );
-}
-
 function PromptChainsCard({ className }: { className?: string }) {
   return (
-    <div
-      className={`bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer hover:border-secondary-foreground ${className}`}
-    >
+    <div className={`bg-secondary/30 text-white border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group ${className}`}>
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <Image
+          src={noise1}
+          alt=""
+          layout="fill"
+          objectFit="cover"
+        />
+      </div>
       <Link
         href="https://docs.lmnr.ai/pipeline/introduction"
-        className="space-y-2 h-full flex flex-col"
+        target="_blank"
+        className="flex flex-col h-full relative z-10"
       >
-        <div className="flex-grow space-y-2 p-6">
-          <h3 className="text-xl font-normal">Prompt chain management</h3>
-          <p className="text-secondary-foreground/80 text-sm">
+        <div className="p-6 flex-grow space-y-2">
+          <h3 className="text-xl font-medium">Prompt chain management</h3>
+          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
             Laminar lets you go beyond a single prompt. You can build and host
-            complex chains, including mixtures of agents or self-relfecting LLM
+            complex chains, including mixtures of agents or self-reflecting LLM
             pipelines.
           </p>
-          <div className="flex items-center mt-4">
-            Learn about chains <ArrowRight className="ml-2 h-4 w-4" />
+          <div className="flex">
+            <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
+              Build LLM chains <ArrowUpRight className="ml-2 h-4 w-4" />
+            </div>
           </div>
         </div>
         <div className="mt-auto px-6">

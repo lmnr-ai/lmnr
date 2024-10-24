@@ -51,9 +51,15 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
             <Link href="/pricing" className={menuItemStyle}>
               Pricing
             </Link>
+            <Link target="_blank" href="https://github.com/lmnr-ai/lmnr" className={menuItemStyle}>
+              GitHub
+            </Link>
             <Link target="_blank" href="https://cal.com/robert-lmnr/demo">
-              <Button variant={'outline'} className="bg-transparent">
-                Talk to Founder
+              <Button
+                variant={'outline'}
+                className="bg-transparent border-white/60 hover:bg-white/10"
+              >
+                Book a demo
               </Button>
             </Link>
             <div className="hidden md:block">
