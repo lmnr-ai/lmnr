@@ -87,8 +87,21 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
             $10,
             $11,
             $12,
-            $13
-   )",
+            $13)
+        ON CONFLICT (span_id) DO UPDATE SET 
+            version = EXCLUDED.version,
+            trace_id = EXCLUDED.trace_id,
+            parent_span_id = EXCLUDED.parent_span_id,
+            start_time = EXCLUDED.start_time,
+            end_time = EXCLUDED.end_time,
+            name = EXCLUDED.name,
+            attributes = EXCLUDED.attributes,
+            input = EXCLUDED.input,
+            output = EXCLUDED.output,
+            span_type = EXCLUDED.span_type,
+            input_preview = EXCLUDED.input_preview,
+            output_preview = EXCLUDED.output_preview
+    ",
     )
     .bind(&span.version)
     .bind(&span.span_id)
