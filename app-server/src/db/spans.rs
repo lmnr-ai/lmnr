@@ -5,6 +5,8 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool, Postgres};
 use uuid::Uuid;
 
+const PREVIEW_CHARACTERS: usize = 50;
+
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "span_type")]
 pub enum SpanType {
@@ -37,13 +39,23 @@ pub struct Span {
 
 pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
     let input_preview = match &span.input {
-        &Some(Value::String(ref s)) => Some(s.chars().take(50).collect::<String>()),
-        &Some(ref v) => Some(v.to_string().chars().take(50).collect::<String>()),
+        &Some(Value::String(ref s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
+        &Some(ref v) => Some(
+            v.to_string()
+                .chars()
+                .take(PREVIEW_CHARACTERS)
+                .collect::<String>(),
+        ),
         &None => None,
     };
     let output_preview = match &span.output {
-        &Some(Value::String(ref s)) => Some(s.chars().take(50).collect::<String>()),
-        &Some(ref v) => Some(v.to_string().chars().take(50).collect::<String>()),
+        &Some(Value::String(ref s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
+        &Some(ref v) => Some(
+            v.to_string()
+                .chars()
+                .take(PREVIEW_CHARACTERS)
+                .collect::<String>(),
+        ),
         &None => None,
     };
     sqlx::query(

@@ -179,31 +179,31 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     },
     {
       cell: (row) => row.getValue(),
-        // <TooltipProvider delayDuration={250}>
-        //   <Tooltip>
-        //     <TooltipTrigger className="relative">
-        //       <div
-        //         style={{
-        //           width: row.column.getSize() - 32
-        //         }}
-        //         className="relative"
-        //       >
-        //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-        //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-        //             {row.getValue()}
-        //           </div>
-        //         </div>
-        //       </div>
-        //     </TooltipTrigger>
-        //     <TooltipContent side="bottom" className="p-0 border">
-        //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
-        //         <p className="max-w-sm break-words whitespace-pre-wrap">
-        //           {row.getValue()}
-        //         </p>
-        //       </ScrollArea>
-        //     </TooltipContent>
-        //   </Tooltip>
-        // </TooltipProvider>,
+      // <TooltipProvider delayDuration={250}>
+      //   <Tooltip>
+      //     <TooltipTrigger className="relative">
+      //       <div
+      //         style={{
+      //           width: row.column.getSize() - 32
+      //         }}
+      //         className="relative"
+      //       >
+      //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+      //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+      //             {row.getValue()}
+      //           </div>
+      //         </div>
+      //       </div>
+      //     </TooltipTrigger>
+      //     <TooltipContent side="bottom" className="p-0 border">
+      //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
+      //         <p className="max-w-sm break-words whitespace-pre-wrap">
+      //           {row.getValue()}
+      //         </p>
+      //       </ScrollArea>
+      //     </TooltipContent>
+      //   </Tooltip>
+      // </TooltipProvider>,
       accessorKey: 'topSpanInputPreview',
       header: 'Input',
       id: 'input',
@@ -211,33 +211,33 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     },
     {
       cell: (row) => row.getValue(),
-        // <TooltipProvider delayDuration={250}>
-        //   <Tooltip>
-        //     <TooltipTrigger className="relative p-0">
-        //       <div
-        //         style={{
-        //           width: row.column.getSize() - 32
-        //         }}
-        //         className="relative"
-        //       >
-        //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-        //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-        //             {row.getValue()}
-        //           </div>
-        //         </div>
-        //       </div>
-        //     </TooltipTrigger>
-        //     <TooltipContent side="bottom" className="p-0 border">
-        //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
-        //         <div>
-        //           <p className="max-w-sm break-words whitespace-pre-wrap">
-        //             {row.getValue()}
-        //           </p>
-        //         </div>
-        //       </ScrollArea>
-        //     </TooltipContent>
-        //   </Tooltip>
-        // </TooltipProvider>,
+      // <TooltipProvider delayDuration={250}>
+      //   <Tooltip>
+      //     <TooltipTrigger className="relative p-0">
+      //       <div
+      //         style={{
+      //           width: row.column.getSize() - 32
+      //         }}
+      //         className="relative"
+      //       >
+      //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+      //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+      //             {row.getValue()}
+      //           </div>
+      //         </div>
+      //       </div>
+      //     </TooltipTrigger>
+      //     <TooltipContent side="bottom" className="p-0 border">
+      //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
+      //         <div>
+      //           <p className="max-w-sm break-words whitespace-pre-wrap">
+      //             {row.getValue()}
+      //           </p>
+      //         </div>
+      //       </ScrollArea>
+      //     </TooltipContent>
+      //   </Tooltip>
+      // </TooltipProvider>,
       accessorKey: 'topSpanOutputPreview',
       header: 'Output',
       id: 'output',
@@ -321,7 +321,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
                     {row.getValue() !== '-' &&
                       <>
                         {` (${row.row.original.inputTokenCount ?? '-'}`}
-                        <ArrowRight size={12} className='mt-[4px]'/> 
+                        <ArrowRight size={12} className='mt-[4px]'/>
                         {`${row.row.original.outputTokenCount ?? '-'})`}
                       </>
                     }
