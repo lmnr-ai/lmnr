@@ -20,33 +20,16 @@ import noise1 from '@/assets/landing/noise1.jpeg';
 import Link from 'next/link';
 import Footer from './footer';
 import { Button } from '../ui/button';
-import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CodeEditor from '../ui/code-editor';
 
-async function fetchGitHubStars() {
-  try {
-    const response = await fetch('https://api.github.com/repos/lmnr-ai/lmnr');
-    const data = await response.json();
-    return data.stargazers_count;
-  } catch (error) {
-    console.error('Error fetching GitHub stars:', error);
-    return null;
-  }
-}
-
 export default function Landing() {
-  const [starCount, setStarCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetchGitHubStars().then(setStarCount);
-  }, []);
 
   const sections = [
     {
       id: 'traces',
       title: 'Traces',
-      description: 'When you trace your LLM application, you get a clear picture of every step of execution and simultaneously collect invaluable data. Data and insights can be used to set up better evaluations, as dynamic few-shot examples and for fine-tuning.',
+      description: 'When you trace your LLM application, you get a clear picture of every step of execution and simultaneously collect invaluable data. You can use it to set up better evaluations, as dynamic few-shot examples, and for fine-tuning.',
       codeExample: `from lmnr import Laminar as L, observe
 
 # automatically instruments common 
@@ -63,7 +46,7 @@ def my_function():
     {
       id: 'evals',
       title: 'Evals',
-      description: 'Evaluations are unit tests for your prompts. Without them, any iteration attempt is blind. Laminar gives you simple but powerful tools to build and run evaluations to facilitate the iteration process. Run them from the code, terminal or as a part of your CI/CD pipeline.',
+      description: 'Evaluations are unit tests for your prompts. Without them, any iteration attempt is blind. Laminar gives you powerful tools to build and run evaluations to facilitate the iteration process. Run them from the code, terminal, or as a part of your CI/CD pipeline.',
       image: evals,
       codeExample: `from lmnr import evaluate
 
@@ -84,7 +67,7 @@ evaluate(
     {
       id: 'labels',
       title: 'Labels',
-      description: 'Labeling LLM outputs helps you identify exactly where your AI succeeds or fails. Laminar helps you build labeled datasets, which you can use to fine-tune your models, add successful examples to your prompts, and fix problem areas.',
+      description: 'Labeling LLM outputs helps you identify exactly where your AI application succeeds or fails. Laminar helps you build labeled datasets, which you can use to fine-tune your models, add successful examples to your prompts, and fix problem areas.',
       image: labels,
       docsLink: 'https://docs.lmnr.ai/labels/introduction'
     }
@@ -96,18 +79,18 @@ evaluate(
         <div className="flex flex-col md:w-[1000px] space-y-8">
           <div className="flex flex-col">
             <div className="flex flex-col items-center pt-4 text-center relative">
-              <div className="inset-0 absolute z-10 rounded-lg overflow-hidden">
+              <div className="inset-0 absolute z-10 md:rounded-lg overflow-hidden">
                 <Image src={noise} alt="" className="w-full h-full" priority />
               </div>
               <div className="z-20 flex flex-col items-center space-y-10 p-8">
 
-                <p className="text-6xl md:px-0 md:text-7xl md:leading-tight text-white font-medium"
+                <p className="text-4xl tracking-tighter md:px-0 md:text-7xl md:leading-tight md:tracking-normal text-white font-medium"
                 // style={{ fontFamily: 'var(--font-sans2)' }}
                 >
                   AI engineering <br /> from first principles
                 </p>
-                <p className="md:text-2xl md:tracking-normal font-medium text-white">
-                  Laminar is an open-source all-in-one platform <br />
+                <p className="text-[1.2rem] md:text-2xl md:w-[500px] md:tracking-normal font-medium text-white">
+                  Laminar is an open-source all-in-one platform
                   for engineering best-in-class LLM products.
                 </p>
                 <div className="flex w-full justify-center">
@@ -123,7 +106,7 @@ evaluate(
                         height={20}
                         className="mr-2"
                       />
-                      Star us on GitHub {starCount !== null ? `(${starCount}⭐️)` : ''}
+                      Star us on GitHub
                       <ArrowUpRight className="ml-2 h-4 w-4" />
                     </Button>
                   </Link>
@@ -145,25 +128,19 @@ evaluate(
                 </div>
                 <div className="flex justify-center items-center text-sm space-x-8">
                   <Image
-                    className=""
                     src={yc}
                     alt="backed by Y Combinator"
-                    width={180}
-                    height={40}
+                    className="w-28 md:w-36"
                   />
                   <Image
                     src={palantir}
                     alt="Palantir"
-                    width={120}
-                    height={40}
-                    className=""
+                    className="w-20 md:w-24"
                   />
                   <Image
                     src={amazon}
                     alt="Amazon"
-                    width={100}
-                    height={40}
-                    className="mt-4"
+                    className="w-16 md:w-24 mt-3"
                   />
                 </div>
               </div>
@@ -172,8 +149,7 @@ evaluate(
         </div>
         <div className="flex flex-col md:items-center md:w-[1000px] md:px-0">
           <p
-            // style={{ fontFamily: 'var(--font-sans2)' }}
-            className="text-center md:my-16 font-medium md:text-4xl md:2xl:tracking-tighter md:leading-relaxed text-white"
+            className="text-center text-2xl px-8 md:my-16 font-medium md:text-4xl md:2xl:tracking-tighter md:leading-relaxed text-white"
           >
             Data governs the quality of your LLM application. <br />
             Laminar helps you collect it, understand it, and use it.
@@ -186,7 +162,7 @@ evaluate(
             className="w-full"
           >
             <div className="flex flex-col space-y-4 w-full relative mb-8">
-              <div className="absolute inset-0 z-0 rounded-lg overflow-hidden">
+              <div className="absolute inset-0 z-0 md:rounded-lg overflow-hidden">
                 <Image
                   src={noise1}
                   alt=""
@@ -232,7 +208,7 @@ evaluate(
                         <div className="flex flex-col w-full">
                           {section.codeExample && (
                             <CodeEditor
-                              className="bg-black rounded-tl-lg rounded-br-lg border-white"
+                              className="bg-black md:rounded-tl-lg md:rounded-br-lg border-white"
                               value={section.codeExample}
                               language="python"
                               editable={false}
@@ -262,7 +238,7 @@ evaluate(
             </div>
           </Tabs>
         </div>
-        <div className="flex flex-col md:items-center md:w-[1000px] px-8 md:px-0">
+        <div className="flex flex-col md:items-center md:w-[1000px] px-4 md:px-0">
           <div className="flex flex-col w-full space-y-4">
             <div className="flex flex-col space-y-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -295,8 +271,7 @@ function TracingCard() {
         <Image
           src={noise1}
           alt=""
-          layout="fill"
-          objectFit="cover"
+          className="w-full h-full object-cover object-top"
         />
       </div>
       <Link
@@ -337,12 +312,11 @@ function DatasetCard() {
         <Image
           src={noise1}
           alt=""
-          layout="fill"
-          objectFit="cover"
+          className="w-full h-full object-cover object-top"
         />
       </div>
       <Link
-        href="https://docs.lmnr.ai/events/introduction"
+        href="https://docs.lmnr.ai/datasets/introduction"
         target="_blank"
         className="flex flex-col h-full relative z-10"
       >
@@ -378,12 +352,11 @@ function EvaluationsCard() {
         <Image
           src={noise1}
           alt=""
-          layout="fill"
-          objectFit="cover"
+          className="w-full h-full object-cover object-top"
         />
       </div>
       <Link
-        href="https://docs.lmnr.ai/events/introduction"
+        href="https://docs.lmnr.ai/evaluations/online-evaluations"
         target="_blank"
         className="flex flex-col h-full relative z-10"
       >
@@ -419,8 +392,7 @@ function PromptChainsCard({ className }: { className?: string }) {
         <Image
           src={noise1}
           alt=""
-          layout="fill"
-          objectFit="cover"
+          className="w-full h-full object-cover object-top"
         />
       </div>
       <Link
