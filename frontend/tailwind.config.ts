@@ -1,4 +1,5 @@
-const { fontFamily } = require('tailwindcss/defaultTheme')
+// const { fontFamily } = require('tailwindcss/defaultTheme')
+const { fontSans, fontSans2 } = require('./lib/fonts')
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -14,7 +15,8 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        sans: ['var(--font-sans)', ...fontFamily.sans]
+        // sans: ['var(--font-sans)', ...fontSans.fontFamily],
+        sans: ['var(--font-sans2)', ...fontSans2.fontFamily]
       },
       colors: {
         border: 'hsl(var(--border))',

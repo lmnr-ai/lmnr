@@ -11,15 +11,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     title: 'Laminar',
-    description: 'Open-source Datadog + PostHog for complex LLM apps'
+    description: 'AI engineering from first principles'
   },
   twitter: {
     card: 'summary',
-    description: 'Open-source Datadog + PostHog for complex LLM apps',
+    description: 'AI engineering from first principles',
     title: 'Laminar',
     images: {
       url: 'https://www.lmnr.ai/twitter-image.png',
-      alt: 'Logo of Laminar - Open-source Datadog + PostHog for complex LLM apps'
+      alt: 'Laminar logo'
     }
   }
 };
