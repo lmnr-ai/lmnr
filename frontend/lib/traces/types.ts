@@ -70,6 +70,8 @@ export type Span = {
   attributes: any;
   input: any | null;
   output: any | null;
+  inputPreview: string | null;
+  outputPreview: string | null;
   spanType: SpanType;
   events: Event[];
   labels: SpanLabel[];
@@ -105,10 +107,11 @@ export type Trace = {
   outputCost: number | null;
   cost: number | null;
   metadata: Record<string, string> | null;
-  parentSpanInput: any | null;
-  parentSpanOutput: any | null;
-  parentSpanName: string | null;
-  parentSpanType: SpanType | null;
+  topSpanInputPreview: any | null;
+  topSpanOutputPreview: any | null;
+  topSpanName: string | null;
+  topSpanType: SpanType | null;
+  topSpanPath: string | null;
   events: TraceEvent[];
 };
 
