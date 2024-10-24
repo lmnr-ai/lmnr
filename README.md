@@ -11,9 +11,9 @@ Laminar is an open-source platform for engineering LLM products. Trace, evaluate
 Think of it as DataDog + PostHog for LLM apps.
 
 - OpenTelemetry-based instrumentation: automatic for LLM / vector DB calls with just 2 lines of code + decorators to track functions (powered by an amazing [OpenLLMetry](https://github.com/traceloop/openllmetry) open-source package by TraceLoop).
-- Semantic events-based analytics. Laminar hosts background job queues of LLM pipelines. Outputs of those pipelines are turned into metrics. For example, you can design a pipeline which extracts "my AI drive-through agent made an upsell" data, and track this metric in Laminar.
-- Built for scale with a modern stack: written in Rust, RabbitMQ for message queue, Postgres for data, Clickhouse for analytics
-- Insightful, fast dashboards for traces / spans / events
+- Online evaluations: Laminar can host your custom evaluation code or prompts and run them as your application traces arrive.
+- Built for scale with a modern stack: written in Rust, RabbitMQ for message queue, Postgres for data, Clickhouse for analytics.
+- Insightful, fast dashboards for traces / spans / events / evaluations.
 
 Read the [docs](https://docs.lmnr.ai).
 
@@ -22,6 +22,7 @@ This is a work in progress repo and it will be frequently updated.
 ## Getting started
 
 ### Laminar Cloud
+
 The easiest way to get started is with a generous free tier on our managed platform -> [lmnr.ai](https://www.lmnr.ai)
 
 ### Self-hosting with Docker compose
@@ -41,7 +42,7 @@ This will spin up the following containers:
 - frontend – the visual front-end dashboard for interacting with traces
 - python-executor – a small python sandbox that can run arbitrary code wrapped under a thin gRPC service
 - postgres – the database for all the application data
-- clickhouse – columnar OLAP database for more efficient event and trace analytics
+- clickhouse – columnar OLAP database for more efficient event, label, and trace analytics
 
 #### Local development
 
@@ -96,7 +97,7 @@ if __name__ == "__main__":
 
 #### Sending events
 
-To send an evant, call `L.event(name, value)`.
+To send an event, call `L.event(name, value)`.
 
 Read our [docs](https://docs.lmnr.ai) to learn more about events and how they are created.
 
@@ -137,4 +138,4 @@ To learn more about instrumenting your code, check out our client libraries:
  <a href="https://www.npmjs.com/package/@lmnr-ai/lmnr"> ![NPM Version](https://img.shields.io/npm/v/%40lmnr-ai%2Flmnr?label=lmnr&logo=npm&logoColor=CB3837) </a>
  <a href="https://pypi.org/project/lmnr/"> ![PyPI - Version](https://img.shields.io/pypi/v/lmnr?label=lmnr&logo=pypi&logoColor=3775A9) </a>
 
-To get deeper understanding of the concepts, follow on to the [docs](https://docs.lmnr.ai/) and [tutorials](https://docs.lmnr.ai/tutorials).
+To get deeper understanding of the concepts, follow on to the [docs](https://docs.lmnr.ai/).
