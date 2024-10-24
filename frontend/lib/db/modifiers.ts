@@ -24,7 +24,7 @@ export type FilterDef = {
 export const filtersToSql = (filters: FilterDef[], allowPatterns?: RegExp[]): SQL[] => {
   let result = [];
   for (const filter of filters) {
-    if (filter.column && filter.operator && filter.value) {
+    if (filter.column && filter.operator && filter.value != null) {
       const operator = filterOperators[filter.operator] ?? eq;
       if (validateSqlColumnName(filter.column, allowPatterns)) {
         result.push(operator(sql`${sql.raw(filter.column)}`, filter.value));

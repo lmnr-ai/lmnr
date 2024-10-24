@@ -1,5 +1,5 @@
 import { db } from "./drizzle";
-import { eq, and, gt, sql, lt, SQL, lte, ne, gte, BinaryOperator, getTableColumns } from "drizzle-orm";
+import { eq, and, gt, sql, lt, SQL, lte, ne, gte, BinaryOperator, getTableColumns, WithSubquery } from "drizzle-orm";
 import { membersOfWorkspaces, projects, users } from "./schema";
 import { getServerSession } from 'next-auth';
 import { authOptions } from "../auth";
@@ -65,18 +65,17 @@ export const getDateRangeFilters = (
   return [];
 };
 
-interface PaginatedGetParams<T extends TableConfig, BT extends TableConfig, R> {
+interface PaginatedGetParams<T extends TableConfig, R> {
   table: PgTableWithColumns<T>;
+  baseQuery: WithSubquery<string, any>;
   pageNumber: number;
   pageSize: number;
   baseFilters: SQL[];
   filters: SQL[];
   orderBy: SQL;
-  additionalColumns?: Record<string, SQL.Aliased<any>>;
-  baseTable?: PgTableWithColumns<BT>;
 }
 
-export const paginatedGet = async<T extends TableConfig, BT extends TableConfig, R> (
+export const paginatedGet = async<T extends TableConfig, R> (
   {
     table,
     pageNumber,
@@ -84,28 +83,15 @@ export const paginatedGet = async<T extends TableConfig, BT extends TableConfig,
     baseFilters,
     filters,
     orderBy,
-    additionalColumns,
-    baseTable,
-  }: PaginatedGetParams<T, BT, R>
+    baseQuery,
+  }: PaginatedGetParams<T, R>
 ): Promise<PaginatedResponse<R>> => {
   const allFilters = baseFilters.concat(filters);
 
-  const baseFiltered = db.$with(
-    "base",
-  ).as(
-    db
-      .select({
-        ...getTableColumns(table),
-        ...additionalColumns,
-      })
-      .from(table)
-      .where(and(...baseFilters))
-  );
-
   const itemsQuery = db
-    .with(baseFiltered)
+    .with(baseQuery)
     .select()
-    .from(baseFiltered)
+    .from(baseQuery)
     .where(and(...allFilters))
     .orderBy(orderBy)
     .limit(pageSize)
@@ -113,14 +99,14 @@ export const paginatedGet = async<T extends TableConfig, BT extends TableConfig,
 
   const countQueries = async () => {
     const totalCount = await db
-      .with(baseFiltered)
+      .with(baseQuery)
       .select({ count: sql<number>`COUNT(*)` })
-      .from(baseFiltered)
+      .from(baseQuery)
       .where(and(...allFilters))
       .then(([{ count }]) => count);
     const anyInProject = totalCount > 0
       ? true
-      : await db.$count(baseTable ?? table, and(...baseFilters)) > 0;
+      : await db.$count(table, and(...baseFilters)) > 0;
     return { totalCount, anyInProject };
   };
 

@@ -60,10 +60,10 @@ export default function DataTableFilter<TData>({
       return (
         filter.column.split('.')[1].length > 0 &&
         !!filter.operator &&
-        !!filter.value
+        filter.value != null
       );
     }
-    return !!filter.column && !!filter.operator && !!filter.value;
+    return !!filter.column && !!filter.operator && filter.value != null;
   };
 
   return (

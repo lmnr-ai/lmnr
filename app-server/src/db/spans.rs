@@ -36,6 +36,16 @@ pub struct Span {
 }
 
 pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
+    let input_preview = match &span.input {
+        &Some(Value::String(ref s)) => Some(s.chars().take(50).collect::<String>()),
+        &Some(ref v) => Some(v.to_string().chars().take(50).collect::<String>()),
+        &None => None,
+    };
+    let output_preview = match &span.output {
+        &Some(Value::String(ref s)) => Some(s.chars().take(50).collect::<String>()),
+        &Some(ref v) => Some(v.to_string().chars().take(50).collect::<String>()),
+        &None => None,
+    };
     sqlx::query(
         "INSERT INTO spans
             (version,
@@ -48,7 +58,9 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
             attributes,
             input,
             output,
-            span_type
+            span_type,
+            input_preview,
+            output_preview
         )
         VALUES(
             $1,
@@ -61,7 +73,9 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
             $8,
             $9,
             $10,
-            $11
+            $11,
+            $12,
+            $13
    )",
     )
     .bind(&span.version)
@@ -75,6 +89,8 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
     .bind(&span.input as &Option<Value>)
     .bind(&span.output as &Option<Value>)
     .bind(&span.span_type as &SpanType)
+    .bind(&input_preview)
+    .bind(&output_preview)
     .execute(pool)
     .await?;
 

@@ -10,7 +10,7 @@ import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import TextSearchFilter from '../ui/text-search-filter';
 import { Button } from '../ui/button';
-import { RefreshCcw } from 'lucide-react';
+import { ArrowRight, RefreshCcw } from 'lucide-react';
 import { PaginatedResponse } from '@/lib/types';
 import Mono from '../ui/mono';
 import {
@@ -19,14 +19,19 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import { ScrollArea } from '../ui/scroll-area';
-import { renderNodeInput } from '@/lib/flow/utils';
 import { EventTemplate } from '@/lib/events/types';
 import SpanTypeIcon from './span-type-icon';
 
 interface SpansTableProps {
   onRowClick?: (traceId: string) => void;
 }
+
+const renderCost = (val: any) => {
+  if (val == null) {
+    return '-';
+  }
+  return `$${parseFloat(val).toFixed(5) || val}`;
+};
 
 export default function SpansTable({ onRowClick }: SpansTableProps) {
   const { projectId } = useProjectContext();
@@ -134,88 +139,88 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       id: 'trace_id'
     },
     {
-      accessorKey: 'path',
-      header: 'Path',
-      id: 'path'
-    },
-    {
-      accessorKey: 'name',
-      header: 'Name',
-      id: 'name'
-    },
-    {
       accessorKey: 'spanType',
       header: 'Type',
       id: 'span_type',
       cell: (row) => <div className='flex space-x-2'>
         <SpanTypeIcon className='z-20' spanType={row.getValue()} />
-        <div className='flex'>{row.getValue()}</div>
-      </div>
+        <div className='flex'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
+      </div>,
+      size: 120
     },
     {
-      cell: (row) => (
-        <TooltipProvider delayDuration={250}>
-          <Tooltip>
-            <TooltipTrigger className="relative">
-              <div
-                style={{
-                  width: row.column.getSize() - 32
-                }}
-                className="relative"
-              >
-                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-                    {row.getValue()}
-                  </div>
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="p-0 border">
-              <ScrollArea className="max-h-48 overflow-y-auto p-4">
-                <p className="max-w-sm break-words whitespace-pre-wrap">
-                  {row.getValue()}
-                </p>
-              </ScrollArea>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ),
-      accessorFn: (row) => renderNodeInput(row.input),
+      accessorKey: 'name',
+      header: 'Name',
+      id: 'name',
+    },
+    {
+      accessorKey: 'path',
+      header: 'Path',
+      id: 'path',
+      size: 200
+    },
+    {
+      cell: (row) => row.getValue(),
+        // <TooltipProvider delayDuration={250}>
+        //   <Tooltip>
+        //     <TooltipTrigger className="relative">
+        //       <div
+        //         style={{
+        //           width: row.column.getSize() - 32
+        //         }}
+        //         className="relative"
+        //       >
+        //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+        //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+        //             {row.getValue()}
+        //           </div>
+        //         </div>
+        //       </div>
+        //     </TooltipTrigger>
+        //     <TooltipContent side="bottom" className="p-0 border">
+        //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
+        //         <p className="max-w-sm break-words whitespace-pre-wrap">
+        //           {row.getValue()}
+        //         </p>
+        //       </ScrollArea>
+        //     </TooltipContent>
+        //   </Tooltip>
+        // </TooltipProvider>,
+      accessorKey: 'inputPreview',
       header: 'Input',
       id: 'input',
       size: 150
     },
     {
-      cell: (row) => (
-        <TooltipProvider delayDuration={250}>
-          <Tooltip>
-            <TooltipTrigger className="relative p-0">
-              <div
-                style={{
-                  width: row.column.getSize() - 32
-                }}
-                className="relative"
-              >
-                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-                    {row.getValue()}
-                  </div>
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="p-0 border">
-              <ScrollArea className="max-h-48 overflow-y-auto p-4">
-                <div>
-                  <p className="max-w-sm break-words whitespace-pre-wrap">
-                    {row.getValue()}
-                  </p>
-                </div>
-              </ScrollArea>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ),
-      accessorFn: (row) => renderNodeInput(row.output),
+      cell: (row) => row.getValue(),
+        // <TooltipProvider delayDuration={250}>
+        //   <Tooltip>
+        //     <TooltipTrigger className="relative p-0">
+        //       <div
+        //         style={{
+        //           width: row.column.getSize() - 32
+        //         }}
+        //         className="relative"
+        //       >
+        //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+        //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+        //             {row.getValue()}
+        //           </div>
+        //         </div>
+        //       </div>
+        //     </TooltipTrigger>
+        //     <TooltipContent side="bottom" className="p-0 border">
+        //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
+        //         <div>
+        //           <p className="max-w-sm break-words whitespace-pre-wrap">
+        //             {row.getValue()}
+        //           </p>
+        //         </div>
+        //       </ScrollArea>
+        //     </TooltipContent>
+        //   </Tooltip>
+        // </TooltipProvider>,
+      accessorKey: 'outputPreview',
       header: 'Output',
       id: 'output',
       size: 150
@@ -237,38 +242,116 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
         return `${(duration / 1000).toFixed(2)}s`;
       },
       header: 'Latency',
-      id: 'latency'
+      id: 'latency',
+      size: 100
     },
     {
-      accessorFn: (row) => (row.attributes as Record<string, any>)['gen_ai.usage.input_tokens'],
-      header: 'Input tokens',
-      id: 'input_token_count'
-    },
-    {
-      accessorFn: (row) => (row.attributes as Record<string, any>)['gen_ai.usage.output_tokens'],
-      header: 'Output tokens',
-      id: 'output_token_count'
-    },
-    {
-      accessorFn: (row) => (row.attributes as Record<string, any>)['llm.usage.total_tokens'],
+      accessorFn: (row) => (row.attributes as Record<string, any>)['llm.usage.total_tokens'] ?? '-',
       header: 'Total tokens',
-      id: 'total_token_count'
+      id: 'total_token_count',
+      cell: (row) =>
+        <TooltipProvider delayDuration={250}>
+          <Tooltip>
+            <TooltipTrigger className="relative p-0">
+              <div
+                style={{
+                  width: row.column.getSize() - 32
+                }}
+                className="relative"
+              >
+                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+                  <div className="text-ellipsis flex">
+                    {row.getValue()}
+                    {row.getValue() !== '-' &&
+                      <>
+                        {` (${row.row.original.attributes['gen_ai.usage.input_tokens'] ?? '-'}`}
+                        <ArrowRight size={12} className='mt-[4px]'/> 
+                        {`${row.row.original.attributes['gen_ai.usage.output_tokens'] ?? '-'})`}
+                      </>
+                    }
+                  </div>
+                </div>
+              </div>
+            </TooltipTrigger>
+            {row.getValue() !== '-' &&
+              <TooltipContent side="bottom" className="p-2 border">
+                <div>
+                  <div>
+                    <span>Input tokens{' '}</span>
+                    <span>{row.row.original.attributes['gen_ai.usage.input_tokens'] ?? '-'}</span>
+                  </div>
+                  <div>
+                    <span>Output tokens{' '}</span>
+                    <span>{row.row.original.attributes['gen_ai.usage.output_tokens'] ?? '-'}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            }
+          </Tooltip>
+        </TooltipProvider>,
+      size: 150
+    },
+    {
+      accessorFn: (row) => (row.attributes as Record<string, any>)['gen_ai.usage.cost'],
+      header: 'Cost',
+      id: 'cost',
+      cell: (row) =>
+        <TooltipProvider delayDuration={250}>
+          <Tooltip>
+            <TooltipTrigger className="relative p-0">
+              <div
+                style={{
+                  width: row.column.getSize() - 32
+                }}
+                className="relative"
+              >
+                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+                  <div className="text-ellipsis flex">
+                    {renderCost(row.getValue())}
+                  </div>
+                </div>
+              </div>
+            </TooltipTrigger>
+            {row.getValue() != undefined &&
+              <TooltipContent side="bottom" className="p-2 border">
+                <div>
+                  <div>
+                    <span>Input cost{' '}</span>
+                    <span>{renderCost(row.row.original.attributes['gen_ai.usage.input_cost'])}</span>
+                  </div>
+                  <div>
+                    <span>Output cost{' '}</span>
+                    <span>{renderCost(row.row.original.attributes['gen_ai.usage.output_cost'])}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            }
+          </Tooltip>
+        </TooltipProvider>,
+      size: 100
     }
   ];
 
-  const extraFilterCols: ColumnDef<Span>[] = [];
   const events: EventTemplate[] = [];
   const labels: LabelClass[] = [];
-  // const extraFilterCols = [
-  //   {
-  //     header: 'events',
-  //     id: `event`
-  //   },
-  //   {
-  //     header: 'labels',
-  //     id: `label`
-  //   }
-  // ];
+  const extraFilterCols = [
+    {
+      header: 'Input tokens',
+      id: 'input_token_count',
+    },
+    {
+      header: 'Output tokens',
+      id: 'output_token_count',
+    },
+    {
+      header: 'Input cost',
+      id: 'input_cost',
+    },
+    {
+      header: 'Output cost',
+      id: 'output_cost',
+    },
+  ];
 
   // const { data: events } = useSWR<EventTemplate[]>(
   //   `/api/projects/${projectId}/event-templates`,
