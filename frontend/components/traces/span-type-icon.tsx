@@ -23,7 +23,7 @@ export default function SpanTypeIcon({
 }: SpanTypeIconProps) {
   return (
     <div
-      className={cn("flex items-center justify-center z-30 rounded", className)}
+      className={cn("flex items-center justify-center z-10 rounded", className)}
       style={{
         backgroundColor: SPAN_TYPE_TO_COLOR[spanType],
         width: containerWidth,

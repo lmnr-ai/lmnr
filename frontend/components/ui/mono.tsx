@@ -9,7 +9,7 @@ export default function Mono({
   children: ReactNode;
 }) {
   return (
-    <span className={cn('font-mono text-[12px] pt-1', className)}>
+    <span className={cn('font-mono text-xs', className)}>
       {children}
     </span>
   );

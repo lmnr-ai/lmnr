@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo } from 'react';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import StatusLabel from '../ui/status-label';
 import TracesPagePlaceholder from './page-placeholder';
-import { Event, EventTemplate } from '@/lib/events/types';
+import { EventTemplate } from '@/lib/events/types';
 import DateRangeFilter from '../ui/date-range-filter';
 import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
@@ -26,8 +26,6 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import { ScrollArea } from '../ui/scroll-area';
-import { renderNodeInput } from '@/lib/flow/utils';
 import { Feature } from '@/lib/features/features';
 import { isFeatureEnabled } from '@/lib/features/features';
 import SpanTypeIcon from './span-type-icon';
@@ -145,32 +143,28 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   };
 
   const columns: ColumnDef<Trace, any>[] = [
+    // {
+    //   accessorFn: (row) => (row.success ? 'Success' : 'Failed'),
+    //   header: 'Status',
+    //   cell: (row) => <StatusLabel success={row.getValue() === 'Success'} />,
+    //   id: 'status',
+    //   size: 100
+    // },
     {
-      accessorFn: (row) => (row.success ? 'Success' : 'Failed'),
-      header: 'Status',
-      cell: (row) => <StatusLabel success={row.getValue() === 'Success'} />,
-      id: 'status',
-      size: 100
-    },
-    {
-      cell: (row) => <Mono>{row.getValue()}</Mono>,
+      cell: (row) => <Mono className='text-xs'>{row.getValue()}</Mono>,
       header: 'ID',
       accessorKey: 'id',
       id: 'id'
     },
     {
-      accessorKey: 'sessionId',
-      header: 'Session ID',
-      id: 'session_id',
-    },
-    {
       accessorKey: 'topSpanType',
-      header: 'Top span type',
+      header: 'Top level span',
       id: 'top_span_type',
-      cell: (row) => <div className='flex space-x-2'>
-        <SpanTypeIcon className='z-20' spanType={row.getValue()} />
-        <div className='flex'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
-      </div>
+      cell: (row) => <div className='flex space-x-2 items-center'>
+        <SpanTypeIcon className='z-10' spanType={row.getValue()} />
+        <div className='flex text-sm'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
+      </div>,
+      size: 120
     },
     {
       accessorKey: 'topSpanName',
@@ -179,31 +173,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     },
     {
       cell: (row) => row.getValue(),
-      // <TooltipProvider delayDuration={250}>
-      //   <Tooltip>
-      //     <TooltipTrigger className="relative">
-      //       <div
-      //         style={{
-      //           width: row.column.getSize() - 32
-      //         }}
-      //         className="relative"
-      //       >
-      //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-      //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-      //             {row.getValue()}
-      //           </div>
-      //         </div>
-      //       </div>
-      //     </TooltipTrigger>
-      //     <TooltipContent side="bottom" className="p-0 border">
-      //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
-      //         <p className="max-w-sm break-words whitespace-pre-wrap">
-      //           {row.getValue()}
-      //         </p>
-      //       </ScrollArea>
-      //     </TooltipContent>
-      //   </Tooltip>
-      // </TooltipProvider>,
       accessorKey: 'topSpanInputPreview',
       header: 'Input',
       id: 'input',
@@ -249,7 +218,8 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       cell: (row) => (
         <ClientTimestampFormatter timestamp={String(row.getValue())} />
       ),
-      id: 'start_time'
+      id: 'start_time',
+      size: 125
     },
     {
       accessorFn: (row) => {
@@ -260,14 +230,15 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         return `${(duration / 1000).toFixed(2)}s`;
       },
       header: 'Latency',
-      id: 'latency'
+      id: 'latency',
+      size: 80
     },
     {
-      accessorFn: (row) => row.cost ,
+      accessorFn: (row) => row.cost,
       header: 'Cost',
       id: 'cost',
       cell: (row) =>
-        <TooltipProvider delayDuration={250}>
+        <TooltipProvider delayDuration={100}>
           <Tooltip>
             <TooltipTrigger className="relative p-0">
               <div
@@ -277,7 +248,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
                 className="relative"
               >
                 <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis flex">
+                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">
                     {renderCost(row.getValue())}
                   </div>
                 </div>
@@ -286,12 +257,12 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
             {row.getValue() != undefined &&
               <TooltipContent side="bottom" className="p-2 border">
                 <div>
-                  <div>
-                    <span>Input cost{' '}</span>
+                  <div className='flex justify-between space-x-2'>
+                    <span>Input cost</span>
                     <span>{renderCost(row.row.original.inputCost)}</span>
                   </div>
-                  <div>
-                    <span>Output cost{' '}</span>
+                  <div className='flex justify-between space-x-2'>
+                    <span>Output cost</span>
                     <span>{renderCost(row.row.original.outputCost)}</span>
                   </div>
                 </div>
@@ -305,46 +276,12 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       accessorFn: (row) => row.totalTokenCount ?? '-',
       header: 'Tokens',
       id: 'total_token_count',
-      cell: (row) =>
-        <TooltipProvider delayDuration={250}>
-          <Tooltip>
-            <TooltipTrigger className="relative p-0">
-              <div
-                style={{
-                  width: row.column.getSize() - 32
-                }}
-                className="relative"
-              >
-                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis flex">
-                    {row.getValue()}
-                    {row.getValue() !== '-' &&
-                      <>
-                        {` (${row.row.original.inputTokenCount ?? '-'}`}
-                        <ArrowRight size={12} className='mt-[4px]'/>
-                        {`${row.row.original.outputTokenCount ?? '-'})`}
-                      </>
-                    }
-                  </div>
-                </div>
-              </div>
-            </TooltipTrigger>
-            {row.getValue() !== '-' &&
-              <TooltipContent side="bottom" className="p-2 border">
-                <div>
-                  <div>
-                    <span>Input tokens{' '}</span>
-                    <span>{row.row.original.inputTokenCount ?? '-'}</span>
-                  </div>
-                  <div>
-                    <span>Output tokens{' '}</span>
-                    <span>{row.row.original.outputTokenCount ?? '-'}</span>
-                  </div>
-                </div>
-              </TooltipContent>
-            }
-          </Tooltip>
-        </TooltipProvider>,
+      cell: (row) => <div className='flex items-center'>
+        {`${row.row.original.inputTokenCount ?? '-'}`}
+        <ArrowRight size={12} className='mx-1 min-w-[12px]' />
+        {`${row.row.original.outputTokenCount ?? '-'}`}
+        {` (${row.row.original.totalTokenCount ?? '-'})`}
+      </div>,
       size: 150
     },
   ];
