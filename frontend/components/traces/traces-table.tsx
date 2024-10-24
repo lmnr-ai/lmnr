@@ -15,7 +15,7 @@ import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import TextSearchFilter from '../ui/text-search-filter';
 import { Button } from '../ui/button';
-import { RefreshCcw } from 'lucide-react';
+import { ArrowRight, RefreshCcw } from 'lucide-react';
 import { PaginatedResponse } from '@/lib/types';
 import Mono from '../ui/mono';
 import useSWR from 'swr';
@@ -30,10 +30,18 @@ import { ScrollArea } from '../ui/scroll-area';
 import { renderNodeInput } from '@/lib/flow/utils';
 import { Feature } from '@/lib/features/features';
 import { isFeatureEnabled } from '@/lib/features/features';
+import SpanTypeIcon from './span-type-icon';
 
 interface TracesTableProps {
   onRowClick?: (rowId: string) => void;
 }
+
+const renderCost = (val: any) => {
+  if (val == null) {
+    return '-';
+  }
+  return `$${parseFloat(val).toFixed(5) || val}`;
+};
 
 export default function TracesTable({ onRowClick }: TracesTableProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
@@ -64,6 +72,8 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
   const getTraces = async () => {
+    let queryFilter = searchParams.get('filter');
+    console.log('queryFilter', queryFilter);
     setTraces(undefined);
 
     if (!pastHours && !startDate && !endDate) {
@@ -88,10 +98,10 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     if (endDate != null) {
       url += `&endDate=${endDate}`;
     }
-    if (typeof filter === 'string') {
-      url += `&filter=${encodeURI(filter)}`;
-    } else if (Array.isArray(filter)) {
-      const filters = encodeURI(JSON.stringify(filter));
+    if (typeof queryFilter === 'string') {
+      url += `&filter=${encodeURIComponent(queryFilter)}`;
+    } else if (Array.isArray(queryFilter)) {
+      const filters = encodeURIComponent(JSON.stringify(queryFilter));
       url += `&filter=${filters}`;
     }
     if (typeof textSearchFilter === 'string' && textSearchFilter.length > 0) {
@@ -113,6 +123,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   };
 
   useEffect(() => {
+    console.log('TracesTable useEffect', filter);
     getTraces();
   }, [
     projectId,
@@ -150,72 +161,84 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     {
       accessorKey: 'sessionId',
       header: 'Session ID',
-      id: 'session_id'
+      id: 'session_id',
     },
     {
-      cell: (row) => (
-        <TooltipProvider delayDuration={250}>
-          <Tooltip>
-            <TooltipTrigger className="relative">
-              <div
-                style={{
-                  width: row.column.getSize() - 32
-                }}
-                className="relative"
-              >
-                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-                    {row.getValue()}
-                  </div>
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="p-0 border">
-              <ScrollArea className="max-h-48 overflow-y-auto p-4">
-                <p className="max-w-sm break-words whitespace-pre-wrap">
-                  {row.getValue()}
-                </p>
-              </ScrollArea>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ),
-      accessorFn: (row) => renderNodeInput(row.parentSpanInput),
+      accessorKey: 'topSpanType',
+      header: 'Top span type',
+      id: 'top_span_type',
+      cell: (row) => <div className='flex space-x-2'>
+        <SpanTypeIcon className='z-20' spanType={row.getValue()} />
+        <div className='flex'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
+      </div>
+    },
+    {
+      accessorKey: 'topSpanName',
+      header: 'Top span name',
+      id: 'top_span_name'
+    },
+    {
+      cell: (row) => row.getValue(),
+      // <TooltipProvider delayDuration={250}>
+      //   <Tooltip>
+      //     <TooltipTrigger className="relative">
+      //       <div
+      //         style={{
+      //           width: row.column.getSize() - 32
+      //         }}
+      //         className="relative"
+      //       >
+      //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+      //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+      //             {row.getValue()}
+      //           </div>
+      //         </div>
+      //       </div>
+      //     </TooltipTrigger>
+      //     <TooltipContent side="bottom" className="p-0 border">
+      //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
+      //         <p className="max-w-sm break-words whitespace-pre-wrap">
+      //           {row.getValue()}
+      //         </p>
+      //       </ScrollArea>
+      //     </TooltipContent>
+      //   </Tooltip>
+      // </TooltipProvider>,
+      accessorKey: 'topSpanInputPreview',
       header: 'Input',
       id: 'input',
       size: 150
     },
     {
-      cell: (row) => (
-        <TooltipProvider delayDuration={250}>
-          <Tooltip>
-            <TooltipTrigger className="relative p-0">
-              <div
-                style={{
-                  width: row.column.getSize() - 32
-                }}
-                className="relative"
-              >
-                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-                    {row.getValue()}
-                  </div>
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="p-0 border">
-              <ScrollArea className="max-h-48 overflow-y-auto p-4">
-                <div>
-                  <p className="max-w-sm break-words whitespace-pre-wrap">
-                    {row.getValue()}
-                  </p>
-                </div>
-              </ScrollArea>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ),
-      accessorFn: (row) => renderNodeInput(row.parentSpanOutput),
+      cell: (row) => row.getValue(),
+      // <TooltipProvider delayDuration={250}>
+      //   <Tooltip>
+      //     <TooltipTrigger className="relative p-0">
+      //       <div
+      //         style={{
+      //           width: row.column.getSize() - 32
+      //         }}
+      //         className="relative"
+      //       >
+      //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+      //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+      //             {row.getValue()}
+      //           </div>
+      //         </div>
+      //       </div>
+      //     </TooltipTrigger>
+      //     <TooltipContent side="bottom" className="p-0 border">
+      //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
+      //         <div>
+      //           <p className="max-w-sm break-words whitespace-pre-wrap">
+      //             {row.getValue()}
+      //           </p>
+      //         </div>
+      //       </ScrollArea>
+      //     </TooltipContent>
+      //   </Tooltip>
+      // </TooltipProvider>,
+      accessorKey: 'topSpanOutputPreview',
       header: 'Output',
       id: 'output',
       size: 150
@@ -240,38 +263,109 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       id: 'latency'
     },
     {
-      accessorFn: (row) => '$' + row.inputCost?.toFixed(5),
-      header: 'Input cost',
-      id: 'input_cost'
-    },
-    {
-      accessorFn: (row) => '$' + row.outputCost?.toFixed(5),
-      header: 'Output cost',
-      id: 'output_cost'
-    },
-    {
-      accessorFn: (row) => '$' + row.cost?.toFixed(5),
+      accessorFn: (row) => row.cost ,
       header: 'Cost',
-      id: 'cost'
+      id: 'cost',
+      cell: (row) =>
+        <TooltipProvider delayDuration={250}>
+          <Tooltip>
+            <TooltipTrigger className="relative p-0">
+              <div
+                style={{
+                  width: row.column.getSize() - 32
+                }}
+                className="relative"
+              >
+                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+                  <div className="text-ellipsis flex">
+                    {renderCost(row.getValue())}
+                  </div>
+                </div>
+              </div>
+            </TooltipTrigger>
+            {row.getValue() != undefined &&
+              <TooltipContent side="bottom" className="p-2 border">
+                <div>
+                  <div>
+                    <span>Input cost{' '}</span>
+                    <span>{renderCost(row.row.original.inputCost)}</span>
+                  </div>
+                  <div>
+                    <span>Output cost{' '}</span>
+                    <span>{renderCost(row.row.original.outputCost)}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            }
+          </Tooltip>
+        </TooltipProvider>,
+      size: 100
     },
     {
-      accessorKey: 'inputTokenCount',
-      header: 'Input tokens',
-      id: 'input_token_count'
+      accessorFn: (row) => row.totalTokenCount ?? '-',
+      header: 'Tokens',
+      id: 'total_token_count',
+      cell: (row) =>
+        <TooltipProvider delayDuration={250}>
+          <Tooltip>
+            <TooltipTrigger className="relative p-0">
+              <div
+                style={{
+                  width: row.column.getSize() - 32
+                }}
+                className="relative"
+              >
+                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+                  <div className="text-ellipsis flex">
+                    {row.getValue()}
+                    {row.getValue() !== '-' &&
+                      <>
+                        {` (${row.row.original.inputTokenCount ?? '-'}`}
+                        <ArrowRight size={12} className='mt-[4px]'/>
+                        {`${row.row.original.outputTokenCount ?? '-'})`}
+                      </>
+                    }
+                  </div>
+                </div>
+              </div>
+            </TooltipTrigger>
+            {row.getValue() !== '-' &&
+              <TooltipContent side="bottom" className="p-2 border">
+                <div>
+                  <div>
+                    <span>Input tokens{' '}</span>
+                    <span>{row.row.original.inputTokenCount ?? '-'}</span>
+                  </div>
+                  <div>
+                    <span>Output tokens{' '}</span>
+                    <span>{row.row.original.outputTokenCount ?? '-'}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            }
+          </Tooltip>
+        </TooltipProvider>,
+      size: 150
     },
-    {
-      accessorKey: 'outputTokenCount',
-      header: 'Output tokens',
-      id: 'output_token_count'
-    },
-    {
-      accessorKey: 'totalTokenCount',
-      header: 'Total tokens',
-      id: 'total_token_count'
-    }
   ];
 
   const extraFilterCols = [
+    {
+      header: 'Input tokens',
+      id: 'input_token_count',
+    },
+    {
+      header: 'Output tokens',
+      id: 'output_token_count',
+    },
+    {
+      header: 'Input cost',
+      id: 'input_cost',
+    },
+    {
+      header: 'Output cost',
+      id: 'output_cost',
+    },
     {
       header: 'events',
       id: `event`
@@ -368,7 +462,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
 
   const filterColumns = columns
     .filter(
-      (column) => !['actions', 'start_time', 'events'].includes(column.id!)
+      (column) => !['start_time', 'events', 'input', 'output'].includes(column.id!)
     )
     .concat(extraFilterCols);
 

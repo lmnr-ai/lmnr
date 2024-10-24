@@ -1,5 +1,4 @@
 import { Event } from '../events/types';
-import { Graph } from '../flow/graph';
 import { GraphMessagePreview } from '../pipeline/types';
 
 export type TraceMessages = { [key: string]: GraphMessagePreview };
@@ -69,12 +68,14 @@ export type Span = {
   startTime: string;
   endTime: string;
   attributes: any;
-  metadata: any | null;
   input: any | null;
   output: any | null;
+  inputPreview: string | null;
+  outputPreview: string | null;
   spanType: SpanType;
   events: Event[];
   labels: SpanLabel[];
+  path: string;
 };
 
 export type TraceWithSpans = {
@@ -106,10 +107,11 @@ export type Trace = {
   outputCost: number | null;
   cost: number | null;
   metadata: Record<string, string> | null;
-  parentSpanInput: any | null;
-  parentSpanOutput: any | null;
-  parentSpanName: string | null;
-  parentSpanType: SpanType | null;
+  topSpanInputPreview: any | null;
+  topSpanOutputPreview: any | null;
+  topSpanName: string | null;
+  topSpanType: SpanType | null;
+  topSpanPath: string | null;
   events: TraceEvent[];
 };
 

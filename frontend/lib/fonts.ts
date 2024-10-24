@@ -1,12 +1,18 @@
 import {
   JetBrains_Mono as FontMono,
-  Inter as FontSans
+  Inter as FontSans,
+  Outfit as FontSans2
 } from 'next/font/google';
 import localFont from 'next/font/local';
 
 export const fontSans = FontSans({
   subsets: ['latin'],
   variable: '--font-sans'
+});
+
+export const fontSans2 = FontSans2({
+  subsets: ['latin'],
+  variable: '--font-sans2'
 });
 
 export const fontMono = FontMono({

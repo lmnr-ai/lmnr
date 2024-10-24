@@ -86,10 +86,11 @@ pub struct TraceWithParentSpanAndEvents {
     success: bool,
     project_id: Uuid,
 
-    parent_span_input: Option<Value>,
-    parent_span_output: Option<Value>,
-    parent_span_name: Option<String>,
-    parent_span_type: Option<SpanType>,
+    top_span_input_preview: Option<String>,
+    top_span_output_preview: Option<String>,
+    top_span_name: Option<String>,
+    top_span_type: Option<SpanType>,
+    top_span_path: Option<String>,
 
     // 'events' is a list of partial event objects, using Option because of Coalesce
     events: Option<Value>,
@@ -204,16 +205,22 @@ fn add_traces_info_expression(
             cost,
             success,
             trace_type,
-            trace_spans.input parent_span_input,
-            trace_spans.output parent_span_output,
-            trace_spans.attributes parent_span_attributes,
-            trace_spans.name parent_span_name,
-            trace_spans.span_type parent_span_type,
+            top_level_spans.input_preview top_span_input_preview,
+            top_level_spans.output_preview top_span_output_preview,
+            top_level_spans.path top_span_path,
+            top_level_spans.name top_span_name,
+            top_level_spans.span_type top_span_type,
             EXTRACT(EPOCH FROM (end_time - start_time)) as latency,
             CASE WHEN success = true THEN 'Success' ELSE 'Failed' END status
         FROM traces
         JOIN (
-            SELECT input, output, attributes, name, span_type, trace_id
+            SELECT
+                input_preview,
+                output_preview,
+                attributes ->> 'lmnr.span.path' path,
+                name,
+                span_type,
+                trace_id
             FROM spans
             WHERE parent_span_id IS NULL
             ",
@@ -228,7 +235,7 @@ fn add_traces_info_expression(
     query
         .push(
             "
-        ) trace_spans ON traces.id = trace_spans.trace_id
+        ) top_level_spans ON traces.id = top_level_spans.trace_id
         WHERE traces.project_id = ",
         )
         .push_bind(project_id)
@@ -435,10 +442,11 @@ pub async fn get_traces(
             cost,
             success,
             COALESCE(trace_events.events, '[]'::jsonb) AS events,
-            parent_span_input,
-            parent_span_output,
-            parent_span_name,
-            parent_span_type,
+            top_span_input_preview,
+            top_span_output_preview,
+            top_span_name,
+            top_span_type,
+            top_span_path,
             status
         FROM traces_info
         LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id ",

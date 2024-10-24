@@ -23,7 +23,6 @@ interface TraceViewProps {
 
 export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
-  const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
   const router = useRouter();
   const pathName = usePathname();
   const ref = useRef<HTMLDivElement>(null);
@@ -43,6 +42,13 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({});
   const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
   const [spans, setSpans] = useState<Span[]>([]);
+  const [selectedSpan, setSelectedSpan] = useState<Span | null>(
+    searchParams.get('spanId')
+      ? spans.find(
+        (span: Span) => span.spanId === searchParams.get('spanId')
+      ) || null
+      : null
+  );
 
   useEffect(() => {
     if (!trace) {
@@ -75,6 +81,16 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         : null
     );
   }, [trace]);
+
+  useEffect(() => {
+    setSelectedSpan(
+      searchParams.get('spanId')
+        ? spans.find(
+          (span: Span) => span.spanId === searchParams.get('spanId')
+        ) || null
+        : null
+    );
+  }, [searchParams.get('spanId')]);
 
   useEffect(() => {
     if (!container.current) {
@@ -226,7 +242,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                             </div>
                           </div>
                         </td>
-                        {!selectedSpan && (
+                        {!selectedSpan && !searchParams.get('spanId') && (
                           <td className="flex flex-grow w-full p-0">
                             <Timeline spans={spans} childSpans={childSpans} />
                           </td>

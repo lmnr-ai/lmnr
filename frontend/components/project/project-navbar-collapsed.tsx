@@ -5,20 +5,15 @@ import {
   Cable,
   Database,
   Gauge,
-  LockKeyhole,
-  Rocket,
   Rows4,
   Settings,
-  File,
-  Home,
   LayoutGrid,
-  ArrowBigDown,
   ArrowBigUp
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
-import logo from '@/assets/logo/icon_light.svg';
+import logo from '@/assets/logo/icon.svg';
 import AvatarMenu from '../user/avatar-menu';
 import {
   Tooltip,
@@ -88,14 +83,14 @@ export default function ProjectNavbarCollapsed({
   ];
 
   return (
-    <div className="flex flex-col h-screen border-r text-md items-center">
+    <div className="flex flex-col h-screen border-r text-md items-center w-14">
       <Link
         href={'/projects'}
-        className="flex h-14 items-center justify-center mx-4"
+        className="flex h-14 items-center justify-center"
       >
-        <Image alt="Laminar AI icon" src={logo} height={32} />
+        <Image alt="Laminar AI icon" src={logo} height={20} />
       </Link>
-      <div className="flex flex-col">
+      <div className="flex flex-col mt-2">
         {navbarOptions.map((option, i) => (
           <TooltipProvider key={i} delayDuration={200}>
             <Tooltip>

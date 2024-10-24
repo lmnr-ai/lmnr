@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import logo from '@/assets/logo/laminar_light.svg';
+import logo from '@/assets/logo/logo.svg';
 import { useState } from 'react';
 import { Menu, X, XCircle } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -23,7 +23,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
         <div className="w-full px-8 md:px-0 flex flex-col md:flex-row md:w-[1000px] justify-between items-center">
           <div className="flex justify-between w-full items-center h-20">
             <Link href="/">
-              <Image alt="logo" src={logo} width={130} height={40} priority />
+              <Image alt="logo" src={logo} width={150} priority />
             </Link>
             <div className="md:hidden">
               {isMenuOpen ? (
@@ -51,9 +51,15 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
             <Link href="/pricing" className={menuItemStyle}>
               Pricing
             </Link>
+            <Link target="_blank" href="https://github.com/lmnr-ai/lmnr" className={menuItemStyle}>
+              GitHub
+            </Link>
             <Link target="_blank" href="https://cal.com/robert-lmnr/demo">
-              <Button variant={'outline'} className="bg-transparent">
-                Talk to Founder
+              <Button
+                variant={'outline'}
+                className="bg-transparent border-white/60 hover:bg-white/10"
+              >
+                Book a demo
               </Button>
             </Link>
             <div className="hidden md:block">
