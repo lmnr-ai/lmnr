@@ -161,11 +161,15 @@ pub async fn process_queue_spans(
         )
         .await;
         if let Err(e) = update_attrs_res {
-            log::error!("Failed to update trace attributes: {:?}", e);
+            log::error!(
+                "Failed to update trace attributes [{}]: {:?}",
+                span.span_id,
+                e
+            );
         }
 
         if let Err(e) = db::spans::record_span(&db.pool, &span).await {
-            log::error!("Failed to record span: {:?}", e);
+            log::error!("Failed to record span [{}]: {:?}", span.span_id, e);
         } else {
             // ack the message as soon as the span is recorded
             let _ = delivery
