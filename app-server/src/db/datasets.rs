@@ -113,7 +113,7 @@ pub async fn update_index_column(
 
 pub async fn get_dataset_by_name(
     pool: &PgPool,
-    name: &String,
+    name: &str,
     project_id: Uuid,
 ) -> Result<Option<Dataset>> {
     let dataset = sqlx::query_as::<_, Dataset>(

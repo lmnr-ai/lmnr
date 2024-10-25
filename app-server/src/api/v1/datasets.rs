@@ -9,8 +9,8 @@ use crate::{
 #[derive(Deserialize)]
 pub struct GetDatapointsRequestParams {
     name: String,
-    limit: usize,
-    offset: usize,
+    limit: i64,
+    offset: i64,
 }
 
 #[get("/datasets/datapoints")]
@@ -29,13 +29,8 @@ async fn get_datapoints(
         return Ok(HttpResponse::NotFound().body(format!("dataset {} not found", &query.name)));
     };
 
-    let datapoints = datapoints::get_datapoints(
-        &db.pool,
-        dataset.id,
-        query.limit as i64,
-        query.offset as i64,
-    )
-    .await?;
+    let datapoints =
+        datapoints::get_datapoints(&db.pool, dataset.id, query.limit, query.offset).await?;
 
     let total_count = datapoints::count_datapoints(&db.pool, dataset.id).await?;
 
