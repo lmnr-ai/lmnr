@@ -64,7 +64,7 @@ pub async fn get_traces(
             text_search_filter,
         )
         .await
-        .unwrap_or(0);
+        .unwrap_or(0) as u64;
         let any_in_project = if total_count == 0 {
             db::trace::count_all_traces_in_project(&db.pool, project_id)
                 .await
@@ -249,7 +249,8 @@ pub async fn get_sessions(
     let sessions =
         db::trace::get_sessions(&db.pool, project_id, limit, offset, &filters, date_range).await?;
 
-    let total_count = db::trace::count_sessions(&db.pool, project_id, &filters, date_range).await?;
+    let total_count =
+        db::trace::count_sessions(&db.pool, project_id, &filters, date_range).await? as u64;
     let any_in_project = if total_count == 0 {
         db::trace::count_all_sessions_in_project(&db.pool, project_id).await? > 0
     } else {

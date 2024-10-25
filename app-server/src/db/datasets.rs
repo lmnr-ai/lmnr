@@ -110,3 +110,23 @@ pub async fn update_index_column(
 
     Ok(dataset)
 }
+
+pub async fn get_dataset_by_name(
+    pool: &PgPool,
+    name: &String,
+    project_id: Uuid,
+) -> Result<Option<Dataset>> {
+    let dataset = sqlx::query_as::<_, Dataset>(
+        "SELECT id, created_at, name, project_id, indexed_on
+        FROM datasets
+        WHERE name = $1 AND project_id = $2
+        ORDER BY created_at DESC
+        LIMIT 1",
+    )
+    .bind(name)
+    .bind(project_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(dataset)
+}
