@@ -154,12 +154,14 @@ export default function Dataset({ dataset }: DatasetProps) {
           onDelete={deleteDatapoints}
           totalDatapointsCount={totalCount}
           useAll={allDatapointsAcrossPagesSelected} /> */}
-        <AddDatapointsDialog datasetId={dataset.id} onUpdate={router.refresh} />
-        <ManualAddDatapoint datasetId={dataset.id} onUpdate={router.refresh} />
+        <AddDatapointsDialog datasetId={dataset.id}
+          onUpdate={getDatapoints}
+        />
+        <ManualAddDatapoint datasetId={dataset.id} onUpdate={getDatapoints} />
         <IndexDatasetDialog
           datasetId={dataset.id}
           defaultDataset={dataset}
-          onUpdate={router.refresh}
+          onUpdate={getDatapoints}
         />
       </div>
       <div className="flex-grow">
@@ -208,7 +210,8 @@ export default function Dataset({ dataset }: DatasetProps) {
               <DatasetPanel
                 datasetId={dataset.id}
                 datapoint={expandedDatapoint}
-                onClose={() => {
+                onClose={(madeChanges: boolean) => {
+                  madeChanges && getDatapoints();
                   setExpandedDatapoint(null);
                 }}
               />
