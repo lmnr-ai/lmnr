@@ -24,7 +24,7 @@ export function GoogleSignInButton({
   const [isLoading, setIsLoading] = React.useState(false);
   return (
     <Button
-      variant={'secondary'}
+      variant={'light'}
       onClick={() => {
         setIsLoading(true);
         signIn('google', { callbackUrl: callbackUrl });

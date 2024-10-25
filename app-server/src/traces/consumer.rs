@@ -61,6 +61,8 @@ pub async fn process_queue_spans(
         .await
         .unwrap();
 
+    log::info!("Started processing spans from RabbitMQ");
+
     while let Some(delivery) = consumer.next().await {
         let Ok(delivery) = delivery else {
             log::error!("Failed to get delivery from RabbitMQ. Continuing...");

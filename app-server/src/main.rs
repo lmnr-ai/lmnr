@@ -318,16 +318,19 @@ fn main() -> anyhow::Result<()> {
                         cache_for_http.clone(),
                     ));
 
-                    tokio::task::spawn(process_queue_spans(
-                        pipeline_runner.clone(),
-                        db_for_http.clone(),
-                        cache_for_http.clone(),
-                        semantic_search.clone(),
-                        language_model_runner.clone(),
-                        rabbitmq_connection.clone(),
-                        clickhouse.clone(),
-                        chunker_runner.clone(),
-                    ));
+                    // start 8 threads per core to process spans from RabbitMQ
+                    for _ in 0..8 {
+                        tokio::spawn(process_queue_spans(
+                            pipeline_runner.clone(),
+                            db_for_http.clone(),
+                            cache_for_http.clone(),
+                            semantic_search.clone(),
+                            language_model_runner.clone(),
+                            rabbitmq_connection.clone(),
+                            clickhouse.clone(),
+                            chunker_runner.clone(),
+                        ));
+                    }
 
                     App::new()
                         .wrap(Logger::default())
@@ -366,9 +369,10 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::pipelines::run_pipeline_graph)
                                 .service(api::v1::pipelines::ping_healthcheck)
                                 .service(api::v1::traces::get_events_for_session)
+                                .service(api::v1::traces::process_traces)
+                                .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
-                                .service(api::v1::traces::process_traces)
                                 .app_data(PayloadConfig::new(10 * 1024 * 1024)),
                         )
                         // Scopes with generic auth

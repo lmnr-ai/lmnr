@@ -143,7 +143,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       header: 'Type',
       id: 'span_type',
       cell: (row) => <div className='flex space-x-2'>
-        <SpanTypeIcon className='z-20' spanType={row.getValue()} />
+        <SpanTypeIcon spanType={row.getValue()} />
         <div className='flex'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
       </div>,
       size: 120
@@ -231,7 +231,8 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       cell: (row) => (
         <ClientTimestampFormatter timestamp={String(row.getValue())} />
       ),
-      id: 'start_time'
+      id: 'start_time',
+      size: 125
     },
     {
       accessorFn: (row) => {
@@ -243,52 +244,23 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       },
       header: 'Latency',
       id: 'latency',
-      size: 100
+      size: 80
     },
     {
-      accessorFn: (row) => (row.attributes as Record<string, any>)['llm.usage.total_tokens'] ?? '-',
-      header: 'Total tokens',
-      id: 'total_token_count',
-      cell: (row) =>
-        <TooltipProvider delayDuration={250}>
-          <Tooltip>
-            <TooltipTrigger className="relative p-0">
-              <div
-                style={{
-                  width: row.column.getSize() - 32
-                }}
-                className="relative"
-              >
-                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis flex">
-                    {row.getValue()}
-                    {row.getValue() !== '-' &&
-                      <>
-                        {` (${row.row.original.attributes['gen_ai.usage.input_tokens'] ?? '-'}`}
-                        <ArrowRight size={12} className='mt-[4px]'/>
-                        {`${row.row.original.attributes['gen_ai.usage.output_tokens'] ?? '-'})`}
-                      </>
-                    }
-                  </div>
-                </div>
-              </div>
-            </TooltipTrigger>
-            {row.getValue() !== '-' &&
-              <TooltipContent side="bottom" className="p-2 border">
-                <div>
-                  <div>
-                    <span>Input tokens{' '}</span>
-                    <span>{row.row.original.attributes['gen_ai.usage.input_tokens'] ?? '-'}</span>
-                  </div>
-                  <div>
-                    <span>Output tokens{' '}</span>
-                    <span>{row.row.original.attributes['gen_ai.usage.output_tokens'] ?? '-'}</span>
-                  </div>
-                </div>
-              </TooltipContent>
-            }
-          </Tooltip>
-        </TooltipProvider>,
+      accessorFn: (row) => (row.attributes as Record<string, any>)['llm.usage.total_tokens'],
+      header: 'Tokens',
+      id: 'tokens',
+      cell: (row) => {
+        if (row.getValue()) {
+          return <div className='flex items-center'>
+            {`${row.row.original.attributes['gen_ai.usage.input_tokens'] ?? '-'}`}
+            <ArrowRight size={12} className='mx-1 min-w-[12px]' />
+            {`${row.row.original.attributes['gen_ai.usage.output_tokens'] ?? '-'}`}
+            {` (${row.getValue() ?? '-'})`}
+          </div>;
+        }
+        return <div className='flex items-center'></div>;
+      },
       size: 150
     },
     {
@@ -296,7 +268,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       header: 'Cost',
       id: 'cost',
       cell: (row) =>
-        <TooltipProvider delayDuration={250}>
+        <TooltipProvider delayDuration={100}>
           <Tooltip>
             <TooltipTrigger className="relative p-0">
               <div
@@ -306,7 +278,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
                 className="relative"
               >
                 <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis flex">
+                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">
                     {renderCost(row.getValue())}
                   </div>
                 </div>
@@ -315,12 +287,12 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
             {row.getValue() != undefined &&
               <TooltipContent side="bottom" className="p-2 border">
                 <div>
-                  <div>
-                    <span>Input cost{' '}</span>
+                  <div className='flex justify-between space-x-2'>
+                    <span>Input cost</span>
                     <span>{renderCost(row.row.original.attributes['gen_ai.usage.input_cost'])}</span>
                   </div>
-                  <div>
-                    <span>Output cost{' '}</span>
+                  <div className='flex justify-between space-x-2'>
+                    <span>Output cost</span>
                     <span>{renderCost(row.row.original.attributes['gen_ai.usage.output_cost'])}</span>
                   </div>
                 </div>

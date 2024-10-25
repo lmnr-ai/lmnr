@@ -98,7 +98,7 @@ pub async fn get_events_by_template_id(
 
     let total_count =
         db::events::count_events_by_template_id(&db.pool, &template_id, &date_range, &filters)
-            .await?;
+            .await? as u64;
     let any_in_project = if total_count > 0 {
         true
     } else {

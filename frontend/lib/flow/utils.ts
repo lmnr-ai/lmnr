@@ -465,7 +465,7 @@ export function createNodeData(id: string, nodeType: NodeType): GenericNode {
           type: NodeHandleType.STRING
         }
       ],
-      model: 'openai:gpt-3.5-turbo',
+      model: 'openai:gpt-4o-mini',
       prompt: '{{prompt}}',
       modelParams: null,
       stream: false

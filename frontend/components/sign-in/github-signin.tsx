@@ -23,7 +23,7 @@ export function GitHubSignInButton({
   const [isLoading, setIsLoading] = React.useState(false);
   return (
     <Button
-      variant={'secondary'}
+      variant={'light'}
       onClick={() => {
         setIsLoading(true);
         signIn('github', { callbackUrl: callbackUrl });

@@ -23,18 +23,20 @@ export function EmailSignInButton({
 
   return (
     <div className="h-full flex flex-col space-y-2 mb-2 w-[350px]">
-      <Label className="text-sm text-gray-500">
+      <Label className="text-sm text-white text-center">
         This is a local-only feature. Simply put any email.
       </Label>
       <Input
         type="email"
         placeholder="Email"
+        className="border-white/50 text-white placeholder:text-white/50"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
       <Button
         disabled={!email}
         className="p-4"
+        variant={'light'}
         onClick={() => {
           signIn('email', {
             callbackUrl: callbackUrl,
