@@ -46,7 +46,7 @@ async fn get_datasets(
     let datasets =
         datasets::get_datasets(&db.pool, project_id, limit, params.page_number as i64).await?;
 
-    let total_count = datasets::count_datasets(&db.pool, project_id).await?;
+    let total_count = datasets::count_datasets(&db.pool, project_id).await? as u64;
 
     let response = PaginatedResponse::<Dataset> {
         total_count,
@@ -307,7 +307,7 @@ async fn get_datapoints(
 
     let response = PaginatedResponse::<DatapointView> {
         items: datapoints,
-        total_count: total_entries as i64,
+        total_count: total_entries,
         any_in_project: true,
     };
 
