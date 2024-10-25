@@ -56,7 +56,7 @@ export default function LanguageModelSelect({
       <Popover open={open} onOpenChange={setOpen} modal>
         <PopoverTrigger asChild disabled={disabled}>
           <Button variant="outline" className="justify-between">
-            {model!.name}
+            {model?.name ?? ''}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>

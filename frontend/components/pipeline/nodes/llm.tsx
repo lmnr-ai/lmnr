@@ -26,7 +26,7 @@ export default function LLM({
 
   // stores what was last selected in the model select, so we can restore it after re-disabling the model input
   const [selectedModelId, setSelectedModelId] = useState<string>(
-    data.model ?? 'openai:gpt-3.5-turbo'
+    data.model ?? 'openai:gpt-4o-mini'
   );
   const [isPromptDisabled, setIsPromptDisabled] = useState<boolean>(false);
   useEffect(() => {
