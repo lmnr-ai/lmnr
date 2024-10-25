@@ -83,7 +83,6 @@ evaluate(
                 <Image src={noise} alt="" className="w-full h-full" priority />
               </div>
               <div className="z-20 flex flex-col items-center space-y-10 p-8">
-
                 <p className="text-4xl tracking-tighter md:px-0 md:text-7xl md:leading-tight md:tracking-normal text-white font-medium"
                 // style={{ fontFamily: 'var(--font-sans2)' }}
                 >
@@ -149,7 +148,7 @@ evaluate(
         </div>
         <div className="flex flex-col md:items-center md:w-[1000px] md:px-0">
           <p
-            className="text-center text-2xl px-8 md:my-16 font-medium md:text-4xl md:2xl:tracking-tighter md:leading-relaxed text-white"
+            className="text-center text-2xl px-8 md:my-16 font-medium md:text-4xl md:leading-relaxed text-white"
           >
             Data governs the quality of your LLM application. <br />
             Laminar helps you collect it, understand it, and use it.
