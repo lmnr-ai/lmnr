@@ -10,14 +10,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          'bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border-white/20 border hover:border-white/50',
-        destructive:
-          'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+        default: 'bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border-white/20 border hover:border-white/50',
+        destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
         outline: 'border border-input bg-background hover:bg-accent',
-        secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/60 border',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/60 border',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
+        light: 'bg-white/90 text-black/90 hover:bg-white/90 border-white/20 border hover:border-white/50',
         link: 'text-primary underline-offset-4 hover:underline'
       },
       size: {
@@ -42,7 +40,7 @@ type HandledKey = {
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 
   // Must only be used for dialogs or other pop-ups where there is only 1 button to handle at the moment
