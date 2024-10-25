@@ -1,5 +1,5 @@
 import { useProjectContext } from '@/contexts/project-context';
-import { ChevronsRight } from 'lucide-react';
+import { ChevronsRight, Loader } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
 import { ScrollArea } from '../ui/scroll-area';
@@ -7,35 +7,35 @@ import { Button } from '../ui/button';
 import Mono from '../ui/mono';
 import { Datapoint } from '@/lib/dataset/types';
 import Formatter from '../ui/formatter';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import { isJsonStringAValidObject } from '@/lib/utils';
 import { useToast } from '@/lib/hooks/use-toast';
 
 interface DatasetPanelProps {
   datasetId: string;
   datapoint: Datapoint;
-  onClose: () => void;
+  onClose: (madeChanges: boolean) => void;
 }
 
-const deepEqual = (x: Object | null, y: Object | null): boolean => {
-  if (x == null && y == null) return true;
-  if (x == null || y == null) return false;
-  const ok = Object.keys,
-    tx = typeof x,
-    ty = typeof y;
-  return x && y && tx === 'object' && tx === ty
-    ? ok(x).length === ok(y).length &&
-        ok(x).every((key: string) =>
-          deepEqual((x as any)[key], (y as any)[key])
-        )
-    : x === y;
-};
+// const deepEqual = (x: Object | null, y: Object | null): boolean => {
+//   if (x == null && y == null) return true;
+//   if (x == null || y == null) return false;
+//   const ok = Object.keys,
+//     tx = typeof x,
+//     ty = typeof y;
+//   return x && y && tx === 'object' && tx === ty
+//     ? ok(x).length === ok(y).length &&
+//         ok(x).every((key: string) =>
+//           deepEqual((x as any)[key], (y as any)[key])
+//         )
+//     : x === y;
+// };
+const AUTO_SAVE_TIMEOUT_MS = 750;
 
 export default function DatasetPanel({
   datasetId,
   datapoint,
-  onClose
+  onClose,
 }: DatasetPanelProps) {
   const { projectId } = useProjectContext();
   // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
@@ -49,8 +49,52 @@ export default function DatasetPanel({
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
   const [isValidJsonMetadata, setIsValidJsonMetadata] = useState(true);
-  const router = useRouter();
   const { toast } = useToast();
+  const autoSaveFuncTimeoutId = useRef<NodeJS.Timeout | null>(null);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [madeChanges, setMadeChanges] = useState<boolean>(false);
+
+  const saveChanges = async () => {
+    // don't do anything if no changes or invalid jsons
+    if(!isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata) {
+      return;
+    }
+    setSaving(true);
+    const res = await fetch(
+      `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapoint.id}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          data: newData,
+          target: newTarget,
+          metadata: newMetadata
+        })
+      }
+    );
+    setSaving(false);
+    if (!res.ok) {
+      toast({
+        title: 'Failed to save changes',
+        variant: 'destructive'
+      });
+      return;
+    }
+    setMadeChanges(true);
+  };
+
+  useEffect(() => {
+    if (autoSaveFuncTimeoutId.current) {
+      clearTimeout(autoSaveFuncTimeoutId.current);
+    }
+
+    autoSaveFuncTimeoutId.current = setTimeout(
+      async () => await saveChanges(),
+      AUTO_SAVE_TIMEOUT_MS
+    );
+  }, [newData, newTarget, newMetadata]);
 
   useEffect(() => {
     setNewData(datapoint.data);
@@ -61,65 +105,25 @@ export default function DatasetPanel({
   return (
     <div className="flex flex-col h-full w-full">
       <div className="h-12 flex flex-none space-x-2 px-3 items-center border-b">
-        <div className="flex flex-row flex-grow space-x-2 h-full items-center">
-          <Button
-            variant={'ghost'}
-            className="px-1"
-            onClick={() => {
-              setNewData(datapoint.data);
-              setNewTarget(datapoint.target);
-              setNewMetadata(datapoint.metadata);
-              onClose();
-            }}
-          >
-            <ChevronsRight />
-          </Button>
-          <div>Row</div>
-          <Mono className="text-secondary-foreground">{datapoint.id}</Mono>
-        </div>
         <Button
-          className="mr-4"
-          variant="outline"
-          // disable if no changes or invalid json
-          disabled={
-            !isValidJsonData ||
-            !isValidJsonTarget ||
-            !isValidJsonMetadata ||
-            (deepEqual(datapoint.data, newData) &&
-              deepEqual(datapoint.target, newTarget) &&
-              deepEqual(datapoint.metadata, newMetadata))
-          }
+          variant={'ghost'}
+          className="px-1"
           onClick={async () => {
-            const res = await fetch(
-              `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapoint.id}`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  data: newData,
-                  target: newTarget,
-                  metadata: newMetadata
-                })
-              }
-            );
-            if (!res.ok) {
-              toast({
-                title: 'Failed to save changes',
-                variant: 'destructive'
-              });
-              return;
-            }
-            router.refresh();
-            toast({
-              title: 'Changes saved'
-            });
+            setNewData(datapoint.data);
+            setNewTarget(datapoint.target);
+            setNewMetadata(datapoint.metadata);
+            await saveChanges();
+            onClose(madeChanges);
           }}
         >
-          {' '}
-          Save changes
+          <ChevronsRight />
         </Button>
+        <div>Row</div>
+        <Mono className="text-secondary-foreground mt-0.5">{datapoint.id}</Mono>
+        {saving && <div className='flex text-secondary-foreground text-sm'>
+          <Loader className="animate-spin h-4 w-4 mr-2 mt-0.5" />
+          Saving
+        </div>}
       </div>
       {datapoint && (
         <ScrollArea className="flex-grow flex overflow-auto">
@@ -129,7 +133,7 @@ export default function DatasetPanel({
                 <Label className="text-lg font-medium">Data</Label>
                 <Formatter
                   className="max-h-[400px]"
-                  value={JSON.stringify(datapoint.data, null, 2)}
+                  value={JSON.stringify(newData, null, 2)}
                   defaultMode="json"
                   editable
                   onChange={(s) => {
@@ -154,7 +158,7 @@ export default function DatasetPanel({
                 <Label className="text-lg font-medium">Target</Label>
                 <Formatter
                   className="max-h-[400px]"
-                  value={JSON.stringify(datapoint.target, null, 2)}
+                  value={JSON.stringify(newTarget, null, 2)}
                   defaultMode="json"
                   editable
                   onChange={(s) => {
@@ -179,7 +183,7 @@ export default function DatasetPanel({
                 <Label className="text-lg font-medium">Metadata</Label>
                 <Formatter
                   className="max-h-[400px]"
-                  value={JSON.stringify(datapoint.metadata, null, 2)}
+                  value={JSON.stringify(newMetadata, null, 2)}
                   defaultMode="json"
                   editable
                   onChange={(s) => {
