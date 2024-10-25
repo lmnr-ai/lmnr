@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import icon from '@/assets/logo/icon_light.svg';
+import icon from '@/assets/logo/icon.png';
 import { ChevronRight } from 'lucide-react';
 
 interface OnboardingHeaderProps {}
