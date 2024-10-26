@@ -1,5 +1,5 @@
 import { useProjectContext } from '@/contexts/project-context';
-import { ChevronsRight, Loader } from 'lucide-react';
+import { ChevronsRight, Loader, Loader2 } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
 import { ScrollArea } from '../ui/scroll-area';
@@ -14,22 +14,9 @@ import { useToast } from '@/lib/hooks/use-toast';
 interface DatasetPanelProps {
   datasetId: string;
   datapoint: Datapoint;
-  onClose: (madeChanges: boolean) => void;
+  onClose: () => void;
 }
 
-// const deepEqual = (x: Object | null, y: Object | null): boolean => {
-//   if (x == null && y == null) return true;
-//   if (x == null || y == null) return false;
-//   const ok = Object.keys,
-//     tx = typeof x,
-//     ty = typeof y;
-//   return x && y && tx === 'object' && tx === ty
-//     ? ok(x).length === ok(y).length &&
-//         ok(x).every((key: string) =>
-//           deepEqual((x as any)[key], (y as any)[key])
-//         )
-//     : x === y;
-// };
 const AUTO_SAVE_TIMEOUT_MS = 750;
 
 export default function DatasetPanel({
@@ -52,11 +39,12 @@ export default function DatasetPanel({
   const { toast } = useToast();
   const autoSaveFuncTimeoutId = useRef<NodeJS.Timeout | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
-  const [madeChanges, setMadeChanges] = useState<boolean>(false);
+  const [isFirstRender, setIsFirstRender] = useState<boolean>(true);
 
   const saveChanges = async () => {
+
     // don't do anything if no changes or invalid jsons
-    if(!isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata) {
+    if (!isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata) {
       return;
     }
     setSaving(true);
@@ -82,10 +70,13 @@ export default function DatasetPanel({
       });
       return;
     }
-    setMadeChanges(true);
   };
 
   useEffect(() => {
+    if (isFirstRender) {
+      setIsFirstRender(false);
+      return;
+    }
     if (autoSaveFuncTimeoutId.current) {
       clearTimeout(autoSaveFuncTimeoutId.current);
     }
@@ -109,11 +100,8 @@ export default function DatasetPanel({
           variant={'ghost'}
           className="px-1"
           onClick={async () => {
-            setNewData(datapoint.data);
-            setNewTarget(datapoint.target);
-            setNewMetadata(datapoint.metadata);
             await saveChanges();
-            onClose(madeChanges);
+            onClose();
           }}
         >
           <ChevronsRight />
@@ -121,7 +109,7 @@ export default function DatasetPanel({
         <div>Row</div>
         <Mono className="text-secondary-foreground mt-0.5">{datapoint.id}</Mono>
         {saving && <div className='flex text-secondary-foreground text-sm'>
-          <Loader className="animate-spin h-4 w-4 mr-2 mt-0.5" />
+          <Loader2 className="animate-spin h-4 w-4 mr-2 mt-0.5" />
           Saving
         </div>}
       </div>
