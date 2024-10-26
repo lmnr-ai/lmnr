@@ -1,4 +1,4 @@
-import React, { use, useEffect } from 'react';
+import React, { use, useEffect, useState } from 'react';
 import {
   ColumnDef,
   ExpandedState,
@@ -62,6 +62,8 @@ interface DataTableProps<TData> {
   // and manage that externally
   onSelectAllAcrossPages?: (selectAll: boolean) => void;
   children?: React.ReactNode;
+
+  selectionPanel?: (selectedRowIds: string[]) => React.ReactNode;
 }
 
 export function DataTable<TData>({
@@ -82,22 +84,26 @@ export function DataTable<TData>({
   enableRowSelection = false,
   onSelectedRowsChange,
   onSelectAllAcrossPages,
-  children
+  children,
+  selectionPanel
 }: DataTableProps<TData>) {
-  const [rowSelection, setRowSelection] = React.useState<
-    Record<string, boolean>
-  >({});
-  const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] =
-    React.useState(false);
-  const [expandedRows, setExpandedRows] = React.useState<ExpandedState>({});
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<ExpandedState>({});
 
   useEffect(() => {
     onSelectedRowsChange?.(Object.keys(rowSelection));
   }, [rowSelection]);
 
+  useEffect(() => {
+    // reset selection if data changes
+    setRowSelection({});
+  }, [data]);
+
   if (enableRowSelection) {
     columns.unshift({
       id: '__row_selection',
+      enableResizing: false,
       header: ({ table }) => (
         <Checkbox
           className="border border-secondary"
@@ -184,14 +190,13 @@ export function DataTable<TData>({
   }, [defaultPageNumber]);
 
   const renderRow = (row: Row<TData>) => {
-    const isSelected = row.id === focusedRowId || row.getIsSelected();
+
     return (
       <TableRow
         className={cn(
           'flex min-w-full border-b',
-          isSelected && 'bg-secondary/50',
           !!onRowClick && 'cursor-pointer',
-          row.depth > 0 && 'bg-secondary/40'
+          row.depth > 0 && 'bg-secondary/40',
         )}
         key={row.id}
         data-state={row.getIsSelected() && 'selected'}
@@ -209,7 +214,7 @@ export function DataTable<TData>({
             }}
           >
             {row.getIsSelected() && index === 0 && (
-              <div className="border-l-2 border-l-blue-400 absolute h-full left-0 top-0"></div>
+              <div className="border-l-2 border-l-primary absolute h-full left-0 top-0"></div>
             )}
             <div className="absolute inset-0 items-center h-full flex px-4">
               <div className="text-ellipsis overflow-hidden whitespace-nowrap">
@@ -232,7 +237,7 @@ export function DataTable<TData>({
           .headers.reduce((acc, header) => acc + header.getSize(), 0)
       }}
     >
-      <TableHeader className="sticky top-0 z-20 text-xs bg-background flex hover:bg-background">
+      <TableHeader className="sticky top-0 z-20 text-xs bg-background flex">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow
             className="hover:bg-background p-0 m-0 w-full"
@@ -248,7 +253,7 @@ export function DataTable<TData>({
                 key={header.id}
               >
                 <div className="absolute inset-0 items-center h-full border-r flex px-4 group">
-                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+                  <div className="text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
                     {flexRender(
                       header.column.columnDef.header,
                       header.getContext()
@@ -299,57 +304,26 @@ export function DataTable<TData>({
     </Table>
   );
 
-  const showSelection =
-    Object.keys(rowSelection).length > 0 ||
-    allRowsAcrossAllPagesSelected ||
-    enableRowSelection;
-
   return (
     <div className={cn('flex flex-col h-full border-t relative', className)}>
-      {showSelection && Object.keys(rowSelection).length > 0 && (
-        <div className="h-12 flex flex-none px-2 items-center rounded-lg border absolute bottom-20 z-50 left-1/2 transform -translate-x-1/2">
-          {showSelection && (
-            <>
-              {Object.keys(rowSelection).length > 0 && (
-                <>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      table.toggleAllRowsSelected(false);
-                      setAllRowsAcrossAllPagesSelected(false);
-                      onSelectAllAcrossPages?.(false);
-                      setRowSelection({});
-                    }}
-                  >
-                    <X size={12} />
-                  </Button>
-                  <Label className="">
-                    {allRowsAcrossAllPagesSelected
-                      ? 'All rows in table '
-                      : `${Object.keys(rowSelection).length} ${Object.keys(rowSelection).length === 1 ? 'row ' : 'rows '}`}
-                    selected
-                  </Label>
-                </>
-              )}
-              {manualPagination &&
-                pageCount > 1 &&
-                table.getIsAllRowsSelected() &&
-                !allRowsAcrossAllPagesSelected && (
-                <>
-                  <Label
-                    className="text-blue-500 hover:cursor-pointer"
-                    onClick={() => {
-                      setAllRowsAcrossAllPagesSelected(true);
-                      onSelectAllAcrossPages?.(true);
-                    }}
-                  >
-                    {' '}
-                      Select all {totalItemsCount}
-                  </Label>
-                </>
-              )}
-            </>
-          )}
+      {Object.keys(rowSelection).length > 0 && (
+        <div className="h-12 flex flex-none px-4 items-center border-primary border-[1.5px] rounded-lg absolute bottom-20 z-50 left-1/2 transform -translate-x-1/2">
+          <Label className="">
+            {`${Object.keys(rowSelection).length} ${Object.keys(rowSelection).length === 1 ? 'row ' : 'rows '}`}
+            selected
+          </Label>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              table.toggleAllRowsSelected(false);
+              setAllRowsAcrossAllPagesSelected(false);
+              onSelectAllAcrossPages?.(false);
+              setRowSelection({});
+            }}
+          >
+            <X size={12} />
+          </Button>
+          {selectionPanel?.(Object.keys(rowSelection))}
         </div>
       )}
       {children && (

@@ -32,6 +32,32 @@ pub async fn process_queue_spans(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    semantic_search: Arc<SemanticSearch>,
+    language_model_runner: Arc<LanguageModelRunner>,
+    rabbitmq_connection: Arc<Connection>,
+    clickhouse: clickhouse::Client,
+    chunker_runner: Arc<chunk::runner::ChunkerRunner>,
+) {
+    loop {
+        inner_process_queue_spans(
+            pipeline_runner.clone(),
+            db.clone(),
+            cache.clone(),
+            semantic_search.clone(),
+            language_model_runner.clone(),
+            rabbitmq_connection.clone(),
+            clickhouse.clone(),
+            chunker_runner.clone(),
+        )
+        .await;
+        log::warn!("Span listener exited. Creating a new RabbitMQ channel...");
+    }
+}
+
+async fn inner_process_queue_spans(
+    pipeline_runner: Arc<PipelineRunner>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
     _semantic_search: Arc<SemanticSearch>,
     language_model_runner: Arc<LanguageModelRunner>,
     rabbitmq_connection: Arc<Connection>,
@@ -171,7 +197,12 @@ pub async fn process_queue_spans(
         }
 
         if let Err(e) = db::spans::record_span(&db.pool, &span).await {
-            log::error!("Failed to record span [{}]: {:?}", span.span_id, e);
+            log::error!(
+                "Failed to record span. span_id [{}], project_id [{}]: {:?}",
+                span.span_id,
+                rabbitmq_span_message.project_id,
+                e
+            );
         } else {
             // ack the message as soon as the span is recorded
             let _ = delivery
@@ -184,7 +215,12 @@ pub async fn process_queue_spans(
         // TODO: Queue batches and send them every 1-2 seconds
         let insert_span_res = ch::spans::insert_span(clickhouse.clone(), &ch_span).await;
         if let Err(e) = insert_span_res {
-            log::error!("Failed to insert span into Clickhouse: {:?}", e);
+            log::error!(
+                "Failed to insert span into Clickhouse. span_id [{}], project_id [{}]: {:?}",
+                span.span_id,
+                rabbitmq_span_message.project_id,
+                e
+            );
         }
 
         let registered_label_classes = match get_registered_label_classes_for_path(
@@ -196,7 +232,11 @@ pub async fn process_queue_spans(
         {
             Ok(classes) => classes,
             Err(e) => {
-                log::error!("Failed to get registered label classes: {:?}", e);
+                log::error!(
+                    "Failed to get registered label classes. project_id [{}]: {:?}",
+                    rabbitmq_span_message.project_id,
+                    e
+                );
                 Vec::new() // Return an empty vector if there's an error
             }
         };
@@ -217,5 +257,5 @@ pub async fn process_queue_spans(
         }
     }
 
-    log::info!("Shutting down span listener");
+    log::warn!("RabbitMQ closed connection. Shutting down span listener");
 }

@@ -13,6 +13,7 @@ import { Sheet, SheetClose, SheetContent, SheetTrigger } from './sheet';
 import { Button } from './button';
 import { Expand, Maximize, Minimize, X } from 'lucide-react';
 import { ScrollArea } from './scroll-area';
+import { DialogTitle } from './dialog';
 
 interface OutputFormatterProps {
   value: string;
@@ -91,6 +92,7 @@ export default function Formatter({
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
+              <DialogTitle className='hidden'></DialogTitle>
               <div className="flex-none border-b h-12 items-center flex p-4 justify-between">
                 <div className="flex justify-start">
                   <Select

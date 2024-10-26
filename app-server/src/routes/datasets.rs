@@ -215,16 +215,6 @@ async fn update_datapoint_data(
     )
     .await?;
 
-    semantic_search
-        .delete_embeddings(
-            &project_id.to_string(),
-            vec![HashMap::from([(
-                "id".to_string(),
-                datapoint_id.to_string(),
-            )])],
-        )
-        .await?;
-
     let dataset = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await?;
     if dataset.indexed_on.is_some() {
         dataset

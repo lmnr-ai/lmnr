@@ -10,8 +10,8 @@ import {
   DialogTrigger
 } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Loader, Plus } from 'lucide-react';
-import Ide from '../ui/ide';
+import { Loader } from 'lucide-react';
+import CodeEditor from '../ui/code-editor';
 
 const DEFAULT_DATA = '{\n  "data": {},\n  "target": {}\n}';
 
@@ -86,13 +86,13 @@ export default function ManualAddDatapointDialog({
       <DialogTrigger asChild>
         <Button variant="outline">Add row</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>New datapoint</DialogTitle>
         </DialogHeader>
         <span>{'Fill in datapoint in JSON format.'}</span>
-        <div className="h-80">
-          <Ide value={data} onChange={setData} mode="json" />
+        <div className="border rounded-md max-h-[300px] overflow-y-auto">
+          <CodeEditor value={data} onChange={setData} language="json" />
         </div>
         <DialogFooter className="mt-4">
           <Button
