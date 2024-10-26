@@ -67,9 +67,9 @@ export function SpanCard({
         >
           <SpanTypeIcon
             spanType={span.spanType}
-            containerWidth = {SQUARE_SIZE}
-            containerHeight = {SQUARE_SIZE}
-            size = {SQUARE_ICON_SIZE}
+            containerWidth={SQUARE_SIZE}
+            containerHeight={SQUARE_SIZE}
+            size={SQUARE_ICON_SIZE}
           />
           <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[200px]">
             {span.name}
@@ -90,7 +90,7 @@ export function SpanCard({
           />
           {isSelected && (
             <div
-              className="absolute top-0 w-full bg-blue-400/10 z-30 border-l-2 border-l-blue-400"
+              className="absolute top-0 w-full bg-primary/15 border-l-2 border-l-primary"
               style={{
                 width: containerWidth,
                 height: ROW_HEIGHT,

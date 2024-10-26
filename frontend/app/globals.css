@@ -35,8 +35,8 @@
 
     --radius: 0.5rem; */
 
-    --background: 240 8% 8%;
-    --foreground: 240 8% 88%;
+    --background: 240 0% 6%;
+    --foreground: 240 8% 95%;
 
     --card: 240 8% 10%;
     --card-foreground: 240 8% 80%;
@@ -50,17 +50,17 @@
     --secondary: 232 9% 17%;
     --secondary-foreground: 240 8% 70%;
 
-    --muted: 232 9% 17%;
+    --muted: 240 6% 16%;
     --muted-foreground: 215 20.2% 65.1%;
 
     --accent: 232 9% 17%;
-    --accent-foreground: 210 40% 98%;
+    --accent-foreground: 210 100% 100%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 240 6% 20%;
-    --input: 240 6% 20%;
+    --border: 240 6% 18%;
+    --input: 240 6% 18%;
     --ring: 212 96% 78%;
 
     --radius: 0.5rem;

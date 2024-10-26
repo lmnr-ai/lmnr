@@ -8,43 +8,37 @@ import { DataTable } from '@/components/ui/datatable';
 import IndexDatasetDialog from './index-dataset-dialog';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import ManualAddDatapoint from './manual-add-datapoint-dialog';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '../ui/resizable';
 import DatasetPanel from './dataset-panel';
 import Header from '../ui/header';
-import DeleteDatapointsDialog from './delete-datapoints-dialog';
 import { useToast } from '@/lib/hooks/use-toast';
 import { useProjectContext } from '@/contexts/project-context';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { PaginatedResponse } from '@/lib/types';
 import { Resizable } from 're-resizable';
+import useSWR from 'swr';
+import { swrFetcher } from '@/lib/utils';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Loader2, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface DatasetProps {
   dataset: DatasetType;
 }
 
 export default function Dataset({ dataset }: DatasetProps) {
-  const [expandedDatapoint, setExpandedDatapoint] = useState<Datapoint | null>(
+  const [selectedDatapoint, setSelectedDatapoint] = useState<Datapoint | null>(
     null
   );
   const router = useRouter();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const { projectId } = useProjectContext();
-  const [selectedDatapointIds, setSelectedDatapointIds] = useState<string[]>(
-    []
-  );
-  const [
-    allDatapointsAcrossPagesSelected,
-    setAllDatapointsAcrossPagesSelected
-  ] = useState<boolean>(false);
   const { toast } = useToast();
   const [datapoints, setDatapoints] = useState<Datapoint[] | undefined>(
     undefined
   );
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const parseNumericSearchParam = (
     key: string,
@@ -60,61 +54,21 @@ export default function Dataset({ dataset }: DatasetProps) {
 
   const pageNumber = parseNumericSearchParam('pageNumber', 0);
   const pageSize = Math.max(parseNumericSearchParam('pageSize', 50), 1);
+
   const [totalCount, setTotalCount] = useState<number>(0);
   const pageCount = Math.ceil(totalCount / pageSize);
 
-  const deleteDatapoints = async (ids: string[], useAll: boolean) => {
-    try {
-      if (useAll) {
-        await fetch(
-          `/api/projects/${projectId}/datasets/${dataset.id}/datapoints/all`,
-          {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-      } else {
-        await fetch(
-          `/api/projects/${projectId}/datasets/${dataset.id}/datapoints`,
-          {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ ids })
-          }
-        );
-      }
-      router.refresh();
-    } catch (e) {
-      toast({
-        title: 'Error deleting datapoints'
-      });
-    }
-  };
-
-  const getDatapoints = async () => {
-    setDatapoints(undefined);
-    let url =
-      `/api/projects/${projectId}/datasets/` +
-      `${dataset.id}/datapoints?pageNumber=${pageNumber}&pageSize=${pageSize}`;
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = (await res.json()) as PaginatedResponse<Datapoint>;
-    setDatapoints(data.items);
-    setTotalCount(data.totalCount);
-  };
+  const { data, mutate } = useSWR<PaginatedResponse<Datapoint>>(
+    `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+    swrFetcher
+  );
 
   useEffect(() => {
-    getDatapoints();
-  }, [projectId, pageNumber, pageSize]);
+    if (data) {
+      setDatapoints(data.items);
+      setTotalCount(data.totalCount);
+    }
+  }, [data]);
 
   const columns: ColumnDef<Datapoint>[] = [
     {
@@ -142,27 +96,48 @@ export default function Dataset({ dataset }: DatasetProps) {
     }
   ];
 
+  const handleDeleteDatapoints = async (datapointIds: string[]) => {
+    setIsDeleting(true);
+    const response = await fetch(
+      `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?datapointIds=${datapointIds.join(',')}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    if (!response.ok) {
+      toast({
+        title: 'Failed to delete datapoints',
+        variant: 'destructive'
+      });
+    } else {
+      toast({
+        title: 'Datapoints deleted',
+        description: `Successfully deleted ${datapointIds.length} datapoint(s).`,
+      });
+      mutate();
+    }
+
+    setIsDeleting(false);
+    setIsDeleteDialogOpen(false);
+  };
+
   return (
     <div className="h-full flex flex-col">
       <Header path={'datasets/' + dataset.name} />
-      <div className="flex flex-none p-4 h-12 items-center space-x-4">
-        <div className="flex-grow text-lg font-semibold">
+      <div className="flex flex-none p-4 items-center space-x-4">
+        <div className="flex-grow text-2xl font-medium">
           <h1>{dataset.name}</h1>
         </div>
-        {/* <DeleteDatapointsDialog
-          selectedDatapointIds={selectedDatapointIds}
-          onDelete={deleteDatapoints}
-          totalDatapointsCount={totalCount}
-          useAll={allDatapointsAcrossPagesSelected} /> */}
-        <AddDatapointsDialog datasetId={dataset.id}
-          onUpdate={getDatapoints}
-        />
-        <ManualAddDatapoint datasetId={dataset.id} onUpdate={getDatapoints} />
-        <IndexDatasetDialog
+        <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
+        <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
+        {/* <IndexDatasetDialog
           datasetId={dataset.id}
           defaultDataset={dataset}
-          onUpdate={getDatapoints}
-        />
+          onUpdate={mutate}
+        /> */}
       </div>
       <div className="flex-grow">
         <DataTable
@@ -170,10 +145,10 @@ export default function Dataset({ dataset }: DatasetProps) {
           data={datapoints}
           getRowId={(datapoint) => datapoint.id}
           onRowClick={(row) => {
-            setExpandedDatapoint(row.original);
+            setSelectedDatapoint(row.original);
           }}
           paginated
-          focusedRowId={expandedDatapoint?.id}
+          focusedRowId={selectedDatapoint?.id}
           manualPagination
           pageCount={pageCount}
           defaultPageSize={pageSize}
@@ -185,11 +160,37 @@ export default function Dataset({ dataset }: DatasetProps) {
           }}
           totalItemsCount={totalCount}
           enableRowSelection
-          onSelectedRowsChange={setSelectedDatapointIds}
-          onSelectAllAcrossPages={setAllDatapointsAcrossPagesSelected}
+          selectionPanel={(selectedRowIds) => (
+            <div className="flex flex-col space-y-2">
+              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost">
+                    <Trash2 size={12} />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete Datapoints</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to delete {selectedRowIds.length} datapoint(s)? This action cannot be undone.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+                      Cancel
+                    </Button>
+                    <Button onClick={() => handleDeleteDatapoints(selectedRowIds)} disabled={isDeleting}>
+                      {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Delete
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
         />
       </div>
-      {expandedDatapoint && (
+      {selectedDatapoint && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
             enable={{
@@ -209,10 +210,10 @@ export default function Dataset({ dataset }: DatasetProps) {
             <div className="w-full h-full flex">
               <DatasetPanel
                 datasetId={dataset.id}
-                datapoint={expandedDatapoint}
-                onClose={(madeChanges: boolean) => {
-                  madeChanges && getDatapoints();
-                  setExpandedDatapoint(null);
+                datapoint={selectedDatapoint}
+                onClose={() => {
+                  setSelectedDatapoint(null);
+                  mutate();
                 }}
               />
             </div>
