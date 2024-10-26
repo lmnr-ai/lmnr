@@ -41,13 +41,13 @@
     --card: 240 8% 10%;
     --card-foreground: 240 8% 80%;
 
-    --popover: 240 8% 8%;
+    --popover: 240 0% 6%;
     --popover-foreground: 240 8% 80%;
 
     --primary: 16 83% 59%;
     --primary-foreground: 16 0% 91%;
 
-    --secondary: 232 9% 17%;
+    --secondary: 240 4% 11%;
     --secondary-foreground: 240 8% 70%;
 
     --muted: 240 6% 16%;
