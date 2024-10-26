@@ -46,7 +46,7 @@ export function SpanCard({
   return (
     <div className="text-md flex w-full flex-col" ref={ref}>
       <div
-        className="border-l-2 border-b-2 border-l-secondary border-b-secondary rounded-bl-lg absolute left-0"
+        className="border-l-2 border-b-2 rounded-bl-lg absolute left-0"
         style={{
           height:
             segmentHeight -
@@ -90,7 +90,7 @@ export function SpanCard({
           />
           {isSelected && (
             <div
-              className="absolute top-0 w-full bg-primary/15 border-l-2 border-l-primary"
+              className="absolute top-0 w-full bg-primary/20 border-l-2 border-l-primary"
               style={{
                 width: containerWidth,
                 height: ROW_HEIGHT,

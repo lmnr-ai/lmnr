@@ -1,15 +1,6 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from './select';
-import { useState } from 'react';
-import YAML from 'yaml';
 import CodeMirror from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
-import { githubDarkStyle, githubDark } from '@uiw/codemirror-theme-github';
+import { githubDarkStyle } from '@uiw/codemirror-theme-github';
 import { json } from '@codemirror/lang-json';
 import { yaml } from '@codemirror/lang-yaml';
 import { python } from '@codemirror/lang-python';
@@ -33,7 +24,10 @@ const myTheme = createTheme({
     lineHighlight: 'transparent',
     gutterBackground: 'transparent',
     gutterBorder: 'transparent',
-    gutterForeground: 'gray !important'
+    gutterForeground: 'gray !important',
+    selection: '#193860',
+    selectionMatch: 'transparent',
+    caret: '2px solid hsl(var(--primary) / 0.1)',
   },
   styles: githubDarkStyle,
 });
@@ -67,10 +61,10 @@ export default function CodeEditor({
   }
 
   return (
-    <div className={cn('w-full h-full flex flex-col p-2', className)}>
+    <div className={cn('w-full h-full flex flex-col p-2 bg-secondary text-foreground', className)}>
       <CodeMirror
         placeholder={placeholder}
-        className="border-none"
+        className="border-none bg-secondary"
         theme={myTheme}
         extensions={extensions}
         editable={editable}

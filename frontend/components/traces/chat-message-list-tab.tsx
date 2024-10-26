@@ -10,6 +10,7 @@ function ContentPartText({ text }: ContentPartTextProps) {
   return (
     <div className="w-full h-full">
       <Formatter
+        collapsible
         value={text}
         className="rounded-none max-h-[50vh] border-none"
       />
