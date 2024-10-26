@@ -68,7 +68,7 @@ export default function WorkspaceCreateDialog({
           <Button
             onClick={createNewWorkspace}
             handleEnter={true}
-            disabled={!newWorkspaceName}
+            disabled={!newWorkspaceName || isCreatingWorkspace}
           >
             {isCreatingWorkspace && (
               <Loader className="mr-2 animate-spin" size={16} />

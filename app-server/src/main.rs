@@ -369,9 +369,10 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::pipelines::run_pipeline_graph)
                                 .service(api::v1::pipelines::ping_healthcheck)
                                 .service(api::v1::traces::get_events_for_session)
+                                .service(api::v1::traces::process_traces)
+                                .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
-                                .service(api::v1::traces::process_traces)
                                 .app_data(PayloadConfig::new(10 * 1024 * 1024)),
                         )
                         // Scopes with generic auth

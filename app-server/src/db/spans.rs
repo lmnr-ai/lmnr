@@ -203,11 +203,7 @@ pub async fn get_trace_spans(
             .push(" OR name::TEXT ILIKE ")
             .push_bind(format!("%{search}%"))
             .push(" OR attributes::TEXT ILIKE ")
-            .push_bind(format!("%{search}%"))
-            .push(" OR to_tsvector('english', input::text || ' ' || output::text)")
-            .push(" @@ plainto_tsquery(")
-            .push_bind(search)
-            .push("))");
+            .push_bind(format!("%{search}%"));
     }
 
     query.push(" ORDER BY start_time ASC");

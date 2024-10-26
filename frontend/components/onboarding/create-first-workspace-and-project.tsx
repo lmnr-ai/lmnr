@@ -27,6 +27,8 @@ export default function CreateFirstWorkspaceAndProject({
   const handleButtonClick = async () => {
     setIsLoading(true);
 
+    // TODO: Handle errors
+
     const res = await fetch('/api/workspaces', {
       method: 'POST',
       body: JSON.stringify({
@@ -37,11 +39,11 @@ export default function CreateFirstWorkspaceAndProject({
 
     const newWorkspace = (await res.json()) as WorkspaceWithProjects;
 
-    setIsLoading(false);
-
     // As we want user to start from traces page, redirect to it
     // Expect the workspace to contain exactly one created project
     router.push(`/project/${newWorkspace.projects[0].id}/traces`);
+    // We don't need to set isLoading to false, as we are redirecting.
+    // Redirect itself takes some time, so we need the button to be disabled
   };
 
   return (
