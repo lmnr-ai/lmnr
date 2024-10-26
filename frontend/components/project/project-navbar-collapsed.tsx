@@ -8,7 +8,8 @@ import {
   Rows4,
   Settings,
   LayoutGrid,
-  ArrowBigUp
+  ArrowBigUp,
+  FlaskConical
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -47,7 +48,7 @@ export default function ProjectNavbarCollapsed({
     {
       name: 'evaluations',
       href: `/project/${projectId}/evaluations`,
-      icon: Gauge,
+      icon: FlaskConical,
       current: false
     },
     {
@@ -57,23 +58,11 @@ export default function ProjectNavbarCollapsed({
       current: false
     },
     {
-      name: 'events',
-      href: `/project/${projectId}/events`,
-      icon: ArrowBigUp,
-      current: false
-    },
-    {
       name: 'datasets',
       href: `/project/${projectId}/datasets`,
       icon: Database,
       current: false
     },
-    // {
-    //   name: 'env variables',
-    //   href: `/project/${projectId}/env`,
-    //   icon: LockKeyhole,
-    //   current: false
-    // },
     {
       name: 'settings',
       href: `/project/${projectId}/settings`,
