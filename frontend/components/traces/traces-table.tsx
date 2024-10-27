@@ -82,7 +82,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         }
       }
       sp.set('pastHours', '24');
-      router.push(`${pathName}?${sp.toString()}`);
+      router.replace(`${pathName}?${sp.toString()}`);
       return;
     }
 
