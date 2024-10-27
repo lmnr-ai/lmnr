@@ -13,6 +13,8 @@ interface EmailSignInProps {
   className?: string;
 }
 
+const validateEmailAddress = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
 export function EmailSignInButton({
   text = 'Sign in',
   callbackUrl,
@@ -33,8 +35,11 @@ export function EmailSignInButton({
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
+      {!validateEmailAddress(email) && email
+        && <Label className="text-sm text-white"> Please enter a valid email address </Label>
+      }
       <Button
-        disabled={!email}
+        disabled={!email || !validateEmailAddress(email)}
         className="p-4"
         variant={'light'}
         onClick={() => {

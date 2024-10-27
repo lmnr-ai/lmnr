@@ -23,6 +23,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
               ) : (
                 <Formatter
                   className="max-h-1/3"
+                  collapsible
                   value={JSON.stringify(span.input)}
                 />
               )}
@@ -36,6 +37,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
                     ? span.output
                     : JSON.stringify(span.output)
                 }
+                collapsible
               />
             </div>
           </div>

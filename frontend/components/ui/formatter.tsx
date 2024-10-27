@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import CodeEditor from './code-editor';
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from './sheet';
 import { Button } from './button';
-import { Expand, Maximize, Minimize, X } from 'lucide-react';
+import { Expand, Maximize, Minimize, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { ScrollArea } from './scroll-area';
 import { DialogTitle } from './dialog';
 
@@ -21,6 +21,7 @@ interface OutputFormatterProps {
   defaultMode?: string;
   editable?: boolean;
   onChange?: (value: string) => void;
+  collapsible?: boolean;
 }
 
 export default function Formatter({
@@ -28,10 +29,12 @@ export default function Formatter({
   defaultMode = 'text',
   editable = false,
   onChange,
-  className
+  className,
+  collapsible = false
 }: OutputFormatterProps) {
   const [mode, setMode] = useState(defaultMode);
   const [expandedValue, setExpandedValue] = useState(value);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const renderText = (value: string) => {
     // if mode is YAML try to parse it as YAML
@@ -62,14 +65,14 @@ export default function Formatter({
     <div
       className={cn('w-full h-full flex flex-col border rounded', className)}
     >
-      <div className="flex w-full flex-none">
-        <div className="flex justify-between items-center p-2 w-full border-b">
-          <div>
+      <div className="flex w-full flex-none p-0">
+        <div className={cn("flex justify-between items-center pl-2 pr-1 w-full border-b", isCollapsed ? 'border-b-0' : '')}>
+          <div className="flex items-center gap-2">
             <Select
               value={mode}
               onValueChange={(value) => setMode(value)}
             >
-              <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-6">
+              <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-5">
                 <SelectValue placeholder="Select tag type" />
               </SelectTrigger>
               <SelectContent>
@@ -84,16 +87,35 @@ export default function Formatter({
                 </SelectItem>
               </SelectContent>
             </Select>
+            {collapsible && (
+              <Button
+                variant="ghost"
+                className="flex items-center gap-1 text-secondary-foreground"
+                onClick={() => setIsCollapsed(!isCollapsed)}
+              >
+                {isCollapsed ? (
+                  <>
+                    show
+                    <ChevronDown size={16} />
+                  </>
+                ) : (
+                  <>
+                    hide
+                    <ChevronUp size={16} />
+                  </>
+                )}
+              </Button>
+            )}
           </div>
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
-                <Maximize className="h-4 w-4" />
+                <Maximize className="h-3.5 w-3.5" />
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
               <DialogTitle className='hidden'></DialogTitle>
-              <div className="flex-none border-b h-12 items-center flex p-4 justify-between">
+              <div className="flex-none border-b items-center flex px-4 justify-between">
                 <div className="flex justify-start">
                   <Select
                     value={mode}
@@ -147,26 +169,28 @@ export default function Formatter({
           </Sheet>
         </div>
       </div>
-      <div className="overflow-auto flex-grow">
-        <CodeEditor
-          value={renderText(value)}
-          editable={editable}
-          language={mode}
-          onChange={(v) => {
-            setExpandedValue(v);
-            if (mode === 'yaml') {
-              try {
-                const parsedYaml = YAML.parse(v);
-                onChange?.(JSON.stringify(parsedYaml, null, 2));
-              } catch (e) {
+      {(!collapsible || !isCollapsed) && (
+        <div className="overflow-auto flex-grow">
+          <CodeEditor
+            value={renderText(value)}
+            editable={editable}
+            language={mode}
+            onChange={(v) => {
+              setExpandedValue(v);
+              if (mode === 'yaml') {
+                try {
+                  const parsedYaml = YAML.parse(v);
+                  onChange?.(JSON.stringify(parsedYaml, null, 2));
+                } catch (e) {
+                  onChange?.(v);
+                }
+              } else {
                 onChange?.(v);
               }
-            } else {
-              onChange?.(v);
-            }
-          }}
-        />
-      </div>
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
