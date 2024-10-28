@@ -25,8 +25,6 @@ export async function GET(
 
   const result = await paginatedGet<any, Evaluation>({
     table: evaluations,
-    pageNumber: 1,
-    pageSize: 10,
     baseFilters: [],
     filters: [],
     baseQuery,
