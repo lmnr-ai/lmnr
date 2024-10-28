@@ -263,8 +263,9 @@ impl Span {
 
             span.input = Some(json!(input_messages));
             span.output = output_from_completion_content(&attributes);
-        } else if span.span_type == SpanType::LLM && attributes.get("ai.prompt.message").is_some() {
-            // handling the AI SDK auto-instrumentation
+        } else if span.span_type == SpanType::LLM && attributes.get("ai.prompt.messages").is_some()
+        {
+            // handling the Vercel's AI SDK auto-instrumentation
             if let Ok(input_messages) = serde_json::from_str::<Vec<ChatMessage>>(
                 attributes
                     .get("ai.prompt.messages")
@@ -275,8 +276,8 @@ impl Span {
                 span.input = Some(json!(input_messages));
             }
 
-            if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
-                span.output = Some(serde_json::from_str::<Value>(s).unwrap());
+            if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
+                span.output = Some(serde_json::Value::String(s.clone()));
             }
         } else {
             if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {

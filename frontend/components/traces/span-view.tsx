@@ -71,7 +71,10 @@ export function SpanView({ spanId }: SpanViewProps) {
               <StatsShields
                 startTime={span.startTime}
                 endTime={span.endTime}
-                totalTokenCount={span.attributes['llm.usage.total_tokens'] ?? 0}
+                totalTokenCount={
+                  (span.attributes['gen_ai.usage.input_tokens'] ?? 0) +
+                  (span.attributes['gen_ai.usage.output_tokens'] ?? 0)
+                }
                 inputTokenCount={
                   span.attributes['gen_ai.usage.input_tokens'] ?? 0
                 }
