@@ -60,7 +60,7 @@ async fn delete_project(
     project_id: web::Path<Uuid>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
 
@@ -106,7 +106,7 @@ async fn create_project(
     user: User,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
     req: web::Json<CreateProjectRequest>,
 ) -> ResponseResult {
     let req = req.into_inner();

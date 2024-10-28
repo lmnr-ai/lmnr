@@ -1,8 +1,6 @@
 use anyhow::Result;
 use aws_sdk_s3::Client;
 
-const URL_PREFIX: &str = "/api/images/";
-
 #[derive(Clone)]
 pub struct S3Storage {
     client: Client,
@@ -15,11 +13,21 @@ impl S3Storage {
     }
 
     fn get_url(&self, key: &str) -> String {
-        format!("{URL_PREFIX}{key}",)
+        let parts = key
+            .strip_prefix("project/")
+            .unwrap()
+            .split("/")
+            .collect::<Vec<&str>>();
+        format!("/api/projects/{}/images/{}", parts[0], parts[1])
     }
 
     fn get_key_from_url(&self, url: &str) -> String {
-        url.strip_prefix(URL_PREFIX).unwrap().to_string()
+        let parts = url
+            .strip_prefix("/api/projects/")
+            .unwrap()
+            .split("/")
+            .collect::<Vec<&str>>();
+        format!("project/{}/{}", parts[0], parts[1])
     }
 }
 

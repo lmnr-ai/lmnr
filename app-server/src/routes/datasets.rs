@@ -92,7 +92,7 @@ async fn rename_dataset(
 async fn delete_dataset(
     db: web::Data<DB>,
     path: web::Path<(Uuid, Uuid)>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
 
@@ -119,7 +119,7 @@ async fn upload_datapoint_file(
     payload: Multipart,
     path: web::Path<(Uuid, Uuid)>,
     db: web::Data<DB>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let db = db.into_inner();
@@ -165,7 +165,7 @@ async fn create_datapoints(
     path: web::Path<(Uuid, Uuid)>,
     db: web::Data<DB>,
     req: web::Json<CreateDatapointsRequest>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let input_datapoints = req.into_inner().datapoints;
@@ -201,7 +201,7 @@ async fn update_datapoint_data(
     path: web::Path<(Uuid, Uuid, Uuid)>,
     db: web::Data<DB>,
     req: web::Json<UpdateDatapointRequest>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();
@@ -240,7 +240,7 @@ async fn delete_datapoints(
     path: web::Path<(Uuid, Uuid)>,
     db: web::Data<DB>,
     req: web::Json<DeleteDatapointRequest>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, _dataset_id) = path.into_inner();
     let datapoint_ids = req.into_inner().ids;
@@ -264,7 +264,7 @@ async fn delete_datapoints(
 async fn delete_all_datapoints(
     path: web::Path<(Uuid, Uuid)>,
     db: web::Data<DB>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
 
@@ -315,7 +315,7 @@ async fn index_dataset(
     db: web::Data<DB>,
     path: web::Path<(Uuid, Uuid)>,
     request: web::Json<IndexDatasetRequest>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let index_column = &request.index_column;

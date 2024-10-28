@@ -10,8 +10,12 @@ use crate::{
         DB,
     },
     engine::{engine::EngineOutput, Engine},
+    features::{is_feature_enabled, Feature},
     routes::pipelines::GraphInterruptMessage,
-    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
+    traces::{
+        utils::{get_llm_usage_for_span, record_span_to_db},
+        OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY,
+    },
 };
 use anyhow::Result;
 use itertools::Itertools;
@@ -98,9 +102,9 @@ impl Serialize for PipelineRunnerError {
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
     chunker_runner: Arc<ChunkerRunner>,
-    semantic_search: Arc<SemanticSearch>,
-    rabbitmq_connection: Arc<Connection>,
-    code_executor: Arc<CodeExecutor>,
+    semantic_search: Arc<dyn SemanticSearch>,
+    rabbitmq_connection: Option<Arc<Connection>>,
+    code_executor: Arc<dyn CodeExecutor>,
     db: Arc<DB>,
     cache: Arc<Cache>,
 }
@@ -109,9 +113,9 @@ impl PipelineRunner {
     pub fn new(
         language_model: Arc<LanguageModelRunner>,
         chunker_runner: Arc<ChunkerRunner>,
-        semantic_search: Arc<SemanticSearch>,
-        rabbitmq_connection: Arc<Connection>,
-        code_executor: Arc<CodeExecutor>,
+        semantic_search: Arc<dyn SemanticSearch>,
+        rabbitmq_connection: Option<Arc<Connection>>,
+        code_executor: Arc<dyn CodeExecutor>,
         db: Arc<DB>,
         cache: Arc<Cache>,
     ) -> Self {
@@ -236,7 +240,7 @@ impl PipelineRunner {
             _ => return Ok(()), // nothing to record
         };
         let run_stats = RunTraceStats::from_messages(&engine_output.messages);
-        let parent_span = Span::create_parent_span_in_run_trace(
+        let mut parent_span = Span::create_parent_span_in_run_trace(
             current_trace_and_span,
             &run_stats,
             pipeline_version_name,
@@ -252,32 +256,19 @@ impl PipelineRunner {
         );
         let parent_span_mq_message = RabbitMqSpanMessage {
             project_id: *project_id,
-            span: parent_span,
+            span: parent_span.clone(),
             events: vec![],
         };
 
-        let channel = self.rabbitmq_connection.create_channel().await?;
-        let payload = serde_json::to_string(&parent_span_mq_message)?;
-        let payload = payload.as_bytes();
-        channel
-            .basic_publish(
-                OBSERVATIONS_EXCHANGE,
-                OBSERVATIONS_ROUTING_KEY,
-                BasicPublishOptions::default(),
-                payload,
-                BasicProperties::default(),
-            )
-            .await?
-            .await?;
-
-        for message_span in message_spans {
-            let message_mq_message = RabbitMqSpanMessage {
-                project_id: *project_id,
-                span: message_span,
-                events: vec![],
-            };
-
-            let payload = serde_json::to_string(&message_mq_message)?;
+        if is_feature_enabled(Feature::FullBuild) {
+            // Safe to unwrap because we checked is_feature_enabled
+            let channel = self
+                .rabbitmq_connection
+                .as_ref()
+                .unwrap()
+                .create_channel()
+                .await?;
+            let payload = serde_json::to_string(&parent_span_mq_message)?;
             let payload = payload.as_bytes();
             channel
                 .basic_publish(
@@ -289,6 +280,46 @@ impl PipelineRunner {
                 )
                 .await?
                 .await?;
+
+            for message_span in message_spans {
+                let message_mq_message = RabbitMqSpanMessage {
+                    project_id: *project_id,
+                    span: message_span,
+                    events: vec![],
+                };
+
+                let payload = serde_json::to_string(&message_mq_message)?;
+                let payload = payload.as_bytes();
+                channel
+                    .basic_publish(
+                        OBSERVATIONS_EXCHANGE,
+                        OBSERVATIONS_ROUTING_KEY,
+                        BasicPublishOptions::default(),
+                        payload,
+                        BasicProperties::default(),
+                    )
+                    .await?
+                    .await?;
+            }
+        } else {
+            let span_usage = get_llm_usage_for_span(
+                &mut parent_span.get_attributes(),
+                self.db.clone(),
+                self.cache.clone(),
+            )
+            .await;
+            record_span_to_db(self.db.clone(), &span_usage, project_id, &mut parent_span).await?;
+
+            for mut message_span in message_spans {
+                let span_usage = get_llm_usage_for_span(
+                    &mut message_span.get_attributes(),
+                    self.db.clone(),
+                    self.cache.clone(),
+                )
+                .await;
+                record_span_to_db(self.db.clone(), &span_usage, project_id, &mut message_span)
+                    .await?;
+            }
         }
 
         Ok(())

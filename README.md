@@ -17,8 +17,6 @@ Think of it as DataDog + PostHog for LLM apps.
 
 Read the [docs](https://docs.lmnr.ai).
 
-This is a work in progress repo and it will be frequently updated.
-
 ## Getting started
 
 ### Laminar Cloud
@@ -27,12 +25,18 @@ The easiest way to get started is with a generous free tier on our managed platf
 
 ### Self-hosting with Docker compose
 
-Start local version with docker compose.
+For a quick start, clone the repo and start the services with docker compose:
 ```sh
 git clone https://github.com/lmnr-ai/lmnr
 cd lmnr
-docker compose up
+docker compose up -d
 ```
+
+This will spin up a lightweight version of the stack with just the database, app-server, and frontend. This is good for a quickstart 
+or for lightweight usage.
+
+For production environment, we recommend using `docker compose -f docker-compose-full.yml up -d`. This may take a while,
+but it will enable all features.
 
 This will spin up the following containers:
 - app-server – the core app logic, backend, and the LLM proxies
@@ -42,15 +46,16 @@ This will spin up the following containers:
 - frontend – the visual front-end dashboard for interacting with traces
 - python-executor – a small python sandbox that can run arbitrary code wrapped under a thin gRPC service
 - postgres – the database for all the application data
-- clickhouse – columnar OLAP database for more efficient event, label, and trace analytics
+- clickhouse – columnar OLAP database for more efficient trace and label analytics
 
 #### Local development
 
 The simple set up above will pull latest Laminar images from Github Container Registry.
 
-For running and building Laminar locally, follow the guide in [Contributing](/CONTRIBUTING.md).
+For running and building Laminar locally, or to learn more about docker compose files,
+follow the guide in [Contributing](/CONTRIBUTING.md).
 
-### Instrumenting Python code
+### Usage. Instrumenting Python code
 
 First, create a project and generate a Project API Key. Then,
 
@@ -65,7 +70,9 @@ from lmnr import Laminar as L
 L.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
 ```
 
-In addition to automatic instrumentation, we provide a simple `@observe()` decorator, if you want to trace inputs / outputs of functions
+In addition to automatic instrumentation, we provide a simple `@observe()` decorator,
+if you want to trace inputs / outputs of functions
+
 #### Example
 
 ```python
@@ -92,22 +99,6 @@ def poem_writer(topic="turbulence"):
 
 if __name__ == "__main__":
     print(poem_writer(topic="laminar flow"))
-```
-
-
-#### Sending events
-
-To send an event, call `L.event(name, value)`.
-
-Read our [docs](https://docs.lmnr.ai) to learn more about events and how they are created.
-
-```python
-from lmnr import Laminar as L
-# ...
-poem = response.choices[0].message.content
-
-# this will register True or False value with Laminar
-L.event("topic alignment", topic in poem)
 ```
 
 #### Laminar pipelines as prompt chain managers

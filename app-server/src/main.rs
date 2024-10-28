@@ -6,7 +6,7 @@ use actix_web::{
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use aws_config::BehaviorVersion;
-use code_executor::code_executor_grpc::code_executor_client::CodeExecutorClient;
+use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient, CodeExecutor};
 use dashmap::DashMap;
 use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
 use features::{is_feature_enabled, Feature};
@@ -14,7 +14,7 @@ use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use projects::Project;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
-use storage::{dummy::DummyStorage, Storage};
+use storage::{mock::MockStorage, Storage};
 use tonic::transport::Server;
 use traces::{
     consumer::process_queue_spans, grpc_service::ProcessTracesService,
@@ -34,7 +34,9 @@ use lapin::{
 };
 use moka::future::Cache as MokaCache;
 use routes::pipelines::GraphInterruptMessage;
-use semantic_search::semantic_search_grpc::semantic_search_client::SemanticSearchClient;
+use semantic_search::{
+    semantic_search_grpc::semantic_search_client::SemanticSearchClient, SemanticSearch,
+};
 use sodiumoxide;
 use std::{
     any::TypeId,
@@ -159,23 +161,67 @@ fn main() -> anyhow::Result<()> {
 
     let interrupt_senders = Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
-    let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-    let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-    let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-    // https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts -> Create client which will wait for async inserts
-    // For now, we're not waiting for inserts to finish, but later need to add queue and batch on client-side
-
-    let mut clickhouse = clickhouse::Client::default()
-        .with_url(clickhouse_url)
-        .with_user(clickhouse_user)
-        .with_database("default")
-        .with_option("async_insert", "1")
-        .with_option("wait_for_async_insert", "0");
-    if let Ok(clickhouse_password) = clickhouse_password {
-        clickhouse = clickhouse.with_password(clickhouse_password);
+    let clickhouse = if is_feature_enabled(Feature::FullBuild) {
+        let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+        let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+        let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+        // https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts -> Create client which will wait for async inserts
+        // For now, we're not waiting for inserts to finish, but later need to add queue and batch on client-side
+        let mut client = clickhouse::Client::default()
+            .with_url(clickhouse_url)
+            .with_user(clickhouse_user)
+            .with_database("default")
+            .with_option("async_insert", "1")
+            .with_option("wait_for_async_insert", "0");
+        if let Ok(clickhouse_password) = clickhouse_password {
+            client = client.with_password(clickhouse_password);
+        } else {
+            log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+        }
+        client
     } else {
-        log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
-    }
+        // This client does not connect to ClickHouse, and the feature flag must be checked before using it
+        // TODO: wrap this in a dyn trait object
+        clickhouse::Client::default()
+    };
+
+    let mut rabbitmq_connection = None;
+    runtime_handle.block_on(async {
+        if is_feature_enabled(Feature::FullBuild) {
+            let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
+            let connection = Arc::new(
+                Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+                    .await
+                    .unwrap(),
+            );
+
+            // declare the exchange
+            let channel = connection.create_channel().await.unwrap();
+            channel
+                .exchange_declare(
+                    OBSERVATIONS_EXCHANGE,
+                    lapin::ExchangeKind::Fanout,
+                    ExchangeDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    OBSERVATIONS_QUEUE,
+                    QueueDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+            rabbitmq_connection = Some(connection);
+        } else {
+            rabbitmq_connection = None;
+        };
+    });
+    let rabbitmq_connection = rabbitmq_connection;
+    let rabbitmq_connection_grpc = rabbitmq_connection.clone();
 
     let mut aws_sdk_config = None;
     runtime_handle.block_on(async {
@@ -197,9 +243,9 @@ fn main() -> anyhow::Result<()> {
         );
         Arc::new(s3_storage)
     } else {
-        Arc::new(DummyStorage {})
+        Arc::new(MockStorage {})
     };
-    let storage_clone = storage.clone();
+    let storage_grpc = storage.clone();
 
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
@@ -208,26 +254,38 @@ fn main() -> anyhow::Result<()> {
         .name("http".to_string())
         .spawn(move || {
             runtime_handle_for_http.block_on(async {
-                let semantic_search_url =
-                    env::var("SEMANTIC_SEARCH_URL").expect("SEMANTIC_SEARCH_URL must be set");
+                let semantic_search: Arc<dyn SemanticSearch> =
+                    if is_feature_enabled(Feature::FullBuild) {
+                        let semantic_search_url = env::var("SEMANTIC_SEARCH_URL")
+                            .expect("SEMANTIC_SEARCH_URL must be set");
 
-                let semantic_search_client = Arc::new(
-                    SemanticSearchClient::connect(semantic_search_url)
-                        .await
-                        .unwrap(),
-                );
-                let semantic_search =
-                    Arc::new(semantic_search::SemanticSearch::new(semantic_search_client));
+                        let semantic_search_client = Arc::new(
+                            SemanticSearchClient::connect(semantic_search_url)
+                                .await
+                                .unwrap(),
+                        );
+                        Arc::new(semantic_search::default::DefaultSemanticSearch::new(
+                            semantic_search_client,
+                        ))
+                    } else {
+                        Arc::new(semantic_search::mock::MockSemanticSearch {})
+                    };
 
-                let code_executor_url =
-                    env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
-                let code_executor_client = Arc::new(
-                    CodeExecutorClient::connect(code_executor_url)
-                        .await
-                        .unwrap(),
-                );
-                let code_executor =
-                    Arc::new(code_executor::CodeExecutor::new(code_executor_client));
+                let code_executor: Arc<dyn CodeExecutor> = if is_feature_enabled(Feature::FullBuild)
+                {
+                    let code_executor_url =
+                        env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
+                    let code_executor_client = Arc::new(
+                        CodeExecutorClient::connect(code_executor_url)
+                            .await
+                            .unwrap(),
+                    );
+                    Arc::new(code_executor::default::DefaultCodeExecutor::new(
+                        code_executor_client,
+                    ))
+                } else {
+                    Arc::new(code_executor::mock::MockCodeExecutor {})
+                };
 
                 let client = reqwest::Client::new();
                 let anthropic = language_model::Anthropic::new(client.clone());
@@ -272,34 +330,6 @@ fn main() -> anyhow::Result<()> {
                 let language_model_runner =
                     Arc::new(language_model::LanguageModelRunner::new(language_models));
 
-                let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-                let rabbitmq_connection = Arc::new(
-                    Connection::connect(&rabbitmq_url, ConnectionProperties::default())
-                        .await
-                        .unwrap(),
-                );
-
-                // declare the exchange
-                let channel = rabbitmq_connection.create_channel().await.unwrap();
-                channel
-                    .exchange_declare(
-                        OBSERVATIONS_EXCHANGE,
-                        lapin::ExchangeKind::Fanout,
-                        ExchangeDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        OBSERVATIONS_QUEUE,
-                        QueueDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
                 let name_generator = Arc::new(NameGenerator::new());
 
                 HttpServer::new(move || {
@@ -319,17 +349,18 @@ fn main() -> anyhow::Result<()> {
                     ));
 
                     // start 8 threads per core to process spans from RabbitMQ
-                    for _ in 0..8 {
-                        tokio::spawn(process_queue_spans(
-                            pipeline_runner.clone(),
-                            db_for_http.clone(),
-                            cache_for_http.clone(),
-                            semantic_search.clone(),
-                            language_model_runner.clone(),
-                            rabbitmq_connection.clone(),
-                            clickhouse.clone(),
-                            chunker_runner.clone(),
-                        ));
+                    if is_feature_enabled(Feature::FullBuild) {
+                        for _ in 0..8 {
+                            tokio::spawn(process_queue_spans(
+                                pipeline_runner.clone(),
+                                db_for_http.clone(),
+                                cache_for_http.clone(),
+                                semantic_search.clone(),
+                                rabbitmq_connection.clone(),
+                                clickhouse.clone(),
+                                chunker_runner.clone(),
+                            ));
+                        }
                     }
 
                     App::new()
@@ -520,40 +551,11 @@ fn main() -> anyhow::Result<()> {
         .name("grpc".to_string())
         .spawn(move || {
             runtime_handle.block_on(async {
-                // TODO: Refactor this duplicated code
-                let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-                let rabbitmq_connection = Arc::new(
-                    Connection::connect(&rabbitmq_url, ConnectionProperties::default())
-                        .await
-                        .unwrap(),
-                );
-
-                // declare the exchange
-                let channel = rabbitmq_connection.create_channel().await.unwrap();
-                channel
-                    .exchange_declare(
-                        OBSERVATIONS_EXCHANGE,
-                        lapin::ExchangeKind::Fanout,
-                        ExchangeDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        OBSERVATIONS_QUEUE,
-                        QueueDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
                 let process_traces_service = ProcessTracesService::new(
                     db.clone(),
                     cache.clone(),
-                    rabbitmq_connection.clone(),
-                    storage_clone,
+                    rabbitmq_connection_grpc.clone(),
+                    storage_grpc.clone(),
                 );
 
                 Server::builder()

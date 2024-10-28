@@ -6,35 +6,25 @@ use std::sync::Arc;
 use futures::StreamExt;
 use lapin::{options::BasicConsumeOptions, options::*, types::FieldTable, Connection};
 
-use super::{
-    attributes::TraceAttributes, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
-    OBSERVATIONS_ROUTING_KEY,
-};
+use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY};
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     ch::{self, spans::CHSpan},
     chunk,
-    db::{
-        self,
-        labels::get_registered_label_classes_for_path,
-        spans::{Span, SpanType},
-        stats, trace, DB,
-    },
+    db::{labels::get_registered_label_classes_for_path, spans::Span, stats, DB},
     features::{is_feature_enabled, Feature},
-    language_model::LanguageModelRunner,
     pipeline::runner::PipelineRunner,
     semantic_search::SemanticSearch,
-    traces::evaluators::run_evaluator,
+    traces::{evaluators::run_evaluator, utils::record_span_to_db},
 };
 
 pub async fn process_queue_spans(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    semantic_search: Arc<SemanticSearch>,
-    language_model_runner: Arc<LanguageModelRunner>,
-    rabbitmq_connection: Arc<Connection>,
+    semantic_search: Arc<dyn SemanticSearch>,
+    rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
     chunker_runner: Arc<chunk::runner::ChunkerRunner>,
 ) {
@@ -44,7 +34,6 @@ pub async fn process_queue_spans(
             db.clone(),
             cache.clone(),
             semantic_search.clone(),
-            language_model_runner.clone(),
             rabbitmq_connection.clone(),
             clickhouse.clone(),
             chunker_runner.clone(),
@@ -58,13 +47,16 @@ async fn inner_process_queue_spans(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    _semantic_search: Arc<SemanticSearch>,
-    language_model_runner: Arc<LanguageModelRunner>,
-    rabbitmq_connection: Arc<Connection>,
+    _semantic_search: Arc<dyn SemanticSearch>,
+    rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
     _chunker_runner: Arc<chunk::runner::ChunkerRunner>,
 ) {
-    let channel = rabbitmq_connection.create_channel().await.unwrap();
+    if !is_feature_enabled(Feature::FullBuild) {
+        return;
+    }
+    // Safe to unwrap because we checked is_feature_enabled above
+    let channel = rabbitmq_connection.unwrap().create_channel().await.unwrap();
 
     channel
         .queue_bind(
@@ -151,52 +143,21 @@ async fn inner_process_queue_spans(
             }
         }
 
-        let mut trace_attributes = TraceAttributes::new(span.trace_id);
         let span_usage = super::utils::get_llm_usage_for_span(
             &mut span.get_attributes(),
-            language_model_runner.clone(),
             db.clone(),
             cache.clone(),
         )
         .await;
-        trace_attributes.update_start_time(span.start_time);
-        trace_attributes.update_end_time(span.end_time);
 
-        let mut span_attributes = span.get_attributes();
-
-        trace_attributes.update_user_id(span_attributes.user_id());
-        trace_attributes.update_session_id(span_attributes.session_id());
-        trace_attributes.update_trace_type(span_attributes.trace_type());
-
-        if span.span_type == SpanType::LLM {
-            trace_attributes.add_input_cost(span_usage.input_cost);
-            trace_attributes.add_output_cost(span_usage.output_cost);
-            trace_attributes.add_total_cost(span_usage.total_cost);
-
-            trace_attributes.add_input_tokens(span_usage.input_tokens);
-            trace_attributes.add_output_tokens(span_usage.output_tokens);
-            trace_attributes.add_total_tokens(span_usage.total_tokens);
-            span_attributes.set_usage(&span_usage);
-        }
-
-        span_attributes.extend_span_path(&span.name);
-        span.set_attributes(&span_attributes);
-
-        let update_attrs_res = trace::update_trace_attributes(
-            &db.pool,
+        if let Err(e) = record_span_to_db(
+            db.clone(),
+            &span_usage,
             &rabbitmq_span_message.project_id,
-            &trace_attributes,
+            &mut span,
         )
-        .await;
-        if let Err(e) = update_attrs_res {
-            log::error!(
-                "Failed to update trace attributes [{}]: {:?}",
-                span.span_id,
-                e
-            );
-        }
-
-        if let Err(e) = db::spans::record_span(&db.pool, &span).await {
+        .await
+        {
             log::error!(
                 "Failed to record span. span_id [{}], project_id [{}]: {:?}",
                 span.span_id,

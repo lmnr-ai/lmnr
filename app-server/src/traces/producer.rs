@@ -9,23 +9,62 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::{events::EventObservation, spans::Span, utils::convert_any_value_to_json_value},
+    cache::Cache,
+    db::{events::EventObservation, spans::Span, utils::convert_any_value_to_json_value, DB},
+    features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
     storage::Storage,
 };
 
-use super::{span_attributes::EVENT_TYPE, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
+use super::{
+    span_attributes::EVENT_TYPE, utils::record_span_to_db, OBSERVATIONS_EXCHANGE,
+    OBSERVATIONS_ROUTING_KEY,
+};
 
 // TODO: Implement partial_success
 pub async fn push_spans_to_queue(
     request: ExportTraceServiceRequest,
     project_id: Uuid,
-    rabbitmq_connection: Arc<Connection>,
+    rabbitmq_connection: Option<Arc<Connection>>,
     storage: Arc<dyn Storage>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
 ) -> Result<ExportTraceServiceResponse> {
-    let channel = rabbitmq_connection.create_channel().await?;
+    if !is_feature_enabled(Feature::FullBuild) {
+        for resource_span in request.resource_spans {
+            for scope_span in resource_span.scope_spans {
+                for otel_span in scope_span.spans {
+                    let mut span =
+                        Span::from_otel_span(otel_span.clone(), &project_id, storage.clone()).await;
+
+                    let span_usage = super::utils::get_llm_usage_for_span(
+                        &mut span.get_attributes(),
+                        db.clone(),
+                        cache.clone(),
+                    )
+                    .await;
+
+                    if let Err(e) =
+                        record_span_to_db(db.clone(), &span_usage, &project_id, &mut span).await
+                    {
+                        log::error!(
+                            "Failed to record span. span_id [{}], project_id [{}]: {:?}",
+                            span.span_id,
+                            project_id,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+        return Ok(ExportTraceServiceResponse {
+            partial_success: None,
+        });
+    }
+    // Safe to unwrap because we checked is_feature_enabled above
+    let channel = rabbitmq_connection.unwrap().create_channel().await?;
 
     for resource_span in request.resource_spans {
         for scope_span in resource_span.scope_spans {

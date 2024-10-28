@@ -8,6 +8,8 @@ pub enum Feature {
     Subscription,
     /// Remote storage, such as S3
     Storage,
+    /// Build all containers. If false, only lite part is used: app-server, postgres, frontend
+    FullBuild,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -20,5 +22,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && env::var("AWS_SECRET_ACCESS_KEY").is_ok()
                 && env::var("S3_IMGS_BUCKET").is_ok()
         }
+        Feature::FullBuild => env::var("FULL_BUILD").unwrap_or("true".to_string()) == "true",
     }
 }

@@ -33,7 +33,7 @@ pub async fn process_traces(
     req: HttpRequest,
     body: Bytes,
     project_api_key: ProjectApiKey,
-    rabbitmq_connection: web::Data<Arc<Connection>>,
+    rabbitmq_connection: web::Data<Option<Arc<Connection>>>,
     db: web::Data<DB>,
     cache: web::Data<crate::cache::Cache>,
     storage: web::Data<dyn Storage>,
@@ -65,6 +65,8 @@ pub async fn process_traces(
         project_api_key.project_id,
         rabbitmq_connection,
         storage,
+        db,
+        cache,
     )
     .await?;
     if response.partial_success.is_some() {

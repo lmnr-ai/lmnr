@@ -1,13 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use anyhow::Result;
-use code_executor_grpc::{
-    chat_message_content, chat_message_content_part, code_executor_client::CodeExecutorClient,
-    StringList,
-};
-use tonic::{transport::Channel, Request};
-
-use code_executor_grpc::ExecuteCodeRequest;
+use async_trait::async_trait;
+use code_executor_grpc::{chat_message_content, chat_message_content_part, StringList};
 
 use crate::{
     language_model::{
@@ -23,44 +18,22 @@ use self::code_executor_grpc::{
     ChatMessageContentPart as ArgChatMessageContentPart, ChatMessageImage as ArgChatMessageImage,
     ChatMessageImageUrl as ArgChatMessageImageUrl, ChatMessageList,
     ChatMessageText as ArgChatMessageText, ContentPartList as ArgContentPartList,
-    ExecuteCodeResponse, HandleType as GrpcHandleType,
+    ExecuteCodeResponse,
 };
 
 pub mod code_executor_grpc;
+pub mod default;
+pub mod mock;
 
-#[derive(Debug)]
-pub struct CodeExecutor {
-    client: Arc<CodeExecutorClient<Channel>>,
-}
-
-impl CodeExecutor {
-    pub fn new(client: Arc<CodeExecutorClient<Channel>>) -> Self {
-        Self { client }
-    }
-
-    pub async fn execute(
+#[async_trait]
+pub trait CodeExecutor: Sync + Send {
+    async fn execute(
         &self,
         code: &String,
         fn_name: &String,
         args: &HashMap<String, NodeInput>,
         return_type: HandleType,
-    ) -> Result<NodeInput> {
-        let mut client = self.client.as_ref().clone();
-
-        let request = Request::new(ExecuteCodeRequest {
-            code: code.clone(),
-            fn_name: fn_name.clone(),
-            args: args
-                .into_iter()
-                .map(|(k, v)| (k.clone(), v.clone().into()))
-                .collect(),
-            return_type: Into::<GrpcHandleType>::into(return_type) as i32,
-        });
-
-        let response = client.execute(request).await?;
-
-        response.into_inner().try_into()
-    }
+    ) -> Result<NodeInput>;
 }
 
 impl Into<ArgChatMessageContent> for ChatMessageContent {

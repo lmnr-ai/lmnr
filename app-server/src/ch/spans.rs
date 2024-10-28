@@ -238,16 +238,7 @@ pub async fn get_total_token_count_metrics_relative(
         "SUM(total_tokens)",
     );
 
-    let mut cursor = clickhouse
-        .query(&query_string)
-        .fetch::<MetricTimeValue<i64>>()?;
-
-    let mut res = Vec::new();
-    while let Some(row) = cursor.next().await? {
-        res.push(row);
-    }
-
-    Ok(res)
+    execute_query(&clickhouse, &query_string).await
 }
 
 pub async fn get_total_token_count_metrics_absolute(

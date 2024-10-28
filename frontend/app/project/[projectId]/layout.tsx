@@ -55,7 +55,10 @@ export default async function ProjectIdLayout({
       <ProjectContextProvider projectId={project.id} projectName={project.name}>
         <div className="flex flex-row max-w-full max-h-screen">
           <div className="flex flex-col h-screen flex-shrink-0">
-            <ProjectNavbarCollapsed projectId={projectId} />
+            <ProjectNavbarCollapsed
+              projectId={projectId}
+              fullBuild={isFeatureEnabled(Feature.FULL_BUILD)}
+            />
           </div>
           <div className="flex flex-col flex-grow min-h-screen max-w-full h-screen overflow-y-auto">
             {showBanner && (

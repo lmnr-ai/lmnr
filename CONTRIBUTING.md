@@ -10,12 +10,45 @@ you have additional context that will help us locate and debug the issue.
 
 If you want to contribute your code, ask in an open issue if it can be assigned to you.
 Then fork the repo, and develop locally. Once you are done with your change, submit a pull
-request through your fork.
+request through your fork. Our active development branch is `dev`, and we merge it into
+`main` periodically. Please submit your PRs to `dev`, and consider including `dev`
+when you fork the repo.
 
 ### Contributor License Agreement
 
 When you open a pull request, CLA bot will ask you to sign our Contributor License Agreement (CLA).
 We do this to avoid legal issues and disputes, and to stay compliant with relevant IP laws.
+
+## Why are there so many docker-compose files?
+
+Don't get overwhelmed by the number of docker-compose files. Here's a quick overview:
+
+- `docker-compose.yml` is the simplest one that spins up frontend, app-server, and postgres. Good for quickstarts.
+- `docker-compose-full.yml` is the one you want to use for running the full stack locally. This is the best 
+for self-hosting.
+- `docker-compose-local-dev.yml` is the one you want to use for local development. It will only
+  run the dependency services (postgres, qdrant, clickhouse, rabbitmq). You will need to run
+  `cargo r`, `pnpm run dev`, and `python server.py` manually.
+- `docker-compose-local-build.yml` will build the services from the source and run them in production mode. This is good for self-hosting with your own changes,
+or for testing the changes after developing on your own and before opening a PR.
+
+| Service | docker-compose.yml | docker-compose-full.yml | docker-compose-local-dev.yml | docker-compose-local-build.yml |
+|---------|-------------------|------------------------|----------------------------|------------------------------|
+| postgres | ✅ | ✅ | ✅ | ✅ |
+| qdrant | ❌ | ✅ | ✅ | ✅ |
+| clickhouse | ❌ | ✅ | ✅ | ✅ |
+| rabbitmq | ❌ | ✅ | ✅ | ✅ |
+| app-server | ℹ️ | ✅ | 💻 | 🔧 |
+| frontend | ℹ️ | ✅ | 💻 | 🔧 |
+| semantic-search-service | ❌ | ✅ |  💻 | 🔧 |
+| python-executor | ❌ | ✅ | 💻 | 🔧 |
+
+- ✅ – service present, image is pulled from a container registry.
+- 🔧 – service present, image is built from the source. This may take a while.
+- ℹ️ - service present, but is a lightweight version.
+- 💻 – service needs to be run manually (see below).
+- ❌ – service not present.
+
 
 ## Running Laminar locally
 
@@ -25,7 +58,12 @@ development mode.
 ### 0. Configure environment variables
 
 For each of app-server, semantic-search-service, and frontend, the environment is defined
-in `.env.example` files. Dupilcate those files and remove `.example` from the filename.
+in `.env.example` files, i.e.
+```sh
+cp .env.example .env
+# for frontend:
+cp frontend/.env.local.example frontend/.env.local
+```
 
 ### 1. Spin up dependency containers
 
@@ -33,7 +71,7 @@ in `.env.example` files. Dupilcate those files and remove `.example` from the fi
 docker compose -f docker-compose-local-dev.yml up
 ```
 
-This will spin up postgres, qdrant, clickhouse, and Rabbit MQ
+This will spin up postgres, qdrant, clickhouse, and RabbitMQ.
 
 ### 2. Run semantic search service in develop mode
 
