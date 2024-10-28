@@ -128,3 +128,17 @@ docker compose -f docker-compose-local-build.yml up
 Note that this is a different Docker compose file. This one will not only spin up
 dependency containers, but also build semantic search service, python executor,
 app server and frontend from local code and run them in production mode.
+
+## Database migrations
+
+We use [drizzle ORM](https://orm.drizzle.team/) to manage database migrations. However,
+our source of truth is always the database itself. In other words, the schema in the code 
+is generated from the database state. Do NOT change the schema files directly.
+If you need to make changes to the database schema, you will need to manually apply
+those changes to the database, and then update the migration files by running
+`npx drizzle-kit generate`.
+
+Migrations are applied on frontend startup. This is done quite hackily in the `instrumentation.ts` file,
+but this is a [recommended](https://github.com/vercel/next.js/discussions/15341#discussioncomment-7091594)
+place to run one-time startup scripts in Next.js. This means that if you 
+need to re-apply migrations, a simple `pnpm run dev` should do it.
