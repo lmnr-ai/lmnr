@@ -54,6 +54,15 @@ import { Graph } from '@/lib/flow/graph';
 import { CodeNode, LLMNode, NodeType } from '@/lib/flow/types';
 import { Switch } from '../ui/switch';
 import { eventEmitter } from '@/lib/event-emitter';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog";
 
 const evaluatorType = (labelClass: LabelClass) => {
   if (!labelClass.evaluatorRunnableGraph) {
@@ -90,6 +99,7 @@ export function AddLabelPopover({ span }: AddLabelPopoverProps) {
       swrFetcher
     );
   const [mode, setMode] = useState<'add' | 'list'>('list');
+  const [isDeletingLabelClass, setIsDeletingLabelClass] = useState(false);
 
   const updateLabelClass = async (labelClass: LabelClass) => {
     const res = await fetch(
@@ -138,6 +148,33 @@ export function AddLabelPopover({ span }: AddLabelPopoverProps) {
     if (res.ok) {
       mutateRegisteredLabelClasses();
       mutateLabelClasses();
+    }
+  };
+
+  const deleteLabelClass = async (labelClassId: string) => {
+    setIsDeletingLabelClass(true);
+    const res = await fetch(
+      `/api/projects/${projectId}/label-classes/${labelClassId}`,
+      {
+        method: 'DELETE'
+      }
+    );
+
+    setIsDeletingLabelClass(false);
+    if (res.ok) {
+      mutateLabelClasses();
+      mutateRegisteredLabelClasses();
+      eventEmitter.emit('mutateSpanLabels');
+      toast({
+        title: "Label class deleted",
+        description: "The label class has been successfully deleted.",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to delete label class",
+        variant: "destructive",
+      });
     }
   };
 
@@ -267,6 +304,44 @@ export function AddLabelPopover({ span }: AddLabelPopoverProps) {
                                     Remove evaluator
                                   </DropdownMenuItem>
                                 )}
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                      Delete label class
+                                    </DropdownMenuItem>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Delete Label Class</DialogTitle>
+                                      <DialogDescription>
+                                        Are you sure you want to delete this label class? This will also delete all labels with this class.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <DialogFooter>
+                                      <Button
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          (e.target as HTMLElement).closest('dialog')?.close();
+                                        }}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        onClick={() => deleteLabelClass(labelClass.id)}
+                                        disabled={isDeletingLabelClass}
+                                      >
+                                        {isDeletingLabelClass ? (
+                                          <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Deleting...
+                                          </>
+                                        ) : (
+                                          'Delete'
+                                        )}
+                                      </Button>
+                                    </DialogFooter>
+                                  </DialogContent>
+                                </Dialog>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -333,7 +408,7 @@ function AddLabelInstance({
 
     if (response.ok) {
       onAddLabel(value);
-      eventEmitter.emit('labelAdded');
+      eventEmitter.emit('mutateSpanLabels');
       toast({
         title: 'Label added',
         description: `${labelClass.name} label with value ${value} was successfully added.`

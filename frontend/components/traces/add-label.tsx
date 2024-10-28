@@ -1,7 +1,5 @@
-import { LabelClass, SpanLabel, LabelType, Span } from '@/lib/traces/types';
-import { cn, swrFetcher } from '@/lib/utils';
+import { LabelClass, LabelType, Span } from '@/lib/traces/types';
 import { useState } from 'react';
-import useSWR, { mutate } from 'swr';
 import { Label } from '../ui/label';
 import {
   Select,
@@ -10,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '../ui/select';
-import { ArrowLeft, Loader, PlusCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { useProjectContext } from '@/contexts/project-context';
@@ -218,7 +216,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
           }}
           disabled={!labelClass.name || !isLabelValueMapValid}
         >
-          <Loader
+          <Loader2
             className={isSaving ? 'animate-spin h-4 w-4 mr-2' : 'hidden'}
           />
           Add

@@ -35,40 +35,12 @@ export default function SpanLabels({ spanId }: SpanLabelsProps) {
     const handleLabelAdded = () => {
       mutate();
     };
-    eventEmitter.on('labelAdded', handleLabelAdded);
+    eventEmitter.on('mutateSpanLabels', handleLabelAdded);
 
     return () => {
-      eventEmitter.off('labelAdded', handleLabelAdded);
+      eventEmitter.off('mutateSpanLabels', handleLabelAdded);
     };
   }, [mutate]);
-
-  const columns: ColumnDef<SpanLabel>[] = [
-    {
-      accessorKey: 'className',
-      header: 'Name'
-    },
-    {
-      accessorKey: 'labelType',
-      header: 'Type'
-    },
-    {
-      accessorFn: (row: SpanLabel) => row.valueMap?.[row.value] ?? '',
-      header: 'Value'
-    },
-    {
-      accessorFn: (row: SpanLabel) =>
-        row.userEmail ??
-        (row.labelSource === LabelSource.AUTO ? 'Auto-labeled' : '-'),
-      header: 'User'
-    },
-    {
-      accessorKey: 'updatedAt',
-      header: 'Updated At',
-      cell: (row) => (
-        <ClientTimestampFormatter timestamp={String(row.getValue())} />
-      )
-    }
-  ];
 
   const removeLabel = async (labelId: string) => {
     const response = await fetch(
