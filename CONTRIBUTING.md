@@ -58,10 +58,10 @@ development mode.
 ### 0. Configure environment variables
 
 For each of app-server, semantic-search-service, and frontend, the environment is defined
-in `.env.example` files, i.e.
+in `.env.example` files, and you need to copy that to `.env` files, i.e.
 ```sh
 cp .env.example .env
-# for frontend:
+# and for frontend:
 cp frontend/.env.local.example frontend/.env.local
 ```
 
