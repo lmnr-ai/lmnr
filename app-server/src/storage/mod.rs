@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use uuid::Uuid;
 
-pub mod dummy;
+pub mod mock;
 pub mod s3;
 
 #[async_trait]

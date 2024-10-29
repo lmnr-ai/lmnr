@@ -74,3 +74,53 @@ pub async fn estimate_cost(
     };
     Some(calculate_cost(num_tokens, price_per_million_tokens))
 }
+
+pub struct CostEntry {
+    pub input_cost: f64,
+    pub output_cost: f64,
+}
+
+// This is a simpler function than per-provider implementation.
+// For now, we default to this, but if language model providers keep making quirky prices like
+// gemini with their additional price over 128k tokens, we will have to switch to per-provider
+// implementation.
+pub async fn estimate_cost_by_provider_name(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    provider_name: &str,
+    model: &str,
+    input_tokens: u32,
+    output_tokens: u32,
+) -> Option<CostEntry> {
+    let input_cost = estimate_cost(
+        db.clone(),
+        cache.clone(),
+        provider_name,
+        model,
+        input_tokens,
+        TokensKind::Input,
+    )
+    .await
+    .or_else(|| {
+        log::warn!(
+            "No stored price found for provider: {}, model: {}",
+            provider_name,
+            model,
+        );
+        None
+    })?;
+    let output_cost = estimate_cost(
+        db.clone(),
+        cache.clone(),
+        provider_name,
+        model,
+        output_tokens,
+        TokensKind::Output,
+    )
+    .await?;
+
+    Some(CostEntry {
+        input_cost,
+        output_cost,
+    })
+}

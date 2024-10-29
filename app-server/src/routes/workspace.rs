@@ -52,7 +52,7 @@ async fn create_workspace(
     user: User,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
+    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
     req: web::Json<CreateWorkspaceRequest>,
 ) -> ResponseResult {
     let req = req.into_inner();

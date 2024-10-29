@@ -54,7 +54,7 @@ impl RunnableNode for SemanticSimilarityNode {
 
         let resp = context
             .semantic_search
-            .calculate_similatity_scores(vec![first], vec![second])
+            .calculate_similarity_scores(vec![first], vec![second])
             .await;
 
         match resp {

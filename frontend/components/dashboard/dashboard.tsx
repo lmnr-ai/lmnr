@@ -172,7 +172,7 @@ export default function Dashboard() {
     if (!pastHours && !startDate && !endDate) {
       const sp = new URLSearchParams(searchParams);
       sp.set('pastHours', '24');
-      router.push(`/project/${projectId}/dashboard?${sp.toString()}`);
+      router.replace(`/project/${projectId}/dashboard?${sp.toString()}`);
     }
   }, []);
 

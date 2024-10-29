@@ -14,9 +14,6 @@
     "format:check": "prettier --check \"{app,lib,components}**/*.{ts,tsx,mdx}\" --cache"
   },
   "dependencies": {
-    "@ai-sdk/amazon-bedrock": "^0.0.28",
-    "@ai-sdk/anthropic": "^0.0.51",
-    "@ai-sdk/openai": "^0.0.63",
     "@aws-sdk/client-s3": "^3.674.0",
     "@codemirror/lang-json": "^6.0.1",
     "@codemirror/lang-python": "^6.1.6",
@@ -58,7 +55,6 @@
     "@uiw/codemirror-themes": "^4.23.5",
     "@uiw/react-codemirror": "^4.23.5",
     "ace-builds": "^1.36.2",
-    "ai": "^3.4.14",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^0.2.1",

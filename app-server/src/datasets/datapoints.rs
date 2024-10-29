@@ -15,7 +15,8 @@ use crate::{
     db::{self, DB},
     pipeline::nodes::NodeInput,
     semantic_search::{
-        merge_chat_messages, semantic_search_grpc::index_request::Datapoint as VectorDBDatapoint,
+        semantic_search_grpc::index_request::Datapoint as VectorDBDatapoint,
+        utils::merge_chat_messages,
     },
 };
 

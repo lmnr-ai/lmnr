@@ -3,6 +3,10 @@ const path = require('path');
 
 const nextConfig = {
   reactStrictMode: false,
+  experimental: {
+    // This is stable since Next.js 15.0.0, so we can remove this once we upgrade
+    instrumentationHook: true,
+  },
   logging: {
     fetches: {
       fullUrl: true,

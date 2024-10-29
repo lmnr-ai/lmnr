@@ -1,7 +1,8 @@
 import { db } from '@/lib/db/drizzle';
 import { evaluations } from '@/lib/db/schema';
-import { and, desc, eq, inArray } from 'drizzle-orm';
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { isCurrentUserMemberOfProject, paginatedGet } from '@/lib/db/utils';
+import { Evaluation } from '@/lib/evaluation/types';
 
 export async function GET(
   req: Request,
@@ -13,7 +14,22 @@ export async function GET(
     return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
   }
 
-  const result = await db.select().from(evaluations).where(eq(evaluations.projectId, projectId)).orderBy(desc(evaluations.createdAt));
+  const baseQuery = db.$with(
+    "base"
+  ).as(
+    db
+      .select()
+      .from(evaluations)
+      .where(eq(evaluations.projectId, projectId))
+  );
+
+  const result = await paginatedGet<any, Evaluation>({
+    table: evaluations,
+    baseFilters: [],
+    filters: [],
+    baseQuery,
+    orderBy: desc(sql`created_at`),
+  });
 
   return Response.json(result);
 }

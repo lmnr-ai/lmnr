@@ -22,17 +22,20 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 interface ProjectNavBarProps {
   projectId: string;
+  fullBuild: boolean;
 }
 
 export default function ProjectNavbarCollapsed({
-  projectId
+  projectId,
+  fullBuild
 }: ProjectNavBarProps) {
   const pathname = usePathname();
 
-  const navbarOptions = [
+  const allOptions = [
     {
       name: 'dashboard',
       href: `/project/${projectId}/dashboard`,
@@ -71,6 +74,13 @@ export default function ProjectNavbarCollapsed({
     }
   ];
 
+  const navbarOptions = allOptions.filter(option => {
+    if (!fullBuild) {
+      return !['dashboard'].includes(option.name);
+    }
+    return true;
+  });
+
   return (
     <div className="flex flex-col h-screen border-r text-md items-center w-14">
       <Link
@@ -99,7 +109,13 @@ export default function ProjectNavbarCollapsed({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          // <Link key={i} href={option.href} className={cn('hover:bg-secondary flex items-center px-2 py-2 mx-2 rounded space-x-2 text-secondary-foreground', pathname === option.href ? "bg-secondary text-primary-foreground" : "")}>
+          // <Link
+          //   key={i}
+          // href={option.href}
+          //   className={cn(
+          //     'hover:bg-secondary flex items-center px-2 py-2 mx-2 rounded space-x-2 text-secondary-foreground',
+          //      pathname === option.href ? "bg-secondary text-primary-foreground" : "")}
+          // >
           //   <option.icon size={20} />
           //   <div className='text-sm'>
           //     {option.name.charAt(0).toUpperCase() + option.name.slice(1)}

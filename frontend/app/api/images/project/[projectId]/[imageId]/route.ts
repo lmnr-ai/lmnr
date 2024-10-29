@@ -1,24 +1,10 @@
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-
-const client = new S3Client({
-  region: 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? ''
-  }
-});
-
-const bucket = process.env.S3_IMGS_BUCKET ?? '';
-
+// temporarily redirect to /api/projects/[projectId]/images/[imageId]
+// while we still have images written with this old format
 export async function GET(
   req: Request,
   { params }: { params: { projectId: string; imageId: string } }
 ): Promise<Response> {
-  const { projectId, imageId } = params;
-  const getObjectRequest = new GetObjectCommand({
-    Bucket: bucket,
-    Key: `project/${projectId}/${imageId}`
-  });
-  const blob = await client.send(getObjectRequest);
-  return new Response(await blob.Body?.transformToByteArray());
+  return Response.redirect(
+    new URL(`/api/projects/${params.projectId}/images/${params.imageId}`, req.url)
+  );
 }

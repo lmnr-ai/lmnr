@@ -14,7 +14,7 @@ use super::{nodes::StreamChunk, runner::PipelineRunner, RunType};
 pub struct Context {
     pub language_model: Arc<LanguageModelRunner>,
     pub chunker_runner: Arc<ChunkerRunner>,
-    pub semantic_search: Arc<SemanticSearch>,
+    pub semantic_search: Arc<dyn SemanticSearch>,
     pub env: HashMap<String, String>,
     pub tx: Option<Sender<StreamChunk>>,
     pub metadata: HashMap<String, String>,
@@ -24,7 +24,7 @@ pub struct Context {
     /// This is stored in the context before runtime
     /// to avoid the schema being validated on every LLM node run.
     pub baml_schemas: HashMap<Uuid, BamlContext>,
-    pub code_executor: Arc<CodeExecutor>,
+    pub code_executor: Arc<dyn CodeExecutor>,
     pub db: Arc<DB>,
     pub cache: Arc<Cache>,
 }

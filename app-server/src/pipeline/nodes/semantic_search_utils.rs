@@ -13,7 +13,7 @@ use super::NodeInput;
 
 pub(super) async fn query_datasources(
     datasets: &Vec<Dataset>,
-    semantic_search: Arc<SemanticSearch>,
+    semantic_search: Arc<dyn SemanticSearch>,
     query: String,
     collection_name: String,
     limit: u32,

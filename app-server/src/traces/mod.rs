@@ -8,7 +8,7 @@ pub mod limits;
 pub mod producer;
 pub mod span_attributes;
 pub mod spans;
-mod utils;
+pub mod utils;
 
 pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
 pub const OBSERVATIONS_EXCHANGE: &str = "observations_exchange";
