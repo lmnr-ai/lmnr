@@ -35,20 +35,20 @@
 
     --radius: 0.5rem; */
 
-    --background: 240 0% 6%;
-    --foreground: 240 8% 95%;
+    --background: 0 0% 8%;
+    --foreground: 0 8% 90%;
 
-    --card: 240 8% 10%;
+    --card: 240 4% 12%;
     --card-foreground: 240 8% 80%;
 
-    --popover: 240 0% 6%;
-    --popover-foreground: 240 8% 80%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 8% 90%;
 
     --primary: 16 83% 59%;
     --primary-foreground: 16 0% 91%;
 
-    --secondary: 240 4% 11%;
-    --secondary-foreground: 240 8% 70%;
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 4% 70%;
 
     --muted: 240 6% 16%;
     --muted-foreground: 215 20.2% 65.1%;

@@ -61,10 +61,10 @@ export default function CodeEditor({
   }
 
   return (
-    <div className={cn('w-full h-full flex flex-col p-2 bg-secondary text-foreground', className)}>
+    <div className={cn('w-full h-full flex flex-col p-2 bg-card text-foreground', className)}>
       <CodeMirror
         placeholder={placeholder}
-        className="border-none bg-secondary"
+        className="border-none bg-card"
         theme={myTheme}
         extensions={extensions}
         editable={editable}
