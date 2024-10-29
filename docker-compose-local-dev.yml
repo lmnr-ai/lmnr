@@ -51,19 +51,20 @@ services:
         hard: 262144
 
   postgres:
-    build:
-      context: ./postgres
-      args:
-        POSTGRES_USER: ${POSTGRES_USER}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-        POSTGRES_DB: ${POSTGRES_DB}
-    container_name: postgres
+    image: postgres:16
     ports:
       - "5432:5432"
     volumes:
-      - type: volume
-        source: postgres-data
-        target: /var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
 
 volumes:
   qdrant-data:

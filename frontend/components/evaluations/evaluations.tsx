@@ -13,7 +13,7 @@ import { usePostHog } from 'posthog-js/react';
 import { useUserContext } from '@/contexts/user-context';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
 import { Button } from '../ui/button';
-import { FlaskConical, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import {
   Dialog,
@@ -28,10 +28,12 @@ import { useToast } from '@/lib/hooks/use-toast';
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import { PaginatedResponse } from '@/lib/types';
 
 export default function Evaluations() {
   const { projectId } = useProjectContext();
-  const { data: evaluations, mutate } = useSWR<Evaluation[]>(`/api/projects/${projectId}/evaluations`, swrFetcher);
+  const { data, mutate } = useSWR<PaginatedResponse<Evaluation>>(`/api/projects/${projectId}/evaluations`, swrFetcher);
+  const evaluations = data?.items ?? [];
 
   const router = useRouter();
   const posthog = usePostHog();
@@ -74,12 +76,15 @@ export default function Evaluations() {
   const handleDeleteEvaluations = async (selectedRowIds: string[]) => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/evaluations?evaluationIds=${selectedRowIds.join(',')}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `/api/projects/${projectId}/evaluations?evaluationIds=${selectedRowIds.join(',')}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
 
       if (response.ok) {
         mutate();
@@ -102,6 +107,15 @@ export default function Evaluations() {
     setIsDeleteDialogOpen(false);
   };
 
+  if (data?.anyInProject === false) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header path="evaluations" />
+        <EvalsPagePlaceholder />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <Header path="evaluations" />
@@ -119,36 +133,35 @@ export default function Evaluations() {
             router.push(`/project/${projectId}/evaluations/${row.original.id}`);
           }}
           getRowId={(row: Evaluation) => row.id}
-          selectionPanel={(selectedRowIds) => {
-            return (
-              <div className="flex flex-col space-y-2">
-                <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost">
-                      <Trash2 size={12} />
+          selectionPanel={(selectedRowIds) => (
+            <div className="flex flex-col space-y-2">
+              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost">
+                    <Trash2 size={12} />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete Evaluations</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to delete {selectedRowIds.length} evaluation(s)?
+                      This action cannot be undone.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+                      Cancel
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Delete Evaluations</DialogTitle>
-                      <DialogDescription>
-                        Are you sure you want to delete {selectedRowIds.length} evaluation(s)? This action cannot be undone.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
-                        Cancel
-                      </Button>
-                      <Button onClick={() => handleDeleteEvaluations(selectedRowIds)} disabled={isDeleting}>
-                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Delete
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            );
-          }}
+                    <Button onClick={() => handleDeleteEvaluations(selectedRowIds)} disabled={isDeleting}>
+                      {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Delete
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
         />
       </div>
     </div>

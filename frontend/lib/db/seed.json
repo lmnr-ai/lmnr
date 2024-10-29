@@ -1,0 +1,4914 @@
+[
+  {
+    "table": "subscription_tiers",
+    "data": [
+      {
+        "id": 1,
+        "name": "unlimited",
+        "members_per_workspace": -1,
+        "storage_mib": -1,
+        "log_retention_days": 365
+      }
+    ]
+  },
+  {
+    "table": "pipeline_templates",
+    "data": [
+      {
+        "id": "4c9306c9-866e-4c7e-a598-3cdd9e98a783",
+        "created_at": "2024-09-02 06:08:55.321721+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_0_id>": [
+              "<node_1_id>"
+            ],
+            "<node_2_id>": [
+              "<node_0_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "LLM",
+              "type": "LLM",
+              "model": "openai:gpt-3.5-turbo",
+              "inputs": [],
+              "prompt": "{{instruction}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [
+                {
+                  "id": "84affc19-cc1d-4e36-a60f-730cc66dc6ac",
+                  "name": "instruction",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "84affc19-cc1d-4e36-a60f-730cc66dc6ac": "e97a603a-66cf-4a56-84b5-d34458d681a4"
+              }
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "instruction",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "3916a6b5-9347-44fa-a2fc-322248e928e2",
+                  "name": "output",
+                  "type": "Any"
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "3916a6b5-9347-44fa-a2fc-322248e928e2": "38f4049f-c231-4a4e-98e5-eb7bbfeec881"
+              },
+              "outputCastType": null
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_1_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_0_id>_00f9ef0b-5649-4aab-9469-bb34011868ec84affc19-cc1d-4e36-a60f-730cc66dc6ac",
+              "source": "<node_1_id>",
+              "target": "<node_0_id>",
+              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+              "targetHandle": "84affc19-cc1d-4e36-a60f-730cc66dc6ac"
+            },
+            {
+              "id": "reactflow__edge-<node_0_id>38f4049f-c231-4a4e-98e5-eb7bbfeec881-<node_2_id>3916a6b5-9347-44fa-a2fc-322248e928e2",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_0_id>",
+              "target": "<node_2_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
+              "targetHandle": "3916a6b5-9347-44fa-a2fc-322248e928e2"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "instruction",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -86.31880118386391,
+                "y": 414.30399097867263
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -86.31880118386391,
+                "y": 414.30399097867263
+              }
+            },
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "3916a6b5-9347-44fa-a2fc-322248e928e2",
+                    "name": "output",
+                    "type": "Any"
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": null
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 820.7501151171692,
+                "y": 431.00693983450697
+              },
+              "selected": true,
+              "positionAbsolute": {
+                "x": 820.7501151171692,
+                "y": 431.00693983450697
+              }
+            },
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "LLM",
+                "type": "LLM",
+                "model": "openai:gpt-3.5-turbo",
+                "inputs": [],
+                "prompt": "{{instruction}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [
+                  {
+                    "id": "84affc19-cc1d-4e36-a60f-730cc66dc6ac",
+                    "name": "instruction",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {}
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 347.7456977977364,
+                "y": 440.43477265876913
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 347.7456977977364,
+                "y": 440.43477265876913
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 3,
+        "name": "LLM call \u2013 instruction",
+        "description": "Calls an LLM with a templated prompt based on a dynamic user input",
+        "display_group": "build",
+        "ordinal": 110
+      },
+      {
+        "id": "ab337a71-7cb8-48b8-a398-67f94dbbe327",
+        "created_at": "2024-09-02 06:10:54.95769+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_0_id>": [
+              "<node_2_id>"
+            ],
+            "<node_2_id>": [
+              "<node_1_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "f199a82e-02a3-46fe-a7b2-2069df210388",
+                  "name": "output",
+                  "type": "Any"
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "f199a82e-02a3-46fe-a7b2-2069df210388": "38f4049f-c231-4a4e-98e5-eb7bbfeec881"
+              },
+              "outputCastType": null
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "chat_messages",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                  "type": "ChatMessageList"
+                }
+              ],
+              "inputType": "ChatMessageList",
+              "inputsMappings": {}
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "LLM",
+              "type": "LLM",
+              "model": "openai:gpt-3.5-turbo",
+              "inputs": [
+                {
+                  "id": "23fce76d-2061-4fea-b5cb-c307d7eab811",
+                  "name": "chat_messages",
+                  "type": "ChatMessageList"
+                }
+              ],
+              "prompt": "",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [],
+              "inputsMappings": {
+                "23fce76d-2061-4fea-b5cb-c307d7eab811": "e97a603a-66cf-4a56-84b5-d34458d681a4"
+              }
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_1_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_2_id>_00f9ef0b-5649-4aab-9469-bb34011868ec23fce76d-2061-4fea-b5cb-c307d7eab811",
+              "source": "<node_1_id>",
+              "target": "<node_2_id>",
+              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+              "targetHandle": "23fce76d-2061-4fea-b5cb-c307d7eab811"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>38f4049f-c231-4a4e-98e5-eb7bbfeec881-<node_0_id>f199a82e-02a3-46fe-a7b2-2069df210388",
+              "type": "custom",
+              "source": "<node_2_id>",
+              "target": "<node_0_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
+              "targetHandle": "f199a82e-02a3-46fe-a7b2-2069df210388"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "chat_messages",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "ChatMessageList"
+                  }
+                ],
+                "inputType": "ChatMessageList",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -87.79697227166275,
+                "y": 389.1750824860928
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -87.79697227166275,
+                "y": 389.1750824860928
+              }
+            },
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "f199a82e-02a3-46fe-a7b2-2069df210388",
+                    "name": "output",
+                    "type": "Any"
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": null
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 820.7501151171692,
+                "y": 431.00693983450697
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 820.7501151171692,
+                "y": 431.00693983450697
+              }
+            },
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "LLM",
+                "type": "LLM",
+                "model": "openai:gpt-3.5-turbo",
+                "inputs": [
+                  {
+                    "id": "23fce76d-2061-4fea-b5cb-c307d7eab811",
+                    "name": "chat_messages",
+                    "type": "ChatMessageList"
+                  }
+                ],
+                "prompt": "",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [],
+                "inputsMappings": {}
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 361.04923758792563,
+                "y": 430.0875750441775
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 361.04923758792563,
+                "y": 430.0875750441775
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 3,
+        "name": "LLM call \u2013 chat messages",
+        "description": "Calls an LLM with a pre-defined system prompt and dynamic chat messages as an input",
+        "display_group": "build",
+        "ordinal": 120
+      },
+      {
+        "id": "688be3a0-dac0-47ec-8e2b-843f22ab7b1b",
+        "created_at": "2024-06-30 17:38:56.569741+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_0_id>": [
+              "<node_1_id>"
+            ],
+            "<node_1_id>": [
+              "<node_2_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                  "name": "output",
+                  "type": "Any"
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "38f4049f-c231-4a4e-98e5-eb7bbfeec881"
+              }
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "LLM",
+              "type": "LLM",
+              "model": "openai:gpt-4o-mini",
+              "inputs": [],
+              "prompt": "{{input_data}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [
+                {
+                  "id": "23e20769-e0d1-4857-b25f-d79e926d140e",
+                  "name": "input_data",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "23e20769-e0d1-4857-b25f-d79e926d140e": "e97a603a-66cf-4a56-84b5-d34458d681a4"
+              },
+              "structuredOutputSchema": "class User {\n  id int\n  name string\n  contact_info ContactInfo\n  contact_preference ContactPreference\n  notes string?\n}\n\nclass ContactInfo {\n  telephone string\n  email_addresses string[]\n}\n\nenum ContactPreference {\n  EMAIL\n  TELEPHONE\n}\n",
+              "structuredOutputEnabled": true,
+              "structuredOutputMaxRetries": 3,
+              "structuredOutputSchemaTarget": "User"
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "input_data",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_1_id>_00f9ef0b-5649-4aab-9469-bb34011868ec38f4049f-c231-4a4e-98e5-eb7bbfeec881-<node_0_id>f202a0a5-931b-40aa-8d06-fc5e3795224d",
+              "source": "<node_1_id>",
+              "target": "<node_0_id>",
+              "sourceHandle": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
+              "targetHandle": "f202a0a5-931b-40aa-8d06-fc5e3795224d"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_1_id>23e20769-e0d1-4857-b25f-d79e926d140e",
+              "source": "<node_2_id>",
+              "target": "<node_1_id>",
+              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+              "targetHandle": "23e20769-e0d1-4857-b25f-d79e926d140e"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "input_data",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -86.31880118386391,
+                "y": 414.30399097867263
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -86.31880118386391,
+                "y": 414.30399097867263
+              }
+            },
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                    "name": "output",
+                    "type": "Any"
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": null
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 820.7501151171692,
+                "y": 431.00693983450697
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 820.7501151171692,
+                "y": 431.00693983450697
+              }
+            },
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "LLM",
+                "type": "LLM",
+                "model": "openai:gpt-4o-mini",
+                "inputs": [],
+                "prompt": "{{input_data}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [
+                  {
+                    "id": "23e20769-e0d1-4857-b25f-d79e926d140e",
+                    "name": "input_data",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {},
+                "structuredOutputSchema": "class User {\n  id int\n  name string\n  contact_info ContactInfo\n  contact_preference ContactPreference\n  notes string?\n}\n\nclass ContactInfo {\n  telephone string\n  email_addresses string[]\n}\n\nenum ContactPreference {\n  EMAIL\n  TELEPHONE\n}\n",
+                "structuredOutputEnabled": true,
+                "structuredOutputMaxRetries": 3,
+                "structuredOutputSchemaTarget": "User"
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 347.7456977977364,
+                "y": 438.9676138067879
+              },
+              "selected": true,
+              "positionAbsolute": {
+                "x": 347.7456977977364,
+                "y": 438.9676138067879
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 3,
+        "name": "Structured output",
+        "description": "Enforce structured JSON format based on a custom schema",
+        "display_group": "build",
+        "ordinal": 140
+      },
+      {
+        "id": "69888370-2177-4c0c-8149-25c3b1076d45",
+        "created_at": "2024-07-06 21:48:15.873353+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_0_id>": [
+              "<node_4_id>"
+            ],
+            "<node_1_id>": [
+              "<node_6_id>"
+            ],
+            "<node_2_id>": [
+              "<node_6_id>"
+            ],
+            "<node_3_id>": [
+              "<node_1_id>",
+              "<node_5_id>",
+              "<node_2_id>",
+              "<node_6_id>"
+            ],
+            "<node_4_id>": [
+              "<node_3_id>",
+              "<node_6_id>",
+              "<node_1_id>",
+              "<node_5_id>",
+              "<node_2_id>"
+            ],
+            "<node_5_id>": [
+              "<node_6_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                  "name": "output",
+                  "type": "Any"
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "8017f840-25d8-4579-8cb1-99ca046c3ce4"
+              }
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "candidate_1",
+              "type": "LLM",
+              "model": "openai:gpt-3.5-turbo",
+              "inputs": [],
+              "prompt": "{{prompt}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "6bfbac14-6728-4b70-a37e-6305364db920",
+                  "type": "String"
+                }
+              ],
+              "modelParams": "{\n  \"temperature\": 1\n}",
+              "dynamicInputs": [
+                {
+                  "id": "6e90ae8b-5f46-45df-a2ef-42a2abd31575",
+                  "name": "prompt",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "6e90ae8b-5f46-45df-a2ef-42a2abd31575": "601fb170-468b-4765-96e5-25bec1b27864"
+              }
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "candidate_3",
+              "type": "LLM",
+              "model": "openai:gpt-3.5-turbo",
+              "inputs": [],
+              "prompt": "{{prompt}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
+                  "type": "String"
+                }
+              ],
+              "modelParams": "{\n  \"temperature\": 1\n}",
+              "dynamicInputs": [
+                {
+                  "id": "b7b67147-77ce-4cdd-a125-616b83d05710",
+                  "name": "prompt",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "b7b67147-77ce-4cdd-a125-616b83d05710": "601fb170-468b-4765-96e5-25bec1b27864"
+              }
+            },
+            "<node_3_id>": {
+              "id": "<node_3_id>",
+              "name": "Evaluator",
+              "type": "LLM",
+              "model": "openai:gpt-3.5-turbo",
+              "inputs": [],
+              "prompt": "You will be given a prompt and 3 outputs of Large Language Models in response to this prompt. Your goal is to produce strengths and weaknesses of each response.\n\n---\n\nPrompt:\n{{prompt}}\n\nCandidate 1:\n{{cand_1}}\n\nCandidate 2:\n{{cand_2}}\n\nCandidate 3:\n{{cand_3}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "a0dea378-f54a-40cf-a766-4d917e9e4c1c",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [
+                {
+                  "id": "149dcab7-0dbb-4a77-9066-199e0eb4b320",
+                  "name": "prompt",
+                  "type": "String"
+                },
+                {
+                  "id": "c92560cf-6594-49fe-9c80-e1dbb604e502",
+                  "name": "cand_1",
+                  "type": "String"
+                },
+                {
+                  "id": "b5123524-32f6-4210-8c9d-793084d092d3",
+                  "name": "cand_2",
+                  "type": "String"
+                },
+                {
+                  "id": "3e627791-2ccb-4b8f-9fa2-f7b9265858b9",
+                  "name": "cand_3",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "149dcab7-0dbb-4a77-9066-199e0eb4b320": "601fb170-468b-4765-96e5-25bec1b27864",
+                "3e627791-2ccb-4b8f-9fa2-f7b9265858b9": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
+                "b5123524-32f6-4210-8c9d-793084d092d3": "5b438805-6271-4573-9a97-23ccf9316c8e",
+                "c92560cf-6594-49fe-9c80-e1dbb604e502": "6bfbac14-6728-4b70-a37e-6305364db920"
+              }
+            },
+            "<node_4_id>": {
+              "id": "<node_4_id>",
+              "name": "final_LLM",
+              "type": "LLM",
+              "model": "openai:gpt-3.5-turbo",
+              "inputs": [],
+              "prompt": "You will be given a prompt, 3 candidate responses and strengths and weaknesses of each of responses. Your goal is to produce the best overall response which incorporates strengths and weaknesses of each candidate.\n\nPay close attention to highlighted strengths and weaknesses. Solve weaknesses and keep strengths.\n\nprompt:\n{{prompt}}\n\n\u0421andidate 1:\n{{cand_1}}\n\n\u0421andidate 2:\n{{cand_2}}\n\n\u0421andidate 3:\n{{cand_3}}\n\n---\nStrengths and Weaknesses:\n{{reasoning}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "8017f840-25d8-4579-8cb1-99ca046c3ce4",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [
+                {
+                  "id": "a62b8cf4-4096-48b2-93f6-8c3640e7d350",
+                  "name": "prompt",
+                  "type": "String"
+                },
+                {
+                  "id": "b95905f0-3cf2-4af0-ba3e-142df7662876",
+                  "name": "cand_1",
+                  "type": "String"
+                },
+                {
+                  "id": "4b5bbd1c-777d-4cba-a309-598024888681",
+                  "name": "cand_2",
+                  "type": "String"
+                },
+                {
+                  "id": "69276f15-7232-4eed-8b14-223fc0ef54c8",
+                  "name": "cand_3",
+                  "type": "String"
+                },
+                {
+                  "id": "fd8e93e5-3ab9-48ce-8ab9-66c214db7f92",
+                  "name": "reasoning",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "4b5bbd1c-777d-4cba-a309-598024888681": "5b438805-6271-4573-9a97-23ccf9316c8e",
+                "69276f15-7232-4eed-8b14-223fc0ef54c8": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
+                "a62b8cf4-4096-48b2-93f6-8c3640e7d350": "601fb170-468b-4765-96e5-25bec1b27864",
+                "b95905f0-3cf2-4af0-ba3e-142df7662876": "6bfbac14-6728-4b70-a37e-6305364db920",
+                "fd8e93e5-3ab9-48ce-8ab9-66c214db7f92": "a0dea378-f54a-40cf-a766-4d917e9e4c1c"
+              }
+            },
+            "<node_5_id>": {
+              "id": "<node_5_id>",
+              "name": "candidate_2",
+              "type": "LLM",
+              "model": "openai:gpt-3.5-turbo",
+              "inputs": [],
+              "prompt": "{{prompt}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "5b438805-6271-4573-9a97-23ccf9316c8e",
+                  "type": "String"
+                }
+              ],
+              "modelParams": "{\n  \"temperature\": 1\n}",
+              "dynamicInputs": [
+                {
+                  "id": "bebeba38-0102-4f45-9e5a-1f34c50a372a",
+                  "name": "prompt",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "bebeba38-0102-4f45-9e5a-1f34c50a372a": "601fb170-468b-4765-96e5-25bec1b27864"
+              }
+            },
+            "<node_6_id>": {
+              "id": "<node_6_id>",
+              "name": "prompt",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "601fb170-468b-4765-96e5-25bec1b27864",
+                  "name": "output",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_1_id>6e90ae8b-5f46-45df-a2ef-42a2abd31575",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_6_id>",
+              "target": "<node_1_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
+              "targetHandle": "6e90ae8b-5f46-45df-a2ef-42a2abd31575"
+            },
+            {
+              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_5_id>bebeba38-0102-4f45-9e5a-1f34c50a372a",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_6_id>",
+              "target": "<node_5_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
+              "targetHandle": "bebeba38-0102-4f45-9e5a-1f34c50a372a"
+            },
+            {
+              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_2_id>b7b67147-77ce-4cdd-a125-616b83d05710",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_6_id>",
+              "target": "<node_2_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
+              "targetHandle": "b7b67147-77ce-4cdd-a125-616b83d05710"
+            },
+            {
+              "id": "reactflow__edge-<node_4_id>8017f840-25d8-4579-8cb1-99ca046c3ce4-<node_0_id>f202a0a5-931b-40aa-8d06-fc5e3795224d",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_4_id>",
+              "target": "<node_0_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "8017f840-25d8-4579-8cb1-99ca046c3ce4",
+              "targetHandle": "f202a0a5-931b-40aa-8d06-fc5e3795224d"
+            },
+            {
+              "id": "reactflow__edge-<node_3_id>a0dea378-f54a-40cf-a766-4d917e9e4c1c-<node_4_id>fd8e93e5-3ab9-48ce-8ab9-66c214db7f92",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_3_id>",
+              "target": "<node_4_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "a0dea378-f54a-40cf-a766-4d917e9e4c1c",
+              "targetHandle": "fd8e93e5-3ab9-48ce-8ab9-66c214db7f92"
+            },
+            {
+              "id": "reactflow__edge-<node_1_id>6bfbac14-6728-4b70-a37e-6305364db920-<node_3_id>c92560cf-6594-49fe-9c80-e1dbb604e502",
+              "data": {
+                "isHover": false
+              },
+              "source": "<node_1_id>",
+              "target": "<node_3_id>",
+              "sourceHandle": "6bfbac14-6728-4b70-a37e-6305364db920",
+              "targetHandle": "c92560cf-6594-49fe-9c80-e1dbb604e502"
+            },
+            {
+              "id": "reactflow__edge-<node_5_id>5b438805-6271-4573-9a97-23ccf9316c8e-<node_3_id>b5123524-32f6-4210-8c9d-793084d092d3",
+              "data": {
+                "isHover": false
+              },
+              "source": "<node_5_id>",
+              "target": "<node_3_id>",
+              "sourceHandle": "5b438805-6271-4573-9a97-23ccf9316c8e",
+              "targetHandle": "b5123524-32f6-4210-8c9d-793084d092d3"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>6b33445b-d105-44e3-a3fd-7c8f30e64c87-<node_3_id>3e627791-2ccb-4b8f-9fa2-f7b9265858b9",
+              "data": {
+                "isHover": false
+              },
+              "source": "<node_2_id>",
+              "target": "<node_3_id>",
+              "sourceHandle": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
+              "targetHandle": "3e627791-2ccb-4b8f-9fa2-f7b9265858b9"
+            },
+            {
+              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_3_id>149dcab7-0dbb-4a77-9066-199e0eb4b320",
+              "data": {
+                "isHover": false
+              },
+              "source": "<node_6_id>",
+              "target": "<node_3_id>",
+              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
+              "targetHandle": "149dcab7-0dbb-4a77-9066-199e0eb4b320"
+            },
+            {
+              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_4_id>a62b8cf4-4096-48b2-93f6-8c3640e7d350",
+              "data": {
+                "isHover": false
+              },
+              "source": "<node_6_id>",
+              "target": "<node_4_id>",
+              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
+              "targetHandle": "a62b8cf4-4096-48b2-93f6-8c3640e7d350"
+            },
+            {
+              "id": "reactflow__edge-<node_1_id>6bfbac14-6728-4b70-a37e-6305364db920-<node_4_id>b95905f0-3cf2-4af0-ba3e-142df7662876",
+              "data": {
+                "isHover": false
+              },
+              "source": "<node_1_id>",
+              "target": "<node_4_id>",
+              "sourceHandle": "6bfbac14-6728-4b70-a37e-6305364db920",
+              "targetHandle": "b95905f0-3cf2-4af0-ba3e-142df7662876"
+            },
+            {
+              "id": "reactflow__edge-<node_5_id>5b438805-6271-4573-9a97-23ccf9316c8e-<node_4_id>4b5bbd1c-777d-4cba-a309-598024888681",
+              "data": {
+                "isHover": false
+              },
+              "source": "<node_5_id>",
+              "target": "<node_4_id>",
+              "sourceHandle": "5b438805-6271-4573-9a97-23ccf9316c8e",
+              "targetHandle": "4b5bbd1c-777d-4cba-a309-598024888681"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>6b33445b-d105-44e3-a3fd-7c8f30e64c87-<node_4_id>69276f15-7232-4eed-8b14-223fc0ef54c8",
+              "data": {
+                "isHover": false
+              },
+              "source": "<node_2_id>",
+              "target": "<node_4_id>",
+              "sourceHandle": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
+              "targetHandle": "69276f15-7232-4eed-8b14-223fc0ef54c8"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                    "name": "output",
+                    "type": "Any"
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": null
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 1835.5456716018464,
+                "y": 809.0479506567649
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 1835.5456716018464,
+                "y": 809.0479506567649
+              }
+            },
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "candidate_1",
+                "type": "LLM",
+                "model": "openai:gpt-3.5-turbo",
+                "inputs": [],
+                "prompt": "{{prompt}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "6bfbac14-6728-4b70-a37e-6305364db920",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": "{\n  \"temperature\": 1\n}",
+                "dynamicInputs": [
+                  {
+                    "id": "6e90ae8b-5f46-45df-a2ef-42a2abd31575",
+                    "name": "prompt",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {}
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 395.252818173846,
+                "y": 297.13777714325
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 395.252818173846,
+                "y": 297.13777714325
+              }
+            },
+            {
+              "id": "<node_5_id>",
+              "data": {
+                "id": "<node_5_id>",
+                "name": "candidate_2",
+                "type": "LLM",
+                "model": "openai:gpt-3.5-turbo",
+                "inputs": [],
+                "prompt": "{{prompt}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "5b438805-6271-4573-9a97-23ccf9316c8e",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": "{\n  \"temperature\": 1\n}",
+                "dynamicInputs": [
+                  {
+                    "id": "bebeba38-0102-4f45-9e5a-1f34c50a372a",
+                    "name": "prompt",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {}
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 393.2471947585384,
+                "y": 508.4275195980431
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 393.2471947585384,
+                "y": 508.4275195980431
+              }
+            },
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "candidate_3",
+                "type": "LLM",
+                "model": "openai:gpt-3.5-turbo",
+                "inputs": [],
+                "prompt": "{{prompt}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": "{\n  \"temperature\": 1\n}",
+                "dynamicInputs": [
+                  {
+                    "id": "b7b67147-77ce-4cdd-a125-616b83d05710",
+                    "name": "prompt",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {}
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 397.81368508617993,
+                "y": 730.7825171789636
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 397.81368508617993,
+                "y": 730.7825171789636
+              }
+            },
+            {
+              "id": "<node_3_id>",
+              "data": {
+                "id": "<node_3_id>",
+                "name": "Evaluator",
+                "type": "LLM",
+                "model": "openai:gpt-3.5-turbo",
+                "inputs": [],
+                "prompt": "You will be given a prompt and 3 outputs of Large Language Models in response to this prompt. Your goal is to produce strengths and weaknesses of each response.\n\n---\n\nPrompt:\n{{prompt}}\n\nCandidate 1:\n{{cand_1}}\n\nCandidate 2:\n{{cand_2}}\n\nCandidate 3:\n{{cand_3}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "a0dea378-f54a-40cf-a766-4d917e9e4c1c",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [
+                  {
+                    "id": "149dcab7-0dbb-4a77-9066-199e0eb4b320",
+                    "name": "prompt",
+                    "type": "String"
+                  },
+                  {
+                    "id": "c92560cf-6594-49fe-9c80-e1dbb604e502",
+                    "name": "cand_1",
+                    "type": "String"
+                  },
+                  {
+                    "id": "b5123524-32f6-4210-8c9d-793084d092d3",
+                    "name": "cand_2",
+                    "type": "String"
+                  },
+                  {
+                    "id": "3e627791-2ccb-4b8f-9fa2-f7b9265858b9",
+                    "name": "cand_3",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {}
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 281,
+              "dragging": false,
+              "position": {
+                "x": 958.2831914185404,
+                "y": 523.5401701325111
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 958.2831914185404,
+                "y": 523.5401701325111
+              }
+            },
+            {
+              "id": "<node_6_id>",
+              "data": {
+                "id": "<node_6_id>",
+                "name": "prompt",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "601fb170-468b-4765-96e5-25bec1b27864",
+                    "name": "output",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -248.3946933138168,
+                "y": 934.1404576129252
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -248.3946933138168,
+                "y": 934.1404576129252
+              }
+            },
+            {
+              "id": "<node_4_id>",
+              "data": {
+                "id": "<node_4_id>",
+                "name": "final_LLM",
+                "type": "LLM",
+                "model": "openai:gpt-3.5-turbo",
+                "inputs": [],
+                "prompt": "You will be given a prompt, 3 candidate responses and strengths and weaknesses of each of responses. Your goal is to produce the best overall response which incorporates strengths and weaknesses of each candidate.\n\nPay close attention to highlighted strengths and weaknesses. Solve weaknesses and keep strengths.\n\nprompt:\n{{prompt}}\n\n\u0421andidate 1:\n{{cand_1}}\n\n\u0421andidate 2:\n{{cand_2}}\n\n\u0421andidate 3:\n{{cand_3}}\n\n---\nStrengths and Weaknesses:\n{{reasoning}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "8017f840-25d8-4579-8cb1-99ca046c3ce4",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [
+                  {
+                    "id": "a62b8cf4-4096-48b2-93f6-8c3640e7d350",
+                    "name": "prompt",
+                    "type": "String"
+                  },
+                  {
+                    "id": "b95905f0-3cf2-4af0-ba3e-142df7662876",
+                    "name": "cand_1",
+                    "type": "String"
+                  },
+                  {
+                    "id": "4b5bbd1c-777d-4cba-a309-598024888681",
+                    "name": "cand_2",
+                    "type": "String"
+                  },
+                  {
+                    "id": "69276f15-7232-4eed-8b14-223fc0ef54c8",
+                    "name": "cand_3",
+                    "type": "String"
+                  },
+                  {
+                    "id": "fd8e93e5-3ab9-48ce-8ab9-66c214db7f92",
+                    "name": "reasoning",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {}
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 321,
+              "dragging": false,
+              "position": {
+                "x": 1455.5352845994153,
+                "y": 731.4826639025965
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 1455.5352845994153,
+                "y": 731.4826639025965
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 7,
+        "name": "Mixture of Agents",
+        "description": "Implementation of Mixture of Agents paper",
+        "display_group": "build",
+        "ordinal": 150
+      },
+      {
+        "id": "db6d1708-9836-42f2-a3ea-732ca7709039",
+        "created_at": "2024-07-01 20:34:14.509437+00",
+        "runnable_graph": {
+          "pred": {},
+          "nodes": {
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                  "name": "output",
+                  "type": "Any"
+                }
+              ],
+              "outputs": [],
+              "inputType": "String",
+              "inputsMappings": {
+                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "52e5f640-3bd1-44be-bcb5-f51d22d2b3db"
+              }
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [],
+          "nodes": [
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "input",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 256,
+              "height": 182,
+              "dragging": false,
+              "position": {
+                "x": 27.97454698145555,
+                "y": 414.29813235419795
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 27.97454698145555,
+                "y": 414.29813235419795
+              }
+            },
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                    "name": "output",
+                    "type": "Any"
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": null
+              },
+              "type": "Output",
+              "width": 269,
+              "height": 182,
+              "dragging": false,
+              "position": {
+                "x": 946.7645510845663,
+                "y": 413.71769299909084
+              },
+              "selected": true,
+              "positionAbsolute": {
+                "x": 946.7645510845663,
+                "y": 413.71769299909084
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 2,
+        "name": "Blank template",
+        "description": "An input node and an output node - default blank template",
+        "display_group": "build",
+        "ordinal": 170
+      },
+      {
+        "id": "e3d0894b-2b6c-46a6-a40c-c6d9717a7f07",
+        "created_at": "2024-07-30 18:52:04.753573+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_1_id>": [
+              "<node_3_id>"
+            ],
+            "<node_3_id>": [
+              "<node_0_id>",
+              "<node_2_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "predict_output",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "score",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                  "name": "output",
+                  "type": "Any"
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9"
+              }
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "target_output",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "dd9fc3ff-7c14-4849-84f6-6a15be6b78e2",
+                  "name": "output",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_3_id>": {
+              "id": "<node_3_id>",
+              "name": "Semantic_Similarity",
+              "type": "SemanticSimilarity",
+              "inputs": [
+                {
+                  "id": "6511df42-4452-408e-9934-7c4a7ac068df",
+                  "name": "first",
+                  "type": "String"
+                },
+                {
+                  "id": "318217fe-50b5-4eb5-bf19-cf367b2ecf9d",
+                  "name": "second",
+                  "type": "String"
+                }
+              ],
+              "outputs": [
+                {
+                  "id": "c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9",
+                  "name": "output",
+                  "type": "Float"
+                }
+              ],
+              "inputsMappings": {
+                "318217fe-50b5-4eb5-bf19-cf367b2ecf9d": "dd9fc3ff-7c14-4849-84f6-6a15be6b78e2",
+                "6511df42-4452-408e-9934-7c4a7ac068df": "e97a603a-66cf-4a56-84b5-d34458d681a4"
+              }
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_0_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_3_id>6511df42-4452-408e-9934-7c4a7ac068df",
+              "type": "custom",
+              "source": "<node_0_id>",
+              "target": "<node_3_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+              "targetHandle": "6511df42-4452-408e-9934-7c4a7ac068df"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>dd9fc3ff-7c14-4849-84f6-6a15be6b78e2-<node_3_id>318217fe-50b5-4eb5-bf19-cf367b2ecf9d",
+              "type": "custom",
+              "source": "<node_2_id>",
+              "target": "<node_3_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "dd9fc3ff-7c14-4849-84f6-6a15be6b78e2",
+              "targetHandle": "318217fe-50b5-4eb5-bf19-cf367b2ecf9d"
+            },
+            {
+              "id": "reactflow__edge-<node_3_id>c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9-<node_1_id>f202a0a5-931b-40aa-8d06-fc5e3795224d",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_3_id>",
+              "target": "<node_1_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9",
+              "targetHandle": "f202a0a5-931b-40aa-8d06-fc5e3795224d"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "predict_output",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 3.886708617626823,
+                "y": 370.05392652904584
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 3.886708617626823,
+                "y": 370.05392652904584
+              }
+            },
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "score",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                    "name": "output",
+                    "type": "Any"
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": null
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 978.2262487712728,
+                "y": 494.5182573643439
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 978.2262487712728,
+                "y": 494.5182573643439
+              }
+            },
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "target_output",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "dd9fc3ff-7c14-4849-84f6-6a15be6b78e2",
+                    "name": "output",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 5.408583191657613,
+                "y": 641.0752837637555
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 5.408583191657613,
+                "y": 641.0752837637555
+              }
+            },
+            {
+              "id": "<node_3_id>",
+              "data": {
+                "id": "<node_3_id>",
+                "name": "Semantic_Similarity",
+                "type": "SemanticSimilarity",
+                "inputs": [
+                  {
+                    "id": "6511df42-4452-408e-9934-7c4a7ac068df",
+                    "name": "first",
+                    "type": "String"
+                  },
+                  {
+                    "id": "318217fe-50b5-4eb5-bf19-cf367b2ecf9d",
+                    "name": "second",
+                    "type": "String"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "id": "c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9",
+                    "name": "output",
+                    "type": "Float"
+                  }
+                ],
+                "inputsMappings": {}
+              },
+              "type": "SemanticSimilarity",
+              "width": 292,
+              "height": 201,
+              "dragging": false,
+              "position": {
+                "x": 491.0928699512041,
+                "y": 485.30912135350667
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 491.0928699512041,
+                "y": 485.30912135350667
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 4,
+        "name": "Semantic similarity evaluator",
+        "description": "Check how semantically similar two outputs are.",
+        "display_group": "eval",
+        "ordinal": 310
+      },
+      {
+        "id": "2606d430-262a-4181-8951-6db0c685ce2e",
+        "created_at": "2024-09-01 20:57:57.941673+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_0_id>": [
+              "<node_4_id>"
+            ],
+            "<node_2_id>": [
+              "<node_1_id>",
+              "<node_5_id>",
+              "<node_3_id>"
+            ],
+            "<node_4_id>": [
+              "<node_2_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "c33ce947-5659-4dcd-a0ad-c6d717a91178",
+                  "name": "output",
+                  "type": "Any"
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "c33ce947-5659-4dcd-a0ad-c6d717a91178": "e02231ce-b816-48f4-a081-e3caa5376129"
+              },
+              "outputCastType": "NUMBER"
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "answer",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "LLM",
+              "type": "LLM",
+              "model": "openai:gpt-4-turbo",
+              "inputs": [],
+              "prompt": "You are given a question, context and answer. Your goal is to evaluate on the scale from 1 to 5 how relevant is the answer to the question and whether answer is grounded in the context. The score represents the fraction of claims in the output that are relevant to the question over total claims in the output. A high score means most retrieved content directly answers the question. A low score indicates excess or irrelevant information.\n\nIf answer seems correct, but it does not have any relevance to the context, grade it with a low score\n\nIf the context does not contain information related to the question, and the answer correctly acknowledges it, then give higher score.\n\nQuestion:\n{{question}}\n\nAnswer:\n{{answer}}\n\nContext:\n{{context}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "57aaf77e-7efc-4824-8f91-14b279cf6865",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [
+                {
+                  "id": "ea5f1ac2-c843-4e81-8803-6088fb0aeb83",
+                  "name": "answer",
+                  "type": "String"
+                },
+                {
+                  "id": "95e9c92c-160a-4339-8484-546c59909689",
+                  "name": "context",
+                  "type": "String"
+                },
+                {
+                  "id": "12d8a53f-0002-4d3d-9e5e-cab28252bd20",
+                  "name": "question",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "12d8a53f-0002-4d3d-9e5e-cab28252bd20": "4e2bff2f-894e-4ade-96be-71080c09d123",
+                "95e9c92c-160a-4339-8484-546c59909689": "6dc25aff-4004-4135-bac1-803cd177e96d",
+                "ea5f1ac2-c843-4e81-8803-6088fb0aeb83": "e97a603a-66cf-4a56-84b5-d34458d681a4"
+              },
+              "structuredOutputSchema": "class Evaluation {\n  reasoning string\n  score int @description(\"score from 1 to 5\")\n}\n",
+              "structuredOutputEnabled": true,
+              "structuredOutputMaxRetries": 3,
+              "structuredOutputSchemaTarget": "Evaluation"
+            },
+            "<node_3_id>": {
+              "id": "<node_3_id>",
+              "name": "question",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "4e2bff2f-894e-4ade-96be-71080c09d123",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_4_id>": {
+              "id": "<node_4_id>",
+              "name": "JSON Extractor",
+              "type": "JsonExtractor",
+              "inputs": [
+                {
+                  "id": "caa44272-857c-4c24-81f4-ca1c3bcdb9f5",
+                  "name": "input",
+                  "type": "String"
+                }
+              ],
+              "outputs": [
+                {
+                  "id": "e02231ce-b816-48f4-a081-e3caa5376129",
+                  "type": "String"
+                }
+              ],
+              "template": "{{score}}",
+              "inputsMappings": {
+                "caa44272-857c-4c24-81f4-ca1c3bcdb9f5": "57aaf77e-7efc-4824-8f91-14b279cf6865"
+              }
+            },
+            "<node_5_id>": {
+              "id": "<node_5_id>",
+              "name": "context",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "6dc25aff-4004-4135-bac1-803cd177e96d",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_1_id>_a14558fc-3347-4663-b016-9ed1a31bf105e97a603a-66cf-4a56-84b5-d34458d681a4-<node_2_id>_a14558fc-3347-4663-b016-9ed1a31bf105ea5f1ac2-c843-4e81-8803-6088fb0aeb83",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_1_id>",
+              "target": "<node_2_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+              "targetHandle": "ea5f1ac2-c843-4e81-8803-6088fb0aeb83"
+            },
+            {
+              "id": "reactflow__edge-<node_5_id>_a14558fc-3347-4663-b016-9ed1a31bf1056dc25aff-4004-4135-bac1-803cd177e96d-<node_2_id>_a14558fc-3347-4663-b016-9ed1a31bf10595e9c92c-160a-4339-8484-546c59909689",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_5_id>",
+              "target": "<node_2_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "6dc25aff-4004-4135-bac1-803cd177e96d",
+              "targetHandle": "95e9c92c-160a-4339-8484-546c59909689"
+            },
+            {
+              "id": "reactflow__edge-<node_3_id>_a14558fc-3347-4663-b016-9ed1a31bf1054e2bff2f-894e-4ade-96be-71080c09d123-<node_2_id>_a14558fc-3347-4663-b016-9ed1a31bf10512d8a53f-0002-4d3d-9e5e-cab28252bd20",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_3_id>",
+              "target": "<node_2_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "4e2bff2f-894e-4ade-96be-71080c09d123",
+              "targetHandle": "12d8a53f-0002-4d3d-9e5e-cab28252bd20"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>57aaf77e-7efc-4824-8f91-14b279cf6865-<node_4_id>caa44272-857c-4c24-81f4-ca1c3bcdb9f5",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_2_id>",
+              "target": "<node_4_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "57aaf77e-7efc-4824-8f91-14b279cf6865",
+              "targetHandle": "caa44272-857c-4c24-81f4-ca1c3bcdb9f5"
+            },
+            {
+              "id": "reactflow__edge-<node_4_id>e02231ce-b816-48f4-a081-e3caa5376129-<node_0_id>c33ce947-5659-4dcd-a0ad-c6d717a91178",
+              "type": "custom",
+              "source": "<node_4_id>",
+              "target": "<node_0_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "e02231ce-b816-48f4-a081-e3caa5376129",
+              "targetHandle": "c33ce947-5659-4dcd-a0ad-c6d717a91178"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "answer",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -6.826952018993438,
+                "y": 145.2281388521993
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -6.826952018993438,
+                "y": 145.2281388521993
+              }
+            },
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "c33ce947-5659-4dcd-a0ad-c6d717a91178",
+                    "name": "output",
+                    "type": "Any"
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": "NUMBER"
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 1266.9713278115541,
+                "y": 356.371354618274
+              },
+              "selected": true,
+              "positionAbsolute": {
+                "x": 1266.9713278115541,
+                "y": 356.371354618274
+              }
+            },
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "LLM",
+                "type": "LLM",
+                "model": "openai:gpt-4-turbo",
+                "inputs": [],
+                "prompt": "You are given a question, context and answer. Your goal is to evaluate on the scale from 1 to 5 how relevant is the answer to the question and whether answer is grounded in the context. The score represents the fraction of claims in the output that are relevant to the question over total claims in the output. A high score means most retrieved content directly answers the question. A low score indicates excess or irrelevant information.\n\nIf answer seems correct, but it does not have any relevance to the context, grade it with a low score\n\nIf the context does not contain information related to the question, and the answer correctly acknowledges it, then give higher score.\n\nQuestion:\n{{question}}\n\nAnswer:\n{{answer}}\n\nContext:\n{{context}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "57aaf77e-7efc-4824-8f91-14b279cf6865",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [
+                  {
+                    "id": "ea5f1ac2-c843-4e81-8803-6088fb0aeb83",
+                    "name": "answer",
+                    "type": "String"
+                  },
+                  {
+                    "id": "95e9c92c-160a-4339-8484-546c59909689",
+                    "name": "context",
+                    "type": "String"
+                  },
+                  {
+                    "id": "12d8a53f-0002-4d3d-9e5e-cab28252bd20",
+                    "name": "question",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {},
+                "structuredOutputSchema": "class Evaluation {\n  reasoning string\n  score int @description(\"score from 1 to 5\")\n}\n",
+                "structuredOutputEnabled": true,
+                "structuredOutputMaxRetries": 3,
+                "structuredOutputSchemaTarget": "Evaluation"
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 241,
+              "dragging": false,
+              "position": {
+                "x": 431.06590507021747,
+                "y": 374.28125843032547
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 431.06590507021747,
+                "y": 374.28125843032547
+              }
+            },
+            {
+              "id": "<node_5_id>",
+              "data": {
+                "id": "<node_5_id>",
+                "name": "context",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "6dc25aff-4004-4135-bac1-803cd177e96d",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -17.696888872450586,
+                "y": 382.02253062732666
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -17.696888872450586,
+                "y": 382.02253062732666
+              }
+            },
+            {
+              "id": "<node_3_id>",
+              "data": {
+                "id": "<node_3_id>",
+                "name": "question",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "4e2bff2f-894e-4ade-96be-71080c09d123",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -17.042680955876335,
+                "y": 628.3925343244507
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -17.042680955876335,
+                "y": 628.3925343244507
+              }
+            },
+            {
+              "id": "<node_4_id>",
+              "data": {
+                "id": "<node_4_id>",
+                "name": "JSON Extractor",
+                "type": "JsonExtractor",
+                "inputs": [
+                  {
+                    "id": "caa44272-857c-4c24-81f4-ca1c3bcdb9f5",
+                    "name": "input",
+                    "type": "String"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "id": "e02231ce-b816-48f4-a081-e3caa5376129",
+                    "type": "String"
+                  }
+                ],
+                "template": "{{score}}",
+                "inputsMappings": {}
+              },
+              "type": "JsonExtractor",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 813.7413749177759,
+                "y": 383.3964703047172
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 813.7413749177759,
+                "y": 383.3964703047172
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 6,
+        "name": "RAG relevance evaluator",
+        "description": "Use an LLM to evaluate the relevance of RAG response..",
+        "display_group": "eval",
+        "ordinal": 320
+      },
+      {
+        "id": "c5c48fcd-5fcb-4b43-b6ce-d45e403fbea5",
+        "created_at": "2024-09-20 02:05:19.957586+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_0_id>": [
+              "<node_2_id>",
+              "<node_3_id>"
+            ],
+            "<node_1_id>": [
+              "<node_0_id>"
+            ],
+            "<node_4_id>": [
+              "<node_1_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "LLM",
+              "type": "LLM",
+              "model": "openai:gpt-4o",
+              "inputs": [],
+              "prompt": "Check if the answer includes information that isn't provided in the context.\n\nIf the answer contains facts or details that are not directly found in the context, return True.\n\n<context>\n{{context}}\n</context>\n\n<answer>\n{{answer}}\n</answer>",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "56b7d0f8-c491-4ba3-af1d-bcfc033a9161",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [
+                {
+                  "id": "2b092b3c-5c67-44c1-a72f-c81b7894899d",
+                  "name": "context",
+                  "type": "String"
+                },
+                {
+                  "id": "104d9090-af96-45a9-9da7-5e14465ab1a9",
+                  "name": "answer",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "104d9090-af96-45a9-9da7-5e14465ab1a9": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                "2b092b3c-5c67-44c1-a72f-c81b7894899d": "8374eb05-500b-4190-a6e6-e2b35623ea3a"
+              },
+              "structuredOutputSchema": "class Response {\n  reasoning string\n  isNotGroundedInContext bool\n}",
+              "structuredOutputEnabled": true,
+              "structuredOutputMaxRetries": 3,
+              "structuredOutputSchemaTarget": "Response"
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "JSON Extractor",
+              "type": "JsonExtractor",
+              "inputs": [
+                {
+                  "id": "cbbc40e3-ae32-451d-9c7a-450ce9412d3f",
+                  "name": "input",
+                  "type": "String",
+                  "isCyclic": false
+                }
+              ],
+              "outputs": [
+                {
+                  "id": "eb82b1a0-bda6-4159-8238-946cbc098684",
+                  "type": "String"
+                }
+              ],
+              "template": "{{isNotGroundedInContext}}",
+              "inputsMappings": {
+                "cbbc40e3-ae32-451d-9c7a-450ce9412d3f": "56b7d0f8-c491-4ba3-af1d-bcfc033a9161"
+              }
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "context",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "8374eb05-500b-4190-a6e6-e2b35623ea3a",
+                  "name": "output",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_3_id>": {
+              "id": "<node_3_id>",
+              "name": "answer",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_4_id>": {
+              "id": "<node_4_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                  "name": "output",
+                  "type": "Any",
+                  "isCyclic": false
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "eb82b1a0-bda6-4159-8238-946cbc098684"
+              },
+              "outputCastType": "BOOLEAN"
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_0_id>56b7d0f8-c491-4ba3-af1d-bcfc033a9161-<node_1_id>cbbc40e3-ae32-451d-9c7a-450ce9412d3f",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_0_id>",
+              "target": "<node_1_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "56b7d0f8-c491-4ba3-af1d-bcfc033a9161",
+              "targetHandle": "cbbc40e3-ae32-451d-9c7a-450ce9412d3f"
+            },
+            {
+              "id": "reactflow__edge-<node_1_id>eb82b1a0-bda6-4159-8238-946cbc098684-<node_4_id>f202a0a5-931b-40aa-8d06-fc5e3795224d",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_1_id>",
+              "target": "<node_4_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "eb82b1a0-bda6-4159-8238-946cbc098684",
+              "targetHandle": "f202a0a5-931b-40aa-8d06-fc5e3795224d"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>8374eb05-500b-4190-a6e6-e2b35623ea3a-<node_0_id>2b092b3c-5c67-44c1-a72f-c81b7894899d",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_2_id>",
+              "target": "<node_0_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "8374eb05-500b-4190-a6e6-e2b35623ea3a",
+              "targetHandle": "2b092b3c-5c67-44c1-a72f-c81b7894899d"
+            },
+            {
+              "id": "reactflow__edge-<node_3_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_0_id>104d9090-af96-45a9-9da7-5e14465ab1a9",
+              "type": "custom",
+              "source": "<node_3_id>",
+              "target": "<node_0_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+              "targetHandle": "104d9090-af96-45a9-9da7-5e14465ab1a9"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_3_id>",
+              "data": {
+                "id": "<node_3_id>",
+                "name": "answer",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 78.75644696678785,
+                "y": 660.2352986740113
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 78.75644696678785,
+                "y": 660.2352986740113
+              }
+            },
+            {
+              "id": "<node_4_id>",
+              "data": {
+                "id": "<node_4_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                    "name": "output",
+                    "type": "Any",
+                    "isCyclic": false
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": "BOOLEAN"
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 1488.5283483197722,
+                "y": 335.1013427043191
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 1488.5283483197722,
+                "y": 335.1013427043191
+              }
+            },
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "context",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "8374eb05-500b-4190-a6e6-e2b35623ea3a",
+                    "name": "output",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 73.29562120475191,
+                "y": 318.77291052400926
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 73.29562120475191,
+                "y": 318.77291052400926
+              }
+            },
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "LLM",
+                "type": "LLM",
+                "model": "openai:gpt-4o",
+                "inputs": [],
+                "prompt": "Check if the answer includes information that isn't provided in the context.\n\nIf the answer contains facts or details that are not directly found in the context, return True.\n\n<context>\n{{context}}\n</context>\n\n<answer>\n{{answer}}\n</answer>",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "56b7d0f8-c491-4ba3-af1d-bcfc033a9161",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [
+                  {
+                    "id": "2b092b3c-5c67-44c1-a72f-c81b7894899d",
+                    "name": "context",
+                    "type": "String"
+                  },
+                  {
+                    "id": "104d9090-af96-45a9-9da7-5e14465ab1a9",
+                    "name": "answer",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {},
+                "structuredOutputSchema": "class Response {\n  reasoning string\n  isNotGroundedInContext bool\n}",
+                "structuredOutputEnabled": true,
+                "structuredOutputMaxRetries": 3,
+                "structuredOutputSchemaTarget": "Response"
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 201,
+              "dragging": false,
+              "position": {
+                "x": 615.6092178499748,
+                "y": 463.2565046523191
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 615.6092178499748,
+                "y": 463.2565046523191
+              }
+            },
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "JSON Extractor",
+                "type": "JsonExtractor",
+                "inputs": [
+                  {
+                    "id": "cbbc40e3-ae32-451d-9c7a-450ce9412d3f",
+                    "name": "input",
+                    "type": "String",
+                    "isCyclic": false
+                  }
+                ],
+                "outputs": [
+                  {
+                    "id": "eb82b1a0-bda6-4159-8238-946cbc098684",
+                    "type": "String"
+                  }
+                ],
+                "template": "{{isNotGroundedInContext}}",
+                "inputsMappings": {}
+              },
+              "type": "JsonExtractor",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 1043.720526496658,
+                "y": 415.9508800093736
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 1043.720526496658,
+                "y": 415.9508800093736
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 5,
+        "name": "Hallucination detection",
+        "description": "Checks if an LLM output is not based on the provided context",
+        "display_group": "semantic_event_eval",
+        "ordinal": 210
+      },
+      {
+        "id": "b7791fe5-8ddc-4f5b-97e9-d255e4c74658",
+        "created_at": "2024-09-20 02:09:51.913484+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_1_id>": [
+              "<node_2_id>"
+            ],
+            "<node_2_id>": [
+              "<node_0_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "question",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                  "name": "output",
+                  "type": "Any",
+                  "isCyclic": false
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "4a2d25e4-ec37-4e8a-a188-5edddd75cf79"
+              },
+              "outputCastType": null
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "LLM",
+              "type": "LLM",
+              "model": "openai:gpt-4o",
+              "inputs": [],
+              "prompt": "Analyze the customer inquiry and determine the category to which it is related.\n\n{{question}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "4a2d25e4-ec37-4e8a-a188-5edddd75cf79",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [
+                {
+                  "id": "9f164fcc-0d3b-4b68-b4b1-efe4136b2fd1",
+                  "name": "question",
+                  "type": "String",
+                  "isCyclic": false
+                }
+              ],
+              "inputsMappings": {
+                "9f164fcc-0d3b-4b68-b4b1-efe4136b2fd1": "e97a603a-66cf-4a56-84b5-d34458d681a4"
+              },
+              "structuredOutputSchema": "enum QuestionCategory {\n  REFUND @description(\"Customer asked about refund\")\n  PURCHASE @description(\"Customer is interested in purchasing\")\n  OTHER @description(\"Customer asks about something other than refund and purchase\")\n}",
+              "structuredOutputEnabled": true,
+              "structuredOutputMaxRetries": 3,
+              "structuredOutputSchemaTarget": "QuestionCategory"
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_0_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_2_id>9f164fcc-0d3b-4b68-b4b1-efe4136b2fd1",
+              "type": "custom",
+              "source": "<node_0_id>",
+              "target": "<node_2_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+              "targetHandle": "9f164fcc-0d3b-4b68-b4b1-efe4136b2fd1"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>4a2d25e4-ec37-4e8a-a188-5edddd75cf79-<node_1_id>f202a0a5-931b-40aa-8d06-fc5e3795224d",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_2_id>",
+              "target": "<node_1_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "4a2d25e4-ec37-4e8a-a188-5edddd75cf79",
+              "targetHandle": "f202a0a5-931b-40aa-8d06-fc5e3795224d"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "question",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 5.132431517934151,
+                "y": 413.5367285054139
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 5.132431517934151,
+                "y": 413.5367285054139
+              }
+            },
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                    "name": "output",
+                    "type": "Any",
+                    "isCyclic": false
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": null
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 1000.095392167517,
+                "y": 343.9773623521553
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 1000.095392167517,
+                "y": 343.9773623521553
+              }
+            },
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "LLM",
+                "type": "LLM",
+                "model": "openai:gpt-4o",
+                "inputs": [],
+                "prompt": "Analyze the customer inquiry and determine the category to which it is related.\n\n{{question}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "4a2d25e4-ec37-4e8a-a188-5edddd75cf79",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [
+                  {
+                    "id": "9f164fcc-0d3b-4b68-b4b1-efe4136b2fd1",
+                    "name": "question",
+                    "type": "String",
+                    "isCyclic": false
+                  }
+                ],
+                "inputsMappings": {},
+                "structuredOutputSchema": "enum QuestionCategory {\n  REFUND @description(\"Customer asked about refund\")\n  PURCHASE @description(\"Customer is interested in purchasing\")\n  OTHER @description(\"Customer asks about something other than refund and purchase\")\n}",
+                "structuredOutputEnabled": true,
+                "structuredOutputMaxRetries": 3,
+                "structuredOutputSchemaTarget": "QuestionCategory"
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 468.6846122057707,
+                "y": 430.390335495808
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 468.6846122057707,
+                "y": 430.390335495808
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 3,
+        "name": "Classification",
+        "description": "Classify a user's inquiry",
+        "display_group": "semantic_event_eval",
+        "ordinal": 220
+      },
+      {
+        "id": "a040a2ff-d675-4be6-8297-4773e45bf42a",
+        "created_at": "2024-09-20 02:10:19.921583+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_1_id>": [
+              "<node_0_id>"
+            ],
+            "<node_2_id>": [
+              "<node_1_id>"
+            ],
+            "<node_3_id>": [
+              "<node_2_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "message",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "LLM",
+              "type": "LLM",
+              "model": "openai:gpt-4o-mini",
+              "inputs": [],
+              "prompt": "Extract the company name from the message.\n\n{{message}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "cd71e664-eee6-42b1-8788-f1c701c41095",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [
+                {
+                  "id": "f8c47407-cbe8-4c08-ab9f-48f7c3f90841",
+                  "name": "message",
+                  "type": "String",
+                  "isCyclic": false
+                }
+              ],
+              "inputsMappings": {
+                "f8c47407-cbe8-4c08-ab9f-48f7c3f90841": "e97a603a-66cf-4a56-84b5-d34458d681a4"
+              },
+              "structuredOutputSchema": "class Response {\n  companyName string\n}",
+              "structuredOutputEnabled": true,
+              "structuredOutputMaxRetries": 3,
+              "structuredOutputSchemaTarget": "Response"
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "JSON Extractor",
+              "type": "JsonExtractor",
+              "inputs": [
+                {
+                  "id": "ac8dcb4c-14b1-41b4-86f2-06cd4a77bb3a",
+                  "name": "input",
+                  "type": "String",
+                  "isCyclic": false
+                }
+              ],
+              "outputs": [
+                {
+                  "id": "8c892a48-3a6e-42af-ad84-b4fb56f1e0e0",
+                  "type": "String"
+                }
+              ],
+              "template": "{{companyName}}",
+              "inputsMappings": {
+                "ac8dcb4c-14b1-41b4-86f2-06cd4a77bb3a": "cd71e664-eee6-42b1-8788-f1c701c41095"
+              }
+            },
+            "<node_3_id>": {
+              "id": "<node_3_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                  "name": "output",
+                  "type": "Any",
+                  "isCyclic": false
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "8c892a48-3a6e-42af-ad84-b4fb56f1e0e0"
+              },
+              "outputCastType": null
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_0_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_1_id>f8c47407-cbe8-4c08-ab9f-48f7c3f90841",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_0_id>",
+              "target": "<node_1_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+              "targetHandle": "f8c47407-cbe8-4c08-ab9f-48f7c3f90841"
+            },
+            {
+              "id": "reactflow__edge-<node_1_id>cd71e664-eee6-42b1-8788-f1c701c41095-<node_2_id>ac8dcb4c-14b1-41b4-86f2-06cd4a77bb3a",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_1_id>",
+              "target": "<node_2_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "cd71e664-eee6-42b1-8788-f1c701c41095",
+              "targetHandle": "ac8dcb4c-14b1-41b4-86f2-06cd4a77bb3a"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>8c892a48-3a6e-42af-ad84-b4fb56f1e0e0-<node_3_id>f202a0a5-931b-40aa-8d06-fc5e3795224d",
+              "type": "custom",
+              "source": "<node_2_id>",
+              "target": "<node_3_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "8c892a48-3a6e-42af-ad84-b4fb56f1e0e0",
+              "targetHandle": "f202a0a5-931b-40aa-8d06-fc5e3795224d"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "message",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -14.664068550450907,
+                "y": 447.79990170069595
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -14.664068550450907,
+                "y": 447.79990170069595
+              }
+            },
+            {
+              "id": "<node_3_id>",
+              "data": {
+                "id": "<node_3_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
+                    "name": "output",
+                    "type": "Any",
+                    "isCyclic": false
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": null
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 1478.9259239949256,
+                "y": 318.914598062566
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 1478.9259239949256,
+                "y": 318.914598062566
+              }
+            },
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "LLM",
+                "type": "LLM",
+                "model": "openai:gpt-4o-mini",
+                "inputs": [],
+                "prompt": "Extract the company name from the message.\n\n{{message}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "cd71e664-eee6-42b1-8788-f1c701c41095",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [
+                  {
+                    "id": "f8c47407-cbe8-4c08-ab9f-48f7c3f90841",
+                    "name": "message",
+                    "type": "String",
+                    "isCyclic": false
+                  }
+                ],
+                "inputsMappings": {},
+                "structuredOutputSchema": "class Response {\n  companyName string\n}",
+                "structuredOutputEnabled": true,
+                "structuredOutputMaxRetries": 3,
+                "structuredOutputSchemaTarget": "Response"
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 444.31968904468124,
+                "y": 412.1166431249909
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 444.31968904468124,
+                "y": 412.1166431249909
+              }
+            },
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "JSON Extractor",
+                "type": "JsonExtractor",
+                "inputs": [
+                  {
+                    "id": "ac8dcb4c-14b1-41b4-86f2-06cd4a77bb3a",
+                    "name": "input",
+                    "type": "String",
+                    "isCyclic": false
+                  }
+                ],
+                "outputs": [
+                  {
+                    "id": "8c892a48-3a6e-42af-ad84-b4fb56f1e0e0",
+                    "type": "String"
+                  }
+                ],
+                "template": "{{companyName}}",
+                "inputsMappings": {}
+              },
+              "type": "JsonExtractor",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 948.2942241035719,
+                "y": 395.8704675519927
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 948.2942241035719,
+                "y": 395.8704675519927
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 4,
+        "name": "Entity extraction",
+        "description": "Extract named entities from text",
+        "display_group": "semantic_event_eval",
+        "ordinal": 230
+      },
+      {
+        "id": "a11634ff-baf3-4a8f-a0e7-cc700745d814",
+        "created_at": "2024-09-20 02:14:34.905572+00",
+        "runnable_graph": {
+          "pred": {
+            "<node_1_id>": [
+              "<node_0_id>",
+              "<node_2_id>",
+              "<node_3_id>"
+            ],
+            "<node_4_id>": [
+              "<node_5_id>"
+            ],
+            "<node_5_id>": [
+              "<node_1_id>"
+            ]
+          },
+          "nodes": {
+            "<node_0_id>": {
+              "id": "<node_0_id>",
+              "name": "answer",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_1_id>": {
+              "id": "<node_1_id>",
+              "name": "LLM",
+              "type": "LLM",
+              "model": "openai:gpt-4-turbo",
+              "inputs": [],
+              "prompt": "You are given a question, context and answer. Your goal is to evaluate on the scale from 1 to 5 how relevant is the answer to the question and whether answer is grounded in the context. The score represents the fraction of claims in the output that are relevant to the question over total claims in the output. A high score means most retrieved content directly answers the question. A low score indicates excess or irrelevant information.\n\nIf answer seems correct, but it does not have any relevance to the context, grade it with a low score\n\nIf the context does not contain information related to the question, and the answer correctly acknowledges it, then give higher score.\n\nQuestion:\n{{question}}\n\nAnswer:\n{{answer}}\n\nContext:\n{{context}}",
+              "stream": false,
+              "outputs": [
+                {
+                  "id": "57aaf77e-7efc-4824-8f91-14b279cf6865",
+                  "type": "String"
+                }
+              ],
+              "modelParams": null,
+              "dynamicInputs": [
+                {
+                  "id": "ea5f1ac2-c843-4e81-8803-6088fb0aeb83",
+                  "name": "answer",
+                  "type": "String"
+                },
+                {
+                  "id": "95e9c92c-160a-4339-8484-546c59909689",
+                  "name": "context",
+                  "type": "String"
+                },
+                {
+                  "id": "12d8a53f-0002-4d3d-9e5e-cab28252bd20",
+                  "name": "question",
+                  "type": "String"
+                }
+              ],
+              "inputsMappings": {
+                "12d8a53f-0002-4d3d-9e5e-cab28252bd20": "4e2bff2f-894e-4ade-96be-71080c09d123",
+                "95e9c92c-160a-4339-8484-546c59909689": "6dc25aff-4004-4135-bac1-803cd177e96d",
+                "ea5f1ac2-c843-4e81-8803-6088fb0aeb83": "e97a603a-66cf-4a56-84b5-d34458d681a4"
+              },
+              "structuredOutputSchema": "class Evaluation {\n  reasoning string\n  score int @description(\"score from 1 to 5\")\n}\n",
+              "structuredOutputEnabled": true,
+              "structuredOutputMaxRetries": 3,
+              "structuredOutputSchemaTarget": "Evaluation"
+            },
+            "<node_2_id>": {
+              "id": "<node_2_id>",
+              "name": "context",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "6dc25aff-4004-4135-bac1-803cd177e96d",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_3_id>": {
+              "id": "<node_3_id>",
+              "name": "question",
+              "type": "Input",
+              "input": "",
+              "inputs": [],
+              "outputs": [
+                {
+                  "id": "4e2bff2f-894e-4ade-96be-71080c09d123",
+                  "type": "String"
+                }
+              ],
+              "inputType": "String",
+              "inputsMappings": {}
+            },
+            "<node_4_id>": {
+              "id": "<node_4_id>",
+              "name": "output",
+              "type": "Output",
+              "inputs": [
+                {
+                  "id": "c33ce947-5659-4dcd-a0ad-c6d717a91178",
+                  "name": "output",
+                  "type": "Any"
+                }
+              ],
+              "outputs": [],
+              "version": 1,
+              "inputType": "String",
+              "inputsMappings": {
+                "c33ce947-5659-4dcd-a0ad-c6d717a91178": "e02231ce-b816-48f4-a081-e3caa5376129"
+              },
+              "outputCastType": "NUMBER"
+            },
+            "<node_5_id>": {
+              "id": "<node_5_id>",
+              "name": "JSON Extractor",
+              "type": "JsonExtractor",
+              "inputs": [
+                {
+                  "id": "caa44272-857c-4c24-81f4-ca1c3bcdb9f5",
+                  "name": "input",
+                  "type": "String"
+                }
+              ],
+              "outputs": [
+                {
+                  "id": "e02231ce-b816-48f4-a081-e3caa5376129",
+                  "type": "String"
+                }
+              ],
+              "template": "{{score}}",
+              "inputsMappings": {
+                "caa44272-857c-4c24-81f4-ca1c3bcdb9f5": "57aaf77e-7efc-4824-8f91-14b279cf6865"
+              }
+            }
+          }
+        },
+        "displayable_graph": {
+          "edges": [
+            {
+              "id": "reactflow__edge-<node_0_id>_a14558fc-3347-4663-b016-9ed1a31bf105e97a603a-66cf-4a56-84b5-d34458d681a4-<node_1_id>_a14558fc-3347-4663-b016-9ed1a31bf105ea5f1ac2-c843-4e81-8803-6088fb0aeb83",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_0_id>",
+              "target": "<node_1_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+              "targetHandle": "ea5f1ac2-c843-4e81-8803-6088fb0aeb83"
+            },
+            {
+              "id": "reactflow__edge-<node_2_id>_a14558fc-3347-4663-b016-9ed1a31bf1056dc25aff-4004-4135-bac1-803cd177e96d-<node_1_id>_a14558fc-3347-4663-b016-9ed1a31bf10595e9c92c-160a-4339-8484-546c59909689",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_2_id>",
+              "target": "<node_1_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "6dc25aff-4004-4135-bac1-803cd177e96d",
+              "targetHandle": "95e9c92c-160a-4339-8484-546c59909689"
+            },
+            {
+              "id": "reactflow__edge-<node_3_id>_a14558fc-3347-4663-b016-9ed1a31bf1054e2bff2f-894e-4ade-96be-71080c09d123-<node_1_id>_a14558fc-3347-4663-b016-9ed1a31bf10512d8a53f-0002-4d3d-9e5e-cab28252bd20",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_3_id>",
+              "target": "<node_1_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "4e2bff2f-894e-4ade-96be-71080c09d123",
+              "targetHandle": "12d8a53f-0002-4d3d-9e5e-cab28252bd20"
+            },
+            {
+              "id": "reactflow__edge-<node_1_id>57aaf77e-7efc-4824-8f91-14b279cf6865-<node_5_id>caa44272-857c-4c24-81f4-ca1c3bcdb9f5",
+              "data": {
+                "isHover": false
+              },
+              "type": "custom",
+              "source": "<node_1_id>",
+              "target": "<node_5_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "57aaf77e-7efc-4824-8f91-14b279cf6865",
+              "targetHandle": "caa44272-857c-4c24-81f4-ca1c3bcdb9f5"
+            },
+            {
+              "id": "reactflow__edge-<node_5_id>e02231ce-b816-48f4-a081-e3caa5376129-<node_4_id>c33ce947-5659-4dcd-a0ad-c6d717a91178",
+              "type": "custom",
+              "source": "<node_5_id>",
+              "target": "<node_4_id>",
+              "markerEnd": {
+                "type": "arrowclosed"
+              },
+              "sourceHandle": "e02231ce-b816-48f4-a081-e3caa5376129",
+              "targetHandle": "c33ce947-5659-4dcd-a0ad-c6d717a91178"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "<node_0_id>",
+              "data": {
+                "id": "<node_0_id>",
+                "name": "answer",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -6.826952018993438,
+                "y": 145.2281388521993
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -6.826952018993438,
+                "y": 145.2281388521993
+              }
+            },
+            {
+              "id": "<node_4_id>",
+              "data": {
+                "id": "<node_4_id>",
+                "name": "output",
+                "type": "Output",
+                "inputs": [
+                  {
+                    "id": "c33ce947-5659-4dcd-a0ad-c6d717a91178",
+                    "name": "output",
+                    "type": "Any"
+                  }
+                ],
+                "outputs": [],
+                "version": 1,
+                "inputType": "String",
+                "inputsMappings": {},
+                "outputCastType": "NUMBER"
+              },
+              "type": "Output",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": 1266.9713278115541,
+                "y": 356.371354618274
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 1266.9713278115541,
+                "y": 356.371354618274
+              }
+            },
+            {
+              "id": "<node_1_id>",
+              "data": {
+                "id": "<node_1_id>",
+                "name": "LLM",
+                "type": "LLM",
+                "model": "openai:gpt-4-turbo",
+                "inputs": [],
+                "prompt": "You are given a question, context and answer. Your goal is to evaluate on the scale from 1 to 5 how relevant is the answer to the question and whether answer is grounded in the context. The score represents the fraction of claims in the output that are relevant to the question over total claims in the output. A high score means most retrieved content directly answers the question. A low score indicates excess or irrelevant information.\n\nIf answer seems correct, but it does not have any relevance to the context, grade it with a low score\n\nIf the context does not contain information related to the question, and the answer correctly acknowledges it, then give higher score.\n\nQuestion:\n{{question}}\n\nAnswer:\n{{answer}}\n\nContext:\n{{context}}",
+                "stream": false,
+                "outputs": [
+                  {
+                    "id": "57aaf77e-7efc-4824-8f91-14b279cf6865",
+                    "type": "String"
+                  }
+                ],
+                "modelParams": null,
+                "dynamicInputs": [
+                  {
+                    "id": "ea5f1ac2-c843-4e81-8803-6088fb0aeb83",
+                    "name": "answer",
+                    "type": "String"
+                  },
+                  {
+                    "id": "95e9c92c-160a-4339-8484-546c59909689",
+                    "name": "context",
+                    "type": "String"
+                  },
+                  {
+                    "id": "12d8a53f-0002-4d3d-9e5e-cab28252bd20",
+                    "name": "question",
+                    "type": "String"
+                  }
+                ],
+                "inputsMappings": {},
+                "structuredOutputSchema": "class Evaluation {\n  reasoning string\n  score int @description(\"score from 1 to 5\")\n}\n",
+                "structuredOutputEnabled": true,
+                "structuredOutputMaxRetries": 3,
+                "structuredOutputSchemaTarget": "Evaluation"
+              },
+              "type": "LLM",
+              "width": 292,
+              "height": 241,
+              "dragging": false,
+              "position": {
+                "x": 431.06590507021747,
+                "y": 374.28125843032547
+              },
+              "selected": true,
+              "positionAbsolute": {
+                "x": 431.06590507021747,
+                "y": 374.28125843032547
+              }
+            },
+            {
+              "id": "<node_2_id>",
+              "data": {
+                "id": "<node_2_id>",
+                "name": "context",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "6dc25aff-4004-4135-bac1-803cd177e96d",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -17.696888872450586,
+                "y": 382.02253062732666
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -17.696888872450586,
+                "y": 382.02253062732666
+              }
+            },
+            {
+              "id": "<node_3_id>",
+              "data": {
+                "id": "<node_3_id>",
+                "name": "question",
+                "type": "Input",
+                "input": "",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "id": "4e2bff2f-894e-4ade-96be-71080c09d123",
+                    "type": "String"
+                  }
+                ],
+                "inputType": "String",
+                "inputsMappings": {}
+              },
+              "type": "Input",
+              "width": 292,
+              "height": 223,
+              "dragging": false,
+              "position": {
+                "x": -17.042680955876335,
+                "y": 628.3925343244507
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": -17.042680955876335,
+                "y": 628.3925343244507
+              }
+            },
+            {
+              "id": "<node_5_id>",
+              "data": {
+                "id": "<node_5_id>",
+                "name": "JSON Extractor",
+                "type": "JsonExtractor",
+                "inputs": [
+                  {
+                    "id": "caa44272-857c-4c24-81f4-ca1c3bcdb9f5",
+                    "name": "input",
+                    "type": "String"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "id": "e02231ce-b816-48f4-a081-e3caa5376129",
+                    "type": "String"
+                  }
+                ],
+                "template": "{{score}}",
+                "inputsMappings": {}
+              },
+              "type": "JsonExtractor",
+              "width": 292,
+              "height": 161,
+              "dragging": false,
+              "position": {
+                "x": 813.7413749177759,
+                "y": 383.3964703047172
+              },
+              "selected": false,
+              "positionAbsolute": {
+                "x": 813.7413749177759,
+                "y": 383.3964703047172
+              }
+            }
+          ]
+        },
+        "number_of_nodes": 6,
+        "name": "RAG relevance score",
+        "description": "Use an LLM to evaluate the relevance of RAG response.",
+        "display_group": "semantic_event_eval",
+        "ordinal": 240
+      }
+    ]
+  },
+  {
+    "table": "llm_prices",
+    "data": [
+      {
+        "id": "f0404bfd-4f07-4398-8d21-740f60d13e13",
+        "created_at": "2024-10-16 17:35:42.463992+00",
+        "updated_at": "2024-10-16 17:35:42.463992+00",
+        "provider": "anthropic",
+        "model": "claude-2.0",
+        "input_price_per_million": 8.0,
+        "output_price_per_million": 24.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "4a795dc8-c6de-416c-9e33-f739f040e7ac",
+        "created_at": "2024-10-16 17:35:13.468792+00",
+        "updated_at": "2024-10-16 17:35:13.468792+00",
+        "provider": "anthropic",
+        "model": "claude-2.1",
+        "input_price_per_million": 8.0,
+        "output_price_per_million": 24.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "d1f31e4c-e47d-43d5-b332-9425310168ce",
+        "created_at": "2024-10-16 17:01:24.987554+00",
+        "updated_at": "2024-10-16 17:01:24.987554+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "11df2d02-e717-488b-9a95-890730cc8a1d",
+        "created_at": "2024-10-16 17:00:40.568844+00",
+        "updated_at": "2024-10-16 17:00:40.568844+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-20240620",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "1d4a8933-0d6e-4a66-87c2-edf94dd0d11d",
+        "created_at": "2024-10-23 21:09:54.832359+00",
+        "updated_at": "2024-10-23 21:09:54.832359+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-20241022",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "b0cd1639-54b7-47ec-a012-51f4283f7b3f",
+        "created_at": "2024-10-23 21:10:30.653913+00",
+        "updated_at": "2024-10-23 21:10:30.653913+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-latest",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "207b103d-22b6-46cb-bbf0-55b36fbb66c0",
+        "created_at": "2024-10-16 17:28:48.775835+00",
+        "updated_at": "2024-10-16 17:28:48.775835+00",
+        "provider": "anthropic",
+        "model": "claude-3-haiku",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 1.25,
+        "input_cached_price_per_million": 0.03,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 0.3
+        }
+      },
+      {
+        "id": "0d8d27fb-4d11-4a60-bd0c-9fb039ab8962",
+        "created_at": "2024-10-16 17:27:43.081527+00",
+        "updated_at": "2024-10-16 17:27:43.081527+00",
+        "provider": "anthropic",
+        "model": "claude-3-haiku-20240307",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 1.25,
+        "input_cached_price_per_million": 0.03,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 0.3
+        }
+      },
+      {
+        "id": "0ff55376-1bc1-47fa-942a-b5954ebe21cf",
+        "created_at": "2024-10-16 17:25:54.972843+00",
+        "updated_at": "2024-10-16 17:25:54.972843+00",
+        "provider": "anthropic",
+        "model": "claude-3-opus",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "6bc6ea3b-1339-4442-9685-ad847aad82ca",
+        "created_at": "2024-10-16 17:25:10.302458+00",
+        "updated_at": "2024-10-16 17:25:10.302458+00",
+        "provider": "anthropic",
+        "model": "claude-3-opus-20240229",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "fbd573c2-c2a5-41fb-bd04-46a45d9e16a7",
+        "created_at": "2024-10-23 21:09:05.810142+00",
+        "updated_at": "2024-10-23 21:09:05.810142+00",
+        "provider": "anthropic",
+        "model": "claude-3-opus-latest",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "4d12a32f-b792-4522-8cc6-ebac3c4deb45",
+        "created_at": "2024-10-16 17:30:25.966121+00",
+        "updated_at": "2024-10-16 17:30:25.966121+00",
+        "provider": "anthropic",
+        "model": "claude-3-sonnet",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "0a3533b9-c409-41df-bbf4-783e5a7d0a0d",
+        "created_at": "2024-10-16 17:30:08.868147+00",
+        "updated_at": "2024-10-16 17:30:08.868147+00",
+        "provider": "anthropic",
+        "model": "claude-3-sonnet-20240229",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "e40c2c10-6f84-414e-b15d-3a6bd406aea1",
+        "created_at": "2024-10-16 17:36:24.312254+00",
+        "updated_at": "2024-10-16 17:36:24.312254+00",
+        "provider": "anthropic",
+        "model": "claude-instant",
+        "input_price_per_million": 0.8,
+        "output_price_per_million": 2.4,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b975b0a0-dc70-48fd-9eee-0e1b9966d63a",
+        "created_at": "2024-10-16 17:36:05.368008+00",
+        "updated_at": "2024-10-16 17:36:05.368008+00",
+        "provider": "anthropic",
+        "model": "claude-instant-1.2",
+        "input_price_per_million": 0.8,
+        "output_price_per_million": 2.4,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "1427ff14-26d4-4723-92d9-dbfd939b1ea3",
+        "created_at": "2024-10-16 18:18:03.452359+00",
+        "updated_at": "2024-10-16 18:18:03.452359+00",
+        "provider": "azure-openai",
+        "model": "ada",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "a1bb1b90-dc6c-4f79-b8c4-1a220561351e",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "ada-v2",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "dadfb90d-6752-4558-bff1-f7286211e259",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "babbage-002",
+        "input_price_per_million": 0.4,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "74ad8ab5-5c6c-4fa5-a1a4-e01c0cc5dd2a",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "davinci-002",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "367006dc-46c1-4aab-9023-b39f25948f04",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-3.5-turbo-0125",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "27be5422-03d9-4af5-96e8-1a63912ec860",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-3.5-turbo-0301",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "eecae199-4ec2-430a-b6be-d1e6fe717069",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-3.5-turbo-0613",
+        "input_price_per_million": 1.5,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "2062d64c-8ef1-48ba-80e4-8eb46640cdf5",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-3.5-turbo-1106",
+        "input_price_per_million": 1.0,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "16f00859-7901-4096-acf4-a2175a9db28e",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-3.5-turbo-16k-0613",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 4.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "2b3996a9-1327-48e4-b80c-c7b79bfa4589",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-3.5-turbo-instruct",
+        "input_price_per_million": 1.5,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "f0dbd45b-cd8a-40a0-9646-986d3a045237",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4",
+        "input_price_per_million": 30.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "6e230b98-b42d-4a61-9296-95f4ce3119db",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4-0125-preview",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b88612bf-095f-4260-8211-46722035f382",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4-1106-preview",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "021fb02f-05a9-4fce-8165-1447ca9c941d",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4-32k",
+        "input_price_per_million": 60.0,
+        "output_price_per_million": 120.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "2229cb7c-5145-4d3f-a149-cc1babc6423e",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4-turbo",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "abfe34a4-c075-4fc0-ad57-45afdacb29e3",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4-turbo-2024-04-09",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "144676f9-6f14-4682-be9a-bccd93654935",
+        "created_at": "2024-10-16 18:29:46.726553+00",
+        "updated_at": "2024-10-16 18:29:46.726553+00",
+        "provider": "azure-openai",
+        "model": "gpt-4-turbo-vision",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "516fc096-5874-49c5-abed-7cd8d2467508",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4-vision-preview",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b055a7af-53bd-4fc6-8e47-9ac696c56e51",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4o",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b11f6426-a5db-4b9f-a0a8-f76716841d3d",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4o-2024-05-13",
+        "input_price_per_million": 5.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "d9246eaa-3a01-454d-8578-3d93a94b10fc",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4o-2024-08-06",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "4158c286-0335-46d0-8e6e-69d7d8de4866",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4o-mini",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8a14e359-2701-4cb5-b749-a4aed39a70f5",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4o-mini-2024-07-18",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "64d83e3b-f36a-41e4-8414-01c4dc3005ad",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4o-realtime-preview",
+        "input_price_per_million": 5.0,
+        "output_price_per_million": 20.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "2ac8ee67-3e2c-4aeb-8909-5877cf7a14df",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "gpt-4o-realtime-preview-2024-10-01",
+        "input_price_per_million": 5.0,
+        "output_price_per_million": 20.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "813db11c-4339-437c-858a-577b012c2416",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "o1-mini",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 12.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "f462d279-9532-45cb-9d7c-fc1a173095cf",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "o1-mini-2024-09-12",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 12.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "ade309bd-d7e2-4f5b-9f3e-95d88d18bcef",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "o1-preview",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "f50553f1-51ea-422f-b1fd-e9ebc799a883",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "o1-preview-2024-09-12",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "2ffda02a-7eed-4dea-a43e-5d11c65f121b",
+        "created_at": "2024-10-16 18:18:37.490753+00",
+        "updated_at": "2024-10-16 18:18:37.490753+00",
+        "provider": "azure-openai",
+        "model": "text-embedding-3-large",
+        "input_price_per_million": 0.13,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "f4a0effb-29c0-4b42-adf1-d216d61a5241",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "text-embedding-3-large",
+        "input_price_per_million": 0.13,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "47407fd3-7f8d-4807-bbfb-2fd1e8a2746d",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "provider": "azure-openai",
+        "model": "text-embedding-3-small",
+        "input_price_per_million": 0.02,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8ddb3a52-f960-40ad-b358-755680203bee",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-2.0",
+        "input_price_per_million": 8.0,
+        "output_price_per_million": 24.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "cf43a212-9fd1-4fcc-8299-af72472388c0",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-2.1",
+        "input_price_per_million": 8.0,
+        "output_price_per_million": 24.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "f4bbe24d-c832-4ce0-9fe8-0796d4aa82df",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-5-sonnet",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "2f7b676c-5661-431b-a37f-f8dc6099abc3",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-5-sonnet-20240620-v1:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "7819d23e-4ed8-4ca0-a3a0-caefd5bebba7",
+        "created_at": "2024-10-23 21:08:03.969223+00",
+        "updated_at": "2024-10-23 21:08:03.969223+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-5-sonnet-20241022-v2:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "d6ee7f18-121d-4b30-9349-a92857433de4",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-haiku",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 1.25,
+        "input_cached_price_per_million": 0.03,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 0.3
+        }
+      },
+      {
+        "id": "a2d9092e-96d7-45b6-9504-9f26a8e665b3",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-haiku-20240307-v1:0",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 1.25,
+        "input_cached_price_per_million": 0.03,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 0.3
+        }
+      },
+      {
+        "id": "aff7004e-9241-4b7d-80b7-98ead53148a7",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-opus",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "a18c3c64-2a8b-4298-965b-2c93e4a1cf1a",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-opus-20240229-v1:0",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "a38df2e9-40e2-4b6f-bcb9-4b43e4deca67",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-sonnet",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "32f432f7-e294-451e-9696-2d53158b7de4",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-sonnet-20240229-v1:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "6543ce81-2a57-4dd7-9900-0f84dd613396",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-instant",
+        "input_price_per_million": 0.8,
+        "output_price_per_million": 2.4,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "30b12ca5-babd-4cbd-91ce-884d748769f4",
+        "created_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-instant-1.2",
+        "input_price_per_million": 0.8,
+        "output_price_per_million": 2.4,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8ee27663-4326-4d81-8c9a-def8d465bdf6",
+        "created_at": "2024-10-16 17:54:35.25255+00",
+        "updated_at": "2024-10-16 17:54:35.25255+00",
+        "provider": "gemini",
+        "model": "gemini-1.0-pro",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "c1d2e368-19fe-4428-9487-85cce2019aea",
+        "created_at": "2024-10-16 17:47:10.663951+00",
+        "updated_at": "2024-10-16 17:47:10.663951+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-flash",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "cfa5e71d-6598-49eb-b510-69e893f4f9ca",
+        "created_at": "2024-10-16 17:48:12.168376+00",
+        "updated_at": "2024-10-16 17:48:12.168376+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-flash--long-context",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "80cfbecc-374e-42d0-b53f-83c3322ef2cb",
+        "created_at": "2024-10-16 17:49:59.928943+00",
+        "updated_at": "2024-10-16 17:49:59.928943+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-flash-8b",
+        "input_price_per_million": 0.0375,
+        "output_price_per_million": 0.15,
+        "input_cached_price_per_million": 0.01,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "39e5ec3c-3617-4b9f-9945-905c4dec8533",
+        "created_at": "2024-10-16 17:51:05.527007+00",
+        "updated_at": "2024-10-16 17:51:05.527007+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-flash-8b--long-context",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.02,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "2dd68e4d-e231-48dc-a03c-468ec0cbd51d",
+        "created_at": "2024-10-16 17:52:47.980902+00",
+        "updated_at": "2024-10-16 17:52:47.980902+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-pro",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": 0.3125,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "e191b8b9-aabe-4aec-a9d6-cb5eb9fbec72",
+        "created_at": "2024-10-16 17:53:40.150074+00",
+        "updated_at": "2024-10-16 17:53:40.150074+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-pro--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.625,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "361a008c-02b0-415a-9e1c-c9280822ae15",
+        "created_at": "2024-10-16 18:44:31.011134+00",
+        "updated_at": "2024-10-16 18:44:31.011134+00",
+        "provider": "groq",
+        "model": "gemma-7b-it",
+        "input_price_per_million": 0.07,
+        "output_price_per_million": 0.07,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "c728dc89-de1d-4994-a9d8-dd66b0971480",
+        "created_at": "2024-10-16 18:43:56.450142+00",
+        "updated_at": "2024-10-16 18:43:56.450142+00",
+        "provider": "groq",
+        "model": "gemma2-9b-it",
+        "input_price_per_million": 0.2,
+        "output_price_per_million": 0.2,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "f66e1678-1f55-46cf-8e49-0871e7c89dc1",
+        "created_at": "2024-10-16 18:47:26.406678+00",
+        "updated_at": "2024-10-16 18:47:26.406678+00",
+        "provider": "groq",
+        "model": "llama-3.1-70b-versatile",
+        "input_price_per_million": 0.59,
+        "output_price_per_million": 0.79,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "506761a9-5950-47d2-b059-a88f432bf3e3",
+        "created_at": "2024-10-16 18:48:09.412299+00",
+        "updated_at": "2024-10-16 18:48:09.412299+00",
+        "provider": "groq",
+        "model": "llama-3.1-8b-instant",
+        "input_price_per_million": 0.05,
+        "output_price_per_million": 0.08,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "5a2f0fc2-e928-4b19-9d5d-80c9a53d5fe5",
+        "created_at": "2024-10-16 18:51:20.454346+00",
+        "updated_at": "2024-10-16 18:51:20.454346+00",
+        "provider": "groq",
+        "model": "llama-3.2-1b-preview",
+        "input_price_per_million": 0.04,
+        "output_price_per_million": 0.04,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "bebfeb4b-c0ea-4b2b-9d6e-3eca502be903",
+        "created_at": "2024-10-16 18:52:57.420495+00",
+        "updated_at": "2024-10-16 18:52:57.420495+00",
+        "provider": "groq",
+        "model": "llama-3.2-3b-preview",
+        "input_price_per_million": 0.06,
+        "output_price_per_million": 0.06,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "1a4f290a-b6f5-4893-b5c9-64147dd09fd0",
+        "created_at": "2024-10-16 18:54:11.048926+00",
+        "updated_at": "2024-10-16 18:54:11.048926+00",
+        "provider": "groq",
+        "model": "llama-guard-3-8b",
+        "input_price_per_million": 0.2,
+        "output_price_per_million": 0.2,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "094bca65-a309-4091-8437-ebbbee2b0b52",
+        "created_at": "2024-10-16 18:54:59.077329+00",
+        "updated_at": "2024-10-16 18:54:59.077329+00",
+        "provider": "groq",
+        "model": "llama3-70b-8192",
+        "input_price_per_million": 0.59,
+        "output_price_per_million": 0.79,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "579713b5-5b85-4cb9-aaf4-28101e743040",
+        "created_at": "2024-10-16 18:57:15.944229+00",
+        "updated_at": "2024-10-16 18:57:15.944229+00",
+        "provider": "groq",
+        "model": "llama3-8b-8192",
+        "input_price_per_million": 0.05,
+        "output_price_per_million": 0.08,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "9d3bb047-9c77-43f6-85a7-fbbc92638088",
+        "created_at": "2024-10-16 18:45:14.036786+00",
+        "updated_at": "2024-10-16 18:45:14.036786+00",
+        "provider": "groq",
+        "model": "llama3-groq-70b-8192-tool-use-preview",
+        "input_price_per_million": 0.89,
+        "output_price_per_million": 0.89,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "bc6001fd-825f-474f-aaf1-46682e05023f",
+        "created_at": "2024-10-16 18:46:00.075784+00",
+        "updated_at": "2024-10-16 18:46:00.075784+00",
+        "provider": "groq",
+        "model": "llama3-groq-8b-8192-tool-use-preview",
+        "input_price_per_million": 0.19,
+        "output_price_per_million": 0.19,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "7ad54044-d424-4034-8712-3c24fc2c82e2",
+        "created_at": "2024-10-16 18:57:51.271805+00",
+        "updated_at": "2024-10-16 18:57:51.271805+00",
+        "provider": "groq",
+        "model": "mixtral-8x7b-32768",
+        "input_price_per_million": 0.24,
+        "output_price_per_million": 0.24,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "3fa2eca0-0791-42a6-9ccb-97db77db12a9",
+        "created_at": "2024-10-16 19:09:18.494467+00",
+        "updated_at": "2024-10-16 19:09:18.494467+00",
+        "provider": "mistral",
+        "model": "codestral-2405",
+        "input_price_per_million": 0.2,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "6cff2ee1-152f-4fcc-9db8-5d01c198c3f7",
+        "created_at": "2024-10-16 19:09:55.691973+00",
+        "updated_at": "2024-10-16 19:09:55.691973+00",
+        "provider": "mistral",
+        "model": "ministral-3b-latest",
+        "input_price_per_million": 0.04,
+        "output_price_per_million": 0.04,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "f007422c-419e-40af-847c-920b39999b0b",
+        "created_at": "2024-10-16 19:10:30.708973+00",
+        "updated_at": "2024-10-16 19:10:30.708973+00",
+        "provider": "mistral",
+        "model": "ministral-8b-latest",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.1,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "cfe9d76c-a56b-404e-8689-7d9ac0d1fa25",
+        "created_at": "2024-10-16 19:09:38.106439+00",
+        "updated_at": "2024-10-16 19:09:38.106439+00",
+        "provider": "mistral",
+        "model": "mistral-embed",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "19d79ca4-7cfc-4db8-8621-2c6bf4b58510",
+        "created_at": "2024-10-16 19:08:37.161701+00",
+        "updated_at": "2024-10-16 19:08:37.161701+00",
+        "provider": "mistral",
+        "model": "mistral-large-2407",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 6.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b8e1c733-daee-48ea-844e-e934e123bba0",
+        "created_at": "2024-10-16 19:13:15.189109+00",
+        "updated_at": "2024-10-16 19:13:15.189109+00",
+        "provider": "mistral",
+        "model": "mistral-nemo",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.15,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "e9aa5183-7da1-469c-b278-ec6730dc48e5",
+        "created_at": "2024-10-16 19:09:00.666008+00",
+        "updated_at": "2024-10-16 19:09:00.666008+00",
+        "provider": "mistral",
+        "model": "mistral-small-2409",
+        "input_price_per_million": 0.2,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "2f6e53c1-bb33-4382-9810-91bc8ddad889",
+        "created_at": "2024-10-16 19:13:45.163809+00",
+        "updated_at": "2024-10-16 19:13:45.163809+00",
+        "provider": "mistral",
+        "model": "open-mistral-7b",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 0.25,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "02f955d9-90de-40eb-b07e-7f1a47018633",
+        "created_at": "2024-10-16 19:14:12.837662+00",
+        "updated_at": "2024-10-16 19:14:12.837662+00",
+        "provider": "mistral",
+        "model": "open-mixtral-8x22b",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 6.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "fcd388ff-5fd2-42bb-ad43-90f40ba1b038",
+        "created_at": "2024-10-16 19:14:00.891231+00",
+        "updated_at": "2024-10-16 19:14:00.891231+00",
+        "provider": "mistral",
+        "model": "open-mixtral-8x7b",
+        "input_price_per_million": 0.7,
+        "output_price_per_million": 0.7,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "62be3999-1fa4-40b8-abb1-42c2a2af4832",
+        "created_at": "2024-10-16 19:13:02.632168+00",
+        "updated_at": "2024-10-16 19:13:02.632168+00",
+        "provider": "mistral",
+        "model": "pixtral-12b",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.15,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "0fbf1ca3-ac2c-41f7-bbfe-5cefcfc0be20",
+        "created_at": "2024-10-16 00:21:15.924666+00",
+        "updated_at": "2024-10-16 00:21:15.924666+00",
+        "provider": "openai",
+        "model": "ada-v2",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "fc65f3c8-f920-45ca-ac58-fbcac368fb6d",
+        "created_at": "2024-10-16 18:18:57.157429+00",
+        "updated_at": "2024-10-16 18:18:57.157429+00",
+        "provider": "openai",
+        "model": "azure-openai",
+        "input_price_per_million": 0.02,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "aeef662f-0601-48bc-9dbd-5fb52456db4a",
+        "created_at": "2024-10-16 01:32:46.648685+00",
+        "updated_at": "2024-10-16 01:32:46.648685+00",
+        "provider": "openai",
+        "model": "babbage-002",
+        "input_price_per_million": 0.4,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "7be27031-c6ae-450d-9484-db50c63c0b4c",
+        "created_at": "2024-10-16 00:35:31.684632+00",
+        "updated_at": "2024-10-16 00:35:31.684632+00",
+        "provider": "openai",
+        "model": "chatgpt-4o-latest",
+        "input_price_per_million": 5.0,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "85bda3fc-5434-4cf7-ad8b-67566f7b7cc2",
+        "created_at": "2024-10-16 01:32:23.708384+00",
+        "updated_at": "2024-10-16 01:32:23.708384+00",
+        "provider": "openai",
+        "model": "davinci-002",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "3b472144-3d59-48e0-abb2-608d3855127c",
+        "created_at": "2024-10-16 01:29:35.010807+00",
+        "updated_at": "2024-10-16 01:29:35.010807+00",
+        "provider": "openai",
+        "model": "gpt-3.5-turbo-0125",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "92d77064-7b7a-4ce8-b6ea-27a8d022d5ab",
+        "created_at": "2024-10-16 01:32:06.564761+00",
+        "updated_at": "2024-10-16 01:32:06.564761+00",
+        "provider": "openai",
+        "model": "gpt-3.5-turbo-0301",
+        "input_price_per_million": 1.5,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "56d39f09-6a64-47bb-963b-10a850c9428f",
+        "created_at": "2024-10-16 01:31:10.007977+00",
+        "updated_at": "2024-10-16 01:31:10.007977+00",
+        "provider": "openai",
+        "model": "gpt-3.5-turbo-0613",
+        "input_price_per_million": 1.5,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "0d4183a4-43a7-4e55-9b27-04b2c24839fb",
+        "created_at": "2024-10-16 01:30:17.367718+00",
+        "updated_at": "2024-10-16 01:30:17.367718+00",
+        "provider": "openai",
+        "model": "gpt-3.5-turbo-1106",
+        "input_price_per_million": 1.0,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "7fd81e68-e2a7-4501-b1e1-611789b5dbc4",
+        "created_at": "2024-10-16 01:31:46.217442+00",
+        "updated_at": "2024-10-16 01:31:46.217442+00",
+        "provider": "openai",
+        "model": "gpt-3.5-turbo-16k-0613",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 4.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b67d2207-ac16-4735-aaf0-bdcef6a24642",
+        "created_at": "2024-10-16 01:29:54.777932+00",
+        "updated_at": "2024-10-16 01:29:54.777932+00",
+        "provider": "openai",
+        "model": "gpt-3.5-turbo-instruct",
+        "input_price_per_million": 1.5,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "ee913a56-f3c1-45a8-971f-274471e38e41",
+        "created_at": "2024-10-16 01:25:16.126247+00",
+        "updated_at": "2024-10-16 01:25:16.126247+00",
+        "provider": "openai",
+        "model": "gpt-4",
+        "input_price_per_million": 30.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8d11f54e-f308-4bcf-b083-58146438eeed",
+        "created_at": "2024-10-16 01:27:24.89604+00",
+        "updated_at": "2024-10-16 01:27:24.89604+00",
+        "provider": "openai",
+        "model": "gpt-4-0125-preview",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "29090993-a096-46be-b50d-5d390dbd0544",
+        "created_at": "2024-10-16 01:27:57.982494+00",
+        "updated_at": "2024-10-16 01:27:57.982494+00",
+        "provider": "openai",
+        "model": "gpt-4-1106-preview",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "61482371-106d-4c89-b4d9-1a2ed68b144c",
+        "created_at": "2024-10-16 01:25:49.9286+00",
+        "updated_at": "2024-10-16 01:25:49.9286+00",
+        "provider": "openai",
+        "model": "gpt-4-32k",
+        "input_price_per_million": 60.0,
+        "output_price_per_million": 120.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "1a9e03b2-e3e4-4cde-bc56-6af69c96a1bb",
+        "created_at": "2024-10-16 00:35:59.770384+00",
+        "updated_at": "2024-10-16 00:35:59.770384+00",
+        "provider": "openai",
+        "model": "gpt-4-turbo",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "37cbf643-ecaa-4d2c-877e-523c43d0fbea",
+        "created_at": "2024-10-16 01:24:22.690527+00",
+        "updated_at": "2024-10-16 01:24:22.690527+00",
+        "provider": "openai",
+        "model": "gpt-4-turbo-2024-04-09",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "075f97be-cde3-4ba4-9a49-cce9e815e202",
+        "created_at": "2024-10-16 01:28:25.209664+00",
+        "updated_at": "2024-10-16 01:28:25.209664+00",
+        "provider": "openai",
+        "model": "gpt-4-vision-preview",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 30.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "36ed7c5d-436e-4a80-ad0d-c801ca857866",
+        "created_at": "2024-10-16 00:14:35.615513+00",
+        "updated_at": "2024-10-16 00:14:35.615513+00",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 1.25,
+        "additional_prices": {}
+      },
+      {
+        "id": "6bd6e8bf-9a83-4213-96a2-0bd2de13a789",
+        "created_at": "2024-10-16 00:15:49.545657+00",
+        "updated_at": "2024-10-16 00:15:49.545657+00",
+        "provider": "openai",
+        "model": "gpt-4o-2024-05-13",
+        "input_price_per_million": 5.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "58f1a099-8cb1-4d3e-be30-cc9b7ccbab5f",
+        "created_at": "2024-10-16 00:15:18.004233+00",
+        "updated_at": "2024-10-16 00:15:18.004233+00",
+        "provider": "openai",
+        "model": "gpt-4o-2024-08-06",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 1.25,
+        "additional_prices": {}
+      },
+      {
+        "id": "599c13b7-3fe8-44a4-bca9-54c3414100e5",
+        "created_at": "2024-10-16 00:12:22.410311+00",
+        "updated_at": "2024-10-16 00:12:22.410311+00",
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.075,
+        "additional_prices": {}
+      },
+      {
+        "id": "6ef47fe6-3b89-491f-8060-3d661ae439ef",
+        "created_at": "2024-10-16 00:13:08.627764+00",
+        "updated_at": "2024-10-16 00:13:08.627764+00",
+        "provider": "openai",
+        "model": "gpt-4o-mini-2024-07-18",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.075,
+        "additional_prices": {}
+      },
+      {
+        "id": "7a4e1b6a-31b4-483a-b9af-2229003a65b2",
+        "created_at": "2024-10-16 00:23:16.217913+00",
+        "updated_at": "2024-10-16 00:23:16.217913+00",
+        "provider": "openai",
+        "model": "gpt-4o-realtime-preview",
+        "input_price_per_million": 5.0,
+        "output_price_per_million": 20.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "audio_input_price_per_million": 100,
+          "audio_output_price_per_million": 200
+        }
+      },
+      {
+        "id": "92d2499c-ff34-4f4a-a9ed-4a233f0cd0a8",
+        "created_at": "2024-10-16 00:23:56.701044+00",
+        "updated_at": "2024-10-16 00:23:56.701044+00",
+        "provider": "openai",
+        "model": "gpt-4o-realtime-preview-2024-10-01",
+        "input_price_per_million": 5.0,
+        "output_price_per_million": 20.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "audio_input_price_per_million": 100,
+          "audio_output_price_per_million": 200
+        }
+      },
+      {
+        "id": "c6a1ef05-2507-467a-ab23-09ab57e7ff5f",
+        "created_at": "2024-10-16 00:19:31.238933+00",
+        "updated_at": "2024-10-16 00:19:31.238933+00",
+        "provider": "openai",
+        "model": "o1-mini",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 12.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "0882a4b9-ccc5-4129-8988-8919a18a3fc4",
+        "created_at": "2024-10-16 00:19:58.743199+00",
+        "updated_at": "2024-10-16 00:19:58.743199+00",
+        "provider": "openai",
+        "model": "o1-mini-2024-09-12",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 12.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "69e2a9ab-d0c5-4664-8e4f-79e63032c89c",
+        "created_at": "2024-10-16 00:16:34.366238+00",
+        "updated_at": "2024-10-16 00:16:34.366238+00",
+        "provider": "openai",
+        "model": "o1-preview",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": 7.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "e3c47bb8-0c84-4064-b215-2afcc34400bd",
+        "created_at": "2024-10-16 00:17:16.504388+00",
+        "updated_at": "2024-10-16 00:17:16.504388+00",
+        "provider": "openai",
+        "model": "o1-preview-2024-09-12",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": 7.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "54c8bcb4-6eb9-419b-9afb-d6f3d906f9cd",
+        "created_at": "2024-10-16 00:20:52.186524+00",
+        "updated_at": "2024-10-16 00:20:52.186524+00",
+        "provider": "openai",
+        "model": "text-embedding-3-large",
+        "input_price_per_million": 0.13,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "73f44f8a-51f7-4f44-9f59-4ceaae69b93c",
+        "created_at": "2024-10-16 00:20:32.758465+00",
+        "updated_at": "2024-10-16 00:20:32.758465+00",
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "input_price_per_million": 0.02,
+        "output_price_per_million": 0.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      }
+    ]
+  }
+]

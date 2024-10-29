@@ -68,8 +68,8 @@ export const getDateRangeFilters = (
 interface PaginatedGetParams<T extends TableConfig, R> {
   table: PgTableWithColumns<T>;
   baseQuery: WithSubquery<string, any>;
-  pageNumber: number;
-  pageSize: number;
+  pageNumber?: number;
+  pageSize?: number;
   baseFilters: SQL[];
   filters: SQL[];
   orderBy: SQL;
@@ -88,14 +88,20 @@ export const paginatedGet = async<T extends TableConfig, R> (
 ): Promise<PaginatedResponse<R>> => {
   const allFilters = baseFilters.concat(filters);
 
-  const itemsQuery = db
-    .with(baseQuery)
-    .select()
-    .from(baseQuery)
-    .where(and(...allFilters))
-    .orderBy(orderBy)
-    .limit(pageSize)
-    .offset(pageNumber * pageSize);
+  const itemsQuery = pageNumber !== undefined && pageSize !== undefined
+    ? db
+      .with(baseQuery)
+      .select()
+      .from(baseQuery)
+      .where(and(...allFilters))
+      .orderBy(orderBy)
+      .limit(pageSize).offset(pageNumber * pageSize)
+    : db
+      .with(baseQuery)
+      .select()
+      .from(baseQuery)
+      .where(and(...allFilters))
+      .orderBy(orderBy);
 
   const countQueries = async () => {
     const totalCount = await db

@@ -189,44 +189,41 @@ export function DataTable<TData>({
     // }
   }, [defaultPageNumber]);
 
-  const renderRow = (row: Row<TData>) => {
-
-    return (
-      <TableRow
-        className={cn(
-          'flex min-w-full border-b',
-          !!onRowClick && 'cursor-pointer',
-          row.depth > 0 && 'bg-secondary/40',
-        )}
-        key={row.id}
-        data-state={row.getIsSelected() && 'selected'}
-        onClick={() => {
-          onRowClick?.(row);
-        }}
-      >
-        {row.getVisibleCells().map((cell: any, index) => (
-          <TableCell
-            className="relative p-0 m-0"
-            key={cell.id}
-            style={{
-              height: '38px',
-              width: cell.column.getSize()
-            }}
-          >
-            {row.getIsSelected() && index === 0 && (
-              <div className="border-l-2 border-l-primary absolute h-full left-0 top-0"></div>
-            )}
-            <div className="absolute inset-0 items-center h-full flex px-4">
-              <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </div>
+  const renderRow = (row: Row<TData>) => (
+    <TableRow
+      className={cn(
+        'flex min-w-full border-b',
+        !!onRowClick && 'cursor-pointer',
+        row.depth > 0 && 'bg-secondary/40',
+      )}
+      key={row.id}
+      data-state={row.getIsSelected() && 'selected'}
+      onClick={() => {
+        onRowClick?.(row);
+      }}
+    >
+      {row.getVisibleCells().map((cell: any, index) => (
+        <TableCell
+          className="relative p-0 m-0"
+          key={cell.id}
+          style={{
+            height: '38px',
+            width: cell.column.getSize()
+          }}
+        >
+          {row.getIsSelected() && index === 0 && (
+            <div className="border-l-2 border-l-primary absolute h-full left-0 top-0"></div>
+          )}
+          <div className="absolute inset-0 items-center h-full flex px-4">
+            <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
             </div>
-          </TableCell>
-        ))}
-        <TableCell className="flex-1"></TableCell>
-      </TableRow>
-    );
-  };
+          </div>
+        </TableCell>
+      ))}
+      <TableCell className="flex-1"></TableCell>
+    </TableRow>
+  );
 
   const content = (
     <Table

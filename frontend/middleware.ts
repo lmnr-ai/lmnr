@@ -8,4 +8,4 @@ export const config = {
     '/project/:path*',
     '/projects'
   ],
-}
+};

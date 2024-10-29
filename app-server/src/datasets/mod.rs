@@ -25,7 +25,7 @@ impl Dataset {
     pub async fn index_new_points(
         &self,
         datapoints: Vec<datapoints::Datapoint>,
-        semantic_search: Arc<SemanticSearch>,
+        semantic_search: Arc<dyn SemanticSearch>,
         collection_name: String,
         new_index_column: Option<String>,
     ) -> anyhow::Result<()> {

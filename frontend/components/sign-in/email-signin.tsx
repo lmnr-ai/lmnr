@@ -26,7 +26,7 @@ export function EmailSignInButton({
   return (
     <div className="h-full flex flex-col space-y-2 mb-2 w-[350px]">
       <Label className="text-sm text-white text-center">
-        This is a local-only feature. Simply put any email.
+        This is a local-only feature. Simply enter any email.
       </Label>
       <Input
         type="email"

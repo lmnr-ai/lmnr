@@ -30,7 +30,7 @@ enum IndexField {
 
 pub async fn index_span(
     span: &Span,
-    semantic_search: Arc<SemanticSearch>,
+    semantic_search: Arc<dyn SemanticSearch>,
     collection_name: &String,
     chunker_runner: Arc<ChunkerRunner>,
 ) -> Result<()> {
@@ -63,7 +63,7 @@ pub async fn index_span(
 
 pub async fn find_similar_span_ids(
     span: &Span,
-    semantic_search: Arc<SemanticSearch>,
+    semantic_search: Arc<dyn SemanticSearch>,
     collection_name: &String,
 ) -> anyhow::Result<Vec<Uuid>> {
     let Some(indexable_content) = get_indexable_content(span, IndexField::Input) else {

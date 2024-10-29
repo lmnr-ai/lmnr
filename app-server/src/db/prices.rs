@@ -1,10 +1,8 @@
 use serde_json::Value;
 use sqlx::{FromRow, PgPool};
-use uuid::Uuid;
 
 #[derive(FromRow)]
 pub struct DBPriceEntry {
-    pub id: Uuid,
     pub provider: String,
     pub model: String,
     pub input_price_per_million: f64,
@@ -16,7 +14,6 @@ pub struct DBPriceEntry {
 pub async fn get_price(pool: &PgPool, provider: &str, model: &str) -> anyhow::Result<DBPriceEntry> {
     let price = sqlx::query_as::<_, DBPriceEntry>(
         "SELECT
-            id,
             provider,
             model,
             input_price_per_million,

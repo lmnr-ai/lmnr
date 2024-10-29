@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use lapin::Connection;
 use sqlx::PgPool;
 
 use crate::{
@@ -13,6 +12,7 @@ use crate::{
     },
     storage::Storage,
 };
+use lapin::Connection;
 use tonic::{Request, Response, Status};
 
 use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue};
@@ -20,7 +20,7 @@ use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_s
 pub struct ProcessTracesService {
     db: Arc<DB>,
     cache: Arc<Cache>,
-    rabbitmq_connection: Arc<Connection>,
+    rabbitmq_connection: Option<Arc<Connection>>,
     storage: Arc<dyn Storage>,
 }
 
@@ -28,7 +28,7 @@ impl ProcessTracesService {
     pub fn new(
         db: Arc<DB>,
         cache: Arc<Cache>,
-        rabbitmq_connection: Arc<Connection>,
+        rabbitmq_connection: Option<Arc<Connection>>,
         storage: Arc<dyn Storage>,
     ) -> Self {
         Self {
@@ -75,6 +75,8 @@ impl TraceService for ProcessTracesService {
             project_id,
             self.rabbitmq_connection.clone(),
             self.storage.clone(),
+            self.db.clone(),
+            self.cache.clone(),
         )
         .await
         .map_err(|e| {

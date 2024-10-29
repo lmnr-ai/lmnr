@@ -109,36 +109,34 @@ export default function Datasets() {
           getRowId={(row: Dataset) => row.id}
           columns={columns}
           data={data?.items}
-          selectionPanel={(selectedRowIds) => {
-            return (
-              <div className="flex flex-col space-y-2">
-                <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost">
-                      <Trash2 size={12} />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Delete Datasets</DialogTitle>
-                      <DialogDescription>
+          selectionPanel={(selectedRowIds) => (
+            <div className="flex flex-col space-y-2">
+              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost">
+                    <Trash2 size={12} />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete Datasets</DialogTitle>
+                    <DialogDescription>
                         Are you sure you want to delete {selectedRowIds.length} dataset(s)? This action cannot be undone.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
                         Cancel
-                      </Button>
-                      <Button onClick={() => handleDeleteDatasets(selectedRowIds)} disabled={isDeleting}>
-                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    </Button>
+                    <Button onClick={() => handleDeleteDatasets(selectedRowIds)} disabled={isDeleting}>
+                      {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Delete
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            );
-          }}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
           emptyRow={
             <TableRow>
               <TableCell colSpan={columns.length} className="text-center text">
