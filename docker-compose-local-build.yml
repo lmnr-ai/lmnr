@@ -115,6 +115,7 @@ services:
       - CLICKHOUSE_URL=http://clickhouse:8123
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
       - CODE_EXECUTOR_URL=http://python-executor:8811
+      - ENVIRONMENT=FULL
 
   frontend:
     build:
@@ -130,6 +131,7 @@ services:
       - BACKEND_URL=http://app-server:8000
       - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - ENVIRONMENT=FULL
 
 volumes:
   qdrant-data:

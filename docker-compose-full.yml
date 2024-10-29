@@ -110,7 +110,7 @@ services:
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
       - CODE_EXECUTOR_URL=http://python-executor:8811
       - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
-
+      - ENVIRONMENT=FULL
   frontend:
     image: ghcr.io/lmnr-ai/frontend
     ports:
@@ -127,6 +127,7 @@ services:
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=some_secret
       - NEXT_PUBLIC_URL=http://localhost:3000
+      - ENVIRONMENT=FULL
 
 volumes:
   qdrant-data:
