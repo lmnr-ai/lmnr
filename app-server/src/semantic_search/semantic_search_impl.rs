@@ -16,18 +16,18 @@ use super::semantic_search_grpc::{
 use crate::semantic_search::SemanticSearch;
 
 #[derive(Clone, Debug)]
-pub struct DefaultSemanticSearch {
+pub struct SemanticSearchImpl {
     client: Arc<SemanticSearchClient<Channel>>,
 }
 
-impl DefaultSemanticSearch {
+impl SemanticSearchImpl {
     pub fn new(client: Arc<SemanticSearchClient<Channel>>) -> Self {
         Self { client }
     }
 }
 
 #[async_trait]
-impl SemanticSearch for DefaultSemanticSearch {
+impl SemanticSearch for SemanticSearchImpl {
     async fn query(
         &self,
         collection_name: &str,

@@ -8,9 +8,9 @@ use self::semantic_search_grpc::{
     DeleteCollectionsResponse, DeleteEmbeddingsResponse, IndexResponse, QueryResponse,
 };
 
-pub mod default;
 pub mod mock;
 pub mod semantic_search_grpc;
+pub mod semantic_search_impl;
 pub mod utils;
 
 #[async_trait]

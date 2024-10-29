@@ -21,7 +21,11 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.FULL_BUILD) {
-    return process.env.FULL_BUILD?.toLowerCase() === 'false' ? false : true;
+    const environment = process.env.ENVIRONMENT;
+    if (!environment) {
+      throw new Error('ENVIRONMENT is not set');
+    }
+    return ['FULL', 'PRODUCTION'].includes(environment);
   }
 
   return process.env.ENVIRONMENT === 'PRODUCTION' ? true : false;

@@ -11,18 +11,18 @@ use super::code_executor_grpc::{
 };
 use super::CodeExecutor;
 
-pub struct DefaultCodeExecutor {
+pub struct CodeExecutorImpl {
     client: Arc<CodeExecutorClient<Channel>>,
 }
 
-impl DefaultCodeExecutor {
+impl CodeExecutorImpl {
     pub fn new(client: Arc<CodeExecutorClient<Channel>>) -> Self {
         Self { client }
     }
 }
 
 #[async_trait]
-impl CodeExecutor for DefaultCodeExecutor {
+impl CodeExecutor for CodeExecutorImpl {
     async fn execute(
         &self,
         code: &String,

@@ -216,11 +216,8 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
             rabbitmq_connection = Some(connection);
-        } else {
-            rabbitmq_connection = None;
-        };
+        }
     });
-    let rabbitmq_connection = rabbitmq_connection;
     let rabbitmq_connection_grpc = rabbitmq_connection.clone();
 
     let mut aws_sdk_config = None;
@@ -264,9 +261,11 @@ fn main() -> anyhow::Result<()> {
                                 .await
                                 .unwrap(),
                         );
-                        Arc::new(semantic_search::default::DefaultSemanticSearch::new(
-                            semantic_search_client,
-                        ))
+                        Arc::new(
+                            semantic_search::semantic_search_impl::SemanticSearchImpl::new(
+                                semantic_search_client,
+                            ),
+                        )
                     } else {
                         Arc::new(semantic_search::mock::MockSemanticSearch {})
                     };
@@ -280,7 +279,7 @@ fn main() -> anyhow::Result<()> {
                             .await
                             .unwrap(),
                     );
-                    Arc::new(code_executor::default::DefaultCodeExecutor::new(
+                    Arc::new(code_executor::code_executor_impl::CodeExecutorImpl::new(
                         code_executor_client,
                     ))
                 } else {

@@ -22,7 +22,7 @@ use self::code_executor_grpc::{
 };
 
 pub mod code_executor_grpc;
-pub mod default;
+pub mod code_executor_impl;
 pub mod mock;
 
 #[async_trait]

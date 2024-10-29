@@ -22,6 +22,10 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && env::var("AWS_SECRET_ACCESS_KEY").is_ok()
                 && env::var("S3_IMGS_BUCKET").is_ok()
         }
-        Feature::FullBuild => env::var("FULL_BUILD").unwrap_or("true".to_string()) == "true",
+        Feature::FullBuild => ["FULL", "PRODUCTION"].contains(
+            &env::var("ENVIRONMENT")
+                .expect("ENVIRONMENT must be set")
+                .as_str(),
+        ),
     }
 }
