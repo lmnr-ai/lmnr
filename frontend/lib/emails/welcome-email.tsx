@@ -43,7 +43,7 @@ export default function WelcomeEmail({ }: {}) {
           </Text>
         </div>
         <Text style={text}>
-          Got questions or running into issues? I'm here to help - just
+          Got questions or running into issues? I{"'"}m here to help - just
           <Link style={link} href="https://cal.com/robert-lmnr/demo" target="_blank">
             {' grab a slot on my calendar'}
           </Link>
