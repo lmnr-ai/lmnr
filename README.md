@@ -2,26 +2,42 @@
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
 <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
-# Laminar - LLM engineering from first principles
+![Frame 28 (1)](https://github.com/user-attachments/assets/217a00a1-1281-44ec-a619-15d3f2c4e994)
 
-Laminar is an open-source platform for engineering LLM products. Trace, evaluate, annotate, and analyze LLM data. Bring LLM applications to production with confidence.
-<img width="1445" alt="Screenshot 2024-09-25 at 8 58 56 PM" src="https://github.com/user-attachments/assets/f6bd4208-6380-42c6-9ede-47ebc81a3d25">
+# Laminar
 
+[Laminar](https://www.lmnr.ai) is an all-in-one open-source platform for engineering AI products. Trace, evaluate, label, and analyze LLM data.
 
-Think of it as DataDog + PostHog for LLM apps.
+- [x] Tracing
+    - [x] OpenTelemetry-based automatic tracing of common AI frameworks and SDKs (LangChain, OpenAI, Anthropic ...) with just 2 lines of code. (powered by amazing [OpenLLMetry](https://github.com/traceloop/openllmetry)).
+    - [x] Trace input/output, latency, cost, token count.
+    - [x] Function tracing with `observe` decorator/wrapper.
+    - [x] Image tracing.
+    - [ ] Audio tracing coming soon.
+- [x] Evaluations
+    - [x] Local offline evaluations. Run from code, terminal or as part of CI/CD.
+    - [x] Online evaluations. Trigger hosted LLM-as-a-judge or Python script evaluators for each trace.
+- [x] Labels
+    - [x] Simple UI for fast data labeling.
+- [x] Datasets
+    - [x] Export production trace data to datasets.
+    - [x] Run evals on hosted golden datasets.
+    - [ ] Index dataset and retrieve semantically-similar dynamic few-shot examples to improve your prompts. Coming very soon.
+- [x] Built for scale
+    - [x] Written in Rust 🦀
+    - [x] Traces are sent via gRPC, ensuring the best performance and lowest overhead.
+- [x] Modern Open-Source stack
+    - [x] RabbitMQ for message queue, Postgres for data, Clickhouse for analytics. Qdrant for semantic similraity search and hybrid search.
+- [x] Fast and beautiful dashboards for traces / evaluations / labels.
+<img width="1506" alt="traces-2" src="https://github.com/user-attachments/assets/14d6eec9-cd0e-4c3e-b601-3d64c4c0c875">
 
-- OpenTelemetry-based instrumentation: automatic for LLM / vector DB calls with just 2 lines of code + decorators to track functions (powered by an amazing [OpenLLMetry](https://github.com/traceloop/openllmetry) open-source package by TraceLoop).
-- Online evaluations: Laminar can host your custom evaluation code or prompts and run them as your application traces arrive.
-- Built for scale with a modern stack: written in Rust, RabbitMQ for message queue, Postgres for data, Clickhouse for analytics.
-- Insightful, fast dashboards for traces / spans / events / evaluations.
+## Documentation
 
-Read the [docs](https://docs.lmnr.ai).
+Check out full documentation here [docs.lmnr.ai](https://docs.lmnr.ai).
 
 ## Getting started
 
-### Laminar Cloud
-
-The easiest way to get started is with a generous free tier on our managed platform -> [lmnr.ai](https://www.lmnr.ai)
+The fastest and easiest way to get started is with our managed platform -> [lmnr.ai](https://www.lmnr.ai)
 
 ### Self-hosting with Docker compose
 
@@ -32,66 +48,61 @@ cd lmnr
 docker compose up -d
 ```
 
-This will spin up a lightweight version of the stack with just the database, app-server, and frontend. This is good for a quickstart 
+This will spin up a lightweight version of the stack with Postgres, app-server, and frontend. This is good for a quickstart 
 or for lightweight usage.
 
-For production environment, we recommend using `docker compose -f docker-compose-full.yml up -d`. This may take a while,
-but it will enable all features.
+You can access the UI at http://localhost:3000 in your browser.
 
-This will spin up the following containers:
-- app-server – the core app logic, backend, and the LLM proxies
-- rabbitmq – message queue for sending the traces and observations reliably
+For production environment, we recommend using our [managed platform](https://www.lmnr.ai/projects) or `docker compose -f docker-compose-full.yml up -d`. 
+
+`docker-compose-full.yml` is heavy but it will enable all the features.
+
+- app-server – core Rust backend
+- rabbitmq – message queue for reliable trace processing
 - qdrant – vector database
-- semantic-search-service – service for interacting with qdrant and embeddings
-- frontend – the visual front-end dashboard for interacting with traces
-- python-executor – a small python sandbox that can run arbitrary code wrapped under a thin gRPC service
-- postgres – the database for all the application data
+- semantic-search-service – gRPC service for embedding text and storing/retrieving it from qdrant
+- frontend – Next.js frontend and backend
+- python-executor – gRPC service with lightweight Python sandbox that can run arbitrary code.
+- postgres – Postgres database for all the application data
 - clickhouse – columnar OLAP database for more efficient trace and label analytics
 
-#### Local development
-
-The simple set up above will pull latest Laminar images from Github Container Registry.
+## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,
 follow the guide in [Contributing](/CONTRIBUTING.md).
 
-### Usage. Instrumenting Python code
+## Python quickstart
 
 First, create a project and generate a Project API Key. Then,
 
 ```sh
-pip install lmnr
+pip install lmnr --upgrade
 echo "LMNR_PROJECT_API_KEY=<YOUR_PROJECT_API_KEY>" >> .env
 ```
 
 To automatically instrument LLM calls of popular frameworks and LLM provider libraries just add
 ```python
-from lmnr import Laminar as L
-L.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
+from lmnr import Laminar
+Laminar.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
 ```
 
-In addition to automatic instrumentation, we provide a simple `@observe()` decorator,
-if you want to trace inputs / outputs of functions
-
-#### Example
+To trace inputs / outputs of functions use `@observe()` decorator.
 
 ```python
 import os
 from openai import OpenAI
 
-from lmnr import observe, Laminar as L
-L.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
+from lmnr import observe, Laminar
+Laminar.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 @observe()  # annotate all functions you want to trace
-def poem_writer(topic="turbulence"):
-    prompt = f"write a poem about {topic}"
+def poem_writer(topic):
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": f"write a poem about {topic}"},
         ],
     )
     poem = response.choices[0].message.content
@@ -101,32 +112,13 @@ if __name__ == "__main__":
     print(poem_writer(topic="laminar flow"))
 ```
 
-#### Laminar pipelines as prompt chain managers
+Running the code above will result in the following trace.
 
-You can create Laminar pipelines in the UI and manage chains of LLM calls there.
+<img width="996" alt="Screenshot 2024-10-29 at 7 52 40 PM" src="https://github.com/user-attachments/assets/df141a62-b241-4e43-844f-52d94fe4ad67">
 
-After you are ready to use your pipeline in your code, deploy it in Laminar by selecting the target version for the pipeline.
-
-Once your pipeline target is set, you can call it from Python in just a few lines.
-
-```python
-from lmnr import Laminar as L
-
-L.initialize('<YOUR_PROJECT_API_KEY>')
-
-result = l.run(
-    pipeline = 'my_pipeline_name',
-    inputs = {'input_node_name': 'some_value'},
-    # all environment variables
-    env = {'OPENAI_API_KEY': 'sk-some-key'},
-)
-```
-
-## Learn more
+## Client libraries
 
 To learn more about instrumenting your code, check out our client libraries:
 
  <a href="https://www.npmjs.com/package/@lmnr-ai/lmnr"> ![NPM Version](https://img.shields.io/npm/v/%40lmnr-ai%2Flmnr?label=lmnr&logo=npm&logoColor=CB3837) </a>
  <a href="https://pypi.org/project/lmnr/"> ![PyPI - Version](https://img.shields.io/pypi/v/lmnr?label=lmnr&logo=pypi&logoColor=3775A9) </a>
-
-To get deeper understanding of the concepts, follow on to the [docs](https://docs.lmnr.ai/).
