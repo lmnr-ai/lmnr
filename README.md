@@ -49,9 +49,7 @@ docker compose up -d
 ```
 
 This will spin up a lightweight version of the stack with Postgres, app-server, and frontend. This is good for a quickstart 
-or for lightweight usage.
-
-You can access the UI at http://localhost:3000 in your browser.
+or for lightweight usage. You can access the UI at http://localhost:3000 in your browser.
 
 For production environment, we recommend using our [managed platform](https://www.lmnr.ai/projects) or `docker compose -f docker-compose-full.yml up -d`. 
 
