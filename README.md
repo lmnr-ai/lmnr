@@ -9,7 +9,7 @@
 [Laminar](https://www.lmnr.ai) is an all-in-one open-source platform for engineering AI products. Trace, evaluate, label, and analyze LLM data.
 
 - [x] Tracing
-    - [x] OpenTelemetry-based automatic tracing of common AI frameworks and SDKs (LangChain, OpenAI, Anthropic ...) with just 2 lines of code. (powered by an amazing [OpenLLMetry](https://github.com/traceloop/openllmetry)).
+    - [x] OpenTelemetry-based automatic tracing of common AI frameworks and SDKs (LangChain, OpenAI, Anthropic ...) with just 2 lines of code. (powered by amazing [OpenLLMetry](https://github.com/traceloop/openllmetry)).
     - [x] Trace input/output, latency, cost, token count.
     - [x] Function tracing with `observe` decorator/wrapper.
     - [x] Image tracing.
@@ -49,7 +49,7 @@ docker compose up -d
 ```
 
 This will spin up a lightweight version of the stack with Postgres, app-server, and frontend. This is good for a quickstart 
-or for lightweight usage.
+or for lightweight usage. You can access the UI at http://localhost:3000 in your browser.
 
 For production environment, we recommend using our [managed platform](https://www.lmnr.ai/projects) or `docker compose -f docker-compose-full.yml up -d`. 
 
@@ -59,7 +59,7 @@ For production environment, we recommend using our [managed platform](https://ww
 - rabbitmq – message queue for reliable trace processing
 - qdrant – vector database
 - semantic-search-service – gRPC service for embedding text and storing/retrieving it from qdrant
-- frontend – NextJS frontend and backend
+- frontend – Next.js frontend and backend
 - python-executor – gRPC service with lightweight Python sandbox that can run arbitrary code.
 - postgres – Postgres database for all the application data
 - clickhouse – columnar OLAP database for more efficient trace and label analytics
