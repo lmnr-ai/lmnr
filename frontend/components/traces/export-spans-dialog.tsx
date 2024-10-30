@@ -39,8 +39,8 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
 
   const { toast } = useToast();
 
-  const [data, setData] = useState(span.input);
-  const [target, setTarget] = useState(span.output);
+  const [data, setData] = useState(toJsonObject(span.input, 'input'));
+  const [target, setTarget] = useState(toJsonObject(span.output, 'output'));
   const [isDataValid, setIsDataValid] = useState(true);
   const [isTargetValid, setIsTargetValid] = useState(true);
 
@@ -161,11 +161,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
                   className="max-h-[500px]"
                   editable
                   defaultMode={'json'}
-                  value={JSON.stringify(
-                    toJsonObject(span.input, 'input'),
-                    null,
-                    2
-                  )}
+                  value={JSON.stringify(data, null, 2)}
                   onChange={handleDataChange}
                 />
                 {!isDataValid && (
@@ -178,11 +174,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
                   className="max-h-[500px]"
                   editable
                   defaultMode={'json'}
-                  value={JSON.stringify(
-                    toJsonObject(span.output, 'output'),
-                    null,
-                    2
-                  )}
+                  value={JSON.stringify(target, null, 2)}
                   onChange={handleTargetChange}
                 />
                 {!isTargetValid && (
@@ -195,11 +187,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
                   className="max-h-[500px]"
                   editable
                   defaultMode={'json'}
-                  value={JSON.stringify(
-                    toJsonObject(metadata, 'metadata'),
-                    null,
-                    2
-                  )}
+                  value={JSON.stringify(metadata, null, 2)}
                   onChange={handleMetadataChange}
                 />
                 {!isMetadataValid && (
