@@ -14,6 +14,7 @@ interface CodeEditorProps {
   editable?: boolean;
   onChange?: (value: string) => void;
   placeholder?: string;
+  background?: string;
 }
 
 const myTheme = createTheme({
@@ -38,7 +39,8 @@ export default function CodeEditor({
   editable = true,
   onChange,
   className,
-  placeholder
+  placeholder,
+  background
 }: CodeEditorProps) {
   const extensions = [
     EditorView.lineWrapping,
@@ -61,10 +63,10 @@ export default function CodeEditor({
   }
 
   return (
-    <div className={cn('w-full h-full flex flex-col p-2 bg-card text-foreground', className)}>
+    <div className={cn('w-full h-full flex flex-col p-2 bg-card text-foreground', background, className)}>
       <CodeMirror
         placeholder={placeholder}
-        className="border-none bg-card"
+        className={cn('border-none bg-card', background)}
         theme={myTheme}
         extensions={extensions}
         editable={editable}

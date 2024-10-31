@@ -35,7 +35,7 @@ export default function PricingCard({
               </div>
             </div>
             {subfeatures && subfeatures[index] && (
-              <div className="text-sm text-white/70 ml-9">
+              <div className="text-sm ml-9">
                 {subfeatures[index]}
               </div>
             )}

@@ -13,9 +13,21 @@ import {
 import { usePostHog } from 'posthog-js/react';
 import Image from 'next/image';
 import noise from '@/assets/landing/noise1.jpeg';
+import { Slider } from "@/components/ui/slider";
+import { useState } from "react";
 
 export default function Pricing() {
   const posthog = usePostHog();
+
+  const [spanCount, setSpanCount] = useState(50);  // in thousands
+  const [teamMembers, setTeamMembers] = useState(1);
+
+  const calculateProPrice = () => {
+    const basePrice = 25;
+    const additionalSpansCost = spanCount > 50 ? Math.floor((spanCount - 50) / 100 * 25) : 0;
+    const additionalMembersCost = (teamMembers - 1) * 25;
+    return basePrice + additionalSpansCost + additionalMembersCost;
+  };
 
   const handleQuestionClick = (question: string) => {
     posthog?.capture('faq_question_clicked', { question });
@@ -23,7 +35,7 @@ export default function Pricing() {
 
   return (
     <div className="flex flex-col items-center mt-32 w-full h-full">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-8 md:p-16">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:p-16">
         <div className="p-8 border rounded-lg flex flex-col space-y-4">
           <PricingCard
             className="text-secondary-foreground"
@@ -52,11 +64,11 @@ export default function Pricing() {
               className="w-full h-full object-cover object-top"
             />
           </div>
-          <div className="bg-transparent h-full w-full rounded p-8 flex flex-col space-y-4 z-20">
+          <div className="bg-transparent h-full w-full rounded p-8 flex flex-col z-20">
             <PricingCard
               className="text-white z-20"
               title="Pro"
-              price="$25 / month"
+              price={`$${calculateProPrice()} / month`}
               features={[
                 '50k spans / month included',
                 '60 day data retention',
@@ -70,58 +82,62 @@ export default function Pricing() {
                 null
               ]}
             />
-            {/* <div className="text-secondary-foreground">$20 / month for each additional member</div> */}
-            <Link href="/projects" className="w-full z-20">
-              <Button
-                className="h-10 text-base bg-white/90 text-black hover:bg-white/70 w-full"
-                variant="outline"
-
-              >
-                Get started
-              </Button>
-            </Link>
+            <div className="space-y-4 z-20 flex flex-col">
+              <div className="space-y-2">
+                <div className="text-white">Spans per month {spanCount}k</div>
+                <Slider
+                  defaultValue={[50]}
+                  max={1000}
+                  min={50}
+                  step={50}
+                  onValueChange={(value) => setSpanCount(value[0])}
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="text-white">Team members {teamMembers}</div>
+                <Slider
+                  defaultValue={[1]}
+                  max={10}
+                  min={1}
+                  step={1}
+                  onValueChange={(value) => setTeamMembers(value[0])}
+                />
+              </div>
+              <Link href="/projects" className="w-full z-20">
+                <Button
+                  className="h-10 text-base bg-white/90 text-black hover:bg-white/70 w-full"
+                  variant="outline"
+                >
+                  Get started
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
-        {/* <div className="p-8 border-2 rounded flex flex-col space-y-4">
+        <div className="p-8 border rounded-lg flex flex-col space-y-4">
           <PricingCard
             className="text-secondary-foreground"
-            title="Enterprise"
-            description="Build cutting-edge products on Laminar"
-            price="Custom"
+            title="Team"
+            price="$300 / month"
             features={[
-              "Custom",
-              "10 projects / workspace",
-              "1M pipeline runs / month",
-              "1000MB storage",
-              "90 day log retention",
-              "5 members per workspace",
+              '1M spans / month',
+              '180 day data retention',
+              '5 team members included',
+              'Private Slack channel'
+            ]}
+            subfeatures={[
+              null,
+              null,
+              'then $25 / additional team member',
+              null
             ]}
           />
-          <div className="text-secondary-foreground">$20 / month for each additional member</div>
-          <a target="_blank" href="https://cal.com/skull8888888/30min">
-            <Button variant="secondary" className="w-full">
-              Book a demo
+          <Link href="/projects">
+            <Button variant="secondary" className="w-full h-10">
+              Get started
             </Button>
-          </a>
-        </div> */}
-        {/* <div className="p-8 border-2 rounded flex flex-col space-y-4 flex-1">
-          <PricingCard
-            title="Enterprise"
-            description="Perfect for large-scale businesses"
-            price="Custom"
-            features={[
-              "Unlimited workspaces",
-              "Unlimited projects",
-              "Unlimited pipeline runs / month",
-              "Configurable storage size",
-              "Configurable number of collaborators",
-              "Configurable log retention period",
-              "Unlimited code generations per month",
-            ]} />
-          <Button variant={'secondary'} className="w-full">
-            Contact us
-          </Button>
-        </div> */}
+          </Link>
+        </div>
       </div>
       <div className="w-full max-w-3xl mt-16 mb-32 px-4">
         <h2 className="text-2xl font-bold mb-4 text-center">

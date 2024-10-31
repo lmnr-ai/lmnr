@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import logo from '@/assets/logo/logo.svg';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Menu, X, XCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,21 @@ interface LandingHeaderProps {
 
 export default function LandingHeader({ hasSession }: LandingHeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [starCount, setStarCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const response = await fetch('/api/stars');
+        const data = await response.json();
+        setStarCount(data.stars);
+      } catch (error) {
+        console.error('Failed to fetch star count:', error);
+      }
+    };
+    fetchStars();
+  }, []);
+
   const menuItemStyle =
     'text-sm md:text-base font-medium px-2 md:px-2 py-2 md:py-1 transition-colors w-full text-left  whitespace-nowrap md:rounded-sm hover:bg-secondary';
 
@@ -45,14 +60,17 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
               isMenuOpen ? '' : 'hidden'
             )}
           >
-            <Link href="https://docs.lmnr.ai" className={menuItemStyle}>
+            <Link href="https://docs.lmnr.ai" target="_blank" className={menuItemStyle}>
               Docs
             </Link>
             <Link href="/pricing" className={menuItemStyle}>
               Pricing
             </Link>
             <Link target="_blank" href="https://github.com/lmnr-ai/lmnr" className={menuItemStyle}>
-              GitHub
+              GitHub {starCount && `★ ${starCount}`}
+            </Link>
+            <Link target="_blank" href="https://discord.gg/nNFUUDAKub" className={menuItemStyle}>
+              Discord
             </Link>
             <Link target="_blank" href="https://cal.com/robert-lmnr/demo">
               <Button
