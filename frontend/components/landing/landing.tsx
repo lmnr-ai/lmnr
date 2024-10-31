@@ -22,19 +22,28 @@ import Footer from './footer';
 import { Button } from '../ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CodeEditor from '../ui/code-editor';
+import { useEffect, useState } from 'react';
 
 export default function Landing() {
+  const [stars, setStars] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch('/api/stars')
+      .then(res => res.json())
+      .then(data => setStars(data.stars))
+      .catch(err => console.error('Failed to fetch GitHub stars:', err));
+  }, []);
 
   const sections = [
     {
       id: 'traces',
       title: 'Traces',
       description: 'When you trace your LLM application, you get a clear picture of every step of execution and simultaneously collect invaluable data. You can use it to set up better evaluations, as dynamic few-shot examples, and for fine-tuning.',
-      codeExample: `from lmnr import Laminar as L, observe
+      codeExample: `from lmnr import Laminar, observe
 
 # automatically instruments common 
 # LLM frameworks and libraries
-L.initialize(project_api_key="...")
+Laminar.initialize(project_api_key="...")
 
 @observe() # annotate all functions you want to trace
 def my_function():
@@ -105,7 +114,7 @@ evaluate(
                         height={20}
                         className="mr-2"
                       />
-                      Star us on GitHub
+                      Star us on GitHub {stars && `★ ${stars}`}
                       <ArrowUpRight className="ml-2 h-4 w-4" />
                     </Button>
                   </Link>
@@ -207,6 +216,7 @@ evaluate(
                         <div className="flex flex-col w-full">
                           {section.codeExample && (
                             <CodeEditor
+                              background="bg-black"
                               className="bg-black md:rounded-tl-lg md:rounded-br-lg border-white"
                               value={section.codeExample}
                               language="python"
@@ -254,6 +264,7 @@ evaluate(
                 <PromptChainsCard className="h-full" />
               </div>
             </div>
+            <SelfHostCard />
           </div>
         </div>
         <Footer />
@@ -419,6 +430,45 @@ function PromptChainsCard({ className }: { className?: string }) {
               alt="Prompt Chains visualization"
               className="w-full h-auto object-cover"
             />
+          </div>
+        </div>
+      </Link>
+    </div>
+  );
+}
+
+function SelfHostCard() {
+  return (
+    <div className="bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group">
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <Image
+          src={noise1}
+          alt=""
+          className="w-full h-full object-cover object-top"
+        />
+      </div>
+      <Link
+        href="https://github.com/lmnr-ai/lmnr"
+        target="_blank"
+        className="flex flex-col h-full relative z-10"
+      >
+        <div className="p-6 flex-grow space-y-2">
+          <h3 className="text-xl font-medium group-hover:text-white transition-colors duration-200">Fully open-source</h3>
+          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
+            Laminar is fully open-source and easy to self-host. Get started with just a few commands.
+          </p>
+          <CodeEditor
+            className="p-0 max-h-[70px]"
+            value={`git clone https://github.com/lmnr-ai/lmnr
+cd lmnr
+docker compose up -d`}
+            background="bg-transparent"
+            editable={false}
+          />
+          <div className="flex">
+            <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
+              Learn about self-hosting <ArrowUpRight className="ml-2 h-4 w-4" />
+            </div>
           </div>
         </div>
       </Link>
