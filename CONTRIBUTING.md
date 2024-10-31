@@ -26,22 +26,24 @@ Don't get overwhelmed by the number of docker-compose files. Here's a quick over
 - `docker-compose.yml` is the simplest one that spins up frontend, app-server, and postgres. Good for quickstarts.
 - `docker-compose-full.yml` is the one you want to use for running the full stack locally. This is the best 
 for self-hosting.
+- `docker-compose-local-dev-full.yml` full file for local development. To be used when you make changes
+  to the backend. It will only run the dependency services (postgres, qdrant, clickhouse, rabbitmq).
+  You will need to run `cargo r`, `pnpm run dev`, and `python server.py` manually.
 - `docker-compose-local-dev.yml` is the one you want to use for local development. It will only
-  run the dependency services (postgres, qdrant, clickhouse, rabbitmq). You will need to run
-  `cargo r`, `pnpm run dev`, and `python server.py` manually.
+  run postgres and app-server. Good for frontend changes.
 - `docker-compose-local-build.yml` will build the services from the source and run them in production mode. This is good for self-hosting with your own changes,
 or for testing the changes after developing on your own and before opening a PR.
 
-| Service | docker-compose.yml | docker-compose-full.yml | docker-compose-local-dev.yml | docker-compose-local-build.yml |
-|---------|-------------------|------------------------|----------------------------|------------------------------|
-| postgres | ✅ | ✅ | ✅ | ✅ |
-| qdrant | ❌ | ✅ | ✅ | ✅ |
-| clickhouse | ❌ | ✅ | ✅ | ✅ |
-| rabbitmq | ❌ | ✅ | ✅ | ✅ |
-| app-server | ℹ️ | ✅ | 💻 | 🔧 |
-| frontend | ℹ️ | ✅ | 💻 | 🔧 |
-| semantic-search-service | ❌ | ✅ |  💻 | 🔧 |
-| python-executor | ❌ | ✅ | 💻 | 🔧 |
+| Service | docker-compose.yml | docker-compose-full.yml | docker-compose-local-dev-full.yml | docker-compose-local-dev.yml | docker-compose-local-build.yml |
+|---------|-------------------|------------------------|------------------------------|----------------------------|------------------------------|
+| postgres | ✅ | ✅ | ✅ | ✅ | ✅ |
+| qdrant | ❌ | ✅ | ✅ | ❌ | ✅ |
+| clickhouse | ❌ | ✅ | ✅ | ❌ | ✅ |
+| rabbitmq | ❌ | ✅ | ✅ | ❌ | ✅ |
+| app-server | ℹ️ | ✅ | 💻 | ℹ️ | 🔧 | 
+| frontend | ℹ️ | ✅ | 💻 | 💻 | 🔧 |
+| semantic-search-service | ❌ | ✅ | 💻 | ❌ | 🔧 |
+| python-executor | ❌ | ✅ | 💻 | ❌ | 🔧 |
 
 - ✅ – service present, image is pulled from a container registry.
 - 🔧 – service present, image is built from the source. This may take a while.
@@ -50,10 +52,39 @@ or for testing the changes after developing on your own and before opening a PR.
 - ❌ – service not present.
 
 
-## Running Laminar locally
+## Running Laminar locally for development
 
-If you want to test your local changes, you can run code separately in
-development mode.
+Use this guide if you are changing frontend code only.
+For making backend changes or changes across the full stack,
+see [Advanced] section below.
+
+### 0. Configure environment variables
+
+```sh
+cd frontend
+cp .env.local.example .env.local
+```
+
+### 1. Spin up app-server and postgres
+
+```sh
+docker compose -f docker-compose-local-dev.yml up
+```
+
+### 2. Run frontend in development mode
+
+```sh
+cd frontend
+pnpm run dev
+```
+
+Next.js is hot-reloadable in development mode, so any changes you make will be reflected
+immediately.
+
+## [Advanced] Running full stack locally for development
+
+This guide is for when you are changing backend code, or when you want to run the full stack
+locally for development. If you only want to change frontend code, see the section above.
 
 ### 0. Configure environment variables
 
@@ -68,7 +99,7 @@ cp frontend/.env.local.example frontend/.env.local
 ### 1. Spin up dependency containers
 
 ```sh
-docker compose -f docker-compose-local-dev.yml up
+docker compose -f docker-compose-local-dev-full.yml up
 ```
 
 This will spin up postgres, qdrant, clickhouse, and RabbitMQ.

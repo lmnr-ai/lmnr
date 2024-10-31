@@ -39,7 +39,7 @@ services:
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: some_secret
       NEXT_PUBLIC_URL: http://localhost:3000
-      ENVIRONMENT: LITE # this disables runtime reliance on clickhouse
+      ENVIRONMENT: LITE # this disables runtime dependency on clickhouse
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server
@@ -55,7 +55,7 @@ services:
       GRPC_PORT: 8001
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
-      ENVIRONMENT: LITE # this disables runtime reliance on clickhouse, rabbitmq, semantic search, and python executor
+      ENVIRONMENT: LITE # this disables runtime dependency on clickhouse, rabbitmq, semantic search, and python executor
 
 volumes:
   postgres-data:

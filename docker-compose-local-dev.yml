@@ -1,55 +1,13 @@
-# This compose definition does not build Laminar images, it is intended for local development.
-# This file is meant to be used with running the Laminar services manually from each service's directory.
-# Refer to CONTRIBUTING.md for more information on how to run the services locally.
+# This compose file is a lightweight version of docker-compose-local-dev-full.yml.
+# It is intended to be used for local development on frontend only.
+# It does not include ClickHouse,
+# Qdrant, Semantic Search, Python executor, and RabbitMQ.
+# It only includes postgres, and app-server.
+# Run frontend manually with `ENVIRONMENT=LITE pnpm run dev`.
+
 name: lmnr
 
 services:
-  qdrant:
-    image: qdrant/qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - type: volume
-        source: qdrant-data
-        target: /data
-    
-  rabbitmq:
-    image: rabbitmq
-    ports:
-      - "5672:5672"
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
-    healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 7s
-      timeout: 5s
-      retries: 3
-
-  clickhouse:
-    build:
-      context: ./clickhouse
-    container_name: clickhouse
-    hostname: clickhouse
-    ports:
-      - "8123:8123"
-    volumes:
-      - type: volume
-        source: clickhouse-data
-        target: /var/lib/clickhouse/
-      - type: volume
-        source: clickhouse-logs
-        target: /var/log/clickhouse-server/
-    cap_add:
-      - SYS_NICE
-      - NET_ADMIN
-      - IPC_LOCK
-    ulimits:
-      nofile:
-        soft: 262144
-        hard: 262144
-
   postgres:
     image: postgres:16
     ports:
@@ -66,8 +24,21 @@ services:
       timeout: 5s
       retries: 5
 
+  app-server:
+    image: ghcr.io/lmnr-ai/app-server
+    pull_policy: always
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 8000
+      GRPC_PORT: 8001
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
+      ENVIRONMENT: LITE # this disables runtime dependency on clickhouse, rabbitmq, semantic search, and python executor
+
 volumes:
-  qdrant-data:
-  clickhouse-data:
-  clickhouse-logs:
   postgres-data:

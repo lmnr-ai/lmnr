@@ -1,0 +1,73 @@
+# This compose definition does not build Laminar images, it is intended for local development.
+# This file is meant to be used with running the Laminar services manually from each service's directory.
+# Refer to CONTRIBUTING.md for more information on how to run the services locally.
+name: lmnr
+
+services:
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - type: volume
+        source: qdrant-data
+        target: /data
+    
+  rabbitmq:
+    image: rabbitmq
+    ports:
+      - "5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 7s
+      timeout: 5s
+      retries: 3
+
+  clickhouse:
+    build:
+      context: ./clickhouse
+    container_name: clickhouse
+    hostname: clickhouse
+    ports:
+      - "8123:8123"
+    volumes:
+      - type: volume
+        source: clickhouse-data
+        target: /var/lib/clickhouse/
+      - type: volume
+        source: clickhouse-logs
+        target: /var/log/clickhouse-server/
+    cap_add:
+      - SYS_NICE
+      - NET_ADMIN
+      - IPC_LOCK
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  qdrant-data:
+  clickhouse-data:
+  clickhouse-logs:
+  postgres-data:
