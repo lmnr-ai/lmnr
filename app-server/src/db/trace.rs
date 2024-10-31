@@ -40,7 +40,7 @@ pub enum TraceType {
 #[derive(Serialize, sqlx::FromRow, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Trace {
-    pub id: Uuid,
+    id: Uuid,
     #[serde(default)]
     start_time: Option<DateTime<Utc>>,
     #[serde(default)]
@@ -60,12 +60,12 @@ pub struct Trace {
     output_cost: f64,
     cost: f64,
     success: bool,
-    pub project_id: Uuid,
+    project_id: Uuid,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct TraceWithParentSpanAndEvents {
+pub struct TraceWithTopSpan {
     id: Uuid,
     start_time: DateTime<Utc>,
     end_time: Option<DateTime<Utc>>,
@@ -91,9 +91,6 @@ pub struct TraceWithParentSpanAndEvents {
     top_span_name: Option<String>,
     top_span_type: Option<SpanType>,
     top_span_path: Option<String>,
-
-    // 'events' is a list of partial event objects, using Option because of Coalesce
-    events: Option<Value>,
 }
 
 #[derive(FromRow, Debug)]
@@ -282,26 +279,6 @@ fn add_text_join(
     Ok(())
 }
 
-const TRACE_EVENTS_EXPRESSION: &str = "
-    trace_events AS (
-        SELECT
-            traces.id as trace_id,
-            jsonb_agg(
-                jsonb_build_object(
-                    'id', events.id,
-                    'typeId', events.template_id,
-                    'templateName', event_templates.name,
-                    'spanId', events.span_id
-                )
-            ) as events
-        FROM events
-        JOIN event_templates ON events.template_id = event_templates.id
-        JOIN spans ON spans.span_id = events.span_id
-        JOIN traces ON traces.id = spans.trace_id
-        WHERE traces.start_time IS NOT NULL AND traces.end_time IS NOT NULL
-        GROUP BY traces.id
-    )";
-
 fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Option<Vec<Filter>>) {
     if let Some(filters) = filters {
         filters.iter().for_each(|filter| {
@@ -416,11 +393,9 @@ pub async fn get_traces(
     filters: &Option<Vec<Filter>>,
     date_range: &Option<DateRange>,
     text_search_filter: Option<String>,
-) -> Result<Vec<TraceWithParentSpanAndEvents>> {
+) -> Result<Vec<TraceWithTopSpan>> {
     let mut query = QueryBuilder::<Postgres>::new("WITH ");
     add_traces_info_expression(&mut query, date_range, project_id)?;
-    query.push(", ");
-    query.push(TRACE_EVENTS_EXPRESSION);
 
     query.push(
         "
@@ -441,15 +416,13 @@ pub async fn get_traces(
             output_cost,
             cost,
             success,
-            COALESCE(trace_events.events, '[]'::jsonb) AS events,
             top_span_input_preview,
             top_span_output_preview,
             top_span_name,
             top_span_type,
             top_span_path,
             status
-        FROM traces_info
-        LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id ",
+        FROM traces_info ",
     );
     if let Some(search) = text_search_filter {
         add_text_join(&mut query, date_range, &search)?;
@@ -466,7 +439,7 @@ pub async fn get_traces(
         .push_bind(limit as i64);
 
     let traces = query
-        .build_query_as::<'_, TraceWithParentSpanAndEvents>()
+        .build_query_as::<'_, TraceWithTopSpan>()
         .fetch_all(pool)
         .await?;
 
@@ -483,14 +456,11 @@ pub async fn count_traces(
 ) -> Result<i64> {
     let mut query = QueryBuilder::<Postgres>::new("WITH ");
     add_traces_info_expression(&mut query, date_range, project_id)?;
-    query.push(", ");
-    query.push(TRACE_EVENTS_EXPRESSION);
     query.push(
         "
         SELECT
             COUNT(DISTINCT(id)) as total_count
         FROM traces_info
-        LEFT JOIN trace_events ON trace_events.trace_id = traces_info.id
         ",
     );
     if let Some(search) = text_search_filter {

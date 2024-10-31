@@ -8,7 +8,7 @@ use crate::{
         events::EventWithTemplateName,
         modifiers::{DateRange, Filter, RelativeDateInterval},
         spans::Span,
-        trace::{Session, Trace, TraceWithParentSpanAndEvents},
+        trace::{Session, Trace, TraceWithTopSpan},
         DB,
     },
 };
@@ -82,7 +82,7 @@ pub async fn get_traces(
     let (total_count, any_in_project) =
         count_result.map_err(|e| anyhow::anyhow!("Failed to count traces: {:?}", e))?;
 
-    let response = PaginatedResponse::<TraceWithParentSpanAndEvents> {
+    let response = PaginatedResponse::<TraceWithTopSpan> {
         total_count,
         items: traces,
         any_in_project,
