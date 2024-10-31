@@ -22,8 +22,8 @@ export default function Projects({ isWorkspaceEnabled }: ProjectsProps) {
   );
 
   const router = useRouter();
-  if (data !== undefined && data.length === 0) {
-    router.push('/onboarding');
+  if (!isLoading && data !== undefined && data.length === 0) {
+    router.replace('/onboarding');
   }
 
   return (
