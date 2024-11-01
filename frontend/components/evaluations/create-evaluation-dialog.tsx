@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Info, Loader, Plus } from 'lucide-react';
+import { Info, Loader2, Plus } from 'lucide-react';
 import { cn, getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -190,7 +190,7 @@ export default function CreateEvaluationDialog() {
               onClick={createNewEvaluation}
               disabled={!isEvaluationComplete() || isLoading}
             >
-              <Loader
+              <Loader2
                 className={cn(
                   'mr-2 hidden',
                   isLoading ? 'animate-spin block' : ''

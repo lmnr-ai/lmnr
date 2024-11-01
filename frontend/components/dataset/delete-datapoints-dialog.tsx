@@ -9,7 +9,7 @@ import {
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { useState } from 'react';
-import { Loader } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 export interface DeleteDatapointsDialogProps {
   selectedDatapointIds: string[];
@@ -64,7 +64,7 @@ export default function DeleteDatapointsDialog({
               setOpen(false);
             }}
           >
-            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
+            {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             Delete
           </Button>
         </DialogFooter>

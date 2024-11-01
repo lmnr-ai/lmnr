@@ -10,7 +10,7 @@ import {
   DialogTrigger
 } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Loader } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import CodeEditor from '../ui/code-editor';
 
 const DEFAULT_DATA = '{\n  "data": {},\n  "target": {}\n}';
@@ -99,7 +99,7 @@ export default function ManualAddDatapointDialog({
             disabled={isLoading}
             onClick={async () => await addDatapoint()}
           >
-            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
+            {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             Add datapoint
           </Button>
         </DialogFooter>

@@ -7,7 +7,7 @@ import { swrFetcher } from '@/lib/utils';
 
 import { useProjectContext } from '@/contexts/project-context';
 import { useRouter } from 'next/navigation';
-import { Loader, Loader2, MoreVertical, Trash2 } from 'lucide-react';
+import { Loader2, MoreVertical, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ColumnDef } from '@tanstack/react-table';
 import { Dataset } from '@/lib/dataset/types';

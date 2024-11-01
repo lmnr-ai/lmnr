@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
-import { Loader, GitFork } from 'lucide-react';
+import { Loader2, GitFork } from 'lucide-react';
 import { PipelineVersionInfo } from '@/lib/pipeline/types';
 import { useRouter } from 'next/navigation';
 import { useProjectContext } from '@/contexts/project-context';
@@ -109,7 +109,7 @@ export default function ForkButton({
             handleEnter={true}
             onClick={forkPipelineVersion}
           >
-            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
+            {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             Fork
           </Button>
         </DialogFooter>

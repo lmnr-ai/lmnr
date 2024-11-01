@@ -10,7 +10,7 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { Button } from '../ui/button';
-import { Loader, Plus } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 
@@ -71,7 +71,7 @@ export default function WorkspaceCreateDialog({
             disabled={!newWorkspaceName || isCreatingWorkspace}
           >
             {isCreatingWorkspace && (
-              <Loader className="mr-2 animate-spin" size={16} />
+              <Loader2 className="mr-2 animate-spin" size={16} />
             )}
             Create
           </Button>

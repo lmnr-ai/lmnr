@@ -10,7 +10,7 @@ import {
 import { useEffect, useState } from 'react';
 import { Pipeline, PipelineVersion } from '@/lib/pipeline/types';
 import { useProjectContext } from '@/contexts/project-context';
-import { GitBranch, GitCommitVertical, Loader, Radio } from 'lucide-react';
+import { GitBranch, GitCommitVertical, Loader2, Radio } from 'lucide-react';
 
 interface PipelineSelectProps {
   onPipelineChange?: (pipeline: Pipeline) => void;
@@ -148,7 +148,7 @@ export default function PipelineSelect({
               className="flex justify-center"
               disabled={true}
             >
-              <Loader className="animate-spin block" size={16} />
+              <Loader2 className="animate-spin block" size={16} />
             </SelectItem>
           ) : (
             pipelines!.map((pipeline) => (
@@ -189,7 +189,7 @@ export default function PipelineSelect({
               className="flex justify-center"
               disabled={true}
             >
-              <Loader className="animate-spin block" size={16} />
+              <Loader2 className="animate-spin block" size={16} />
             </SelectItem>
           </SelectContent>
         ) : (

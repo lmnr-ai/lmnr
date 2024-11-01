@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Loader, NotepadText } from 'lucide-react';
+import { Loader2, NotepadText } from 'lucide-react';
 import { useProjectContext } from '@/contexts/project-context';
 import { Label } from '@/components/ui/label';
 import { Input } from '../ui/input';
@@ -102,7 +102,7 @@ export default function IndexDatasetDialog({
             onClick={async () => await indexDataset()}
             handleEnter
           >
-            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
+            {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             Index
           </Button>
         </DialogFooter>
