@@ -9,6 +9,7 @@ import WorkspaceCreateDialog from './workspace-create-dialog';
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/utils';
 import { Skeleton } from '../ui/skeleton';
+import { useRouter } from 'next/navigation';
 
 interface ProjectsProps {
   isWorkspaceEnabled: boolean;
@@ -19,6 +20,11 @@ export default function Projects({ isWorkspaceEnabled }: ProjectsProps) {
     '/api/workspaces',
     swrFetcher
   );
+
+  const router = useRouter();
+  if (!isLoading && data !== undefined && data.length === 0) {
+    router.replace('/onboarding');
+  }
 
   return (
     <>
