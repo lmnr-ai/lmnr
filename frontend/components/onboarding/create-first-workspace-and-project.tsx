@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { Label } from '../ui/label';
 import { WorkspaceWithProjects } from '@/lib/workspaces/types';
-import { Loader } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface CreateFirstWorkspaceAndProjectProps {
   name?: string | null;
@@ -81,7 +81,7 @@ export default function CreateFirstWorkspaceAndProject({
             disabled={!workspaceName || !projectName || isLoading}
             handleEnter={true}
           >
-            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
+            {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             Create
           </Button>
         </div>

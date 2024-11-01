@@ -6,6 +6,5 @@ export const config = {
   matcher: [
     '/api/projects/:path*',
     '/project/:path*',
-    '/projects'
   ],
 };

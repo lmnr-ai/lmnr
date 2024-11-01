@@ -8,7 +8,7 @@ export async function GET() {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch stars', { cause: await response.text() });
+      throw new Error(await response.text());
     }
 
     const data = await response.json();

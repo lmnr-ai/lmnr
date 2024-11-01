@@ -15,7 +15,7 @@ interface LandingHeaderProps {
 export default function LandingHeader({ hasSession }: LandingHeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const [starCount, setStarCount] = useState(0);
+  const [starCount, setStarCount] = useState<number | null>(null);
 
   useEffect(() => {
     fetch('/api/stars', { cache: 'no-cache' })

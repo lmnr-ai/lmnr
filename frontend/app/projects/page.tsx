@@ -1,7 +1,6 @@
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
-import ProjectsHeader from '@/components/projects/projects-header';
 
 import Projects from '@/components/projects/projects';
 import { UserContextProvider } from '@/contexts/user-context';
@@ -17,7 +16,7 @@ export const metadata: Metadata = {
 export default async function ProjectsPage() {
   const session = await getServerSession(authOptions);
   if (!session) {
-    redirect('/sign-in');
+    redirect('/sign-in?callbackUrl=/onboarding');
   }
   const user = session.user;
 
