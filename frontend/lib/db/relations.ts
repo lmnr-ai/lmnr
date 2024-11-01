@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { pipelines, targetPipelineVersions, pipelineVersions, projects, traces, evaluations, evaluationResults, spans, eventTemplates, events, providerApiKeys, workspaces, workspaceUsage, labelClassesForPath, users, apiKeys, datasets, datasetDatapoints, membersOfWorkspaces, projectApiKeys, subscriptionTiers, userSubscriptionInfo, labels, labelClasses } from "./schema";
+import { pipelines, targetPipelineVersions, pipelineVersions, projects, traces, evaluations, evaluationResults, spans, eventTemplates, events, labelingQueues, providerApiKeys, workspaces, workspaceUsage, evaluationScores, labelClassesForPath, users, apiKeys, datasets, datasetDatapoints, membersOfWorkspaces, projectApiKeys, subscriptionTiers, userSubscriptionInfo, labels, labelClasses } from "./schema";
 
 export const targetPipelineVersionsRelations = relations(targetPipelineVersions, ({one}) => ({
   pipeline: one(pipelines, {
@@ -34,6 +34,7 @@ export const tracesRelations = relations(traces, ({one, many}) => ({
 
 export const projectsRelations = relations(projects, ({one, many}) => ({
   traces: many(traces),
+  labelingQueues: many(labelingQueues),
   providerApiKeys: many(providerApiKeys),
   evaluations: many(evaluations),
   eventTemplates: many(eventTemplates),
@@ -48,11 +49,12 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   labelClasses: many(labelClasses),
 }));
 
-export const evaluationResultsRelations = relations(evaluationResults, ({one}) => ({
+export const evaluationResultsRelations = relations(evaluationResults, ({one, many}) => ({
   evaluation: one(evaluations, {
     fields: [evaluationResults.evaluationId],
     references: [evaluations.id]
   }),
+  evaluationScores: many(evaluationScores),
 }));
 
 export const evaluationsRelations = relations(evaluations, ({one, many}) => ({
@@ -86,6 +88,13 @@ export const eventTemplatesRelations = relations(eventTemplates, ({one, many}) =
   }),
 }));
 
+export const labelingQueuesRelations = relations(labelingQueues, ({one}) => ({
+  project: one(projects, {
+    fields: [labelingQueues.projectId],
+    references: [projects.id]
+  }),
+}));
+
 export const providerApiKeysRelations = relations(providerApiKeys, ({one}) => ({
   project: one(projects, {
     fields: [providerApiKeys.projectId],
@@ -107,6 +116,13 @@ export const workspacesRelations = relations(workspaces, ({one, many}) => ({
   subscriptionTier: one(subscriptionTiers, {
     fields: [workspaces.tierId],
     references: [subscriptionTiers.id]
+  }),
+}));
+
+export const evaluationScoresRelations = relations(evaluationScores, ({one}) => ({
+  evaluationResult: one(evaluationResults, {
+    fields: [evaluationScores.resultId],
+    references: [evaluationResults.id]
   }),
 }));
 
