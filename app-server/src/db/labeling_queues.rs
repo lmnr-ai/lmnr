@@ -3,6 +3,8 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::evaluations::utils::LabelingQueueEntry;
+
 #[derive(sqlx::FromRow)]
 pub struct LabelingQueue {
     pub id: Uuid,
@@ -29,30 +31,24 @@ pub async fn get_labeling_queue_by_name(
 pub async fn push_to_labeling_queue(
     pool: &PgPool,
     queue_id: &Uuid,
-    data_vec: &Vec<Value>,
-    action_vec: &Vec<Value>,
+    items: &Vec<LabelingQueueEntry>,
 ) -> Result<()> {
-    sqlx::query(
-        "INSERT INTO labeling_queue_data (
+    // we insert one row at a time to
+    // 1. avoid the risk of a failed insert corrupting the batch
+    // 2. sort on created_at
+    for item in items {
+        sqlx::query(
+            "INSERT INTO labeling_queue_data (
             queue_id,
             data,
-            action,
-            index_in_batch
-        ) SELECT
-            $1 as queue_id,
-            data,
-            action,
-            index_in_batch
-        FROM
-            UNNEST ($2::jsonb[], $3::jsonb[], $4::int8[])
-            AS tmp_table(data, action, index_in_batch)
-         ",
-    )
-    .bind(queue_id)
-    .bind(data_vec)
-    .bind(action_vec)
-    .bind(Vec::from_iter(0..data_vec.len() as i64))
-    .execute(pool)
-    .await?;
+            action
+        ) VALUES ($1, $2, $3)",
+        )
+        .bind(queue_id)
+        .bind(item.data.clone())
+        .bind(item.action.clone())
+        .execute(pool)
+        .await?;
+    }
     Ok(())
 }

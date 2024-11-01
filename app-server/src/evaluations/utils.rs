@@ -69,9 +69,9 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
     }
 }
 
-pub struct LabelingQueueEntries {
-    pub data_vec: Vec<Value>,
-    pub action_vec: Vec<Value>,
+pub struct LabelingQueueEntry {
+    pub data: Value,
+    pub action: Value,
 }
 
 pub async fn datapoints_to_labeling_queues(
@@ -79,7 +79,7 @@ pub async fn datapoints_to_labeling_queues(
     datapoints: &Vec<EvaluationDatapointResult>,
     ids: &Vec<Uuid>,
     project_id: &Uuid,
-) -> Result<HashMap<Uuid, LabelingQueueEntries>> {
+) -> Result<HashMap<Uuid, Vec<LabelingQueueEntry>>> {
     let mut queue_name_to_id = HashMap::new();
     let mut res = HashMap::new();
     for (datapoint, datapoint_id) in datapoints.iter().zip(ids.iter()) {
@@ -90,21 +90,17 @@ pub async fn datapoints_to_labeling_queues(
                     .await?
                     .id,
             );
-            let entry = res.entry(*queue_id).or_insert(LabelingQueueEntries {
-                data_vec: vec![],
-                action_vec: vec![],
+            let entry = res.entry(*queue_id).or_insert(vec![]);
+
+            entry.push(LabelingQueueEntry {
+                data: serde_json::json!({
+                    "output": datapoint.executor_output.clone(),
+                    "target": datapoint.target.clone(),
+                }),
+                // For now, we use the datapoint id as the action.
+                // TODO: We should probably add the score name to the action.
+                action: Value::String(datapoint_id.to_string()),
             });
-
-            entry.data_vec.push(serde_json::json!({
-                "output": datapoint.executor_output.clone(),
-                "target": datapoint.target.clone(),
-            }));
-
-            // For now, we use the datapoint id as the action.
-            // TODO: We should probably add the score name to the action.
-            entry
-                .action_vec
-                .push(Value::String(datapoint_id.to_string()));
         }
     }
     Ok(res)

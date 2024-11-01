@@ -338,8 +338,6 @@ export const datasets = pgTable("datasets", {
 export const labelingQueueData = pgTable("labeling_queue_data", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  indexInBatch: bigint("index_in_batch", { mode: "number" }).default(sql`'0'`).notNull(),
   queueId: uuid("queue_id").defaultRandom().notNull(),
   data: jsonb().notNull(),
   action: jsonb().notNull(),

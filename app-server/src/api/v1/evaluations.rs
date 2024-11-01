@@ -57,13 +57,7 @@ async fn create_evaluation(
         datapoints_to_labeling_queues(db.clone(), &points, &ids, &project_id).await?;
 
     for (queue_id, entries) in labeling_queues.iter() {
-        db::labeling_queues::push_to_labeling_queue(
-            &db.pool,
-            queue_id,
-            &entries.data_vec,
-            &entries.action_vec,
-        )
-        .await?;
+        db::labeling_queues::push_to_labeling_queue(&db.pool, queue_id, &entries).await?;
     }
 
     let ids_clone = ids.clone();

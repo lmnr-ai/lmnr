@@ -735,13 +735,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "index_in_batch": {
-          "name": "index_in_batch",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
         "queue_id": {
           "name": "queue_id",
           "type": "uuid",
