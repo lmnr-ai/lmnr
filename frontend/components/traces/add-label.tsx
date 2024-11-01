@@ -34,15 +34,14 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
     name: '',
     projectId: projectId,
     createdAt: '',
-    labelType: LabelType.BOOLEAN,
-    valueMap: ["false", "true"],
+    labelType: LabelType.CATEGORICAL,
+    valueMap: {
+      "False": 0,
+      "True": 1
+    },
     description: null,
     evaluatorRunnableGraph: null
   });
-
-  const isLabelValueMapValid =
-    labelClass.valueMap.length > 0 &&
-    labelClass.valueMap.every((value) => value.length > 0);
 
   const saveLabel = async () => {
     setIsSaving(true);
@@ -76,6 +75,11 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
     onClose();
   };
 
+  const hasDuplicateValues = () => {
+    const values = Object.values(labelClass.valueMap);
+    return values.length !== new Set(values).size;
+  };
+
   return (
     <div className="flex-col items-center space-y-2">
       <div className="flex items-center space-x-2">
@@ -102,77 +106,98 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
           onChange={(e) =>
             setLabelClass({ ...labelClass, description: e.target.value })
           }
-          minRows={3}
+          minRows={1}
         />
       </div>
-      <div className="flex-col space-y-1">
-        <Label>Type</Label>
-        <Select
-          value={selectedType}
-          onValueChange={(labelType) => {
-            setSelectedType(labelType as LabelType);
 
-            if (labelType === LabelType.BOOLEAN) {
-              setLabelClass({ ...labelClass, valueMap: ['false', 'true'] });
-            }
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select label type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={LabelType.BOOLEAN}>Boolean</SelectItem>
-            <SelectItem value={LabelType.CATEGORICAL}>Categorical</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      {selectedType === LabelType.CATEGORICAL && (
-        <div className="flex flex-col space-y-2">
-          <div className="flex-col space-y-1">
-            <Label>Categorical values</Label>
-          </div>
-
-          {labelClass.valueMap.map((value, index) => (
-            <div key={index} className="flex space-x-2">
-              <Input
-                type="text"
-                placeholder="Categorical value"
-                onChange={(e) =>
-                  setLabelClass({
-                    ...labelClass,
-                    valueMap: labelClass.valueMap.map((value, i) =>
-                      i === index ? e.target.value : value
-                    )
-                  })
-                }
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() =>
-                  setLabelClass({
-                    ...labelClass,
-                    valueMap: labelClass.valueMap.filter((_, i) => i !== index)
-                  })
-                }
-              >
-                <Trash2 size={14} />
-              </Button>
+      <div className="flex flex-col space-y-2">
+        <div className="flex-col space-y-1">
+          <Label>Label values</Label>
+          {hasDuplicateValues() && (
+            <div className="text-sm text-destructive">
+              Duplicate numerical values are not allowed
             </div>
-          ))}
-          <Button
-            variant="secondary"
-            onClick={() =>
-              setLabelClass({
-                ...labelClass,
-                valueMap: [...labelClass.valueMap, '']
-              })
-            }
-          >
-            Add categorical value
-          </Button>
+          )}
         </div>
-      )}
+
+        <table className="w-full">
+          <thead>
+            <tr className="text-sm text-secondary-foreground">
+              <th className="text-left pb-2 w-full">Value</th>
+              <th className="text-left pb-2">Numerical</th>
+              <th className="w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(labelClass.valueMap).map(([key, value], i) => (
+              <tr key={i}>
+                <td className="pr-2 pb-2">
+                  <Input
+                    type="text"
+                    placeholder="Categorical value"
+                    value={key}
+                    onChange={(e) =>
+                      setLabelClass({
+                        ...labelClass,
+                        valueMap: Object.fromEntries(
+                          Object.entries(labelClass.valueMap).map(([k, v], j) =>
+                            j === i ? [e.target.value, v] : [k, v]
+                          )
+                        )
+                      })
+                    }
+                  />
+                </td>
+                <td className="pr-2 pb-2">
+                  <Input
+                    type="number"
+                    className="w-24"
+                    placeholder="#"
+                    value={value}
+                    onChange={(e) => {
+                      setLabelClass({
+                        ...labelClass,
+                        valueMap: Object.fromEntries(
+                          Object.entries(labelClass.valueMap).map(([k, v], j) =>
+                            j === i ? [k, parseInt(e.target.value, 10)] : [k, v]
+                          )
+                        )
+                      });
+                    }}
+                  />
+                </td>
+                <td className="pb-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      setLabelClass({
+                        ...labelClass,
+                        valueMap: Object.fromEntries(
+                          Object.entries(labelClass.valueMap).filter(([_, v], j) => j !== i)
+                        )
+                      })
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            setLabelClass({
+              ...labelClass,
+              valueMap: { ...labelClass.valueMap, [""]: 0 }
+            })
+          }
+        >
+          Add label value
+        </Button>
+      </div>
       <div className="flex flex-col space-y-2">
         <div>
           <div className="flex items-center justify-between">
@@ -214,7 +239,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
           onClick={async () => {
             await saveLabel();
           }}
-          disabled={!labelClass.name || !isLabelValueMapValid}
+          disabled={!labelClass.name || Object.keys(labelClass.valueMap).length === 0}
         >
           <Loader2
             className={isSaving ? 'animate-spin h-4 w-4 mr-2' : 'hidden'}
