@@ -10,24 +10,11 @@ import { cn } from '@/lib/utils';
 
 interface LandingHeaderProps {
   hasSession: boolean;
+  starCount: number | null;
 }
 
-export default function LandingHeader({ hasSession }: LandingHeaderProps) {
+export default function LandingHeader({ hasSession, starCount }: LandingHeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [starCount, setStarCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    const fetchStars = async () => {
-      try {
-        const response = await fetch('/api/stars');
-        const data = await response.json();
-        setStarCount(data.stars);
-      } catch (error) {
-        console.error('Failed to fetch star count:', error);
-      }
-    };
-    fetchStars();
-  }, []);
 
   const menuItemStyle =
     'text-sm md:text-base font-medium px-2 md:px-2 py-2 md:py-1 transition-colors w-full text-left  whitespace-nowrap md:rounded-sm hover:bg-secondary';

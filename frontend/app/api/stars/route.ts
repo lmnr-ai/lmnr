@@ -4,6 +4,7 @@ export async function GET() {
       headers: {
         'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
       },
+      cache: 'no-cache',
     });
 
     if (!response.ok) {

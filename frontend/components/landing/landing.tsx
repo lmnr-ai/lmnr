@@ -23,12 +23,13 @@ import { Button } from '../ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CodeEditor from '../ui/code-editor';
 import { useEffect, useState } from 'react';
+import LandingHeader from './landing-header';
 
-export default function Landing() {
+export default function Landing({ hasSession }: { hasSession: boolean }) {
   const [stars, setStars] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/stars')
+    fetch('/api/stars', { cache: 'no-cache' })
       .then(res => res.json())
       .then(data => setStars(data.stars))
       .catch(err => console.error('Failed to fetch GitHub stars:', err));
@@ -84,6 +85,7 @@ evaluate(
 
   return (
     <>
+      <LandingHeader hasSession={hasSession} starCount={stars} />
       <div className="flex flex-col z-30 items-center space-y-16 pt-28">
         <div className="flex flex-col md:w-[1000px] space-y-8">
           <div className="flex flex-col">
