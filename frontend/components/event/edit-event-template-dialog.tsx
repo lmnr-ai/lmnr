@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -105,7 +105,7 @@ export default function EditEventTemplateDialog({
           </div>
           <DialogFooter>
             <Button onClick={updateEvent} disabled={isLoading || !isReady()}>
-              <Loader
+              <Loader2
                 className={cn(
                   'mr-2 hidden',
                   isLoading ? 'animate-spin block' : ''

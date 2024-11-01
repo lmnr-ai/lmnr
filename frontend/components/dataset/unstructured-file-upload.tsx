@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { uploadFile } from '@/lib/dataset/utils';
 import { useToast } from '@/lib/hooks/use-toast';
-import { Loader } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface UnstructuredFileUploadProps {
   datasetId: string;
@@ -37,7 +37,7 @@ export default function UnstructuredFileUpload({
           className="mt-4 w-32"
           onClick={() => hiddenInput.current?.click()}
         >
-          {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
+          {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
           Select file
         </Button>
         <input

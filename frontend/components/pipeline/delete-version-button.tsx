@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { ProjectContext } from '@/contexts/project-context';
-import { Loader, MoreVertical, Trash2 } from 'lucide-react';
+import { Loader2, MoreVertical, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -100,7 +100,7 @@ export default function DeletePipelineVersionButton({
               disabled={deleteVersionInputText != selectedPipelineVersion.name}
               onClick={deletePipelineVersion}
             >
-              <Loader
+              <Loader2
                 className={cn(
                   'mr-2 hidden',
                   isDeleting ? 'animate-spin block' : ''

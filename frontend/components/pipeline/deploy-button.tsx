@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
-import { Loader, Rocket } from 'lucide-react';
+import { Loader2, Rocket } from 'lucide-react';
 import { PipelineVersionInfo } from '@/lib/pipeline/types';
 import { useProjectContext } from '@/contexts/project-context';
 import EndpointSelect from '../ui/endpoint-select';
@@ -178,7 +178,7 @@ export default function DeployButton({
             }
             onClick={deployPipelineVersion}
           >
-            {isDeploying && <Loader className="animate-spin h-4 w-4 mr-2" />}
+            {isDeploying && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             Deploy
           </Button>
         </DialogFooter>

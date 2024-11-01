@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Loader, Plus } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { useCallback, useState } from 'react';
@@ -146,7 +146,7 @@ export default function WorkspaceUsers({
                       Add
                     </Button>
                     {isAddUserLoading && (
-                      <Loader className="animate-spin h-4 w-4 mr-2" />
+                      <Loader2 className="animate-spin h-4 w-4 mr-2" />
                     )}
                   </DialogFooter>
                 </DialogContent>

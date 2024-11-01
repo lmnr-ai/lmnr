@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
-import { Loader, Pencil, Plus } from 'lucide-react';
+import { Loader2, Pencil, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Pipeline } from '@/lib/pipeline/types';
 import { DropdownMenuItem } from '../ui/dropdown-menu';
@@ -98,7 +98,7 @@ export function UpdatePipelineDialog({
               disabled={!pipeline.name || isLoading}
               handleEnter
             >
-              <Loader
+              <Loader2
                 className={cn(
                   'mr-2 hidden',
                   isLoading ? 'animate-spin block' : ''

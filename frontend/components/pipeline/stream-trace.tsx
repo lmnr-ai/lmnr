@@ -14,7 +14,7 @@ import {
   Clock3,
   Coins,
   FastForward,
-  Loader,
+  Loader2,
   Play
 } from 'lucide-react';
 import { StreamMessage } from './pipeline-outputs';
@@ -334,7 +334,7 @@ function StreamTraceCard({
         </div>
         {showSpinner && (
           <div>
-            <Loader
+            <Loader2
               className="text-secondary-foreground animate-spin"
               size={12}
             />

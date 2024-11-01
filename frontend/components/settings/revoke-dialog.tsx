@@ -9,7 +9,7 @@ import {
 } from '../ui/dialog';
 import { useState } from 'react';
 import { Button } from '../ui/button';
-import { Loader, Trash2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
 
@@ -50,7 +50,7 @@ export default function RevokeDialog({
               setIsOpen(false);
             }}
           >
-            <Loader
+            <Loader2
               className={cn(
                 'mr-2 hidden',
                 isLoading ? 'animate-spin block' : ''

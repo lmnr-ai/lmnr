@@ -17,7 +17,7 @@ import {
   SelectItem
 } from '@/components/ui/select';
 import { Button } from '../ui/button';
-import { Loader, Plus } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { useToast } from '@/lib/hooks/use-toast';
@@ -114,7 +114,7 @@ export default function ProjectCreateDialog({
             disabled={newProjectWorkspaceId === undefined || !newProjectName}
           >
             {isCreatingProject && (
-              <Loader className="mr-2 animate-spin" size={16} />
+              <Loader2 className="mr-2 animate-spin" size={16} />
             )}
             Create
           </Button>

@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader, Pencil } from 'lucide-react';
+import { Loader2, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { DropdownMenuItem } from '../ui/dropdown-menu';
@@ -75,7 +75,7 @@ export default function UpdateDatasetDialog({
               }}
               disabled={!dataset || isLoading}
             >
-              <Loader
+              <Loader2
                 className={cn(
                   'mr-2 hidden',
                   isLoading ? 'animate-spin block' : ''
