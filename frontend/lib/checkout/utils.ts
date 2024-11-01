@@ -15,7 +15,8 @@ export async function manageSubscriptionEvent(
   await fetcher('/manage-subscriptions', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.SHARED_SECRET_TOKEN}`
     },
     body: JSON.stringify({
       stripeCustomerId,
