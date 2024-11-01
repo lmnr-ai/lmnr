@@ -133,8 +133,7 @@ pub async fn set_evaluation_results(
     executor_outputs: &Vec<Option<Value>>,
     trace_ids: &Vec<Uuid>,
 ) -> Result<()> {
-    let results = sqlx::query_as!(
-        EvaluationDatapointPreview,
+    let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
         r"INSERT INTO evaluation_results (
             id,
             evaluation_id,
@@ -157,14 +156,14 @@ pub async fn set_evaluation_results(
         AS tmp_table(id, data, target, executor_output, trace_id, index_in_batch)
         RETURNING id, created_at, evaluation_id, trace_id
         ",
-        ids,
-        datas,
-        targets,
-        executor_outputs as &Vec<Option<Value>>,
-        trace_ids,
-        &Vec::from_iter(0..ids.len() as i64),
-        evaluation_id,
     )
+    .bind(ids)
+    .bind(datas)
+    .bind(targets)
+    .bind(executor_outputs)
+    .bind(trace_ids)
+    .bind(&Vec::from_iter(0..ids.len() as i64))
+    .bind(evaluation_id)
     .fetch_all(&db.pool)
     .await?;
 
@@ -180,7 +179,7 @@ pub async fn set_evaluation_results(
             })
             .unzip();
 
-    sqlx::query!(
+    sqlx::query(
         "INSERT INTO evaluation_scores (result_id, name, score)
         SELECT
             result_id,
@@ -188,10 +187,10 @@ pub async fn set_evaluation_results(
             score
         FROM UNNEST ($1::uuid[], $2::text[], $3::float8[])
         AS tmp_table(result_id, name, score)",
-        &score_result_ids,
-        &score_names,
-        &score_values,
     )
+    .bind(&score_result_ids)
+    .bind(&score_names)
+    .bind(&score_values)
     .execute(&db.pool)
     .await?;
 
@@ -202,8 +201,7 @@ pub async fn get_evaluation_results(
     pool: &PgPool,
     evaluation_id: Uuid,
 ) -> Result<Vec<EvaluationDatapoint>> {
-    let results = sqlx::query_as!(
-        EvaluationDatapoint,
+    let results = sqlx::query_as::<_, EvaluationDatapoint>(
         "WITH scores AS (
             SELECT
                 result_id,
@@ -224,8 +222,8 @@ pub async fn get_evaluation_results(
         LEFT JOIN scores s ON r.id = s.result_id
         WHERE evaluation_id = $1
         ORDER BY created_at ASC, index_in_batch ASC NULLS FIRST",
-        evaluation_id,
     )
+    .bind(evaluation_id)
     .fetch_all(pool)
     .await?;
 
