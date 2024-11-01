@@ -159,7 +159,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
                         ...labelClass,
                         valueMap: Object.fromEntries(
                           Object.entries(labelClass.valueMap).map(([k, v], j) =>
-                            j === i ? [k, parseInt(e.target.value)] : [k, v]
+                            j === i ? [k, parseInt(e.target.value, 10)] : [k, v]
                           )
                         )
                       });
