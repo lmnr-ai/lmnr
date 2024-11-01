@@ -6,7 +6,9 @@ use uuid::Uuid;
 use crate::{
     ch::evaluation_scores::{insert_evaluation_scores, EvaluationScore},
     db::{self, project_api_keys::ProjectApiKey, DB},
-    evaluations::utils::{get_columns_from_points, EvaluationDatapointResult},
+    evaluations::utils::{
+        datapoints_to_labeling_queues, get_columns_from_points, EvaluationDatapointResult,
+    },
     names::NameGenerator,
     routes::types::ResponseResult,
 };
@@ -41,7 +43,9 @@ async fn create_evaluation(
     let points = req.points;
 
     if points.is_empty() {
-        return Err(anyhow::anyhow!("Evaluation must have at least one datapoint result").into());
+        return Ok(
+            HttpResponse::BadRequest().json("Evaluation must have at least one datapoint result")
+        );
     }
 
     let evaluation =
@@ -49,6 +53,18 @@ async fn create_evaluation(
 
     let columns = get_columns_from_points(&points);
     let ids = points.iter().map(|_| Uuid::new_v4()).collect::<Vec<_>>();
+    let labeling_queues =
+        datapoints_to_labeling_queues(db.clone(), &points, &ids, &project_id).await?;
+
+    for (queue_id, entries) in labeling_queues.iter() {
+        db::labeling_queues::push_to_labeling_queue(
+            &db.pool,
+            queue_id,
+            &entries.data_vec,
+            &entries.action_vec,
+        )
+        .await?;
+    }
 
     let ids_clone = ids.clone();
     let db_task = tokio::spawn(async move {

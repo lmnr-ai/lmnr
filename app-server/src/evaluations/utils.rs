@@ -1,8 +1,17 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
+use anyhow::Result;
 use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
+
+use crate::db::{self, DB};
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HumanEvaluator {
+    pub queue_name: String,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -13,6 +22,8 @@ pub struct EvaluationDatapointResult {
     #[serde(default)]
     pub trace_id: Uuid,
     pub scores: HashMap<String, f64>,
+    #[serde(default)]
+    pub human_evaluators: HashMap<String, HumanEvaluator>,
 }
 
 pub struct DatapointColumns {
@@ -56,4 +67,45 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
         trace_ids,
         scores,
     }
+}
+
+pub struct LabelingQueueEntries {
+    pub data_vec: Vec<Value>,
+    pub action_vec: Vec<Value>,
+}
+
+pub async fn datapoints_to_labeling_queues(
+    db: Arc<DB>,
+    datapoints: &Vec<EvaluationDatapointResult>,
+    ids: &Vec<Uuid>,
+    project_id: &Uuid,
+) -> Result<HashMap<Uuid, LabelingQueueEntries>> {
+    let mut queue_name_to_id = HashMap::new();
+    let mut res = HashMap::new();
+    for (datapoint, datapoint_id) in datapoints.iter().zip(ids.iter()) {
+        for (score_name, evaluator) in datapoint.human_evaluators.iter() {
+            let queue_name = evaluator.queue_name.clone();
+            let queue_id = queue_name_to_id.entry(queue_name.clone()).or_insert(
+                db::labeling_queues::get_labeling_queue_by_name(&db.pool, &queue_name, project_id)
+                    .await?
+                    .id,
+            );
+            let entry = res.entry(*queue_id).or_insert(LabelingQueueEntries {
+                data_vec: vec![],
+                action_vec: vec![],
+            });
+
+            entry.data_vec.push(serde_json::json!({
+                "output": datapoint.executor_output.clone(),
+                "target": datapoint.target.clone(),
+            }));
+
+            // For now, we use the datapoint id as the action.
+            // TODO: We should probably add the score name to the action.
+            entry
+                .action_vec
+                .push(Value::String(datapoint_id.to_string()));
+        }
+    }
+    Ok(res)
 }

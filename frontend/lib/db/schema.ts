@@ -335,6 +335,23 @@ export const datasets = pgTable("datasets", {
   }).onUpdate("cascade").onDelete("cascade"),
 }));
 
+export const labelingQueueData = pgTable("labeling_queue_data", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  indexInBatch: bigint("index_in_batch", { mode: "number" }).default(sql`'0'`).notNull(),
+  queueId: uuid("queue_id").defaultRandom().notNull(),
+  data: jsonb().notNull(),
+  action: jsonb().notNull(),
+},
+(table) => ({
+  labellingQueueDataQueueIdFkey: foreignKey({
+    columns: [table.queueId],
+    foreignColumns: [labelingQueues.id],
+    name: "labelling_queue_data_queue_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+}));
+
 export const membersOfWorkspaces = pgTable("members_of_workspaces", {
   workspaceId: uuid("workspace_id").notNull(),
   userId: uuid("user_id").notNull(),
