@@ -10,11 +10,18 @@ import { cn } from '@/lib/utils';
 
 interface LandingHeaderProps {
   hasSession: boolean;
-  starCount: number | null;
 }
 
-export default function LandingHeader({ hasSession, starCount }: LandingHeaderProps) {
+export default function LandingHeader({ hasSession }: LandingHeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const [starCount, setStarCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/stars', { cache: 'no-cache' })
+      .then((res) => res.json())
+      .then((data) => setStarCount(data.stars));
+  }, []);
 
   const menuItemStyle =
     'text-sm md:text-base font-medium px-2 md:px-2 py-2 md:py-1 transition-colors w-full text-left  whitespace-nowrap md:rounded-sm hover:bg-secondary';

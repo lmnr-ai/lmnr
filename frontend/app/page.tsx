@@ -1,4 +1,5 @@
 import Landing from '@/components/landing/landing';
+import LandingHeader from '@/components/landing/landing-header';
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
 import { Metadata } from 'next';
@@ -35,6 +36,9 @@ export default async function LandingPage() {
   }
 
   return (
-    <Landing hasSession={session !== null && session !== undefined} />
+    <>
+      <LandingHeader hasSession={session !== null && session !== undefined} />
+      <Landing />
+    </>
   );
 }

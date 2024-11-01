@@ -23,9 +23,8 @@ import { Button } from '../ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CodeEditor from '../ui/code-editor';
 import { useEffect, useState } from 'react';
-import LandingHeader from './landing-header';
 
-export default function Landing({ hasSession }: { hasSession: boolean }) {
+export default function Landing() {
   const [stars, setStars] = useState<number | null>(null);
 
   useEffect(() => {
@@ -85,7 +84,6 @@ evaluate(
 
   return (
     <>
-      <LandingHeader hasSession={hasSession} starCount={stars} />
       <div className="flex flex-col z-30 items-center space-y-16 pt-28">
         <div className="flex flex-col md:w-[1000px] space-y-8">
           <div className="flex flex-col">
@@ -122,7 +120,7 @@ evaluate(
                   </Link>
                 </div>
                 <div className="flex space-x-4 items-center">
-                  <Link href="/projects">
+                  <Link href="/sign-in">
                     <Button className="w-40 h-12 text-base bg-white/90 text-black hover:bg-white/70">
                       Get started
                     </Button>
