@@ -8,7 +8,7 @@ use crate::{
         get_global_evaluation_scores_bounds, EvaluationScoreBucket,
     },
     db::{
-        evaluations::{self, Evaluation, EvaluationDatapointPreview},
+        evaluations::{self, Evaluation, EvaluationDatapoint},
         DB,
     },
 };
@@ -63,7 +63,7 @@ async fn get_evaluations(
 #[serde(rename_all = "camelCase")]
 pub struct GetEvaluationResponse {
     evaluation: Evaluation,
-    results: Vec<EvaluationDatapointPreview>,
+    results: Vec<EvaluationDatapoint>,
 }
 
 #[get("evaluations/{evaluation_id}")]
