@@ -21,11 +21,6 @@ export default function Projects({ isWorkspaceEnabled }: ProjectsProps) {
     swrFetcher
   );
 
-  const router = useRouter();
-  if (!isLoading && data !== undefined && data.length === 0) {
-    router.replace('/onboarding');
-  }
-
   return (
     <>
       <div className="h-full p-4 w-full flex-grow">

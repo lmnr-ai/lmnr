@@ -4,11 +4,9 @@ import { cn } from '@/lib/utils';
 import {
   Cable,
   Database,
-  Gauge,
   Rows4,
   Settings,
   LayoutGrid,
-  ArrowBigUp,
   FlaskConical
 } from 'lucide-react';
 import Link from 'next/link';
@@ -22,7 +20,6 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 interface ProjectNavBarProps {
   projectId: string;
@@ -98,7 +95,7 @@ export default function ProjectNavbarCollapsed({
                   href={option.href}
                   className={cn(
                     'hover:bg-secondary flex items-center p-2 rounded',
-                    pathname === option.href ? 'bg-secondary' : ''
+                    option.href.includes(pathname) ? 'bg-secondary' : ''
                   )}
                 >
                   <option.icon size={20} />

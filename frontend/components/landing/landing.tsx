@@ -28,7 +28,7 @@ export default function Landing() {
   const [stars, setStars] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/stars')
+    fetch('/api/stars', { cache: 'no-cache' })
       .then(res => res.json())
       .then(data => setStars(data.stars))
       .catch(err => console.error('Failed to fetch GitHub stars:', err));
@@ -92,9 +92,7 @@ evaluate(
                 <Image src={noise} alt="" className="w-full h-full" priority />
               </div>
               <div className="z-20 flex flex-col items-center space-y-10 p-8">
-                <p className="text-4xl tracking-tighter md:px-0 md:text-7xl md:leading-tight md:tracking-normal text-white font-medium"
-                // style={{ fontFamily: 'var(--font-sans2)' }}
-                >
+                <p className="text-4xl tracking-tighter md:px-0 md:text-7xl md:leading-tight md:tracking-normal text-white font-medium">
                   AI engineering <br /> from first principles
                 </p>
                 <p className="text-[1.2rem] md:text-2xl md:w-[500px] md:tracking-normal font-medium text-white">
