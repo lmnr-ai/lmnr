@@ -19,7 +19,7 @@ export type LabelClass = {
   projectId: string;
   createdAt: string;
   labelType: LabelType;
-  valueMap: string[];
+  valueMap: Record<string, number>;
   description: string | null;
   evaluatorRunnableGraph: any | null;
 };
@@ -38,7 +38,7 @@ export type SpanLabel = {
   classId: string;
   createdAt: string;
   value: number;
-  valueMap: string[];
+  valueMap: Record<string, number>;
   status: string;
   userId: string | null;
   jobStatus: string | null;

@@ -171,7 +171,7 @@ export function EvaluatorEditor({
                   <div className="flex flex-col space-y-2">
                     <Label className="text-secondary-foreground">Expected output</Label>
                     <div className="flex space-x-1">
-                      {labelClass.valueMap.map((value, index) => (
+                      {Object.keys(labelClass.valueMap).map((value, index) => (
                         <div
                           key={index}
                           className="border rounded-md p-0.5 px-2 text-sm"
