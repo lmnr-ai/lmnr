@@ -66,10 +66,11 @@ async fn create_evaluation(
     });
 
     // Flattened scores from all evaluators to be recorded to Clickhouse
-    // Its length can be longer than the amount of evaluation datapoints since each evaluator can return multiple scores
+    // Its length can be longer than the amount of evaluation datapoints
+    // since each datapoint can have multiple evaluators
     let ch_evaluation_scores = EvaluationScore::from_evaluation_datapoint_results(
         &points,
-        ids,
+        &ids,
         project_id,
         group_id,
         evaluation.id,

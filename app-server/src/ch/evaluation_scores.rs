@@ -26,7 +26,7 @@ pub struct EvaluationScore {
 impl EvaluationScore {
     pub fn from_evaluation_datapoint_results(
         points: &Vec<EvaluationDatapointResult>,
-        result_ids: Vec<Uuid>,
+        result_ids: &Vec<Uuid>,
         project_id: Uuid,
         group_id: String,
         evaluation_id: Uuid,

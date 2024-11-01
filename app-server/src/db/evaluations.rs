@@ -24,7 +24,7 @@ pub struct Evaluation {
 
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct EvaluationDatapointPreview {
+pub struct EvaluationDatapoint {
     pub id: Uuid,
     pub created_at: DateTime<Utc>,
     pub evaluation_id: Uuid,
@@ -32,6 +32,15 @@ pub struct EvaluationDatapointPreview {
     pub target: Value,
     pub scores: Value, // HashMap<String, f64>
     pub executor_output: Option<Value>,
+    pub trace_id: Uuid,
+}
+
+#[derive(Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct EvaluationDatapointPreview {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub evaluation_id: Uuid,
     pub trace_id: Uuid,
 }
 
@@ -113,7 +122,7 @@ pub async fn get_evaluations_grouped_by_current_evaluation(
 
 /// Record evaluation results in the database.
 ///
-/// Each target data may contain an empty JSON object, if there is no target data.
+/// Each target may contain an empty JSON object, if there is no target.
 pub async fn set_evaluation_results(
     db: Arc<DB>,
     evaluation_id: Uuid,
@@ -124,16 +133,10 @@ pub async fn set_evaluation_results(
     executor_outputs: &Vec<Option<Value>>,
     trace_ids: &Vec<Uuid>,
 ) -> Result<()> {
-    let scores = scores
-        .iter()
-        .map(|score| serde_json::to_value(score.clone()).unwrap())
-        .collect::<Vec<_>>();
-
-    let res = sqlx::query(
-        r#"INSERT INTO evaluation_results (
+    let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
+        r"INSERT INTO evaluation_results (
             id,
             evaluation_id,
-            scores,
             data,
             target,
             executor_output,
@@ -142,31 +145,54 @@ pub async fn set_evaluation_results(
         )
         SELECT
             id,
-            $8 as evaluation_id,
-            scores,
+            $7 as evaluation_id,
             data,
             target,
             executor_output,
             trace_id,
             index_in_batch
         FROM
-        UNNEST ($1::uuid[], $2::jsonb[], $3::jsonb[], $4::jsonb[], $5::jsonb[], $6::uuid[], $7::int8[])
-        AS tmp_table(id, scores, data, target, executor_output, trace_id, index_in_batch)"#,
+        UNNEST ($1::uuid[], $2::jsonb[], $3::jsonb[], $4::jsonb[], $5::uuid[], $6::int8[])
+        AS tmp_table(id, data, target, executor_output, trace_id, index_in_batch)
+        RETURNING id, created_at, evaluation_id, trace_id
+        ",
     )
     .bind(ids)
-    .bind(scores)
     .bind(datas)
     .bind(targets)
     .bind(executor_outputs)
     .bind(trace_ids)
-    .bind(Vec::from_iter(0..ids.len() as i64))
+    .bind(&Vec::from_iter(0..ids.len() as i64))
     .bind(evaluation_id)
-    .execute(&db.pool)
-    .await;
+    .fetch_all(&db.pool)
+    .await?;
 
-    if let Err(e) = res {
-        log::error!("Error inserting evaluation results: {}", e);
-    }
+    // Each datapoint can have multiple scores, so unzip the scores and result ids.
+    let (score_result_ids, (score_names, score_values)): (Vec<Uuid>, (Vec<String>, Vec<f64>)) =
+        scores
+            .iter()
+            .zip(results.iter())
+            .flat_map(|(score, result)| {
+                score
+                    .iter()
+                    .map(|(name, value)| (result.id, (name.clone(), value)))
+            })
+            .unzip();
+
+    sqlx::query(
+        "INSERT INTO evaluation_scores (result_id, name, score)
+        SELECT
+            result_id,
+            name,
+            score
+        FROM UNNEST ($1::uuid[], $2::text[], $3::float8[])
+        AS tmp_table(result_id, name, score)",
+    )
+    .bind(&score_result_ids)
+    .bind(&score_names)
+    .bind(&score_values)
+    .execute(&db.pool)
+    .await?;
 
     Ok(())
 }
@@ -174,18 +200,26 @@ pub async fn set_evaluation_results(
 pub async fn get_evaluation_results(
     pool: &PgPool,
     evaluation_id: Uuid,
-) -> Result<Vec<EvaluationDatapointPreview>> {
-    let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
-        "SELECT
-            id,
-            created_at,
-            evaluation_id,
-            data,
-            target,
-            executor_output,
-            scores,
-            trace_id
-        FROM evaluation_results
+) -> Result<Vec<EvaluationDatapoint>> {
+    let results = sqlx::query_as::<_, EvaluationDatapoint>(
+        "WITH scores AS (
+            SELECT
+                result_id,
+                jsonb_object_agg(name, score) as scores
+            FROM evaluation_scores
+            GROUP BY result_id
+        )
+        SELECT
+            r.id,
+            r.created_at,
+            r.evaluation_id,
+            r.data,
+            r.target,
+            r.executor_output,
+            s.scores,
+            r.trace_id
+        FROM evaluation_results r
+        LEFT JOIN scores s ON r.id = s.result_id
         WHERE evaluation_id = $1
         ORDER BY created_at ASC, index_in_batch ASC NULLS FIRST",
     )
@@ -207,8 +241,8 @@ pub async fn delete_evaluation(pool: &PgPool, evaluation_id: &Uuid) -> Result<()
 pub async fn get_evaluation_datapoint(
     pool: &PgPool,
     evaluation_result_id: Uuid,
-) -> Result<EvaluationDatapointPreview> {
-    let preview = sqlx::query_as::<_, EvaluationDatapointPreview>(
+) -> Result<EvaluationDatapoint> {
+    let preview = sqlx::query_as::<_, EvaluationDatapoint>(
         "SELECT
             id,
             created_at,

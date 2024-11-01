@@ -20,12 +20,11 @@ export async function GET(
     db
       .select()
       .from(evaluations)
-      .where(eq(evaluations.projectId, projectId))
   );
 
   const result = await paginatedGet<any, Evaluation>({
     table: evaluations,
-    baseFilters: [],
+    baseFilters: [eq(sql`project_id`, projectId)],
     filters: [],
     baseQuery,
     orderBy: desc(sql`created_at`),

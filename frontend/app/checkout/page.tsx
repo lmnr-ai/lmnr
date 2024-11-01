@@ -79,7 +79,7 @@ export default async function CheckoutPage({
       }
     },
 
-    success_url: `${process.env.NEXT_PUBLIC_URL}/checkout/success?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${workspaceName}&lookupKey=${lookupKey}&workspaceId=${workspaceId}`,
+    success_url: `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${workspaceName}&lookupKey=${lookupKey}`,
     cancel_url: `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}`,
     allow_promotion_codes: true
   });

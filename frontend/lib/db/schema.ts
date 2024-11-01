@@ -75,8 +75,7 @@ export const evaluationResults = pgTable("evaluation_results", {
   executorOutput: jsonb("executor_output"),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexInBatch: bigint("index_in_batch", { mode: "number" }),
-  error: jsonb(),
-  scores: jsonb().notNull(),
+  scores: jsonb(),
   traceId: uuid("trace_id").notNull(),
 },
 (table) => ({
@@ -135,6 +134,20 @@ export const events = pgTable("events", {
   }).onUpdate("cascade").onDelete("cascade"),
 }));
 
+export const labelingQueues = pgTable("labeling_queues", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  name: text().notNull(),
+  projectId: uuid("project_id").notNull(),
+},
+(table) => ({
+  labelingQueuesProjectIdFkey: foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "labeling_queues_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+}));
+
 export const providerApiKeys = pgTable("provider_api_keys", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -183,8 +196,6 @@ export const evaluations = pgTable("evaluations", {
   projectId: uuid("project_id").notNull(),
   name: text().notNull(),
   metadata: jsonb(),
-  scoreNames: jsonb("score_names").default([]).notNull(),
-  averageScores: jsonb("average_scores"),
   groupId: text("group_id").default('default').notNull(),
 },
 (table) => ({
@@ -244,6 +255,21 @@ export const llmPrices = pgTable("llm_prices", {
   inputCachedPricePerMillion: doublePrecision("input_cached_price_per_million"),
   additionalPrices: jsonb("additional_prices").default({}).notNull(),
 });
+
+export const evaluationScores = pgTable("evaluation_scores", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  resultId: uuid("result_id").defaultRandom().notNull(),
+  name: text().default('').notNull(),
+  score: doublePrecision().notNull(),
+},
+(table) => ({
+  evaluationScoresResultIdFkey: foreignKey({
+    columns: [table.resultId],
+    foreignColumns: [evaluationResults.id],
+    name: "evaluation_scores_result_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+}));
 
 export const labelClassesForPath = pgTable("label_classes_for_path", {
   id: uuid().defaultRandom().primaryKey().notNull(),

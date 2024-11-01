@@ -80,7 +80,7 @@ pub async fn update_subscription(
     cache: web::Data<crate::cache::Cache>,
     request: web::Json<ManageSubscriptionRequest>,
 ) -> ResponseResult {
-    if !is_feature_enabled(Feature::Storage) {
+    if !is_feature_enabled(Feature::Subscription) {
         return Ok(HttpResponse::Forbidden().finish());
     }
     let db = db.into_inner();

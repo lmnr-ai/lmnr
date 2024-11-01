@@ -114,7 +114,7 @@ export const authOptions: NextAuthOptions = {
 
         if (!res.ok) {
           const err = new Error('HTTP status code: ' + res.status);
-
+          console.error(err);
           throw err;
         }
 

@@ -9,6 +9,7 @@ import WorkspaceCreateDialog from './workspace-create-dialog';
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/utils';
 import { Skeleton } from '../ui/skeleton';
+import { useRouter } from 'next/navigation';
 
 interface ProjectsProps {
   isWorkspaceEnabled: boolean;

@@ -14,19 +14,13 @@ interface LandingHeaderProps {
 
 export default function LandingHeader({ hasSession }: LandingHeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const [starCount, setStarCount] = useState<number | null>(null);
 
   useEffect(() => {
-    const fetchStars = async () => {
-      try {
-        const response = await fetch('/api/stars');
-        const data = await response.json();
-        setStarCount(data.stars);
-      } catch (error) {
-        console.error('Failed to fetch star count:', error);
-      }
-    };
-    fetchStars();
+    fetch('/api/stars', { cache: 'no-cache' })
+      .then((res) => res.json())
+      .then((data) => setStarCount(data.stars));
   }, []);
 
   const menuItemStyle =

@@ -27,7 +27,7 @@
     - [x] Written in Rust 🦀
     - [x] Traces are sent via gRPC, ensuring the best performance and lowest overhead.
 - [x] Modern Open-Source stack
-    - [x] RabbitMQ for message queue, Postgres for data, Clickhouse for analytics. Qdrant for semantic similraity search and hybrid search.
+    - [x] RabbitMQ for message queue, Postgres for data, Clickhouse for analytics. Qdrant for semantic similarity search and hybrid search.
 - [x] Fast and beautiful dashboards for traces / evaluations / labels.
 <img width="1506" alt="traces-2" src="https://github.com/user-attachments/assets/14d6eec9-cd0e-4c3e-b601-3d64c4c0c875">
 
