@@ -32,8 +32,11 @@ import { PaginatedResponse } from '@/lib/types';
 
 export default function Evaluations() {
   const { projectId } = useProjectContext();
-  const { data, mutate } = useSWR<PaginatedResponse<Evaluation>>(`/api/projects/${projectId}/evaluations`, swrFetcher);
-  const evaluations = data?.items ?? [];
+  const { data, mutate, isLoading } = useSWR<PaginatedResponse<Evaluation>>(
+    `/api/projects/${projectId}/evaluations`,
+    swrFetcher
+  );
+  const evaluations = data?.items;
 
   const router = useRouter();
   const posthog = usePostHog();
@@ -107,15 +110,6 @@ export default function Evaluations() {
     setIsDeleteDialogOpen(false);
   };
 
-  if (data?.anyInProject === false) {
-    return (
-      <div className="flex flex-col h-full">
-        <Header path="evaluations" />
-        <EvalsPagePlaceholder />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full">
       <Header path="evaluations" />
@@ -133,6 +127,8 @@ export default function Evaluations() {
             router.push(`/project/${projectId}/evaluations/${row.original.id}`);
           }}
           getRowId={(row: Evaluation) => row.id}
+          paginated
+          manualPagination
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
