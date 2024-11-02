@@ -75,7 +75,7 @@ interface PaginatedGetParams<T extends TableConfig, R> {
   orderBy: SQL;
 }
 
-export const paginatedGet = async<T extends TableConfig, R> (
+export const paginatedGet = async<T extends TableConfig, R>(
   {
     table,
     pageNumber,
