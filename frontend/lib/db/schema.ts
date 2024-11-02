@@ -307,7 +307,7 @@ export const datasetDatapoints = pgTable("dataset_datapoints", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   data: jsonb().notNull(),
   indexedOn: text("indexed_on"),
-  target: jsonb().default({}).notNull(),
+  target: jsonb().default({}),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexInBatch: bigint("index_in_batch", { mode: "number" }),
   metadata: jsonb(),
@@ -332,6 +332,21 @@ export const datasets = pgTable("datasets", {
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "public_datasets_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+}));
+
+export const labelingQueueData = pgTable("labeling_queue_data", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  queueId: uuid("queue_id").defaultRandom().notNull(),
+  data: jsonb().notNull(),
+  action: jsonb().notNull(),
+},
+(table) => ({
+  labellingQueueDataQueueIdFkey: foreignKey({
+    columns: [table.queueId],
+    foreignColumns: [labelingQueues.id],
+    name: "labelling_queue_data_queue_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 }));
 

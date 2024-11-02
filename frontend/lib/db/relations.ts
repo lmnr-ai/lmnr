@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { pipelines, targetPipelineVersions, pipelineVersions, projects, traces, evaluations, evaluationResults, spans, eventTemplates, events, labelingQueues, providerApiKeys, workspaces, workspaceUsage, evaluationScores, labelClassesForPath, users, apiKeys, datasets, datasetDatapoints, membersOfWorkspaces, projectApiKeys, subscriptionTiers, userSubscriptionInfo, labels, labelClasses } from "./schema";
+import { pipelines, targetPipelineVersions, pipelineVersions, projects, traces, evaluations, evaluationResults, spans, eventTemplates, events, labelingQueues, providerApiKeys, workspaces, workspaceUsage, evaluationScores, labelClassesForPath, users, apiKeys, datasets, datasetDatapoints, labelingQueueData, membersOfWorkspaces, projectApiKeys, subscriptionTiers, userSubscriptionInfo, labels, labelClasses } from "./schema";
 
 export const targetPipelineVersionsRelations = relations(targetPipelineVersions, ({one}) => ({
   pipeline: one(pipelines, {
@@ -88,11 +88,12 @@ export const eventTemplatesRelations = relations(eventTemplates, ({one, many}) =
   }),
 }));
 
-export const labelingQueuesRelations = relations(labelingQueues, ({one}) => ({
+export const labelingQueuesRelations = relations(labelingQueues, ({one, many}) => ({
   project: one(projects, {
     fields: [labelingQueues.projectId],
     references: [projects.id]
   }),
+  labelingQueueData: many(labelingQueueData),
 }));
 
 export const providerApiKeysRelations = relations(providerApiKeys, ({one}) => ({
@@ -158,6 +159,13 @@ export const datasetsRelations = relations(datasets, ({one, many}) => ({
   project: one(projects, {
     fields: [datasets.projectId],
     references: [projects.id]
+  }),
+}));
+
+export const labelingQueueDataRelations = relations(labelingQueueData, ({one}) => ({
+  labelingQueue: one(labelingQueues, {
+    fields: [labelingQueueData.queueId],
+    references: [labelingQueues.id]
   }),
 }));
 
