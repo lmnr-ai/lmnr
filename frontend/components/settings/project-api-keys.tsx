@@ -18,6 +18,7 @@ import { useCallback, useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
 import { useToast } from '@/lib/hooks/use-toast';
 import RevokeDialog from './revoke-dialog';
+import CopyToClipboardButton from '../ui/copy-to-clipboard';
 
 interface ApiKeysProps {
   apiKeys: ProjectApiKey[];
@@ -187,19 +188,13 @@ function DisplayKeyDialogContent({
         </p>
         <div className="flex space-x-2">
           <Input className="flex h-8 text-sm" value={apiKey.value} readOnly />
-          <Button
+          <CopyToClipboardButton
             className="flex h-8"
-            variant="secondary"
-            onClick={() => {
-              // copy api key to clipboard
-              navigator.clipboard.writeText(apiKey.value);
-              toast({
-                title: 'API key copied to clipboard'
-              });
-            }}
+            text={apiKey.value}
+            toastPrefix="API key"
           >
             <Copy size={12} />
-          </Button>
+          </CopyToClipboardButton>
         </div>
       </div>
       <DialogFooter>
