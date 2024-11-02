@@ -11,10 +11,11 @@ import { cn } from '@/lib/utils';
 import CodeEditor from './code-editor';
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from './sheet';
 import { Button } from './button';
-import { Expand, Maximize, Minimize, X, ChevronDown, ChevronUp, Copy } from 'lucide-react';
+import { Maximize, Minimize, X, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { ScrollArea } from './scroll-area';
 import { DialogTitle } from './dialog';
 import { useToast } from '@/lib/hooks/use-toast';
+import CopyToClipboardButton from './copy-to-clipboard';
 
 interface OutputFormatterProps {
   value: string;
@@ -61,14 +62,6 @@ export default function Formatter({
     }
 
     return value;
-  };
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(renderText(value));
-    toast({
-      description: "Copied to clipboard",
-      duration: 1000,
-    });
   };
 
   return (
@@ -118,14 +111,12 @@ export default function Formatter({
             )}
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={copyToClipboard}
-              className="h-7 w-7"
+            <CopyToClipboardButton
+              className='h-7 w-7'
+              text={renderText(value)}
             >
               <Copy className="h-3.5 w-3.5" />
-            </Button>
+            </CopyToClipboardButton>
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -157,14 +148,12 @@ export default function Formatter({
                     </Select>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={copyToClipboard}
-                      className="h-7 w-7"
+                    <CopyToClipboardButton
+                      className='h-7 w-7'
+                      text={renderText(value)}
                     >
                       <Copy className="h-3.5 w-3.5" />
-                    </Button>
+                    </CopyToClipboardButton>
                     <SheetClose asChild>
                       <Button variant="ghost" size="icon">
                         <Minimize className="h-4 w-4" />
