@@ -29,7 +29,7 @@ export default function ManualAddDatapointDialog({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [data, setData] = useState(DEFAULT_DATA); // Datapoint's "data" field
+  const [data, setData] = useState(DEFAULT_DATA);
 
   const showError = useCallback((message: string) => {
     toast({
