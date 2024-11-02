@@ -55,9 +55,14 @@ export async function GET(
     return filter;
   });
 
+  // TODO: this is repeated in the paginatedGet below. Deduplicate.
   const sqlFilters = filtersToSql(
     urlParamFilters,
-    [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)]
+    [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)],
+    {
+      latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`,
+      path: sql<string>`attributes ->> 'lmnr.span.path'`,
+    }
   );
 
   const baseFilters = [
@@ -77,27 +82,17 @@ export async function GET(
   // don't query input and output, only query previews
   const { input, output, ...columns } = getTableColumns(spans);
 
-  const baseQuery = db.$with(
-    "base",
-  ).as(
-    db
-      .select({
-        ...columns,
-        latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
-        path: sql<string>`attributes ->> 'lmnr.span.path'`.as("path"),
-      })
-      .from(spans)
-      .where(and(...baseFilters))
-  );
-
   const spanData = await paginatedGet<any, Span>({
     table: spans,
     pageNumber,
     pageSize,
-    baseFilters,
-    filters,
-    orderBy: desc(sql`start_time`),
-    baseQuery,
+    filters: baseFilters.concat(filters),
+    orderBy: desc(spans.startTime),
+    columns: {
+      ...columns,
+      latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
+      path: sql<string>`attributes ->> 'lmnr.span.path'`.as("path"),
+    }
   });
 
   return new Response(JSON.stringify(spanData), { status: 200 });

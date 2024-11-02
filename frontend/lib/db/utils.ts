@@ -3,7 +3,7 @@ import { eq, and, gt, sql, lt, SQL, lte, ne, gte, BinaryOperator, getTableColumn
 import { membersOfWorkspaces, projects, users } from "./schema";
 import { getServerSession } from 'next-auth';
 import { authOptions } from "../auth";
-import { PgTableWithColumns, TableConfig } from "drizzle-orm/pg-core";
+import { PgColumn, PgTableWithColumns, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
 import { PaginatedResponse } from "../types";
 
 export const isCurrentUserMemberOfProject = async (projectId: string) => {
@@ -67,12 +67,16 @@ export const getDateRangeFilters = (
 
 interface PaginatedGetParams<T extends TableConfig, R> {
   table: PgTableWithColumns<T>;
-  baseQuery: WithSubquery<string, any>;
   pageNumber?: number;
   pageSize?: number;
-  baseFilters: SQL[];
   filters: SQL[];
   orderBy: SQL;
+  /**
+   * If provided, only these columns will be selected.
+   * Useful to remove columns that are too heavy to query, or
+   * to add columns to compute query time, e.g. latency.
+   */
+  columns?: SelectedFields;
 }
 
 export const paginatedGet = async<T extends TableConfig, R>(
@@ -80,46 +84,35 @@ export const paginatedGet = async<T extends TableConfig, R>(
     table,
     pageNumber,
     pageSize,
-    baseFilters,
     filters,
     orderBy,
-    baseQuery,
+    columns,
   }: PaginatedGetParams<T, R>
 ): Promise<PaginatedResponse<R>> => {
-  const allFilters = baseFilters.concat(filters);
 
   const itemsQuery = pageNumber !== undefined && pageSize !== undefined
     ? db
-      .with(baseQuery)
-      .select()
-      .from(baseQuery)
-      .where(and(...allFilters))
+      .select(columns ?? getTableColumns(table))
+      .from(table)
+      .where(and(...filters))
       .orderBy(orderBy)
       .limit(pageSize).offset(pageNumber * pageSize)
     : db
-      .with(baseQuery)
-      .select()
-      .from(baseQuery)
-      .where(and(...allFilters))
+      .select(columns ?? getTableColumns(table))
+      .from(table)
+      .where(and(...filters))
       .orderBy(orderBy);
 
-  const countQueries = async () => {
-    const totalCount = await db
-      .with(baseQuery)
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(baseQuery)
-      .where(and(...allFilters))
+  const countQuery = async () =>
+    db.select({ count: sql<number>`COUNT(*)` })
+      .from(table)
+      .where(and(...filters))
       .then(([{ count }]) => count);
-    const anyInProject = totalCount > 0
-      ? true
-      : await db.$count(table, and(...baseFilters)) > 0;
-    return { totalCount, anyInProject };
-  };
 
-  const [items, { totalCount, anyInProject }] = await Promise.all([
+  const [items, totalCount] = await Promise.all([
     itemsQuery,
-    countQueries(),
+    countQuery(),
   ]);
 
-  return { items: items as R[], totalCount, anyInProject };
+  return { items: items as R[], totalCount };
 };

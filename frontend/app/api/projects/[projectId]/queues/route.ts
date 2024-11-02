@@ -3,7 +3,6 @@ import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 import { eq, inArray } from 'drizzle-orm';
 import { and } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { paginatedGet } from '@/lib/db/utils';
 import { desc } from 'drizzle-orm';
@@ -46,17 +45,14 @@ export async function GET(
   const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
   const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
 
-  const baseFilters = [eq(sql`project_id`, projectId)];
-  const baseQuery = db.$with("base").as(db.select().from(labelingQueues));
+  const filters = [eq(labelingQueues.projectId, projectId)];
 
   const queuesData = await paginatedGet({
     table: labelingQueues,
     pageNumber,
     pageSize,
-    baseFilters,
-    filters: [],
-    orderBy: sql`created_at DESC`,
-    baseQuery,
+    filters,
+    orderBy: desc(labelingQueues.createdAt),
   });
 
   return new Response(JSON.stringify(queuesData), { status: 200 });
