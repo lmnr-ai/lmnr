@@ -13,7 +13,7 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
-import { Loader, Trash, Trash2 } from 'lucide-react';
+import { Loader2, Trash, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface DeleteProjectProps { }
@@ -82,7 +82,7 @@ export default function DeleteProject({ }: DeleteProjectProps) {
                 onClick={deleteProject}
                 handleEnter={true}
               >
-                <Loader
+                <Loader2
                   className={cn(
                     'mr-2 hidden',
                     isLoading ? 'animate-spin block' : ''

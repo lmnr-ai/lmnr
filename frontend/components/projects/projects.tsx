@@ -45,7 +45,7 @@ export default function Projects({ isWorkspaceEnabled }: ProjectsProps) {
               {[...Array(5).keys()].map((_, index) => (
                 <div key={index} className="flex flex-col">
                   <Skeleton className="h-8 w-1/3 mb-4" />
-                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-4 grid-cols-1 max-[768px]:grid-cols-1 md:grid-cols-1 lg:grid-cols-2 min-[1441px]:grid-cols-3">
                     <Skeleton className="h-32 w-96" />
                     <Skeleton className="h-32 w-96" />
                   </div>
@@ -67,7 +67,7 @@ export default function Projects({ isWorkspaceEnabled }: ProjectsProps) {
                     </div>
                   )}
                   {workspace.projects.length > 0 && (
-                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-4 grid-cols-1 max-[768px]:grid-cols-1 md:grid-cols-1 lg:grid-cols-2 min-[1441px]:grid-cols-3">
                       {workspace.projects.map((project) => (
                         <ProjectCard key={project.id} project={project} />
                       ))}

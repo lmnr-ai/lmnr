@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { useEffect, useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
 import { useRouter } from 'next/navigation';
-import { Loader, Plus } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TemplateInfo } from '@/lib/pipeline/types';
 import { Skeleton } from '../ui/skeleton';
@@ -141,7 +141,7 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
             handleEnter={true}
             disabled={selectedTemplateId === undefined || isLoading}
           >
-            <Loader
+            <Loader2
               className={cn(
                 'mr-2 hidden',
                 isLoading ? 'animate-spin block' : ''

@@ -1,5 +1,5 @@
 import { useProjectContext } from '@/contexts/project-context';
-import { ChevronsRight, Loader, Loader2 } from 'lucide-react';
+import { ChevronsRight, Loader2 } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
 import { ScrollArea } from '../ui/scroll-area';

@@ -11,7 +11,7 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { Label } from '../ui/label';
-import { Loader, Pencil, ShieldQuestion } from 'lucide-react';
+import { Loader2, Pencil, ShieldQuestion } from 'lucide-react';
 import { PipelineVersionInfo } from '@/lib/pipeline/types';
 import { useProjectContext } from '@/contexts/project-context';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -93,7 +93,7 @@ export default function SetTargetVersionButton({
             Cancel
           </Button>
           <Button handleEnter={true} onClick={overwriteWorkshopVersion}>
-            {isLoading && <Loader className="animate-spin h-4 w-4 mr-2" />}
+            {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             Confirm
           </Button>
         </DialogFooter>
