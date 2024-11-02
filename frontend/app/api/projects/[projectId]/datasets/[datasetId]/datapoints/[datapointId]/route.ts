@@ -25,9 +25,9 @@ export async function POST(
   // but for file upload we will need to dump everything into data,
   // unless the keys match "data", "target", or "metadata"
   const schema = z.object({
-    data: z.any(z.unknown()),
-    target: z.any(z.unknown()).nullable(),
-    metadata: z.any(z.unknown()).nullable(),
+    data: z.any(),
+    target: z.any().nullable(),
+    metadata: z.any().nullable(),
   });
 
   const result = schema.safeParse(body);

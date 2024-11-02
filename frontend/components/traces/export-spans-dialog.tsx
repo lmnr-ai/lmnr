@@ -12,7 +12,7 @@ import DatasetSelect from '../ui/dataset-select';
 import { Span } from '@/lib/traces/types';
 import { Label } from '../ui/label';
 import { Database, Loader2 } from 'lucide-react';
-import { cn, isJsonStringAValidObject } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Dataset } from '@/lib/dataset/types';
 import Formatter from '../ui/formatter';
