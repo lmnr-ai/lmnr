@@ -181,7 +181,7 @@ impl ChatMessageContentPart {
         match self {
             ChatMessageContentPart::Image(image) => {
                 let key = crate::storage::create_key(project_id, &None);
-                let data = crate::storage::base64_to_bytes(&image.data).unwrap();
+                let data = crate::storage::base64_to_bytes(&image.data)?;
                 let url = storage.store(data, &key).await?;
                 Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                     url,
