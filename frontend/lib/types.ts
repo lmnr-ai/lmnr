@@ -43,5 +43,8 @@ export type DatatableFilter = {
 export type PaginatedResponse<T> = {
   items: T[];
   totalCount: number;
+};
+
+export type PaginatedGetResponseWithProjectPresenceFlag<T> = PaginatedResponse<T> & {
   anyInProject: boolean;
 };
