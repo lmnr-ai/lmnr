@@ -23,7 +23,9 @@ pub struct EvaluationDatapointResult {
     pub trace_id: Uuid,
     pub scores: HashMap<String, f64>,
     #[serde(default)]
-    pub human_evaluators: HashMap<String, HumanEvaluator>,
+    pub human_evaluators: Vec<HumanEvaluator>,
+    #[serde(default)]
+    pub executor_span_id: Uuid,
 }
 
 pub struct DatapointColumns {
@@ -70,7 +72,7 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
 }
 
 pub struct LabelingQueueEntry {
-    pub data: Value,
+    pub span_id: Uuid,
     pub action: Value,
 }
 
@@ -83,7 +85,7 @@ pub async fn datapoints_to_labeling_queues(
     let mut queue_name_to_id = HashMap::new();
     let mut res = HashMap::new();
     for (datapoint, datapoint_id) in datapoints.iter().zip(ids.iter()) {
-        for (score_name, evaluator) in datapoint.human_evaluators.iter() {
+        for evaluator in datapoint.human_evaluators.iter() {
             let queue_name = evaluator.queue_name.clone();
             let queue_id = queue_name_to_id.entry(queue_name.clone()).or_insert(
                 db::labeling_queues::get_labeling_queue_by_name(&db.pool, &queue_name, project_id)
@@ -93,10 +95,7 @@ pub async fn datapoints_to_labeling_queues(
             let entry = res.entry(*queue_id).or_insert(vec![]);
 
             entry.push(LabelingQueueEntry {
-                data: serde_json::json!({
-                    "output": datapoint.executor_output.clone(),
-                    "target": datapoint.target.clone(),
-                }),
+                span_id: datapoint.executor_span_id,
                 // For now, we use the datapoint id as the action.
                 // TODO: We should probably add the score name to the action.
                 action: Value::String(datapoint_id.to_string()),

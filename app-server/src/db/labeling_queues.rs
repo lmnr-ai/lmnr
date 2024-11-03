@@ -1,5 +1,4 @@
 use anyhow::Result;
-use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -40,12 +39,12 @@ pub async fn push_to_labeling_queue(
         sqlx::query(
             "INSERT INTO labeling_queue_data (
             queue_id,
-            data,
+            span_id,
             action
         ) VALUES ($1, $2, $3)",
         )
         .bind(queue_id)
-        .bind(item.data.clone())
+        .bind(item.span_id)
         .bind(item.action.clone())
         .execute(pool)
         .await?;

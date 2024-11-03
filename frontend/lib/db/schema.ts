@@ -307,7 +307,7 @@ export const datasetDatapoints = pgTable("dataset_datapoints", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   data: jsonb().notNull(),
   indexedOn: text("indexed_on"),
-  target: jsonb().default({}).notNull(),
+  target: jsonb().default({}),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexInBatch: bigint("index_in_batch", { mode: "number" }),
   metadata: jsonb(),
@@ -339,8 +339,8 @@ export const labelingQueueData = pgTable("labeling_queue_data", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   queueId: uuid("queue_id").defaultRandom().notNull(),
-  data: jsonb().notNull(),
   action: jsonb().notNull(),
+  spanId: uuid("span_id").notNull(),
 },
 (table) => ({
   labellingQueueDataQueueIdFkey: foreignKey({
