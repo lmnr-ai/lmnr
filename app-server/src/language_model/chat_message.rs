@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    features::{is_feature_enabled, Feature},
-    storage::Storage,
-};
+use crate::storage::Storage;
 
 use super::providers::openai::OpenAIImageUrl;
 
@@ -151,10 +149,8 @@ pub enum InstrumentationChatMessageContentPart {
 }
 
 impl ChatMessageContentPart {
-    pub async fn from_instrumentation_content_part(
+    pub fn from_instrumentation_content_part(
         part: InstrumentationChatMessageContentPart,
-        project_id: &Uuid,
-        storage: Arc<dyn Storage>,
     ) -> ChatMessageContentPart {
         match part {
             InstrumentationChatMessageContentPart::Text(text) => ChatMessageContentPart::Text(text),
@@ -167,23 +163,32 @@ impl ChatMessageContentPart {
                 }
             },
             InstrumentationChatMessageContentPart::Image(image) => {
-                if is_feature_enabled(Feature::Storage) {
-                    let source = image.source;
-                    let key = crate::storage::create_key(project_id, &None);
-                    let data = crate::storage::base64_to_bytes(&source.data).unwrap();
-                    let url = storage.store(data, &key).await;
-
-                    ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
-                        url: url.unwrap(),
-                        detail: Some(format!("media_type:{};base64", source.media_type)),
-                    })
-                } else {
-                    ChatMessageContentPart::Image(ChatMessageImage {
-                        media_type: image.source.media_type,
-                        data: image.source.data,
-                    })
-                }
+                ChatMessageContentPart::Image(ChatMessageImage {
+                    media_type: image.source.media_type,
+                    data: image.source.data,
+                })
             }
+        }
+    }
+
+    /// Store the image in the storage and replace the image with an image url,
+    /// Returning the modified `ChatMessageContentPart`.
+    pub async fn store_image<S: Storage + ?Sized>(
+        &self,
+        project_id: &Uuid,
+        storage: Arc<S>,
+    ) -> Result<ChatMessageContentPart> {
+        match self {
+            ChatMessageContentPart::Image(image) => {
+                let key = crate::storage::create_key(project_id, &None);
+                let data = crate::storage::base64_to_bytes(&image.data).unwrap();
+                let url = storage.store(data, &key).await?;
+                Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                    url,
+                    detail: Some(format!("media_type:{};base64", image.media_type)),
+                }))
+            }
+            _ => Ok(self.clone()),
         }
     }
 }
