@@ -9,7 +9,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader, Plus } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { cn, fetcher } from '@/lib/utils';
 import { useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
@@ -82,7 +82,7 @@ export default function CreateDatasetDialog({}: CreateDatasetDialogProps) {
               disabled={!newDatasetName || isLoading}
               handleEnter
             >
-              <Loader
+              <Loader2
                 className={cn(
                   'mr-2 hidden',
                   isLoading ? 'animate-spin block' : ''

@@ -16,7 +16,6 @@ use crate::{
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    storage::Storage,
     traces::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue},
 };
 use prost::Message;
@@ -36,7 +35,6 @@ pub async fn process_traces(
     rabbitmq_connection: web::Data<Option<Arc<Connection>>>,
     db: web::Data<DB>,
     cache: web::Data<crate::cache::Cache>,
-    storage: web::Data<dyn Storage>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let cache = cache.into_inner();
@@ -44,7 +42,6 @@ pub async fn process_traces(
         anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
     })?;
     let rabbitmq_connection = rabbitmq_connection.as_ref().clone();
-    let storage = storage.into_inner();
 
     if is_feature_enabled(Feature::UsageLimit) {
         let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
@@ -64,7 +61,6 @@ pub async fn process_traces(
         request,
         project_api_key.project_id,
         rabbitmq_connection,
-        storage,
         db,
         cache,
     )

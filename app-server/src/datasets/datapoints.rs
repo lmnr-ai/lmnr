@@ -26,52 +26,49 @@ pub struct Datapoint {
     pub id: Uuid,
     pub dataset_id: Uuid,
     pub data: Value,
-    pub target: Value,
+    pub target: Option<Value>,
     pub metadata: Option<Value>,
 }
 
 impl Datapoint {
     pub fn try_from_raw_value(dataset_id: Uuid, raw: &Value) -> Option<Self> {
+        let id = Uuid::new_v4();
         match raw {
             Value::Object(raw_obj) => {
                 // Checks that the object has a `data` field and optionally a `target` field
                 // and no other fields
                 let data = raw_obj.get("data");
-                let target = raw_obj.get("target");
-                let metadata = raw_obj.get("metadata");
-                let is_data_object = matches!(data, Some(Value::Object(_)));
-                let is_target_object_or_none =
-                    matches!(target, Some(Value::Object(_))) || target.is_none();
-                let is_meta_object_or_none =
-                    matches!(metadata, Some(Value::Object(_))) || metadata.is_none();
-
                 if data.is_some()
-                    && is_data_object
-                    && is_target_object_or_none
-                    && is_meta_object_or_none
                     && raw_obj
                         .keys()
                         .all(|k| matches!(k.as_str(), "data" | "target" | "metadata"))
                 {
                     Some(Datapoint {
-                        id: Uuid::new_v4(),
+                        id,
                         dataset_id,
                         data: data.unwrap().to_owned(),
-                        target: target.cloned().unwrap_or(Value::Object(Default::default())),
-                        metadata: metadata.cloned(),
+                        target: raw_obj.get("target").cloned(),
+                        metadata: raw_obj.get("metadata").cloned(),
                     })
                 } else {
                     // Otherwise, dump all the fields into the `data` field
                     Some(Datapoint {
-                        id: Uuid::new_v4(),
+                        id,
                         dataset_id,
                         data: raw.to_owned(),
-                        target: Value::Object(Default::default()),
+                        target: None,
                         metadata: None,
                     })
                 }
             }
-            _ => None,
+            Value::Null => None,
+            x => Some(Datapoint {
+                id,
+                dataset_id,
+                data: x.to_owned(),
+                target: None,
+                metadata: None,
+            }),
         }
     }
 
@@ -105,13 +102,12 @@ impl Datapoint {
 impl From<VectorDBDatapoint> for Datapoint {
     fn from(vectordb_datapoint: VectorDBDatapoint) -> Self {
         let data = serde_json::to_value(vectordb_datapoint.data).unwrap();
-        let target = Value::Object(Default::default());
 
         Datapoint {
             id: Uuid::parse_str(&vectordb_datapoint.id).unwrap_or(Uuid::new_v4()),
             dataset_id: Uuid::parse_str(&vectordb_datapoint.datasource_id).unwrap(),
             data,
-            target,
+            target: None,
             metadata: None,
         }
     }

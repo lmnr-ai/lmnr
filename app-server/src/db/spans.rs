@@ -37,7 +37,7 @@ pub struct Span {
     pub labels: Option<Value>,
 }
 
-pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
+pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
     let input_preview = match &span.input {
         &Some(Value::String(ref s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
         &Some(ref v) => Some(
@@ -72,7 +72,8 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
             output,
             span_type,
             input_preview,
-            output_preview
+            output_preview,
+            project_id
         )
         VALUES(
             $1,
@@ -87,8 +88,9 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
             $10,
             $11,
             $12,
-            $13)
-        ON CONFLICT (span_id) DO UPDATE SET 
+            $13,
+            $14)
+        ON CONFLICT (span_id, project_id) DO UPDATE SET
             version = EXCLUDED.version,
             trace_id = EXCLUDED.trace_id,
             parent_span_id = EXCLUDED.parent_span_id,
@@ -116,6 +118,7 @@ pub async fn record_span(pool: &PgPool, span: &Span) -> Result<()> {
     .bind(&span.span_type as &SpanType)
     .bind(&input_preview)
     .bind(&output_preview)
+    .bind(&project_id)
     .execute(pool)
     .await?;
 

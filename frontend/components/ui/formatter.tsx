@@ -11,9 +11,11 @@ import { cn } from '@/lib/utils';
 import CodeEditor from './code-editor';
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from './sheet';
 import { Button } from './button';
-import { Expand, Maximize, Minimize, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Maximize, Minimize, X, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { ScrollArea } from './scroll-area';
 import { DialogTitle } from './dialog';
+import { useToast } from '@/lib/hooks/use-toast';
+import CopyToClipboardButton from './copy-to-clipboard';
 
 interface OutputFormatterProps {
   value: string;
@@ -35,6 +37,7 @@ export default function Formatter({
   const [mode, setMode] = useState(defaultMode);
   const [expandedValue, setExpandedValue] = useState(value);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { toast } = useToast();
 
   const renderText = (value: string) => {
     // if mode is YAML try to parse it as YAML
@@ -107,66 +110,82 @@ export default function Formatter({
               </Button>
             )}
           </div>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Maximize className="h-3.5 w-3.5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
-              <DialogTitle className='hidden'></DialogTitle>
-              <div className="flex-none border-b items-center flex px-4 justify-between">
-                <div className="flex justify-start">
-                  <Select
-                    value={mode}
-                    onValueChange={(value) => setMode(value)}
-                  >
-                    <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-6">
-                      <SelectValue placeholder="Select tag type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem key="TEXT" value="text">
-                        TEXT
-                      </SelectItem>
-                      <SelectItem key="YAML" value="yaml">
-                        YAML
-                      </SelectItem>
-                      <SelectItem key="JSON" value="json">
-                        JSON
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+          <div className="flex items-center gap-1">
+            <CopyToClipboardButton
+              className='h-7 w-7'
+              text={renderText(value)}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </CopyToClipboardButton>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Maximize className="h-3.5 w-3.5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
+                <DialogTitle className='hidden'></DialogTitle>
+                <div className="flex-none border-b items-center flex px-4 justify-between">
+                  <div className="flex justify-start">
+                    <Select
+                      value={mode}
+                      onValueChange={(value) => setMode(value)}
+                    >
+                      <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-6">
+                        <SelectValue placeholder="Select tag type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem key="TEXT" value="text">
+                          TEXT
+                        </SelectItem>
+                        <SelectItem key="YAML" value="yaml">
+                          YAML
+                        </SelectItem>
+                        <SelectItem key="JSON" value="json">
+                          JSON
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <CopyToClipboardButton
+                      className='h-7 w-7'
+                      text={renderText(value)}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </CopyToClipboardButton>
+                    <SheetClose asChild>
+                      <Button variant="ghost" size="icon">
+                        <Minimize className="h-4 w-4" />
+                      </Button>
+                    </SheetClose>
+                  </div>
                 </div>
-                <SheetClose asChild>
-                  <Button variant="ghost" size="icon">
-                    <Minimize className="h-4 w-4" />
-                  </Button>
-                </SheetClose>
-              </div>
-              <ScrollArea className="flex-grow">
-                <div className="flex flex-col">
-                  <CodeEditor
-                    value={renderText(expandedValue)}
-                    editable={editable}
-                    language={mode}
-                    onChange={(v) => {
-                      setExpandedValue(v);
-                      if (mode === 'yaml') {
-                        try {
-                          const parsedYaml = YAML.parse(v);
-                          onChange?.(JSON.stringify(parsedYaml, null, 2));
-                        } catch (e) {
+                <ScrollArea className="flex-grow">
+                  <div className="flex flex-col">
+                    <CodeEditor
+                      value={renderText(expandedValue)}
+                      editable={editable}
+                      language={mode}
+                      onChange={(v) => {
+                        setExpandedValue(v);
+                        if (mode === 'yaml') {
+                          try {
+                            const parsedYaml = YAML.parse(v);
+                            onChange?.(JSON.stringify(parsedYaml, null, 2));
+                          } catch (e) {
+                            onChange?.(v);
+                          }
+                        } else {
                           onChange?.(v);
                         }
-                      } else {
-                        onChange?.(v);
-                      }
-                    }}
-                  />
-                </div>
-              </ScrollArea>
-            </SheetContent>
-          </Sheet>
+                      }}
+                    />
+                  </div>
+                </ScrollArea>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </div>
       {(!collapsible || !isCollapsed) && (

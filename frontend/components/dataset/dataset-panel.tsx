@@ -1,5 +1,5 @@
 import { useProjectContext } from '@/contexts/project-context';
-import { ChevronsRight, Loader, Loader2 } from 'lucide-react';
+import { ChevronsRight, Loader2 } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
 import { ScrollArea } from '../ui/scroll-area';
@@ -8,7 +8,6 @@ import Mono from '../ui/mono';
 import { Datapoint } from '@/lib/dataset/types';
 import Formatter from '../ui/formatter';
 import { useEffect, useRef, useState } from 'react';
-import { isJsonStringAValidObject } from '@/lib/utils';
 import { useToast } from '@/lib/hooks/use-toast';
 
 interface DatasetPanelProps {
@@ -26,8 +25,8 @@ export default function DatasetPanel({
 }: DatasetPanelProps) {
   const { projectId } = useProjectContext();
   // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
-  const [newData, setNewData] = useState<Record<string, any>>(datapoint.data);
-  const [newTarget, setNewTarget] = useState<Record<string, any>>(
+  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint.data);
+  const [newTarget, setNewTarget] = useState<Record<string, any> | null>(
     datapoint.target
   );
   const [newMetadata, setNewMetadata] = useState<Record<string, any> | null>(
@@ -126,20 +125,27 @@ export default function DatasetPanel({
                   editable
                   onChange={(s) => {
                     try {
-                      const isDataValid = isJsonStringAValidObject(s);
-                      if (isDataValid) {
-                        setNewData(JSON.parse(s));
-                        setIsValidJsonData(true);
-                      } else {
+                      const parsed = JSON.parse(s);
+                      if (parsed === null) {
                         setIsValidJsonData(false);
+                        // we still set it to null to format the error,
+                        // button is blocked by isValidJsonData check
+                        setNewData(null);
+                        return;
                       }
+                      setIsValidJsonData(true);
+                      setNewData(parsed);
                     } catch (e) {
                       setIsValidJsonData(false);
                     }
                   }}
                 />
                 {!isValidJsonData && (
-                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                  <p className="text-sm text-red-500">
+                    {newData === null
+                      ? 'Data cannot be null'
+                      : 'Invalid JSON format'}
+                  </p>
                 )}
               </div>
               <div className="flex flex-col space-y-2">
@@ -151,13 +157,8 @@ export default function DatasetPanel({
                   editable
                   onChange={(s) => {
                     try {
-                      const isTargetValid = isJsonStringAValidObject(s);
-                      if (isTargetValid) {
-                        setNewTarget(JSON.parse(s));
-                        setIsValidJsonTarget(true);
-                      } else {
-                        setIsValidJsonTarget(false);
-                      }
+                      setNewTarget(JSON.parse(s));
+                      setIsValidJsonTarget(true);
                     } catch (e) {
                       setIsValidJsonTarget(false);
                     }
@@ -175,19 +176,9 @@ export default function DatasetPanel({
                   defaultMode="json"
                   editable
                   onChange={(s) => {
-                    if (s === '') {
-                      setNewMetadata(null);
-                      setIsValidJsonMetadata(true);
-                      return;
-                    }
                     try {
-                      const isMetadataValid = isJsonStringAValidObject(s);
-                      if (isMetadataValid) {
-                        setNewMetadata(JSON.parse(s));
-                        setIsValidJsonMetadata(true);
-                      } else {
-                        setIsValidJsonMetadata(false);
-                      }
+                      setNewMetadata(JSON.parse(s));
+                      setIsValidJsonMetadata(true);
                     } catch (e) {
                       setIsValidJsonMetadata(false);
                     }

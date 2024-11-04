@@ -11,8 +11,8 @@ import { Button } from '../ui/button';
 import DatasetSelect from '../ui/dataset-select';
 import { Span } from '@/lib/traces/types';
 import { Label } from '../ui/label';
-import { Database, Loader } from 'lucide-react';
-import { cn, isJsonStringAValidObject } from '@/lib/utils';
+import { Database, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Dataset } from '@/lib/dataset/types';
 import Formatter from '../ui/formatter';
@@ -20,16 +20,6 @@ import Formatter from '../ui/formatter';
 interface ExportSpansDialogProps {
   span: Span;
 }
-
-const toJsonObject = (value: string | object, key: string): object => {
-  if (typeof value === 'string' || Array.isArray(value)) {
-    if (value.length === 0) {
-      return {};
-    }
-    return { [key]: value };
-  }
-  return value;
-};
 
 export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
   const { projectId } = useProjectContext();
@@ -39,35 +29,46 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
 
   const { toast } = useToast();
 
-  const [data, setData] = useState(toJsonObject(span.input, 'input'));
-  const [target, setTarget] = useState(toJsonObject(span.output, 'output'));
+  const [data, setData] = useState(span.input);
+  const [target, setTarget] = useState(span.output);
   const [isDataValid, setIsDataValid] = useState(true);
   const [isTargetValid, setIsTargetValid] = useState(true);
 
-  const [metadata, setMetadata] = useState({});
+  const [metadata, setMetadata] = useState({ spanId: span.spanId });
   const [isMetadataValid, setIsMetadataValid] = useState(true);
 
   const handleDataChange = (value: string) => {
-    const isValid = isJsonStringAValidObject(value);
-    setIsDataValid(isValid);
-    if (isValid) {
-      setData(JSON.parse(value));
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed === null) {
+        setIsDataValid(false);
+        // we still set it to null to format the error,
+        // button is blocked by isDataValid check
+        setData(parsed);
+        return;
+      }
+      setData(parsed);
+      setIsDataValid(true);
+    } catch (e) {
+      setIsDataValid(false);
     }
   };
 
   const handleTargetChange = (value: string) => {
-    const isValid = isJsonStringAValidObject(value);
-    setIsTargetValid(isValid);
-    if (isValid) {
+    try {
       setTarget(JSON.parse(value));
+      setIsTargetValid(true);
+    } catch (e) {
+      setIsTargetValid(false);
     }
   };
 
   const handleMetadataChange = (value: string) => {
-    const isValid = isJsonStringAValidObject(value);
-    setIsMetadataValid(isValid);
-    if (isValid) {
+    try {
       setMetadata(JSON.parse(value));
+      setIsMetadataValid(true);
+    } catch (e) {
+      setIsMetadataValid(false);
     }
   };
 
@@ -133,10 +134,11 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
                   isLoading ||
                   !selectedDataset ||
                   !isDataValid ||
-                  !isTargetValid
+                  !isTargetValid ||
+                  !isMetadataValid
                 }
               >
-                <Loader
+                <Loader2
                   className={cn(
                     'mr-2 hidden',
                     isLoading ? 'animate-spin block' : ''
@@ -165,7 +167,11 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
                   onChange={handleDataChange}
                 />
                 {!isDataValid && (
-                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                  <p className="text-sm text-red-500">
+                    {data === null
+                      ? 'Data cannot be null'
+                      : 'Invalid JSON format'}
+                  </p>
                 )}
               </div>
               <div className="flex flex-col space-y-2">
@@ -191,7 +197,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
                   onChange={handleMetadataChange}
                 />
                 {!isMetadataValid && (
-                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                  <p className="text-sm text-red-500">Invalid JSON format</p>
                 )}
               </div>
             </div>

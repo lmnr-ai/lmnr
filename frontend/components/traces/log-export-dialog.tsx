@@ -13,7 +13,7 @@ import { Label } from '../ui/label';
 import DatasetSelect from '../ui/dataset-select';
 import { cn, getFilterFromUrlParams } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
-import { Loader } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -125,7 +125,7 @@ export default function LogExportDialog({
             }}
             handleEnter
           >
-            <Loader
+            <Loader2
               className={cn(
                 'mr-2 hidden',
                 isLoading ? 'animate-spin block' : ''

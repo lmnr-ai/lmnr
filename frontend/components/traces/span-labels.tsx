@@ -106,7 +106,7 @@ export default function SpanLabels({ spanId }: SpanLabelsProps) {
                     )}
                   </TableCell>
                   <TableCell>{label.labelSource}</TableCell>
-                  <TableCell>{label.valueMap?.[label.value] ?? ''}</TableCell>
+                  <TableCell>{Object.entries(label.valueMap).find(([k, v]) => v === label.value)?.[0] ?? ''}</TableCell>
                   <TableCell>{label.userEmail}</TableCell>
                   <TableCell>
                     <Button
@@ -123,7 +123,7 @@ export default function SpanLabels({ spanId }: SpanLabelsProps) {
             </TableBody>
           </Table>
         ) : (
-          <div className="p-2 text-secondary-foreground bg-secondary text-sm">
+          <div className="p-2 text-secondary-foreground bg-card text-sm">
             No labels
           </div>
         )}

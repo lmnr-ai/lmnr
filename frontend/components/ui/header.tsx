@@ -45,7 +45,7 @@ export default function Header({ path, children, className }: HeaderProps) {
       </div>
       <div className="flex space-x-2 pr-4">
         <Button variant={'ghost'}>
-          <a href="https://docs.lmnr.ai/introduction" target="_blank">
+          <a href="https://docs.lmnr.ai/" target="_blank">
             Docs
           </a>
         </Button>

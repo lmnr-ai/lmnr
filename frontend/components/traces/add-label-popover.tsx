@@ -1,21 +1,17 @@
 import {
   LabelClass,
   LabelSource,
-  LabelType,
   RegisteredLabelClassForPath,
   Span,
-  SpanLabel
 } from '@/lib/traces/types';
 import { cn, swrFetcher } from '@/lib/utils';
 import { useState } from 'react';
 import useSWR from 'swr';
 import {
-  ArrowDown,
   ChevronDown,
   Loader2,
   MoreVertical,
   Plus,
-  Sparkles,
   Tag,
   X
 } from 'lucide-react';
@@ -31,14 +27,6 @@ import {
   TableRow
 } from '../ui/table';
 import { AddLabel } from './add-label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '../ui/select';
-import { useUserContext } from '@/contexts/user-context';
 import { v4 } from 'uuid';
 import { renderNodeInput } from '@/lib/flow/utils';
 import { PopoverClose } from '@radix-ui/react-popover';
@@ -397,7 +385,7 @@ function AddLabelInstance({
         },
         body: JSON.stringify({
           classId: labelClass.id,
-          value: labelClass.valueMap.findIndex((v) => v === value),
+          value: labelClass.valueMap[value],
           source: source,
           reasoning: reasoning
         })
@@ -491,15 +479,15 @@ function AddLabelInstance({
       <PopoverContent side="bottom" align="end">
         <div className="flex flex-col">
           <div className="flex flex-col space-y-2">
-            {labelClass.valueMap.map((value, index) => (
+            {Object.entries(labelClass.valueMap).map(([key, value], index) => (
               <PopoverClose key={index}>
                 <div
                   onClick={() => {
-                    addLabel(value, labelClass, LabelSource.MANUAL);
+                    addLabel(key, labelClass, LabelSource.MANUAL);
                   }}
                   className="cursor-pointer hover:bg-secondary-foreground/10 p-1 rounded border px-2"
                 >
-                  {value}
+                  {key}
                 </div>
               </PopoverClose>
             ))}

@@ -242,7 +242,6 @@ fn main() -> anyhow::Result<()> {
     } else {
         Arc::new(MockStorage {})
     };
-    let storage_grpc = storage.clone();
 
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
@@ -358,6 +357,7 @@ fn main() -> anyhow::Result<()> {
                                 rabbitmq_connection.clone(),
                                 clickhouse.clone(),
                                 chunker_runner.clone(),
+                                storage.clone(),
                             ));
                         }
                     }
@@ -554,7 +554,6 @@ fn main() -> anyhow::Result<()> {
                     db.clone(),
                     cache.clone(),
                     rabbitmq_connection_grpc.clone(),
-                    storage_grpc.clone(),
                 );
 
                 Server::builder()
