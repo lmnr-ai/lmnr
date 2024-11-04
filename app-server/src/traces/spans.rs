@@ -258,26 +258,27 @@ impl Span {
         span.span_type = span.get_attributes().span_type();
 
         // to handle Traceloop's prompt/completion messages
-        if span.span_type == SpanType::LLM && attributes.get("gen_ai.prompt.0.content").is_some() {
-            let input_messages = input_chat_messages_from_prompt_content(&attributes);
+        if span.span_type == SpanType::LLM {
+            if attributes.get("gen_ai.prompt.0.content").is_some() {
+                let input_messages = input_chat_messages_from_prompt_content(&attributes);
 
-            span.input = Some(json!(input_messages));
-            span.output = output_from_completion_content(&attributes);
-        } else if span.span_type == SpanType::LLM && attributes.get("ai.prompt.messages").is_some()
-        {
-            // handling the Vercel's AI SDK auto-instrumentation
-            if let Ok(input_messages) = serde_json::from_str::<Vec<ChatMessage>>(
-                attributes
-                    .get("ai.prompt.messages")
-                    .unwrap()
-                    .as_str()
-                    .unwrap(),
-            ) {
                 span.input = Some(json!(input_messages));
-            }
+                span.output = output_from_completion_content(&attributes);
+            } else if attributes.get("ai.prompt.messages").is_some() {
+                // handling the Vercel's AI SDK auto-instrumentation
+                if let Ok(input_messages) = serde_json::from_str::<Vec<ChatMessage>>(
+                    attributes
+                        .get("ai.prompt.messages")
+                        .unwrap()
+                        .as_str()
+                        .unwrap(),
+                ) {
+                    span.input = Some(json!(input_messages));
+                }
 
-            if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
-                span.output = Some(serde_json::Value::String(s.clone()));
+                if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
+                    span.output = Some(serde_json::Value::String(s.clone()));
+                }
             }
         } else {
             if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
@@ -292,6 +293,19 @@ impl Span {
                     serde_json::from_str::<Value>(s)
                         .unwrap_or(serde_json::Value::String(s.clone())),
                 );
+            }
+        }
+
+        // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
+        // Take their values if input/output are not already set.
+        if let Some(input) = attributes.get("traceloop.entity.input") {
+            if span.input.is_none() {
+                span.input = Some(input.clone());
+            }
+        }
+        if let Some(output) = attributes.get("traceloop.entity.output") {
+            if span.output.is_none() {
+                span.output = Some(output.clone());
             }
         }
 
@@ -477,6 +491,16 @@ fn span_attributes_from_meta_log(meta_log: Option<MetaLog>, span_path: String) -
 fn should_keep_attribute(attribute: &str) -> bool {
     // do not duplicate function input/output as they are stored in DEFAULT span's input/output
     if attribute == INPUT_ATTRIBUTE_NAME || attribute == OUTPUT_ATTRIBUTE_NAME {
+        return false;
+    }
+    // remove traceloop.entity.input/output as we parse them to span's input/output
+    // These are hard coded by opentelemetry-instrumentation-langchain for some of
+    // the deeply nested spans
+    if attribute == "traceloop.entity.input" || attribute == "traceloop.entity.output" {
+        return false;
+    }
+
+    if attribute == "traceloop.entity.path" {
         return false;
     }
 
