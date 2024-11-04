@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { pipelines, targetPipelineVersions, pipelineVersions, projects, traces, evaluations, evaluationResults, spans, eventTemplates, events, labelingQueues, providerApiKeys, workspaces, workspaceUsage, evaluationScores, labelClassesForPath, users, apiKeys, datasets, datasetDatapoints, labelingQueueData, membersOfWorkspaces, projectApiKeys, subscriptionTiers, userSubscriptionInfo, labels, labelClasses } from "./schema";
+import { pipelines, targetPipelineVersions, pipelineVersions, projects, traces, evaluations, evaluationResults, eventTemplates, events, labelingQueues, providerApiKeys, workspaces, workspaceUsage, evaluationScores, labelClassesForPath, users, apiKeys, datasets, datasetDatapoints, labelingQueueData, membersOfWorkspaces, projectApiKeys, subscriptionTiers, userSubscriptionInfo, labelClasses, labels, spans } from "./schema";
 
 export const targetPipelineVersionsRelations = relations(targetPipelineVersions, ({one}) => ({
   pipeline: one(pipelines, {
@@ -47,6 +47,7 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   }),
   projectApiKeys: many(projectApiKeys),
   labelClasses: many(labelClasses),
+  spans: many(spans),
 }));
 
 export const evaluationResultsRelations = relations(evaluationResults, ({one, many}) => ({
@@ -63,14 +64,6 @@ export const evaluationsRelations = relations(evaluations, ({one, many}) => ({
     fields: [evaluations.projectId],
     references: [projects.id]
   }),
-}));
-
-export const spansRelations = relations(spans, ({one, many}) => ({
-  trace: one(traces, {
-    fields: [spans.traceId],
-    references: [traces.id]
-  }),
-  labels: many(labels),
 }));
 
 export const eventsRelations = relations(events, ({one}) => ({
@@ -199,10 +192,6 @@ export const userSubscriptionInfoRelations = relations(userSubscriptionInfo, ({o
 }));
 
 export const labelsRelations = relations(labels, ({one}) => ({
-  span: one(spans, {
-    fields: [labels.spanId],
-    references: [spans.spanId]
-  }),
   labelClass: one(labelClasses, {
     fields: [labels.classId],
     references: [labelClasses.id]
@@ -213,6 +202,17 @@ export const labelClassesRelations = relations(labelClasses, ({one, many}) => ({
   labels: many(labels),
   project: one(projects, {
     fields: [labelClasses.projectId],
+    references: [projects.id]
+  }),
+}));
+
+export const spansRelations = relations(spans, ({one}) => ({
+  trace: one(traces, {
+    fields: [spans.traceId],
+    references: [traces.id]
+  }),
+  project: one(projects, {
+    fields: [spans.projectId],
     references: [projects.id]
   }),
 }));
