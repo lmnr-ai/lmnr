@@ -128,12 +128,14 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
 pub async fn get_trace_spans(
     pool: &PgPool,
     trace_id: Uuid,
+    project_id: Uuid,
     search: Option<String>,
 ) -> Result<Vec<Span>> {
     let mut query = sqlx::QueryBuilder::<Postgres>::new(
         "WITH span_events AS (
             SELECT
                 events.span_id,
+                event_templates.project_id,
                 jsonb_agg(
                     jsonb_build_object(
                         'id', events.id,
@@ -147,10 +149,11 @@ pub async fn get_trace_spans(
                 ) AS events
             FROM events
             JOIN event_templates ON events.template_id = event_templates.id
-            GROUP BY events.span_id
+            GROUP BY events.span_id, event_templates.project_id
         ),
         span_labels AS (
             SELECT labels.span_id,
+            label_classes.project_id,
             jsonb_agg(
                 jsonb_build_object(
                     'id', labels.id,
@@ -168,7 +171,7 @@ pub async fn get_trace_spans(
             ) AS labels
             FROM labels
             JOIN label_classes ON labels.class_id = label_classes.id
-            GROUP BY labels.span_id
+            GROUP BY labels.span_id, label_classes.project_id
         ),
         spans_info AS (
             SELECT
@@ -186,11 +189,13 @@ pub async fn get_trace_spans(
                 COALESCE(span_events.events, '[]'::jsonb) AS events,
                 COALESCE(span_labels.labels, '[]'::jsonb) AS labels
             FROM spans
-            LEFT JOIN span_events ON spans.span_id = span_events.span_id
-            LEFT JOIN span_labels ON spans.span_id = span_labels.span_id
+            LEFT JOIN span_events ON spans.span_id = span_events.span_id AND span_events.project_id = spans.project_id
+            LEFT JOIN span_labels ON spans.span_id = span_labels.span_id AND span_labels.project_id = spans.project_id
             WHERE spans.trace_id = ",
     );
     query.push_bind(trace_id);
+    query.push(" AND spans.project_id = ");
+    query.push_bind(project_id);
     query.push(
         ")
         SELECT * FROM spans_info WHERE 1=1
@@ -216,7 +221,7 @@ pub async fn get_trace_spans(
     Ok(spans)
 }
 
-pub async fn get_span(pool: &PgPool, id: Uuid) -> Result<Span> {
+pub async fn get_span(pool: &PgPool, id: Uuid, project_id: Uuid) -> Result<Span> {
     let span = sqlx::query_as::<_, Span>(
         "SELECT
             span_id,
@@ -233,9 +238,10 @@ pub async fn get_span(pool: &PgPool, id: Uuid) -> Result<Span> {
             '[]'::jsonb as events,
             '[]'::jsonb as labels
         FROM spans
-        WHERE span_id = $1",
+        WHERE span_id = $1 AND project_id = $2",
     )
     .bind(id)
+    .bind(project_id)
     .fetch_one(pool)
     .await?;
 

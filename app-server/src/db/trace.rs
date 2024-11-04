@@ -220,8 +220,10 @@ fn add_traces_info_expression(
                 trace_id
             FROM spans
             WHERE parent_span_id IS NULL
+            AND project_id = 
             ",
     );
+    query.push_bind(project_id);
     add_date_range_to_query(
         query,
         date_range,
