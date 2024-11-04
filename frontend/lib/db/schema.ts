@@ -1,4 +1,4 @@
-import { pgTable, foreignKey, unique, uuid, timestamp, index, text, jsonb, bigint, boolean, doublePrecision, integer, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, foreignKey, unique, uuid, timestamp, index, text, jsonb, bigint, boolean, doublePrecision, integer, primaryKey, pgEnum } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const eventSource = pgEnum("event_source", ['AUTO', 'MANUAL', 'CODE']);
@@ -84,33 +84,6 @@ export const evaluationResults = pgTable("evaluation_results", {
     columns: [table.evaluationId],
     foreignColumns: [evaluations.id],
     name: "evaluation_results_evaluation_id_fkey1"
-  }).onUpdate("cascade").onDelete("cascade"),
-}));
-
-export const spans = pgTable("spans", {
-  spanId: uuid("span_id").primaryKey().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  parentSpanId: uuid("parent_span_id"),
-  name: text().notNull(),
-  attributes: jsonb(),
-  input: jsonb(),
-  output: jsonb(),
-  spanType: spanType("span_type").notNull(),
-  startTime: timestamp("start_time", { withTimezone: true, mode: 'string' }).notNull(),
-  endTime: timestamp("end_time", { withTimezone: true, mode: 'string' }).notNull(),
-  traceId: uuid("trace_id").notNull(),
-  version: text().notNull(),
-  inputPreview: text("input_preview"),
-  outputPreview: text("output_preview"),
-},
-(table) => ({
-  spanPathIdx: index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
-  startTimeEndTimeIdx: index("spans_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
-  traceIdIdx: index("spans_trace_id_idx").using("btree", table.traceId.asc().nullsLast()),
-  newSpansTraceIdFkey: foreignKey({
-    columns: [table.traceId],
-    foreignColumns: [traces.id],
-    name: "new_spans_trace_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 }));
 
@@ -339,8 +312,8 @@ export const labelingQueueData = pgTable("labeling_queue_data", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   queueId: uuid("queue_id").defaultRandom().notNull(),
-  data: jsonb().notNull(),
   action: jsonb().notNull(),
+  spanId: uuid("span_id").notNull(),
 },
 (table) => ({
   labellingQueueDataQueueIdFkey: foreignKey({
@@ -502,11 +475,6 @@ export const labels = pgTable("labels", {
   reasoning: text(),
 },
 (table) => ({
-  traceTagsSpanIdFkey: foreignKey({
-    columns: [table.spanId],
-    foreignColumns: [spans.spanId],
-    name: "trace_tags_span_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
   traceTagsTypeIdFkey: foreignKey({
     columns: [table.classId],
     foreignColumns: [labelClasses.id],
@@ -532,4 +500,40 @@ export const labelClasses = pgTable("label_classes", {
     foreignColumns: [projects.id],
     name: "label_classes_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
+}));
+
+export const spans = pgTable("spans", {
+  spanId: uuid("span_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  parentSpanId: uuid("parent_span_id"),
+  name: text().notNull(),
+  attributes: jsonb(),
+  input: jsonb(),
+  output: jsonb(),
+  spanType: spanType("span_type").notNull(),
+  startTime: timestamp("start_time", { withTimezone: true, mode: 'string' }).notNull(),
+  endTime: timestamp("end_time", { withTimezone: true, mode: 'string' }).notNull(),
+  traceId: uuid("trace_id").notNull(),
+  version: text().notNull(),
+  inputPreview: text("input_preview"),
+  outputPreview: text("output_preview"),
+  projectId: uuid("project_id").notNull(),
+},
+(table) => ({
+  spanPathIdx: index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
+  projectIdIdx: index("spans_project_id_idx").using("btree", table.projectId.asc().nullsLast()),
+  startTimeEndTimeIdx: index("spans_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
+  traceIdIdx: index("spans_trace_id_idx").using("btree", table.traceId.asc().nullsLast()),
+  newSpansTraceIdFkey: foreignKey({
+    columns: [table.traceId],
+    foreignColumns: [traces.id],
+    name: "new_spans_trace_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+  spansProjectIdFkey: foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "spans_project_id_fkey"
+  }).onUpdate("cascade"),
+  spansPkey: primaryKey({ columns: [table.spanId, table.projectId], name: "spans_pkey"}),
+  uniqueSpanIdProjectId: unique("unique_span_id_project_id").on(table.spanId, table.projectId),
 }));

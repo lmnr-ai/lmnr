@@ -1,6 +1,6 @@
 {
-  "id": "326ba2ca-6925-4d69-8416-1a7691a8bcfd",
-  "prevId": "a7f4ca0c-430b-49f5-93d4-09d1ab968dac",
+  "id": "2bfae944-3896-4b39-b7e0-d1103db2d9d1",
+  "prevId": "326ba2ca-6925-4d69-8416-1a7691a8bcfd",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -901,19 +901,6 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "trace_tags_span_id_fkey": {
-          "name": "trace_tags_span_id_fkey",
-          "tableFrom": "labels",
-          "tableTo": "spans",
-          "columnsFrom": [
-            "span_id"
-          ],
-          "columnsTo": [
-            "span_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        },
         "trace_tags_type_id_fkey": {
           "name": "trace_tags_type_id_fkey",
           "tableFrom": "labels",
@@ -1557,7 +1544,7 @@
         "span_id": {
           "name": "span_id",
           "type": "uuid",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -1639,6 +1626,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -1649,6 +1642,21 @@
               "expression": "(attributes -> 'lmnr.span.path'::text)",
               "asc": true,
               "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "spans_project_id_idx": {
+          "name": "spans_project_id_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
               "nulls": "last"
             }
           ],
@@ -1707,10 +1715,40 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "cascade"
+        },
+        "spans_project_id_fkey": {
+          "name": "spans_project_id_fkey",
+          "tableFrom": "spans",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "cascade"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "compositePrimaryKeys": {
+        "spans_pkey": {
+          "name": "spans_pkey",
+          "columns": [
+            "span_id",
+            "project_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "unique_span_id_project_id": {
+          "name": "unique_span_id_project_id",
+          "nullsNotDistinct": false,
+          "columns": [
+            "span_id",
+            "project_id"
+          ]
+        }
+      },
       "checkConstraints": {}
     },
     "public.subscription_tiers": {

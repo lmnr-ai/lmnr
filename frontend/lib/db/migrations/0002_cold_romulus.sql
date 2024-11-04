@@ -2,8 +2,8 @@ CREATE TABLE IF NOT EXISTS "labeling_queue_data" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"queue_id" uuid DEFAULT gen_random_uuid() NOT NULL,
-	"data" jsonb NOT NULL,
-	"action" jsonb NOT NULL
+	"action" jsonb NOT NULL,
+	"span_id" uuid NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "dataset_datapoints" ALTER COLUMN "target" DROP NOT NULL;--> statement-breakpoint
