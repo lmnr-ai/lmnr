@@ -99,7 +99,7 @@ pub async fn datapoints_to_labeling_queues(
                 // For now, we use the datapoint id as the action.
                 // TODO: We should probably add the score name to the action.
                 action: serde_json::json!({
-                    "result_id": datapoint_id.to_string(),
+                    "resultId": datapoint_id.to_string(),
                 }),
             });
         }
