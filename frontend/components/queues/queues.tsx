@@ -17,14 +17,14 @@ import { TableCell, TableRow } from '../ui/table';
 import { PaginatedResponse } from '@/lib/types';
 import Mono from '../ui/mono';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { LabelQueue } from '@/lib/queue/types';
+import { LabelingQueue } from '@/lib/queue/types';
 import CreateQueueDialog from './create-queue-dialog';
 
 export default function Queues() {
   const { projectId } = useProjectContext();
 
   const router = useRouter();
-  const { data, mutate } = useSWR<PaginatedResponse<LabelQueue>>(
+  const { data, mutate } = useSWR<PaginatedResponse<LabelingQueue>>(
     `/api/projects/${projectId}/queues/`,
     swrFetcher
   );
@@ -63,7 +63,7 @@ export default function Queues() {
     setIsDeleteDialogOpen(false);
   };
 
-  const columns: ColumnDef<LabelQueue>[] = [
+  const columns: ColumnDef<LabelingQueue>[] = [
     {
       cell: ({ row }) => <Mono>{row.original.id}</Mono>,
       size: 300,
@@ -85,7 +85,7 @@ export default function Queues() {
 
   return (
     <div className="h-full flex flex-col">
-      <Header path="datasets" />
+      <Header path="labeling queues" />
       <div className="flex justify-between items-center p-4 flex-none">
         <h1 className="scroll-m-20 text-2xl font-medium">
           Labeling Queues
@@ -97,9 +97,9 @@ export default function Queues() {
           paginated
           enableRowSelection={true}
           onRowClick={(row) => {
-            router.push(`/project/${projectId}/queues/${row.original.id}`);
+            router.push(`/project/${projectId}/labeling-queues/${row.original.id}`);
           }}
-          getRowId={(row: LabelQueue) => row.id}
+          getRowId={(row: LabelingQueue) => row.id}
           columns={columns}
           data={data?.items}
           selectionPanel={(selectedRowIds) => (

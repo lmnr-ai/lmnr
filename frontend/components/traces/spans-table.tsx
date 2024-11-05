@@ -51,7 +51,6 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   const textSearchFilter = searchParams.get('search');
   const [spans, setSpans] = useState<Span[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
-  const [anyInProject, setAnyInProject] = useState<boolean>(true);
   const pageCount = Math.ceil(totalCount / pageSize);
   const [spanId, setSpanId] = useState<string | null>(
     searchParams.get('spanId') ?? null
@@ -103,7 +102,6 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
 
     setSpans(data.items);
     setTotalCount(data.totalCount);
-    setAnyInProject(data.anyInProject);
   };
   useEffect(() => {
     getSpans();

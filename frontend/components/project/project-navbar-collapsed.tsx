@@ -61,7 +61,7 @@ export default function ProjectNavbarCollapsed({
     },
     {
       name: 'queues',
-      href: `/project/${projectId}/queues`,
+      href: `/project/${projectId}/labeling-queues`,
       icon: Pen,
       current: false
     },
@@ -103,7 +103,7 @@ export default function ProjectNavbarCollapsed({
                   href={option.href}
                   className={cn(
                     'hover:bg-secondary flex items-center p-2 rounded',
-                    option.href.includes(pathname) ? 'bg-secondary' : ''
+                    pathname.startsWith(option.href) ? 'bg-secondary' : ''
                   )}
                 >
                   <option.icon size={20} />

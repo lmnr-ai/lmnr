@@ -40,7 +40,8 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
       "True": 1
     },
     description: null,
-    evaluatorRunnableGraph: null
+    evaluatorRunnableGraph: null,
+    pipelineVersionId: null
   });
 
   const saveLabel = async () => {

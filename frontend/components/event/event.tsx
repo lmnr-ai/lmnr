@@ -134,7 +134,6 @@ export default function EventComponent({ eventTemplate, metrics }: EventProps) {
         console.log(result);
         setEvents(result.items);
         setTotalCount(result.totalCount);
-        setAnyInProject(result.anyInProject);
       })
       .catch((err) => {
         console.error(err);
