@@ -94,7 +94,7 @@ export function Labels({ span }: LabelsProps) {
                 Add Label
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[400px] mr-4" side="bottom" align="start">
+            <PopoverContent className="min-w-[500px] mr-4" side="bottom" align="start">
               <AddLabel
                 span={span!}
                 onClose={() => {
