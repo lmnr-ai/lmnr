@@ -21,12 +21,18 @@ export type FilterDef = {
   value: string;
 }
 
-export const filtersToSql = (filters: FilterDef[], allowPatterns?: RegExp[]): SQL[] => {
+export const filtersToSql = (
+  filters: FilterDef[],
+  allowPatterns?: RegExp[],
+  additionalColumnDefinitions?: Record<string, SQL<any>>
+): SQL[] => {
   let result = [];
   for (const filter of filters) {
     if (filter.column && filter.operator && filter.value != null) {
       const operator = filterOperators[filter.operator] ?? eq;
-      if (validateSqlColumnName(filter.column, allowPatterns)) {
+      if (additionalColumnDefinitions && filter.column in additionalColumnDefinitions) {
+        result.push(operator(additionalColumnDefinitions[filter.column], filter.value));
+      } else if (validateSqlColumnName(filter.column, allowPatterns)) {
         result.push(operator(sql`${sql.raw(filter.column)}`, filter.value));
       }
     }

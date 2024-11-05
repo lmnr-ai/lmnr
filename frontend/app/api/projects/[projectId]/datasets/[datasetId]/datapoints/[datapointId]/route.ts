@@ -1,5 +1,5 @@
 import { db } from '@/lib/db/drizzle';
-import { datasetDatapoints } from '@/lib/db/schema';
+import { datasetDatapoints } from '@/lib/db/migrations/schema';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';

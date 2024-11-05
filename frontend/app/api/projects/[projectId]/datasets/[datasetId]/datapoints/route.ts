@@ -3,7 +3,7 @@ import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db/drizzle';
-import { datasetDatapoints } from '@/lib/db/schema';
+import { datasetDatapoints } from '@/lib/db/migrations/schema';
 import { and, inArray, eq } from 'drizzle-orm';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 

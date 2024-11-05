@@ -1,5 +1,5 @@
 import { db } from '@/lib/db/drizzle';
-import { labelClasses } from '@/lib/db/schema';
+import { labelClasses } from '@/lib/db/migrations/schema';
 import { eq } from 'drizzle-orm';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 

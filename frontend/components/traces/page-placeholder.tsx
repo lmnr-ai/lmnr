@@ -1,9 +1,12 @@
+'use client';
+
 import { useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
 import CodeHighlighter from '../ui/code-highlighter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
+import Header from '../ui/header';
 
 
 export default function TracesPagePlaceholder() {
@@ -43,8 +46,9 @@ const function_to_trace =
 })`;
 
   return (
-    <div className="h-full w-full justify-center flex p-2">
-      <div className="flex flex-col">
+    <div className="h-full w-full flex flex-col">
+      <Header path={'traces'} />
+      <div className="flex flex-col justify-center items-center p-2">
         <div className="flex-col p-4 mb-32 space-y-4 w-[800px]">
           <h1 className="text-2xl font-semibold mb-4">Quickstart</h1>
           <h3 className="text-secondary-foreground/80 font-light">

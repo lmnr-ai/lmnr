@@ -61,7 +61,7 @@ export default function SpanLabels({ spanId }: SpanLabelsProps) {
   return (
     <div className="flex flex-col pb-2">
       <div className="pb-2 font-medium text-lg">Labels</div>
-      <div className="border rounded">
+      <div className="border rounded bg-card">
         {isLoading ? (
           <div>
             <Skeleton className="h-10 w-full" />
@@ -123,7 +123,7 @@ export default function SpanLabels({ spanId }: SpanLabelsProps) {
             </TableBody>
           </Table>
         ) : (
-          <div className="p-2 text-secondary-foreground bg-card text-sm">
+          <div className="p-2 text-secondary-foreground text-sm">
             No labels
           </div>
         )}

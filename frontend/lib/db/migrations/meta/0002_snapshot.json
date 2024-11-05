@@ -717,8 +717,8 @@
       },
       "checkConstraints": {}
     },
-    "public.labeling_queue_data": {
-      "name": "labeling_queue_data",
+    "public.labeling_queue_items": {
+      "name": "labeling_queue_items",
       "schema": "",
       "columns": {
         "id": {
@@ -759,7 +759,7 @@
       "foreignKeys": {
         "labelling_queue_data_queue_id_fkey": {
           "name": "labelling_queue_data_queue_id_fkey",
-          "tableFrom": "labeling_queue_data",
+          "tableFrom": "labeling_queue_items",
           "tableTo": "labeling_queues",
           "columnsFrom": [
             "queue_id"
