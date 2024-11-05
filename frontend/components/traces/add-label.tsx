@@ -44,12 +44,21 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
     pipelineVersionId: null
   });
 
+  const [labelValuePairs, setLabelValuePairs] = useState<[string, number][]>([
+    ["False", 0],
+    ["True", 1]
+  ]);
+
   const saveLabel = async () => {
     setIsSaving(true);
+    const finalLabelClass = {
+      ...labelClass,
+      valueMap: Object.fromEntries(labelValuePairs)
+    };
 
     const res = await fetch(`/api/projects/${projectId}/label-classes`, {
       method: 'POST',
-      body: JSON.stringify(labelClass)
+      body: JSON.stringify(finalLabelClass)
     });
 
     if (!res.ok) {
@@ -77,8 +86,10 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
   };
 
   const hasDuplicateValues = () => {
-    const values = Object.values(labelClass.valueMap);
-    return values.length !== new Set(values).size;
+    const values = labelValuePairs.map(([_, v]) => v);
+    const keys = labelValuePairs.map(([k, _]) => k);
+    return values.length !== new Set(values).size ||
+      keys.length !== new Set(keys).size;
   };
 
   return (
@@ -116,7 +127,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
           <Label>Label values</Label>
           {hasDuplicateValues() && (
             <div className="text-sm text-destructive">
-              Duplicate numerical values are not allowed
+              Duplicate label names or numerical values are not allowed
             </div>
           )}
         </div>
@@ -124,29 +135,26 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
         <table className="w-full">
           <thead>
             <tr className="text-sm text-secondary-foreground">
-              <th className="text-left pb-2 w-full">Value</th>
-              <th className="text-left pb-2">Numerical</th>
+              <th className="text-left font-medium pb-2 w-full">Value</th>
+              <th className="text-left font-medium pb-2">Numerical</th>
               <th className="w-10"></th>
             </tr>
           </thead>
           <tbody>
-            {Object.entries(labelClass.valueMap).map(([key, value], i) => (
+            {labelValuePairs.map(([key, value], i) => (
               <tr key={i}>
                 <td className="pr-2 pb-2">
                   <Input
                     type="text"
                     placeholder="Categorical value"
                     value={key}
-                    onChange={(e) =>
-                      setLabelClass({
-                        ...labelClass,
-                        valueMap: Object.fromEntries(
-                          Object.entries(labelClass.valueMap).map(([k, v], j) =>
-                            j === i ? [e.target.value, v] : [k, v]
-                          )
-                        )
-                      })
-                    }
+                    onChange={(e) => {
+                      setLabelValuePairs((oldPairs) => {
+                        const newPairs = [...oldPairs];
+                        newPairs[i] = [e.target.value, value];
+                        return newPairs;
+                      });
+                    }}
                   />
                 </td>
                 <td className="pr-2 pb-2">
@@ -156,13 +164,10 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
                     placeholder="#"
                     value={value}
                     onChange={(e) => {
-                      setLabelClass({
-                        ...labelClass,
-                        valueMap: Object.fromEntries(
-                          Object.entries(labelClass.valueMap).map(([k, v], j) =>
-                            j === i ? [k, parseInt(e.target.value, 10)] : [k, v]
-                          )
-                        )
+                      setLabelValuePairs((oldPairs) => {
+                        const newPairs = [...oldPairs];
+                        newPairs[i] = [key, parseInt(e.target.value, 10)];
+                        return newPairs;
                       });
                     }}
                   />
@@ -171,14 +176,11 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() =>
-                      setLabelClass({
-                        ...labelClass,
-                        valueMap: Object.fromEntries(
-                          Object.entries(labelClass.valueMap).filter(([_, v], j) => j !== i)
-                        )
-                      })
-                    }
+                    onClick={() => {
+                      setLabelValuePairs((oldPairs) =>
+                        oldPairs.filter((_, j) => j !== i)
+                      );
+                    }}
                   >
                     <Trash2 size={14} />
                   </Button>
@@ -189,12 +191,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
         </table>
         <Button
           variant="secondary"
-          onClick={() =>
-            setLabelClass({
-              ...labelClass,
-              valueMap: { ...labelClass.valueMap, [""]: 0 }
-            })
-          }
+          onClick={() => setLabelValuePairs((oldPairs) => [...oldPairs, ["", 0]])}
         >
           Add label value
         </Button>
@@ -240,7 +237,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
           onClick={async () => {
             await saveLabel();
           }}
-          disabled={!labelClass.name || Object.keys(labelClass.valueMap).length === 0}
+          disabled={!labelClass.name || labelValuePairs.length === 0 || hasDuplicateValues()}
         >
           <Loader2
             className={isSaving ? 'animate-spin h-4 w-4 mr-2' : 'hidden'}
