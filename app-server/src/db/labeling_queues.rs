@@ -37,7 +37,7 @@ pub async fn push_to_labeling_queue(
     // 2. sort on created_at
     for item in items {
         sqlx::query(
-            "INSERT INTO labeling_queue_data (
+            "INSERT INTO labeling_queue_items (
             queue_id,
             span_id,
             action

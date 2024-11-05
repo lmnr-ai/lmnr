@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
-import { labelClasses } from '@/lib/db/schema';
+import { labelClasses } from '@/lib/db/migrations/schema';
 import { db } from '@/lib/db/drizzle';
 import { and, eq } from 'drizzle-orm';
 

@@ -1,6 +1,6 @@
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 import { db } from '@/lib/db/drizzle';
-import { labelingQueueData, spans } from '@/lib/db/schema';
+import { labelingQueueItems, spans } from '@/lib/db/migrations/schema';
 import { asc, eq, gt, and, lt, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -34,13 +34,13 @@ export async function POST(
 
     const nextItem = await db
       .select({
-        queueData: labelingQueueData,
+        queueData: labelingQueueItems,
         span: spans,
       })
-      .from(labelingQueueData)
-      .innerJoin(spans, eq(labelingQueueData.spanId, spans.spanId))
-      .where(and(eq(labelingQueueData.queueId, params.queueId), gt(labelingQueueData.createdAt, refDate)))
-      .orderBy(asc(labelingQueueData.createdAt))
+      .from(labelingQueueItems)
+      .innerJoin(spans, eq(labelingQueueItems.spanId, spans.spanId))
+      .where(and(eq(labelingQueueItems.queueId, params.queueId), gt(labelingQueueItems.createdAt, refDate)))
+      .orderBy(asc(labelingQueueItems.createdAt))
       .limit(1);
 
     const stats = await db
@@ -48,11 +48,11 @@ export async function POST(
         count: sql<number>`(count(*) OVER())::int4`,
         position: sql<number>`(
           SELECT COUNT(*)
-          FROM labeling_queue_data
+          FROM labeling_queue_items
           WHERE queue_id = ${params.queueId}
           AND created_at <= (
             SELECT created_at
-            FROM labeling_queue_data
+            FROM labeling_queue_items
             WHERE queue_id = ${params.queueId}
             AND created_at > ${refDate}
             ORDER BY created_at ASC
@@ -60,8 +60,8 @@ export async function POST(
           )
         )::int4`
       })
-      .from(labelingQueueData)
-      .where(eq(labelingQueueData.queueId, params.queueId))
+      .from(labelingQueueItems)
+      .where(eq(labelingQueueItems.queueId, params.queueId))
       .limit(1);
 
     if (nextItem.length === 0 || stats.length === 0) {
@@ -79,13 +79,13 @@ export async function POST(
 
     const prevItem = await db
       .select({
-        queueData: labelingQueueData,
+        queueData: labelingQueueItems,
         span: spans
       })
-      .from(labelingQueueData)
-      .innerJoin(spans, eq(labelingQueueData.spanId, spans.spanId))
-      .where(and(eq(labelingQueueData.queueId, params.queueId), lt(labelingQueueData.createdAt, refDate)))
-      .orderBy(desc(labelingQueueData.createdAt))
+      .from(labelingQueueItems)
+      .innerJoin(spans, eq(labelingQueueItems.spanId, spans.spanId))
+      .where(and(eq(labelingQueueItems.queueId, params.queueId), lt(labelingQueueItems.createdAt, refDate)))
+      .orderBy(desc(labelingQueueItems.createdAt))
       .limit(1);
 
 
@@ -94,11 +94,11 @@ export async function POST(
         count: sql<number>`(count(*) OVER())::int4`,
         position: sql<number>`(
           SELECT COUNT(*)
-          FROM labeling_queue_data
+          FROM labeling_queue_items
           WHERE queue_id = ${params.queueId}
           AND created_at <= (
             SELECT created_at
-            FROM labeling_queue_data
+            FROM labeling_queue_items
             WHERE queue_id = ${params.queueId}
             AND created_at < ${refDate}
             ORDER BY created_at DESC
@@ -106,8 +106,8 @@ export async function POST(
           )
         )::int4`
       })
-      .from(labelingQueueData)
-      .where(eq(labelingQueueData.queueId, params.queueId))
+      .from(labelingQueueItems)
+      .where(eq(labelingQueueItems.queueId, params.queueId))
       .limit(1);
 
     if (prevItem.length === 0 || stats.length === 0) {

@@ -1,6 +1,6 @@
 import { db } from "./drizzle";
 import { eq, and, gt, sql, lt, SQL, lte, ne, gte, BinaryOperator, getTableColumns, WithSubquery } from "drizzle-orm";
-import { membersOfWorkspaces, projects, users } from "./schema";
+import { membersOfWorkspaces, projects, users } from "./migrations/schema";
 import { getServerSession } from 'next-auth';
 import { authOptions } from "../auth";
 import { PgColumn, PgTableWithColumns, SelectedFields, TableConfig } from "drizzle-orm/pg-core";

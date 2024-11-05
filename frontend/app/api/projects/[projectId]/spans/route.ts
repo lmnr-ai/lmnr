@@ -1,9 +1,9 @@
 import { db } from '@/lib/db/drizzle';
 import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
-import { spans, traces } from '@/lib/db/schema';
+import { spans, traces } from '@/lib/db/migrations/schema';
 import { getDateRangeFilters, isCurrentUserMemberOfProject, paginatedGet } from '@/lib/db/utils';
 import { Span } from '@/lib/traces/types';
-import { and, desc, eq, getTableColumns, inArray, sql} from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 
 export async function GET(

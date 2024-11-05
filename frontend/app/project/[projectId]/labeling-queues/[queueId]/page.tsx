@@ -3,10 +3,10 @@ import { redirect } from 'next/navigation';
 import { Metadata } from 'next';
 import Queue from '@/components/queue/queue';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
-import * as schema from '@/lib/db/schema';
+import * as schema from '@/lib/db/migrations/schema';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { labelingQueues } from '@/lib/db/schema';
+import { labelingQueues } from '@/lib/db/migrations/schema';
 
 export const metadata: Metadata = {
   title: 'Labeling Queue'

@@ -1,7 +1,7 @@
 'use client';
 
 import { useProjectContext } from '@/contexts/project-context';
-import { LabelingQueueData } from '@/lib/queue/types';
+import { LabelingQueueItem } from '@/lib/queue/types';
 import { useEffect, useState } from 'react';
 import { SpanViewSpan } from '../traces/span-view-span';
 import { Span } from '@/lib/traces/types';
@@ -20,7 +20,7 @@ export default function Queue({ queue }: QueueProps) {
   const { projectId } = useProjectContext();
 
   const [data, setData] = useState<{
-    queueData: LabelingQueueData,
+    queueData: LabelingQueueItem,
     span: Span,
     count: number,
     position: number

@@ -8,7 +8,7 @@ export async function register() {
     const { Feature, isFeatureEnabled } = await import('lib/features/features');
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { migrate } = await import('drizzle-orm/postgres-js/migrator');
-      const { llmPrices, pipelineTemplates, subscriptionTiers } = await import('lib/db/schema');
+      const { llmPrices, pipelineTemplates, subscriptionTiers } = await import('lib/db/migrations/schema');
       const { db } = await import('lib/db/drizzle');
 
       const seed = async () => {

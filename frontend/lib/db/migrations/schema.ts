@@ -56,6 +56,7 @@ export const traces = pgTable("traces", {
   outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
 },
 (table) => ({
+  idProjectIdStartTimeTimesNotNullIdx: index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast(), table.projectId.asc().nullsLast(), table.startTime.desc().nullsFirst()).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
   projectIdIdx: index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast()),
   sessionIdIdx: index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast()),
   startTimeEndTimeIdx: index("traces_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
@@ -237,6 +238,7 @@ export const evaluationScores = pgTable("evaluation_scores", {
   score: doublePrecision().notNull(),
 },
 (table) => ({
+  resultIdIdx: index("evaluation_scores_result_id_idx").using("hash", table.resultId.asc().nullsLast()),
   evaluationScoresResultIdFkey: foreignKey({
     columns: [table.resultId],
     foreignColumns: [evaluationResults.id],
@@ -308,7 +310,7 @@ export const datasets = pgTable("datasets", {
   }).onUpdate("cascade").onDelete("cascade"),
 }));
 
-export const labelingQueueData = pgTable("labeling_queue_data", {
+export const labelingQueueItems = pgTable("labeling_queue_items", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   queueId: uuid("queue_id").defaultRandom().notNull(),
@@ -316,10 +318,10 @@ export const labelingQueueData = pgTable("labeling_queue_data", {
   spanId: uuid("span_id").notNull(),
 },
 (table) => ({
-  labellingQueueDataQueueIdFkey: foreignKey({
+  labellingQueueItemsQueueIdFkey: foreignKey({
     columns: [table.queueId],
     foreignColumns: [labelingQueues.id],
-    name: "labelling_queue_data_queue_id_fkey"
+    name: "labelling_queue_items_queue_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 }));
 
@@ -521,9 +523,12 @@ export const spans = pgTable("spans", {
 },
 (table) => ({
   spanPathIdx: index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
+  parentSpanIdProjectIdStartTimeEndTimeIdx: index("spans_parent_span_id_project_id_start_time_end_time_idx").using("btree", table.parentSpanId.asc().nullsLast(), table.projectId.asc().nullsLast(), table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
   projectIdIdx: index("spans_project_id_idx").using("btree", table.projectId.asc().nullsLast()),
+  projectIdTraceIdStartTimeIdx: index("spans_project_id_trace_id_start_time_idx").using("btree", table.projectId.asc().nullsLast(), table.traceId.asc().nullsLast(), table.startTime.asc().nullsLast()),
   startTimeEndTimeIdx: index("spans_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
   traceIdIdx: index("spans_trace_id_idx").using("btree", table.traceId.asc().nullsLast()),
+  traceIdStartTimeIdx: index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast(), table.startTime.asc().nullsLast()),
   newSpansTraceIdFkey: foreignKey({
     columns: [table.traceId],
     foreignColumns: [traces.id],

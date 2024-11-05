@@ -1,8 +1,7 @@
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 import { db } from '@/lib/db/drizzle';
-import { labelingQueueData, spans, labels, evaluationScores, labelClasses, labelingQueues } from '@/lib/db/schema';
-import { asc, eq, and, inArray } from 'drizzle-orm';
-import { LabelClass } from '@/lib/traces/types';
+import { labelingQueueItems, labels, evaluationScores, labelingQueues } from '@/lib/db/migrations/schema';
+import { eq, and } from 'drizzle-orm';
 
 
 // remove an item from the queue
@@ -39,10 +38,10 @@ export async function POST(request: Request, { params }: { params: { projectId: 
 
 
   const deletedQueueData = await db
-    .delete(labelingQueueData)
+    .delete(labelingQueueItems)
     .where(and(
-      eq(labelingQueueData.queueId, params.queueId),
-      eq(labelingQueueData.id, id)
+      eq(labelingQueueItems.queueId, params.queueId),
+      eq(labelingQueueItems.id, id)
     ))
     .returning();
 

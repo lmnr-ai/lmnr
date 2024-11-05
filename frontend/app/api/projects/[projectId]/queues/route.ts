@@ -1,4 +1,4 @@
-import { labelingQueues } from '@/lib/db/schema';
+import { labelingQueues } from '@/lib/db/migrations/schema';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 import { eq, inArray } from 'drizzle-orm';
 import { and } from 'drizzle-orm';

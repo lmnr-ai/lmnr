@@ -1,5 +1,5 @@
-import { labelingQueueData, labelingQueues } from "@/lib/db/schema";
+import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
 
 export type LabelingQueue = typeof labelingQueues.$inferSelect;
 
-export type LabelingQueueData = typeof labelingQueueData.$inferSelect;
+export type LabelingQueueItem = typeof labelingQueueItems.$inferSelect;

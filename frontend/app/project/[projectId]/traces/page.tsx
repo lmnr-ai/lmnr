@@ -1,7 +1,7 @@
 import TracesDashboard from '@/components/traces/traces';
 import { Metadata } from 'next';
 import Header from '@/components/ui/header';
-import { spans, traces } from '@/lib/db/schema';
+import { spans, traces } from '@/lib/db/migrations/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import TracesPagePlaceholder from '@/components/traces/page-placeholder';
