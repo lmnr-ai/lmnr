@@ -21,10 +21,13 @@ export async function POST(
 
   const body = await req.json();
 
+  // This schema allows any JSON value for data and target,
+  // but for file upload we will need to dump everything into data,
+  // unless the keys match "data", "target", or "metadata"
   const schema = z.object({
-    data: z.record(z.unknown()),
-    target: z.record(z.unknown()).nullable(),
-    metadata: z.record(z.unknown()).nullable(),
+    data: z.any(),
+    target: z.any().nullable(),
+    metadata: z.any().nullable(),
   });
 
   const result = schema.safeParse(body);

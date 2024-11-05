@@ -22,7 +22,7 @@ import DataTableFilter from '../ui/datatable-filter';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Resizable } from 're-resizable';
 import EventView from './event-view';
-import { PaginatedResponse } from '@/lib/types';
+import { PaginatedGetResponseWithProjectPresenceFlag } from '@/lib/types';
 
 // TODO: add refresh button on realtime updates. See components/traces/traces-table-traces-view.tsx for an example.
 
@@ -35,7 +35,7 @@ const getEvents = async (
   pastHours: string | null,
   startDate: string | null | undefined,
   endDate: string | null | undefined
-): Promise<PaginatedResponse<Event>> => {
+): Promise<PaginatedGetResponseWithProjectPresenceFlag<Event>> => {
   let url = `/api/projects/${projectId}/event-templates/${templateId}/events?pageNumber=${pageNumber}&pageSize=${pageSize}`;
   if (pastHours !== null) {
     url += `&pastHours=${pastHours}`;
@@ -59,7 +59,7 @@ const getEvents = async (
     },
     cache: 'no-cache'
   });
-  return (await res.json()) as PaginatedResponse<Event>;
+  return (await res.json()) as PaginatedGetResponseWithProjectPresenceFlag<Event>;
 };
 
 interface EventProps {
