@@ -49,7 +49,7 @@ export default function CreateQueueDialog({ }: CreateQueueDialogProps) {
     setIsDialogOpen(false);
     setIsLoading(false);
 
-    router.push(`/project/${projectId}/queues/${json.id}`);
+    router.push(`/project/${projectId}/labeling-queues/${json.id}`);
   };
 
   return (
