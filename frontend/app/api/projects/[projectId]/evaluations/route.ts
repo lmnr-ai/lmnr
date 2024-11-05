@@ -10,27 +10,41 @@ export async function GET(
 ): Promise<Response> {
   const projectId = params.projectId;
 
+  const { searchParams } = new URL(req.url);
+  const groupId = searchParams.get('groupId');
+
   if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
+    return new Response(
+      JSON.stringify({ error: 'User is not a member of the project' }),
+      { status: 403 }
+    );
   }
 
-  const baseQuery = db.$with(
-    "base"
-  ).as(
-    db
+  if (groupId && !groupId.trim()) {
+    const result = await db
       .select()
       .from(evaluations)
-  );
+      .where(
+        and(
+          eq(evaluations.projectId, projectId),
+          eq(evaluations.groupId, groupId)
+        )
+      );
 
-  const result = await paginatedGet<any, Evaluation>({
-    table: evaluations,
-    baseFilters: [eq(sql`project_id`, projectId)],
-    filters: [],
-    baseQuery,
-    orderBy: desc(sql`created_at`),
-  });
+    return Response.json(result);
+  } else {
+    const baseQuery = db.$with('base').as(db.select().from(evaluations));
 
-  return Response.json(result);
+    const result = await paginatedGet<any, Evaluation>({
+      table: evaluations,
+      baseFilters: [eq(sql`project_id`, projectId)],
+      filters: [],
+      baseQuery,
+      orderBy: desc(sql`created_at`)
+    });
+
+    return Response.json(result);
+  }
 }
 
 export async function DELETE(
@@ -40,18 +54,24 @@ export async function DELETE(
   const projectId = params.projectId;
 
   if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
+    return new Response(
+      JSON.stringify({ error: 'User is not a member of the project' }),
+      { status: 403 }
+    );
   }
 
   const { searchParams } = new URL(req.url);
   const evaluationIds = searchParams.get('evaluationIds')?.split(',');
 
   if (!evaluationIds) {
-    return new Response('At least one Evaluation ID is required', { status: 400 });
+    return new Response('At least one Evaluation ID is required', {
+      status: 400
+    });
   }
 
   try {
-    await db.delete(evaluations)
+    await db
+      .delete(evaluations)
       .where(
         and(
           inArray(evaluations.id, evaluationIds),
