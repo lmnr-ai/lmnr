@@ -112,12 +112,12 @@ pub async fn get_single_trace(
     db: web::Data<DB>,
     query_params: web::Query<GetTraceParams>,
 ) -> ResponseResult {
-    let (_project_id, trace_id) = params.into_inner();
+    let (project_id, trace_id) = params.into_inner();
     let search = query_params.search.clone();
 
     let trace = db::trace::get_single_trace(&db.pool, trace_id).await?;
 
-    let span_previews = db::spans::get_trace_spans(&db.pool, trace_id, search).await?;
+    let span_previews = db::spans::get_trace_spans(&db.pool, trace_id, project_id, search).await?;
 
     let trace_with_spans = TraceWithSpanPreviews {
         trace,
@@ -137,9 +137,9 @@ struct SpanWithEvents {
 
 #[get("spans/{span_id}")]
 pub async fn get_single_span(params: web::Path<(Uuid, Uuid)>, db: web::Data<DB>) -> ResponseResult {
-    let (_project_id, span_id) = params.into_inner();
+    let (project_id, span_id) = params.into_inner();
 
-    let span = db::spans::get_span(&db.pool, span_id).await?;
+    let span = db::spans::get_span(&db.pool, span_id, project_id).await?;
     let events = db::events::get_events_for_span(&db.pool, span_id).await?;
 
     let span_with_events = SpanWithEvents { span, events };

@@ -31,6 +31,10 @@ use super::span_attributes::{
 
 const INPUT_ATTRIBUTE_NAME: &str = "lmnr.span.input";
 const OUTPUT_ATTRIBUTE_NAME: &str = "lmnr.span.output";
+/// If this attribute is set to true, the parent span will be overridden with
+/// null. We hackily use this when we wrap a span in a NonRecordingSpan that
+/// is not sent to the backend – this is done to overwrite trace IDs for spans.
+const OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME: &str = "lmnr.internal.override_parent_span";
 
 pub struct SpanAttributes {
     pub attributes: HashMap<String, Value>,
@@ -309,6 +313,12 @@ impl Span {
             }
         }
 
+        // Spans with this attribute are wrapped in a NonRecordingSpan that, and we only
+        // do that when we add a new span to a trace as a root span.
+        if let Some(Value::Bool(true)) = attributes.get(OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME) {
+            span.parent_span_id = None;
+        }
+
         span
     }
 
@@ -501,6 +511,10 @@ fn should_keep_attribute(attribute: &str) -> bool {
     }
 
     if attribute == "traceloop.entity.path" {
+        return false;
+    }
+
+    if attribute == OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME {
         return false;
     }
 
