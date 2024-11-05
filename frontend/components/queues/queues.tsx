@@ -7,12 +7,9 @@ import { swrFetcher } from '@/lib/utils';
 
 import { useProjectContext } from '@/contexts/project-context';
 import { useRouter } from 'next/navigation';
-import { Loader2, MoreVertical, Trash2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Loader2, Trash2 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Dataset } from '@/lib/dataset/types';
 import useSWR from 'swr';
-import CreateDatasetDialog from './create-dataset-dialog';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { DataTable } from '../ui/datatable';
 import Header from '../ui/header';
@@ -20,13 +17,15 @@ import { TableCell, TableRow } from '../ui/table';
 import { PaginatedResponse } from '@/lib/types';
 import Mono from '../ui/mono';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { LabelingQueue } from '@/lib/queue/types';
+import CreateQueueDialog from './create-queue-dialog';
 
-export default function Datasets() {
+export default function Queues() {
   const { projectId } = useProjectContext();
 
   const router = useRouter();
-  const { data, mutate } = useSWR<PaginatedResponse<Dataset>>(
-    `/api/projects/${projectId}/datasets/`,
+  const { data, mutate } = useSWR<PaginatedResponse<LabelingQueue>>(
+    `/api/projects/${projectId}/queues/`,
     swrFetcher
   );
 
@@ -34,11 +33,11 @@ export default function Datasets() {
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
-  const handleDeleteDatasets = async (datasetIds: string[]) => {
+  const handleDeleteQueues = async (queueIds: string[]) => {
     setIsDeleting(true);
     try {
       const res = await fetch(
-        `/api/projects/${projectId}/datasets?datasetIds=${datasetIds.join(',')}`,
+        `/api/projects/${projectId}/queues?queueIds=${queueIds.join(',')}`,
         {
           method: 'DELETE',
         }
@@ -47,16 +46,16 @@ export default function Datasets() {
       if (res.ok) {
         mutate();
         toast({
-          title: 'Datasets deleted',
-          description: `Successfully deleted ${datasetIds.length} dataset(s).`,
+          title: 'Queues deleted',
+          description: `Successfully deleted ${queueIds.length} queue(s).`,
         });
       } else {
-        throw new Error('Failed to delete datasets');
+        throw new Error('Failed to delete queues');
       }
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to delete datasets. Please try again.',
+        description: 'Failed to delete queues. Please try again.',
         variant: 'destructive',
       });
     }
@@ -64,7 +63,7 @@ export default function Datasets() {
     setIsDeleteDialogOpen(false);
   };
 
-  const columns: ColumnDef<Dataset>[] = [
+  const columns: ColumnDef<LabelingQueue>[] = [
     {
       cell: ({ row }) => <Mono>{row.original.id}</Mono>,
       size: 300,
@@ -86,20 +85,21 @@ export default function Datasets() {
 
   return (
     <div className="h-full flex flex-col">
-      <Header path="datasets" />
+      <Header path="labeling queues" />
       <div className="flex justify-between items-center p-4 flex-none">
         <h1 className="scroll-m-20 text-2xl font-medium">
-          Datasets
+          Labeling Queues
         </h1>
-        <CreateDatasetDialog />
+        <CreateQueueDialog />
       </div>
       <div className="flex-grow">
         <DataTable
+          paginated
           enableRowSelection={true}
           onRowClick={(row) => {
-            router.push(`/project/${projectId}/datasets/${row.original.id}`);
+            router.push(`/project/${projectId}/labeling-queues/${row.original.id}`);
           }}
-          getRowId={(row: Dataset) => row.id}
+          getRowId={(row: LabelingQueue) => row.id}
           columns={columns}
           data={data?.items}
           selectionPanel={(selectedRowIds) => (
@@ -112,16 +112,16 @@ export default function Datasets() {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Delete Datasets</DialogTitle>
+                    <DialogTitle>Delete Labeling Queues</DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to delete {selectedRowIds.length} dataset(s)? This action cannot be undone.
+                      Are you sure you want to delete {selectedRowIds.length} labeling queue(s)? This action cannot be undone.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
                       Cancel
                     </Button>
-                    <Button onClick={() => handleDeleteDatasets(selectedRowIds)} disabled={isDeleting}>
+                    <Button onClick={() => handleDeleteQueues(selectedRowIds)} disabled={isDeleting}>
                       {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Delete
                     </Button>
@@ -133,7 +133,7 @@ export default function Datasets() {
           emptyRow={
             <TableRow>
               <TableCell colSpan={columns.length} className="text-center text">
-                Create a new dataset to get started
+                Create a new queue to get started
               </TableCell>
             </TableRow>
           }
