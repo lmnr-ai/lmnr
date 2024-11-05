@@ -402,6 +402,7 @@ pub async fn get_traces(
     query.push(
         "
         SELECT
+            DISTINCT ON (start_time, id)
             id,
             start_time,
             end_time,
@@ -435,7 +436,7 @@ pub async fn get_traces(
     add_filters_to_traces_query(&mut query, &filters);
 
     query
-        .push(" ORDER BY start_time DESC OFFSET ")
+        .push(" ORDER BY start_time DESC, id OFFSET ")
         .push_bind(offset as i64)
         .push(" LIMIT ")
         .push_bind(limit as i64);
