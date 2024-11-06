@@ -275,7 +275,7 @@ export default function Evaluation({
           </Select>
         </div>
       </div>
-      <div className="flex flex-grow">
+      <div className="flex flex-grow flex-col">
         <div className="flex flex-col flex-grow">
           {selectedScoreName && (
             <div className="flex flex-row space-x-4 p-4 mr-4">
