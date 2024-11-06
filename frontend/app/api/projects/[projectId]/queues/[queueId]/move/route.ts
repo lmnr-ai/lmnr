@@ -28,7 +28,6 @@ export async function POST(
 
   const { refDate, direction } = parsedBody.data;
 
-  console.log('move', refDate, direction);
   if (direction === 'next') {
     // return the next item in the queue after the refDataId
 

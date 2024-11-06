@@ -52,26 +52,6 @@ import {
 } from "../ui/dialog";
 import { AddLabel } from '../traces/add-label';
 
-const evaluatorType = (labelClass: LabelClass) => {
-  if (!labelClass.evaluatorRunnableGraph) {
-    return '-';
-  }
-
-  const graph = Graph.fromObject(labelClass.evaluatorRunnableGraph as any);
-
-  if (graph) {
-    const codeNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.CODE) as CodeNode;
-    if (codeNode) {
-      return 'CODE';
-    }
-    const llmNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.LLM) as LLMNode;
-    if (llmNode) {
-      return 'LLM';
-    }
-  }
-  return '-';
-};
-
 interface LabelsProps {
   span: Span | undefined;
   className?: string;
@@ -81,6 +61,34 @@ export function Labels({ span }: LabelsProps) {
   const { projectId } = useProjectContext();
   const { data: labelClasses, mutate: mutateLabelClasses } = useSWR<LabelClass[]>(`/api/projects/${projectId}/label-classes`, swrFetcher);
   const [open, setOpen] = useState(false);
+  const [isDeletingLabelClass, setIsDeletingLabelClass] = useState(false);
+
+  const deleteLabelClass = async (labelClassId: string) => {
+    setIsDeletingLabelClass(true);
+    const res = await fetch(
+      `/api/projects/${projectId}/label-classes/${labelClassId}`,
+      {
+        method: 'DELETE'
+      }
+    );
+
+    setIsDeletingLabelClass(false);
+    if (res.ok) {
+      mutateLabelClasses();
+      eventEmitter.emit('mutateSpanLabels');
+
+      toast({
+        title: "Label class deleted",
+        description: "The label class has been successfully deleted.",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to delete label class",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <>
@@ -133,6 +141,55 @@ export function Labels({ span }: LabelsProps) {
                         mutateLabelClasses();
                       }}
                     />
+                  </TableCell>
+                  <TableCell className="w-12">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="w-12" variant="ghost">
+                          <MoreVertical size={14} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                              Delete label class
+                            </DropdownMenuItem>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Delete Label Class</DialogTitle>
+                              <DialogDescription>
+                                Are you sure you want to delete this label class? This will also delete all labels with this class.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                              <Button
+                                variant="outline"
+                                onClick={(e) => {
+                                  (e.target as HTMLElement).closest('dialog')?.close();
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                onClick={() => deleteLabelClass(labelClass.id)}
+                                disabled={isDeletingLabelClass}
+                              >
+                                {isDeletingLabelClass ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Deleting
+                                  </>
+                                ) : (
+                                  'Delete'
+                                )}
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
