@@ -16,10 +16,11 @@ use crate::{
     features::{is_feature_enabled, Feature},
     pipeline::runner::PipelineRunner,
     semantic_search::SemanticSearch,
+    storage::Storage,
     traces::{evaluators::run_evaluator, utils::record_span_to_db},
 };
 
-pub async fn process_queue_spans(
+pub async fn process_queue_spans<T: Storage + ?Sized>(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -27,6 +28,7 @@ pub async fn process_queue_spans(
     rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
     chunker_runner: Arc<chunk::runner::ChunkerRunner>,
+    storage: Arc<T>,
 ) {
     loop {
         inner_process_queue_spans(
@@ -37,13 +39,14 @@ pub async fn process_queue_spans(
             rabbitmq_connection.clone(),
             clickhouse.clone(),
             chunker_runner.clone(),
+            storage.clone(),
         )
         .await;
         log::warn!("Span listener exited. Creating a new RabbitMQ channel...");
     }
 }
 
-async fn inner_process_queue_spans(
+async fn inner_process_queue_spans<T: Storage + ?Sized>(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -51,6 +54,7 @@ async fn inner_process_queue_spans(
     rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
     _chunker_runner: Arc<chunk::runner::ChunkerRunner>,
+    storage: Arc<T>,
 ) {
     if !is_feature_enabled(Feature::FullBuild) {
         return;
@@ -99,6 +103,7 @@ async fn inner_process_queue_spans(
         };
 
         let mut span: Span = rabbitmq_span_message.span;
+
         let events_count = rabbitmq_span_message.events.len();
 
         if let Err(e) = stats::add_spans_and_events_to_project_usage_stats(
@@ -149,6 +154,20 @@ async fn inner_process_queue_spans(
             cache.clone(),
         )
         .await;
+
+        if is_feature_enabled(Feature::Storage) {
+            if let Err(e) = span
+                .store_input_images(&rabbitmq_span_message.project_id, storage.clone())
+                .await
+            {
+                log::error!(
+                    "Failed to store input images. span_id [{}], project_id [{}]: {:?}",
+                    span.span_id,
+                    rabbitmq_span_message.project_id,
+                    e
+                );
+            }
+        }
 
         if let Err(e) = record_span_to_db(
             db.clone(),

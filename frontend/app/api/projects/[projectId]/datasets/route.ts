@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
-import { datasets } from '@/lib/db/schema';
+import { datasets } from '@/lib/db/migrations/schema';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 import { eq, inArray } from 'drizzle-orm';
 import { and } from 'drizzle-orm';

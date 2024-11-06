@@ -7,7 +7,6 @@ import { ColumnDef } from '@tanstack/react-table';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
-import StatusLabel from '../ui/status-label';
 import TracesPagePlaceholder from './page-placeholder';
 import { EventTemplate } from '@/lib/events/types';
 import DateRangeFilter from '../ui/date-range-filter';
@@ -16,7 +15,7 @@ import DataTableFilter from '../ui/datatable-filter';
 import TextSearchFilter from '../ui/text-search-filter';
 import { Button } from '../ui/button';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
-import { PaginatedResponse } from '@/lib/types';
+import { PaginatedGetResponseWithProjectPresenceFlag, PaginatedResponse } from '@/lib/types';
 import Mono from '../ui/mono';
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/utils';
@@ -113,7 +112,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       }
     });
 
-    const data = (await res.json()) as PaginatedResponse<Trace>;
+    const data = (await res.json()) as PaginatedGetResponseWithProjectPresenceFlag<Trace>;
 
     setTraces(data.items);
     setTotalCount(data.totalCount);

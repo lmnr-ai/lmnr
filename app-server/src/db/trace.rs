@@ -220,8 +220,10 @@ fn add_traces_info_expression(
                 trace_id
             FROM spans
             WHERE parent_span_id IS NULL
+            AND project_id = 
             ",
     );
+    query.push_bind(project_id);
     add_date_range_to_query(
         query,
         date_range,
@@ -400,6 +402,7 @@ pub async fn get_traces(
     query.push(
         "
         SELECT
+            DISTINCT ON (start_time, id)
             id,
             start_time,
             end_time,
@@ -433,7 +436,7 @@ pub async fn get_traces(
     add_filters_to_traces_query(&mut query, &filters);
 
     query
-        .push(" ORDER BY start_time DESC OFFSET ")
+        .push(" ORDER BY start_time DESC, id OFFSET ")
         .push_bind(offset as i64)
         .push(" LIMIT ")
         .push_bind(limit as i64);

@@ -1,5 +1,6 @@
 import { Event } from '../events/types';
 import { GraphMessagePreview } from '../pipeline/types';
+import { labelClasses } from '../db/migrations/schema';
 
 export type TraceMessages = { [key: string]: GraphMessagePreview };
 
@@ -14,15 +15,10 @@ export enum LabelSource {
 }
 
 export type LabelClass = {
-  id: string;
-  name: string;
-  projectId: string;
-  createdAt: string;
-  labelType: LabelType;
   valueMap: Record<string, number>;
-  description: string | null;
-  evaluatorRunnableGraph: any | null;
-};
+  evaluatorRunnableGraph: any;
+  pipelineVersionId?: string | null;
+} & typeof labelClasses.$inferSelect;
 
 export type RegisteredLabelClassForPath = {
   id: string;

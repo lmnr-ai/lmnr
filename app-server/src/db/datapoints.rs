@@ -14,7 +14,7 @@ pub struct DatapointView {
     created_at: DateTime<Utc>,
     dataset_id: Uuid,
     data: Value,
-    target: Value,
+    target: Option<Value>,
     metadata: Option<Value>,
 }
 

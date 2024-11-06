@@ -126,12 +126,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      clickhouse:
+        condition: service_started
     environment:
       - PORT=3000
       - BACKEND_URL=http://app-server:8000
       - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - ENVIRONMENT=FULL
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
 
 volumes:
   qdrant-data:

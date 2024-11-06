@@ -6,7 +6,7 @@ import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 
 import { db } from '@/lib/db/drizzle';
 import { and, eq } from 'drizzle-orm';
-import { providerApiKeys } from '@/lib/db/schema';
+import { providerApiKeys } from '@/lib/db/migrations/schema';
 export async function GET(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
   const projectId = params.projectId;
 

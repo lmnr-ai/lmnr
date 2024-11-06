@@ -15,6 +15,13 @@ import { useProjectContext } from '@/contexts/project-context';
 import DefaultTextarea from '../ui/default-textarea';
 import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
 import { Switch } from '../ui/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
+import { HelpCircle } from "lucide-react";
 
 interface AddLabelProps {
   span: Span;
@@ -40,15 +47,25 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
       "True": 1
     },
     description: null,
-    evaluatorRunnableGraph: null
+    evaluatorRunnableGraph: null,
+    pipelineVersionId: null
   });
+
+  const [labelValuePairs, setLabelValuePairs] = useState<[string, number][]>([
+    ["False", 0],
+    ["True", 1]
+  ]);
 
   const saveLabel = async () => {
     setIsSaving(true);
+    const finalLabelClass = {
+      ...labelClass,
+      valueMap: Object.fromEntries(labelValuePairs)
+    };
 
     const res = await fetch(`/api/projects/${projectId}/label-classes`, {
       method: 'POST',
-      body: JSON.stringify(labelClass)
+      body: JSON.stringify(finalLabelClass)
     });
 
     if (!res.ok) {
@@ -76,8 +93,10 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
   };
 
   const hasDuplicateValues = () => {
-    const values = Object.values(labelClass.valueMap);
-    return values.length !== new Set(values).size;
+    const values = labelValuePairs.map(([_, v]) => v);
+    const keys = labelValuePairs.map(([k, _]) => k);
+    return values.length !== new Set(values).size ||
+      keys.length !== new Set(keys).size;
   };
 
   return (
@@ -115,7 +134,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
           <Label>Label values</Label>
           {hasDuplicateValues() && (
             <div className="text-sm text-destructive">
-              Duplicate numerical values are not allowed
+              Duplicate label names or numerical values are not allowed
             </div>
           )}
         </div>
@@ -123,29 +142,26 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
         <table className="w-full">
           <thead>
             <tr className="text-sm text-secondary-foreground">
-              <th className="text-left pb-2 w-full">Value</th>
-              <th className="text-left pb-2">Numerical</th>
+              <th className="text-left font-medium pb-2 w-full">Value</th>
+              <th className="text-left font-medium pb-2">Numerical</th>
               <th className="w-10"></th>
             </tr>
           </thead>
           <tbody>
-            {Object.entries(labelClass.valueMap).map(([key, value], i) => (
+            {labelValuePairs.map(([key, value], i) => (
               <tr key={i}>
                 <td className="pr-2 pb-2">
                   <Input
                     type="text"
                     placeholder="Categorical value"
                     value={key}
-                    onChange={(e) =>
-                      setLabelClass({
-                        ...labelClass,
-                        valueMap: Object.fromEntries(
-                          Object.entries(labelClass.valueMap).map(([k, v], j) =>
-                            j === i ? [e.target.value, v] : [k, v]
-                          )
-                        )
-                      })
-                    }
+                    onChange={(e) => {
+                      setLabelValuePairs((oldPairs) => {
+                        const newPairs = [...oldPairs];
+                        newPairs[i] = [e.target.value, value];
+                        return newPairs;
+                      });
+                    }}
                   />
                 </td>
                 <td className="pr-2 pb-2">
@@ -155,13 +171,10 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
                     placeholder="#"
                     value={value}
                     onChange={(e) => {
-                      setLabelClass({
-                        ...labelClass,
-                        valueMap: Object.fromEntries(
-                          Object.entries(labelClass.valueMap).map(([k, v], j) =>
-                            j === i ? [k, parseInt(e.target.value, 10)] : [k, v]
-                          )
-                        )
+                      setLabelValuePairs((oldPairs) => {
+                        const newPairs = [...oldPairs];
+                        newPairs[i] = [key, parseInt(e.target.value, 10)];
+                        return newPairs;
                       });
                     }}
                   />
@@ -170,14 +183,11 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() =>
-                      setLabelClass({
-                        ...labelClass,
-                        valueMap: Object.fromEntries(
-                          Object.entries(labelClass.valueMap).filter(([_, v], j) => j !== i)
-                        )
-                      })
-                    }
+                    onClick={() => {
+                      setLabelValuePairs((oldPairs) =>
+                        oldPairs.filter((_, j) => j !== i)
+                      );
+                    }}
                   >
                     <Trash2 size={14} />
                   </Button>
@@ -188,27 +198,38 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
         </table>
         <Button
           variant="secondary"
-          onClick={() =>
-            setLabelClass({
-              ...labelClass,
-              valueMap: { ...labelClass.valueMap, [""]: 0 }
-            })
-          }
+          onClick={() => setLabelValuePairs((oldPairs) => [...oldPairs, ["", 0]])}
         >
           Add label value
         </Button>
       </div>
       <div className="flex flex-col space-y-2">
         <div>
-          <div className="flex items-center justify-between">
-            <Label>Evaluator</Label>
+          <div className="flex items-center gap-1 justify-between">
+            <div className="text-secondary-foreground/80 text-sm flex items-center gap-2">
+              <Label>Online evaluator</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <HelpCircle className="h-4 w-4" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[280px]">
+                    <p>
+                      LLM-as-a-judge or Python script evaluator that
+                      is executed on all spans at this path and assigns a
+                      label.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <span className="bg-yellow-700 border border-yellow-500 text-yellow-300 text-xs font-medium px-2 py-0.5 rounded">
+                Beta
+              </span>
+            </div>
             <Switch
               checked={showEvaluator}
               onCheckedChange={setShowEvaluator}
             />
-          </div>
-          <div className="text-secondary-foreground/80 text-sm">
-            Online evaluator that takes a span and returns a label
           </div>
         </div>
         {showEvaluator && (
@@ -239,7 +260,7 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
           onClick={async () => {
             await saveLabel();
           }}
-          disabled={!labelClass.name || Object.keys(labelClass.valueMap).length === 0}
+          disabled={!labelClass.name || labelValuePairs.length === 0 || hasDuplicateValues()}
         >
           <Loader2
             className={isSaving ? 'animate-spin h-4 w-4 mr-2' : 'hidden'}
