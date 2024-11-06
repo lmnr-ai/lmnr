@@ -42,7 +42,7 @@ pub async fn push_to_labeling_queue(
         .iter()
         .map(|_| {
             // Postgres precision is in microseconds, so we sleep for 1 microsecond
-            // to ensure that the start times are different
+            // to ensure that the timestamps are different
             std::thread::sleep(std::time::Duration::from_micros(1));
             Utc::now()
         })
