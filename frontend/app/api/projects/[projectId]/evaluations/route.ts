@@ -1,6 +1,6 @@
 import { db } from '@/lib/db/drizzle';
-import { evaluations } from '@/lib/db/schema';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { evaluations } from '@/lib/db/migrations/schema';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { isCurrentUserMemberOfProject, paginatedGet } from '@/lib/db/utils';
 import { Evaluation } from '@/lib/evaluation/types';
 

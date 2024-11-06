@@ -193,7 +193,7 @@ export function EvaluatorEditor({
                         ) : (
                           <Play className="w-3 h-3 mr-2" />
                         )}
-                        {isRunning ? 'Running...' : 'Run'}
+                        Run test
                       </Button>
                     </div>
                     <Label>Output</Label>
@@ -259,7 +259,7 @@ Provide your reasoning for the assessment, explaining why you believe the output
 
   const [structuredOutputSchema, setStructuredOutputSchema] = useState<string>(`class Output {
   reasoning string @description("Explanation of why the output does or does not follow the instruction")
-  value string @description("'true' if the instruction was followed, 'false' if it was not")
+  value string @description("one of the following values: ${Object.keys(labelClass.valueMap).join(', ')}")
 }`);
 
   useEffect(() => {

@@ -19,12 +19,13 @@ import {
   SelectValue
 } from '../ui/select';
 import { mergeOriginalWithComparedDatapoints } from '@/lib/evaluation/utils';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Resizable } from 're-resizable';
 import TraceView from '../traces/trace-view';
 import Chart from './chart';
 import ScoreCard from './score-card';
+import { useToast } from '@/lib/hooks/use-toast';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId'
@@ -42,10 +43,49 @@ export default function Evaluation({
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { toast } = useToast();
 
   const { projectId } = useProjectContext();
 
   const evaluation = evaluationInfo.evaluation;
+
+  const downloadCsv = async () => {
+    setIsDownloading(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/evaluations/${evaluation.id}/download`);
+
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+      const filename = filenameMatch?.[1] || `evaluation-results-${evaluation.id}.csv`;
+
+      const blob = await response.blob();
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+
+      document.body.appendChild(link);
+      link.click();
+
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading CSV:', error);
+      toast({
+        title: 'Error downloading CSV',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
   const [comparedEvaluation, setComparedEvaluation] =
     useState<EvaluationType | null>(null);
 
@@ -75,10 +115,11 @@ export default function Evaluation({
       ) ?? null
     );
 
-  // Selected score name must usually not be undefined, as we expect to have at least one score, it's done just to not throw error if there are no scores
-  const [selectedScoreName, setSelectedScoreName] = useState<
-    string | undefined
-  >(scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined);
+  // Selected score name must usually not be undefined, as we expect
+  // to have at least one score, it's done just to not throw error if there are no scores
+  const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(
+    scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined
+  );
 
   // Columns used when there is no compared evaluation
   let defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
@@ -273,6 +314,17 @@ export default function Evaluation({
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div>
+          <Button
+            className="ml-2 flex flex-row items-center"
+            variant={'secondary'}
+            disabled={isDownloading}
+            onClick={async () => await downloadCsv()}
+          >
+            {isDownloading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+            Download CSV
+          </Button>
         </div>
       </div>
       <div className="flex flex-grow">

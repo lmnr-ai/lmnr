@@ -124,7 +124,7 @@ pub async fn record_span_to_db(
         );
     }
 
-    db::spans::record_span(&db.pool, &span).await?;
+    db::spans::record_span(&db.pool, &span, project_id).await?;
 
     Ok(())
 }

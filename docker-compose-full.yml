@@ -119,6 +119,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      clickhouse:
+        condition: service_started
     environment:
       - PORT=3000
       - BACKEND_URL=http://app-server:8000
@@ -128,6 +130,8 @@ services:
       - NEXTAUTH_SECRET=some_secret
       - NEXT_PUBLIC_URL=http://localhost:3000
       - ENVIRONMENT=FULL
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
 
 volumes:
   qdrant-data:

@@ -7,7 +7,9 @@ import {
   Rows4,
   Settings,
   LayoutGrid,
-  FlaskConical
+  FlaskConical,
+  Pen,
+  Tag
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -52,15 +54,21 @@ export default function ProjectNavbarCollapsed({
       current: false
     },
     {
-      name: 'pipelines',
-      href: `/project/${projectId}/pipelines`,
-      icon: Cable,
-      current: false
-    },
-    {
       name: 'datasets',
       href: `/project/${projectId}/datasets`,
       icon: Database,
+      current: false
+    },
+    {
+      name: 'queues',
+      href: `/project/${projectId}/labeling-queues`,
+      icon: Pen,
+      current: false
+    },
+    {
+      name: 'pipelines',
+      href: `/project/${projectId}/pipelines`,
+      icon: Cable,
       current: false
     },
     {
@@ -94,8 +102,8 @@ export default function ProjectNavbarCollapsed({
                 <Link
                   href={option.href}
                   className={cn(
-                    'hover:bg-secondary flex items-center p-2 rounded',
-                    option.href.includes(pathname) ? 'bg-secondary' : ''
+                    'hover:bg-secondary flex items-center p-2 rounded text-secondary-foreground',
+                    pathname.startsWith(option.href) ? 'bg-secondary text-primary-foreground' : ''
                   )}
                 >
                   <option.icon size={20} />

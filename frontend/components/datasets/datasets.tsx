@@ -11,15 +11,8 @@ import { Loader2, MoreVertical, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ColumnDef } from '@tanstack/react-table';
 import { Dataset } from '@/lib/dataset/types';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
 import useSWR from 'swr';
 import CreateDatasetDialog from './create-dataset-dialog';
-import UpdateDatasetDialog from './update-dataset-dialog';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { DataTable } from '../ui/datatable';
 import Header from '../ui/header';
@@ -30,11 +23,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 export default function Datasets() {
   const { projectId } = useProjectContext();
-  const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
   const router = useRouter();
-  const { data, isLoading, mutate } = useSWR<PaginatedResponse<Dataset>>(
+  const { data, mutate } = useSWR<PaginatedResponse<Dataset>>(
     `/api/projects/${projectId}/datasets/`,
-    fetcher
+    swrFetcher
   );
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -121,16 +114,16 @@ export default function Datasets() {
                   <DialogHeader>
                     <DialogTitle>Delete Datasets</DialogTitle>
                     <DialogDescription>
-                        Are you sure you want to delete {selectedRowIds.length} dataset(s)? This action cannot be undone.
+                      Are you sure you want to delete {selectedRowIds.length} dataset(s)? This action cannot be undone.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
-                        Cancel
+                      Cancel
                     </Button>
                     <Button onClick={() => handleDeleteDatasets(selectedRowIds)} disabled={isDeleting}>
                       {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Delete
+                      Delete
                     </Button>
                   </DialogFooter>
                 </DialogContent>

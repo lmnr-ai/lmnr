@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.674.0",
+    "@clickhouse/client": "^1.7.0",
     "@codemirror/lang-json": "^6.0.1",
     "@codemirror/lang-python": "^6.1.6",
     "@codemirror/lang-yaml": "^6.1.1",
@@ -67,6 +68,7 @@
     "i": "^0.3.7",
     "js-base64": "^3.7.7",
     "js-tiktoken": "^1.0.15",
+    "json-2-csv": "^5.5.6",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.323.0",
     "next": "14.2.15",

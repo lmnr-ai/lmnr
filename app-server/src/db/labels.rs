@@ -239,7 +239,7 @@ pub async fn delete_span_label(
 pub async fn update_span_label(
     pool: &PgPool,
     span_id: Uuid,
-    value: Option<f64>,
+    value: f64,
     user_id: Option<Uuid>,
     class_id: Uuid,
     label_source: LabelSource,

@@ -1,5 +1,5 @@
 {
-  "id": "4bf43179-5f48-4c3e-b1f0-033007c3a0c9",
+  "id": "326ba2ca-6925-4d69-8416-1a7691a8bcfd",
   "prevId": "a7f4ca0c-430b-49f5-93d4-09d1ab968dac",
   "version": "7",
   "dialect": "postgresql",
@@ -717,8 +717,8 @@
       },
       "checkConstraints": {}
     },
-    "public.labeling_queue_data": {
-      "name": "labeling_queue_data",
+    "public.labeling_queue_items": {
+      "name": "labeling_queue_items",
       "schema": "",
       "columns": {
         "id": {
@@ -742,15 +742,15 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "data": {
-          "name": "data",
+        "action": {
+          "name": "action",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
         },
-        "action": {
-          "name": "action",
-          "type": "jsonb",
+        "span_id": {
+          "name": "span_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         }
@@ -759,7 +759,7 @@
       "foreignKeys": {
         "labelling_queue_data_queue_id_fkey": {
           "name": "labelling_queue_data_queue_id_fkey",
-          "tableFrom": "labeling_queue_data",
+          "tableFrom": "labeling_queue_items",
           "tableTo": "labeling_queues",
           "columnsFrom": [
             "queue_id"

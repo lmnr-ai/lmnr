@@ -10,7 +10,6 @@ use crate::{
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
-    storage::Storage,
 };
 use lapin::Connection;
 use tonic::{Request, Response, Status};
@@ -21,7 +20,6 @@ pub struct ProcessTracesService {
     db: Arc<DB>,
     cache: Arc<Cache>,
     rabbitmq_connection: Option<Arc<Connection>>,
-    storage: Arc<dyn Storage>,
 }
 
 impl ProcessTracesService {
@@ -29,13 +27,11 @@ impl ProcessTracesService {
         db: Arc<DB>,
         cache: Arc<Cache>,
         rabbitmq_connection: Option<Arc<Connection>>,
-        storage: Arc<dyn Storage>,
     ) -> Self {
         Self {
             db,
             cache,
             rabbitmq_connection,
-            storage,
         }
     }
 }
@@ -74,7 +70,6 @@ impl TraceService for ProcessTracesService {
             request,
             project_id,
             self.rabbitmq_connection.clone(),
-            self.storage.clone(),
             self.db.clone(),
             self.cache.clone(),
         )
