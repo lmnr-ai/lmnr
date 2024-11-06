@@ -76,6 +76,8 @@ pub struct LabelingQueueEntry {
     pub action: Value,
 }
 
+/// Convert a list of datapoints to a map of queue IDs to a vec of labeling queue entries.
+/// Silently skips datapoints that reference a non-existent queue.
 pub async fn datapoints_to_labeling_queues(
     db: Arc<DB>,
     datapoints: &Vec<EvaluationDatapointResult>,
@@ -87,12 +89,24 @@ pub async fn datapoints_to_labeling_queues(
     for (datapoint, datapoint_id) in datapoints.iter().zip(ids.iter()) {
         for evaluator in datapoint.human_evaluators.iter() {
             let queue_name = evaluator.queue_name.clone();
-            let queue_id = queue_name_to_id.entry(queue_name.clone()).or_insert(
-                db::labeling_queues::get_labeling_queue_by_name(&db.pool, &queue_name, project_id)
-                    .await?
-                    .id,
-            );
-            let entry = res.entry(*queue_id).or_insert(vec![]);
+            let queue_id = match queue_name_to_id.get(&queue_name) {
+                Some(id) => *id,
+                None => {
+                    let queue = db::labeling_queues::get_labeling_queue_by_name(
+                        &db.pool,
+                        &queue_name,
+                        project_id,
+                    )
+                    .await?;
+                    if let Some(queue) = queue {
+                        queue_name_to_id.insert(queue_name, queue.id);
+                        queue.id
+                    } else {
+                        continue;
+                    }
+                }
+            };
+            let entry = res.entry(queue_id).or_insert(vec![]);
 
             entry.push(LabelingQueueEntry {
                 span_id: datapoint.executor_span_id,
