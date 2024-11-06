@@ -38,15 +38,13 @@ pub async fn push_to_labeling_queue(
         .iter()
         .map(|item| item.action.clone())
         .collect::<Vec<_>>();
-    let created_at_vec = items
-        .iter()
-        .map(|_| {
-            // Postgres precision is in microseconds, so we sleep for 1 microsecond
-            // to ensure that the timestamps are different
-            std::thread::sleep(std::time::Duration::from_micros(1));
-            Utc::now()
-        })
-        .collect::<Vec<_>>();
+    let mut created_at_vec = Vec::with_capacity(items.len());
+    for _ in items {
+        // Postgres precision is in microseconds, so we sleep for 1 microsecond
+        // to ensure that the timestamps are different
+        tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
+        created_at_vec.push(Utc::now());
+    }
 
     sqlx::query(
         "INSERT INTO labeling_queue_items (
