@@ -59,10 +59,13 @@ export async function GET(
       asc(evaluationResults.indexInBatch)
     );
 
-  const flattenedResults = results.map(result => ({
-    ...result,
-    ...result.scores
-  }));
+  const flattenedResults = results.map(result => {
+    const { scores, ...rest } = result;
+    return {
+      ...rest,
+      ...scores
+    };
+  });
   const csv = await json2csv(flattenedResults, {
     emptyFieldValue: '',
     expandNestedObjects: false // we only expand the scores object manually
