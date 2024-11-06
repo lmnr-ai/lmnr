@@ -15,6 +15,13 @@ import { useProjectContext } from '@/contexts/project-context';
 import DefaultTextarea from '../ui/default-textarea';
 import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
 import { Switch } from '../ui/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
+import { HelpCircle } from "lucide-react";
 
 interface AddLabelProps {
   span: Span;
@@ -198,15 +205,31 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
       </div>
       <div className="flex flex-col space-y-2">
         <div>
-          <div className="flex items-center justify-between">
-            <Label>Evaluator</Label>
+          <div className="flex items-center gap-1 justify-between">
+            <div className="text-secondary-foreground/80 text-sm flex items-center gap-2">
+              <Label>Online evaluator</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <HelpCircle className="h-4 w-4" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[280px]">
+                    <p>
+                      LLM-as-a-judge or Python script evaluator that
+                      is executed on all spans at this path and assigns a
+                      label.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <span className="bg-yellow-700 border border-yellow-500 text-yellow-300 text-xs font-medium px-2 py-0.5 rounded">
+                Beta
+              </span>
+            </div>
             <Switch
               checked={showEvaluator}
               onCheckedChange={setShowEvaluator}
             />
-          </div>
-          <div className="text-secondary-foreground/80 text-sm">
-            Online evaluator that takes a span and returns a label
           </div>
         </div>
         {showEvaluator && (

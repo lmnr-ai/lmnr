@@ -376,6 +376,17 @@ function AddLabelInstance({
     source: LabelSource,
     reasoning?: string
   ) => {
+
+    if (!labelClass.valueMap[value]) {
+      toast({
+        title: 'Error',
+        description: `Value "${value}" is not a valid label value for ${labelClass.name}. Possible values are: ${Object.keys(labelClass.valueMap).join(', ')}.`,
+        variant: 'destructive',
+        duration: 5000
+      });
+      return;
+    }
+
     const response = await fetch(
       `/api/projects/${projectId}/spans/${span.spanId}/labels`,
       {
@@ -440,6 +451,7 @@ function AddLabelInstance({
     setIsLoading(false);
 
     if (!response.ok) {
+      console.error('Failed to run evaluator', response);
       toast({
         title: 'Error',
         description: 'Failed to run evaluator',
@@ -448,20 +460,23 @@ function AddLabelInstance({
       return;
     }
 
+
     const data = await response.json();
     const value = data['outputs']['output']['value'];
+
+    console.log('value', value);
 
     try {
       // LLM evaluator produces a JSON object with keys "value" and "reasoning"
       const parsedValue = JSON.parse(value);
       addLabel(
-        parsedValue['value'].toLowerCase(),
+        parsedValue['value'],
         labelClass,
         LabelSource.AUTO,
         parsedValue['reasoning']
       );
     } catch (e) {
-      addLabel(value.toLowerCase(), labelClass, LabelSource.AUTO);
+      addLabel(value, labelClass, LabelSource.AUTO);
     }
 
     onAddLabel(value);
