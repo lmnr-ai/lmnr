@@ -3,12 +3,12 @@ import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 import { db } from '@/lib/db/drizzle';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import {
   evaluationResults,
   evaluations,
   evaluationScores
-} from '@/lib/db/schema';
-import { and, asc, eq, sql } from 'drizzle-orm';
+} from '@/lib/db/migrations/schema';
 
 export async function GET(
   req: Request,
@@ -24,21 +24,21 @@ export async function GET(
     );
   }
 
-  const getEvaluation = db
-    .select()
-    .from(evaluations)
-    .where(
-      and(
-        eq(evaluations.id, evaluationId),
-        eq(evaluations.projectId, projectId)
-      )
-    );
+  const getEvaluation = db.query.evaluations.findFirst({
+    where: and(
+      eq(evaluations.id, evaluationId),
+      eq(evaluations.projectId, projectId)
+    )
+  });
 
   const subQueryScoreCte = db.$with('scores').as(
     db
       .select({
         resultId: evaluationScores.resultId,
-        scores: sql`jsonb_object_agg(${evaluationScores.name}, ${evaluationScores.score})`
+        cteScores:
+          sql`jsonb_object_agg(${evaluationScores.name}, ${evaluationScores.score})`.as(
+            'cte_scores'
+          )
       })
       .from(evaluationScores)
       .groupBy(evaluationScores.resultId)
@@ -52,7 +52,7 @@ export async function GET(
       data: evaluationResults.data,
       target: evaluationResults.target,
       executorOutput: evaluationResults.executorOutput,
-      scores: subQueryScoreCte.scores,
+      scores: subQueryScoreCte.cteScores,
       traceId: evaluationResults.traceId
     })
     .from(evaluationResults)
@@ -72,7 +72,7 @@ export async function GET(
   ]);
 
   const result = {
-    evaluation: evaluation[0],
+    evaluation: evaluation,
     results
   };
 

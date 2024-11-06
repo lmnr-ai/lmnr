@@ -3,15 +3,14 @@ import { evaluations } from '@/lib/db/migrations/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { isCurrentUserMemberOfProject, paginatedGet } from '@/lib/db/utils';
 import { Evaluation } from '@/lib/evaluation/types';
+import { NextRequest } from 'next/server';
 
 export async function GET(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
-
-  const { searchParams } = new URL(req.url);
-  const groupId = searchParams.get('groupId');
+  const groupId = req.nextUrl.searchParams.get('groupId');
 
   if (!(await isCurrentUserMemberOfProject(projectId))) {
     return new Response(
@@ -33,14 +32,10 @@ export async function GET(
 
     return Response.json(result);
   } else {
-    const baseQuery = db.$with('base').as(db.select().from(evaluations));
-
     const result = await paginatedGet<any, Evaluation>({
       table: evaluations,
-      baseFilters: [eq(sql`project_id`, projectId)],
-      filters: [],
-      baseQuery,
-      orderBy: desc(sql`created_at`)
+      filters: [eq(evaluations.projectId, projectId)],
+      orderBy: desc(evaluations.createdAt)
     });
 
     return Response.json(result);
