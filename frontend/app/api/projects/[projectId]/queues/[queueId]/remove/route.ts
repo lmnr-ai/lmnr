@@ -13,29 +13,31 @@ export async function POST(request: Request, { params }: { params: { projectId: 
   const body = await request.json();
   const { id, spanId, action } = body;
 
-  const labelingQueue = await db.query.labelingQueues.findFirst({
-    where: eq(labelingQueues.id, params.queueId)
-  });
+  if (action.resultId) {
 
-  // get all labels of the span
-  const labelsOfSpan = await db.query.labels.findMany({
-    where: eq(labels.spanId, spanId),
-    with: {
-      labelClass: true
-    }
-  });
+    const labelingQueue = await db.query.labelingQueues.findFirst({
+      where: eq(labelingQueues.id, params.queueId)
+    });
 
-  const resultId = action.resultId;
+    // get all labels of the span
+    const labelsOfSpan = await db.query.labels.findMany({
+      where: eq(labels.spanId, spanId),
+      with: {
+        labelClass: true
+      }
+    });
 
-  // create new results in batch
-  const evaluationValues = labelsOfSpan.map(label => ({
-    score: label.value ?? 0,
-    name: `${label.labelClass.name}_${labelingQueue?.name}`,
-    resultId,
-  }));
+    const resultId = action.resultId;
 
-  await db.insert(evaluationScores).values(evaluationValues);
+    // create new results in batch
+    const evaluationValues = labelsOfSpan.map(label => ({
+      score: label.value ?? 0,
+      name: `${label.labelClass.name}_${labelingQueue?.name}`,
+      resultId,
+    }));
 
+    await db.insert(evaluationScores).values(evaluationValues);
+  }
 
   const deletedQueueData = await db
     .delete(labelingQueueItems)

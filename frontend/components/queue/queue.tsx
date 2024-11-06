@@ -9,7 +9,7 @@ import { Labels } from './labels';
 import { Button } from '../ui/button';
 import { LabelingQueue } from '@/lib/queue/types';
 import Header from '../ui/header';
-import { Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
 
 interface QueueProps {
   queue: LabelingQueue;
@@ -71,21 +71,33 @@ export default function Queue({ queue }: QueueProps) {
       <div className="flex-1 flex">
         <div className="flex-1 flex flex-col">
           <div className="flex-none p-4 py-2 border-b text-secondary-foreground flex justify-between items-center">
-            <Button
-              variant="ghost"
-              onClick={() => data?.queueData && next(data.queueData.createdAt, 'prev')}
-              disabled={!data || data.position <= 1}
-            >
-              Previous
-            </Button>
-            <span>Item {data?.position} of {data?.count}</span>
-            <Button
-              variant="ghost"
-              onClick={() => data?.queueData && next(data.queueData.createdAt, 'next')}
-              disabled={!data || data.position >= (data.count || 0)}
-            >
-              Next
-            </Button>
+            {data && <span>Item {data?.position} of {data?.count}</span>}
+            <div></div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => data?.queueData && next(data.queueData.createdAt, 'prev')}
+                disabled={!data || data.position <= 1}
+              >
+                <ArrowDown size={16} className="mr-2" />
+                Prev
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => data?.queueData && next(data.queueData.createdAt, 'next')}
+                disabled={!data || data.position >= (data.count || 0)}
+              >
+                <ArrowUp size={16} className="mr-2" />
+                Next
+              </Button>
+              <Button
+                onClick={remove}
+                disabled={isRemoving || !data}
+              >
+                {isRemoving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Complete
+              </Button>
+            </div>
           </div>
           <div className="flex-1">
             {data?.span ? (
@@ -100,15 +112,6 @@ export default function Queue({ queue }: QueueProps) {
         <div className="flex-1 flex flex-col border-l">
           <div className="flex-1 p-4">
             <Labels span={data?.span} />
-          </div>
-          <div className="flex-none border-t p-4 flex justify-end">
-            <Button
-              onClick={remove}
-              disabled={isRemoving}
-            >
-              {isRemoving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Complete
-            </Button>
           </div>
         </div>
       </div>

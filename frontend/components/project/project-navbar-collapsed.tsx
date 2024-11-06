@@ -102,8 +102,8 @@ export default function ProjectNavbarCollapsed({
                 <Link
                   href={option.href}
                   className={cn(
-                    'hover:bg-secondary flex items-center p-2 rounded',
-                    pathname.startsWith(option.href) ? 'bg-secondary' : ''
+                    'hover:bg-secondary flex items-center p-2 rounded text-secondary-foreground',
+                    pathname.startsWith(option.href) ? 'bg-secondary text-primary-foreground' : ''
                   )}
                 >
                   <option.icon size={20} />
