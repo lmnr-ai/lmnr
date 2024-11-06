@@ -45,6 +45,7 @@ export async function GET(
   );
 
   const getEvaluationResults = db
+    .with(subQueryScoreCte)
     .select({
       id: evaluationResults.id,
       createdAt: evaluationResults.createdAt,
