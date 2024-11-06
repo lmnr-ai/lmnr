@@ -140,7 +140,7 @@ pub async fn update_span_label(
     let label = db::labels::update_span_label(
         &db.pool,
         span_id,
-        Some(value),
+        value,
         user_id,
         class_id,
         source,

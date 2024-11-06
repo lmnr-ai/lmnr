@@ -1,6 +1,6 @@
 import { db } from '@/lib/db/drizzle';
 import { labelClasses } from '@/lib/db/migrations/schema';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 
 
@@ -14,7 +14,11 @@ export async function GET(
     return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
   }
 
-  const res = await db.select().from(labelClasses).where(eq(labelClasses.projectId, projectId));
+  const res = await db
+    .select()
+    .from(labelClasses)
+    .where(eq(labelClasses.projectId, projectId))
+    .orderBy(desc(labelClasses.createdAt));
 
   return new Response(JSON.stringify(res), { status: 200 });
 

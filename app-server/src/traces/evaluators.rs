@@ -47,21 +47,9 @@ pub async fn run_evaluator(
         .unwrap_or_default();
 
     let span_output = json_value_to_string(span.output.clone().unwrap_or_default());
-    let label_values_map = serde_json::from_value::<Vec<String>>(label_class.value_map.clone())
-        .map_err(|e| anyhow::anyhow!("Failed to parse label values map: {}", e))?;
-
-    // before running the job, set the label_job_status to RUNNING
-    db::labels::update_span_label(
-        &db.pool,
-        span.span_id,
-        None,
-        None,
-        label_class.id,
-        LabelSource::AUTO,
-        Some(LabelJobStatus::RUNNING),
-        None,
-    )
-    .await?;
+    let label_values_map =
+        serde_json::from_value::<HashMap<String, f64>>(label_class.value_map.clone())
+            .map_err(|e| anyhow::anyhow!("Failed to parse label values map: {}", e))?;
 
     let graph = label_class
         .evaluator_runnable_graph
@@ -99,17 +87,23 @@ pub async fn run_evaluator(
         .into();
 
     let (value, reasoning) = match serde_json::from_str::<EvaluatorResult>(&output_str) {
-        Ok(EvaluatorResult::LLM(llm_output)) => {
-            (llm_output.value.to_lowercase(), llm_output.reasoning)
-        }
+        Ok(EvaluatorResult::LLM(llm_output)) => (llm_output.value, llm_output.reasoning),
         Ok(EvaluatorResult::Code(code)) => (code, String::new()),
-        Err(_) => (output_str.to_lowercase(), String::new()),
+        Err(_) => (output_str, String::new()),
     };
 
-    let label_value = label_values_map
-        .iter()
-        .position(|v| v == &value)
-        .map(|i| i as f64);
+    let label_value = label_values_map.get(&value).cloned().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Value {} is not a valid label value for {}. Possible values are: {}",
+            value,
+            label_class.name,
+            label_values_map
+                .keys()
+                .map(|k| k.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    })?;
 
     db::labels::update_span_label(
         &db.pool,
