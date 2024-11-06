@@ -21,6 +21,17 @@ export async function GET(
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;
 
+  const evaluation = await db.query.evaluations.findFirst({
+    where: and(
+      eq(evaluations.id, evaluationId),
+      eq(evaluations.projectId, projectId)
+    )
+  });
+
+  if (!evaluation) {
+    return Response.json({ error: 'Evaluation not found' }, { status: 404 });
+  }
+
   const subQueryScoreCte = db.$with('scores').as(
     db
       .select({
@@ -46,13 +57,6 @@ export async function GET(
       subQueryScoreCte,
       eq(evaluationResults.id, subQueryScoreCte.resultId)
     )
-    .innerJoin(
-      evaluations,
-      and(
-        eq(evaluationResults.evaluationId, evaluations.id),
-        eq(evaluations.projectId, projectId)
-      )
-    )
     .where(eq(evaluationResults.evaluationId, evaluationId))
     .orderBy(
       asc(evaluationResults.createdAt),
@@ -71,7 +75,7 @@ export async function GET(
     expandNestedObjects: false // we only expand the scores object manually
   });
   const contentType = 'text/csv';
-  const filename = `evaluation-results-${evaluationId}.csv`;
+  const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${evaluationId}.csv`;
   const headers = new Headers();
   headers.set('Content-Type', contentType);
   headers.set('Content-Disposition', `attachment; filename="${filename}"`);
