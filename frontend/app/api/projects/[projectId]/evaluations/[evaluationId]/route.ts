@@ -1,6 +1,3 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
 import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 import { db } from '@/lib/db/drizzle';
 import { and, asc, eq, sql } from 'drizzle-orm';
@@ -78,21 +75,4 @@ export async function GET(
   };
 
   return Response.json(result);
-}
-
-export async function DELETE(
-  req: Request,
-  { params }: { params: { projectId: string; evaluationId: string } }
-): Promise<Response> {
-  const projectId = params.projectId;
-  const evaluationId = params.evaluationId;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
-
-  return await fetcher(`/projects/${projectId}/evaluations/${evaluationId}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
-    }
-  });
 }

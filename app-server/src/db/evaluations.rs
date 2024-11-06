@@ -237,27 +237,3 @@ pub async fn delete_evaluation(pool: &PgPool, evaluation_id: &Uuid) -> Result<()
         .await?;
     Ok(())
 }
-
-pub async fn get_evaluation_datapoint(
-    pool: &PgPool,
-    evaluation_result_id: Uuid,
-) -> Result<EvaluationDatapoint> {
-    let preview = sqlx::query_as::<_, EvaluationDatapoint>(
-        "SELECT
-            id,
-            created_at,
-            evaluation_id,
-            scores,
-            data,
-            target,
-            trace_id,
-            executor_output,
-        FROM evaluation_results
-        WHERE id = $1",
-    )
-    .bind(evaluation_result_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(preview)
-}

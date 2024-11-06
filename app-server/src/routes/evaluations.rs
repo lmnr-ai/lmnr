@@ -96,18 +96,6 @@ async fn get_evaluation(path: web::Path<(Uuid, Uuid)>, db: web::Data<DB>) -> Res
     Ok(HttpResponse::Ok().json(response))
 }
 
-#[get("evaluations/{evaluation_id}/datapoints/{datapoint_id}")]
-async fn get_evaluation_datapoint(
-    path: web::Path<(Uuid, Uuid, Uuid)>,
-    db: web::Data<DB>,
-) -> ResponseResult {
-    let (_project_id, _evaluation_id, datapoint_id) = path.into_inner();
-
-    let result = evaluations::get_evaluation_datapoint(&db.pool, datapoint_id).await?;
-
-    Ok(HttpResponse::Ok().json(result))
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetEvaluationScoreStatsQuery {
