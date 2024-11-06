@@ -133,11 +133,6 @@ export default function Dataset({ dataset }: DatasetProps) {
         </div>
         <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
         <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
-        {/* <IndexDatasetDialog
-          datasetId={dataset.id}
-          defaultDataset={dataset}
-          onUpdate={mutate}
-        /> */}
       </div>
       <div className="flex-grow">
         <DataTable

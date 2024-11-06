@@ -5,7 +5,22 @@ import { eq, and } from 'drizzle-orm';
 import { isFeatureEnabled } from '@/lib/features/features';
 import { Feature } from '@/lib/features/features';
 import { clickhouseClient } from '@/lib/clickhouse/client';
+import { z } from 'zod';
 
+const removeQueueItemSchema = z.object({
+  id: z.string(),
+  spanId: z.string(),
+  addedLabels: z.array(z.object({
+    value: z.number(),
+    labelClass: z.object({
+      name: z.string(),
+      id: z.string()
+    })
+  })),
+  action: z.object({
+    resultId: z.string().optional()
+  })
+});
 
 // remove an item from the queue
 export async function POST(request: Request, { params }: { params: { projectId: string; queueId: string } }) {
@@ -14,31 +29,40 @@ export async function POST(request: Request, { params }: { params: { projectId: 
   }
 
   const body = await request.json();
-  const { id, spanId, action } = body;
+  const result = removeQueueItemSchema.safeParse(body);
+
+  if (!result.success) {
+    return Response.json({ error: 'Invalid request body', details: result.error }, { status: 400 });
+  }
+
+  const { id, spanId, addedLabels, action } = result.data;
 
   if (action.resultId) {
     const labelingQueue = await db.query.labelingQueues.findFirst({
       where: eq(labelingQueues.id, params.queueId)
     });
 
-    // get all labels of the span
-    // FIXME: this takes values from previous labels,
-    // potentially from a different queue
-    const labelsOfSpan = await db.query.labels.findMany({
-      where: eq(labels.spanId, spanId),
-      with: {
-        labelClass: true
-      }
-    });
+    // adding new labels to the span
+    const newLabels = addedLabels.map(({ value, labelClass }) => ({
+      value: value,
+      classId: labelClass.id,
+      spanId,
+      labelSource: "MANUAL" as const,
+    }));
+
+    await db.insert(labels).values(newLabels);
+
 
     const resultId = action.resultId;
 
     // create new results in batch
-    const evaluationValues = labelsOfSpan.map(label => ({
-      score: label.value ?? 0,
-      name: `${label.labelClass.name}_${labelingQueue?.name}`,
+    const evaluationValues = addedLabels.map(({ value, labelClass }) => ({
+      score: value ?? 0,
+      name: `${labelClass.name}_${labelingQueue?.name}`,
       resultId,
     }));
+
+    await db.insert(evaluationScores).values(evaluationValues);
 
     if (isFeatureEnabled(Feature.FULL_BUILD)) {
       const evaluation = await db.query.evaluations.findFirst({
@@ -63,8 +87,6 @@ export async function POST(request: Request, { params }: { params: { projectId: 
         });
       }
     }
-
-    await db.insert(evaluationScores).values(evaluationValues);
   }
 
   const deletedQueueData = await db
