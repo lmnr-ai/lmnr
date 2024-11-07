@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import SubscriptionUpdatedEmail from './subscription-updated-email';
 import WelcomeEmail from './welcome-email';
+import { ItemDescription } from '../checkout/utils';
 
 const RESEND = new Resend(
   process.env.RESEND_API_KEY ?? '_RESEND_API_KEY_PLACEHOLDER'
@@ -22,17 +23,17 @@ export async function sendWelcomeEmail(email: string) {
 
 export async function sendOnPaymentReceivedEmail(
   email: string,
-  productDescription: string,
+  itemDescriptions: ItemDescription[],
   date: string,
-  shortDescription?: string
 ) {
   const from = 'Laminar team <founders@lmnr.ai>';
-  const subject = `Laminar: Payment for ${shortDescription ?? productDescription} is received.`;
+  const subject = itemDescriptions.length === 1 ?
+    `Laminar: Payment for ${itemDescriptions[0].shortDescription ?? itemDescriptions[0].productDescription} is received.` :
+    'Laminar: Payment received.';
   const component = SubscriptionUpdatedEmail({
-    productDescription,
+    itemDescriptions,
     date,
     billedTo: email,
-    shortDescription
   });
 
   const { data, error } = await RESEND.emails.send({

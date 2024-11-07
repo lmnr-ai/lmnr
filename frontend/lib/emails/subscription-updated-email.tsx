@@ -7,27 +7,34 @@ import {
   Preview
 } from '@react-email/components';
 import { Tailwind } from '@react-email/tailwind';
+import { ItemDescription } from '../checkout/utils';
 
 const boldClassName = 'w-full flex justify-start mb-1 mt-6';
 const textClassName = 'w-full flex justify-start';
 
 interface SubscriptionUpdatedEmailProps {
-  productDescription: string;
+  itemDescriptions: ItemDescription[];
   date: string;
   billedTo: string;
-  shortDescription?: string;
 }
+
+const renderPreviewString = (itemDescriptions: ItemDescription[]) => {
+  if (itemDescriptions.length === 1) {
+    const { productDescription, shortDescription } = itemDescriptions[0];
+    return `Payment for ${shortDescription ?? productDescription} is received.`;
+  }
+  return 'Thanks for your payment!';
+};
 
 // TODO: Import font through tailwind configs
 export default function SubscriptionUpdatedEmail({
-  productDescription,
+  itemDescriptions,
   date,
-  billedTo,
-  shortDescription
+  billedTo
 }: SubscriptionUpdatedEmailProps) {
   return (
     <Html lang="en">
-      <Preview>{`Payment for ${shortDescription ?? productDescription} is received.`}</Preview>
+      <Preview>{renderPreviewString(itemDescriptions)}</Preview>
       <Tailwind>
         <div className="flex flex-col items-center">
           <div className="max-w-100 p-4">
@@ -36,11 +43,14 @@ export default function SubscriptionUpdatedEmail({
               The payment has been received.
             </Text>
             <div style={{ ...text, ...boldText }} className={boldClassName}>
-              Product
+              Products
             </div>
-            <div className={textClassName} style={text}>
-              {productDescription}
-            </div>
+            {itemDescriptions.map(({ productDescription, quantity }, index) => (
+              <div className={textClassName} style={text} key={index}>
+                {/* quantity is already included in the long description */}
+                {productDescription}
+              </div>
+            ))}
             <div style={{ ...text, ...boldText }} className={boldClassName}>
               Date
             </div>

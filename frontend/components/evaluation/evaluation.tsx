@@ -19,12 +19,14 @@ import {
   SelectValue
 } from '../ui/select';
 import { mergeOriginalWithComparedDatapoints } from '@/lib/evaluation/utils';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Resizable } from 're-resizable';
 import TraceView from '../traces/trace-view';
 import Chart from './chart';
 import ScoreCard from './score-card';
+import { useToast } from '@/lib/hooks/use-toast';
+import DownloadButton from '../ui/download-button';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId'
@@ -42,10 +44,12 @@ export default function Evaluation({
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
+  const { toast } = useToast();
 
   const { projectId } = useProjectContext();
 
   const evaluation = evaluationInfo.evaluation;
+
   const [comparedEvaluation, setComparedEvaluation] =
     useState<EvaluationType | null>(null);
 
@@ -75,10 +79,11 @@ export default function Evaluation({
       ) ?? null
     );
 
-  // Selected score name must usually not be undefined, as we expect to have at least one score, it's done just to not throw error if there are no scores
-  const [selectedScoreName, setSelectedScoreName] = useState<
-    string | undefined
-  >(scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined);
+  // Selected score name must usually not be undefined, as we expect
+  // to have at least one score, it's done just to not throw error if there are no scores
+  const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(
+    scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined
+  );
 
   // Columns used when there is no compared evaluation
   let defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
@@ -274,8 +279,15 @@ export default function Evaluation({
             </SelectContent>
           </Select>
         </div>
+        <div>
+          <DownloadButton
+            uri={`/api/projects/${projectId}/evaluations/${evaluation.id}/download`}
+            fileFormat="CSV"
+            filenameFallback={`evaluation-results-${evaluation.id}.csv`}
+          />
+        </div>
       </div>
-      <div className="flex flex-grow">
+      <div className="flex flex-grow flex-col">
         <div className="flex flex-col flex-grow">
           {selectedScoreName && (
             <div className="flex flex-row space-x-4 p-4 mr-4">

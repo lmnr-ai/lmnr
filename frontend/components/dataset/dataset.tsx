@@ -20,6 +20,7 @@ import { swrFetcher } from '@/lib/utils';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import DownloadButton from '../ui/download-button';
 
 interface DatasetProps {
   dataset: DatasetType;
@@ -131,13 +132,14 @@ export default function Dataset({ dataset }: DatasetProps) {
         <div className="flex-grow text-2xl font-medium">
           <h1>{dataset.name}</h1>
         </div>
+        <DownloadButton
+          uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
+          fileFormat="JSON"
+          filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${dataset.id}.json`}
+          variant="outline"
+        />
         <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
         <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
-        {/* <IndexDatasetDialog
-          datasetId={dataset.id}
-          defaultDataset={dataset}
-          onUpdate={mutate}
-        /> */}
       </div>
       <div className="flex-grow">
         <DataTable

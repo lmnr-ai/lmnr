@@ -85,6 +85,7 @@ pub struct WorkspaceStats {
 
     pub members: i64,
     pub members_limit: i64,
+    pub seats_included_in_tier: i64,
     pub reset_time: DateTime<Utc>,
     pub storage_limit: i64,
 }
@@ -103,6 +104,7 @@ pub async fn get_workspace_stats(pool: &PgPool, workspace_id: &Uuid) -> Result<W
         )
         SELECT
             subscription_tiers.name as tier_name,
+            subscription_tiers.members_per_workspace as seats_included_in_tier,
             workspace_usage.span_count as total_spans,
             workspace_usage.event_count as total_events,
             subscription_tiers.spans as spans_limit,

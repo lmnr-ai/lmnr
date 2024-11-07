@@ -427,11 +427,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::subscriptions::get_user_subscription_info),
                         )
                         .service(
-                            web::scope("/api/v1/users")
-                                // No auth, Next JS backend will call this after verifying stripe's signature
-                                .service(routes::users::get_user_from_stripe_customer_id),
-                        )
-                        .service(
                             web::scope("/api/v1/projects")
                                 .wrap(auth)
                                 .service(routes::projects::create_project)

@@ -3,7 +3,7 @@ import { UserSubscriptionInfo } from '@/lib/checkout/types';
 import { fetcherJSON } from '@/lib/utils';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
-import stripe from 'stripe';
+import Stripe from 'stripe';
 
 export default async function CheckoutPortalPage({
   searchParams
@@ -14,7 +14,7 @@ export default async function CheckoutPortalPage({
   if (!userSession) {
     redirect('/sign-in?callbackUrl=/checkout/portal');
   }
-  const s = new stripe(process.env.STRIPE_SECRET_KEY!);
+  const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
   let stripeCustomerId;
 
