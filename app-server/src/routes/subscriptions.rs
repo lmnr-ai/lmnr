@@ -40,7 +40,7 @@ pub async fn save_stripe_customer_id(
     request: web::Json<SubscriptionRequest>,
     user: User,
 ) -> ResponseResult {
-    if !is_feature_enabled(Feature::Storage) {
+    if !is_feature_enabled(Feature::Subscription) {
         return Ok(HttpResponse::Forbidden().finish());
     }
     db::subscriptions::save_stripe_customer_id(&db.pool, &user.id, &request.stripe_customer_id)
@@ -51,7 +51,7 @@ pub async fn save_stripe_customer_id(
 
 #[get("")] // GET /api/v1/subscriptions
 pub async fn get_user_subscription_info(db: web::Data<db::DB>, user: User) -> ResponseResult {
-    if !is_feature_enabled(Feature::Storage) {
+    if !is_feature_enabled(Feature::Subscription) {
         return Ok(HttpResponse::Forbidden().finish());
     }
     let stripe_customer_id =
@@ -72,6 +72,7 @@ struct ManageSubscriptionRequest {
     pub quantity: Option<i64>,
     #[serde(default)]
     pub cancel: bool,
+    pub subscription_id: String,
 }
 
 #[post("")] // POST /api/v1/manage-subscription
@@ -94,7 +95,7 @@ pub async fn update_subscription(
     db::subscriptions::activate_stripe_customer(&db.pool, &stripe_customer_id).await?;
 
     if is_additional_seats && quantity > 0 {
-        db::subscriptions::add_seats(&db.pool, &workspace_id, quantity).await?;
+        db::subscriptions::set_seats(&db.pool, &workspace_id, quantity).await?;
         return Ok(HttpResponse::Ok().finish());
     }
 
@@ -102,6 +103,7 @@ pub async fn update_subscription(
         &db.pool,
         &workspace_id,
         &request.product_id,
+        &request.subscription_id,
         request.cancel,
     )
     .await?;

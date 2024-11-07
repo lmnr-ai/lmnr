@@ -84,10 +84,10 @@ struct SubscriptionTierId {
     id: i64,
 }
 
-pub async fn add_seats(pool: &PgPool, workspace_id: &Uuid, seats: i64) -> Result<()> {
+pub async fn set_seats(pool: &PgPool, workspace_id: &Uuid, seats: i64) -> Result<()> {
     sqlx::query(
         "UPDATE workspaces SET
-            additional_seats = additional_seats + $2
+            additional_seats = $2
         WHERE workspaces.id = $1",
     )
     .bind(workspace_id)
@@ -103,6 +103,7 @@ pub async fn update_subscription(
     pool: &PgPool,
     workspace_id: &Uuid,
     product_id: &String,
+    subscription_id: &String,
     cancel: bool,
 ) -> Result<bool> {
     let product_id = if cancel { None } else { Some(product_id) };
@@ -117,15 +118,21 @@ pub async fn update_subscription(
     let is_upgrade_from_free = existing_tier.id == 1;
     sqlx::query(
         "UPDATE workspaces SET
-                tier_id = CASE
-                    WHEN $3 THEN 1
-                    ELSE (SELECT id FROM subscription_tiers WHERE stripe_product_id = $2)
-                END
-            WHERE id = $1",
+            tier_id = CASE
+                WHEN $3 THEN 1
+                ELSE (
+                    SELECT id
+                    FROM subscription_tiers
+                    WHERE stripe_product_id = $2
+                )
+            END,
+            subscription_id = $4
+        WHERE id = $1",
     )
     .bind(workspace_id)
     .bind(product_id)
     .bind(cancel)
+    .bind(subscription_id)
     .execute(pool)
     .await?;
     Ok(is_upgrade_from_free)

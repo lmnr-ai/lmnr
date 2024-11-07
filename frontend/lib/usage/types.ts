@@ -1,5 +1,6 @@
 export type WorkspaceStats = {
   tierName: string;
+  seatsIncludedInTier: number;
   totalSpans: number;
   totalEvents: number;
   spansThisMonth: number;
