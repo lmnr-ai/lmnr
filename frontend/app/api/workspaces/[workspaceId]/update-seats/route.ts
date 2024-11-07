@@ -1,4 +1,3 @@
-
 import { db } from '@/lib/db/drizzle';
 import { workspaces } from '@/lib/db/migrations/schema';
 import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
@@ -52,10 +51,8 @@ export async function POST(
   const existingItem = subscriptionItems.data.find(item => item.price.lookup_key === SEAT_PRICE_LOOKUP_KEY);
 
   const existingSeats = existingItem ? existingItem.quantity : 0;
-  console.log('existingSeats', existingSeats);
   const body = await req.json();
   const newQuantity = Math.max(0, body.quantity + existingSeats);
-  console.log('newQuantity', newQuantity);
 
   if (existingItem) {
     await s.subscriptionItems.update(existingItem.id, {
