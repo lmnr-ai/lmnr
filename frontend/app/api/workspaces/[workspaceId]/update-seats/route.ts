@@ -3,7 +3,7 @@ import { workspaces } from '@/lib/db/migrations/schema';
 import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
 import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
-import stripe from 'stripe';
+import Stripe from 'stripe';
 
 const SEAT_PRICE_LOOKUP_KEY = 'additional_seat_2024_11';
 
@@ -11,11 +11,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
 ): Promise<Response> {
-  if (!isCurrentUserMemberOfWorkspace(params.workspaceId)) {
+  if (!(await isCurrentUserMemberOfWorkspace(params.workspaceId))) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const s = new stripe(process.env.STRIPE_SECRET_KEY!);
+  const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
   const workspace = await db.query.workspaces.findFirst({
     where: eq(workspaces.id, params.workspaceId),
