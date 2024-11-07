@@ -26,6 +26,7 @@ import TraceView from '../traces/trace-view';
 import Chart from './chart';
 import ScoreCard from './score-card';
 import { useToast } from '@/lib/hooks/use-toast';
+import DownloadButton from '../ui/download-button';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId'
@@ -43,49 +44,12 @@ export default function Evaluation({
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
-  const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
 
   const { projectId } = useProjectContext();
 
   const evaluation = evaluationInfo.evaluation;
 
-  const downloadCsv = async () => {
-    setIsDownloading(true);
-    try {
-      const response = await fetch(`/api/projects/${projectId}/evaluations/${evaluation.id}/download`);
-
-      if (!response.ok) {
-        throw new Error('Download failed');
-      }
-
-      const contentDisposition = response.headers.get('Content-Disposition');
-      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-      const filename = filenameMatch?.[1] || `evaluation-results-${evaluation.id}.csv`;
-
-      const blob = await response.blob();
-
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-
-      document.body.appendChild(link);
-      link.click();
-
-      // Cleanup
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error downloading CSV:', error);
-      toast({
-        title: 'Error downloading CSV',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
   const [comparedEvaluation, setComparedEvaluation] =
     useState<EvaluationType | null>(null);
 
@@ -316,15 +280,11 @@ export default function Evaluation({
           </Select>
         </div>
         <div>
-          <Button
-            className="ml-2 flex flex-row items-center"
-            variant={'secondary'}
-            disabled={isDownloading}
-            onClick={async () => await downloadCsv()}
-          >
-            {isDownloading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-            Download CSV
-          </Button>
+          <DownloadButton
+            uri={`/api/projects/${projectId}/evaluations/${evaluation.id}/download`}
+            fileFormat="CSV"
+            filenameFallback={`evaluation-results-${evaluation.id}.csv`}
+          />
         </div>
       </div>
       <div className="flex flex-grow flex-col">
