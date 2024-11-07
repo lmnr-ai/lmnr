@@ -3551,6 +3551,28 @@
         "additional_prices": {}
       },
       {
+        "id": "e9cfc547-dfc9-4c5e-bca8-2b1be33bf90f",
+        "created_at": "2024-11-07 23:10:03.41329+00",
+        "updated_at": "2024-11-07 23:10:03.41329+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-haiku-20241022",
+        "input_price_per_million": 1.0,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "a4d8e406-5c4a-415e-a092-fba2fe859377",
+        "created_at": "2024-11-07 23:10:50.192319+00",
+        "updated_at": "2024-11-07 23:10:50.192319+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-haiku-latest",
+        "input_price_per_million": 1.0,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "d1f31e4c-e47d-43d5-b332-9425310168ce",
         "created_at": "2024-10-16 17:01:24.987554+00",
         "updated_at": "2024-10-16 17:01:24.987554+00",
@@ -4082,6 +4104,28 @@
         "model": "claude-2.1",
         "input_price_per_million": 8.0,
         "output_price_per_million": 24.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "189c918c-be74-457a-a020-dec5a215995b",
+        "created_at": "2024-11-07 23:15:54.583619+00",
+        "updated_at": "2024-11-07 23:15:54.583619+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-5-haiku",
+        "input_price_per_million": 1.0,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "30c83d8f-392e-49c4-8a0a-1904a54aae7d",
+        "created_at": "2024-11-07 23:12:16.680925+00",
+        "updated_at": "2024-11-07 23:12:16.680925+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-5-haiku-20241022-v1:0",
+        "input_price_per_million": 1.0,
+        "output_price_per_million": 5.0,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
