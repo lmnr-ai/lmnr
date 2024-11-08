@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Dataset } from '@/lib/dataset/types';
 import Formatter from '../ui/formatter';
+import { eventEmitter } from '@/lib/event-emitter';
 
 interface ExportSpansDialogProps {
   span: Span;
@@ -88,7 +89,8 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               target: target,
               metadata: metadata
             }
-          ]
+          ],
+          sourceSpanId: span.spanId
         })
       }
     );
@@ -100,6 +102,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
         variant: 'destructive'
       });
     } else {
+      eventEmitter.emit('mutateSpanDatapoints');
       toast({
         title: `Successfully exported span to dataset ${selectedDataset?.name}`
       });

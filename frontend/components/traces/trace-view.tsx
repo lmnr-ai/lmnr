@@ -1,10 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SpanCard } from './span-card';
-import { getDurationString } from '@/lib/flow/utils';
 import { ScrollArea, ScrollBar } from '../ui/scroll-area';
-import { Label } from '../ui/label';
-import { Span, TraceWithSpans } from '@/lib/traces/types';
-import { ChevronsRight, CircleDollarSign, Clock3, Coins } from 'lucide-react';
+import { Span } from '@/lib/traces/types';
+import { ChevronsRight } from 'lucide-react';
 import { SpanView } from './span-view';
 import Timeline from './timeline';
 import { cn, swrFetcher } from '@/lib/utils';
@@ -25,7 +23,6 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const router = useRouter();
   const pathName = usePathname();
-  const ref = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const traceTreePanel = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(0);
@@ -73,13 +70,23 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     setChildSpans(childSpans);
     setTopLevelSpans(topLevelSpans);
     setSpans(spans);
-    setSelectedSpan(
-      searchParams.get('spanId')
-        ? spans.find(
-          (span: Span) => span.spanId === searchParams.get('spanId')
-        ) || null
-        : null
-    );
+
+    // If there's only one span, select it automatically
+    if (spans.length === 1) {
+      const singleSpan = spans[0];
+      setSelectedSpan(singleSpan);
+      searchParams.set('spanId', singleSpan.spanId);
+      router.push(`${pathName}?${searchParams.toString()}`);
+    } else {
+      // Otherwise, use the spanId from URL if present
+      setSelectedSpan(
+        searchParams.get('spanId')
+          ? spans.find(
+            (span: Span) => span.spanId === searchParams.get('spanId')
+          ) || null
+          : null
+      );
+    }
   }, [trace]);
 
   useEffect(() => {
