@@ -120,9 +120,13 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     searchParams.set('traceId', row.traceId!);
     searchParams.set('spanId', row.spanId);
     router.push(`${pathName}?${searchParams.toString()}`);
-    setSpanId(row.spanId);
     onRowClick?.(row.traceId);
   };
+
+  useEffect(() => {
+    setSpanId(searchParams.get('spanId') ?? null);
+  }, [searchParams]);
+
   const columns: ColumnDef<Span, any>[] = [
     {
       cell: (row) => <Mono>{row.getValue()}</Mono>,

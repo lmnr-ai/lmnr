@@ -244,6 +244,7 @@ export const evaluationScores = pgTable("evaluation_scores", {
     foreignColumns: [evaluationResults.id],
     name: "evaluation_scores_result_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
+  evaluationResultsNamesUnique: unique("evaluation_results_names_unique").on(table.resultId, table.name),
 }));
 
 export const labelClassesForPath = pgTable("label_classes_for_path", {
@@ -468,7 +469,7 @@ export const labels = pgTable("labels", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   classId: uuid("class_id").notNull(),
-  value: doublePrecision().default(sql`'0'`),
+  value: doublePrecision().default(sql`'0'`).notNull(),
   spanId: uuid("span_id").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   userId: uuid("user_id").defaultRandom(),
@@ -502,6 +503,26 @@ export const labelClasses = pgTable("label_classes", {
     foreignColumns: [projects.id],
     name: "label_classes_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
+}));
+
+export const datapointToSpan = pgTable("datapoint_to_span", {
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  datapointId: uuid("datapoint_id").notNull(),
+  spanId: uuid("span_id").notNull(),
+  projectId: uuid("project_id").notNull(),
+},
+(table) => ({
+  datapointToSpanDatapointIdFkey: foreignKey({
+    columns: [table.datapointId],
+    foreignColumns: [datasetDatapoints.id],
+    name: "datapoint_to_span_datapoint_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+  datapointToSpanSpanIdProjectIdFkey: foreignKey({
+    columns: [table.spanId, table.projectId],
+    foreignColumns: [spans.spanId, spans.projectId],
+    name: "datapoint_to_span_span_id_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+  datapointToSpanPkey: primaryKey({ columns: [table.datapointId, table.spanId, table.projectId], name: "datapoint_to_span_pkey"}),
 }));
 
 export const spans = pgTable("spans", {
