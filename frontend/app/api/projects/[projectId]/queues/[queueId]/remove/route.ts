@@ -65,15 +65,20 @@ export async function POST(request: Request, { params }: { params: { projectId: 
     await db.insert(evaluationScores).values(evaluationValues);
 
     if (isFeatureEnabled(Feature.FULL_BUILD)) {
-      const evaluation = await db.query.evaluations.findFirst({
-        with: {
-          evaluationResults: {
-            where: eq(evaluationResults.id, resultId)
-          }
-        }
-      });
-      if (evaluation && evaluationValues.length > 0) {
-        const result = await clickhouseClient.insert({
+      // TODO: optimize this query to use subquery instead of join.
+      const matchingEvaluations = await db
+        .select()
+        .from(evaluations)
+        .innerJoin(evaluationResults, eq(evaluationResults.evaluationId, evaluations.id))
+        .where(and(
+          eq(evaluationResults.id, resultId),
+          eq(evaluations.projectId, params.projectId)
+        ))
+        .limit(1);
+
+      if (matchingEvaluations.length > 0) {
+        const evaluation = matchingEvaluations[0].evaluations;
+        await clickhouseClient.insert({
           table: 'evaluation_scores',
           format: 'JSONEachRow',
           values: evaluationValues.map(value => ({
