@@ -1,4 +1,4 @@
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 import { db } from '@/lib/db/drizzle';
 import { labelingQueueItems, spans } from '@/lib/db/migrations/schema';
 import { asc, eq, gt, and, lt, desc, sql } from 'drizzle-orm';
@@ -14,10 +14,6 @@ export async function POST(
   req: Request,
   { params }: { params: { projectId: string; queueId: string } }
 ) {
-
-  if (!(await isCurrentUserMemberOfProject(params.projectId))) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
 
   // Validate body
   const body = await req.json();

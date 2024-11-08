@@ -1,5 +1,5 @@
 import { labelingQueues } from '@/lib/db/migrations/schema';
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 import { eq, inArray } from 'drizzle-orm';
 import { and } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
@@ -13,9 +13,7 @@ export async function POST(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const body = await req.json();
   const { name } = body;
@@ -38,9 +36,7 @@ export async function GET(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
   const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
@@ -64,9 +60,7 @@ export async function DELETE(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const { searchParams } = new URL(req.url);
   const queueIds = searchParams.get('queueIds')?.split(',');

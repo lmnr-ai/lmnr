@@ -2,7 +2,7 @@ import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints } from '@/lib/db/migrations/schema';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 
 export async function POST(
   req: Request,
@@ -10,11 +10,6 @@ export async function POST(
     params
   }: { params: { projectId: string; datasetId: string; datapointId: string } }
 ): Promise<Response> {
-  const projectId = params.projectId;
-
-  if (!await isCurrentUserMemberOfProject(projectId)) {
-    return new Response('Unauthorized', { status: 401 });
-  }
 
   const datasetId = params.datasetId;
   const datapointId = params.datapointId;
