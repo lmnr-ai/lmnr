@@ -61,7 +61,7 @@
     "cmdk": "^0.2.1",
     "date-fns": "^3.6.0",
     "dotenv": "^16.4.5",
-    "drizzle-orm": "^0.35.1",
+    "drizzle-orm": "^0.36.1",
     "eventsource-parser": "^2.0.1",
     "focus-trap-react": "^10.3.0",
     "framer-motion": "^11.11.9",

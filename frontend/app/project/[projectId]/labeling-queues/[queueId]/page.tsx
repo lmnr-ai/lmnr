@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 
 import { Metadata } from 'next';
 import Queue from '@/components/queue/queue';
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 import * as schema from '@/lib/db/migrations/schema';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
@@ -17,9 +17,6 @@ export default async function DatasetPage({
 }: {
   params: { projectId: string; queueId: string };
 }) {
-  if (!(await isCurrentUserMemberOfProject(params.projectId))) {
-    redirect('/404');
-  }
 
   const queue = await db.query.labelingQueues.findFirst({
     where: and(

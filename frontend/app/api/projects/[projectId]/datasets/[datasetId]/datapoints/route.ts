@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints, datapointToSpan } from '@/lib/db/migrations/schema';
 import { and, inArray, eq } from 'drizzle-orm';
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 import { z } from 'zod';
 
 export async function GET(
@@ -44,9 +44,7 @@ export async function POST(
   const projectId = params.projectId;
   const datasetId = params.datasetId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const body = await req.json();
 
@@ -97,9 +95,7 @@ export async function DELETE(
   const projectId = params.projectId;
   const datasetId = params.datasetId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const { searchParams } = new URL(req.url);
   const datapointIds = searchParams.get('datapointIds')?.split(',');

@@ -10,9 +10,7 @@ export async function GET(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const result = await paginatedGet<any, Evaluation>({
     table: evaluations,
@@ -29,9 +27,7 @@ export async function DELETE(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const { searchParams } = new URL(req.url);
   const evaluationIds = searchParams.get('evaluationIds')?.split(',');
