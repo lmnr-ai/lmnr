@@ -1,4 +1,5 @@
 use actix_web::{post, web, HttpResponse};
+use chrono::Utc;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -84,6 +85,7 @@ async fn create_evaluation(
         project_id,
         group_id,
         evaluation.id,
+        Utc::now(),
     );
 
     let ch_task = tokio::spawn(insert_evaluation_scores(

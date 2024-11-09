@@ -77,7 +77,7 @@ export async function POST(request: Request, { params }: { params: { projectId: 
       if (matchingEvaluations.length > 0) {
         const evaluation = matchingEvaluations[0].evaluations;
         await clickhouseClient.insert({
-          table: 'evaluation_scores',
+          table: 'old_evaluation_scores',
           format: 'JSONEachRow',
           values: evaluationValues.map(value => ({
             project_id: params.projectId,
