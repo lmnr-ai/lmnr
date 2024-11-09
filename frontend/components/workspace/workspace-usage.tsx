@@ -6,6 +6,7 @@ import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
 import PurchaseSeatsDialog from './purchase-seats-dialog';
+import { cn } from '@/lib/utils';
 
 interface WorkspaceUsageProps {
   workspace: Workspace;
@@ -31,7 +32,11 @@ export default function WorkspaceUsage({
 
   return (
     <div className="p-4 flex flex-col space-y-2">
-      <div className="">{tierName} tier workspace</div>
+      <div className="flex items-center gap-2">
+        <div className={cn("text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20", workspace.tierName === 'Pro' && 'border-primary bg-primary/10 text-primary')}>
+          {workspace.tierName}
+        </div>
+      </div>
       <div className="text-sm text-secondary-foreground">
         Monthly billing cycle started{' '}
         <ClientTimestampFormatter timestamp={resetTime} />
@@ -64,23 +69,27 @@ export default function WorkspaceUsage({
               </Button>
             ))}
         </div>
-        <div>
-          {isOwner && workspaceStats.tierName !== 'Free' && (
-            <PurchaseSeatsDialog
-              workspaceId={workspace.id}
-              currentQuantity={membersLimit}
-              seatsIncludedInTier={seatsIncludedInTier}
-              onUpdate={() => {
-                router.refresh();
-              }}
-            />
-          )}
-        </div>
       </div>
 
       <div className="flex flex-col space-y-1">
-        <Label className="mt-2 text-secondary-foreground text-sm">Spans</Label>
-        {spansThisMonth <= spansLimit ? (
+        {workspaceStats.tierName === 'Pro' && (
+          <p className="text-secondary-foreground text-sm mb-2">
+            Pro tier comes with 50K spans included. <br />
+            If you exceed this limit, you will be charged for overages.
+          </p>
+        )}
+        {
+          workspaceStats.tierName === 'Free' && (
+            <p className="text-secondary-foreground text-sm mb-2">
+              Free tier comes with 10K spans included. <br />
+              If you exceed this limit, you won{"'"}t be able to send any more spans.
+            </p>
+          )
+        }
+        <Label className="mt-2 text-secondary-foreground text-sm">
+          Spans used during this billing cycle
+        </Label>
+        {workspaceStats.tierName === 'Free' ? (
           <>
             <div className="flex flex-row space-x-2">
               <div className="flex-grow">
@@ -98,17 +107,6 @@ export default function WorkspaceUsage({
             </div> */}
           </div>
         )}
-      </div>
-
-      <div className="flex flex-col space-y-1">
-        <Label className="mt-2 text-secondary-foreground text-sm">
-          Members
-        </Label>
-        <div className="flex flex-row space-x-2">
-          <div className="">
-            {members} / {membersLimit}
-          </div>
-        </div>
       </div>
     </div>
   );

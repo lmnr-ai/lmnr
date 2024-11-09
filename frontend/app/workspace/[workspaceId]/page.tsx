@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { fetcherJSON } from '@/lib/utils';
+import { cn, fetcherJSON } from '@/lib/utils';
 import { redirect } from 'next/navigation';
 import { Metadata } from 'next';
 import { WorkspaceWithUsers } from '@/lib/workspaces/types';
@@ -57,7 +57,14 @@ export default async function WorkspacePage({
     redirect('/projects');
   }
 
+  // check if user part of the workspace
   const workspace = await getWorkspace(params.workspaceId);
+  const isMember = workspace.users.find((u) => u.email === user.email);
+
+  if (!isMember) {
+    redirect('/not-found');
+  }
+
   const isOwner =
     workspace.users.find((u) => u.email === user.email)?.role === 'owner';
 
@@ -72,7 +79,14 @@ export default async function WorkspacePage({
     >
       <WorkspacesNavbar />
       <div className="flex flex-col min-h-screen flex-grow overflow-auto ml-64">
-        <Header path={`workspaces/${workspace.name}`} className="border-none" />
+        <div className="flex flex-row justify-between items-center">
+          <div className="text-lg font-medium p-4 pb-2 flex items-center gap-2">
+            <span className="">{workspace.name}</span>
+            <div className={cn("text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20", workspace.tierName === 'Pro' && 'border-primary bg-primary/10 text-primary')}>
+              {workspace.tierName}
+            </div>
+          </div>
+        </div>
         <WorkspaceComponent
           workspace={workspace}
           workspaceStats={stats}
