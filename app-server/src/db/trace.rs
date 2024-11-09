@@ -507,22 +507,6 @@ pub async fn count_traces(
     Ok(count)
 }
 
-/// `count_traces` with filters adds a lot of information to the query and joins on the events (in order to filter)
-/// This function is a simpler version of `count_traces` that only counts the traces without any additional information
-/// and is more efficient.
-pub async fn count_all_traces_in_project(pool: &PgPool, project_id: Uuid) -> Result<i64> {
-    let count = sqlx::query_as::<_, TotalCount>(
-        "SELECT COUNT(*) as total_count
-        FROM traces
-        WHERE project_id = $1",
-    )
-    .bind(project_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(count.total_count)
-}
-
 pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
     let trace = sqlx::query_as::<_, Trace>(
         "SELECT

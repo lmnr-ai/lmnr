@@ -65,14 +65,9 @@ pub async fn get_traces(
         )
         .await
         .unwrap_or(0) as u64;
-        let any_in_project = if total_count == 0 {
-            db::trace::count_all_traces_in_project(&db.pool, project_id)
-                .await
-                .unwrap_or(1)
-                > 0
-        } else {
-            true
-        };
+        // this is checked in the frontend, and we temporarily return true here,
+        // while we migrate other `PaginatedGet` queries to drizzle
+        let any_in_project = true;
         (total_count, any_in_project)
     });
 
