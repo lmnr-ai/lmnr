@@ -23,14 +23,14 @@ export default function WorkspacesNavbar() {
         <Image alt="" src={logo} width={130} />
       </Link>
       <div className="flex flex-col w-full items-start">
-        <div className="flex flex-col w-full pl-4 pb-8 border-b space-y-2">
-          <span className="text-gray-600">Projects</span>
-          <Link href={'/projects'} className="hover:text-gray-400">
+        <div className="flex flex-col w-full pl-4 pb-8 border-b space-y-2 text-sm">
+          <span className="text-muted-foreground">Projects</span>
+          <Link href={'/projects'}>
             All projects
           </Link>
         </div>
-        <div className="flex flex-col w-full p-4 border-b space-y-2">
-          <span className="text-gray-600">Workspaces</span>
+        <div className="flex flex-col w-full p-4 border-b space-y-3 text-sm">
+          <span className="text-muted-foreground">Workspaces</span>
           {isLoading &&
             [...Array(5).keys()].map((_, index) => (
               <Skeleton key={index} className="h-5 mr-4" />
@@ -42,7 +42,7 @@ export default function WorkspacesNavbar() {
                 key={workspace.id}
                 className={cn(
                   'text-secondary-foreground hover:text-primary-foreground',
-                  pathname === `/workspace/${workspace.id}` ? 'text-white' : ''
+                  pathname === `/workspace/${workspace.id}` ? 'text-primary-foreground' : ''
                 )}
               >
                 {workspace.name}

@@ -23,6 +23,7 @@ import {
 } from '../ui/tooltip';
 import { useRouter } from 'next/navigation';
 import { WorkspaceStats } from '@/lib/usage/types';
+import PurchaseSeatsDialog from './purchase-seats-dialog';
 
 interface WorkspaceUsersProps {
   workspace: WorkspaceWithUsers;
@@ -78,9 +79,19 @@ export default function WorkspaceUsers({
   return (
     <div className="p-4">
       <div className="flex flex-col items-start space-y-4">
-        <Label>Users who have access to this workspace</Label>
+        <Label>You have {workspaceStats.membersLimit} seat{workspaceStats.membersLimit > 1 ? 's' : ''} in this workspace</Label>
         {isOwner && (
-          <>
+          <div className="flex flex-row gap-4">
+            {workspaceStats.tierName === 'Pro' && (
+              <PurchaseSeatsDialog
+                workspaceId={workspace.id}
+                currentQuantity={workspaceStats.membersLimit}
+                seatsIncludedInTier={workspaceStats.seatsIncludedInTier}
+                onUpdate={() => {
+                  router.refresh();
+                }}
+              />
+            )}
             {users.length == workspaceStats.membersLimit ? (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
@@ -112,9 +123,8 @@ export default function WorkspaceUsers({
                       setIsAddUserDialogOpen(true);
                     }}
                     variant="outline"
-                    className="h-8 max-w-80"
                   >
-                    <Plus className="w-4 mr-1 text-gray-500" />
+                    <Plus className="w-4 mr-1" />
                     Add user
                   </Button>
                 </DialogTrigger>
@@ -152,7 +162,7 @@ export default function WorkspaceUsers({
                 </DialogContent>
               </Dialog>
             )}
-          </>
+          </div>
         )}
         <table className="w-2/3 border-t">
           <tbody>
