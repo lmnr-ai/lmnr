@@ -1,4 +1,4 @@
-import { isCurrentUserMemberOfProject } from "@/lib/db/utils";
+import { isUserMemberOfProject } from "@/lib/db/utils";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -11,9 +11,9 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
-  const { projectId } = body;
+  const { projectId, apiKey } = body;
 
-  if (!await isCurrentUserMemberOfProject(projectId)) {
+  if (!await isUserMemberOfProject(projectId, apiKey)) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 

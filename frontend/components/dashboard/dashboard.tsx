@@ -153,7 +153,7 @@ export function CustomChart({
   );
 }
 
-export interface DashboardProps {}
+export interface DashboardProps { }
 
 export default function Dashboard() {
   const { projectId } = useProjectContext();

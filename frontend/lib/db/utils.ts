@@ -1,26 +1,21 @@
 import { db } from "./drizzle";
-import { eq, and, gt, sql, lt, SQL, lte, ne, gte, BinaryOperator, getTableColumns, WithSubquery } from "drizzle-orm";
-import { membersOfWorkspaces, projects, users } from "./migrations/schema";
+import { eq, and, gt, sql, lt, SQL, getTableColumns } from "drizzle-orm";
+import { membersOfWorkspaces, projects, users, apiKeys } from "./migrations/schema";
 import { getServerSession } from 'next-auth';
 import { authOptions } from "../auth";
 import { PgColumn, PgTableWithColumns, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
 import { PaginatedResponse } from "../types";
 
-export const isCurrentUserMemberOfProject = async (projectId: string) => {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) {
-    return false;
-  }
+export const isUserMemberOfProject = async (projectId: string, apiKey: string) => {
 
   const result = await db
     .select({ userId: users.id })
     .from(users)
     .innerJoin(membersOfWorkspaces, eq(users.id, membersOfWorkspaces.userId))
     .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
+    .innerJoin(apiKeys, eq(users.id, apiKeys.userId))
     .where(and(
-      eq(users.email, user.email!),
+      eq(apiKeys.apiKey, apiKey),
       eq(projects.id, projectId)
     ))
     .limit(1);
