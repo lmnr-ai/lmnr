@@ -133,7 +133,8 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
             <span className="text-gray-500">Trace</span>
           </div>
         ),
-      id: 'type'
+      id: 'type',
+      size: 120
     },
     {
       accessorFn: (row) => (row.data.id === null ? '-' : row.data.id),
@@ -156,42 +157,50 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
 
         return (row.data as SessionPreview).duration.toFixed(3) + 's';
       },
-      header: 'Duration'
+      header: 'Duration',
+      size: 100,
     },
     {
       accessorFn: (row) => '$' + row.data.inputCost?.toFixed(5),
       header: 'Input cost',
-      id: 'input_cost'
+      id: 'input_cost',
+      size: 120,
     },
     {
       accessorFn: (row) => '$' + row.data.outputCost?.toFixed(5),
       header: 'Output cost',
-      id: 'output_cost'
+      id: 'output_cost',
+      size: 120,
     },
     {
       accessorFn: (row) => '$' + row.data.cost?.toFixed(5),
       header: 'Total cost',
-      id: 'cost'
+      id: 'cost',
+      size: 120,
     },
     {
       accessorFn: (row) => row.data.inputTokenCount,
-      header: 'Input token count',
-      id: 'input_token_count'
+      header: 'Input tokens',
+      id: 'input_token_count',
+      size: 120,
     },
     {
       accessorFn: (row) => row.data.outputTokenCount,
-      header: 'Output token count',
-      id: 'output_token_count'
+      header: 'Output tokens',
+      id: 'output_token_count',
+      size: 120,
     },
     {
       accessorFn: (row) => row.data.totalTokenCount,
-      header: 'Token count',
-      id: 'total_token_count'
+      header: 'Total tokens',
+      id: 'total_token_count',
+      size: 120,
     },
     {
       accessorFn: (row) => (row.data as SessionPreview).traceCount,
       header: 'Trace Count',
-      id: 'trace_count'
+      id: 'trace_count',
+      size: 120,
     }
   ];
 
