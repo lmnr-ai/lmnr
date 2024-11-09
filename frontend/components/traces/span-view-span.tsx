@@ -4,6 +4,7 @@ import Formatter from '../ui/formatter';
 import ChatMessageListTab from './chat-message-list-tab';
 import { Span } from '@/lib/traces/types';
 import SpanLabels from './span-labels';
+import SpanDatasets from './span-datasets';
 
 interface SpanViewSpanProps {
   span: Span;
@@ -17,6 +18,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
           <div>
             <div className="p-4 w-full h-full">
               <SpanLabels spanId={span.spanId} />
+              <SpanDatasets spanId={span.spanId} />
               <div className="pb-2 font-medium text-lg">Input</div>
               {isChatMessageList(span.input) ? (
                 <ChatMessageListTab messages={span.input} />

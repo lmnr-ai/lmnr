@@ -1,5 +1,5 @@
 import { db } from '@/lib/db/drizzle';
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 import { asc, and, eq } from 'drizzle-orm';
 import { evaluationResults, evaluations } from '@/lib/db/migrations/schema';
 import { evaluationScores } from '@/lib/db/migrations/schema';
@@ -14,9 +14,7 @@ export async function GET(
     params: { projectId: string; evaluationId: string; };
   }
 ): Promise<Response> {
-  if (!(await isCurrentUserMemberOfProject(params.projectId))) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+
 
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;

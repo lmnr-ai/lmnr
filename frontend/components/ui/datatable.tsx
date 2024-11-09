@@ -62,7 +62,6 @@ interface DataTableProps<TData> {
   // and manage that externally
   onSelectAllAcrossPages?: (selectAll: boolean) => void;
   children?: React.ReactNode;
-
   selectionPanel?: (selectedRowIds: string[]) => React.ReactNode;
 }
 
@@ -85,7 +84,7 @@ export function DataTable<TData>({
   onSelectedRowsChange,
   onSelectAllAcrossPages,
   children,
-  selectionPanel
+  selectionPanel,
 }: DataTableProps<TData>) {
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = useState(false);
@@ -195,6 +194,7 @@ export function DataTable<TData>({
         'flex min-w-full border-b',
         !!onRowClick && 'cursor-pointer',
         row.depth > 0 && 'bg-secondary/40',
+        focusedRowId === row.id && 'bg-secondary/50'
       )}
       key={row.id}
       data-state={row.getIsSelected() && 'selected'}
@@ -304,7 +304,7 @@ export function DataTable<TData>({
   return (
     <div className={cn('flex flex-col h-full border-t relative', className)}>
       {Object.keys(rowSelection).length > 0 && (
-        <div className="h-12 flex flex-none px-4 items-center border-primary border-[1.5px] rounded-lg absolute bottom-20 z-50 left-1/2 transform -translate-x-1/2">
+        <div className="bg-background h-12 flex flex-none px-4 items-center border-primary border-[1.5px] rounded-lg absolute bottom-20 z-50 left-1/2 transform -translate-x-1/2">
           <Label className="">
             {`${Object.keys(rowSelection).length} ${Object.keys(rowSelection).length === 1 ? 'row ' : 'rows '}`}
             selected

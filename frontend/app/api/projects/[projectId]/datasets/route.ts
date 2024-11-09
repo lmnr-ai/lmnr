@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 import { datasets } from '@/lib/db/migrations/schema';
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 import { eq, inArray } from 'drizzle-orm';
 import { and } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
@@ -55,9 +55,7 @@ export async function DELETE(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const { searchParams } = new URL(req.url);
   const datasetIds = searchParams.get('datasetIds')?.split(',');

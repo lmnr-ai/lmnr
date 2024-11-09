@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 import { NextRequest } from 'next/server';
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 
 import { db } from '@/lib/db/drizzle';
 import { and, eq } from 'drizzle-orm';
@@ -10,9 +10,7 @@ import { providerApiKeys } from '@/lib/db/migrations/schema';
 export async function GET(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const res = await db.select({
     name: providerApiKeys.name,
@@ -42,9 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: { projectId: 
 export async function DELETE(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const name = req.nextUrl.searchParams.get('name') ?? '';
 

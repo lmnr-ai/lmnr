@@ -1,4 +1,4 @@
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 import { db } from '@/lib/db/drizzle';
 import { labelingQueueItems, labels, evaluationScores, labelingQueues, evaluations, evaluationResults } from '@/lib/db/migrations/schema';
 import { eq, and } from 'drizzle-orm';
@@ -24,9 +24,7 @@ const removeQueueItemSchema = z.object({
 
 // remove an item from the queue
 export async function POST(request: Request, { params }: { params: { projectId: string; queueId: string } }) {
-  if (!(await isCurrentUserMemberOfProject(params.projectId))) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+
 
   const body = await request.json();
   const result = removeQueueItemSchema.safeParse(body);
