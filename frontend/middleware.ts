@@ -6,22 +6,40 @@ export default withAuth({
       const projectIdMatch = req.nextUrl.pathname.match(/\/projects?\/([^\/]+)/);
       const projectId = projectIdMatch ? projectIdMatch[1] : null;
 
-      const res = await fetch(`${process.env.NEXTAUTH_URL}/api/auth`, {
-        method: 'POST',
-        body: JSON.stringify({ projectId }),
-        headers: {
-          ...Object.fromEntries(req.headers),
-          'Authorization': `Bearer ${process.env.SHARED_SECRET_TOKEN}`,
-        },
-      });
+      try {
 
-      const data = await res.json();
+        const apiKey = token?.apiKey;
 
-      if (data.message !== 'Authorized') {
+        if (!apiKey) {
+          return false;
+        }
+
+        const res = await fetch(`${process.env.NEXTAUTH_URL}/api/auth`, {
+          method: 'POST',
+          body: JSON.stringify({
+            projectId,
+            apiKey
+          }),
+          headers: {
+            'Authorization': `Bearer ${process.env.SHARED_SECRET_TOKEN}`,
+          }
+        });
+
+        if (!res.ok) {
+          return false;
+        }
+
+        const data = await res.json();
+
+        if (data.message !== 'Authorized') {
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        console.log('error', error);
         return false;
       }
-
-      return true;
     },
   },
   pages: {
