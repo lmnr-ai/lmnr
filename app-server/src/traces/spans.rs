@@ -293,6 +293,7 @@ impl Span {
                 .get("SpanAttributes.LLM_PROMPTS.0.content")
                 .is_some()
             {
+                // handling the LiteLLM auto-instrumentation
                 let input_messages = input_chat_messages_from_prompt_content(
                     &attributes,
                     "SpanAttributes.LLM_PROMPTS",

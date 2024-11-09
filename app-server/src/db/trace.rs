@@ -457,8 +457,31 @@ pub async fn count_traces(
     date_range: &Option<DateRange>,
     text_search_filter: Option<String>,
 ) -> Result<i64> {
-    let mut query = QueryBuilder::<Postgres>::new("WITH ");
-    add_traces_info_expression(&mut query, date_range, project_id)?;
+    let mut query = QueryBuilder::<Postgres>::new(
+        "WITH traces_info AS (
+    SELECT
+        id,
+        start_time,
+        end_time,
+        version,
+        release,
+        user_id,
+        session_id,
+        metadata,
+        project_id,
+        input_token_count,
+        output_token_count,
+        total_token_count,
+        input_cost,
+        output_cost,
+        cost,
+        success,
+        trace_type,
+        EXTRACT(EPOCH FROM (end_time - start_time)) as latency,
+        CASE WHEN success = true THEN 'Success' ELSE 'Failed' END status
+    FROM traces
+    WHERE start_time IS NOT NULL AND end_time IS NOT NULL AND trace_type = 'DEFAULT')",
+    );
     query.push(
         "
         SELECT
@@ -471,6 +494,7 @@ pub async fn count_traces(
     }
     query.push(" WHERE project_id = ");
     query.push_bind(project_id);
+    add_date_range_to_query(&mut query, date_range, "start_time", Some("end_time"))?;
 
     add_filters_to_traces_query(&mut query, &filters);
 
