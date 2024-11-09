@@ -12,7 +12,6 @@ pub mod provider_api_keys;
 pub mod subscriptions;
 pub mod traces;
 pub mod types;
-pub mod users;
 pub mod workspace;
 
 use serde::{Deserialize, Serialize};

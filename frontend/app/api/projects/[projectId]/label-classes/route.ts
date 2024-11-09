@@ -1,7 +1,7 @@
 import { db } from '@/lib/db/drizzle';
 import { labelClasses } from '@/lib/db/migrations/schema';
 import { eq, desc } from 'drizzle-orm';
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
+
 
 
 export async function GET(
@@ -10,9 +10,7 @@ export async function GET(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const res = await db
     .select()
@@ -30,9 +28,7 @@ export async function POST(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
+
 
   const body = await req.json();
 

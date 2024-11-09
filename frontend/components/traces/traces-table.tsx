@@ -137,9 +137,12 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     searchParams.set('traceId', row.id!);
     searchParams.delete('spanId');
     onRowClick?.(row.id!);
-    setTraceId(row.id);
     router.push(`${pathName}?${searchParams.toString()}`);
   };
+
+  useEffect(() => {
+    setTraceId(searchParams.get('traceId') ?? null);
+  }, [searchParams]);
 
   const columns: ColumnDef<Trace, any>[] = [
     // {

@@ -264,10 +264,16 @@ impl Span {
         // to handle Traceloop's prompt/completion messages
         if span.span_type == SpanType::LLM {
             if attributes.get("gen_ai.prompt.0.content").is_some() {
-                let input_messages = input_chat_messages_from_prompt_content(&attributes);
+                let input_messages =
+                    input_chat_messages_from_prompt_content(&attributes, "gen_ai.prompt");
 
                 span.input = Some(json!(input_messages));
-                span.output = output_from_completion_content(&attributes);
+                span.output = output_from_completion_content(
+                    &attributes,
+                    "gen_ai.completion",
+                    "tool_calls",
+                    true,
+                );
             } else if attributes.get("ai.prompt.messages").is_some() {
                 // handling the Vercel's AI SDK auto-instrumentation
                 if let Ok(input_messages) = serde_json::from_str::<Vec<ChatMessage>>(
@@ -283,6 +289,23 @@ impl Span {
                 if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
                     span.output = Some(serde_json::Value::String(s.clone()));
                 }
+            } else if attributes
+                .get("SpanAttributes.LLM_PROMPTS.0.content")
+                .is_some()
+            {
+                // handling the LiteLLM auto-instrumentation
+                let input_messages = input_chat_messages_from_prompt_content(
+                    &attributes,
+                    "SpanAttributes.LLM_PROMPTS",
+                );
+                span.input = Some(json!(input_messages));
+
+                span.output = output_from_completion_content(
+                    &attributes,
+                    "SpanAttributes.LLM_COMPLETIONS",
+                    "function_call",
+                    false,
+                );
             }
         } else {
             if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
@@ -504,7 +527,7 @@ fn should_keep_attribute(attribute: &str) -> bool {
         return false;
     }
     // remove traceloop.entity.input/output as we parse them to span's input/output
-    // These are hard coded by opentelemetry-instrumentation-langchain for some of
+    // These are hard-coded by opentelemetry-instrumentation-langchain for some of
     // the deeply nested spans
     if attribute == "traceloop.entity.input" || attribute == "traceloop.entity.output" {
         return false;
@@ -518,9 +541,22 @@ fn should_keep_attribute(attribute: &str) -> bool {
         return false;
     }
 
+    // OpenLLMetry
     // remove gen_ai.prompt/completion attributes as they are stored in LLM span's input/output
     let pattern = Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap();
-    return !pattern.is_match(attribute);
+    if pattern.is_match(attribute) {
+        return false;
+    }
+
+    // LiteLLM
+    // remove SpanAttributes.LLM_PROMPTS/COMPLETIONS attributes as they are stored in LLM span's input/output
+    let pattern =
+        Regex::new(r"SpanAttributes\.LLM_(PROMPTS|COMPLETIONS)\.\d+\.(content|role)").unwrap();
+    if pattern.is_match(attribute) {
+        return false;
+    }
+
+    true
 }
 
 pub struct SpanUsage {
@@ -537,16 +573,17 @@ pub struct SpanUsage {
 
 fn input_chat_messages_from_prompt_content(
     attributes: &serde_json::Map<String, serde_json::Value>,
+    prefix: &str,
 ) -> Vec<ChatMessage> {
     let mut input_messages: Vec<ChatMessage> = vec![];
 
     let mut i = 0;
     while attributes
-        .get(format!("gen_ai.prompt.{}.content", i).as_str())
+        .get(format!("{}.{}.content", prefix, i).as_str())
         .is_some()
     {
         let content = if let Some(serde_json::Value::String(s)) =
-            attributes.get(format!("gen_ai.prompt.{}.content", i).as_str())
+            attributes.get(format!("{}.{}.content", prefix, i).as_str())
         {
             s.clone()
         } else {
@@ -554,7 +591,7 @@ fn input_chat_messages_from_prompt_content(
         };
 
         let role = if let Some(serde_json::Value::String(s)) =
-            attributes.get(format!("gen_ai.prompt.{i}.role").as_str())
+            attributes.get(format!("{}.{}.role", prefix, i).as_str())
         {
             s.clone()
         } else {
@@ -600,22 +637,64 @@ struct TextBlock {
     content_block_type: String,
 }
 
+fn tool_call_attribute(
+    prefix: &str,
+    tool_call_attribute_name: &str,
+    use_index_in_tools: bool,
+    index: usize,
+    attribute: &str,
+) -> String {
+    if use_index_in_tools {
+        format!("{prefix}.0.{tool_call_attribute_name}.{index}.{attribute}")
+    } else {
+        format!("{prefix}.0.{tool_call_attribute_name}.{attribute}")
+    }
+}
+
 fn output_from_completion_content(
     attributes: &serde_json::Map<String, serde_json::Value>,
+    prefix: &str,
+    tool_call_attribute_name: &str,
+    use_index_in_tools: bool,
 ) -> Option<serde_json::Value> {
-    let text_msg = attributes.get("gen_ai.completion.0.content");
+    let text_msg = attributes.get(format!("{prefix}.0.content").as_str());
 
     let mut tool_calls = Vec::new();
     let mut i = 0;
-    while let Some(serde_json::Value::String(tool_call_name)) =
-        attributes.get(format!("gen_ai.completion.0.tool_calls.{i}.name").as_str())
-    {
+
+    while let Some(serde_json::Value::String(tool_call_name)) = attributes.get(
+        tool_call_attribute(
+            prefix,
+            tool_call_attribute_name,
+            use_index_in_tools,
+            i,
+            "name",
+        )
+        .as_str(),
+    ) {
         let tool_call_id = attributes
-            .get(format!("gen_ai.completion.0.tool_calls.{i}.id").as_str())
+            .get(
+                tool_call_attribute(
+                    prefix,
+                    tool_call_attribute_name,
+                    use_index_in_tools,
+                    i,
+                    "id",
+                )
+                .as_str(),
+            )
             .and_then(|id| id.as_str())
             .map(String::from);
-        let tool_call_arguments_raw =
-            attributes.get(format!("gen_ai.completion.0.tool_calls.{i}.arguments").as_str());
+        let tool_call_arguments_raw = attributes.get(
+            tool_call_attribute(
+                prefix,
+                tool_call_attribute_name,
+                use_index_in_tools,
+                i,
+                "arguments",
+            )
+            .as_str(),
+        );
         let tool_call_arguments = match tool_call_arguments_raw {
             Some(serde_json::Value::String(s)) => {
                 let parsed = serde_json::from_str::<HashMap<String, Value>>(s);
@@ -635,6 +714,9 @@ fn output_from_completion_content(
         };
         tool_calls.push(serde_json::to_value(tool_call).unwrap());
         i += 1;
+        if !use_index_in_tools {
+            break;
+        }
     }
 
     if tool_calls.is_empty() {

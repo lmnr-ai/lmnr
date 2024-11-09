@@ -20,15 +20,13 @@ import { swrFetcher } from '@/lib/utils';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import DownloadButton from '../ui/download-button';
 
 interface DatasetProps {
   dataset: DatasetType;
 }
 
 export default function Dataset({ dataset }: DatasetProps) {
-  const [selectedDatapoint, setSelectedDatapoint] = useState<Datapoint | null>(
-    null
-  );
   const router = useRouter();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
@@ -39,6 +37,10 @@ export default function Dataset({ dataset }: DatasetProps) {
   );
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Get datapointId from URL params
+  const datapointId = searchParams.get('datapointId');
+  const [selectedDatapoint, setSelectedDatapoint] = useState<Datapoint | null>(null);
 
   const parseNumericSearchParam = (
     key: string,
@@ -69,6 +71,12 @@ export default function Dataset({ dataset }: DatasetProps) {
       setTotalCount(data.totalCount);
     }
   }, [data]);
+
+  useEffect(() => {
+    if (!datapointId) {
+      setSelectedDatapoint(null);
+    }
+  }, [datapointId]);
 
   const columns: ColumnDef<Datapoint>[] = [
     {
@@ -124,6 +132,28 @@ export default function Dataset({ dataset }: DatasetProps) {
     setIsDeleteDialogOpen(false);
   };
 
+  // Update URL when datapoint is selected
+  const handleDatapointSelect = (datapoint: Datapoint | null) => {
+    setSelectedDatapoint(datapoint);
+    const newSearchParams = new URLSearchParams(searchParams);
+    if (datapoint) {
+      newSearchParams.set('datapointId', datapoint.id);
+    } else {
+      newSearchParams.delete('datapointId');
+    }
+    router.push(`${pathName}?${newSearchParams.toString()}`);
+  };
+
+  // Load selected datapoint from URL param on initial load
+  useEffect(() => {
+    if (datapointId && datapoints) {
+      const datapoint = datapoints.find(d => d.id === datapointId);
+      if (datapoint) {
+        setSelectedDatapoint(datapoint);
+      }
+    }
+  }, [datapointId, datapoints]);
+
   return (
     <div className="h-full flex flex-col">
       <Header path={'datasets/' + dataset.name} />
@@ -131,13 +161,14 @@ export default function Dataset({ dataset }: DatasetProps) {
         <div className="flex-grow text-2xl font-medium">
           <h1>{dataset.name}</h1>
         </div>
+        <DownloadButton
+          uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
+          fileFormat="JSON"
+          filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${dataset.id}.json`}
+          variant="outline"
+        />
         <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
         <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
-        {/* <IndexDatasetDialog
-          datasetId={dataset.id}
-          defaultDataset={dataset}
-          onUpdate={mutate}
-        /> */}
       </div>
       <div className="flex-grow">
         <DataTable
@@ -145,10 +176,10 @@ export default function Dataset({ dataset }: DatasetProps) {
           data={datapoints}
           getRowId={(datapoint) => datapoint.id}
           onRowClick={(row) => {
-            setSelectedDatapoint(row.original);
+            handleDatapointSelect(row.original);
           }}
           paginated
-          focusedRowId={selectedDatapoint?.id}
+          focusedRowId={datapointId}
           manualPagination
           pageCount={pageCount}
           defaultPageSize={pageSize}
@@ -212,7 +243,7 @@ export default function Dataset({ dataset }: DatasetProps) {
                 datasetId={dataset.id}
                 datapoint={selectedDatapoint}
                 onClose={() => {
-                  setSelectedDatapoint(null);
+                  handleDatapointSelect(null);
                   mutate();
                 }}
               />

@@ -151,8 +151,12 @@ const providerMapping: { provider: string; models: LanguageModel[] }[] = [
         name: 'anthropic:claude-3-opus'
       },
       {
-        id: 'anthropic:claude-3-5-sonnet-20240620',
+        id: 'anthropic:claude-3-5-sonnet-20241022',
         name: 'anthropic:claude-3-5-sonnet'
+      },
+      {
+        id: 'anthropic:claude-3-5-haiku-20241022',
+        name: 'anthropic:claude-3-5-haiku'
       }
     ]
   },
@@ -251,9 +255,13 @@ const providerMapping: { provider: string; models: LanguageModel[] }[] = [
         name: 'bedrock:anthropic.claude-3-opus-20240229-v1:0'
       },
       {
+        id: 'bedrock:anthropic.claude-3-5-sonnet-20241022-v1:0',
+        name: 'bedrock:anthropic.claude-3-5-sonnet-20241022-v1:0'
+      },
+      {
         id: 'bedrock:anthropic.claude-instant-v1',
         name: 'bedrock:anthropic.claude-instant-v1'
-      }
+      },
     ]
   },
   {

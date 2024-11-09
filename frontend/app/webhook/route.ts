@@ -1,6 +1,8 @@
 import {
+  ItemDescription,
   LOOKUP_KEY_TO_TIER_NAME,
   getIdFromStripeObject,
+  isLookupKeyForAdditionalSeats,
   manageSubscriptionEvent
 } from '@/lib/checkout/utils';
 import { sendOnPaymentReceivedEmail } from '@/lib/emails/utils';
@@ -8,31 +10,17 @@ import { type NextRequest } from 'next/server';
 import stripe from 'stripe';
 
 async function sendEmailOnInvoiceReceived(
-  lookupKey: string,
-  description: string,
-  stripeCustomerId: string
+  itemDescriptions: ItemDescription[],
+  email: string,
 ) {
-  const res = await fetch(
-    `${process.env.BACKEND_URL}/api/v1/users/stripe_customers/${stripeCustomerId}`,
-    {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }
-  );
-  const user = await res.json();
-  const email = user.email;
-
   // set date as the current date
+  // TODO: use the date from the invoice
   const date = new Date().toLocaleDateString();
+  sendOnPaymentReceivedEmail(email, itemDescriptions, date);
 
-  const shortDescription = LOOKUP_KEY_TO_TIER_NAME[lookupKey];
-
-  sendOnPaymentReceivedEmail(email, description, date, shortDescription);
 }
 
-type SubscriptionEvent =
-  | stripe.CustomerSubscriptionUpdatedEvent
+type SubscriptionEvent = stripe.CustomerSubscriptionUpdatedEvent
   | stripe.CustomerSubscriptionDeletedEvent
   | stripe.CustomerSubscriptionCreatedEvent;
 async function handleSubscriptionChange(
@@ -41,57 +29,60 @@ async function handleSubscriptionChange(
 ) {
   const subscription = event.data.object;
   const status = subscription.status;
-  const subscriptionItem = event.data.object.items.data[0];
-  if (!subscriptionItem.plan.product) {
-    console.log(
-      `subscription updated event. No product found. subscriptionItem: ${subscriptionItem}`
-    );
+  if (['past_due', 'unpaid', 'paused'].includes(status)) {
+    // https://docs.stripe.com/customer-management/integrate-customer-portal#webhooks
+    // this does not include `canceled` status, because if `cancel_at_period_end` is set,
+    // the subscription will not be canceled immediately and the `deleted` event will be sent eventually.
+    console.log(`Subscription ${subscription.id} status changed to`, status);
     return;
   }
-  const stripeCustomerId = getIdFromStripeObject(subscription.customer);
-  const productId = getIdFromStripeObject(subscriptionItem.plan.product);
-  const workspaceId = subscription.metadata.workspaceId;
-  if (!stripeCustomerId) {
-    console.log(`subscription updated event. No stripeCustomerId found.`);
-    return;
-  }
-  if (!productId) {
-    console.log(`subscription updated event. No productId found.`);
-    return;
-  }
+  for (const subscriptionItem of subscription.items.data) {
+    if (!subscriptionItem.plan.product) {
+      console.log(
+        `subscription updated event. No product found. subscriptionItem: ${subscriptionItem}`
+      );
+      continue;
+    }
+    const stripeCustomerId = getIdFromStripeObject(subscription.customer);
+    const productId = getIdFromStripeObject(subscriptionItem.plan.product);
+    const workspaceId = subscription.metadata.workspaceId;
+    if (!stripeCustomerId) {
+      console.log(`subscription updated event. No stripeCustomerId found.`);
+      continue;
+    }
+    if (!productId) {
+      console.log(`subscription updated event. No productId found.`);
+      continue;
+    }
+    if (cancel) {
+      console.log(
+        `Subscription ${subscription.id} canceled. productId`,
+        productId
+      );
+      await manageSubscriptionEvent({
+        stripeCustomerId,
+        productId,
+        workspaceId,
+        subscriptionId: subscription.id,
+        quantity: subscriptionItem.quantity,
+        cancel: true
+      });
+      return;
+    }
 
-  if (cancel) {
-    console.log(
-      `Subscription ${subscription.id} canceled. productId`,
-      subscriptionItem.plan.product
-    );
-    await manageSubscriptionEvent(
-      stripeCustomerId,
-      productId,
-      workspaceId,
-      subscriptionItem.quantity,
-      true
-    );
-    return;
-  }
+    const lookupKey = subscriptionItem.price.lookup_key;
+    const isAdditionalSeats = isLookupKeyForAdditionalSeats(lookupKey);
 
-  if (status === 'active' && stripeCustomerId && productId) {
-    console.log(
-      `Subscription ${subscription.id} active. productId`,
-      subscriptionItem.plan.product
-    );
-    await manageSubscriptionEvent(
-      stripeCustomerId,
-      productId,
-      workspaceId,
-      subscriptionItem.quantity
-    );
-
-    if (['past_due', 'unpaid', 'paused'].includes(status)) {
-      // https://docs.stripe.com/customer-management/integrate-customer-portal#webhooks
-      // this does not include `canceled` status, because if `cancel_at_period_end` is set,
-      // the subscription will not be canceled immediately and the `deleted` event will be sent eventually.
-      console.log(`Subscription ${subscription.id} status changed to`, status);
+    if (status === 'active' && stripeCustomerId && productId) {
+      console.log(`Subscription ${subscription.id} active. productId`, productId);
+      await manageSubscriptionEvent({
+        stripeCustomerId,
+        productId,
+        workspaceId,
+        subscriptionId: subscription.id,
+        quantity: subscriptionItem.quantity,
+        isAdditionalSeats
+      });
     }
   }
 }
@@ -118,15 +109,21 @@ export async function POST(req: NextRequest): Promise<Response> {
   switch (event.type) {
   case 'invoice.payment_succeeded':
     const invoice = event.data.object;
-    const lookupKey =
-        invoice.lines.data[0].price?.lookup_key ?? 'pro_monthly_2024_09';
-    const productDescription = invoice.lines.data[0].description;
-    const stripeCustomerId = getIdFromStripeObject(invoice.customer);
-    if (stripeCustomerId) {
+    const itemDescriptions = invoice.lines.data.map((line) => {
+      const productDescription = line.description ?? '';
+      const lookupKey = line.price?.lookup_key ?? 'pro_monthly_2024_09';
+      const shortDescription = LOOKUP_KEY_TO_TIER_NAME[lookupKey];
+      return {
+        productDescription,
+        quantity: line.quantity,
+        shortDescription
+      } as ItemDescription;
+    });
+    const customerEmail = invoice.customer_email;
+    if (customerEmail) {
       await sendEmailOnInvoiceReceived(
-        lookupKey,
-        productDescription ?? '',
-        stripeCustomerId
+        itemDescriptions,
+        customerEmail
       );
     }
     break;

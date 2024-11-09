@@ -1,7 +1,7 @@
 import { db } from '@/lib/db/drizzle';
 import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
 import { spans, traces } from '@/lib/db/migrations/schema';
-import { getDateRangeFilters, isCurrentUserMemberOfProject, paginatedGet } from '@/lib/db/utils';
+import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
 import { Span } from '@/lib/traces/types';
 import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
@@ -10,11 +10,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
+
   const projectId = params.projectId;
 
-  if (!await isCurrentUserMemberOfProject(projectId)) {
-    return new Response(JSON.stringify({ error: "User is not a member of the project" }), { status: 403 });
-  }
 
   const pastHours = req.nextUrl.searchParams.get("pastHours");
   const startTime = req.nextUrl.searchParams.get("startDate");

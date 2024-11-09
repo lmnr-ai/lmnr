@@ -1,7 +1,7 @@
 import { db } from '@/lib/db/drizzle';
 import { evaluations } from '@/lib/db/migrations/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { isCurrentUserMemberOfProject, paginatedGet } from '@/lib/db/utils';
+import { paginatedGet } from '@/lib/db/utils';
 import { Evaluation } from '@/lib/evaluation/types';
 import { NextRequest } from 'next/server';
 
@@ -11,13 +11,6 @@ export async function GET(
 ): Promise<Response> {
   const projectId = params.projectId;
   const groupId = req.nextUrl.searchParams.get('groupId');
-
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(
-      JSON.stringify({ error: 'User is not a member of the project' }),
-      { status: 403 }
-    );
-  }
 
   if (groupId && !groupId.trim()) {
     const result = await db
@@ -47,13 +40,6 @@ export async function DELETE(
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
-
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(
-      JSON.stringify({ error: 'User is not a member of the project' }),
-      { status: 403 }
-    );
-  }
 
   const { searchParams } = new URL(req.url);
   const evaluationIds = searchParams.get('evaluationIds')?.split(',');
