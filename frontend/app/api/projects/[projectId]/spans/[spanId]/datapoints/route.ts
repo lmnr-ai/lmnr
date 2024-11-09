@@ -1,6 +1,6 @@
 import { db } from "@/lib/db/drizzle";
 import { datapointToSpan } from "@/lib/db/migrations/schema";
-import { isCurrentUserMemberOfProject } from "@/lib/db/utils";
+import { isUserMemberOfProject } from "@/lib/db/utils";
 import { eq } from "drizzle-orm";
 
 
@@ -9,11 +9,7 @@ export async function GET(
   { params }: { params: { projectId: string; spanId: string } }
 ) {
 
-  const { projectId, spanId } = params;
-
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response('Unauthorized', { status: 401 });
-  }
+  const { spanId } = params;
 
   const datapoints = await db.query.datapointToSpan.findMany({
     where: eq(datapointToSpan.spanId, spanId),
