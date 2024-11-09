@@ -1,12 +1,19 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::evaluations::utils::EvaluationDatapointResult;
 
-use super::utils::{execute_query, validate_string_against_injection};
+use super::utils::{chrono_to_nanoseconds, execute_query, validate_string_against_injection};
+
+fn serialize_timestamp<S>(timestamp: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_i64(chrono_to_nanoseconds(timestamp.clone()))
+}
 
 /// Evaluation score
 #[derive(Row, Serialize)]
@@ -22,7 +29,7 @@ pub struct EvaluationScore {
     // Note that one evaluator can produce multiple scores
     pub name: String,
     pub value: f64,
-    #[serde(skip_serializing)] // Temporary, while we migrate tables
+    #[serde(serialize_with = "serialize_timestamp")]
     pub timestamp: DateTime<Utc>,
 }
 
@@ -68,7 +75,7 @@ pub async fn insert_evaluation_scores(
         return Ok(());
     }
 
-    let ch_insert = clickhouse.insert("old_evaluation_scores");
+    let ch_insert = clickhouse.insert("evaluation_scores");
     match ch_insert {
         Ok(mut ch_insert) => {
             for evaluation_score in evaluation_scores {
@@ -107,7 +114,7 @@ pub async fn get_average_evaluation_score(
 
     let query = format!(
         "SELECT avg(value) as average_value
-        FROM old_evaluation_scores
+        FROM evaluation_scores
         WHERE project_id = '{project_id}'
             AND evaluation_id = '{evaluation_id}'
             AND name = '{name}'",
@@ -163,7 +170,7 @@ SELECT
             AND value <= intervals.upper_bound THEN 1
         ELSE NULL
     END) AS height
-FROM old_evaluation_scores
+FROM evaluation_scores
 JOIN intervals ON 1 = 1
 WHERE project_id = '{project_id}'
 AND evaluation_id = '{evaluation_id}'
@@ -201,7 +208,7 @@ pub async fn get_global_evaluation_scores_bounds(
         "
 SELECT
     MAX(value) AS upper_bound
-FROM old_evaluation_scores
+FROM evaluation_scores
 WHERE project_id = '{project_id}'
     AND evaluation_id IN ({evaluation_ids_str})
     AND name = '{name}'",
