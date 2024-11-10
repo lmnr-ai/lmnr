@@ -6,8 +6,6 @@ CREATE TABLE IF NOT EXISTS "datapoint_to_span" (
 	CONSTRAINT "datapoint_to_span_pkey" PRIMARY KEY("datapoint_id","span_id","project_id")
 );
 --> statement-breakpoint
-ALTER TABLE "labeling_queue_items" DROP CONSTRAINT "labelling_queue_data_queue_id_fkey";
---> statement-breakpoint
 ALTER TABLE "labels" ALTER COLUMN "value" SET NOT NULL;--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "datapoint_to_span" ADD CONSTRAINT "datapoint_to_span_datapoint_id_fkey" FOREIGN KEY ("datapoint_id") REFERENCES "public"."dataset_datapoints"("id") ON DELETE cascade ON UPDATE cascade;
