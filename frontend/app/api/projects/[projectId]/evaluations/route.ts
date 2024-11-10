@@ -10,29 +10,14 @@ export async function GET(
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
-  const groupId = req.nextUrl.searchParams.get('groupId');
 
-  if (groupId && !groupId.trim()) {
-    const result = await db
-      .select()
-      .from(evaluations)
-      .where(
-        and(
-          eq(evaluations.projectId, projectId),
-          eq(evaluations.groupId, groupId)
-        )
-      );
+  const result = await paginatedGet<any, Evaluation>({
+    table: evaluations,
+    filters: [eq(evaluations.projectId, projectId)],
+    orderBy: desc(evaluations.createdAt)
+  });
 
-    return Response.json(result);
-  } else {
-    const result = await paginatedGet<any, Evaluation>({
-      table: evaluations,
-      filters: [eq(evaluations.projectId, projectId)],
-      orderBy: desc(evaluations.createdAt)
-    });
-
-    return Response.json(result);
-  }
+  return Response.json(result);
 }
 
 export async function DELETE(

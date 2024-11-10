@@ -1,4 +1,3 @@
-import { isCurrentUserMemberOfProject } from '@/lib/db/utils';
 import { db } from '@/lib/db/drizzle';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import {
@@ -13,13 +12,6 @@ export async function GET(
 ): Promise<Response> {
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;
-
-  if (!(await isCurrentUserMemberOfProject(projectId))) {
-    return new Response(
-      JSON.stringify({ error: 'User is not a member of the project' }),
-      { status: 403 }
-    );
-  }
 
   const getEvaluation = db.query.evaluations.findFirst({
     where: and(
