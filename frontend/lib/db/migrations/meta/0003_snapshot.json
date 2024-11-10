@@ -758,7 +758,7 @@
       "indexes": {},
       "foreignKeys": {
         "labelling_queue_items_queue_id_fkey": {
-          "name": "llabelling_queue_items_queue_id_fkey",
+          "name": "labelling_queue_items_queue_id_fkey",
           "tableFrom": "labeling_queue_items",
           "tableTo": "labeling_queues",
           "columnsFrom": [
