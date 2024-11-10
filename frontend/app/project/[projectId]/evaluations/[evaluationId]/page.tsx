@@ -1,9 +1,13 @@
-import { authOptions } from '@/lib/auth';
-import { getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
 import { Metadata } from 'next';
-import { fetcherJSON } from '@/lib/utils';
 import Evaluation from '@/components/evaluation/evaluation';
+import { EvaluationResultsInfo } from '@/lib/evaluation/types';
+import { db } from '@/lib/db/drizzle';
+import {
+  evaluationResults,
+  evaluations,
+  evaluationScores
+} from '@/lib/db/migrations/schema';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 export const metadata: Metadata = {
   title: 'Evaluation results'
@@ -14,40 +18,82 @@ export default async function EvaluationPage({
 }: {
   params: { projectId: string; evaluationId: string };
 }) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    redirect('/sign-in');
-  }
-
-  const user = session.user;
-
-  const getEvaluationInfo = fetcherJSON(
-    `/projects/${params.projectId}/evaluations/${params.evaluationId}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${user.apiKey}`
-      }
-    }
+  const evaluationInfo = await getEvaluationInfo(
+    params.projectId,
+    params.evaluationId
   );
 
-  // Expect backend to return only evaluations from the current group based on the current evaluation id
-  const getEvaluations = fetcherJSON(
-    `/projects/${params.projectId}/evaluations?currentEvaluationId=${params.evaluationId}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${user.apiKey}`
-      }
-    }
-  );
-
-  const [evaluationInfo, evaluations] = await Promise.all([
-    getEvaluationInfo,
-    getEvaluations
-  ]);
+  const evaluationsByGroupId = await db.query.evaluations.findMany({
+    where: and(
+      eq(evaluations.projectId, params.projectId),
+      eq(evaluations.groupId, evaluationInfo.evaluation.groupId)
+    )
+  });
 
   return (
-    <Evaluation evaluationInfo={evaluationInfo} evaluations={evaluations} />
+    <Evaluation
+      evaluationInfo={evaluationInfo}
+      evaluations={evaluationsByGroupId}
+    />
   );
+}
+
+async function getEvaluationInfo(
+  projectId: string,
+  evaluationId: string
+): Promise<EvaluationResultsInfo> {
+  const getEvaluation = db.query.evaluations.findFirst({
+    where: and(
+      eq(evaluations.id, evaluationId),
+      eq(evaluations.projectId, projectId)
+    )
+  });
+
+  const subQueryScoreCte = db.$with('scores').as(
+    db
+      .select({
+        resultId: evaluationScores.resultId,
+        cteScores:
+          sql`jsonb_object_agg(${evaluationScores.name}, ${evaluationScores.score})`.as(
+            'cte_scores'
+          )
+      })
+      .from(evaluationScores)
+      .groupBy(evaluationScores.resultId)
+  );
+
+  const getEvaluationResults = db
+    .with(subQueryScoreCte)
+    .select({
+      id: evaluationResults.id,
+      createdAt: evaluationResults.createdAt,
+      evaluationId: evaluationResults.evaluationId,
+      data: evaluationResults.data,
+      target: evaluationResults.target,
+      executorOutput: evaluationResults.executorOutput,
+      scores: subQueryScoreCte.cteScores,
+      traceId: evaluationResults.traceId
+    })
+    .from(evaluationResults)
+    .leftJoin(
+      subQueryScoreCte,
+      eq(evaluationResults.id, subQueryScoreCte.resultId)
+    )
+    .where(eq(evaluationResults.evaluationId, evaluationId))
+    .orderBy(
+      asc(evaluationResults.createdAt),
+      asc(evaluationResults.indexInBatch)
+    );
+
+  const [evaluation, results] = await Promise.all([
+    getEvaluation,
+    getEvaluationResults
+  ]);
+
+  const result = {
+    evaluation: evaluation,
+    results
+  } as EvaluationResultsInfo;
+
+  return result;
 }

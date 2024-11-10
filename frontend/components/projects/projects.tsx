@@ -7,7 +7,7 @@ import { WorkspaceWithProjects } from '@/lib/workspaces/types';
 import ProjectCreateDialog from './project-create-dialog';
 import WorkspaceCreateDialog from './workspace-create-dialog';
 import useSWR from 'swr';
-import { swrFetcher } from '@/lib/utils';
+import { cn, swrFetcher } from '@/lib/utils';
 import { Skeleton } from '../ui/skeleton';
 import { useRouter } from 'next/navigation';
 
@@ -57,11 +57,14 @@ export default function Projects({ isWorkspaceEnabled }: ProjectsProps) {
             <div className="flex flex-col space-y-12">
               {data.map((workspace) => (
                 <div key={workspace.id} className="flex flex-col">
-                  <Label className="text-lg font-medium mb-4">
-                    {workspace.name}
-                  </Label>
+                  <div className="text-lg font-medium mb-4 flex items-center gap-2">
+                    <span className="">{workspace.name}</span>
+                    <div className={cn("text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20", workspace.tierName === 'Pro' && 'border-primary bg-primary/10 text-primary')}>
+                      {workspace.tierName}
+                    </div>
+                  </div>
                   {workspace.projects.length === 0 && (
-                    <div className="flex flex-col text-secondary-foreground">
+                    <div className="flex flex-col text-secondary-foreground text-sm">
                       No projects in this workspace yet. <br />
                       Start by creating a new project.
                     </div>

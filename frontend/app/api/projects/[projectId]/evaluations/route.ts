@@ -3,19 +3,18 @@ import { evaluations } from '@/lib/db/migrations/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { paginatedGet } from '@/lib/db/utils';
 import { Evaluation } from '@/lib/evaluation/types';
+import { NextRequest } from 'next/server';
 
 export async function GET(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
 
-
-
   const result = await paginatedGet<any, Evaluation>({
     table: evaluations,
     filters: [eq(evaluations.projectId, projectId)],
-    orderBy: desc(evaluations.createdAt),
+    orderBy: desc(evaluations.createdAt)
   });
 
   return Response.json(result);
@@ -27,17 +26,18 @@ export async function DELETE(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-
-
   const { searchParams } = new URL(req.url);
   const evaluationIds = searchParams.get('evaluationIds')?.split(',');
 
   if (!evaluationIds) {
-    return new Response('At least one Evaluation ID is required', { status: 400 });
+    return new Response('At least one Evaluation ID is required', {
+      status: 400
+    });
   }
 
   try {
-    await db.delete(evaluations)
+    await db
+      .delete(evaluations)
       .where(
         and(
           inArray(evaluations.id, evaluationIds),

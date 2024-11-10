@@ -7,6 +7,8 @@ import { Feature } from '@/lib/features/features';
 import { clickhouseClient } from '@/lib/clickhouse/client';
 import { z } from 'zod';
 
+const NANOS_PER_MILLISECOND = 1_000_000;
+
 const removeQueueItemSchema = z.object({
   id: z.string(),
   spanId: z.string(),
@@ -86,6 +88,7 @@ export async function POST(request: Request, { params }: { params: { projectId: 
             result_id: resultId,
             name: value.name,
             value: value.score,
+            timestamp: new Date().getTime() * NANOS_PER_MILLISECOND
           }))
         });
       }

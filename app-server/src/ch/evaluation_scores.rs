@@ -1,11 +1,19 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use clickhouse::Row;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::evaluations::utils::EvaluationDatapointResult;
 
-use super::utils::{execute_query, validate_string_against_injection};
+use super::utils::{chrono_to_nanoseconds, execute_query, validate_string_against_injection};
+
+fn serialize_timestamp<S>(timestamp: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_i64(chrono_to_nanoseconds(timestamp.clone()))
+}
 
 /// Evaluation score
 #[derive(Row, Serialize)]
@@ -21,6 +29,8 @@ pub struct EvaluationScore {
     // Note that one evaluator can produce multiple scores
     pub name: String,
     pub value: f64,
+    #[serde(serialize_with = "serialize_timestamp")]
+    pub timestamp: DateTime<Utc>,
 }
 
 impl EvaluationScore {
@@ -30,6 +40,10 @@ impl EvaluationScore {
         project_id: Uuid,
         group_id: String,
         evaluation_id: Uuid,
+        // TODO: timestamp must be set in each point. This needs to be sent from
+        // client libraries. For now the same timestamp is used for all scores,
+        // which is fine.
+        timestamp: DateTime<Utc>,
     ) -> Vec<EvaluationScore> {
         points
             .iter()
@@ -45,6 +59,7 @@ impl EvaluationScore {
                         result_id: *result_id,
                         name: name.to_string(),
                         value: value.clone(),
+                        timestamp,
                     }
                 })
             })
@@ -98,10 +113,11 @@ pub async fn get_average_evaluation_score(
     validate_string_against_injection(&name)?;
 
     let query = format!(
-        "SELECT avg(value) as average_value FROM evaluation_scores WHERE project_id = '{}' AND evaluation_id = '{}' AND name = '{}'",
-        project_id,
-        evaluation_id,
-        name
+        "SELECT avg(value) as average_value
+        FROM evaluation_scores
+        WHERE project_id = '{project_id}'
+            AND evaluation_id = '{evaluation_id}'
+            AND name = '{name}'",
     );
 
     let rows: Vec<AverageEvaluationScore> = execute_query(&clickhouse, &query).await?;
@@ -137,10 +153,10 @@ pub async fn get_evaluation_score_buckets_based_on_bounds(
         "
 WITH intervals AS (
     SELECT
-        arrayJoin([{}]) AS interval_num,
+        arrayJoin([{interval_nums}]) AS interval_num,
         {:?} + ((interval_num - 1) * {:?}) AS lower_bound,
         CASE
-            WHEN interval_num = {} THEN {:?}
+            WHEN interval_num = {bucket_count} THEN {:?}
             ELSE {:?} + (interval_num * {:?})
         END AS upper_bound
 )
@@ -149,17 +165,19 @@ SELECT
     intervals.upper_bound,
     COUNT(CASE
         WHEN value >= intervals.lower_bound AND value < intervals.upper_bound THEN 1
-        WHEN intervals.interval_num = {} AND value >= intervals.lower_bound AND value <= intervals.upper_bound THEN 1
+        WHEN intervals.interval_num = {bucket_count}
+            AND value >= intervals.lower_bound
+            AND value <= intervals.upper_bound THEN 1
         ELSE NULL
     END) AS height
 FROM evaluation_scores
 JOIN intervals ON 1 = 1
-WHERE project_id = '{}'
-AND evaluation_id = '{}'
-AND name = '{}'
+WHERE project_id = '{project_id}'
+AND evaluation_id = '{evaluation_id}'
+AND name = '{name}'
 GROUP BY intervals.lower_bound, intervals.upper_bound, intervals.interval_num
 ORDER BY intervals.interval_num",
-        interval_nums, lower_bound, step_size, bucket_count, upper_bound, lower_bound, step_size, bucket_count, project_id, evaluation_id, name
+        lower_bound, step_size, upper_bound, lower_bound, step_size
     );
 
     let rows: Vec<EvaluationScoreBucket> = execute_query(&clickhouse, &query).await?;
@@ -191,10 +209,9 @@ pub async fn get_global_evaluation_scores_bounds(
 SELECT
     MAX(value) AS upper_bound
 FROM evaluation_scores
-WHERE project_id = '{}'
-  AND evaluation_id IN ({})
-  AND name = '{}'",
-        project_id, evaluation_ids_str, name
+WHERE project_id = '{project_id}'
+    AND evaluation_id IN ({evaluation_ids_str})
+    AND name = '{name}'",
     );
 
     let rows: Vec<ComparedEvaluationScoresBounds> = execute_query(&clickhouse, &query).await?;
