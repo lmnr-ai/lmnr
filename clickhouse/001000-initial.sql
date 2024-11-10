@@ -40,11 +40,12 @@ SETTINGS index_granularity = 8192 SETTINGS flatten_nested=0;
 CREATE TABLE evaluation_scores (
     project_id UUID,
     group_id String,
+    timestamp DateTime64(9, 'UTC'),
     evaluation_id UUID,
     result_id UUID,
     name String,
     value Float64
 ) ENGINE = MergeTree()
-ORDER BY (project_id, group_id, evaluation_id, name)
+ORDER BY (project_id, group_id, timestamp, evaluation_id, name)
 SETTINGS index_granularity = 8192
 SETTINGS flatten_nested=0;
