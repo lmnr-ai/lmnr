@@ -1,6 +1,3 @@
-import { authOptions } from '@/lib/auth';
-import { getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
 import { Metadata } from 'next';
 import Evaluation from '@/components/evaluation/evaluation';
 import { EvaluationResultsInfo } from '@/lib/evaluation/types';
@@ -21,11 +18,6 @@ export default async function EvaluationPage({
 }: {
   params: { projectId: string; evaluationId: string };
 }) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    redirect('/sign-in');
-  }
-
   const evaluationInfo = await getEvaluationInfo(
     params.projectId,
     params.evaluationId
