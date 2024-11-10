@@ -114,12 +114,15 @@ async fn get_time_bounds(
             MAX({column_name}) AS max_time
         FROM
             {table_name}
-        WHERE project_id = '{project_id}'",
+        WHERE project_id = ?",
     );
 
-    let mut cursor = clickhouse.query(&query_string).fetch::<TimeBounds>()?;
+    let time_bounds = clickhouse
+        .query(&query_string)
+        .bind(project_id)
+        .fetch_one::<TimeBounds>()
+        .await?;
 
-    let time_bounds = cursor.next().await?.unwrap();
     Ok(time_bounds)
 }
 
@@ -134,37 +137,4 @@ pub async fn get_bounds(
         nanoseconds_to_chrono(time_bounds.min_time),
         nanoseconds_to_chrono(time_bounds.max_time),
     ))
-}
-
-pub async fn execute_query<'de, T>(
-    clickhouse: &clickhouse::Client,
-    query_string: &str,
-) -> Result<Vec<T>>
-where
-    T: Row + Deserialize<'de>,
-{
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(Vec::new());
-    }
-
-    let mut cursor = clickhouse.query(query_string).fetch::<T>()?;
-
-    let mut res = Vec::new();
-    while let Some(row) = cursor.next().await? {
-        res.push(row);
-    }
-
-    Ok(res)
-}
-
-/// Trivial SQL injection protection
-pub fn validate_string_against_injection(s: &str) -> Result<()> {
-    let invalid_chars = ["'", "\"", "\\", ";", "*", "/", "--"];
-    if invalid_chars.iter().any(|&c| s.contains(c))
-        || s.to_lowercase().contains("union")
-        || s.to_lowercase().contains("select")
-    {
-        return Err(anyhow::anyhow!("Invalid characters or SQL keywords"));
-    }
-    return Ok(());
 }

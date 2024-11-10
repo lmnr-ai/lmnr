@@ -48,3 +48,9 @@ export type PaginatedResponse<T> = {
 export type PaginatedGetResponseWithProjectPresenceFlag<T> = PaginatedResponse<T> & {
   anyInProject: boolean;
 };
+
+export type BucketRow = {
+  lowerBound: number;
+  upperBound: number;
+  heights: number[];
+};

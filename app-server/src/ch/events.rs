@@ -10,8 +10,7 @@ use crate::db::{self, event_templates::EventTemplate};
 use super::{
     modifiers::GroupByInterval,
     utils::{
-        chrono_to_nanoseconds, execute_query, group_by_time_absolute_statement,
-        group_by_time_relative_statement,
+        chrono_to_nanoseconds, group_by_time_absolute_statement, group_by_time_relative_statement,
     },
     MetricTimeValue,
 };
@@ -132,14 +131,22 @@ pub async fn get_total_event_count_metrics_relative(
         COUNT(DISTINCT id) AS value
     FROM events
     WHERE
-        project_id = '{project_id}'
-        AND template_id = '{template_id}'
-        AND timestamp >= now() - INTERVAL {past_hours} HOUR
+        project_id = ?
+        AND template_id = ?
+        AND timestamp >= now() - INTERVAL ? HOUR
     {}",
         group_by_time_relative_statement(past_hours, group_by_interval),
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let rows: Vec<MetricTimeValue<i64>> = clickhouse
+        .query(&query_string)
+        .bind(project_id)
+        .bind(template_id)
+        .bind(past_hours)
+        .fetch_all::<MetricTimeValue<i64>>()
+        .await?;
+
+    Ok(rows)
 }
 
 pub async fn get_total_event_count_metrics_absolute(
@@ -161,13 +168,22 @@ pub async fn get_total_event_count_metrics_absolute(
         COUNT(DISTINCT id) AS value
     FROM events
     WHERE
-        project_id = '{project_id}'
-        AND template_id = '{template_id}'
-        AND timestamp >= fromUnixTimestamp({ch_start_time})
-        AND timestamp <= fromUnixTimestamp({ch_end_time})
+        project_id = ?
+        AND template_id = ?
+        AND timestamp >= fromUnixTimestamp(?)
+        AND timestamp <= fromUnixTimestamp(?)
     {}",
         group_by_time_absolute_statement(start_time, end_time, group_by_interval)
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let rows: Vec<MetricTimeValue<i64>> = clickhouse
+        .query(&query_string)
+        .bind(project_id)
+        .bind(template_id)
+        .bind(ch_start_time)
+        .bind(ch_end_time)
+        .fetch_all::<MetricTimeValue<i64>>()
+        .await?;
+
+    Ok(rows)
 }

@@ -486,8 +486,6 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::api_keys::create_project_api_key)
                                         .service(routes::api_keys::get_api_keys_for_project)
                                         .service(routes::api_keys::revoke_project_api_key)
-                                        .service(routes::evaluations::get_evaluation)
-                                        .service(routes::evaluations::delete_evaluation)
                                         .service(routes::evaluations::get_evaluation_score_stats)
                                         .service(
                                             routes::evaluations::get_evaluation_score_distribution,
@@ -504,8 +502,6 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::datasets::delete_datapoints)
                                         .service(routes::datasets::delete_all_datapoints)
                                         .service(routes::datasets::index_dataset)
-                                        .service(routes::evaluations::get_evaluations)
-                                        .service(routes::evaluations::get_evaluation)
                                         .service(routes::traces::get_traces)
                                         .service(routes::traces::get_single_trace)
                                         .service(routes::traces::get_single_span)
