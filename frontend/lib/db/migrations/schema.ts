@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 export const eventSource = pgEnum("event_source", ['AUTO', 'MANUAL', 'CODE']);
 export const eventType = pgEnum("event_type", ['BOOLEAN', 'STRING', 'NUMBER']);
 export const labelJobStatus = pgEnum("label_job_status", ['RUNNING', 'DONE']);
-export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO']);
+export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO', 'CODE']);
 export const labelType = pgEnum("label_type", ['BOOLEAN', 'CATEGORICAL']);
 export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION']);
 export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION']);
@@ -58,6 +58,7 @@ export const traces = pgTable("traces", {
 (table) => ({
   idProjectIdStartTimeTimesNotNullIdx: index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast(), table.projectId.asc().nullsLast(), table.startTime.desc().nullsFirst()).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
   projectIdIdx: index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast()),
+  projectIdTraceTypeStartTimeEndTimeIdx: index("traces_project_id_trace_type_start_time_end_time_idx").using("btree", table.projectId.asc().nullsLast(), table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()).where(sql`((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
   sessionIdIdx: index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast()),
   startTimeEndTimeIdx: index("traces_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
   newTracesProjectIdFkey: foreignKey({
@@ -218,6 +219,20 @@ export const eventTemplates = pgTable("event_templates", {
   uniqueNameProjectId: unique("unique_name_project_id").on(table.name, table.projectId),
 }));
 
+export const playgrounds = pgTable("playgrounds", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  name: text().notNull(),
+  projectId: uuid("project_id").notNull(),
+},
+(table) => ({
+  playgroundsProjectIdFkey: foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "playgrounds_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+}));
+
 export const llmPrices = pgTable("llm_prices", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -270,6 +285,7 @@ export const apiKeys = pgTable("api_keys", {
   name: text().default('default').notNull(),
 },
 (table) => ({
+  userIdIdx: index("api_keys_user_id_idx").using("btree", table.userId.asc().nullsLast()),
   apiKeysUserIdFkey: foreignKey({
     columns: [table.userId],
     foreignColumns: [users.id],
@@ -544,9 +560,9 @@ export const spans = pgTable("spans", {
 },
 (table) => ({
   spanPathIdx: index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
-  parentSpanIdProjectIdStartTimeEndTimeIdx: index("spans_parent_span_id_project_id_start_time_end_time_idx").using("btree", table.parentSpanId.asc().nullsLast(), table.projectId.asc().nullsLast(), table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
-  projectIdIdx: index("spans_project_id_idx").using("btree", table.projectId.asc().nullsLast()),
+  projectIdIdx: index("spans_project_id_idx").using("hash", table.projectId.asc().nullsLast()),
   projectIdTraceIdStartTimeIdx: index("spans_project_id_trace_id_start_time_idx").using("btree", table.projectId.asc().nullsLast(), table.traceId.asc().nullsLast(), table.startTime.asc().nullsLast()),
+  rootProjectIdStartTimeEndTimeTraceIdIdx: index("spans_root_project_id_start_time_end_time_trace_id_idx").using("btree", table.projectId.asc().nullsLast(), table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast(), table.traceId.asc().nullsLast()).where(sql`(parent_span_id IS NULL)`),
   startTimeEndTimeIdx: index("spans_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
   traceIdIdx: index("spans_trace_id_idx").using("btree", table.traceId.asc().nullsLast()),
   traceIdStartTimeIdx: index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast(), table.startTime.asc().nullsLast()),

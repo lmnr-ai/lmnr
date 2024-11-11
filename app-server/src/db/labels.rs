@@ -17,6 +17,7 @@ pub enum LabelType {
 pub enum LabelSource {
     MANUAL,
     AUTO,
+    CODE,
 }
 
 #[derive(sqlx::Type, Serialize, Clone, PartialEq)]
@@ -34,7 +35,7 @@ pub struct LabelClass {
     pub name: String,
     pub project_id: Uuid,
     pub label_type: LabelType,
-    pub value_map: Value, // Vec<Value>
+    pub value_map: Value, // HashMap<String, f64>
     pub description: Option<String>,
     pub evaluator_runnable_graph: Option<Value>,
 }
@@ -111,54 +112,10 @@ pub async fn get_label_classes_by_project_id(
         query.push_bind(label_class_ids);
         query.push(")");
     }
+    query.push(" ORDER BY created_at DESC");
     let label_classes = query.build_query_as::<LabelClass>().fetch_all(pool).await?;
 
     Ok(label_classes)
-}
-
-pub async fn create_label_class(
-    pool: &PgPool,
-    id: Uuid,
-    name: String,
-    project_id: Uuid,
-    label_type: &LabelType,
-    value_map: Vec<Value>,
-    description: Option<String>,
-    evaluator_runnable_graph: Option<Value>,
-) -> Result<LabelClass> {
-    let label_class = sqlx::query_as::<_, LabelClass>(
-        "INSERT INTO label_classes (
-            id,
-            name,
-            project_id,
-            label_type,
-            value_map,
-            description,
-            evaluator_runnable_graph
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING
-            id,
-            created_at,
-            name,
-            project_id,
-            label_type,
-            value_map,
-            description,
-            evaluator_runnable_graph
-        ",
-    )
-    .bind(id)
-    .bind(name)
-    .bind(project_id)
-    .bind(label_type)
-    .bind(serde_json::to_value(value_map).unwrap())
-    .bind(description)
-    .bind(evaluator_runnable_graph)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(label_class)
 }
 
 pub async fn get_label_class(

@@ -200,6 +200,20 @@ impl SpanAttributes {
                 .insert(SPAN_PATH.to_string(), Value::String(span_name.to_string()));
         }
     }
+
+    pub fn get_labels(&self) -> HashMap<String, Value> {
+        let mut res = HashMap::new();
+        let label_prefix = format!("{ASSOCIATION_PROPERTIES_PREFIX}label.");
+        for (key, value) in self.attributes.iter() {
+            if key.starts_with(&label_prefix) {
+                res.insert(
+                    key.strip_prefix(&label_prefix).unwrap().to_string(),
+                    value.clone(),
+                );
+            }
+        }
+        res
+    }
 }
 
 impl Span {
