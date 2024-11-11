@@ -1,5 +1,5 @@
 import '@/app/globals.css';
-import ProjectNavbarCollapsed from '@/components/project/project-navbar-collapsed';
+import ProjectNavbarResizable from '@/components/project/project-navbar-resizable';
 import { ProjectContextProvider } from '@/contexts/project-context';
 import { UserContextProvider } from '@/contexts/user-context';
 import { authOptions } from '@/lib/auth';
@@ -55,7 +55,7 @@ export default async function ProjectIdLayout({
       <ProjectContextProvider projectId={project.id} projectName={project.name}>
         <div className="flex flex-row max-w-full max-h-screen">
           <div className="flex flex-col h-screen flex-shrink-0">
-            <ProjectNavbarCollapsed
+            <ProjectNavbarResizable
               projectId={projectId}
               fullBuild={isFeatureEnabled(Feature.FULL_BUILD)}
             />
