@@ -13,7 +13,8 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
-import logo from '@/assets/logo/icon.svg';
+import icon from '@/assets/logo/icon.svg';
+import logo from '@/assets/logo/logo.svg';
 import AvatarMenu from '../user/avatar-menu';
 
 interface ProjectNavBarProps {
@@ -81,24 +82,39 @@ export default function ProjectNavbarResizable({
 
   return (
     <div className="flex flex-col h-screen border-r text-md items-start w-14 relative group">
-      <div className="absolute top-0 left-0 h-full hover:w-48 w-14 transition-[width] duration-200 ease-out border-r z-50 bg-background">
+      <div className="absolute top-0 left-0 h-full hover:w-48 w-14 border-r z-50 bg-background">
         <Link
           href={'/projects'}
-          className="flex h-14 items-center w-14 group-hover:w-full px-4 py-2"
+          className="flex items-center h-14 w-14 group-hover:w-full px-4 py-2"
         >
-          <Image alt="Laminar AI icon" src={logo} height={20} />
+          <div className="relative w-full h-5">
+            <Image
+              alt="Laminar AI icon"
+              src={icon}
+              height={18}
+              className="absolute left-0 group-hover:opacity-0"
+            />
+            <Image
+              alt="Laminar AI wide icon"
+              src={logo}
+              height={20}
+              className="absolute left-0 hidden group-hover:block"
+            />
+          </div>
         </Link>
+
         <div className="flex flex-col mt-2 w-full space-y-1">
           {navbarOptions.map((option, i) => (
             <Link
+              key={i}
               href={option.href}
               className={cn(
                 'flex items-center mx-2 px-2 py-2 rounded text-secondary-foreground',
                 'group-hover:w-[calc(100%-16px)] w-10',
                 'transition-all duration-200 ease-out',
                 pathname.startsWith(option.href)
-                  ? 'bg-secondary text-primary-foreground' // Highlight active option
-                  : 'hover:bg-secondary/50' // Hover effect for options
+                  ? 'bg-secondary text-primary-foreground'
+                  : 'hover:bg-secondary/50'
               )}
             >
               <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
@@ -110,6 +126,7 @@ export default function ProjectNavbarResizable({
             </Link>
           ))}
         </div>
+
         <div className="absolute bottom-0 left-0 mb-8 mt-2 w-14 group-hover:w-full px-4">
           <AvatarMenu />
         </div>
