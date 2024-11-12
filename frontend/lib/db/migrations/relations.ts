@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { pipelines, targetPipelineVersions, pipelineVersions, projects, traces, evaluations, evaluationResults, eventTemplates, events, labelingQueues, providerApiKeys, workspaces, workspaceUsage, evaluationScores, labelClassesForPath, users, apiKeys, datasets, datasetDatapoints, labelingQueueItems, membersOfWorkspaces, projectApiKeys, subscriptionTiers, userSubscriptionInfo, labelClasses, labels, datapointToSpan, spans } from "./schema";
+import { pipelines, targetPipelineVersions, pipelineVersions, projects, traces, evaluations, evaluationResults, eventTemplates, events, labelingQueues, providerApiKeys, workspaces, workspaceUsage, playgrounds, evaluationScores, labelClassesForPath, users, apiKeys, datasets, datasetDatapoints, labelingQueueItems, membersOfWorkspaces, projectApiKeys, subscriptionTiers, userSubscriptionInfo, labelClasses, labels, datapointToSpan, spans } from "./schema";
 
 export const targetPipelineVersionsRelations = relations(targetPipelineVersions, ({one}) => ({
   pipeline: one(pipelines, {
@@ -38,6 +38,7 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   providerApiKeys: many(providerApiKeys),
   evaluations: many(evaluations),
   eventTemplates: many(eventTemplates),
+  playgrounds: many(playgrounds),
   labelClassesForPaths: many(labelClassesForPath),
   datasets: many(datasets),
   pipelines: many(pipelines),
@@ -110,6 +111,13 @@ export const workspacesRelations = relations(workspaces, ({one, many}) => ({
   subscriptionTier: one(subscriptionTiers, {
     fields: [workspaces.tierId],
     references: [subscriptionTiers.id]
+  }),
+}));
+
+export const playgroundsRelations = relations(playgrounds, ({one}) => ({
+  project: one(projects, {
+    fields: [playgrounds.projectId],
+    references: [projects.id]
   }),
 }));
 

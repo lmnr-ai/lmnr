@@ -12,9 +12,6 @@ use crate::{
 #[derive(Clone)]
 pub struct WorkspaceLimitsExceeded {
     pub spans: bool,
-    // TODO: for now it does not make sense to count events within the Otel span on
-    // the MQ producer side, so events limit is not used.
-    pub _events: bool,
 }
 
 pub async fn get_workspace_limit_exceeded_by_project_id(
@@ -34,8 +31,6 @@ pub async fn get_workspace_limit_exceeded_by_project_id(
             let is_free_tier = workspace_stats.tier_name.to_lowercase().trim() == "free";
             let workspace_limits_exceeded = WorkspaceLimitsExceeded {
                 spans: workspace_stats.spans_this_month >= workspace_stats.spans_limit
-                    && is_free_tier,
-                _events: workspace_stats.events_this_month >= workspace_stats.events_limit
                     && is_free_tier,
             };
             let _ = cache
@@ -71,7 +66,6 @@ pub async fn update_workspace_limit_exceeded_by_workspace_id(
     let is_free_tier = workspace_stats.tier_name.to_lowercase().trim() == "free";
     let workspace_limits_exceeded = WorkspaceLimitsExceeded {
         spans: workspace_stats.spans_this_month >= workspace_stats.spans_limit && is_free_tier,
-        _events: workspace_stats.events_this_month >= workspace_stats.events_limit && is_free_tier,
     };
     let _ = cache
         .insert::<WorkspaceLimitsExceeded>(workspace_id.to_string(), &workspace_limits_exceeded)
