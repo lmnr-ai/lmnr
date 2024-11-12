@@ -1,12 +1,10 @@
 import { authOptions } from '@/lib/auth';
-import { fetcherJSON } from '@/lib/utils';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 
 import { Metadata } from 'next';
 import Dataset from '@/components/dataset/dataset';
 import { db } from '@/lib/db/drizzle';
-import { Dataset as DatasetType } from '@/lib/dataset/types';
 import { and, eq } from 'drizzle-orm';
 import { datasets } from '@/lib/db/migrations/schema';
 
