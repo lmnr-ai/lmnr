@@ -17,7 +17,10 @@ use crate::{
     pipeline::runner::PipelineRunner,
     semantic_search::SemanticSearch,
     storage::Storage,
-    traces::{evaluators::run_evaluator, utils::record_span_to_db},
+    traces::{
+        evaluators::run_evaluator,
+        utils::{record_labels_to_db, record_span_to_db},
+    },
 };
 
 pub async fn process_queue_spans<T: Storage + ?Sized>(
@@ -136,7 +139,6 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
                 }
                 // ignore the span if the limit is exceeded
                 Ok(limits_exceeded) => {
-                    // TODO: do the same for events
                     if limits_exceeded.spans {
                         let _ = delivery
                             .ack(BasicAckOptions::default())
@@ -189,6 +191,17 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
                 .ack(BasicAckOptions::default())
                 .await
                 .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
+        }
+
+        if let Err(e) =
+            record_labels_to_db(db.clone(), &span, &rabbitmq_span_message.project_id).await
+        {
+            log::error!(
+                "Failed to record labels to DB. span_id [{}], project_id [{}]: {:?}",
+                span.span_id,
+                rabbitmq_span_message.project_id,
+                e
+            );
         }
 
         let ch_span = CHSpan::from_db_span(&span, span_usage, rabbitmq_span_message.project_id);

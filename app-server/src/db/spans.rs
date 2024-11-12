@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -17,6 +19,22 @@ pub enum SpanType {
     EXECUTOR,
     EVALUATOR,
     EVALUATION,
+}
+
+impl FromStr for SpanType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().trim() {
+            "DEFAULT" | "SPAN" => Ok(SpanType::DEFAULT),
+            "LLM" => Ok(SpanType::LLM),
+            "PIPELINE" => Ok(SpanType::PIPELINE),
+            "EXECUTOR" => Ok(SpanType::EXECUTOR),
+            "EVALUATOR" => Ok(SpanType::EVALUATOR),
+            "EVALUATION" => Ok(SpanType::EVALUATION),
+            _ => Err(anyhow::anyhow!("Invalid span type: {}", s)),
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, FromRow)]

@@ -19,6 +19,7 @@ export type FilterDef = {
   column: string;
   operator: string;
   value: string;
+  castType?: string;
 }
 
 export const filtersToSql = (
@@ -29,11 +30,12 @@ export const filtersToSql = (
   let result = [];
   for (const filter of filters) {
     if (filter.column && filter.operator && filter.value != null) {
+      const value = filter.castType ? sql.raw(`${filter.value}::${filter.castType}`) : filter.value;
       const operator = filterOperators[filter.operator] ?? eq;
       if (additionalColumnDefinitions && filter.column in additionalColumnDefinitions) {
-        result.push(operator(additionalColumnDefinitions[filter.column], filter.value));
+        result.push(operator(additionalColumnDefinitions[filter.column], value));
       } else if (validateSqlColumnName(filter.column, allowPatterns)) {
-        result.push(operator(sql`${sql.raw(filter.column)}`, filter.value));
+        result.push(operator(sql.raw(filter.column), value));
       }
     }
   }
