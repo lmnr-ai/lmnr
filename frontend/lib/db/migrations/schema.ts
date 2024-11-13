@@ -1,14 +1,15 @@
 import { pgTable, foreignKey, unique, uuid, timestamp, index, pgPolicy, text, jsonb, bigint, boolean, doublePrecision, integer, primaryKey, pgEnum } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
-export const eventSource = pgEnum("event_source", ['AUTO', 'MANUAL', 'CODE'])
-export const eventType = pgEnum("event_type", ['BOOLEAN', 'STRING', 'NUMBER'])
-export const labelJobStatus = pgEnum("label_job_status", ['RUNNING', 'DONE'])
-export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO'])
-export const labelType = pgEnum("label_type", ['BOOLEAN', 'CATEGORICAL'])
-export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION'])
-export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION'])
-export const workspaceRole = pgEnum("workspace_role", ['member', 'owner'])
+export const eventSource = pgEnum("event_source", ['AUTO', 'MANUAL', 'CODE']);
+export const eventType = pgEnum("event_type", ['BOOLEAN', 'STRING', 'NUMBER']);
+export const labelJobStatus = pgEnum("label_job_status", ['RUNNING', 'DONE']);
+export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO', 'CODE']);
+export const labelType = pgEnum("label_type", ['BOOLEAN', 'CATEGORICAL']);
+export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION']);
+export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION']);
+export const workspaceRole = pgEnum("workspace_role", ['member', 'owner']);
+
 
 
 export const targetPipelineVersions = pgTable("target_pipeline_versions", {
@@ -54,8 +55,8 @@ export const traces = pgTable("traces", {
 	outputTokenCount: bigint("output_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
 	inputCost: doublePrecision("input_cost").default(sql`'0'`).notNull(),
 	outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
-}, (table) => {
-	return {
+},
+	(table) => ({
 		idProjectIdStartTimeTimesNotNullIdx: index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast(), table.projectId.asc().nullsLast(), table.startTime.desc().nullsFirst()).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
 		projectIdIdx: index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast()),
 		projectIdTraceTypeStartTimeEndTimeIdx: index("traces_project_id_trace_type_start_time_end_time_idx").using("btree", table.projectId.asc().nullsLast(), table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()).where(sql`((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
@@ -66,9 +67,7 @@ export const traces = pgTable("traces", {
 			foreignColumns: [projects.id],
 			name: "new_traces_project_id_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
-		selectByNextApiKey: pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_trace_id_accessible_for_api_key(api_key(), id)` }),
-	}
-});
+	}));
 
 export const evaluationResults = pgTable("evaluation_results", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -219,31 +218,29 @@ export const eventTemplates = pgTable("event_templates", {
 	name: text().notNull(),
 	projectId: uuid("project_id").notNull(),
 	eventType: eventType("event_type").default('BOOLEAN').notNull(),
-}, (table) => {
-	return {
+},
+	(table) => ({
 		eventTemplatesProjectIdFkey: foreignKey({
 			columns: [table.projectId],
 			foreignColumns: [projects.id],
 			name: "event_templates_project_id_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
 		uniqueNameProjectId: unique("unique_name_project_id").on(table.name, table.projectId),
-	}
-});
+	}));
 
 export const playgrounds = pgTable("playgrounds", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	name: text().notNull(),
 	projectId: uuid("project_id").notNull(),
-}, (table) => {
-	return {
+},
+	(table) => ({
 		playgroundsProjectIdFkey: foreignKey({
 			columns: [table.projectId],
 			foreignColumns: [projects.id],
 			name: "playgrounds_project_id_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
-	}
-});
+	}));
 
 export const llmPrices = pgTable("llm_prices", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -297,17 +294,15 @@ export const apiKeys = pgTable("api_keys", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	userId: uuid("user_id").notNull(),
 	name: text().default('default').notNull(),
-}, (table) => {
-	return {
+},
+	(table) => ({
 		userIdIdx: index("api_keys_user_id_idx").using("btree", table.userId.asc().nullsLast()),
 		apiKeysUserIdFkey: foreignKey({
 			columns: [table.userId],
 			foreignColumns: [users.id],
 			name: "api_keys_user_id_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
-		enableInsertForAuthenticatedUsersOnly: pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "all", to: ["service_role"], using: sql`true`, withCheck: sql`true` }),
-	}
-});
+	}));
 
 export const datasetDatapoints = pgTable("dataset_datapoints", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -591,8 +586,8 @@ export const spans = pgTable("spans", {
 	inputPreview: text("input_preview"),
 	outputPreview: text("output_preview"),
 	projectId: uuid("project_id").notNull(),
-}, (table) => {
-	return {
+},
+	(table) => ({
 		spanPathIdx: index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
 		projectIdIdx: index("spans_project_id_idx").using("hash", table.projectId.asc().nullsLast()),
 		projectIdTraceIdStartTimeIdx: index("spans_project_id_trace_id_start_time_idx").using("btree", table.projectId.asc().nullsLast(), table.traceId.asc().nullsLast(), table.startTime.asc().nullsLast()),
@@ -612,5 +607,4 @@ export const spans = pgTable("spans", {
 		}).onUpdate("cascade"),
 		spansPkey: primaryKey({ columns: [table.spanId, table.projectId], name: "spans_pkey" }),
 		uniqueSpanIdProjectId: unique("unique_span_id_project_id").on(table.spanId, table.projectId),
-	}
-});
+	}));

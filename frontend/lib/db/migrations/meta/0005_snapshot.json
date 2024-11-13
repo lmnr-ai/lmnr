@@ -1,5 +1,5 @@
 {
-  "id": "f4ed2063-a453-499e-be4b-f1c12ce14808",
+  "id": "29203101-0574-4be6-b134-9ae16ab00a34",
   "prevId": "c67dedc9-6a88-4e8e-8fb8-1990dfa64eee",
   "version": "7",
   "dialect": "postgresql",
@@ -69,20 +69,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "Enable insert for authenticated users only": {
-          "name": "Enable insert for authenticated users only",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "service_role"
-          ],
-          "using": "true",
-          "withCheck": "true"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.datapoint_to_span": {
       "name": "datapoint_to_span",
@@ -156,9 +143,7 @@
         }
       },
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.dataset_datapoints": {
       "name": "dataset_datapoints",
@@ -234,9 +219,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.datasets": {
       "name": "datasets",
@@ -294,9 +277,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.evaluation_results": {
       "name": "evaluation_results",
@@ -394,20 +375,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "select_by_next_api_key": {
-          "name": "select_by_next_api_key",
-          "as": "PERMISSIVE",
-          "for": "SELECT",
-          "to": [
-            "anon",
-            "authenticated"
-          ],
-          "using": "is_evaluation_id_accessible_for_api_key(api_key(), evaluation_id)"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.evaluation_scores": {
       "name": "evaluation_scores",
@@ -491,9 +459,7 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.evaluations": {
       "name": "evaluations",
@@ -557,20 +523,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "select_by_next_api_key": {
-          "name": "select_by_next_api_key",
-          "as": "PERMISSIVE",
-          "for": "SELECT",
-          "to": [
-            "anon",
-            "authenticated"
-          ],
-          "using": "is_evaluation_id_accessible_for_api_key(api_key(), id)"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.event_templates": {
       "name": "event_templates",
@@ -638,9 +591,7 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.events": {
       "name": "events",
@@ -728,9 +679,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.label_classes": {
       "name": "label_classes",
@@ -813,9 +762,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.label_classes_for_path": {
       "name": "label_classes_for_path",
@@ -883,9 +830,7 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.labeling_queue_items": {
       "name": "labeling_queue_items",
@@ -943,9 +888,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.labeling_queues": {
       "name": "labeling_queues",
@@ -996,9 +939,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.labels": {
       "name": "labels",
@@ -1101,9 +1042,7 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.llm_prices": {
       "name": "llm_prices",
@@ -1172,9 +1111,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.members_of_workspaces": {
       "name": "members_of_workspaces",
@@ -1271,9 +1208,7 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.pipeline_templates": {
       "name": "pipeline_templates",
@@ -1346,9 +1281,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.pipeline_versions": {
       "name": "pipeline_versions",
@@ -1403,20 +1336,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "all_actions_by_next_api_key": {
-          "name": "all_actions_by_next_api_key",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "anon",
-            "authenticated"
-          ],
-          "using": "is_pipeline_id_accessible_for_api_key(api_key(), pipeline_id)"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.pipelines": {
       "name": "pipelines",
@@ -1527,9 +1447,7 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.playgrounds": {
       "name": "playgrounds",
@@ -1580,9 +1498,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.project_api_keys": {
       "name": "project_api_keys",
@@ -1654,9 +1570,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.projects": {
       "name": "projects",
@@ -1723,9 +1637,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.provider_api_keys": {
       "name": "provider_api_keys",
@@ -1789,9 +1701,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.spans": {
       "name": "spans",
@@ -2087,9 +1997,7 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.subscription_tiers": {
       "name": "subscription_tiers",
@@ -2191,9 +2099,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.target_pipeline_versions": {
       "name": "target_pipeline_versions",
@@ -2265,9 +2171,7 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.traces": {
       "name": "traces",
@@ -2519,20 +2423,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "select_by_next_api_key": {
-          "name": "select_by_next_api_key",
-          "as": "PERMISSIVE",
-          "for": "SELECT",
-          "to": [
-            "anon",
-            "authenticated"
-          ],
-          "using": "is_trace_id_accessible_for_api_key(api_key(), id)"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.user_subscription_info": {
       "name": "user_subscription_info",
@@ -2600,9 +2491,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.users": {
       "name": "users",
@@ -2647,19 +2536,7 @@
           ]
         }
       },
-      "policies": {
-        "Enable insert for authenticated users only": {
-          "name": "Enable insert for authenticated users only",
-          "as": "PERMISSIVE",
-          "for": "INSERT",
-          "to": [
-            "service_role"
-          ],
-          "withCheck": "true"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.workspace_usage": {
       "name": "workspace_usage",
@@ -2755,9 +2632,7 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     },
     "public.workspaces": {
       "name": "workspaces",
@@ -2823,9 +2698,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraints": {}
     }
   },
   "enums": {
@@ -2860,7 +2733,8 @@
       "schema": "public",
       "values": [
         "MANUAL",
-        "AUTO"
+        "AUTO",
+        "CODE"
       ]
     },
     "public.label_type": {
@@ -2903,8 +2777,6 @@
   },
   "schemas": {},
   "sequences": {},
-  "roles": {},
-  "policies": {},
   "views": {},
   "_meta": {
     "columns": {},

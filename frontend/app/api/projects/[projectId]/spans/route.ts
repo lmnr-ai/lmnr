@@ -49,6 +49,11 @@ export async function GET(
       filter.column = "(attributes ->> 'gen_ai.usage.output_cost')::float8";
     } else if (filter.column === "cost") {
       filter.column = "(attributes ->> 'gen_ai.usage.cost')::float8";
+    } else if (filter.column === "span_type") {
+      // cast to span_type
+      const uppercased = filter.value.toUpperCase().trim();
+      filter.value = uppercased === 'SPAN' ? "'DEFAULT'" : `'${uppercased}'`;
+      filter.castType = "span_type";
     }
     return filter;
   });

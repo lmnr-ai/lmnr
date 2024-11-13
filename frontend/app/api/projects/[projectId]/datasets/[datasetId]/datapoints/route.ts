@@ -32,7 +32,7 @@ const CreateDatapointsSchema = z.object({
   datapoints: z.array(z.object({
     data: z.unknown(),
     target: z.any().optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.any().optional(),
   })),
   sourceSpanId: z.string().optional(),
 });
@@ -49,7 +49,7 @@ export async function POST(
   const body = await req.json();
 
   // Validate request body
-  const parseResult = CreateDatapointsSchema.required().safeParse(body);
+  const parseResult = CreateDatapointsSchema.safeParse(body);
   if (!parseResult.success) {
     return new Response(
       JSON.stringify({

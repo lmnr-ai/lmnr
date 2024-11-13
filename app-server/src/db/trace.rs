@@ -336,6 +336,9 @@ fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Opt
             } else if filter.filter_column == "trace_type" {
                 query.push_bind(filter_value_str);
                 query.push("::trace_type");
+            } else if filter.filter_column == "top_span_type" {
+                let span_type = filter_value_str.parse::<SpanType>().unwrap_or_default();
+                query.push_bind(span_type);
             } else {
                 query.push_bind(filter_value_str);
             }
