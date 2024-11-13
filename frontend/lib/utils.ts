@@ -3,6 +3,7 @@ import { twMerge } from 'tailwind-merge';
 import { InputVariable, PipelineVisibility } from './pipeline/types';
 import { ChatMessageContentPart, DatatableFilter } from './types';
 import * as Y from 'yjs';
+import { GroupByInterval } from './clickhouse/modifiers';
 
 export const TIME_MILLISECONDS_FORMAT = 'timeMilliseconds';
 
@@ -91,26 +92,40 @@ export function convertToLocalTimeWithMillis(isoDateString: string): string {
 
 export function formatTimestamp(timestampStr: string): string {
   const date = new Date(timestampStr);
-  return _innerFormatTimestamp(date);
+  return innerFormatTimestamp(date);
 }
 
 export function formatTimestampFromSeconds(seconds: number): string {
   const date = new Date(seconds * 1000);
-  return _innerFormatTimestamp(date);
+  return innerFormatTimestamp(date);
+}
+
+export function formatTimestampWithInterval(
+  timestampStr: string,
+  interval: GroupByInterval
+): string {
+  const date = new Date(timestampStr);
+  return innerFormatTimestampWithInterval(date, interval);
 }
 
 export function formatTimestampFromSecondsWithInterval(
   seconds: number,
-  interval: string
+  interval: GroupByInterval
 ): string {
   const date = new Date(seconds * 1000);
+  return innerFormatTimestampWithInterval(date, interval);
+}
 
-  if (interval === 'day') {
+function innerFormatTimestampWithInterval(
+  date: Date,
+  interval: GroupByInterval
+): string {
+  if (interval === GroupByInterval.Day) {
     return date.toLocaleDateString('en-US', {
       day: '2-digit',
       month: 'numeric'
     });
-  } else if (interval === 'hour') {
+  } else if (interval === GroupByInterval.Hour) {
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -126,7 +141,7 @@ export function formatTimestampFromSecondsWithInterval(
 }
 
 // Note that the formatted time is calculated for local time
-function _innerFormatTimestamp(date: Date): string {
+function innerFormatTimestamp(date: Date): string {
   const timeOptions: Intl.DateTimeFormatOptions = {
     hour: '2-digit',
     minute: '2-digit',
