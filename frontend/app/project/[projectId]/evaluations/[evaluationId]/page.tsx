@@ -8,6 +8,7 @@ import {
   evaluationScores
 } from '@/lib/db/migrations/schema';
 import { and, asc, eq, sql } from 'drizzle-orm';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
   title: 'Evaluation results'
@@ -89,6 +90,10 @@ async function getEvaluationInfo(
     getEvaluation,
     getEvaluationResults
   ]);
+
+  if (!evaluation) {
+    redirect('/404');
+  }
 
   const result = {
     evaluation: evaluation,

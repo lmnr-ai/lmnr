@@ -1,61 +1,63 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
 import { datasets } from '@/lib/db/migrations/schema';
-
-import { eq, inArray } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { and } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
+import { paginatedGet } from '@/lib/db/utils';
+import { NextRequest } from 'next/server';
 
 export async function POST(
   req: Request,
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
-
   const body = await req.json();
+  const { name } = body;
 
-  const res = await fetcher(`/projects/${projectId}/datasets`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    },
-    body: JSON.stringify(body)
-  });
+  const dataset = await db
+    .insert(datasets)
+    .values({
+      name,
+      projectId
+    })
+    .returning()
+    .then((res) => res[0]);
 
-  return new Response(res.body);
+  if (!dataset) {
+    return new Response(JSON.stringify({ error: 'Failed to create dataset' }), {
+      status: 500
+    });
+  }
+
+  return new Response(JSON.stringify(dataset), { status: 200 });
 }
 
 export async function GET(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
 
-  const res = await fetcher(`/projects/${projectId}/datasets`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    }
+  const pageNumber =
+    parseInt(req.nextUrl.searchParams.get('pageNumber') ?? '0') || 0;
+  const pageSize =
+    parseInt(req.nextUrl.searchParams.get('pageSize') ?? '50') || 50;
+  const filters = [eq(datasets.projectId, projectId)];
+  const datasetsData = await paginatedGet({
+    table: datasets,
+    pageNumber,
+    pageSize,
+    filters,
+    orderBy: desc(datasets.createdAt)
   });
 
-  return new Response(res.body);
+  return new Response(JSON.stringify(datasetsData), { status: 200 });
 }
-
 
 export async function DELETE(
   req: Request,
   { params }: { params: { projectId: string; datasetId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
-
-
 
   const { searchParams } = new URL(req.url);
   const datasetIds = searchParams.get('datasetIds')?.split(',');
@@ -65,12 +67,10 @@ export async function DELETE(
   }
 
   try {
-    await db.delete(datasets)
+    await db
+      .delete(datasets)
       .where(
-        and(
-          inArray(datasets.id, datasetIds),
-          eq(datasets.projectId, projectId)
-        )
+        and(inArray(datasets.id, datasetIds), eq(datasets.projectId, projectId))
       );
 
     return new Response('datasets deleted successfully', { status: 200 });
