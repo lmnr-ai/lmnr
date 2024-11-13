@@ -66,7 +66,7 @@ export default function EditableChat({
 
   return (
     idsRef.current !== null && (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full gap-2">
         {messages &&
           messages.map((message, index) => (
             <EditableChatMessage
@@ -77,8 +77,8 @@ export default function EditableChat({
               onEdit={editMessage}
             />
           ))}
-        <div className="p-2">
-          <Button className="h-6" onClick={addMessage} variant={'secondary'}>
+        <div className="">
+          <Button className="h-6" onClick={addMessage} variant="secondary">
             Add message
           </Button>
         </div>

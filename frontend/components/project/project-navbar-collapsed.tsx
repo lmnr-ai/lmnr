@@ -9,7 +9,9 @@ import {
   LayoutGrid,
   FlaskConical,
   Pen,
-  Tag
+  Tag,
+  Play,
+  PlayCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -63,6 +65,12 @@ export default function ProjectNavbarCollapsed({
       name: 'queues',
       href: `/project/${projectId}/labeling-queues`,
       icon: Pen,
+      current: false
+    },
+    {
+      name: 'playgrounds',
+      href: `/project/${projectId}/playgrounds`,
+      icon: PlayCircle,
       current: false
     },
     {

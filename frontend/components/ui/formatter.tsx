@@ -37,7 +37,6 @@ export default function Formatter({
   const [mode, setMode] = useState(defaultMode);
   const [expandedValue, setExpandedValue] = useState(value);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { toast } = useToast();
 
   const renderText = (value: string) => {
     // if mode is YAML try to parse it as YAML
@@ -189,7 +188,7 @@ export default function Formatter({
         </div>
       </div>
       {(!collapsible || !isCollapsed) && (
-        <div className="overflow-auto flex-grow">
+        <div className="overflow-auto flex-1 flex bg-card">
           <CodeEditor
             value={renderText(value)}
             editable={editable}
