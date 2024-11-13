@@ -5,36 +5,6 @@ import { db } from '@/lib/db/drizzle';
 import { and, eq } from 'drizzle-orm';
 import { datasets } from '@/lib/db/migrations/schema';
 
-export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string; datasetId: string } }
-): Promise<Response> {
-  const projectId = params.projectId;
-  const datasetId = params.datasetId;
-
-  const body = await req.json();
-  const { name } = body;
-
-  try {
-    const dataset = await db
-      .update(datasets)
-      .set({
-        name
-      })
-      .where(and(eq(datasets.projectId, projectId), eq(datasets.id, datasetId)))
-      .returning();
-
-    if (dataset.length === 0) {
-      return new Response(JSON.stringify({ error: 'Dataset not found' }), {
-        status: 404
-      });
-    }
-    return new Response(JSON.stringify(dataset[0]), { status: 200 });
-  } catch (error) {
-    return new Response('Internal Server Error', { status: 500 });
-  }
-}
-
 export async function GET(
   req: Request,
   { params }: { params: { projectId: string; datasetId: string } }
