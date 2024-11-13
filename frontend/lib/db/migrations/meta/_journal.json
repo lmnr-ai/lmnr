@@ -43,6 +43,13 @@
       "when": 1731368581437,
       "tag": "0005_misty_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1731486811561,
+      "tag": "0006_lonely_the_phantom",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import EditableChat from "../ui/editable-chat";
 import EditableChatMessage from "../ui/editable-chat-message";
 import Header from "../ui/header";
@@ -17,11 +17,7 @@ import { PlayIcon, Loader2 } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 import { Playground as PlaygroundType } from "@/lib/playground/types";
 
-const renderText = (text: string, inputs: Record<string, string>) => {
-  return text.replace(/\{\{([^}]+)\}\}/g, (match, p1) => {
-    return inputs[p1] || match;
-  });
-}
+const renderText = (text: string, inputs: Record<string, string>) => text.replace(/\{\{([^}]+)\}\}/g, (match, p1) => inputs[p1] || match);
 
 const renderChatMessageContent = (content: ChatMessageContent, inputs: Record<string, string>) => {
   if (typeof content === 'string') {
@@ -35,30 +31,48 @@ const renderChatMessageContent = (content: ChatMessageContent, inputs: Record<st
   }
 
   return content;
-}
+};
 
-const renderChatMessages = (messages: ChatMessage[], inputs: Record<string, string>) => {
-  return messages.map((m) => ({
-    role: m.role,
-    content: renderChatMessageContent(m.content, inputs)
-  }));
-}
+const renderChatMessages = (messages: ChatMessage[], inputs: Record<string, string>) => messages.map((m) => ({
+  role: m.role,
+  content: renderChatMessageContent(m.content, inputs)
+}));
 
 export default function Playground({ playground }: { playground: PlaygroundType }) {
 
   const { projectId } = useProjectContext();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'user',
-      content: ''
-    }
-  ]);
-  const [modelId, setModelId] = useState<string>('openai:gpt-4o-mini');
+  const [messages, setMessages] = useState<ChatMessage[]>(playground.promptMessages);
+  const [modelId, setModelId] = useState<string>(playground.modelId !== '' ? playground.modelId : 'openai:gpt-4o-mini');
 
   const [inputs, setInputs] = useState<string>('{}');
   const [output, setOutput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    setIsUpdating(true);
+
+    timer = setTimeout(() => {
+      fetch(`/api/projects/${projectId}/playgrounds/${playground.id}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          promptMessages: messages,
+          modelId,
+        })
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          console.log(data);
+          setIsUpdating(false);
+        });
+    }, 200);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [messages, modelId, projectId, playground.id]);
 
   const run = async () => {
     setOutput('');
@@ -77,7 +91,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
           name: 'chat_messages',
           type: NodeHandleType.CHAT_MESSAGE_LIST,
         }
-      ]
+      ];
 
       const graph = Graph.fromNode(node);
 
@@ -91,11 +105,15 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="h-full flex flex-col">
-      <Header path={`playgrounds/${playground.name}`} />
+      <Header path={`playgrounds/${playground.name}`}>
+        {isUpdating && (
+          <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+        )}
+      </Header>
       <ScrollArea className="flex-grow overflow-auto">
         <div className="max-h-0">
           <div className="">
@@ -139,13 +157,11 @@ export default function Playground({ playground }: { playground: PlaygroundType 
                     }}
                     editable={true}
                     defaultMode="json"
-                    className="max-h-[600px]"
                   />
                 </div>
                 <div className="flex-1 flex flex-col gap-2">
                   <div className="text-sm font-medium">Output</div>
                   <Formatter
-                    className="max-h-[600px]"
                     value={output}
                     editable={false}
                     defaultMode="json"

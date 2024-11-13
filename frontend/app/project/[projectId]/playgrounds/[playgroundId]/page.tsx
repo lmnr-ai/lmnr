@@ -8,10 +8,15 @@ import Playground from '@/components/playground/playground';
 import { eq } from 'drizzle-orm';
 import { playgrounds } from '@/lib/db/migrations/schema';
 import { db } from '@/lib/db/drizzle';
+import { Playground as PlaygroundType } from '@/lib/playground/types';
 
 export const metadata: Metadata = {
   title: 'Playground'
 };
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 
 export default async function PlaygroundPage({
   params
@@ -28,7 +33,8 @@ export default async function PlaygroundPage({
       return notFound();
     }
 
-    return <Playground playground={playground} />;
+    return <Playground playground={playground as PlaygroundType} />;
+
   } catch (error) {
     return notFound();
   }

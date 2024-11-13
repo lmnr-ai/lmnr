@@ -276,4 +276,4 @@ export const runGraph = async (graph: Graph, inputs: Record<string, string>, pro
   const res = await response.json();
 
   return res['outputs']['output']['value'];
-}
+};
