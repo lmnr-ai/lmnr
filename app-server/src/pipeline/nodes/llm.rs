@@ -28,7 +28,7 @@ pub struct LLMNode {
     pub dynamic_inputs: Vec<Handle>,
     pub outputs: Vec<Handle>,
     pub inputs_mappings: HashMap<Uuid, Uuid>,
-    pub prompt: String,
+    pub prompt: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
     #[serde(default)]
@@ -112,7 +112,7 @@ impl RunnableNode for LLMNode {
             Some(messages) => messages.clone().try_into()?,
             None => vec![],
         };
-        let rendered_prompt = render_template(&self.prompt, &inputs);
+        let rendered_prompt = render_template(&self.prompt.clone().unwrap_or_default(), &inputs);
 
         let enable_structured_output = self.structured_output_params.structured_output_enabled
             && self
@@ -132,10 +132,14 @@ impl RunnableNode for LLMNode {
             rendered_prompt
         };
 
-        let mut messages = vec![ChatMessage {
-            role: String::from("system"),
-            content: ChatMessageContent::Text(prompt.clone()),
-        }];
+        let mut messages = vec![];
+
+        if self.prompt.is_some() {
+            messages.push(ChatMessage {
+                role: String::from("system"),
+                content: ChatMessageContent::Text(prompt.clone()),
+            });
+        }
 
         messages.extend(input_chat_messages.clone().into_iter());
 
@@ -329,7 +333,7 @@ impl LLMNode {
             dynamic_inputs: vec![],
             outputs,
             inputs_mappings: HashMap::new(),
-            prompt,
+            prompt: Some(prompt),
             model: Some(model.to_string()),
             model_params,
             stream: false,
