@@ -39,7 +39,6 @@ export default function EvaluationsGroupsBar() {
 
   return <div className="flex-none w-80 py-2 border-r flex flex-col">
     <div className="font-medium p-2 text-lg">Groups</div>
-    <div className = "flex-col flex-grow">
       <DataTable
         columns={columns}
         data={groups}
@@ -47,6 +46,5 @@ export default function EvaluationsGroupsBar() {
           router.push(`/project/${projectId}/evaluations?groupId=${row.original.groupId}`);
         }}
       />
-    </div>
-  </div>;
+    </div>;
 }
