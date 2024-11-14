@@ -177,6 +177,8 @@ function AbsoluteDateRangeFilter() {
               }
               onClick={() => {
                 searchParams.delete('pastHours');
+                searchParams.delete('pageNumber');
+                searchParams.set('pageNumber','0');
                 searchParams.set(
                   'startDate',
                   calendarDate?.from?.toISOString() ?? ''
@@ -204,7 +206,6 @@ export default function DateRangeFilter() {
   const pathName = usePathname();
   const router = useRouter();
   const pastHours = searchParams.get('pastHours');
-
   let selectedRange: DateRange | undefined = undefined;
   if (pastHours !== null) {
     selectedRange =
@@ -230,6 +231,8 @@ export default function DateRangeFilter() {
                   searchParams.delete('endDate');
                   searchParams.delete('groupByInterval');
                   searchParams.set('pastHours', range.value);
+                  searchParams.delete('pageNumber');
+                  searchParams.set('pageNumber', '0');
                   router.push(`${pathName}?${searchParams.toString()}`);
                 }}
               >
