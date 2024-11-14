@@ -177,7 +177,7 @@ function AbsoluteDateRangeFilter() {
               }
               onClick={() => {
                 searchParams.delete('pastHours');
-                searchParams.delete('pageNumber');
+                searchParams.set('pageNumber', '0');
                 searchParams.set('pageNumber','0');
                 searchParams.set(
                   'startDate',
