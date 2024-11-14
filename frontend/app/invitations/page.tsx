@@ -13,6 +13,8 @@ import { and, count, eq } from 'drizzle-orm';
 import { workspaces, membersOfWorkspaces, apiKeys } from '@/lib/db/migrations/schema';
 import { revalidatePath } from 'next/cache';
 import { Button } from '@/components/ui/button';
+import { authOptions } from '@/lib/auth';
+import { fetcher } from '@/lib/utils';
 
 export default async function SignInPage({
   params,
@@ -21,7 +23,7 @@ export default async function SignInPage({
   params: {};
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   const user = session?.user;
 
   if (!user) {
@@ -42,20 +44,18 @@ export default async function SignInPage({
     return notFound();
   }
 
-  // // check if current user is already a member of the workspace
-  // const member = await db.select({ count: count() })
-  //   .from(membersOfWorkspaces)
-  //   .innerJoin(apiKeys, eq(membersOfWorkspaces.userId, apiKeys.userId))
-  //   .where(and(
-  //     eq(apiKeys.apiKey, user.apiKey),
-  //     eq(membersOfWorkspaces.workspaceId, decoded.workspaceId)
-  //   ));
+  // check if current user is already a member of the workspace
+  const member = await db.select({ count: count() })
+    .from(membersOfWorkspaces)
+    .innerJoin(apiKeys, eq(membersOfWorkspaces.userId, apiKeys.userId))
+    .where(and(
+      eq(apiKeys.apiKey, user.apiKey),
+      eq(membersOfWorkspaces.workspaceId, decoded.workspaceId)
+    ));
 
-  // if (member[0].count > 0) {
-  //   return redirect('/projects');
-  // }
-
-  console.log(decoded);
+  if (member[0].count > 0) {
+    return redirect('/projects');
+  }
 
   const workspace = await db.query.workspaces.findFirst({
     where: eq(workspaces.id, decoded.workspaceId)
@@ -88,10 +88,11 @@ export default async function SignInPage({
                 return notFound();
               }
 
-              await db.insert(membersOfWorkspaces).values({
-                userId: row.userId,
-                workspaceId: decoded.workspaceId,
-                memberRole: 'member'
+              await fetcher(`/api/workspaces/${decoded.workspaceId}/users`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  email: user.email,
+                })
               });
 
               revalidatePath('/projects');
