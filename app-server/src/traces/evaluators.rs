@@ -4,12 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
-    db::{
-        self,
-        labels::{LabelJobStatus, LabelSource},
-        spans::Span,
-        DB,
-    },
+    db::{self, labels::LabelSource, spans::Span, DB},
     language_model::ChatMessage,
     pipeline::{runner::PipelineRunner, utils::render_chat_message_list, Graph, RunType},
     provider_api_keys,
@@ -120,7 +115,6 @@ pub async fn run_evaluator(
         value,
         label_value,
         LabelSource::AUTO,
-        Some(LabelJobStatus::DONE),
         Some(reasoning),
     )
     .await?;

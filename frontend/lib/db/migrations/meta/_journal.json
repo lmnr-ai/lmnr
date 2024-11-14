@@ -50,6 +50,13 @@
       "when": 1731486811561,
       "tag": "0006_lonely_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1731567018888,
+      "tag": "0007_youthful_greymalkin",
+      "breakpoints": true
     }
   ]
 }

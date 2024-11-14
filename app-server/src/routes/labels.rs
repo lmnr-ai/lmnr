@@ -165,7 +165,6 @@ pub async fn update_span_label(
         value_key,
         value,
         source,
-        None,
         reasoning,
     )
     .await?;

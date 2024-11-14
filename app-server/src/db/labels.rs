@@ -20,13 +20,6 @@ pub enum LabelSource {
     CODE,
 }
 
-#[derive(sqlx::Type, Serialize, Clone, PartialEq)]
-#[sqlx(type_name = "label_job_status")]
-pub enum LabelJobStatus {
-    RUNNING,
-    DONE,
-}
-
 #[derive(Serialize, FromRow, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelClass {
@@ -52,7 +45,6 @@ pub struct DBSpanLabel {
     pub updated_at: DateTime<Utc>,
     pub user_id: Option<Uuid>,
     pub label_source: LabelSource,
-    pub job_status: Option<LabelJobStatus>, // Some only for LabelSource::AUTO
     pub reasoning: Option<String>,
 }
 
@@ -64,7 +56,6 @@ pub struct SpanLabel {
     pub value: Option<f64>,
     pub class_id: Uuid,
     pub created_at: DateTime<Utc>,
-    pub job_status: Option<LabelJobStatus>, // Some only for LabelSource::AUTO
     pub label_source: LabelSource,
     pub reasoning: Option<String>,
 
@@ -182,7 +173,6 @@ pub async fn delete_span_label(
             updated_at,
             user_id,
             label_source,
-            job_status,
             reasoning",
     )
     .bind(span_id)
@@ -201,16 +191,15 @@ pub async fn update_span_label(
     user_id: Option<Uuid>,
     class_id: Uuid,
     label_source: &LabelSource,
-    job_status: Option<LabelJobStatus>,
     reasoning: Option<String>,
 ) -> Result<DBSpanLabel> {
     let span_label = sqlx::query_as::<_, DBSpanLabel>(
         "INSERT INTO labels
-            (id, span_id, class_id, user_id, value, updated_at, label_source, job_status, reasoning)
-        VALUES ($1, $2, $3, $4, $5, now(), $6, $7, $8)
+            (id, span_id, class_id, user_id, value, updated_at, label_source, reasoning)
+        VALUES ($1, $2, $3, $4, $5, now(), $6, $7)
         ON CONFLICT (span_id, class_id, user_id)
-        DO UPDATE SET value = $5, updated_at = now(), label_source = $6, job_status = $7,
-            reasoning = CASE WHEN $8 IS NOT NULL THEN $8 ELSE labels.reasoning END
+        DO UPDATE SET value = $5, updated_at = now(), label_source = $6,
+            reasoning = CASE WHEN $7 IS NOT NULL THEN $7 ELSE labels.reasoning END
         RETURNING
             id,
             span_id,
@@ -220,7 +209,6 @@ pub async fn update_span_label(
             updated_at,
             user_id,
             label_source,
-            job_status,
             reasoning",
     )
     .bind(id)
@@ -229,7 +217,6 @@ pub async fn update_span_label(
     .bind(user_id)
     .bind(value)
     .bind(label_source)
-    .bind(job_status)
     .bind(reasoning)
     .fetch_one(pool)
     .await?;
@@ -248,7 +235,6 @@ pub async fn get_span_labels(pool: &PgPool, span_id: Uuid) -> Result<Vec<SpanLab
             labels.updated_at,
             labels.user_id,
             labels.label_source,
-            labels.job_status,
             labels.reasoning,
             users.email as user_email,
             label_classes.label_type,

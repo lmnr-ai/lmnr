@@ -83,7 +83,6 @@ pub async fn insert_label(
         value,
         span_id,
     );
-    // dbg!(&label);
     let ch_insert = client.insert("labels");
     match ch_insert {
         Ok(mut ch_insert) => {
