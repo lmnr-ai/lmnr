@@ -52,10 +52,10 @@ export default function WorkspaceUsers({
     });
   }, []);
 
-  const addUser = async () => {
+  const inviteUser = async () => {
     setIsAddUserLoading(true);
 
-    const res = await fetch(`/api/workspaces/${workspace.id}/users`, {
+    const res = await fetch(`/api/workspaces/${workspace.id}/invite`, {
       method: 'POST',
       body: JSON.stringify({ email: newUserEmail.trim() })
     });
@@ -99,7 +99,7 @@ export default function WorkspaceUsers({
                     <div tabIndex={0}>
                       <Button variant="outline" disabled>
                         <Plus className="w-4 mr-1 text-gray-500" />
-                        Add user
+                        Invite member
                       </Button>
                     </div>
                   </TooltipTrigger>
@@ -125,16 +125,13 @@ export default function WorkspaceUsers({
                     variant="outline"
                   >
                     <Plus className="w-4 mr-1" />
-                    Add user
+                    Invite member
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
-                    <DialogTitle>Add user to workspace</DialogTitle>
+                    <DialogTitle>Invite member to workspace</DialogTitle>
                   </DialogHeader>
-                  <Label className="text-sm text-secondary-foreground">
-                    You can only add users who are registered on Laminar
-                  </Label>
                   <div className="flex flex-col space-y-2">
                     <Label>Email</Label>
                     <Input
@@ -148,12 +145,12 @@ export default function WorkspaceUsers({
                       disabled={isAddUserLoading || newUserEmail.trim() === ''}
                       handleEnter={true}
                       onClick={async () => {
-                        await addUser();
+                        await inviteUser();
                         setIsAddUserDialogOpen(false);
                         setNewUserEmail('');
                       }}
                     >
-                      Add
+                      Invite
                     </Button>
                     {isAddUserLoading && (
                       <Loader2 className="animate-spin h-4 w-4 mr-2" />

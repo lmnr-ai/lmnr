@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import SubscriptionUpdatedEmail from './subscription-updated-email';
 import WelcomeEmail from './welcome-email';
 import { ItemDescription } from '../checkout/utils';
+import WorkspaceInviteEmail from './workspace-invite';
 
 const RESEND = new Resend(
   process.env.RESEND_API_KEY ?? '_RESEND_API_KEY_PLACEHOLDER'
@@ -41,6 +42,20 @@ export async function sendOnPaymentReceivedEmail(
     to: [email],
     subject,
     react: component
+  });
+
+  if (error) console.log(error);
+}
+
+export async function sendInvitationEmail(email: string, workspaceName: string, inviteLink: string) {
+  const from = 'Laminar team <founders@lmnr.ai>';
+  const subject = `You are invited to join ${workspaceName} on Laminar`;
+
+  const { data, error } = await RESEND.emails.send({
+    from,
+    to: [email],
+    subject,
+    react: WorkspaceInviteEmail({ workspaceName, inviteLink })
   });
 
   if (error) console.log(error);
