@@ -14,7 +14,6 @@ import { workspaces, membersOfWorkspaces, apiKeys } from '@/lib/db/migrations/sc
 import { revalidatePath } from 'next/cache';
 import { Button } from '@/components/ui/button';
 import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
 
 export default async function SignInPage({
   params,
@@ -88,11 +87,10 @@ export default async function SignInPage({
                 return notFound();
               }
 
-              await fetcher(`/api/workspaces/${decoded.workspaceId}/users`, {
-                method: 'POST',
-                body: JSON.stringify({
-                  email: user.email,
-                })
+              await db.insert(membersOfWorkspaces).values({
+                userId: row.userId,
+                workspaceId: decoded.workspaceId,
+                memberRole: 'member'
               });
 
               revalidatePath('/projects');
