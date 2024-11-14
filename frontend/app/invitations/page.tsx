@@ -26,7 +26,7 @@ export default async function SignInPage({
   const user = session?.user;
 
   if (!user) {
-    return redirect(`/signin?callbackUrl=/invitations?token=${searchParams?.token}`);
+    return redirect(`/sign-in?callbackUrl=/invitations?token=${searchParams?.token}`);
   }
 
   const token = searchParams?.token as string;
@@ -43,18 +43,18 @@ export default async function SignInPage({
     return notFound();
   }
 
-  // check if current user is already a member of the workspace
-  const member = await db.select({ count: count() })
-    .from(membersOfWorkspaces)
-    .innerJoin(apiKeys, eq(membersOfWorkspaces.userId, apiKeys.userId))
-    .where(and(
-      eq(apiKeys.apiKey, user.apiKey),
-      eq(membersOfWorkspaces.workspaceId, decoded.workspaceId)
-    ));
+  // // check if current user is already a member of the workspace
+  // const member = await db.select({ count: count() })
+  //   .from(membersOfWorkspaces)
+  //   .innerJoin(apiKeys, eq(membersOfWorkspaces.userId, apiKeys.userId))
+  //   .where(and(
+  //     eq(apiKeys.apiKey, user.apiKey),
+  //     eq(membersOfWorkspaces.workspaceId, decoded.workspaceId)
+  //   ));
 
-  if (member[0].count > 0) {
-    return redirect('/projects');
-  }
+  // if (member[0].count > 0) {
+  //   return redirect('/projects');
+  // }
 
   const workspace = await db.query.workspaces.findFirst({
     where: eq(workspaces.id, decoded.workspaceId)
@@ -72,8 +72,8 @@ export default async function SignInPage({
         </div>
         <div className="z-20 flex flex-col items-center p-16 px-8">
           <Image alt="" src={logo} width={220} className="my-16" />
-          <h2 className="text-xl mb-8">
-            You are invited to join {workspace.name}
+          <h2 className="text-lg font-medium mb-8">
+            You are invited to join <b>{workspace.name}</b>
           </h2>
           <div className="flex gap-4">
             <form action={async () => {
@@ -98,6 +98,7 @@ export default async function SignInPage({
             }}>
               <Button
                 variant="light"
+                size="lg"
               >
                 Accept
               </Button>
@@ -108,6 +109,7 @@ export default async function SignInPage({
             }}>
               <Button
                 variant="lightSecondary"
+                size="lg"
               >
                 Decline
               </Button>
