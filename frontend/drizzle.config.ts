@@ -10,4 +10,9 @@ export default defineConfig({
   },
   schema: './lib/db/migrations/schema.ts',
   out: './lib/db/migrations',
+  entities: {
+    roles: {
+      provider: 'supabase',
+    }
+  }
 });

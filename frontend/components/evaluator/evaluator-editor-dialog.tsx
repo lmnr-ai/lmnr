@@ -34,9 +34,7 @@ export function EvaluatorEditorDialog({
             Online evaluator
           </DialogTitle>
           <DialogDescription>
-            <p>
-              Create an evaluator that will be triggered on spans at this path.
-            </p>
+            Create an evaluator that will be triggered on spans at this path.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-grow">

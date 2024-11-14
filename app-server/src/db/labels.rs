@@ -195,21 +195,22 @@ pub async fn delete_span_label(
 
 pub async fn update_span_label(
     pool: &PgPool,
+    id: Uuid,
     span_id: Uuid,
     value: f64,
     user_id: Option<Uuid>,
     class_id: Uuid,
-    label_source: LabelSource,
+    label_source: &LabelSource,
     job_status: Option<LabelJobStatus>,
     reasoning: Option<String>,
 ) -> Result<DBSpanLabel> {
     let span_label = sqlx::query_as::<_, DBSpanLabel>(
         "INSERT INTO labels
-            (span_id, class_id, user_id, value, updated_at, label_source, job_status, reasoning)
-        VALUES ($1, $2, $3, $4, now(), $5, $6, $7)
+            (id, span_id, class_id, user_id, value, updated_at, label_source, job_status, reasoning)
+        VALUES ($1, $2, $3, $4, $5, now(), $6, $7, $8)
         ON CONFLICT (span_id, class_id, user_id)
-        DO UPDATE SET value = $4, updated_at = now(), label_source = $5, job_status = $6,
-            reasoning = CASE WHEN $7 IS NOT NULL THEN $7 ELSE labels.reasoning END
+        DO UPDATE SET value = $5, updated_at = now(), label_source = $6, job_status = $7,
+            reasoning = CASE WHEN $8 IS NOT NULL THEN $8 ELSE labels.reasoning END
         RETURNING
             id,
             span_id,
@@ -222,6 +223,7 @@ pub async fn update_span_label(
             job_status,
             reasoning",
     )
+    .bind(id)
     .bind(span_id)
     .bind(class_id)
     .bind(user_id)

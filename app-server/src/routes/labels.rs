@@ -1,14 +1,11 @@
+use std::collections::HashMap;
+
 use actix_web::{delete, get, post, web, HttpResponse};
 use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::db::{
-    self,
-    labels::{LabelJobStatus, LabelSource},
-    user::User,
-    DB,
-};
+use crate::db::{self, labels::LabelSource, user::User, DB};
 
 use super::ResponseResult;
 
@@ -121,13 +118,15 @@ pub async fn update_span_label(
     req: web::Json<UpdateSpanLabelRequest>,
     db: web::Data<DB>,
     user: User,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
-    let (_project_id, span_id) = path.into_inner();
+    let (project_id, span_id) = path.into_inner();
     let req = req.into_inner();
     let class_id = req.class_id;
     let value = req.value;
     let reasoning = req.reasoning;
     let source = req.source;
+    let clickhouse = clickhouse.into_inner().as_ref().clone();
 
     // evaluator was triggered from the UI
     // so the source is AUTO
@@ -137,14 +136,36 @@ pub async fn update_span_label(
         Some(user.id)
     };
 
-    let label = db::labels::update_span_label(
+    let Some(label_class) = db::labels::get_label_class(&db.pool, project_id, class_id).await?
+    else {
+        return Ok(HttpResponse::BadRequest().body("Label class not found"));
+    };
+
+    let value_map =
+        serde_json::from_value::<HashMap<String, f64>>(label_class.value_map).unwrap_or_default();
+
+    let Some(value_key) = value_map
+        .iter()
+        .find(|(_, val)| *val == &value)
+        .map(|(key, _)| key.clone())
+    else {
+        return Ok(HttpResponse::BadRequest().body("Invalid value"));
+    };
+
+    let id = Uuid::new_v4();
+    let label = crate::labels::insert_or_update_label(
         &db.pool,
+        clickhouse.clone(),
+        project_id,
+        id,
         span_id,
-        value,
-        user_id,
         class_id,
+        user_id,
+        label_class.name,
+        value_key,
+        value,
         source,
-        Some(LabelJobStatus::DONE),
+        None,
         reasoning,
     )
     .await?;
@@ -155,10 +176,13 @@ pub async fn update_span_label(
 pub async fn delete_span_label(
     path: web::Path<(Uuid, Uuid, Uuid)>,
     db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
-    let (_project_id, span_id, label_id) = path.into_inner();
+    let (project_id, span_id, label_id) = path.into_inner();
+    let clickhouse = clickhouse.into_inner().as_ref().clone();
 
     db::labels::delete_span_label(&db.pool, span_id, label_id).await?;
+    crate::ch::labels::delete_label(clickhouse.clone(), project_id, span_id, label_id).await?;
 
     Ok(HttpResponse::Ok().finish())
 }

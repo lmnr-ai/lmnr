@@ -376,8 +376,7 @@ function AddLabelInstance({
     source: LabelSource,
     reasoning?: string
   ) => {
-
-    if (!labelClass.valueMap[value]) {
+    if (labelClass.valueMap[value] === undefined) {
       toast({
         title: 'Error',
         description: `Value "${value}" is not a valid label value for ${labelClass.name}. Possible values are: ${Object.keys(labelClass.valueMap).join(', ')}.`,

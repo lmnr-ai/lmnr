@@ -70,7 +70,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
 
   const getTraces = async () => {
     let queryFilter = searchParams.get('filter');
-    console.log('queryFilter', queryFilter);
     setTraces(undefined);
 
     if (!pastHours && !startDate && !endDate) {
@@ -120,7 +119,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   };
 
   useEffect(() => {
-    console.log('TracesTable useEffect', filter);
     getTraces();
   }, [
     projectId,

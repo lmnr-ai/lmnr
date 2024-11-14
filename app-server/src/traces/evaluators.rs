@@ -35,6 +35,7 @@ pub async fn run_evaluator(
     label_class_id: Uuid,
     span: &Span,
     db: Arc<DB>,
+    clickhouse: clickhouse::Client,
 ) -> Result<()> {
     let label_class = db::labels::get_label_class(&db.pool, project_id, label_class_id)
         .await?
@@ -105,12 +106,19 @@ pub async fn run_evaluator(
         )
     })?;
 
-    db::labels::update_span_label(
+    let id = Uuid::new_v4();
+
+    crate::labels::insert_or_update_label(
         &db.pool,
+        clickhouse.clone(),
+        project_id,
+        id,
         span.span_id,
-        label_value,
-        None,
         label_class.id,
+        None,
+        label_class.name,
+        value,
+        label_value,
         LabelSource::AUTO,
         Some(LabelJobStatus::DONE),
         Some(reasoning),
