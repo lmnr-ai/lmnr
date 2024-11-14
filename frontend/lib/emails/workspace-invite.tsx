@@ -9,14 +9,17 @@ export default function WorkspaceInviteEmail({
 }) {
   return (
     <Html lang="en">
-      <Preview>You've been invited to join {workspaceName} on Laminar</Preview>
+      <Preview>You{"'"}ve been invited to join {workspaceName} on Laminar</Preview>
       <div style={container}>
         <Text style={heading}>Join {workspaceName} on Laminar! 🎉</Text>
         <Text style={text}>
-          You've been invited to collaborate on {workspaceName} workspace.
+          You{"'"}ve been invited to collaborate on {workspaceName} workspace.
         </Text>
         <Text style={text}>
           With Laminar you can trace, evaluate, label, and analyze LLM applications together with your team.
+        </Text>
+        <Text style={text}>
+          This invitation will expire in 48 hours.
         </Text>
         <Link
           href={inviteLink}

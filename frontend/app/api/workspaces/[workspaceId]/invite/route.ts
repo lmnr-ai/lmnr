@@ -58,7 +58,7 @@ export async function POST(
   const token = jwt.sign({
     email,
     workspaceId
-  }, process.env.NEXTAUTH_SECRET!, { expiresIn: '24h' });
+  }, process.env.NEXTAUTH_SECRET!, { expiresIn: '48h' });
 
   const link = `${process.env.NEXTAUTH_URL}/invitations?token=${token}`;
 

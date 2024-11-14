@@ -48,7 +48,7 @@ export async function sendOnPaymentReceivedEmail(
 }
 
 export async function sendInvitationEmail(email: string, workspaceName: string, inviteLink: string) {
-  const from = 'Laminar team <founders@lmnr.ai>';
+  const from = 'Robert from Laminar <robert@lmnr.ai>';
   const subject = `You are invited to join ${workspaceName} on Laminar`;
 
   const { data, error } = await RESEND.emails.send({

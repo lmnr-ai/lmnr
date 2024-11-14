@@ -18,7 +18,7 @@ export default function PurchaseSeatsDialog({
   seatsIncludedInTier = 1,
   onUpdate,
 }: PurchaseSeatsDialogProps) {
-  const [quantity, setQuantity] = useState<number|null>(0);
+  const [quantity, setQuantity] = useState<number | null>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   return (
@@ -29,11 +29,11 @@ export default function PurchaseSeatsDialog({
       }
     }} open={isOpen}>
       <DialogTrigger asChild>
-        <Button variant="secondary">Purchase seats</Button>
+        <Button variant="default">Add seats</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Purchase seats</DialogTitle>
+          <DialogTitle>Add seats</DialogTitle>
         </DialogHeader>
         <p>Purchase additional seats for your workspace.</p>
         <Label className="text-sm text-secondary-foreground">
