@@ -84,7 +84,17 @@ pub async fn run_evaluator(
 
     let (value, reasoning) = match serde_json::from_str::<EvaluatorResult>(&output_str) {
         Ok(EvaluatorResult::LLM(llm_output)) => (llm_output.value, llm_output.reasoning),
-        Ok(EvaluatorResult::Code(code)) => (code, String::new()),
+        Ok(EvaluatorResult::Code(code)) => {
+            // QUICK FIX
+            // python return True or False but we parse it into JSON as true/false
+            let mut code = code.clone();
+            if code == "true".to_string() {
+                code = "True".to_string();
+            } else if code == "false".to_string() {
+                code = "False".to_string();
+            }
+            (code, String::new())
+        }
         Err(_) => (output_str, String::new()),
     };
 
