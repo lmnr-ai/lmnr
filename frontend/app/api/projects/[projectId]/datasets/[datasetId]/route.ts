@@ -1,29 +1,9 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
-
-export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string; datasetId: string } }
-): Promise<Response> {
-  const projectId = params.projectId;
-  const datasetId = params.datasetId;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
-
-  const body = await req.json();
-
-  const res = await fetcher(`/projects/${projectId}/datasets/${datasetId}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    },
-    body: JSON.stringify(body)
-  });
-
-  return new Response(res.body);
-}
+import { db } from '@/lib/db/drizzle';
+import { and, eq } from 'drizzle-orm';
+import { datasets } from '@/lib/db/migrations/schema';
 
 export async function GET(
   req: Request,
@@ -31,18 +11,12 @@ export async function GET(
 ): Promise<Response> {
   const projectId = params.projectId;
   const datasetId = params.datasetId;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
 
-  const res = await fetcher(`/projects/${projectId}/datasets/${datasetId}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    }
+  const dataset = await db.query.datasets.findFirst({
+    where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId))
   });
 
-  return new Response(res.body);
+  return new Response(JSON.stringify(dataset), { status: 200 });
 }
 
 export async function DELETE(

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod evaluation_scores;
 pub mod events;
+pub mod labels;
 pub mod modifiers;
 pub mod spans;
 pub mod utils;

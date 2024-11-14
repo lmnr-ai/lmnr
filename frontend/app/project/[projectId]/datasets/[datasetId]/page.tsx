@@ -1,10 +1,12 @@
 import { authOptions } from '@/lib/auth';
-import { fetcherJSON } from '@/lib/utils';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 
 import { Metadata } from 'next';
 import Dataset from '@/components/dataset/dataset';
+import { db } from '@/lib/db/drizzle';
+import { and, eq } from 'drizzle-orm';
+import { datasets } from '@/lib/db/migrations/schema';
 
 export const metadata: Metadata = {
   title: 'Dataset'
@@ -23,18 +25,13 @@ export default async function DatasetPage({
     redirect('/sign-in');
   }
 
-  const user = session.user;
+  const dataset = await db.query.datasets.findFirst({
+    where: and(eq(datasets.projectId, projectId), eq(datasets.id, datasetId))
+  });
 
-  const dataset = await fetcherJSON(
-    `/projects/${projectId}/datasets/${datasetId}`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${user.apiKey}`
-      }
-    }
-  );
+  if (!dataset) {
+    redirect('/404');
+  }
 
   return <Dataset dataset={dataset} />;
 }

@@ -245,3 +245,35 @@ export const traverseGraph = (
     list.push(message);
   }
 };
+
+export const runGraph = async (graph: Graph, inputs: Record<string, string>, projectId: string) => {
+
+  const response = await fetch(
+    `/api/projects/${projectId}/pipelines/run/graph`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream'
+      },
+      body: JSON.stringify({
+        runId: v4(),
+        graph: graph.toObject(),
+        inputs: inputs,
+        env: {},
+        breakpointTaskIds: [],
+        pipelineVersionId: v4(),
+        devSessionIds: [],
+        stream: false
+      })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const res = await response.json();
+
+  return res['outputs']['output']['value'];
+};

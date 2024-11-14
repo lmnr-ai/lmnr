@@ -31,6 +31,15 @@ export default function ManualAddDatapointDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState(DEFAULT_DATA);
 
+  const isValidJson = useCallback(() => {
+    try {
+      const parsed = JSON.parse(data);
+      return parsed.data;
+    } catch (e) {
+      return false;
+    }
+  }, [data]);
+
   const showError = useCallback((message: string) => {
     toast({
       title: 'Add datapoint error',
@@ -49,14 +58,14 @@ export default function ManualAddDatapointDialog({
         {
           method: 'POST',
           body: JSON.stringify({
-            datapoints: [JSON.parse(data)]
+            datapoints: [JSON.parse(data)],
           }),
           cache: 'no-cache'
         }
       );
 
       if (res.status != 200) {
-        showError('Error adding datapoint');
+        showError((await res.json())['details']);
         setIsLoading(false);
         return;
       }
@@ -94,9 +103,14 @@ export default function ManualAddDatapointDialog({
         <div className="border rounded-md max-h-[300px] overflow-y-auto">
           <CodeEditor value={data} onChange={setData} language="json" />
         </div>
+        {!isValidJson() && (
+          <div className="text-red-500">
+            Please enter a valid JSON map with a &dquote;data&dquote; field
+          </div>
+        )}
         <DialogFooter className="mt-4">
           <Button
-            disabled={isLoading}
+            disabled={isLoading || !isValidJson()}
             onClick={async () => await addDatapoint()}
           >
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
