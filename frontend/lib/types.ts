@@ -30,7 +30,7 @@ export type ChatMessageContentPart =
 export type ChatMessageContent = string | ChatMessageContentPart[];
 
 export type ChatMessage = {
-  content: string | ChatMessageContent;
+  content: ChatMessageContent;
   role: 'user' | 'assistant' | 'system';
 };
 

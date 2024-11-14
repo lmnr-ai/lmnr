@@ -14,6 +14,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { isChatMessageList } from '@/lib/flow/utils';
 import ChatMessageListTab from '../traces/chat-message-list-tab';
 import Formatter from '../ui/formatter';
+import DefaultTextarea from '../ui/default-textarea';
 
 interface QueueProps {
   queue: LabelingQueue;
@@ -31,7 +32,7 @@ export default function Queue({ queue }: QueueProps) {
   } | null>(null);
 
   const [isRemoving, setIsRemoving] = useState(false);
-  const [addedLabels, setAddedLabels] = useState<Array<{ value: number, labelClass: LabelClass }>>([]);
+  const [addedLabels, setAddedLabels] = useState<Array<{ value: number, labelClass: LabelClass, reasoning?: string | null }>>([]);
 
   const next = (refDate: string, direction: 'next' | 'prev' = 'next') => {
     fetch(`/api/projects/${projectId}/queues/${queue.id}/move`, {
@@ -73,8 +74,6 @@ export default function Queue({ queue }: QueueProps) {
   useEffect(() => {
     next((new Date(0)).toUTCString());
   }, []);
-
-  console.log(addedLabels);
 
   return (
     <div className="flex flex-col w-full h-full">
@@ -156,18 +155,30 @@ export default function Queue({ queue }: QueueProps) {
               <Label className="text-sm text-secondary-foreground">Labels to be added to the span</Label>
               <div className="mt-4 space-y-2">
                 {addedLabels.map((label, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 border border-foreground/10 bg-muted rounded">
-                    <span>{Object.entries(label.labelClass.valueMap).find(([key, value]) => value === label.value)?.[0]}</span>
+                  <div key={index} className="flex flex-col p-2 border border-foreground/10 bg-muted rounded gap-2">
+                    <div className="flex items-center gap-2 justify-between w-full">
+                      <span>{Object.entries(label.labelClass.valueMap).find(([key, value]) => value === label.value)?.[0]}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">{label.labelClass.name}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeLabel(index)}
+                          className="h-6 px-2"
+                        >
+                          <X size={14} />
+                        </Button>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">{label.labelClass.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeLabel(index)}
-                        className="h-6 px-2"
-                      >
-                        <X size={14} />
-                      </Button>
+                      <DefaultTextarea
+                        className="w-full"
+                        placeholder="Reasoning (optional)"
+                        value={label.reasoning || ''}
+                        onChange={(e) => {
+                          setAddedLabels(prev => prev.map(l => l.labelClass.id === label.labelClass.id ? { ...l, reasoning: e.target.value } : l));
+                        }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -182,7 +193,7 @@ export default function Queue({ queue }: QueueProps) {
                   label => label.labelClass.id === labelClass.id
                 );
                 if (!isDuplicateClass) {
-                  setAddedLabels(prev => [...prev, { value, labelClass }]);
+                  setAddedLabels(prev => [...prev, { value, labelClass, reasoning: null }]);
                 }
               }}
             />

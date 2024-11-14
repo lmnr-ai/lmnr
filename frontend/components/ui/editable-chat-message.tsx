@@ -78,7 +78,7 @@ export default function EditableChatMessage({
   };
 
   return (
-    <div className="flex flex-col group border-b p-2">
+    <div className="flex flex-col group">
       <div className="flex mb-2">
         <div className="flex items-center space-x-2">
           <Button

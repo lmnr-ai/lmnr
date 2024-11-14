@@ -17,13 +17,7 @@ pub enum LabelType {
 pub enum LabelSource {
     MANUAL,
     AUTO,
-}
-
-#[derive(sqlx::Type, Serialize, Clone, PartialEq)]
-#[sqlx(type_name = "label_job_status")]
-pub enum LabelJobStatus {
-    RUNNING,
-    DONE,
+    CODE,
 }
 
 #[derive(Serialize, FromRow, Debug, Clone)]
@@ -34,7 +28,7 @@ pub struct LabelClass {
     pub name: String,
     pub project_id: Uuid,
     pub label_type: LabelType,
-    pub value_map: Value, // Vec<Value>
+    pub value_map: Value, // HashMap<String, f64>
     pub description: Option<String>,
     pub evaluator_runnable_graph: Option<Value>,
 }
@@ -51,7 +45,6 @@ pub struct DBSpanLabel {
     pub updated_at: DateTime<Utc>,
     pub user_id: Option<Uuid>,
     pub label_source: LabelSource,
-    pub job_status: Option<LabelJobStatus>, // Some only for LabelSource::AUTO
     pub reasoning: Option<String>,
 }
 
@@ -63,7 +56,6 @@ pub struct SpanLabel {
     pub value: Option<f64>,
     pub class_id: Uuid,
     pub created_at: DateTime<Utc>,
-    pub job_status: Option<LabelJobStatus>, // Some only for LabelSource::AUTO
     pub label_source: LabelSource,
     pub reasoning: Option<String>,
 
@@ -111,54 +103,10 @@ pub async fn get_label_classes_by_project_id(
         query.push_bind(label_class_ids);
         query.push(")");
     }
+    query.push(" ORDER BY created_at DESC");
     let label_classes = query.build_query_as::<LabelClass>().fetch_all(pool).await?;
 
     Ok(label_classes)
-}
-
-pub async fn create_label_class(
-    pool: &PgPool,
-    id: Uuid,
-    name: String,
-    project_id: Uuid,
-    label_type: &LabelType,
-    value_map: Vec<Value>,
-    description: Option<String>,
-    evaluator_runnable_graph: Option<Value>,
-) -> Result<LabelClass> {
-    let label_class = sqlx::query_as::<_, LabelClass>(
-        "INSERT INTO label_classes (
-            id,
-            name,
-            project_id,
-            label_type,
-            value_map,
-            description,
-            evaluator_runnable_graph
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING
-            id,
-            created_at,
-            name,
-            project_id,
-            label_type,
-            value_map,
-            description,
-            evaluator_runnable_graph
-        ",
-    )
-    .bind(id)
-    .bind(name)
-    .bind(project_id)
-    .bind(label_type)
-    .bind(serde_json::to_value(value_map).unwrap())
-    .bind(description)
-    .bind(evaluator_runnable_graph)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(label_class)
 }
 
 pub async fn get_label_class(
@@ -225,7 +173,6 @@ pub async fn delete_span_label(
             updated_at,
             user_id,
             label_source,
-            job_status,
             reasoning",
     )
     .bind(span_id)
@@ -238,20 +185,20 @@ pub async fn delete_span_label(
 
 pub async fn update_span_label(
     pool: &PgPool,
+    id: Uuid,
     span_id: Uuid,
     value: f64,
     user_id: Option<Uuid>,
     class_id: Uuid,
-    label_source: LabelSource,
-    job_status: Option<LabelJobStatus>,
+    label_source: &LabelSource,
     reasoning: Option<String>,
 ) -> Result<DBSpanLabel> {
     let span_label = sqlx::query_as::<_, DBSpanLabel>(
         "INSERT INTO labels
-            (span_id, class_id, user_id, value, updated_at, label_source, job_status, reasoning)
-        VALUES ($1, $2, $3, $4, now(), $5, $6, $7)
+            (id, span_id, class_id, user_id, value, updated_at, label_source, reasoning)
+        VALUES ($1, $2, $3, $4, $5, now(), $6, $7)
         ON CONFLICT (span_id, class_id, user_id)
-        DO UPDATE SET value = $4, updated_at = now(), label_source = $5, job_status = $6,
+        DO UPDATE SET value = $5, updated_at = now(), label_source = $6,
             reasoning = CASE WHEN $7 IS NOT NULL THEN $7 ELSE labels.reasoning END
         RETURNING
             id,
@@ -262,15 +209,14 @@ pub async fn update_span_label(
             updated_at,
             user_id,
             label_source,
-            job_status,
             reasoning",
     )
+    .bind(id)
     .bind(span_id)
     .bind(class_id)
     .bind(user_id)
     .bind(value)
     .bind(label_source)
-    .bind(job_status)
     .bind(reasoning)
     .fetch_one(pool)
     .await?;
@@ -289,7 +235,6 @@ pub async fn get_span_labels(pool: &PgPool, span_id: Uuid) -> Result<Vec<SpanLab
             labels.updated_at,
             labels.user_id,
             labels.label_source,
-            labels.job_status,
             labels.reasoning,
             users.email as user_email,
             label_classes.label_type,

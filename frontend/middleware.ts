@@ -49,7 +49,7 @@ export default withAuth({
 
 export const config = {
   matcher: [
-    '/api/projects/:path*',
-    '/project/:path*',
+    '/api/projects/:path+',
+    '/project/:path+',
   ],
 };

@@ -18,7 +18,8 @@ const removeQueueItemSchema = z.object({
     labelClass: z.object({
       name: z.string(),
       id: z.string()
-    })
+    }),
+    reasoning: z.string().optional()
   })),
   action: z.object({
     resultId: z.string().optional()
@@ -44,15 +45,15 @@ export async function POST(request: Request, { params }: { params: { projectId: 
     });
 
     // adding new labels to the span
-    const newLabels = addedLabels.map(({ value, labelClass }) => ({
+    const newLabels = addedLabels.map(({ value, labelClass, reasoning }) => ({
       value: value,
       classId: labelClass.id,
       spanId,
+      reasoning,
       labelSource: "MANUAL" as const,
     }));
 
     await db.insert(labels).values(newLabels);
-
 
     const resultId = action.resultId;
 

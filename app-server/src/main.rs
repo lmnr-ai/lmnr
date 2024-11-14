@@ -60,6 +60,7 @@ mod db;
 mod engine;
 mod evaluations;
 mod features;
+mod labels;
 mod language_model;
 mod names;
 mod opentelemetry;
@@ -490,10 +491,6 @@ fn main() -> anyhow::Result<()> {
                                         .service(
                                             routes::evaluations::get_evaluation_score_distribution,
                                         )
-                                        .service(routes::datasets::get_datasets)
-                                        .service(routes::datasets::create_dataset)
-                                        .service(routes::datasets::get_dataset)
-                                        .service(routes::datasets::rename_dataset)
                                         .service(routes::datasets::delete_dataset)
                                         .service(routes::datasets::upload_datapoint_file)
                                         .service(routes::datasets::create_datapoints)
