@@ -60,6 +60,7 @@ mod db;
 mod engine;
 mod evaluations;
 mod features;
+mod labels;
 mod language_model;
 mod names;
 mod opentelemetry;

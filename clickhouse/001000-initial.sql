@@ -23,7 +23,6 @@ ENGINE = MergeTree()
 ORDER BY (project_id, start_time, trace_id, span_id)
 SETTINGS index_granularity = 8192;
 
-
 CREATE TABLE events (
     id UUID,
     timestamp DateTime64(9, 'UTC'),
@@ -49,3 +48,20 @@ CREATE TABLE evaluation_scores (
 ORDER BY (project_id, group_id, timestamp, evaluation_id, name)
 SETTINGS index_granularity = 8192
 SETTINGS flatten_nested=0;
+
+CREATE TABLE default.labels
+(
+    `project_id` UUID,
+    `class_id` UUID,
+    `created_at` DateTime64(9, 'UTC'),
+    `id` UUID,
+    `name` String,
+    `label_source` UInt8,
+    `value_key` String,
+    `value` Float64,
+    `span_id` UUID
+)
+ENGINE MergeTree
+PRIMARY KEY (project_id, class_id, span_id)
+ORDER BY (project_id, class_id, span_id, created_at, id)
+SETTINGS index_granularity = 8192

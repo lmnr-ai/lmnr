@@ -7,7 +7,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    datasets::{datapoints, utils::read_multipart_file, Dataset},
+    datasets::{datapoints, utils::read_multipart_file},
     db::{self, datapoints::DatapointView, datasets, DB},
     routes::{PaginatedGetQueryParams, PaginatedResponse, ResponseResult},
     semantic_search::SemanticSearch,

@@ -193,8 +193,13 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
                 .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
         }
 
-        if let Err(e) =
-            record_labels_to_db(db.clone(), &span, &rabbitmq_span_message.project_id).await
+        if let Err(e) = record_labels_to_db(
+            db.clone(),
+            clickhouse.clone(),
+            &span,
+            &rabbitmq_span_message.project_id,
+        )
+        .await
         {
             log::error!(
                 "Failed to record labels to DB. span_id [{}], project_id [{}]: {:?}",
@@ -241,6 +246,7 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
                 registered_label_class.label_class_id,
                 &span,
                 db.clone(),
+                clickhouse.clone(),
             )
             .await
             {
