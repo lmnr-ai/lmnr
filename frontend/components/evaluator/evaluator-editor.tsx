@@ -106,7 +106,16 @@ export function EvaluatorEditor({
 
     const res = await response.json();
 
-    setOutput(res['outputs']['output']['value']);
+    let value = res['outputs']['output']['value'];
+
+    // python return True or False but we parse it into JSON as true/false
+    if (value === 'true') {
+      value = 'True';
+    } else if (value === 'false') {
+      value = 'False';
+    }
+
+    setOutput(value);
   };
 
   const runEval = async () => {

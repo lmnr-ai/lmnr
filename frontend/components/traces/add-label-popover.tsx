@@ -52,7 +52,7 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 
-const evaluatorType = (labelClass: LabelClass) => {
+const getEvaluatorType = (labelClass: LabelClass) => {
   if (!labelClass.evaluatorRunnableGraph) {
     return '-';
   }
@@ -214,7 +214,7 @@ export function AddLabelPopover({ span }: AddLabelPopoverProps) {
                           <TableCell className="px-0">
                             <div className="flex">
                               <span className="text-sm">
-                                {evaluatorType(labelClass)}
+                                {getEvaluatorType(labelClass)}
                               </span>
                             </div>
                           </TableCell>
@@ -461,20 +461,37 @@ function AddLabelInstance({
 
 
     const data = await response.json();
-    const value = data['outputs']['output']['value'];
+    let value = data['outputs']['output']['value'];
 
-    console.log('value', value);
+    const evaluatorType = getEvaluatorType(labelClass);
 
-    try {
-      // LLM evaluator produces a JSON object with keys "value" and "reasoning"
-      const parsedValue = JSON.parse(value);
-      addLabel(
-        parsedValue['value'],
-        labelClass,
-        LabelSource.AUTO,
-        parsedValue['reasoning']
-      );
-    } catch (e) {
+    if (evaluatorType === 'LLM') {
+      try {
+        // LLM evaluator produces a JSON object with keys "value" and "reasoning"
+        const parsedValue = JSON.parse(value);
+        addLabel(
+          parsedValue['value'],
+          labelClass,
+          LabelSource.AUTO,
+          parsedValue['reasoning']
+        );
+      } catch (e) {
+        toast({
+          title: 'Error',
+          description: 'Failed to parse LLM evaluator output',
+          variant: 'destructive'
+        });
+      }
+    } else {
+
+      // QUICK FIX
+      // python return True or False but we parse it into JSON as true/false
+      if (value === 'true') {
+        value = 'True';
+      } else if (value === 'false') {
+        value = 'False';
+      }
+
       addLabel(value, labelClass, LabelSource.AUTO);
     }
 
