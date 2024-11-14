@@ -2,7 +2,7 @@ use anyhow::Result;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::db::labels::{DBSpanLabel, LabelJobStatus, LabelSource};
+use crate::db::labels::{DBSpanLabel, LabelSource};
 
 pub async fn insert_or_update_label(
     pool: &PgPool,
@@ -16,7 +16,6 @@ pub async fn insert_or_update_label(
     value_key: String,
     value: f64,
     label_source: LabelSource,
-    job_status: Option<LabelJobStatus>,
     reasoning: Option<String>,
 ) -> Result<DBSpanLabel> {
     let label = crate::db::labels::update_span_label(
@@ -27,7 +26,6 @@ pub async fn insert_or_update_label(
         user_id,
         class_id,
         &label_source,
-        job_status,
         reasoning,
     )
     .await?;
