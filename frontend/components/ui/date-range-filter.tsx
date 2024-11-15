@@ -177,7 +177,6 @@ function AbsoluteDateRangeFilter() {
               }
               onClick={() => {
                 searchParams.delete('pastHours');
-                searchParams.delete('pageNumber');
                 searchParams.set('pageNumber','0');
                 searchParams.set(
                   'startDate',
@@ -231,7 +230,6 @@ export default function DateRangeFilter() {
                   searchParams.delete('endDate');
                   searchParams.delete('groupByInterval');
                   searchParams.set('pastHours', range.value);
-                  searchParams.delete('pageNumber');
                   searchParams.set('pageNumber', '0');
                   router.push(`${pathName}?${searchParams.toString()}`);
                 }}
