@@ -4,7 +4,10 @@ use clickhouse::Row;
 use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::evaluations::utils::EvaluationDatapointResult;
+use crate::{
+    evaluations::utils::EvaluationDatapointResult,
+    features::{is_feature_enabled, Feature},
+};
 
 use super::utils::chrono_to_nanoseconds;
 
@@ -72,6 +75,10 @@ pub async fn insert_evaluation_scores(
     evaluation_scores: Vec<EvaluationScore>,
 ) -> Result<()> {
     if evaluation_scores.is_empty() {
+        return Ok(());
+    }
+
+    if !is_feature_enabled(Feature::FullBuild) {
         return Ok(());
     }
 

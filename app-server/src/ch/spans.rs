@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     db::spans::{Span, SpanType},
+    features::{is_feature_enabled, Feature},
     traces::spans::SpanUsage,
 };
 
@@ -94,6 +95,9 @@ impl CHSpan {
 }
 
 pub async fn insert_span(clickhouse: clickhouse::Client, span: &CHSpan) -> Result<()> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(());
+    }
     let ch_insert = clickhouse.insert("spans");
     match ch_insert {
         Ok(mut ch_insert) => {
