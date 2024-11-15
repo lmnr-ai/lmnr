@@ -12,8 +12,7 @@ use crate::{
 use super::{
     modifiers::GroupByInterval,
     utils::{
-        chrono_to_nanoseconds, execute_query, group_by_time_absolute_statement,
-        group_by_time_relative_statement,
+        chrono_to_nanoseconds, group_by_time_absolute_statement, group_by_time_relative_statement,
     },
     Aggregation, MetricTimeValue,
 };
@@ -122,30 +121,18 @@ pub async fn get_total_trace_count_metrics_relative(
     project_id: Uuid,
     past_hours: i64,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    let ch_round_time = group_by_interval.to_ch_truncate_time();
-
-    let query_string = format!(
-        "
-    WITH traces AS (
-        SELECT
-            trace_id,
-            project_id,
-            {ch_round_time}(MIN(start_time)) as time
-        FROM spans
-        GROUP BY project_id, trace_id
-    )
-    SELECT
-        time,
-        COUNT(DISTINCT(trace_id)) as value
-    FROM traces
-    WHERE
-        project_id = '{project_id}'
-        AND time >= now() - INTERVAL {past_hours} HOUR
-    {}",
-        group_by_time_relative_statement(past_hours, group_by_interval)
+    let query = span_metric_query_relative(
+        &clickhouse,
+        project_id,
+        group_by_interval,
+        past_hours,
+        Aggregation::Total,
+        "COUNT(DISTINCT(trace_id))",
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let rows = query.fetch_all().await?;
+
+    Ok(rows)
 }
 
 pub async fn get_total_trace_count_metrics_absolute(
@@ -155,34 +142,19 @@ pub async fn get_total_trace_count_metrics_absolute(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    let ch_round_time = group_by_interval.to_ch_truncate_time();
-    let ch_start_time = start_time.timestamp();
-    let ch_end_time = end_time.timestamp();
-
-    let query_string = format!(
-        "
-    WITH traces AS (
-    SELECT
-        trace_id,
+    let query = span_metric_query_absolute(
+        &clickhouse,
         project_id,
-        {ch_round_time}(MIN(start_time)) as time,
-        SUM(total_tokens) as value
-    FROM spans
-    GROUP BY project_id, trace_id
-    )
-    SELECT
-        time,
-        COUNT(DISTINCT(trace_id)) as value
-    FROM traces
-    WHERE
-        project_id = '{project_id}'
-        AND time >= fromUnixTimestamp({ch_start_time})
-        AND time <= fromUnixTimestamp({ch_end_time})
-    {}",
-        group_by_time_absolute_statement(start_time, end_time, group_by_interval)
+        group_by_interval,
+        start_time,
+        end_time,
+        Aggregation::Total,
+        "COUNT(DISTINCT(trace_id))",
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let rows = query.fetch_all().await?;
+
+    Ok(rows)
 }
 
 pub async fn get_trace_latency_seconds_metrics_relative(
@@ -192,7 +164,8 @@ pub async fn get_trace_latency_seconds_metrics_relative(
     past_hours: i64,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
-    let query_string = span_metric_query_relative(
+    let query = span_metric_query_relative(
+        &clickhouse,
         project_id,
         group_by_interval,
         past_hours,
@@ -200,7 +173,9 @@ pub async fn get_trace_latency_seconds_metrics_relative(
         "(toUnixTimestamp64Nano(MAX(end_time)) - toUnixTimestamp64Nano(MIN(start_time))) / 1e9",
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let res = query.fetch_all::<MetricTimeValue<f64>>().await?;
+
+    Ok(res)
 }
 
 pub async fn get_trace_latency_seconds_metrics_absolute(
@@ -211,7 +186,8 @@ pub async fn get_trace_latency_seconds_metrics_absolute(
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
-    let query_string = span_metric_query_absolute(
+    let query = span_metric_query_absolute(
+        &clickhouse,
         project_id,
         group_by_interval,
         start_time,
@@ -220,7 +196,9 @@ pub async fn get_trace_latency_seconds_metrics_absolute(
         "(toUnixTimestamp64Nano(MAX(end_time)) - toUnixTimestamp64Nano(MIN(start_time))) / 1e9",
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let res = query.fetch_all::<MetricTimeValue<f64>>().await?;
+
+    Ok(res)
 }
 
 pub async fn get_total_token_count_metrics_relative(
@@ -230,7 +208,8 @@ pub async fn get_total_token_count_metrics_relative(
     past_hours: i64,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    let query_string = span_metric_query_relative(
+    let query = span_metric_query_relative(
+        &clickhouse,
         project_id,
         group_by_interval,
         past_hours,
@@ -238,7 +217,9 @@ pub async fn get_total_token_count_metrics_relative(
         "SUM(total_tokens)",
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let res = query.fetch_all::<MetricTimeValue<i64>>().await?;
+
+    Ok(res)
 }
 
 pub async fn get_total_token_count_metrics_absolute(
@@ -249,7 +230,8 @@ pub async fn get_total_token_count_metrics_absolute(
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    let query_string = span_metric_query_absolute(
+    let query = span_metric_query_absolute(
+        &clickhouse,
         project_id,
         group_by_interval,
         start_time,
@@ -258,7 +240,9 @@ pub async fn get_total_token_count_metrics_absolute(
         "SUM(total_tokens)",
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let res = query.fetch_all().await?;
+
+    Ok(res)
 }
 
 pub async fn get_cost_usd_metrics_relative(
@@ -268,7 +252,8 @@ pub async fn get_cost_usd_metrics_relative(
     past_hours: i64,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
-    let query_string = span_metric_query_relative(
+    let query = span_metric_query_relative(
+        &clickhouse,
         project_id,
         group_by_interval,
         past_hours,
@@ -276,7 +261,9 @@ pub async fn get_cost_usd_metrics_relative(
         "SUM(total_cost)",
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let res = query.fetch_all().await?;
+
+    Ok(res)
 }
 
 pub async fn get_cost_usd_metrics_absolute(
@@ -287,7 +274,8 @@ pub async fn get_cost_usd_metrics_absolute(
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
-    let query_string = span_metric_query_absolute(
+    let query = span_metric_query_absolute(
+        &clickhouse,
         project_id,
         group_by_interval,
         start_time,
@@ -296,20 +284,23 @@ pub async fn get_cost_usd_metrics_absolute(
         "SUM(total_cost)",
     );
 
-    execute_query(&clickhouse, &query_string).await
+    let res = query.fetch_all().await?;
+
+    Ok(res)
 }
 
 fn span_metric_query_relative(
+    clickhouse: &clickhouse::Client,
     project_id: Uuid,
     group_by_interval: GroupByInterval,
     past_hours: i64,
     aggregation: Aggregation,
     metric: &str,
-) -> String {
+) -> clickhouse::query::Query {
     let ch_round_time = group_by_interval.to_ch_truncate_time();
     let ch_aggregation = aggregation.to_ch_agg_function();
 
-    format!(
+    let query_string = format!(
         "
     WITH traces AS (
     SELECT
@@ -325,27 +316,33 @@ fn span_metric_query_relative(
         {ch_aggregation}(value) as value
     FROM traces
     WHERE
-        project_id = '{project_id}'
-        AND time >= now() - INTERVAL {past_hours} HOUR
+        project_id = ?
+        AND time >= now() - INTERVAL ? HOUR
     {}",
         group_by_time_relative_statement(past_hours, group_by_interval)
-    )
+    );
+
+    clickhouse
+        .query(&query_string)
+        .bind(project_id)
+        .bind(past_hours)
 }
 
 fn span_metric_query_absolute(
+    clickhouse: &clickhouse::Client,
     project_id: Uuid,
     group_by_interval: GroupByInterval,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
     metric: &str,
-) -> String {
+) -> clickhouse::query::Query {
     let ch_round_time = group_by_interval.to_ch_truncate_time();
     let ch_start_time = start_time.timestamp();
     let ch_end_time = end_time.timestamp();
     let ch_aggregation = aggregation.to_ch_agg_function();
 
-    format!(
+    let query_string = format!(
         "
     WITH traces AS (
     SELECT
@@ -361,10 +358,16 @@ fn span_metric_query_absolute(
         {ch_aggregation}(value) as value
     FROM traces
     WHERE
-        project_id = '{project_id}'
-        AND time >= fromUnixTimestamp({ch_start_time})
-        AND time <= fromUnixTimestamp({ch_end_time})
+        project_id = ?
+        AND time >= fromUnixTimestamp(?)
+        AND time <= fromUnixTimestamp(?)
     {}",
         group_by_time_absolute_statement(start_time, end_time, group_by_interval)
-    )
+    );
+
+    clickhouse
+        .query(&query_string)
+        .bind(project_id)
+        .bind(ch_start_time)
+        .bind(ch_end_time)
 }

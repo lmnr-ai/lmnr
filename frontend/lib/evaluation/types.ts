@@ -44,3 +44,10 @@ export type EvaluationResultsInfo = {
   evaluation: Evaluation;
   results: EvaluationDatapointPreview[];
 };
+
+export type EvaluationTimeProgression = {
+  timestamp: string;
+  evaluationId: string;
+  names: string[];
+  values: string[];
+};

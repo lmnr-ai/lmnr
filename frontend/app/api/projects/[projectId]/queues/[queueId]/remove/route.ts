@@ -6,6 +6,7 @@ import { isFeatureEnabled } from '@/lib/features/features';
 import { Feature } from '@/lib/features/features';
 import { clickhouseClient } from '@/lib/clickhouse/client';
 import { z } from 'zod';
+import { dateToNanoseconds } from '@/lib/clickhouse/utils';
 
 const NANOS_PER_MILLISECOND = 1_000_000;
 
@@ -89,7 +90,7 @@ export async function POST(request: Request, { params }: { params: { projectId: 
             result_id: resultId,
             name: value.name,
             value: value.score,
-            timestamp: new Date().getTime() * NANOS_PER_MILLISECOND
+            timestamp: dateToNanoseconds(new Date())
           }))
         });
       }
