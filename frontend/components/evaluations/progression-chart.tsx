@@ -1,7 +1,7 @@
 import { useProjectContext } from "@/contexts/project-context";
 import { swrFetcher, cn, formatTimestamp } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
-import { CartesianGrid, XAxis, LineChart, Line, YAxis} from "recharts";
+import { CartesianGrid, XAxis, LineChart, Line, YAxis } from "recharts";
 import useSWR from "swr";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
 import { Skeleton } from "../ui/skeleton";
@@ -50,10 +50,6 @@ export default function ProgressionChart({
     }
   }, [data]);
 
-  if (isLoading || !data || error) {
-    return <Skeleton className="h-full w-full" />;
-  }
-
   const chartConfig = Object.fromEntries(Array.from(keys).map((key, index) => ([
     key, {
       color: `hsl(var(--chart-${index % 5 + 1}))`,
@@ -61,14 +57,20 @@ export default function ProgressionChart({
     }
   ]))) satisfies ChartConfig;
 
-  const horizontalPadding = Math.max(10 - data.length, 0) * 50;
+  const horizontalPadding = Math.max(10 - (data?.length ?? 0), 0) * 50;
 
   return (
     <div className={cn('w-full h-full', className)}>
-      <ChartContainer config={chartConfig as ChartConfig} className={cn('h-56', 'w-full')}>
+      <ChartContainer
+        config={chartConfig as ChartConfig}
+        className={cn('h-56', 'w-full')}
+      >
         {isLoading || !data || error ? (
-          <Skeleton className="h-full w-full" />
+          <div className="h-full w-full">
+            <Skeleton className="h-full w-full" />
+          </div>
         ) : <LineChart
+          margin={{ top: 10, right: 10, bottom: 0, left: -24 }}
           accessibilityLayer
           data={convertScores(data)}
         >
@@ -77,8 +79,9 @@ export default function ProgressionChart({
             type="category"
             dataKey="timestamp"
             tickLine={false}
-            axisLine={true}
+            axisLine={false}
             tickFormatter={(value) => formatTimestamp(`${value}Z`)}
+            height={8}
             padding={{ left: horizontalPadding, right: horizontalPadding }}
           />
           <YAxis
@@ -89,10 +92,20 @@ export default function ProgressionChart({
           />
           <ChartTooltip
             cursor={false}
-            content={<ChartTooltipContent hideLabel className="min-w-60"/>}
+            content={<ChartTooltipContent hideLabel className="min-w-60" />}
           />
           {Array.from(keys).filter((key) => showScores.includes(key)).map((key) => (
-            <Line dataKey={key} stroke={chartConfig[key].color} key={key} isAnimationActive={false}/>
+            <Line
+              dot={{
+                stroke: chartConfig[key].color,
+                strokeWidth: 4,
+                r: 2,
+              }}
+              dataKey={key}
+              stroke={chartConfig[key].color}
+              key={key}
+              isAnimationActive={false}
+            />
           ))}
         </LineChart>
         }
@@ -118,7 +131,7 @@ export default function ProgressionChart({
               setShowScores(Array.from(newShowScores));
             }}
           >
-            <Minus className="h-4 w-4 mt-1"/>
+            <Minus className="h-4 w-4 mt-1" />
             <Label className="cursor-pointer">
               {key}
             </Label>

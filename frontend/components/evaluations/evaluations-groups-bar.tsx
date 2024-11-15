@@ -37,14 +37,16 @@ export default function EvaluationsGroupsBar() {
 
   const selectedGroupId = searchParams.get('groupId');
 
-  return <div className="flex-none w-80 py-2 border-r flex flex-col">
-    <div className="font-medium p-2 text-lg">Groups</div>
-      <DataTable
-        columns={columns}
-        data={groups}
-        onRowClick={(row) => {
-          router.push(`/project/${projectId}/evaluations?groupId=${row.original.groupId}`);
-        }}
-      />
-    </div>;
+  return <div className="flex-none w-80 border-r flex flex-col">
+    <div className="font-medium p-2 px-4 text-lg">Groups</div>
+    <DataTable
+      columns={columns}
+      data={groups}
+      getRowId={(row) => row.groupId}
+      focusedRowId={selectedGroupId}
+      onRowClick={(row) => {
+        router.push(`/project/${projectId}/evaluations?groupId=${row.original.groupId}`);
+      }}
+    />
+  </div>;
 }

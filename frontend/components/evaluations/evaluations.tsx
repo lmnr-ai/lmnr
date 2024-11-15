@@ -121,31 +121,30 @@ export default function Evaluations() {
   return (
     <div className="flex flex-col h-full">
       <Header path="evaluations" />
-      <div className = "flex h-full">
+      <div className="flex h-full w-full">
         <EvaluationsGroupsBar />
-        <div className="flex flex-col h-full flex-1 space-y-4">
-          <div className="flex justify-start items-center flex-none p-4 space-x-4">
-            <h1 className="scroll-m-20 text-2xl font-medium flex items-center flex-none">
-              Evaluations
-            </h1>
-            <Select
-              value={aggregationFunction}
-              onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
-            >
-              <SelectTrigger className="flex-none max-w-32 mt-1.5">
-                <SelectValue placeholder="Aggregate" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="AVG">Average</SelectItem>
-                <SelectItem value="SUM">Sum</SelectItem>
-                <SelectItem value="MIN">Minimum</SelectItem>
-                <SelectItem value="MAX">Maximum</SelectItem>
-                <SelectItem value="MEDIAN">Median</SelectItem>
-                <SelectItem value="p90">p90</SelectItem>
-                <SelectItem value="p95">p95</SelectItem>
-                <SelectItem value="p99">p99</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="flex flex-col h-full flex-grow space-y-4">
+          <div className="flex justify-start items-center flex-none p-2 space-x-4 w-full">
+            <div>
+              <Select
+                value={aggregationFunction}
+                onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Aggregate" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AVG">Average</SelectItem>
+                  <SelectItem value="SUM">Sum</SelectItem>
+                  <SelectItem value="MIN">Minimum</SelectItem>
+                  <SelectItem value="MAX">Maximum</SelectItem>
+                  <SelectItem value="MEDIAN">Median</SelectItem>
+                  <SelectItem value="p90">p90</SelectItem>
+                  <SelectItem value="p95">p95</SelectItem>
+                  <SelectItem value="p99">p99</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <ProgressionChart className="h-64 flex-none px-2" aggregationFunction={aggregationFunction} />
           <div className="flex-grow">
