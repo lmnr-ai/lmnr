@@ -74,15 +74,16 @@ export default function WorkspaceUsage({
       <div className="flex flex-col space-y-1">
         {workspaceStats.tierName === 'Pro' && (
           <p className="text-secondary-foreground text-sm mb-2">
-            Pro tier comes with 50K spans included. <br />
+            Pro tier comes with 50K spans included per month. <br />
             If you exceed this limit, you will be charged for overages.
           </p>
         )}
         {
           workspaceStats.tierName === 'Free' && (
             <p className="text-secondary-foreground text-sm mb-2">
-              Free tier comes with 10K spans included. <br />
-              If you exceed this limit, you won{"'"}t be able to send any more spans.
+              Free tier comes with 10K spans included per month. <br />
+              If you exceed this limit, you won{"'"}t be able to send <br />
+              any more spans during current billing cycle.
             </p>
           )
         }

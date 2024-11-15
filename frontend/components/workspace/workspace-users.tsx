@@ -24,6 +24,8 @@ import {
 import { useRouter } from 'next/navigation';
 import { WorkspaceStats } from '@/lib/usage/types';
 import PurchaseSeatsDialog from './purchase-seats-dialog';
+import { Table, TableRow, TableHeader, TableBody, TableCell, TableHead } from '../ui/table';
+import { formatTimestamp } from '@/lib/utils';
 
 interface WorkspaceUsersProps {
   workspace: WorkspaceWithUsers;
@@ -52,10 +54,10 @@ export default function WorkspaceUsers({
     });
   }, []);
 
-  const addUser = async () => {
+  const inviteUser = async () => {
     setIsAddUserLoading(true);
 
-    const res = await fetch(`/api/workspaces/${workspace.id}/users`, {
+    const res = await fetch(`/api/workspaces/${workspace.id}/invite`, {
       method: 'POST',
       body: JSON.stringify({ email: newUserEmail.trim() })
     });
@@ -99,7 +101,7 @@ export default function WorkspaceUsers({
                     <div tabIndex={0}>
                       <Button variant="outline" disabled>
                         <Plus className="w-4 mr-1 text-gray-500" />
-                        Add user
+                        Invite member
                       </Button>
                     </div>
                   </TooltipTrigger>
@@ -125,16 +127,13 @@ export default function WorkspaceUsers({
                     variant="outline"
                   >
                     <Plus className="w-4 mr-1" />
-                    Add user
+                    Invite member
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
-                    <DialogTitle>Add user to workspace</DialogTitle>
+                    <DialogTitle>Invite member to workspace</DialogTitle>
                   </DialogHeader>
-                  <Label className="text-sm text-secondary-foreground">
-                    You can only add users who are registered on Laminar
-                  </Label>
                   <div className="flex flex-col space-y-2">
                     <Label>Email</Label>
                     <Input
@@ -148,33 +147,42 @@ export default function WorkspaceUsers({
                       disabled={isAddUserLoading || newUserEmail.trim() === ''}
                       handleEnter={true}
                       onClick={async () => {
-                        await addUser();
+                        await inviteUser();
                         setIsAddUserDialogOpen(false);
                         setNewUserEmail('');
                       }}
                     >
-                      Add
+                      {isAddUserLoading && (
+                        <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                      )}
+                      Invite
                     </Button>
-                    {isAddUserLoading && (
-                      <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                    )}
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
             )}
           </div>
         )}
-        <table className="w-2/3 border-t">
-          <tbody>
-            {users.map((user, i) => (
-              <tr key={i} className="border-b h-14">
-                <td className="">{i + 1}</td>
-                <td className="ml-4 text-[16px]">{user.email}</td>
-                <td className="ml-4 text-[16px]">{user.role}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="w-2/3">
+          <Table>
+            <TableHeader className="">
+              <TableRow className="border-none bg-card text-card-foreground rounded-lg overflow-hidden">
+                <TableHead className="p-2 rounded-l-lg">Email</TableHead>
+                <TableHead className="p-2">Role</TableHead>
+                <TableHead className="p-2 rounded-r-lg">Added</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user, i) => (
+                <TableRow key={i} className="h-14">
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.role}</TableCell>
+                  <TableCell>{formatTimestamp(user.createdAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );
