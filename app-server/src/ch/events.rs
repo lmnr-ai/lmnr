@@ -5,7 +5,10 @@ use serde::Serialize;
 use serde_repr::Serialize_repr;
 use uuid::Uuid;
 
-use crate::db::{self, event_templates::EventTemplate};
+use crate::{
+    db::{self, event_templates::EventTemplate},
+    features::{is_feature_enabled, Feature},
+};
 
 use super::{
     modifiers::GroupByInterval,
@@ -87,6 +90,9 @@ impl CHEvent {
 }
 
 pub async fn insert_events(clickhouse: clickhouse::Client, events: Vec<CHEvent>) -> Result<()> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(());
+    }
     if events.is_empty() {
         return Ok(());
     }
@@ -122,6 +128,9 @@ pub async fn get_total_event_count_metrics_relative(
     template_id: Uuid,
     past_hours: i64,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let ch_round_time = group_by_interval.to_ch_truncate_time();
 
     let query_string = format!(
@@ -157,6 +166,9 @@ pub async fn get_total_event_count_metrics_absolute(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let ch_round_time = group_by_interval.to_ch_truncate_time();
     let ch_start_time = start_time.timestamp();
     let ch_end_time = end_time.timestamp();

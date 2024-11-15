@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     db::spans::{Span, SpanType},
+    features::{is_feature_enabled, Feature},
     traces::spans::SpanUsage,
 };
 
@@ -94,6 +95,9 @@ impl CHSpan {
 }
 
 pub async fn insert_span(clickhouse: clickhouse::Client, span: &CHSpan) -> Result<()> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(());
+    }
     let ch_insert = clickhouse.insert("spans");
     match ch_insert {
         Ok(mut ch_insert) => {
@@ -121,6 +125,9 @@ pub async fn get_total_trace_count_metrics_relative(
     project_id: Uuid,
     past_hours: i64,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let query = span_metric_query_relative(
         &clickhouse,
         project_id,
@@ -142,6 +149,9 @@ pub async fn get_total_trace_count_metrics_absolute(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let query = span_metric_query_absolute(
         &clickhouse,
         project_id,
@@ -164,6 +174,9 @@ pub async fn get_trace_latency_seconds_metrics_relative(
     past_hours: i64,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let query = span_metric_query_relative(
         &clickhouse,
         project_id,
@@ -186,6 +199,9 @@ pub async fn get_trace_latency_seconds_metrics_absolute(
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let query = span_metric_query_absolute(
         &clickhouse,
         project_id,
@@ -208,6 +224,9 @@ pub async fn get_total_token_count_metrics_relative(
     past_hours: i64,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let query = span_metric_query_relative(
         &clickhouse,
         project_id,
@@ -230,6 +249,9 @@ pub async fn get_total_token_count_metrics_absolute(
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let query = span_metric_query_absolute(
         &clickhouse,
         project_id,
@@ -252,6 +274,9 @@ pub async fn get_cost_usd_metrics_relative(
     past_hours: i64,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let query = span_metric_query_relative(
         &clickhouse,
         project_id,
@@ -274,6 +299,9 @@ pub async fn get_cost_usd_metrics_absolute(
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(Vec::new());
+    }
     let query = span_metric_query_absolute(
         &clickhouse,
         project_id,
