@@ -7,6 +7,11 @@ import { useEffect, useMemo } from "react";
 import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Skeleton } from "../ui/skeleton";
+import { useRouter } from "next/navigation";
+import { buildSpansUrl } from "@/lib/traces/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { TooltipProvider } from "../ui/tooltip";
+import { Search } from "lucide-react";
 
 interface SpanSummaryChartProps {
   title: string;
@@ -32,7 +37,7 @@ const toFixedIfNeeded = (value: number) => value % 1 === 0 ? value : parseFloat(
 
 // We should be able to set something like a LabelList on the right from v3
 // https://github.com/recharts/recharts/issues/4579
-// We can consider migrating to recharts here, once v3 is out.
+// We can consider migrating this to recharts here, once v3 is out.
 
 export default function SpanSummaryChart({
   title,
@@ -42,13 +47,11 @@ export default function SpanSummaryChart({
   pastHours,
   startDate,
   endDate,
-  aggregations,
-  defaultAggregation,
   maxItems = DEFAULT_MAX_ITEMS,
   barHeight = 8,
 }: SpanSummaryChartProps) {
+  const router = useRouter();
   const [data, setData] = useState<Record<string, any>[] | null>(null);
-  const [aggregation, setAggregation] = useState<AggregationFunction>(defaultAggregation ?? aggregations?.[0] ?? 'SUM');
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
@@ -56,8 +59,8 @@ export default function SpanSummaryChart({
     }
     const params: Record<string, any> = {
       metric,
-      aggregation,
       groupBy,
+      aggregation: 'SUM',
     };
     if (pastHours) {
       params['pastHours'] = pastHours;
@@ -79,7 +82,7 @@ export default function SpanSummaryChart({
           .slice(0, maxItems)
         );
       });
-  }, [pastHours, startDate, endDate, groupBy, aggregation, projectId, metric, maxItems]);
+  }, [pastHours, startDate, endDate, groupBy, projectId, metric, maxItems]);
 
   const widths = useMemo(() => {
     const maxValue = Math.max(...(data?.map((d) => d.value) ?? []), 0);
@@ -93,46 +96,24 @@ export default function SpanSummaryChart({
     <div className="flex flex-col space-y-2 p-8">
       <div className="flex justify-start items-center">
         <div className="font-medium text-lg">{title}</div>
-        {aggregations && (
-          <Select
-            value={aggregation}
-            onValueChange={(value) => setAggregation(value as AggregationFunction)}
-          >
-            <SelectTrigger className="w-24 flex-none">
-              <SelectValue placeholder="Select aggregation" />
-            </SelectTrigger>
-            <SelectContent>
-              {aggregations.map((agg) => (
-                <SelectItem key={agg} value={agg}>{agg}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
       </div>
       <div className="flex justify-between space-x-6">
         <div className="relative w-full space-y-1.5">
           {data?.map((d, index) =>
-            <div key={index} className="group w-full flex items-center rounded-sm">
+            <div
+              key={index}
+              onClick={() => {
+                router.push(buildSpansUrl(projectId, groupBy, d[groupBy], pastHours, startDate, endDate));
+              }}
+              className="group w-full flex items-center rounded-sm cursor-pointer"
+            >
               <div
                 className = {cn("flex items-center rounded transition-all", `h-[${barHeight*4}px]`)}
                 style={{ width: `${widths?.[index] ?? 0}%`, backgroundColor: `hsl(var(--chart-1))` }}
               >
-                {/* <TooltipProvider delayDuration={250}>
-                  <Tooltip>
-                    <TooltipTrigger className="relative p-0"> */}
                 <div className={"absolute left-2 pr-4 flex max-w-full"}>
                   <p className="whitespace-nowrap truncate text-foreground">{d[groupBy]}</p>
                 </div>
-                {/* </TooltipTrigger>
-                    <TooltipContent side="bottom" className="p-0 border">
-                      <div>
-                        <p className="max-w-sm break-words whitespace-pre-wrap">
-                          <b>{d[groupBy]}</b>: {d.value}
-                        </p>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider> */}
               </div>
             </div>
           )}
@@ -142,7 +123,7 @@ export default function SpanSummaryChart({
             </div>
           ))}
         </div>
-        <div>
+        <div className="flex-col space-y-1.5">
           {data?.map((d, index) => (
             <div
               key={index}
@@ -152,7 +133,31 @@ export default function SpanSummaryChart({
                 index === data.length - 1 ? "mb-0" : "mb-1"
               )}
             >
-              <p className="whitespace-nowrap truncate leading-none text-muted-foreground">{toFixedIfNeeded(d.value)}</p>
+              <TooltipProvider key={index} delayDuration={250}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      key={index}
+                      onClick={() => {
+                        router.push(buildSpansUrl(projectId, groupBy, d[groupBy], pastHours, startDate, endDate));
+                      }}
+                      className="group w-full flex items-center rounded-sm space-x-1 cursor-pointer hover:underline"
+                    >
+                      <p className={cn(
+                        "whitespace-nowrap truncate leading-none text-muted-foreground",
+                        index === data.length - 1 ? "mr-0" : "mr-1"
+                      )} >{toFixedIfNeeded(d.value)}</p>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="p-0 border">
+                    <div>
+                      <p className="max-w-sm break-words whitespace-pre-wrap">
+                        View spans
+                      </p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           ))}
           {data == null && Array.from({length: 3}).map((_, index) => (

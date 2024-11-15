@@ -49,6 +49,8 @@ export async function GET(
       filter.column = "(attributes ->> 'gen_ai.usage.output_cost')::float8";
     } else if (filter.column === "cost") {
       filter.column = "(attributes ->> 'gen_ai.usage.cost')::float8";
+    } else if (filter.column === "model") {
+      filter.column = "(attributes ->> 'gen_ai.response.model')";
     } else if (filter.column === "span_type") {
       // cast to span_type
       const uppercased = filter.value.toUpperCase().trim();

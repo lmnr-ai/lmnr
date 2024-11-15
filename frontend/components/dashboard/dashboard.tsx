@@ -16,6 +16,7 @@ import { GroupByInterval } from '@/lib/clickhouse/modifiers';
 import { ScrollArea } from '../ui/scroll-area';
 import { AggregationFunction } from '@/lib/clickhouse/utils';
 import SpanSummaryChart from './span-summary-chart';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 
 const AGGREGATIONS: AggregationFunction[] = [
   'AVG',

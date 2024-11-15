@@ -80,7 +80,7 @@ export function TraceStatChart({
       .then((data: any) => {
         setData(data);
       });
-  }, [defaultGroupByInterval, pastHours, startDate, endDate]);
+  }, [defaultGroupByInterval, pastHours, startDate, endDate, aggregation, metric, projectId]);
 
   return (
     <div className={cn(className, 'flex flex-col space-y-2')}>

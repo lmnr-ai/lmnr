@@ -10,7 +10,7 @@ import {
   formatTimestamp,
   formatTimestampWithInterval,
 } from '@/lib/utils';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '../ui/skeleton';
 import { AggregationFunction } from '@/lib/clickhouse/utils';
 import { MetricTimeValue, SpanMetric, SpanMetricGroupBy, SpanMetricType } from '@/lib/clickhouse/spans';
@@ -95,7 +95,7 @@ export function SpanStatChart({
   ]))) satisfies ChartConfig;
 
   return (
-    <div className={cn(className, 'flex flex-col space-y-2')}>
+    <div className={cn('flex flex-col space-y-2')}>
       <div className="py-2 flex-none flex items-center space-x-2">
         <div className="flex space-x-2 justify-between text-sm font-medium">
           <div className="flex-grow text-secondary-foreground">{title}</div>
@@ -158,6 +158,13 @@ function StackedBarChart({
   chartConfig,
   groupByInterval
 }: ChartProps) {
+  // Ideally, we don't need to calculate this, and should be able to pass
+  // `domain=['dataMin', 'dataMax']` to the YAxis, but it doesn't work.
+  const dataMax = useMemo(() => Math.max(...data.map((d) => Object.entries(d)
+    .filter(([key]) => key !== xAxisKey)
+    .map(([_, value]) => value)
+    .reduce((a, b) => Math.max(a, b), 0))), [data]);
+
   return (
     <ChartContainer
       config={chartConfig}
@@ -191,6 +198,7 @@ function StackedBarChart({
           axisLine={false}
           tickMargin={8}
           tickCount={3}
+          domain={['auto', dataMax]}
         />
         <ChartTooltip
           cursor={false}
@@ -206,7 +214,6 @@ function StackedBarChart({
         {Array.from(keys).map((key) => (
           <Bar
             dataKey={key}
-            // dot={false}
             stroke={chartConfig[key].color}
             fill={chartConfig[key].color}
             key={key}
@@ -225,10 +232,17 @@ function DefaultLineChart({
   chartConfig,
   groupByInterval
 }: ChartProps) {
+  // Ideally, we don't need to calculate this, and should be able to pass
+  // `domain=['dataMin', 'dataMax']` to the YAxis, but it doesn't work.
+  const dataMax = useMemo(() => Math.max(...data.map((d) => Object.entries(d)
+    .filter(([key]) => key !== xAxisKey)
+    .map(([_, value]) => value)
+    .reduce((a, b) => Math.max(a, b), 0))), [data]);
+
   return (
     <ChartContainer
       config={chartConfig}
-      className="aspect-auto h-full w-full"
+      className="aspect-auto h-[40vh] w-full"
     >
       <LineChart data={data}>
         <CartesianGrid vertical={false} />
@@ -251,9 +265,9 @@ function DefaultLineChart({
           axisLine={false}
           tickMargin={8}
           tickCount={3}
+          domain={['auto', dataMax]}
         />
         <ChartTooltip
-          // cursor={false}
           content={
             <ChartTooltipContent
               labelKey={xAxisKey}
