@@ -3,13 +3,14 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    ch::{self, utils::get_bounds, Aggregation},
+    ch::{self, utils::get_bounds, Aggregation, MetricTimeValue},
     db::{
         self,
         events::EventWithTemplateName,
         modifiers::{AbsoluteDateInterval, DateRange, Filter, RelativeDateInterval},
         DB,
     },
+    features::{is_feature_enabled, Feature},
     routes::{PaginatedGetQueryParams, PaginatedResponse, DEFAULT_PAGE_SIZE},
 };
 
@@ -174,6 +175,9 @@ pub async fn get_events_metrics(
     } else {
         defaulted_range
     };
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(HttpResponse::Ok().json(Vec::<MetricTimeValue<i64>>::new()));
+    }
 
     match range {
         DateRange::Relative(interval) => {

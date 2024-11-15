@@ -4,7 +4,10 @@ use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::db::labels::LabelSource;
+use crate::{
+    db::labels::LabelSource,
+    features::{is_feature_enabled, Feature},
+};
 
 use super::utils::chrono_to_nanoseconds;
 
@@ -73,6 +76,10 @@ pub async fn insert_label(
     value: f64,
     span_id: Uuid,
 ) -> Result<()> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(());
+    }
+
     let label = CHLabel::new(
         project_id,
         class_id,
@@ -113,6 +120,9 @@ pub async fn delete_label(
     span_id: Uuid,
     id: Uuid,
 ) -> Result<()> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(());
+    }
     // Note, this does not immediately physically delete the data.
     // https://clickhouse.com/docs/en/sql-reference/statements/delete
     client

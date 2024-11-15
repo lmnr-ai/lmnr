@@ -5,7 +5,10 @@ use serde::Serialize;
 use serde_repr::Serialize_repr;
 use uuid::Uuid;
 
-use crate::db::{self, event_templates::EventTemplate};
+use crate::{
+    db::{self, event_templates::EventTemplate},
+    features::{is_feature_enabled, Feature},
+};
 
 use super::{
     modifiers::GroupByInterval,
@@ -87,6 +90,9 @@ impl CHEvent {
 }
 
 pub async fn insert_events(clickhouse: clickhouse::Client, events: Vec<CHEvent>) -> Result<()> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(());
+    }
     if events.is_empty() {
         return Ok(());
     }

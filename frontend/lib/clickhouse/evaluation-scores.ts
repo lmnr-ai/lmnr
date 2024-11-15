@@ -2,6 +2,8 @@ import { ClickHouseClient } from "@clickhouse/client";
 import { AggregationFunction, TimeRange, addTimeRangeToQuery, aggregationFunctionToCh } from "./utils";
 import { EvaluationTimeProgression } from "../evaluation/types";
 import { BucketRow } from "../types";
+import { Feature } from "../features/features";
+import { isFeatureEnabled } from "../features/features";
 
 const DEFAULT_BUCKET_COUNT = 10;
 const DEFAULT_LOWER_BOUND = 0;
@@ -13,6 +15,9 @@ export const getEvaluationTimeProgression = async (
   timeRange: TimeRange,
   aggregationFunction: AggregationFunction,
 ): Promise<EvaluationTimeProgression[]> => {
+  if (!isFeatureEnabled(Feature.FULL_BUILD)) {
+    return [];
+  }
   const query = `WITH base AS (
   SELECT
     evaluation_id,
