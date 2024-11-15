@@ -5,67 +5,61 @@ import {
   ChartTooltipContent
 } from '@/components/ui/chart';
 import { useProjectContext } from '@/contexts/project-context';
-import { cn, swrFetcher } from '@/lib/utils';
-import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts';
-import useSWR from 'swr';
+import { cn } from '@/lib/utils';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
-import React, { useEffect, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
+import { useState } from 'react';
+import { BucketRow } from '@/lib/types';
+import { Label } from '../ui/label';
 
-const URL_QUERY_PARAMS = {
-  COMPARE_EVAL_ID: 'comparedEvaluationId'
-};
-
-const getEvaluationIdFromPathname = (pathName: string) => {
-  if (pathName.endsWith('/')) {
-    pathName = pathName.slice(0, -1);
+const getTransformedData = (data: {[scoreName: string]: BucketRow[]}): {index: number, [scoreName: string]: number}[] => {
+  const res: {[index: number]: {[scoreName: string]: number}} = {};
+  for (const [scoreName, rows] of Object.entries(data)) {
+    rows.forEach((row, index) => {
+      res[index] = {
+        ...res[index],
+        [scoreName]: row.heights[0],
+      };
+    });
   }
-  const pathParts = pathName.split('/');
-  return pathParts[pathParts.length - 1];
-};
-
-type BucketRow = {
-  lowerBound: number;
-  upperBound: number;
-  heights: number[];
-};
-
-const getTransformedData = (data: []) =>
-  data.map((row: BucketRow, index: number) => ({
+  return Object.values(res).map((row, index) => ({
     index,
-    height: row.heights[0],
-    comparedHeight: row.heights.length > 1 ? row.heights[1] : undefined
+    ...row,
   }));
+};
 
 function renderTick(tickProps: any) {
-  const { x, y, payload } = tickProps;
-  const { value, offset } = payload;
-  // console.log(`x: ${x}, y: ${y}`)
-  // console.log(`Value: ${value}, ${typeof value}, offset: ${offset}`)
+  const { x, y, payload: { value, offset } } = tickProps;
+  const VERTICAL_TICK_OFFSET = 8;
+  const VERTICAL_TICK_LENGTH = 4;
+  const FONT_SIZE = 8;
+  const BUCKET_COUNT = 10;
+  const PERCENTAGE_STEP = 100 / BUCKET_COUNT;
 
   // Value is equal to index starting from 0
   // So we calculate percentage ticks/marks by multiplying value by 10
   return (
     <g>
-      <path d={`M${x - offset},${y - 8}v${+4}`} stroke="gray" />
+      <path d={`M${x - offset},${y - VERTICAL_TICK_OFFSET}v${VERTICAL_TICK_LENGTH}`} stroke="gray" />
       <text
-        x={x - offset + 4}
-        y={y + 8}
+        x={x - offset + FONT_SIZE / 2}
+        y={y + VERTICAL_TICK_OFFSET}
         textAnchor="middle"
         fill="gray"
-        fontSize="8"
+        fontSize={FONT_SIZE}
       >
-        {value * 10}%
+        {value * PERCENTAGE_STEP}%
       </text>
-      {value === 9 && (
+      {value === BUCKET_COUNT - 1 && (
         <>
-          <path d={`M${x + offset},${y - 8}v${+4}`} stroke="gray" />
+          <path d={`M${x + offset},${y - VERTICAL_TICK_OFFSET}v${VERTICAL_TICK_LENGTH}`} stroke="gray" />
           <text
-            x={x + offset - 10}
-            y={y + 8}
+            x={x + offset - FONT_SIZE / 2}
+            y={y + VERTICAL_TICK_OFFSET}
             textAnchor="middle"
             fill="gray"
-            fontSize="8"
+            fontSize={FONT_SIZE}
           >
             100%
           </text>
@@ -76,49 +70,39 @@ function renderTick(tickProps: any) {
 }
 
 interface ChartProps {
-  scoreName: string;
+  evaluationId: string;
+  allScoreNames: string[];
   className?: string;
 }
 
-export default function Chart({ scoreName, className }: ChartProps) {
-  const pathName = usePathname();
-  const searchParams = new URLSearchParams(useSearchParams().toString());
+export default function Chart({ evaluationId, allScoreNames, className }: ChartProps) {
   const { projectId } = useProjectContext();
-
-  const [evaluationId, setEvaluationId] = useState(
-    getEvaluationIdFromPathname(pathName)
-  );
-  const [comparedEvaluationId, setComparedEvaluationId] = useState(
-    searchParams.get(URL_QUERY_PARAMS.COMPARE_EVAL_ID)
-  );
-
-  const { data, isLoading, error } = useSWR(
-    `/api/projects/${projectId}/evaluation-score-distribution?evaluationIds=${evaluationId + (comparedEvaluationId ? `,${comparedEvaluationId}` : '')}&scoreName=${scoreName}`,
-    swrFetcher
-  );
+  const [data, setData] = useState<{[scoreName: string]: BucketRow[]}>({});
+  const [showScores, setShowScores] = useState<string[]>(allScoreNames);
 
   useEffect(() => {
-    setEvaluationId(getEvaluationIdFromPathname(pathName));
-  }, [pathName]);
+    allScoreNames.forEach((scoreName) => {
+      fetch(`/api/projects/${projectId}/evaluation-score-distribution?` +
+          `evaluationIds=${evaluationId}&scoreName=${scoreName}`)
+        .then((res) => res.json())
+        .then((data) => setData((prev) => ({...prev, [scoreName]: data})));
+    });
+  }, [evaluationId, allScoreNames]);
 
-  useEffect(() => {
-    setComparedEvaluationId(searchParams.get(URL_QUERY_PARAMS.COMPARE_EVAL_ID));
-  }, [searchParams]);
-
-  const chartConfig = {
-    ['index']: {
-      color: 'hsl(var(--chart-1))'
+  const chartConfig = Object.fromEntries(allScoreNames.map((scoreName, index) => ([
+    scoreName, {
+      color: `hsl(var(--chart-${index % 5 + 1}))`,
+      label: scoreName,
     }
-  } satisfies ChartConfig;
+  ]))) satisfies ChartConfig;
+
+  // console.log(getTransformedData(data));
 
   return (
     <div className={cn('', className)}>
-      {/* <div className="text-sm font-medium text-secondary-foreground">
-        Score distribution: {scoreName}
-      </div> */}
       <div className="">
         <ChartContainer config={chartConfig} className="max-h-48 w-full">
-          {isLoading || !data || error ? (
+          {Object.keys(data).length === 0 ? (
             <Skeleton className="h-full w-full" />
           ) : (
             <BarChart
@@ -134,27 +118,56 @@ export default function Chart({ scoreName, className }: ChartProps) {
                 padding={{ left: 0, right: 0 }}
                 tick={renderTick as any}
               />
+
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tickCount={3}
+              />
               <ChartTooltip
                 cursor={false}
                 content={<ChartTooltipContent hideLabel />}
               />
-              {comparedEvaluationId && (
+              {showScores.map((scoreName) => (
                 <Bar
-                  dataKey="comparedHeight"
-                  fill="hsl(var(--chart-2))"
+                  key={scoreName}
+                  dataKey={scoreName}
+                  fill={chartConfig[scoreName].color}
                   radius={4}
-                  name="Compared"
+                  name={scoreName}
                 />
-              )}
-              <Bar
-                dataKey="height"
-                fill="hsl(var(--chart-1))"
-                radius={4}
-                name="Current"
-              />
+              ))}
             </BarChart>
           )}
         </ChartContainer>
+        <div className="flex flex-row justify-center w-full space-x-4 items-center">
+          {Array.from(allScoreNames).map((scoreName) => (
+            <div
+              key={scoreName}
+              className={
+                "flex items-center text-sm cursor-pointer " +
+                "decoration-dashed text-muted-foreground"
+              }
+              style={showScores.includes(scoreName) ? {
+                color: chartConfig[scoreName].color,
+              } : {}}
+              onClick={() => {
+                let newShowScores = new Set(showScores);
+                if (newShowScores.has(scoreName)) {
+                  newShowScores.delete(scoreName);
+                } else {
+                  newShowScores.add(scoreName);
+                }
+                setShowScores(Array.from(newShowScores));
+              }}
+            >
+              <Label className="cursor-pointer">
+                {scoreName}
+              </Label>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

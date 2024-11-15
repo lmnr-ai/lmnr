@@ -328,12 +328,12 @@ export function DataTable<TData>({
           {children}
         </div>
       )}
-      <ScrollArea className="flex-grow overflow-auto border-b">
+      <ScrollArea className="flex-grow overflow-auto">
         <div className="max-h-0">{content}</div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
       {paginated && (
-        <div className="flex-none p-4">
+        <div className="flex-none p-4 border-t">
           <DataTablePagination
             table={table}
             defaultPageSize={defaultPageSize ?? DEFAULT_PAGE_SIZE}

@@ -1,6 +1,6 @@
 import { db } from '@/lib/db/drizzle';
 import { evaluations } from '@/lib/db/migrations/schema';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, SQL } from 'drizzle-orm';
 import { paginatedGet } from '@/lib/db/utils';
 import { Evaluation } from '@/lib/evaluation/types';
 import { NextRequest } from 'next/server';
@@ -10,10 +10,15 @@ export async function GET(
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
+  const groupId = req.nextUrl.searchParams.get('groupId');
+  const filters: SQL[] = [eq(evaluations.projectId, projectId)];
+  if (groupId) {
+    filters.push(eq(evaluations.groupId, groupId));
+  }
 
   const result = await paginatedGet<any, Evaluation>({
     table: evaluations,
-    filters: [eq(evaluations.projectId, projectId)],
+    filters,
     orderBy: desc(evaluations.createdAt)
   });
 

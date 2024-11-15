@@ -19,14 +19,15 @@ import {
   SelectValue
 } from '../ui/select';
 import { mergeOriginalWithComparedDatapoints } from '@/lib/evaluation/utils';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Resizable } from 're-resizable';
 import TraceView from '../traces/trace-view';
-import Chart from './chart';
+import CompareChart from './compare-chart';
 import ScoreCard from './score-card';
 import { useToast } from '@/lib/hooks/use-toast';
 import DownloadButton from '../ui/download-button';
+import Chart from './chart';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId'
@@ -71,7 +72,7 @@ export default function Evaluation({
     }
   }
 
-  // This is ok to search for selected datapoint among defaultResults before we have pagination
+  // TODO: get datapoints paginated.
   const [selectedDatapoint, setSelectedDatapoint] =
     useState<EvaluationDatapointPreviewWithCompared | null>(
       defaultResults.find(
@@ -180,17 +181,6 @@ export default function Evaluation({
     router.push(`${pathName}?${searchParams.toString()}`);
   };
 
-  // It will reload the page
-  const handleEvaluationChange = (evaluationId: string) => {
-    // change last part of pathname
-    const currentPathName = pathName.endsWith('/')
-      ? pathName.slice(0, -1)
-      : pathName;
-    const pathParts = currentPathName.split('/');
-    pathParts[pathParts.length - 1] = evaluationId;
-    router.push(`${pathParts.join('/')}?${searchParams.toString()}`);
-  };
-
   return (
     <div className="h-full flex flex-col relative">
       <Header path={`evaluations/${evaluation.name}`} />
@@ -229,7 +219,9 @@ export default function Evaluation({
           <Select
             key={evaluation.id}
             value={evaluation.id}
-            onValueChange={handleEvaluationChange}
+            onValueChange={(evaluationId: string) => {
+              router.push(`/project/${projectId}/evaluations/${evaluationId}?${searchParams.toString()}`);
+            }}
           >
             <SelectTrigger className="flex flex-none font-medium max-w-40 text-secondary-foreground h-7">
               <SelectValue placeholder="select evaluation" />
@@ -263,28 +255,32 @@ export default function Evaluation({
           )}
         </div>
         <div>
-          <Select
-            value={selectedScoreName}
-            onValueChange={setSelectedScoreName}
-          >
-            <SelectTrigger className="flex flex-none font-medium max-w-40 text-secondary-foreground h-7">
-              <SelectValue placeholder="select score" />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from(scoreColumns).map((scoreName) => (
-                <SelectItem key={scoreName} value={scoreName}>
-                  {scoreName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {comparedEvaluation !== null && (
+            <Select
+              value={selectedScoreName}
+              onValueChange={setSelectedScoreName}
+            >
+              <SelectTrigger className="flex flex-none font-medium max-w-40 text-secondary-foreground h-7">
+                <SelectValue placeholder="select score" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from(scoreColumns).map((scoreName) => (
+                  <SelectItem key={scoreName} value={scoreName}>
+                    {scoreName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <div>
-          <DownloadButton
-            uri={`/api/projects/${projectId}/evaluations/${evaluation.id}/download`}
-            fileFormat="CSV"
-            filenameFallback={`evaluation-results-${evaluation.id}.csv`}
-          />
+          {comparedEvaluation === null && (
+            <DownloadButton
+              uri={`/api/projects/${projectId}/evaluations/${evaluation.id}/download`}
+              fileFormat="CSV"
+              filenameFallback={`evaluation-results-${evaluation.id}.csv`}
+            />
+          )}
         </div>
       </div>
       <div className="flex flex-grow flex-col">
@@ -295,7 +291,18 @@ export default function Evaluation({
                 <ScoreCard scoreName={selectedScoreName} />
               </div>
               <div className="flex-grow">
-                {<Chart scoreName={selectedScoreName} />}
+                {comparedEvaluation !== null ? (
+                  <CompareChart
+                    evaluationId={evaluation.id}
+                    comparedEvaluationId={comparedEvaluation?.id}
+                    scoreName={selectedScoreName}
+                  />
+                ) : (
+                  <Chart
+                    evaluationId={evaluation.id}
+                    allScoreNames={Array.from(scoreColumns)}
+                  />
+                )}
               </div>
             </div>
           )}
