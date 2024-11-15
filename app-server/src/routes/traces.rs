@@ -1,6 +1,8 @@
 use super::{GetMetricsQueryParams, ResponseResult};
 use super::{PaginatedGetQueryParams, PaginatedResponse, DEFAULT_PAGE_SIZE};
 use crate::ch::utils::get_bounds;
+use crate::ch::MetricTimeValue;
+use crate::features::{is_feature_enabled, Feature};
 use crate::{
     ch::{self, modifiers::GroupByInterval, Aggregation},
     db::{
@@ -183,6 +185,10 @@ pub async fn get_traces_metrics(
             .unwrap_or(DateRange::Relative(RelativeDateInterval {
                 past_hours: "all".to_string(),
             }));
+
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(HttpResponse::Ok().json(Vec::<MetricTimeValue<f64>>::new()));
+    }
 
     match defaulted_range {
         DateRange::Relative(interval) => {

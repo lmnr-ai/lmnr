@@ -128,9 +128,6 @@ pub async fn get_total_event_count_metrics_relative(
     template_id: Uuid,
     past_hours: i64,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(Vec::new());
-    }
     let ch_round_time = group_by_interval.to_ch_truncate_time();
 
     let query_string = format!(
@@ -166,9 +163,6 @@ pub async fn get_total_event_count_metrics_absolute(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(Vec::new());
-    }
     let ch_round_time = group_by_interval.to_ch_truncate_time();
     let ch_start_time = start_time.timestamp();
     let ch_end_time = end_time.timestamp();
