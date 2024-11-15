@@ -9,6 +9,7 @@ export interface WorkspaceUser {
   name: string;
   email: string;
   role: string;
+  createdAt: string;
 }
 
 export enum WorkspaceTier {

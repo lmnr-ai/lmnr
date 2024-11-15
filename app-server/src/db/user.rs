@@ -106,14 +106,14 @@ pub async fn get_user_from_api_key(
     api_key: String,
     cache: Arc<Cache>,
 ) -> Result<User> {
-    let cache_res = cache.get::<User>(&api_key).await;
-    match cache_res {
-        Ok(Some(user)) => {
-            return Ok(user);
-        }
-        Ok(None) => {}
-        Err(e) => log::error!("Error getting user from cache: {}", e),
-    };
+    // let cache_res = cache.get::<User>(&api_key).await;
+    // match cache_res {
+    //     Ok(Some(user)) => {
+    //         return Ok(user);
+    //     }
+    //     Ok(None) => {}
+    //     Err(e) => log::error!("Error getting user from cache: {}", e),
+    // };
 
     match sqlx::query_as::<_, User>(
         "

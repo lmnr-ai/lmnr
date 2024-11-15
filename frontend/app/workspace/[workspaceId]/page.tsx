@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { cn, fetcherJSON } from '@/lib/utils';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Metadata } from 'next';
 import { WorkspaceWithUsers } from '@/lib/workspaces/types';
 import WorkspacesNavbar from '@/components/projects/workspaces-navbar';
@@ -10,23 +10,12 @@ import { WorkspaceStats } from '@/lib/usage/types';
 import WorkspaceComponent from '@/components/workspace/workspace';
 import Header from '@/components/ui/header';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { db } from '@/lib/db/drizzle';
+import { eq, and } from 'drizzle-orm';
+import { membersOfWorkspaces, workspaces, users, subscriptionTiers } from '@/lib/db/migrations/schema';
 
 export const metadata: Metadata = {
   title: 'Workspace'
-};
-
-const getWorkspace = async (
-  workspaceId: string
-): Promise<WorkspaceWithUsers> => {
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
-  const res = await fetcherJSON(`/workspaces/${workspaceId}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
-    }
-  });
-  return await res;
 };
 
 const getWorkspaceStats = async (
@@ -58,11 +47,46 @@ export default async function WorkspacePage({
   }
 
   // check if user part of the workspace
-  const workspace = await getWorkspace(params.workspaceId);
-  const isMember = workspace.users.find((u) => u.email === user.email);
+  const res = await db
+    .select({
+      id: workspaces.id,
+      name: workspaces.name,
+      tierName: subscriptionTiers.name,
+    })
+    .from(workspaces)
+    .innerJoin(
+      subscriptionTiers,
+      eq(workspaces.tierId, subscriptionTiers.id)
+    )
+    .where(
+      eq(workspaces.id, params.workspaceId)
+    ).limit(1);
+
+  const workspace = res[0] as WorkspaceWithUsers;
+
+  if (!workspace) {
+    return notFound();
+  }
+
+  // get all users in the workspace
+  const workspaceUsers = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: membersOfWorkspaces.memberRole,
+      createdAt: membersOfWorkspaces.createdAt
+    })
+    .from(users)
+    .innerJoin(membersOfWorkspaces, eq(users.id, membersOfWorkspaces.userId))
+    .where(eq(membersOfWorkspaces.workspaceId, params.workspaceId));
+
+  workspace.users = workspaceUsers;
+
+  const isMember = workspaceUsers.find((u) => u.email === user.email);
 
   if (!isMember) {
-    redirect('/not-found');
+    return notFound();
   }
 
   const isOwner =
