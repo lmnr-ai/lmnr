@@ -143,13 +143,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   }, [searchParams]);
 
   const columns: ColumnDef<Trace, any>[] = [
-    // {
-    //   accessorFn: (row) => (row.success ? 'Success' : 'Failed'),
-    //   header: 'Status',
-    //   cell: (row) => <StatusLabel success={row.getValue() === 'Success'} />,
-    //   id: 'status',
-    //   size: 100
-    // },
     {
       cell: (row) => <Mono className='text-xs'>{row.getValue()}</Mono>,
       header: 'ID',
@@ -303,14 +296,14 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       header: 'Output cost',
       id: 'output_cost',
     },
-    {
-      header: 'events',
-      id: `event`
-    },
-    {
-      header: 'labels',
-      id: `label`
-    }
+    // {
+    //   header: 'events',
+    //   id: `event`
+    // },
+    // {
+    //   header: 'labels',
+    //   id: `label`
+    // }
   ];
 
   const { data: events } = useSWR<EventTemplate[]>(

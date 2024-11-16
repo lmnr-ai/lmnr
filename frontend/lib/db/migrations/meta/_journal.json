@@ -57,6 +57,13 @@
       "when": 1731567018888,
       "tag": "0007_youthful_greymalkin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1731737194366,
+      "tag": "0008_nosy_jean_grey",
+      "breakpoints": true
     }
   ]
 }

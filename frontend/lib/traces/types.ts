@@ -55,9 +55,7 @@ export enum SpanType {
 }
 
 export type Span = {
-  version: string;
   spanId: string;
-  success: boolean;
   parentSpanId?: string | null;
   traceId: string;
   name: string;
@@ -78,7 +76,6 @@ export type TraceWithSpans = {
   id: string;
   startTime: string;
   endTime: string;
-  success: boolean;
   inputTokenCount: number;
   outputTokenCount: number;
   totalTokenCount: number;
@@ -93,7 +90,6 @@ export type TraceWithSpans = {
 export type Trace = {
   startTime: string;
   endTime: string;
-  success: boolean;
   id: string;
   sessionId: string;
   inputTokenCount: number;
@@ -108,7 +104,7 @@ export type Trace = {
   topSpanName: string | null;
   topSpanType: SpanType | null;
   topSpanPath: string | null;
-  events: TraceEvent[];
+  // events: TraceEvent[];
 };
 
 export type TraceEvent = {
