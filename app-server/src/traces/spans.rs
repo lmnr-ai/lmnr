@@ -202,35 +202,30 @@ impl SpanAttributes {
     }
 
     pub fn labels(&self) -> HashMap<String, Value> {
-        let mut res = HashMap::new();
-        let label_prefix = format!("{ASSOCIATION_PROPERTIES_PREFIX}label.");
-        for (key, value) in self.attributes.iter() {
-            if key.starts_with(&label_prefix) {
-                res.insert(
-                    key.strip_prefix(&label_prefix).unwrap().to_string(),
-                    value.clone(),
-                );
-            }
-        }
-        res
+        self.get_flattened_association_properties("label")
     }
 
     pub fn metadata(&self) -> Option<HashMap<String, Value>> {
-        let mut res = HashMap::new();
-        let metadata_prefix = format!("{ASSOCIATION_PROPERTIES_PREFIX}metadata.");
-        for (key, value) in self.attributes.iter() {
-            if key.starts_with(&metadata_prefix) {
-                res.insert(
-                    key.strip_prefix(&metadata_prefix).unwrap().to_string(),
-                    value.clone(),
-                );
-            }
-        }
+        let res = self.get_flattened_association_properties("metadata");
         if res.is_empty() {
             None
         } else {
             Some(res)
         }
+    }
+
+    fn get_flattened_association_properties(&self, prefix: &str) -> HashMap<String, Value> {
+        let mut res = HashMap::new();
+        let prefix = format!("{ASSOCIATION_PROPERTIES_PREFIX}{prefix}.");
+        for (key, value) in self.attributes.iter() {
+            if key.starts_with(&prefix) {
+                res.insert(
+                    key.strip_prefix(&prefix).unwrap().to_string(),
+                    value.clone(),
+                );
+            }
+        }
+        res
     }
 }
 
