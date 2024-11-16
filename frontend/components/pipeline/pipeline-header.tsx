@@ -163,7 +163,7 @@ export default function PipelineHeader({
                             {version.id === targetVersionId && (
                               <span className="text-xs text-gray-400">
                                 {' '}
-                                (target)
+                                  (target)
                               </span>
                             )}
                           </div>
@@ -221,7 +221,7 @@ export default function PipelineHeader({
             defaultNewPipelineName={`${pipeline.name} copy`}
             selectedPipelineVersion={selectedPipelineVersionPreview}
           />
-          <PipelineEnv projectId={projectId} />
+          {/* <PipelineEnv projectId={projectId} /> */}
           {selectedPipelineVersion && pipelineVersions.length > 1 && (
             <UseApi
               pipelineName={pipeline.name}
