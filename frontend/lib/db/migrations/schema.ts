@@ -302,7 +302,7 @@ export const userSubscriptionInfo = pgTable("user_subscription_info", {
 }));
 
 export const workspaceUsage = pgTable("workspace_usage", {
-  workspaceId: uuid("workspace_id").defaultRandom().primaryKey().notNull(),
+  workspaceId: uuid("workspace_id").defaultRandom().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   spanCount: bigint("span_count", { mode: "number" }).default(sql`'0'`).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -402,9 +402,6 @@ export const pipelineVersions = pgTable("pipeline_versions", {
 
 export const traces = pgTable("traces", {
   id: uuid().defaultRandom().primaryKey().notNull(),
-  version: text().notNull(),
-  release: text(),
-  userId: text("user_id"),
   sessionId: text("session_id"),
   metadata: jsonb(),
   projectId: uuid("project_id").notNull(),
@@ -412,7 +409,6 @@ export const traces = pgTable("traces", {
   startTime: timestamp("start_time", { withTimezone: true, mode: 'string' }),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   totalTokenCount: bigint("total_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
-  success: boolean().default(true).notNull(),
   cost: doublePrecision().default(sql`'0'`).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   traceType: traceType("trace_type").default('DEFAULT').notNull(),
@@ -423,6 +419,7 @@ export const traces = pgTable("traces", {
   inputCost: doublePrecision("input_cost").default(sql`'0'`).notNull(),
   outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
 }, (table) => ({
+  traceMetadataGinIdx: index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast()),
   idProjectIdStartTimeTimesNotNullIdx: index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast(), table.projectId.asc().nullsLast(), table.startTime.desc().nullsFirst()).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
   projectIdIdx: index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast()),
   projectIdTraceTypeStartTimeEndTimeIdx: index("traces_project_id_trace_type_start_time_end_time_idx").using("btree", table.projectId.asc().nullsLast(), table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()).where(sql`((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
@@ -524,7 +521,6 @@ export const spans = pgTable("spans", {
   startTime: timestamp("start_time", { withTimezone: true, mode: 'string' }).notNull(),
   endTime: timestamp("end_time", { withTimezone: true, mode: 'string' }).notNull(),
   traceId: uuid("trace_id").notNull(),
-  version: text().notNull(),
   inputPreview: text("input_preview"),
   outputPreview: text("output_preview"),
   projectId: uuid("project_id").notNull(),

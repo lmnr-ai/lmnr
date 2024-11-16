@@ -40,7 +40,6 @@ impl FromStr for SpanType {
 #[derive(Deserialize, Serialize, Clone, Debug, Default, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Span {
-    pub version: String,
     pub span_id: Uuid,
     pub trace_id: Uuid,
     pub parent_span_id: Option<Uuid>,
@@ -78,8 +77,7 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
     };
     sqlx::query(
         "INSERT INTO spans
-            (version,
-            span_id,
+            (span_id,
             trace_id,
             parent_span_id,
             start_time,
@@ -106,10 +104,8 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             $10,
             $11,
             $12,
-            $13,
-            $14)
+            $13)
         ON CONFLICT (span_id, project_id) DO UPDATE SET
-            version = EXCLUDED.version,
             trace_id = EXCLUDED.trace_id,
             parent_span_id = EXCLUDED.parent_span_id,
             start_time = EXCLUDED.start_time,
@@ -123,7 +119,6 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             output_preview = EXCLUDED.output_preview
     ",
     )
-    .bind(&span.version)
     .bind(&span.span_id)
     .bind(&span.trace_id)
     .bind(&span.parent_span_id as &Option<Uuid>)
@@ -196,7 +191,6 @@ pub async fn get_trace_spans(
                 spans.span_id,
                 spans.start_time,
                 spans.end_time,
-                spans.version,
                 spans.trace_id,
                 spans.input,
                 spans.output,
@@ -245,7 +239,6 @@ pub async fn get_span(pool: &PgPool, id: Uuid, project_id: Uuid) -> Result<Span>
             span_id,
             start_time,
             end_time,
-            version,
             trace_id,
             parent_span_id,
             name,

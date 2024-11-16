@@ -97,9 +97,9 @@ pub async fn record_span_to_db(
 
     let mut span_attributes = span.get_attributes();
 
-    trace_attributes.update_user_id(span_attributes.user_id());
     trace_attributes.update_session_id(span_attributes.session_id());
     trace_attributes.update_trace_type(span_attributes.trace_type());
+    trace_attributes.set_metadata(span_attributes.metadata());
 
     if span.span_type == SpanType::LLM {
         trace_attributes.add_input_cost(span_usage.input_cost);
@@ -139,7 +139,7 @@ pub async fn record_labels_to_db(
     let project_labels =
         db::labels::get_label_classes_by_project_id(&db.pool, *project_id, None).await?;
 
-    let labels = span.get_attributes().get_labels();
+    let labels = span.get_attributes().labels();
 
     for (label_name, label_value_key) in labels {
         let label_class = project_labels.iter().find(|l| l.name == label_name);

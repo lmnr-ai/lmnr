@@ -15,8 +15,6 @@ use super::{
     utils::add_date_range_to_query,
 };
 
-pub const DEFAULT_VERSION: &str = "0.1.0";
-
 /// Helper struct to pass current trace info, if exists, if pipeline is called from remote trace context
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,12 +43,6 @@ pub struct Trace {
     start_time: Option<DateTime<Utc>>,
     #[serde(default)]
     end_time: Option<DateTime<Utc>>,
-    // Laminar trace format's version
-    version: String,
-    // Laminar customers' release version
-    release: Option<String>,
-    // User id of Laminar customers' user
-    user_id: Option<String>,
     session_id: Option<String>,
     metadata: Option<Value>,
     input_token_count: i64,
@@ -59,7 +51,6 @@ pub struct Trace {
     input_cost: f64,
     output_cost: f64,
     cost: f64,
-    success: bool,
     project_id: Uuid,
 }
 
@@ -69,12 +60,6 @@ pub struct TraceWithTopSpan {
     id: Uuid,
     start_time: DateTime<Utc>,
     end_time: Option<DateTime<Utc>>,
-    // Laminar trace format's version
-    version: String,
-    // Laminar customers' release version
-    release: Option<String>,
-    // User id of Laminar customers' user
-    user_id: Option<String>,
     session_id: Option<String>,
     metadata: Option<Value>,
     input_token_count: i64,
@@ -83,7 +68,6 @@ pub struct TraceWithTopSpan {
     input_cost: f64,
     output_cost: f64,
     cost: f64,
-    success: bool,
     project_id: Uuid,
 
     top_span_input_preview: Option<String>,
@@ -114,13 +98,11 @@ pub async fn update_trace_attributes(
             input_cost,
             output_cost,
             cost,
-            success,
             start_time,
             end_time,
-            version,
             session_id,
-            user_id,
-            trace_type
+            trace_type,
+            metadata
         )
         VALUES (
             $1,
@@ -131,13 +113,11 @@ pub async fn update_trace_attributes(
             COALESCE($6, 0::float8),
             COALESCE($7, 0::float8),
             COALESCE($8, 0::float8),
-            COALESCE($9, true),
+            $9,
             $10,
             $11,
-            $12,
-            $13,
-            $14,
-            COALESCE($15, 'DEFAULT'::trace_type)
+            COALESCE($12, 'DEFAULT'::trace_type),
+            $13
         )
         ON CONFLICT(id) DO
         UPDATE
@@ -148,12 +128,11 @@ pub async fn update_trace_attributes(
             input_cost = traces.input_cost + COALESCE($6, 0),
             output_cost = traces.output_cost + COALESCE($7, 0),
             cost = traces.cost + COALESCE($8, 0),
-            success = CASE WHEN $9 IS NULL THEN traces.success ELSE $9 END,
-            start_time = CASE WHEN traces.start_time IS NULL OR traces.start_time > $10 THEN $10 ELSE traces.start_time END,
-            end_time = CASE WHEN traces.end_time IS NULL OR traces.end_time < $11 THEN $11 ELSE traces.end_time END,
-            session_id = CASE WHEN traces.session_id IS NULL THEN $13 ELSE traces.session_id END,
-            user_id = CASE WHEN traces.user_id IS NULL THEN $14 ELSE traces.user_id END,
-            trace_type = CASE WHEN $15 IS NULL THEN traces.trace_type ELSE COALESCE($15, 'DEFAULT'::trace_type) END
+            start_time = CASE WHEN traces.start_time IS NULL OR traces.start_time > $9 THEN $9 ELSE traces.start_time END,
+            end_time = CASE WHEN traces.end_time IS NULL OR traces.end_time < $10 THEN $10 ELSE traces.end_time END,
+            session_id = CASE WHEN traces.session_id IS NULL THEN $11 ELSE traces.session_id END,
+            trace_type = CASE WHEN $12 IS NULL THEN traces.trace_type ELSE COALESCE($12, 'DEFAULT'::trace_type) END,
+            metadata = COALESCE($13, traces.metadata)
         "
     )
     .bind(attributes.id)
@@ -164,13 +143,11 @@ pub async fn update_trace_attributes(
     .bind(attributes.input_cost)
     .bind(attributes.output_cost)
     .bind(attributes.cost)
-    .bind(attributes.success)
     .bind(attributes.start_time)
     .bind(attributes.end_time)
-    .bind(DEFAULT_VERSION)
     .bind(&attributes.session_id)
-    .bind(&attributes.user_id)
     .bind(&attributes.trace_type)
+    .bind(&serde_json::to_value(&attributes.metadata).unwrap())
     .execute(pool)
     .await?;
     Ok(())
@@ -188,9 +165,6 @@ fn add_traces_info_expression(
             id,
             start_time,
             end_time,
-            version,
-            release,
-            user_id,
             session_id,
             metadata,
             project_id,
@@ -200,15 +174,13 @@ fn add_traces_info_expression(
             input_cost,
             output_cost,
             cost,
-            success,
             trace_type,
             top_level_spans.input_preview top_span_input_preview,
             top_level_spans.output_preview top_span_output_preview,
             top_level_spans.path top_span_path,
             top_level_spans.name top_span_name,
             top_level_spans.span_type top_span_type,
-            EXTRACT(EPOCH FROM (end_time - start_time)) as latency,
-            CASE WHEN success = true THEN 'Success' ELSE 'Failed' END status
+            EXTRACT(EPOCH FROM (end_time - start_time)) as latency
         FROM traces
         JOIN (
             SELECT
@@ -409,9 +381,6 @@ pub async fn get_traces(
             id,
             start_time,
             end_time,
-            version,
-            release,
-            user_id,
             session_id,
             metadata,
             project_id,
@@ -421,13 +390,11 @@ pub async fn get_traces(
             input_cost,
             output_cost,
             cost,
-            success,
             top_span_input_preview,
             top_span_output_preview,
             top_span_name,
             top_span_type,
-            top_span_path,
-            status
+            top_span_path
         FROM traces_info ",
     );
     if let Some(search) = text_search_filter {
@@ -466,9 +433,6 @@ pub async fn count_traces(
         id,
         start_time,
         end_time,
-        version,
-        release,
-        user_id,
         session_id,
         metadata,
         project_id,
@@ -478,10 +442,8 @@ pub async fn count_traces(
         input_cost,
         output_cost,
         cost,
-        success,
         trace_type,
-        EXTRACT(EPOCH FROM (end_time - start_time)) as latency,
-        CASE WHEN success = true THEN 'Success' ELSE 'Failed' END status
+        EXTRACT(EPOCH FROM (end_time - start_time)) as latency
     FROM traces
     WHERE start_time IS NOT NULL AND end_time IS NOT NULL AND trace_type = 'DEFAULT')",
     );
@@ -516,9 +478,6 @@ pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
             id,
             start_time,
             end_time,
-            version,
-            release,
-            user_id,
             session_id,
             metadata,
             project_id,
@@ -527,8 +486,7 @@ pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
             total_token_count,
             input_cost,
             output_cost,
-            cost,
-            success
+            cost
         FROM traces
         WHERE id = $1
         AND start_time IS NOT NULL AND end_time IS NOT NULL",
