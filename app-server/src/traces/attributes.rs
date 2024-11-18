@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::db::trace::TraceType;
@@ -16,10 +19,9 @@ pub struct TraceAttributes {
     pub output_cost: Option<f64>,
     /// Total costis not calculated on this struct and must be set manually
     pub cost: Option<f64>,
-    pub success: Option<bool>,
     pub session_id: Option<String>,
-    pub user_id: Option<String>,
     pub trace_type: Option<TraceType>,
+    pub metadata: Option<HashMap<String, Value>>,
 }
 
 impl TraceAttributes {
@@ -69,11 +71,11 @@ impl TraceAttributes {
         self.session_id = session_id;
     }
 
-    pub fn update_user_id(&mut self, user_id: Option<String>) {
-        self.user_id = user_id;
-    }
-
     pub fn update_trace_type(&mut self, trace_type: Option<TraceType>) {
         self.trace_type = trace_type;
+    }
+
+    pub fn set_metadata(&mut self, metadata: Option<HashMap<String, Value>>) {
+        self.metadata = metadata;
     }
 }

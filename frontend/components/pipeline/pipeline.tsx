@@ -55,7 +55,7 @@ import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 interface PipelineProps {
   pipeline: PipelineType;
-  defaultSelectedVersion?: PipelineVersion;
+  isSupabaseEnabled?: boolean;
 }
 
 export const dynamic = 'force-dynamic';
@@ -67,7 +67,7 @@ enum RunGraphState {
   Idle = 'idle'
 }
 
-export default function Pipeline({ pipeline }: PipelineProps) {
+export default function Pipeline({ pipeline, isSupabaseEnabled }: PipelineProps) {
   const posthog = usePostHog();
   const { email } = useUserContext();
 
@@ -132,7 +132,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
   const { supabaseAccessToken, username, imageUrl } = useUserContext();
 
   const supabase = useMemo(() => {
-    if (!isFeatureEnabled(Feature.SUPABASE) || !supabaseAccessToken) {
+    if (!isSupabaseEnabled || !supabaseAccessToken) {
       return null;
     }
 
@@ -680,7 +680,7 @@ export default function Pipeline({ pipeline }: PipelineProps) {
                     </div>
                     <ScrollArea
                       className={cn(
-                        'flex-none',
+                        'flex-none border-l',
                         rightPanelOpen ? 'w-52' : 'w-0',
                         isSheetOpen ? 'hidden' : ''
                       )}

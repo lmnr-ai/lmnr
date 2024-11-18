@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     db::{
         spans::{Span, SpanType},
-        trace::{CurrentTraceAndSpan, TraceType, DEFAULT_VERSION},
+        trace::{CurrentTraceAndSpan, TraceType},
         utils::{convert_any_value_to_json_value, span_id_to_uuid},
     },
     language_model::{
@@ -201,13 +201,26 @@ impl SpanAttributes {
         }
     }
 
-    pub fn get_labels(&self) -> HashMap<String, Value> {
+    pub fn labels(&self) -> HashMap<String, Value> {
+        self.get_flattened_association_properties("label")
+    }
+
+    pub fn metadata(&self) -> Option<HashMap<String, Value>> {
+        let res = self.get_flattened_association_properties("metadata");
+        if res.is_empty() {
+            None
+        } else {
+            Some(res)
+        }
+    }
+
+    fn get_flattened_association_properties(&self, prefix: &str) -> HashMap<String, Value> {
         let mut res = HashMap::new();
-        let label_prefix = format!("{ASSOCIATION_PROPERTIES_PREFIX}label.");
+        let prefix = format!("{ASSOCIATION_PROPERTIES_PREFIX}{prefix}.");
         for (key, value) in self.attributes.iter() {
-            if key.starts_with(&label_prefix) {
+            if key.starts_with(&prefix) {
                 res.insert(
-                    key.strip_prefix(&label_prefix).unwrap().to_string(),
+                    key.strip_prefix(&prefix).unwrap().to_string(),
                     value.clone(),
                 );
             }
@@ -250,7 +263,6 @@ impl Span {
             .collect::<serde_json::Map<String, serde_json::Value>>();
 
         let mut span = Span {
-            version: String::from(DEFAULT_VERSION),
             span_id,
             trace_id,
             parent_span_id,
@@ -321,20 +333,19 @@ impl Span {
                     false,
                 );
             }
-        } else {
-            if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
-                span.input = Some(
-                    serde_json::from_str::<Value>(s)
-                        .unwrap_or(serde_json::Value::String(s.clone())),
-                );
-            }
-
-            if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
-                span.output = Some(
-                    serde_json::from_str::<Value>(s)
-                        .unwrap_or(serde_json::Value::String(s.clone())),
-                );
-            }
+        }
+        // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
+        // attributes over gen_ai/vercel/LiteLLM attributes.
+        // Therefore this block is outside and after the LLM span type check.
+        if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
+            span.input = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
+        }
+        if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
+            span.output = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
         }
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
@@ -405,7 +416,6 @@ impl Span {
             span_id: Uuid::new_v4(),
             start_time: run_stats.start_time,
             end_time: run_stats.end_time,
-            version: String::from(DEFAULT_VERSION),
             trace_id,
             parent_span_id,
             name: name.clone(),
@@ -461,7 +471,6 @@ impl Span {
                     span_id: *msg_id,
                     start_time: message.start_time,
                     end_time: message.end_time,
-                    version: String::from(DEFAULT_VERSION),
                     trace_id,
                     parent_span_id: Some(parent_span_id),
                     name: message.node_name.clone(),

@@ -21,6 +21,7 @@ import { ProviderApiKey } from '@/lib/settings/types';
 import { cn } from '@/lib/utils';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 interface ModelSelectProps {
   modelId: string;
@@ -96,7 +97,7 @@ export default function LanguageModelSelect({
       </Popover>
       {model && !isProviderKeySet(model.id.split(':')[0]) && (
         <div className="mt-2 text-destructive text-sm">
-          API key for {model.id.split(':')[0]} is not set. Please set it in the settings.
+          API key for {model.id.split(':')[0]} is not set. Please set it in the <Link href={`/project/${projectId}/settings`} className="underline">settings</Link>.
         </div>
       )}
     </>
