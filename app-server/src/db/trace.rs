@@ -284,6 +284,24 @@ fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Opt
                 );
                 return;
             }
+            if filter.filter_column == "metadata" {
+                if !filter_value_str.contains("=") || filter.filter_operator != FilterOperator::Eq {
+                    log::warn!(
+                        "Invalid metadata filter: {}. Operator must be `eq`",
+                        filter_value_str
+                    );
+                    return;
+                }
+                let mut split = filter_value_str.splitn(2, '=');
+                let key = split.next().unwrap_or_default();
+                let value = split.next().unwrap_or_default();
+                let json_value = serde_json::from_str::<Value>(value)
+                    .unwrap_or(Value::String(value.to_string()));
+                let value_json = serde_json::json!({ key: json_value });
+                query.push(" AND metadata @> ");
+                query.push_bind(value_json);
+                return;
+            }
             query.push(" AND ");
             query.push(&filter.filter_column);
             query.push(filter.filter_operator.to_sql_operator());
