@@ -35,9 +35,9 @@ export type ChatMessage = {
 };
 
 export type DatatableFilter = {
-  column?: string;
-  operator?: string;
-  value?: string;
+  column: string;
+  operator: string;
+  value: string;
 };
 
 export type PaginatedResponse<T> = {

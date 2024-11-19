@@ -12,13 +12,17 @@ import {
 import { Input } from './input';
 import { useEffect, useState } from 'react';
 import { ListFilter, Plus, X } from 'lucide-react';
-import { DatatableFilter } from '@/lib/types';
 import { Label } from './label';
 import { cn, getFilterFromUrlParams } from '@/lib/utils';
+import { DatatableFilter } from '@/lib/types';
 
-interface DataTableFilterProps<TData> {
-  columns: ColumnDef<TData>[];
-  customFilterColumns?: Record<string, string[]>; // from columnId to possible values
+interface Filter {
+  name: string;
+  id: string;
+}
+
+interface DataTableFilterProps {
+  possibleFilters: Filter[];
   className?: string;
 }
 
@@ -34,11 +38,10 @@ const SELECT_OPERATORS = [
   { key: 'ne', label: '!=' }
 ];
 
-export default function DataTableFilter<TData>({
-  columns,
+export default function DataTableFilter({
+  possibleFilters,
   className,
-  customFilterColumns
-}: DataTableFilterProps<TData>) {
+}: DataTableFilterProps) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
@@ -50,19 +53,7 @@ export default function DataTableFilter<TData>({
   const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
 
   const isFilterFilled = (filter: DatatableFilter): boolean => {
-    if (
-      filter.column &&
-      Object.keys(customFilterColumns ?? {}).includes(
-        filter.column?.split('.')[0]
-      )
-    ) {
-      return (
-        filter.column.split('.')[1].length > 0 &&
-        !!filter.operator &&
-        filter.value != null
-      );
-    }
-    return !!filter.column && !!filter.operator && filter.value != null;
+    return filter.value.length > 0;
   };
 
   return (
@@ -90,10 +81,9 @@ export default function DataTableFilter<TData>({
                     <DataTableFilterRow
                       i={i}
                       key={i}
-                      columns={columns}
-                      customFilterColumns={customFilterColumns}
                       filters={filters}
                       setFilters={setFilters}
+                      possibleFilters={possibleFilters}
                     />
                   ))}
                 </tbody>
@@ -112,7 +102,7 @@ export default function DataTableFilter<TData>({
               onClick={() => {
                 setFilters((filters) => [
                   ...filters,
-                  { column: columns[0].id, operator: 'eq', value: undefined }
+                  { column: possibleFilters[0].id, operator: 'eq', value: "" }
                 ]);
               }}
             >
@@ -141,51 +131,30 @@ export default function DataTableFilter<TData>({
   );
 }
 
-interface RowProps<TData> {
+interface RowProps {
   i: number;
-  columns: ColumnDef<TData>[];
-  customFilterColumns?: Record<string, string[]>; // from columnId to possible values
   filters: DatatableFilter[];
   setFilters: (filters: DatatableFilter[]) => void;
+  possibleFilters: Filter[];
 }
 
-function DataTableFilterRow<TData>({
+function DataTableFilterRow({
   i,
-  columns,
-  customFilterColumns,
   filters,
-  setFilters
-}: RowProps<TData>) {
+  setFilters,
+  possibleFilters
+}: RowProps) {
   const filter = filters[i];
-  const [additionalColumnId, setAdditionalColumnId] = useState<string | null>(
-    Object.keys(customFilterColumns ?? {}).find(
-      (n) => n === filter?.column?.split('.')[0]
-    ) ?? null
-  );
+
   return (
     <tr key={i} className="w-full">
       <td>
         <div className="flex">
           <Select
-            defaultValue={
-              Object.keys(customFilterColumns ?? {}).some((n) =>
-                filter?.column?.startsWith(n)
-              )
-                ? filter?.column?.split('.')[0]
-                : (filter?.column ?? columns[i].id!)
-            }
+            defaultValue={filter.column}
             onValueChange={(value) => {
               const newFilters = [...filters];
-              if (Object.keys(customFilterColumns ?? {}).includes(value)) {
-                newFilters[i].column = `${value}.`;
-              } else {
-                newFilters[i].column = value;
-              }
-              setAdditionalColumnId(
-                Object.keys(customFilterColumns ?? {}).find(
-                  (n) => n === value
-                ) ?? null
-              );
+              newFilters[i].column = value;
               setFilters(newFilters);
             }}
           >
@@ -193,37 +162,13 @@ function DataTableFilterRow<TData>({
               <SelectValue placeholder="Choose column..." />
             </SelectTrigger>
             <SelectContent>
-              {columns.map((column, colIdx) => (
-                <SelectItem key={colIdx} value={column.id!}>
-                  {column.header?.toString()}
+              {possibleFilters.map((filter, colIdx) => (
+                <SelectItem key={colIdx} value={filter.id}>
+                  {filter.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {additionalColumnId != null && (
-            <Select
-              defaultValue={
-                filter?.column?.replace(`${additionalColumnId}.`, '') ??
-                undefined
-              }
-              onValueChange={(value) => {
-                const newFilters = [...filters];
-                newFilters[i].column = `${additionalColumnId}.${value}`;
-                setFilters(newFilters);
-              }}
-            >
-              <SelectTrigger className="flex">
-                <SelectValue placeholder="Choose value..." />
-              </SelectTrigger>
-              <SelectContent>
-                {customFilterColumns![additionalColumnId].map((value, idx) => (
-                  <SelectItem key={idx} value={value}>
-                    {value}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
         </div>
       </td>
       <td className="px-2">
@@ -254,16 +199,7 @@ function DataTableFilterRow<TData>({
           placeholder="value"
           onChange={(e) => {
             const newFilters = [...filters];
-            let value = e.target.value;
-            if (value.length > 0) {
-              try {
-                value = JSON.parse(value);
-              } catch (e) {
-                // do nothing
-              }
-            }
-            newFilters[i].value =
-              e.target.value?.length > 0 ? value : undefined;
+            newFilters[i].value = e.target.value ?? "";
             setFilters(newFilters);
           }}
         />

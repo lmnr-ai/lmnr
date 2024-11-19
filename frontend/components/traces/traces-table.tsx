@@ -279,33 +279,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     },
   ];
 
-  const extraFilterCols = [
-    {
-      header: 'Input tokens',
-      id: 'input_token_count',
-    },
-    {
-      header: 'Output tokens',
-      id: 'output_token_count',
-    },
-    {
-      header: 'Input cost',
-      id: 'input_cost',
-    },
-    {
-      header: 'Output cost',
-      id: 'output_cost',
-    },
-    // {
-    //   header: 'events',
-    //   id: `event`
-    // },
-    // {
-    //   header: 'labels',
-    //   id: `label`
-    // }
-  ];
-
   const { data: events } = useSWR<EventTemplate[]>(
     `/api/projects/${projectId}/event-templates`,
     swrFetcher
@@ -390,11 +363,32 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     return <TracesPagePlaceholder />;
   }
 
-  const filterColumns = columns
-    .filter(
-      (column) => !['start_time', 'events', 'input', 'output'].includes(column.id!)
-    )
-    .concat(extraFilterCols);
+  const filters = [
+    {
+      name: 'ID',
+      id: 'id',
+    },
+    {
+      name: 'Top level span',
+      id: 'top_span_type',
+    },
+    {
+      name: 'Top span name',
+      id: 'top_span_name',
+    },
+    {
+      name: 'Input cost',
+      id: 'input_cost',
+    },
+    {
+      name: 'Output cost',
+      id: 'output_cost',
+    },
+    {
+      name: 'Metadata',
+      id: 'metadata',
+    }
+  ];
 
   return (
     <DataTable
@@ -421,8 +415,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     >
       <TextSearchFilter />
       <DataTableFilter
-        columns={filterColumns}
-        customFilterColumns={customFilterColumns}
+        possibleFilters={filters}
       />
       <DateRangeFilter />
       <Button
