@@ -141,7 +141,12 @@ impl SpanAttributes {
             serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default()
         } else {
             // quick hack until we figure how to set span type on auto-instrumentation
-            if self.attributes.contains_key(GEN_AI_SYSTEM) {
+            if self.attributes.contains_key(GEN_AI_SYSTEM)
+                || self
+                    .attributes
+                    .iter()
+                    .any(|(k, _)| k.starts_with("gen_ai.") || k.starts_with("llm."))
+            {
                 SpanType::LLM
             } else {
                 SpanType::DEFAULT
