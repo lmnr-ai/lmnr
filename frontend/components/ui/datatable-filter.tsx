@@ -1,7 +1,6 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Popover, PopoverTrigger } from './popover';
+import { Popover, PopoverTrigger, PopoverContent } from './popover';
 import { Button } from './button';
-import { PopoverContent } from '@radix-ui/react-popover';
 import { ColumnDef } from '@tanstack/react-table';
 import {
   Select,
@@ -12,7 +11,7 @@ import {
 } from './select';
 import { Input } from './input';
 import { useEffect, useState } from 'react';
-import { ListFilter, X } from 'lucide-react';
+import { ListFilter, Plus, X } from 'lucide-react';
 import { DatatableFilter } from '@/lib/types';
 import { Label } from './label';
 import { cn, getFilterFromUrlParams } from '@/lib/utils';
@@ -81,34 +80,35 @@ export default function DataTableFilter<TData>({
           Filters
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="z-30">
-        <div className="p-2 mt-1 md:min-w-[600px] sm:min-w-[200px] bg-background border rounded">
-          {filters.length > 0 ? (
-            <table key={filters.length.toString()}>
-              <tbody>
-                {filters.map((filter, i) => (
-                  <DataTableFilterRow
-                    i={i}
-                    key={i}
-                    columns={columns}
-                    customFilterColumns={customFilterColumns}
-                    filters={filters}
-                    setFilters={setFilters}
-                  />
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="p-2">
-              <Label className="text-sm text-secondary-foreground">
-                No filters applied
-              </Label>
-            </div>
-          )}
-          <div className="flex flex-row justify-between m-2">
+      <PopoverContent className="z-30 p-0 w-[400px]" side="bottom" align="start">
+        <div className="">
+          <div className="p-2">
+            {filters.length > 0 ? (
+              <table key={filters.length.toString()} className="w-full">
+                <tbody>
+                  {filters.map((filter, i) => (
+                    <DataTableFilterRow
+                      i={i}
+                      key={i}
+                      columns={columns}
+                      customFilterColumns={customFilterColumns}
+                      filters={filters}
+                      setFilters={setFilters}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="px-2">
+                <Label className="text-sm text-secondary-foreground">
+                  No filters applied
+                </Label>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-row justify-between p-2 border-t">
             <Button
-              variant="secondary"
-              className="mx-2"
+              variant="ghost"
               onClick={() => {
                 setFilters((filters) => [
                   ...filters,
@@ -116,11 +116,12 @@ export default function DataTableFilter<TData>({
                 ]);
               }}
             >
+              <Plus size={14} className="mr-1" />
               Add Filter
             </Button>
             <Button
-              className="mx-2"
               disabled={filters.some((filter) => !isFilterFilled(filter))}
+              variant="secondary"
               onClick={() => {
                 searchParams.delete('filter');
                 searchParams.delete('pageNumber');
@@ -164,7 +165,7 @@ function DataTableFilterRow<TData>({
   return (
     <tr key={i} className="w-full">
       <td>
-        <div className="flex space-x-1 w-80">
+        <div className="flex">
           <Select
             defaultValue={
               Object.keys(customFilterColumns ?? {}).some((n) =>
@@ -188,7 +189,7 @@ function DataTableFilterRow<TData>({
               setFilters(newFilters);
             }}
           >
-            <SelectTrigger className="flex font-medium">
+            <SelectTrigger className="flex font-medium w-40">
               <SelectValue placeholder="Choose column..." />
             </SelectTrigger>
             <SelectContent>
@@ -246,10 +247,11 @@ function DataTableFilterRow<TData>({
           </SelectContent>
         </Select>
       </td>
-      <td className="p-2">
+      <td className="">
         <Input
+          className="h-7"
           defaultValue={filter?.value ?? ''}
-          placeholder="value..."
+          placeholder="value"
           onChange={(e) => {
             const newFilters = [...filters];
             let value = e.target.value;
@@ -268,6 +270,7 @@ function DataTableFilterRow<TData>({
       </td>
       <td>
         <Button
+          className="p-0 px-1 text-secondary-foreground"
           variant={'ghost'}
           onClick={() => {
             const newFilters = [...filters];
