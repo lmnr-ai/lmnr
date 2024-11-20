@@ -17,6 +17,7 @@ import { AddLabelPopover } from './add-label-popover';
 import ExportSpansDialog from './export-spans-dialog';
 import { SpanViewSpan } from './span-view-span';
 import StatsShields from './stats-shields';
+import AddToLabelingQueuePopover from './add-to-labeling-queue-popover';
 
 interface SpanViewProps {
   spanId: string;
@@ -59,32 +60,31 @@ export function SpanView({ spanId }: SpanViewProps) {
               <div className="flex-grow text-xl items-center font-medium truncate max-w-[400px]">
                 {span.name}
               </div>
-              <div className="flex-grow"></div>
-              <div>
-                <ExportSpansDialog span={span} />
-              </div>
-              <div>
-                <AddLabelPopover span={span} />
+              <div className="flex-grow" />
+              <div className="flex flex-col py-1 space-y-2">
+                <StatsShields
+                  startTime={span.startTime}
+                  endTime={span.endTime}
+                  totalTokenCount={
+                    (span.attributes['gen_ai.usage.input_tokens'] ?? 0) +
+                    (span.attributes['gen_ai.usage.output_tokens'] ?? 0)
+                  }
+                  inputTokenCount={
+                    span.attributes['gen_ai.usage.input_tokens'] ?? 0
+                  }
+                  outputTokenCount={
+                    span.attributes['gen_ai.usage.output_tokens'] ?? 0
+                  }
+                  inputCost={span.attributes['gen_ai.usage.input_cost'] ?? 0}
+                  outputCost={span.attributes['gen_ai.usage.output_cost'] ?? 0}
+                  cost={span.attributes['gen_ai.usage.cost'] ?? 0}
+                />
               </div>
             </div>
-            <div className="flex-grow flex flex-col px-4 py-1 space-y-2">
-              <StatsShields
-                startTime={span.startTime}
-                endTime={span.endTime}
-                totalTokenCount={
-                  (span.attributes['gen_ai.usage.input_tokens'] ?? 0) +
-                  (span.attributes['gen_ai.usage.output_tokens'] ?? 0)
-                }
-                inputTokenCount={
-                  span.attributes['gen_ai.usage.input_tokens'] ?? 0
-                }
-                outputTokenCount={
-                  span.attributes['gen_ai.usage.output_tokens'] ?? 0
-                }
-                inputCost={span.attributes['gen_ai.usage.input_cost'] ?? 0}
-                outputCost={span.attributes['gen_ai.usage.output_cost'] ?? 0}
-                cost={span.attributes['gen_ai.usage.cost'] ?? 0}
-              />
+            <div className="flex-none flex flex-row space-x-2 px-4">
+              <AddToLabelingQueuePopover span={span} />
+              <ExportSpansDialog span={span} />
+              <AddLabelPopover span={span} />
             </div>
           </div>
           <TabsList className="border-none text-sm px-4">

@@ -22,11 +22,14 @@ use crate::{
     storage::Storage,
 };
 
-use super::span_attributes::{
-    ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST,
-    GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS,
-    GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST,
-    GEN_AI_TOTAL_TOKENS, LLM_NODE_RENDERED_PROMPT, SPAN_PATH, SPAN_TYPE,
+use super::{
+    span_attributes::{
+        ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST,
+        GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS,
+        GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST,
+        GEN_AI_TOTAL_TOKENS, LLM_NODE_RENDERED_PROMPT, SPAN_PATH, SPAN_TYPE,
+    },
+    utils::json_value_to_string,
 };
 
 const INPUT_ATTRIBUTE_NAME: &str = "lmnr.span.input";
@@ -141,7 +144,12 @@ impl SpanAttributes {
             serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default()
         } else {
             // quick hack until we figure how to set span type on auto-instrumentation
-            if self.attributes.contains_key(GEN_AI_SYSTEM) {
+            if self.attributes.contains_key(GEN_AI_SYSTEM)
+                || self
+                    .attributes
+                    .iter()
+                    .any(|(k, _)| k.starts_with("gen_ai.") || k.starts_with("llm."))
+            {
                 SpanType::LLM
             } else {
                 SpanType::DEFAULT
@@ -205,12 +213,16 @@ impl SpanAttributes {
         self.get_flattened_association_properties("label")
     }
 
-    pub fn metadata(&self) -> Option<HashMap<String, Value>> {
+    pub fn metadata(&self) -> Option<HashMap<String, String>> {
         let res = self.get_flattened_association_properties("metadata");
         if res.is_empty() {
             None
         } else {
-            Some(res)
+            Some(
+                res.into_iter()
+                    .map(|(k, v)| (k, json_value_to_string(v)))
+                    .collect(),
+            )
         }
     }
 
