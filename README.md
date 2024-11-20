@@ -69,16 +69,52 @@ For production environment, we recommend using our [managed platform](https://ww
 For running and building Laminar locally, or to learn more about docker compose files,
 follow the guide in [Contributing](/CONTRIBUTING.md).
 
-## Python quickstart
+## TS quickstart
 
-First, create a project and generate a Project API Key. Then,
+First, [create a project](https://www.lmnr.ai/projects) and generate a project API key. Then,
 
 ```sh
-pip install lmnr --upgrade
-echo "LMNR_PROJECT_API_KEY=<YOUR_PROJECT_API_KEY>" >> .env
+npm add @lmnr-ai/lmnr
 ```
 
-To automatically instrument LLM calls of popular frameworks and LLM provider libraries just add
+It will install Laminar TS SDK and all instrumentation packages (OpenAI, Anthropic, LangChain ...)
+
+To start tracing LLM calls just add
+```typescript
+import { Laminar } from '@lmnr-ai/lmnr';
+Laminar.initialize({ projectApiKey: process.env.LMNR_PROJECT_API_KEY });
+```
+
+To trace inputs / outputs of functions use `observe` wrapper.
+
+```typescript
+import { OpenAI } from 'openai';
+import { observe } from '@lmnr-ai/lmnr';
+
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const poemWriter = observe({name: 'poemWriter'}, async (topic) => {
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: `write a poem about ${topic}` }],
+  });
+  return response.choices[0].message.content;
+});
+
+await poemWriter();
+```
+
+## Python quickstart
+
+First, [create a project](https://www.lmnr.ai/projects) and generate a project API key. Then,
+
+```sh
+pip install --upgrade 'lmnr[openai]'
+```
+It will install Laminar Python SDK and OpenAI instrumentation package. See list of all instruments [here](https://docs.lmnr.ai/installation)
+
+
+To start tracing LLM calls just add
 ```python
 from lmnr import Laminar
 Laminar.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
