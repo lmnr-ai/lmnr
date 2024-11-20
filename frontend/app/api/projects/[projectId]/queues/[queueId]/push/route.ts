@@ -18,6 +18,7 @@ export async function POST(request: Request, { params }: { params: { projectId: 
 
   const { spanId } = result.data;
 
+try {
   const newQueueItem = await db.insert(labelingQueueItems).values({
     queueId: params.queueId,
     spanId,
@@ -29,4 +30,6 @@ export async function POST(request: Request, { params }: { params: { projectId: 
   }
 
   return Response.json(newQueueItem[0]);
+} catch (error) {
+  return Response.json({ error: 'Database error occurred', details: error.message }, { status: 500 });
 }
