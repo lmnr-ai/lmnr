@@ -218,9 +218,6 @@ export default function EventComponent({ eventTemplate, metrics }: EventProps) {
             }}
             totalItemsCount={totalCount}
           >
-            <DataTableFilter
-              columns={columns.filter((col) => col.id !== 'created_at')}
-            />
             <DateRangeFilter />
           </DataTable>
         </div>
