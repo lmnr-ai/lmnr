@@ -295,9 +295,7 @@ fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Opt
                 let mut split = filter_value_str.splitn(2, '=');
                 let key = split.next().unwrap_or_default();
                 let value = split.next().unwrap_or_default();
-                let json_value = serde_json::from_str::<Value>(value)
-                    .unwrap_or(Value::String(value.to_string()));
-                let value_json = serde_json::json!({ key: json_value });
+                let value_json = serde_json::json!({ key: value });
                 query.push(" AND metadata @> ");
                 query.push_bind(value_json);
                 return;

@@ -21,7 +21,7 @@ pub struct TraceAttributes {
     pub cost: Option<f64>,
     pub session_id: Option<String>,
     pub trace_type: Option<TraceType>,
-    pub metadata: Option<HashMap<String, Value>>,
+    pub metadata: Option<HashMap<String, String>>,
 }
 
 impl TraceAttributes {
@@ -75,7 +75,7 @@ impl TraceAttributes {
         self.trace_type = trace_type;
     }
 
-    pub fn set_metadata(&mut self, metadata: Option<HashMap<String, Value>>) {
+    pub fn set_metadata(&mut self, metadata: Option<HashMap<String, String>>) {
         self.metadata = metadata;
     }
 }
