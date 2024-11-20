@@ -52,9 +52,9 @@ export default function DataTableFilter({
   );
   const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
 
-  const isFilterFilled = (filter: DatatableFilter): boolean => {
-    return filter.value.length > 0;
-  };
+  const isFilterFilled = (filter: DatatableFilter): boolean => filter.value.length > 0;
+
+  const hasFilters = queryParamFilters ? (getFilterFromUrlParams(queryParamFilters)?.length ?? 0) > 0 : false;
 
   return (
     <Popover
@@ -64,8 +64,8 @@ export default function DataTableFilter({
     >
       <PopoverTrigger asChild className={className}>
         <Button
-          variant={filters.length > 0 ? 'secondary' : 'outline'}
-          className="text-secondary-foreground h-8"
+          variant='outline'
+          className={cn("text-secondary-foreground h-8", hasFilters ? 'text-primary bg-primary/20 border-primary/40 hover:bg-primary/30' : '')}
         >
           <ListFilter size={16} className="mr-2" />
           Filters
