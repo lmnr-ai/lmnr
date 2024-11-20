@@ -8,13 +8,15 @@ import { Labels } from './labels';
 import { Button } from '../ui/button';
 import { LabelingQueue } from '@/lib/queue/types';
 import Header from '../ui/header';
-import { ArrowDown, ArrowUp, Loader2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, Pen, X } from "lucide-react";
 import { Label } from '../ui/label';
 import { ScrollArea } from '../ui/scroll-area';
 import { isChatMessageList } from '@/lib/flow/utils';
 import ChatMessageListTab from '../traces/chat-message-list-tab';
 import Formatter from '../ui/formatter';
 import DefaultTextarea from '../ui/default-textarea';
+import DatasetSelect from '../ui/dataset-select';
+import { Switch } from '../ui/switch';
 
 interface QueueProps {
   queue: LabelingQueue;
@@ -33,6 +35,8 @@ export default function Queue({ queue }: QueueProps) {
 
   const [isRemoving, setIsRemoving] = useState(false);
   const [addedLabels, setAddedLabels] = useState<Array<{ value: number, labelClass: LabelClass, reasoning?: string | null }>>([]);
+  const [datasetId, setDatasetId] = useState<string | undefined>(undefined);
+  const [insertOnComplete, setInsertOnComplete] = useState(false);
 
   const next = (refDate: string, direction: 'next' | 'prev' = 'next') => {
     fetch(`/api/projects/${projectId}/queues/${queue.id}/move`, {
@@ -48,12 +52,19 @@ export default function Queue({ queue }: QueueProps) {
 
   const remove = () => {
     setIsRemoving(true);
+
+    // TODO: refactor when we have structured actions
+    let action = data?.queueData.action as { resultId: string, datasetId?: string };
+    if (datasetId) {
+      action.datasetId = datasetId;
+    }
+
     fetch(`/api/projects/${projectId}/queues/${queue.id}/remove`, {
       method: 'POST',
       body: JSON.stringify({
         id: data?.queueData.id,
         spanId: data?.span.spanId,
-        action: data?.queueData.action,
+        action,
         addedLabels
       })
     }).then(async (data) => {
@@ -183,6 +194,27 @@ export default function Queue({ queue }: QueueProps) {
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="flex-none p-4 border-t">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="insert-dataset">Insert to dataset on complete</Label>
+                <Switch
+                  checked={insertOnComplete}
+                  onCheckedChange={setInsertOnComplete}
+                  id="insert-dataset"
+                />
+              </div>
+
+              {insertOnComplete && (
+                <div className="mt-4">
+                  <DatasetSelect
+                    selectedDatasetId={datasetId}
+                    onDatasetChange={(dataset) => {
+                      setDatasetId(dataset?.id || undefined);
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
           <div className="w-1/3 p-4 border-l">

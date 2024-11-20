@@ -1,6 +1,6 @@
 
 import { db } from '@/lib/db/drizzle';
-import { labelingQueueItems, labels, evaluationScores, labelingQueues, evaluations, evaluationResults } from '@/lib/db/migrations/schema';
+import { labelingQueueItems, labels, evaluationScores, labelingQueues, evaluations, evaluationResults, datasetDatapoints, spans, datapointToSpan } from '@/lib/db/migrations/schema';
 import { eq, and } from 'drizzle-orm';
 import { isFeatureEnabled } from '@/lib/features/features';
 import { Feature } from '@/lib/features/features';
@@ -19,10 +19,11 @@ const removeQueueItemSchema = z.object({
       name: z.string(),
       id: z.string()
     }),
-    reasoning: z.string().optional()
+    reasoning: z.string().optional().nullable()
   })),
   action: z.object({
-    resultId: z.string().optional()
+    resultId: z.string().optional(),
+    datasetId: z.string().optional()
   })
 });
 
@@ -39,21 +40,21 @@ export async function POST(request: Request, { params }: { params: { projectId: 
 
   const { id, spanId, addedLabels, action } = result.data;
 
+  // adding new labels to the span
+  const newLabels = addedLabels.map(({ value, labelClass, reasoning }) => ({
+    value: value,
+    classId: labelClass.id,
+    spanId,
+    reasoning,
+    labelSource: "MANUAL" as const,
+  }));
+
+  await db.insert(labels).values(newLabels);
+
   if (action.resultId) {
     const labelingQueue = await db.query.labelingQueues.findFirst({
       where: eq(labelingQueues.id, params.queueId)
     });
-
-    // adding new labels to the span
-    const newLabels = addedLabels.map(({ value, labelClass, reasoning }) => ({
-      value: value,
-      classId: labelClass.id,
-      spanId,
-      reasoning,
-      labelSource: "MANUAL" as const,
-    }));
-
-    await db.insert(labels).values(newLabels);
 
     const resultId = action.resultId;
 
@@ -95,6 +96,33 @@ export async function POST(request: Request, { params }: { params: { projectId: 
         });
       }
     }
+  }
+
+  if (action.datasetId) {
+
+    const span = await db.query.spans.findFirst({
+      where: and(eq(spans.spanId, spanId), eq(spans.projectId, params.projectId))
+    });
+
+    if (!span) {
+      return Response.json({ error: 'Span not found when adding to dataset' }, { status: 500 });
+    }
+
+    const datapoint = await db.insert(datasetDatapoints).values({
+      data: span.input,
+      target: span.output,
+      metadata: {
+        spanId: span.spanId,
+      },
+      datasetId: action.datasetId,
+    }).returning();
+
+    await db.insert(datapointToSpan).values({
+      spanId: span.spanId,
+      datapointId: datapoint[0].id,
+      projectId: params.projectId,
+    });
+
   }
 
   const deletedQueueData = await db
