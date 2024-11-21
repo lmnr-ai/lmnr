@@ -265,22 +265,35 @@ fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Opt
                 return;
             }
             if filter.filter_column.starts_with("event.") {
-                let template_name = filter.filter_column.strip_prefix("event.").unwrap();
+                let template_name = filter
+                    .filter_column
+                    .strip_prefix("event.")
+                    .unwrap()
+                    .to_string();
                 filter_by_event_value(
                     query,
-                    template_name.to_string(),
+                    template_name,
                     filter.filter_operator.clone(),
                     filter.filter_value.clone(),
                 );
                 return;
             }
-            if filter.filter_column.starts_with("label.") {
-                let label_name = filter.filter_column.strip_prefix("label.").unwrap();
+            if filter.filter_column == "labels" {
+                if !filter_value_str.contains("=") || filter.filter_operator != FilterOperator::Eq {
+                    log::warn!(
+                        "Invalid label filter: {}. Operator must be `eq`",
+                        filter_value_str
+                    );
+                    return;
+                }
+                let mut split = filter_value_str.splitn(2, '=');
+                let label_name = split.next().unwrap_or_default().to_string();
+                let label_value = split.next().unwrap_or_default().to_string();
                 filter_by_span_label_value(
                     query,
-                    label_name.to_string(),
+                    label_name,
                     filter.filter_operator.clone(),
-                    filter.filter_value.clone(),
+                    label_value,
                 );
                 return;
             }
@@ -360,7 +373,7 @@ fn filter_by_span_label_value(
     query: &mut QueryBuilder<Postgres>,
     label_name: String,
     filter_operator: FilterOperator,
-    label_value: Value,
+    label_value: String,
 ) {
     query.push(
         " AND id IN
@@ -371,10 +384,11 @@ fn filter_by_span_label_value(
         WHERE label_classes.name = ",
     );
     query.push_bind(label_name);
-    query.push(" AND label_classes.value_map ->> labels.value::int4 ");
+    query.push(" AND labels.value ");
     query.push(filter_operator.to_sql_operator());
+    query.push("(label_classes.value_map ->> ");
     query.push_bind(label_value);
-    query.push("::text)");
+    query.push(")::float8)");
 }
 
 /// Queries traces for a project which match the given filters, with given limit and offset
