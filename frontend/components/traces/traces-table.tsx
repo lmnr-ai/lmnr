@@ -409,6 +409,12 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     {
       name: 'Metadata',
       id: 'metadata',
+      restrictOperators: ['eq']
+    },
+    {
+      name: 'Labels',
+      id: 'labels',
+      restrictOperators: ['eq']
     }
   ];
 

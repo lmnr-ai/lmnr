@@ -240,7 +240,17 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     {
       id: 'trace_count',
       name: 'Trace count'
-    }
+    },
+    {
+      id: 'metadata',
+      name: 'Metadata',
+      restrictOperators: ['eq'],
+    },
+    {
+      id: 'labels',
+      name: 'Labels',
+      restrictOperators: ['eq'],
+    },
   ];
 
   return (

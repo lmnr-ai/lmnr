@@ -340,6 +340,11 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     {
       id: 'cost',
       name: 'Cost'
+    },
+    {
+      id: 'labels',
+      name: 'Labels',
+      restrictOperators: ['eq'],
     }
   ];
 

@@ -1,7 +1,6 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Popover, PopoverTrigger, PopoverContent } from './popover';
 import { Button } from './button';
-import { ColumnDef } from '@tanstack/react-table';
 import {
   Select,
   SelectContent,
@@ -10,7 +9,7 @@ import {
   SelectValue
 } from './select';
 import { Input } from './input';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ListFilter, Plus, X } from 'lucide-react';
 import { Label } from './label';
 import { cn, getFilterFromUrlParams } from '@/lib/utils';
@@ -19,6 +18,7 @@ import { DatatableFilter } from '@/lib/types';
 interface Filter {
   name: string;
   id: string;
+  restrictOperators?: string[];
 }
 
 interface DataTableFilterProps {
@@ -145,6 +145,10 @@ function DataTableFilterRow({
   possibleFilters
 }: RowProps) {
   const filter = filters[i];
+  const [selectedFilter, setSelectedFilter] = useState<Filter|null>(null);
+  const operators = (filter: Filter | null) => (filter?.restrictOperators != null)
+    ? SELECT_OPERATORS.filter(op => filter.restrictOperators!.includes(op.key))
+    : SELECT_OPERATORS;
 
   return (
     <tr key={i} className="w-full">
@@ -155,6 +159,7 @@ function DataTableFilterRow({
             onValueChange={(value) => {
               const newFilters = [...filters];
               newFilters[i].column = value;
+              setSelectedFilter(possibleFilters.find(f => f.id === value) ?? null);
               setFilters(newFilters);
             }}
           >
@@ -184,7 +189,7 @@ function DataTableFilterRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SELECT_OPERATORS.map((operator) => (
+            {operators(selectedFilter).map((operator) => (
               <SelectItem key={operator.key} value={operator.key}>
                 {operator.label}
               </SelectItem>
