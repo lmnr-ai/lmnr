@@ -204,9 +204,54 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     }
   ];
 
-  const filterColumns = columns.filter(
-    (column) => !['type', 'ent_time', 'start_time'].includes(column.id!)
-  );
+  const filterColumns = [
+    {
+      id: 'id',
+      name: 'ID'
+    },
+    {
+      id: 'duration',
+      name: 'Duration'
+    },
+    {
+      id: 'input_cost',
+      name: 'Input cost'
+    },
+    {
+      id: 'output_cost',
+      name: 'Output cost'
+    },
+    {
+      id: 'cost',
+      name: 'Total cost'
+    },
+    {
+      id: 'input_token_count',
+      name: 'Input tokens'
+    },
+    {
+      id: 'output_token_count',
+      name: 'Output tokens'
+    },
+    {
+      id: 'total_token_count',
+      name: 'Total tokens'
+    },
+    {
+      id: 'trace_count',
+      name: 'Trace count'
+    },
+    {
+      id: 'metadata',
+      name: 'Metadata',
+      restrictOperators: ['eq'],
+    },
+    {
+      id: 'labels',
+      name: 'Labels',
+      restrictOperators: ['eq'],
+    },
+  ];
 
   return (
     <DataTable
@@ -279,7 +324,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       enableRowSelection
     >
       <TextSearchFilter />
-      <DataTableFilter columns={filterColumns} />
+      <DataTableFilter possibleFilters={filterColumns} />
       <DateRangeFilter />
       <Button
         onClick={() => {

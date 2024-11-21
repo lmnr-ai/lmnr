@@ -143,13 +143,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   }, [searchParams]);
 
   const columns: ColumnDef<Trace, any>[] = [
-    // {
-    //   accessorFn: (row) => (row.success ? 'Success' : 'Failed'),
-    //   header: 'Status',
-    //   cell: (row) => <StatusLabel success={row.getValue() === 'Success'} />,
-    //   id: 'status',
-    //   size: 100
-    // },
     {
       cell: (row) => <Mono className='text-xs'>{row.getValue()}</Mono>,
       header: 'ID',
@@ -284,48 +277,39 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       </div>,
       size: 150
     },
+    {
+      accessorFn: (row) => row.metadata ? JSON.stringify(row.metadata, null, 2) : '',
+      header: 'Metadata',
+      id: 'metadata',
+      cell: (row) =>
+        <TooltipProvider delayDuration={100}>
+          <Tooltip>
+            <TooltipTrigger className="relative p-0">
+              <div
+                style={{
+                  width: row.column.getSize() - 32
+                }}
+                className="relative"
+              >
+                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+                    {row.getValue()}
+                  </div>
+                </div>
+              </div>
+            </TooltipTrigger>
+            {row.getValue() != undefined &&
+              <TooltipContent side="bottom" className="p-2 border">
+                <div className='whitespace-pre-wrap'>
+                  {row.getValue()}
+                </div>
+              </TooltipContent>
+            }
+          </Tooltip>
+        </TooltipProvider>,
+      size: 100
+    },
   ];
-
-  const extraFilterCols = [
-    {
-      header: 'Input tokens',
-      id: 'input_token_count',
-    },
-    {
-      header: 'Output tokens',
-      id: 'output_token_count',
-    },
-    {
-      header: 'Input cost',
-      id: 'input_cost',
-    },
-    {
-      header: 'Output cost',
-      id: 'output_cost',
-    },
-    {
-      header: 'events',
-      id: `event`
-    },
-    {
-      header: 'labels',
-      id: `label`
-    }
-  ];
-
-  const { data: events } = useSWR<EventTemplate[]>(
-    `/api/projects/${projectId}/event-templates`,
-    swrFetcher
-  );
-  const { data: labels } = useSWR<LabelClass[]>(
-    `/api/projects/${projectId}/label-classes`,
-    swrFetcher
-  );
-
-  const customFilterColumns = {
-    event: events?.map((event) => event.name) ?? [],
-    label: labels?.map((label) => label.name) ?? []
-  };
 
   const { supabaseAccessToken } = useUserContext();
 
@@ -397,11 +381,42 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     return <TracesPagePlaceholder />;
   }
 
-  const filterColumns = columns
-    .filter(
-      (column) => !['start_time', 'events', 'input', 'output'].includes(column.id!)
-    )
-    .concat(extraFilterCols);
+  const filters = [
+    {
+      name: 'ID',
+      id: 'id',
+    },
+    {
+      name: 'Latency',
+      id: 'latency',
+    },
+    {
+      name: 'Top level span',
+      id: 'top_span_type',
+    },
+    {
+      name: 'Top span name',
+      id: 'top_span_name',
+    },
+    {
+      name: 'Input cost',
+      id: 'input_cost',
+    },
+    {
+      name: 'Output cost',
+      id: 'output_cost',
+    },
+    {
+      name: 'Metadata',
+      id: 'metadata',
+      restrictOperators: ['eq']
+    },
+    {
+      name: 'Labels',
+      id: 'labels',
+      restrictOperators: ['eq']
+    }
+  ];
 
   return (
     <DataTable
@@ -428,8 +443,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     >
       <TextSearchFilter />
       <DataTableFilter
-        columns={filterColumns}
-        customFilterColumns={customFilterColumns}
+        possibleFilters={filters}
       />
       <DateRangeFilter />
       <Button

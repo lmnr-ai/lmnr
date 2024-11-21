@@ -3,7 +3,7 @@ import { eq, and, gt, sql, lt, SQL, getTableColumns } from "drizzle-orm";
 import { membersOfWorkspaces, projects, users, apiKeys } from "./migrations/schema";
 import { getServerSession } from 'next-auth';
 import { authOptions } from "../auth";
-import { PgColumn, PgTableWithColumns, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
+import { PgTableWithColumns, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
 import { PaginatedResponse } from "../types";
 
 export const isUserMemberOfProject = async (projectId: string, apiKey: string) => {

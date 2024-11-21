@@ -154,12 +154,13 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       accessorKey: 'name',
       header: 'Name',
       id: 'name',
+      size: 150
     },
     {
       accessorKey: 'path',
       header: 'Path',
       id: 'path',
-      size: 200
+      size: 150
     },
     {
       cell: (row) => row.getValue(),
@@ -306,46 +307,46 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     }
   ];
 
-  const events: EventTemplate[] = [];
-  const labels: LabelClass[] = [];
-  const extraFilterCols = [
+
+  const filterColumns = [
     {
-      header: 'Input tokens',
-      id: 'input_token_count',
+      id: 'id',
+      name: 'ID'
     },
     {
-      header: 'Output tokens',
-      id: 'output_token_count',
+      id: 'trace_id',
+      name: 'Trace ID'
     },
     {
-      header: 'Input cost',
-      id: 'input_cost',
+      id: 'span_type',
+      name: 'Type'
     },
     {
-      header: 'Output cost',
-      id: 'output_cost',
+      id: 'name',
+      name: 'Name'
     },
+    {
+      id: 'path',
+      name: 'Path'
+    },
+    {
+      id: 'latency',
+      name: 'Latency'
+    },
+    {
+      id: 'tokens',
+      name: 'Tokens'
+    },
+    {
+      id: 'cost',
+      name: 'Cost'
+    },
+    {
+      id: 'labels',
+      name: 'Labels',
+      restrictOperators: ['eq'],
+    }
   ];
-
-  // const { data: events } = useSWR<EventTemplate[]>(
-  //   `/api/projects/${projectId}/event-templates`,
-  //   swrFetcher
-  // );
-  // const { data: labels } = useSWR<LabelClass[]>(
-  //   `/api/projects/${projectId}/label-classes`,
-  //   swrFetcher
-  // );
-
-  const customFilterColumns = {
-    event: events?.map((event) => event.name) ?? [],
-    label: labels?.map((label) => label.name) ?? []
-  };
-
-  const filterColumns = columns
-    .filter(
-      (column) => !['input', 'output', 'start_time'].includes(column.id!)
-    )
-    .concat(extraFilterCols);
 
   return (
     <DataTable
@@ -372,8 +373,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     >
       {/* <TextSearchFilter /> */}
       <DataTableFilter
-        columns={filterColumns}
-        customFilterColumns={customFilterColumns}
+        possibleFilters={filterColumns}
       />
       <DateRangeFilter />
       <Button

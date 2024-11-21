@@ -5,6 +5,8 @@ import { fetcherJSON } from '@/lib/utils';
 import { Session, getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { Metadata } from 'next';
+import { Feature } from '@/lib/features/features';
+import { isFeatureEnabled } from '@/lib/features/features';
 
 const URL_QUERY_PARAMS = {
   SELECTED_VERSION_ID: 'versionId'
@@ -67,18 +69,12 @@ export default async function PipelinePage({
       }
     }
   );
-  const selectedVersion = selectedVersionId
-    ? await getPipelineVersion(
-      session,
-      projectId,
-      pipelineId,
-        selectedVersionId as string
-    )
-    : undefined;
+
+  const isSupabaseEnabled = isFeatureEnabled(Feature.SUPABASE);
 
   return (
     <>
-      <Pipeline pipeline={pipeline} defaultSelectedVersion={selectedVersion} />
+      <Pipeline pipeline={pipeline} isSupabaseEnabled={isSupabaseEnabled} />
     </>
   );
 }

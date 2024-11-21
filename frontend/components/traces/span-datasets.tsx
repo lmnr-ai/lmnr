@@ -84,7 +84,7 @@ export default function SpanDatasets({ spanId }: SpanDatasetsProps) {
           </Table>
         ) : (
           <div className="p-2 text-secondary-foreground text-sm">
-            No labels
+            No datasets
           </div>
         )}
       </div>
