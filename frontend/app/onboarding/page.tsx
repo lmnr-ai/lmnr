@@ -1,11 +1,10 @@
 import { authOptions } from '@/lib/auth';
+import CreateFirstWorkspaceAndProject from '@/components/onboarding/create-first-workspace-and-project';
 import { getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
-
-import { UserContextProvider } from '@/contexts/user-context';
 import { Metadata } from 'next';
 import OnboardingHeader from '@/components/onboarding/onboarding-header';
-import CreateFirstWorkspaceAndProject from '@/components/onboarding/create-first-workspace-and-project';
+import { redirect } from 'next/navigation';
+import { UserContextProvider } from '@/contexts/user-context';
 
 export const metadata: Metadata = {
   title: 'Create workspace and project'

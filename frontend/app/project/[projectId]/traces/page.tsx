@@ -1,9 +1,9 @@
-import TracesDashboard from '@/components/traces/traces';
-import { Metadata } from 'next';
-import Header from '@/components/ui/header';
-import { spans, traces } from '@/lib/db/migrations/schema';
-import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
+import { eq } from 'drizzle-orm';
+import Header from '@/components/ui/header';
+import { Metadata } from 'next';
+import { spans } from '@/lib/db/migrations/schema';
+import TracesDashboard from '@/components/traces/traces';
 import TracesPagePlaceholder from '@/components/traces/page-placeholder';
 
 export const metadata: Metadata = {

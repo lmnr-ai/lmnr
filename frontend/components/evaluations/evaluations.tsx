@@ -1,19 +1,5 @@
 'use client';
 
-import { useProjectContext } from '@/contexts/project-context';
-import { Evaluation } from '@/lib/evaluation/types';
-import { ColumnDef } from '@tanstack/react-table';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { DataTable } from '../ui/datatable';
-import Mono from '../ui/mono';
-import Header from '../ui/header';
-import { usePostHog } from 'posthog-js/react';
-import { useUserContext } from '@/contexts/user-context';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
-import { Button } from '../ui/button';
-import { Trash2 } from 'lucide-react';
-import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -23,16 +9,30 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '../ui/dialog';
-import { useToast } from '@/lib/hooks/use-toast';
-import useSWR from 'swr';
-import { swrFetcher } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
-import { PaginatedResponse } from '@/lib/types';
-import EvaluationsGroupsBar from './evaluations-groups-bar';
-import { Skeleton } from '../ui/skeleton';
-import ProgressionChart from './progression-chart';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { Loader2, Trash2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { useRouter, useSearchParams } from 'next/navigation';
+
 import { AggregationFunction } from '@/lib/clickhouse/utils';
-import { Select, SelectItem, SelectValue, SelectTrigger, SelectContent } from '../ui/select';
+import { Button } from '../ui/button';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '../ui/datatable';
+import { Evaluation } from '@/lib/evaluation/types';
+import EvaluationsGroupsBar from './evaluations-groups-bar';
+import Header from '../ui/header';
+import Mono from '../ui/mono';
+import { PaginatedResponse } from '@/lib/types';
+import ProgressionChart from './progression-chart';
+import { swrFetcher } from '@/lib/utils';
+import { usePostHog } from 'posthog-js/react';
+import { useProjectContext } from '@/contexts/project-context';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { useToast } from '@/lib/hooks/use-toast';
+import { useUserContext } from '@/contexts/user-context';
+
 
 export default function Evaluations() {
   const { projectId } = useProjectContext();

@@ -1,16 +1,16 @@
-import React from 'react';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { EvaluatorEditor } from './evaluator-editor';
 import { LabelClass, Span } from '@/lib/traces/types';
+
+import { EvaluatorEditor } from './evaluator-editor';
 import { Graph } from '@/lib/flow/graph';
+import React from 'react';
 
 interface EvaluatorEditorDialogProps {
   span: Span;

@@ -1,12 +1,12 @@
+import { and, eq } from 'drizzle-orm';
 import { authOptions } from '@/lib/auth';
+import Dataset from '@/components/dataset/dataset';
+import { datasets } from '@/lib/db/migrations/schema';
+import { db } from '@/lib/db/drizzle';
 import { getServerSession } from 'next-auth';
+import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { Metadata } from 'next';
-import Dataset from '@/components/dataset/dataset';
-import { db } from '@/lib/db/drizzle';
-import { and, eq } from 'drizzle-orm';
-import { datasets } from '@/lib/db/migrations/schema';
 
 export const metadata: Metadata = {
   title: 'Dataset'

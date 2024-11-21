@@ -1,18 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { SpanCard } from './span-card';
-import { ScrollArea, ScrollBar } from '../ui/scroll-area';
-import { Span } from '@/lib/traces/types';
-import { ChevronsRight } from 'lucide-react';
-import { SpanView } from './span-view';
-import Timeline from './timeline';
 import { cn, swrFetcher } from '@/lib/utils';
+import React, { useEffect, useRef, useState } from 'react';
+import { ScrollArea, ScrollBar } from '../ui/scroll-area';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
 import { Button } from '../ui/button';
+import { ChevronsRight } from 'lucide-react';
 import Mono from '../ui/mono';
-import useSWR from 'swr';
-import { useProjectContext } from '@/contexts/project-context';
 import { Skeleton } from '../ui/skeleton';
+import { Span } from '@/lib/traces/types';
+import { SpanCard } from './span-card';
+import { SpanView } from './span-view';
 import StatsShields from './stats-shields';
+import Timeline from './timeline';
+import { useProjectContext } from '@/contexts/project-context';
+import useSWR from 'swr';
 
 interface TraceViewProps {
   traceId: string;

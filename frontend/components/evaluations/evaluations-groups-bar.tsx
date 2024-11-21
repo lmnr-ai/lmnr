@@ -1,12 +1,10 @@
-import { useProjectContext } from "@/contexts/project-context";
-import { cn, swrFetcher } from "@/lib/utils";
-import { ScrollArea } from "../ui/scroll-area";
 import { useRouter, useSearchParams } from "next/navigation";
-import useSWR from "swr";
-import { DataTable } from "../ui/datatable";
-import { ColumnDef } from "@tanstack/react-table";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
-
+import { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "../ui/datatable";
+import { swrFetcher } from "@/lib/utils";
+import { useProjectContext } from "@/contexts/project-context";
+import useSWR from "swr";
 
 export default function EvaluationsGroupsBar() {
   const { projectId } = useProjectContext();

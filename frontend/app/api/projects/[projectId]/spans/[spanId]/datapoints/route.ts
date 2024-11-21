@@ -1,8 +1,6 @@
-import { db } from "@/lib/db/drizzle";
 import { datapointToSpan } from "@/lib/db/migrations/schema";
-import { isUserMemberOfProject } from "@/lib/db/utils";
+import { db } from "@/lib/db/drizzle";
 import { eq } from "drizzle-orm";
-
 
 export async function GET(
   request: Request,

@@ -1,12 +1,13 @@
 'use client';
 
-import Link from 'next/link';
-import Image from 'next/image';
-import logo from '@/assets/logo/logo.svg';
-import { useState, useEffect } from 'react';
-import { Menu, X, XCircle } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
+import Link from 'next/link';
+import logo from '@/assets/logo/logo.svg';
 
 interface LandingHeaderProps {
   hasSession: boolean;

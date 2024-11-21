@@ -1,16 +1,17 @@
-import { memo, useEffect, useState } from 'react';
-import GenericNodeComponent from './generic-node';
 import {
   GenericNodeHandle,
   NodeHandleType,
   type UnifyNode
 } from '@/lib/flow/types';
+
+import { memo, useEffect, useState } from 'react';
+
+import IdeJson from '@/components/ui/ide-json';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import TemplatedTextArea from './components/templated-text-area';
 import UnifyModelSelect from './components/unify-model-select';
 import useStore from '@/lib/flow/store';
-import TemplatedTextArea from './components/templated-text-area';
-import { Switch } from '@/components/ui/switch';
-import IdeJson from '@/components/ui/ide-json';
 import { v4 } from 'uuid';
 
 const UnifyNodeComponent = ({ data }: { data: UnifyNode }) => {

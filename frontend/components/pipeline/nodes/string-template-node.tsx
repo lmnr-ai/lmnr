@@ -1,13 +1,10 @@
-import GenericNodeComponent from './generic-node';
-import useStore from '@/lib/flow/store';
 import {
-  type StringTemplateNode,
-  type GenericNodeHandle
+  type GenericNodeHandle,
+  type StringTemplateNode
 } from '@/lib/flow/types';
-import { useUpdateNodeInternals } from 'reactflow';
 import { Label } from '@/components/ui/label';
 import TemplatedTextArea from './components/templated-text-area';
-import Ide from '@/components/ui/ide';
+import useStore from '@/lib/flow/store';
 
 const StringTemplateNodeComponent = ({
   data

@@ -1,27 +1,20 @@
+import { ArrowLeft, HelpCircle, Loader2, Trash2 } from 'lucide-react';
 import { LabelClass, LabelType, Span } from '@/lib/traces/types';
-import { useState } from 'react';
-import { Label } from '../ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '../ui/select';
-import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
-import { Input } from '../ui/input';
-import { Button } from '../ui/button';
-import { useProjectContext } from '@/contexts/project-context';
-import DefaultTextarea from '../ui/default-textarea';
-import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
-import { Switch } from '../ui/switch';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import { HelpCircle } from "lucide-react";
+
+import { Button } from '../ui/button';
+import DefaultTextarea from '../ui/default-textarea';
+import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Switch } from '../ui/switch';
+import { useProjectContext } from '@/contexts/project-context';
+import { useState } from 'react';
 
 interface AddLabelProps {
   span: Span;

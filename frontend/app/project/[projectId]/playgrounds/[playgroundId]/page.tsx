@@ -1,13 +1,9 @@
-import { authOptions } from '@/lib/auth';
-import { fetcherJSON } from '@/lib/utils';
-import { getServerSession } from 'next-auth';
-import { notFound, redirect } from 'next/navigation';
-
-import { Metadata } from 'next';
-import Playground from '@/components/playground/playground';
-import { eq } from 'drizzle-orm';
-import { playgrounds } from '@/lib/db/migrations/schema';
 import { db } from '@/lib/db/drizzle';
+import { eq } from 'drizzle-orm';
+import { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import Playground from '@/components/playground/playground';
+import { playgrounds } from '@/lib/db/migrations/schema';
 import { Playground as PlaygroundType } from '@/lib/playground/types';
 
 export const metadata: Metadata = {

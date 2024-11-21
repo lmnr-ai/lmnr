@@ -1,4 +1,3 @@
-import { ClickHouseClient } from "@clickhouse/client";
 
 interface TimeBounds {
   minTime: number;

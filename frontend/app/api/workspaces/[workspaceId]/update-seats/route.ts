@@ -1,9 +1,9 @@
 import { db } from '@/lib/db/drizzle';
-import { workspaces } from '@/lib/db/migrations/schema';
-import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
 import { eq } from 'drizzle-orm';
+import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
 import { NextRequest } from 'next/server';
 import Stripe from 'stripe';
+import { workspaces } from '@/lib/db/migrations/schema';
 
 const SEAT_PRICE_LOOKUP_KEY = 'additional_seat_2024_11';
 

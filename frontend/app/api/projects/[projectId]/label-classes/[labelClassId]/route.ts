@@ -1,10 +1,10 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
-
-import { labelClasses } from '@/lib/db/migrations/schema';
-import { db } from '@/lib/db/drizzle';
 import { and, eq } from 'drizzle-orm';
+
+import { authOptions } from '@/lib/auth';
+import { db } from '@/lib/db/drizzle';
+import { fetcher } from '@/lib/utils';
+import { getServerSession } from 'next-auth';
+import { labelClasses } from '@/lib/db/migrations/schema';
 
 export async function POST(
   req: Request,

@@ -1,6 +1,4 @@
 'use client';
-
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -9,13 +7,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useProjectContext } from '@/contexts/project-context';
+import { EventTemplate, EventType } from '@/lib/events/types';
 import {
   Select,
   SelectContent,
@@ -23,7 +15,15 @@ import {
   SelectTrigger,
   SelectValue
 } from '../ui/select';
-import { EventTemplate, EventType } from '@/lib/events/types';
+
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
+import { useProjectContext } from '@/contexts/project-context';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 interface EditEventTemplateProps {
   defaultEventTemplate: EventTemplate;

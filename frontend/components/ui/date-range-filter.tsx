@@ -1,14 +1,15 @@
-import { cn } from '@/lib/utils';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { use, useEffect, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
 import { Button } from './button';
-import { CalendarIcon } from 'lucide-react';
 import { Calendar } from './calendar';
-import { formatDate, set } from 'date-fns';
-import { DateRange as ReactDateRange } from 'react-day-picker';
+import { CalendarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { formatDate } from 'date-fns';
 import { Input } from './input';
 import { Label } from './label';
+import { DateRange as ReactDateRange } from 'react-day-picker';
 
 type DateRange = {
   name: string;

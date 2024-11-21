@@ -1,10 +1,10 @@
-import { NodeHandleType } from '@/lib/flow/types';
+import { ChatMessage } from '@/lib/types';
 import DefaultTextarea from '../ui/default-textarea';
 import EditableChat from '../ui/editable-chat';
-import { ChatMessage } from '@/lib/types';
-import { Label } from '../ui/label';
-import { InputVariable } from '@/lib/pipeline/types';
 import EditableStringList from '../ui/editable-string-list';
+import { InputVariable } from '@/lib/pipeline/types';
+import { Label } from '../ui/label';
+import { NodeHandleType } from '@/lib/flow/types';
 
 interface PipelineTraceProps {
   onInputsChange: (inputs: InputVariable[]) => void;

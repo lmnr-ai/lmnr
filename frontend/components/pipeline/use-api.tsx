@@ -1,3 +1,4 @@
+import { Code2, Copy } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -5,13 +6,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Button } from '../ui/button';
-import { Code2, Copy } from 'lucide-react';
 import { InputNode, NodeType, RunnableGraph } from '@/lib/flow/types';
-import { getDefaultGraphInputs } from '@/lib/flow/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+
+import { Button } from '../ui/button';
 import CodeHighlighter from '../ui/code-highlighter';
+import { getDefaultGraphInputs } from '@/lib/flow/utils';
 import { getRequiredEnvVars } from '@/lib/env/utils';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { useState } from 'react';
 
 interface UseApiProps {

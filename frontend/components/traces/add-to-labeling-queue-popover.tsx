@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Loader2, Pen } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -11,14 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { Button } from "@/components/ui/button";
 import { LabelingQueue } from '@/lib/queue/types';
-import { swrFetcher } from '@/lib/utils';
-import useSWR from 'swr';
-import { Span } from '@/lib/traces/types';
-import { Loader2, Pen } from 'lucide-react';
-import { useProjectContext } from '@/contexts/project-context';
 import { PaginatedResponse } from '@/lib/types';
+import { Span } from '@/lib/traces/types';
+import { swrFetcher } from '@/lib/utils';
+import { useProjectContext } from '@/contexts/project-context';
+import { useState } from 'react';
+import useSWR from 'swr';
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface AddToLabelingQueuePopoverProps {

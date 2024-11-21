@@ -1,7 +1,8 @@
 import { CodeNode, GenericNodeHandle, NodeHandleType } from '@/lib/flow/types';
+
+import Editor from '@monaco-editor/react';
 import useStore from '@/lib/flow/store';
 import { v4 } from 'uuid';
-import Editor from '@monaco-editor/react';
 
 export const DEFAULT_CODE = `"""
 Implement the function "main" in this module.
@@ -97,7 +98,8 @@ const compareArgToHandle = (arg: ParsedArgument, handle: GenericNodeHandle) =>
 
 // TODO: Update [^)] to handle only valid Python function arguments
 const functionPattern = /def\s+main\(([^)]*)\)\s*->\s*([\w\[\]]+):/;
-const argumentPattern = /\s*([\w]+)\s*:\s*([\w\[\]]+)\s*(,|$)/g; // /(\w+):\s*(str|list\[str\]|List\[str\]|list\[ChatMessage\]|List\[ChatMessage\]|float)/g;
+const argumentPattern = /\s*([\w]+)\s*:\s*([\w\[\]]+)\s*(,|$)/g;
+// /(\w+):\s*(str|list\[str\]|List\[str\]|list\[ChatMessage\]|List\[ChatMessage\]|float)/g;
 
 // Function to parse Python code and extract function details
 function parsePythonCode(code: string): ParsedFunction | null {

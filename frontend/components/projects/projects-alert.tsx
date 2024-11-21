@@ -1,4 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 
 export default function ProjectsAlert() {

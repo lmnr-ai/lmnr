@@ -1,4 +1,4 @@
-import { pgTable, uuid, timestamp, text, doublePrecision, jsonb, bigint, integer, foreignKey, index, unique, boolean, primaryKey, pgEnum } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const eventSource = pgEnum("event_source", ['AUTO', 'MANUAL', 'CODE']);

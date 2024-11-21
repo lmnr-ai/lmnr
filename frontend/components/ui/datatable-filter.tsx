@@ -1,6 +1,6 @@
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Popover, PopoverTrigger, PopoverContent } from './popover';
-import { Button } from './button';
+import { cn, getFilterFromUrlParams } from '@/lib/utils';
+import { ListFilter, Plus, X } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import {
   Select,
   SelectContent,
@@ -8,12 +8,13 @@ import {
   SelectTrigger,
   SelectValue
 } from './select';
-import { Input } from './input';
-import { useState } from 'react';
-import { ListFilter, Plus, X } from 'lucide-react';
-import { Label } from './label';
-import { cn, getFilterFromUrlParams } from '@/lib/utils';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
+import { Button } from './button';
 import { DatatableFilter } from '@/lib/types';
+import { Input } from './input';
+import { Label } from './label';
+import { useState } from 'react';
 
 interface Filter {
   name: string;

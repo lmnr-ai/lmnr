@@ -1,17 +1,19 @@
-import { Button } from '../ui/button';
-import useStore from '@/lib/flow/store';
 import {
   cn,
   deleteLocalEnvVar,
   getLocalEnvVars,
   setLocalEnvVar
 } from '@/lib/utils';
-import { useEffect, useRef, useState } from 'react';
-import { InputPassword } from '../ui/input-password';
-import { Graph } from '@/lib/flow/graph';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { LockKeyhole } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+
+
+import { Button } from '../ui/button';
 import { ENV_VAR_TO_ISSUER_URL } from '@/lib/env/utils';
+import { Graph } from '@/lib/flow/graph';
+import { InputPassword } from '../ui/input-password';
+import { LockKeyhole } from 'lucide-react';
+import useStore from '@/lib/flow/store';
 
 interface PipelineEnvProps {
   projectId: string;

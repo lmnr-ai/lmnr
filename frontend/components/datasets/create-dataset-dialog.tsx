@@ -6,14 +6,15 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus } from 'lucide-react';
-import { cn, fetcher } from '@/lib/utils';
-import { useState } from 'react';
+import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
 import { useProjectContext } from '@/contexts/project-context';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 interface CreateDatasetDialogProps {}
 

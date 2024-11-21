@@ -6,10 +6,11 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { useEffect, useState } from 'react';
-import { useProjectContext } from '@/contexts/project-context';
-import { Endpoint } from '@/lib/endpoint/types';
+
 import { cn } from '@/lib/utils';
+import { Endpoint } from '@/lib/endpoint/types';
 import { PlusCircle } from 'lucide-react';
+import { useProjectContext } from '@/contexts/project-context';
 
 interface EndpointSelectProps {
   className?: string;
