@@ -1,47 +1,12 @@
 import {
-  LabelClass,
-  LabelSource,
-  RegisteredLabelClassForPath,
-  Span,
-} from '@/lib/traces/types';
-import { cn, swrFetcher } from '@/lib/utils';
-import { useState } from 'react';
-import useSWR from 'swr';
-import {
   ChevronDown,
   Loader2,
   MoreVertical,
   Plus,
-  Tag,
-  X
+  Tag
 } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { useProjectContext } from '@/contexts/project-context';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '../ui/table';
-import { AddLabel } from './add-label';
-import { v4 } from 'uuid';
-import { renderNodeInput } from '@/lib/flow/utils';
-import { PopoverClose } from '@radix-ui/react-popover';
-import { toast, useToast } from '@/lib/hooks/use-toast';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '../ui/dropdown-menu';
-import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
-import { Graph } from '@/lib/flow/graph';
+import { cn, swrFetcher } from '@/lib/utils';
 import { CodeNode, LLMNode, NodeType } from '@/lib/flow/types';
-import { Switch } from '../ui/switch';
-import { eventEmitter } from '@/lib/event-emitter';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +16,41 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '../ui/dropdown-menu';
+import {
+  LabelClass,
+  LabelSource,
+  RegisteredLabelClassForPath,
+  Span,
+} from '@/lib/traces/types';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '../ui/table';
+
+import { AddLabel } from './add-label';
+import { Button } from '../ui/button';
+import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
+import { eventEmitter } from '@/lib/event-emitter';
+import { Graph } from '@/lib/flow/graph';
+import { PopoverClose } from '@radix-ui/react-popover';
+import { renderNodeInput } from '@/lib/flow/utils';
+import { Switch } from '../ui/switch';
+import { toast } from '@/lib/hooks/use-toast';
+import { useProjectContext } from '@/contexts/project-context';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { v4 } from 'uuid';
 
 const getEvaluatorType = (labelClass: LabelClass) => {
   if (!labelClass.evaluatorRunnableGraph) {

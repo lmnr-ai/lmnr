@@ -1,7 +1,6 @@
 'use client';
 
-import { Line, LineChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import {
   ChartConfig,
   ChartContainer,
@@ -10,13 +9,13 @@ import {
 } from '@/components/ui/chart';
 import {
   formatTimestampFromSeconds,
-  getGroupByInterval,
-  isGroupByIntervalAvailable
+  getGroupByInterval
 } from '@/lib/utils';
-import { use, useEffect, useState } from 'react';
-import { useProjectContext } from '@/contexts/project-context';
-import { TraceMetricDatapoint } from '@/lib/traces/types';
+import { useEffect, useState } from 'react';
+
 import { Skeleton } from '../ui/skeleton';
+import { TraceMetricDatapoint } from '@/lib/traces/types';
+import { useProjectContext } from '@/contexts/project-context';
 import { useSearchParams } from 'next/navigation';
 
 interface CustomChartProps {
@@ -118,7 +117,7 @@ export function CustomChart({
                 content={
                   <ChartTooltipContent
                     labelKey={xAxisKey}
-                    labelFormatter={(label, p) =>
+                    labelFormatter={(label: string, p: any) =>
                       formatTimestampFromSeconds(p[0].payload[xAxisKey])
                     }
                   />

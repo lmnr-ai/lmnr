@@ -1,9 +1,17 @@
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog';
+
 import { Button } from "@/components/ui/button";
+import { Input } from '../ui/input';
 import { Label } from "../ui/label";
-import { Input } from "../ui/input";
-import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 interface PurchaseSeatsDialogProps {
   workspaceId: string;

@@ -1,14 +1,15 @@
-import { Metadata } from 'next';
-import Evaluation from '@/components/evaluation/evaluation';
-import { EvaluationResultsInfo } from '@/lib/evaluation/types';
-import { db } from '@/lib/db/drizzle';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import {
   evaluationResults,
-  evaluations,
-  evaluationScores
+  evaluations,evaluationScores
 } from '@/lib/db/migrations/schema';
-import { and, asc, eq, sql } from 'drizzle-orm';
+
+import { db } from '@/lib/db/drizzle';
+import Evaluation from '@/components/evaluation/evaluation';
+import { EvaluationResultsInfo } from '@/lib/evaluation/types';
+import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+
 
 export const metadata: Metadata = {
   title: 'Evaluation results'

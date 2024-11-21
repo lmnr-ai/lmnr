@@ -1,22 +1,23 @@
-import { LabelClass, Span } from '@/lib/traces/types';
-import { ScrollArea } from '../ui/scroll-area';
-import Formatter from '../ui/formatter';
-import { useProjectContext } from '@/contexts/project-context';
-import { Button } from '../ui/button';
-import { createNodeData, renderNodeInput } from '@/lib/flow/utils';
-import { useEffect, useRef, useState } from 'react';
 import { CodeNode, LLMNode, NodeHandleType, NodeType, OutputNode } from '@/lib/flow/types';
-import { v4 } from 'uuid';
-import { Graph } from '@/lib/flow/graph';
-import { Play, Loader2 } from 'lucide-react';
-import CodeEditor from '../ui/code-editor';
-import { Label } from '../ui/label';
+import { createNodeData, renderNodeInput } from '@/lib/flow/utils';
+import { LabelClass, Span } from '@/lib/traces/types';
+import { Loader2, Play } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { useEffect, useRef, useState } from 'react';
+
+import { Button } from '../ui/button';
+import CodeEditor from '../ui/code-editor';
 import { DialogClose } from '../ui/dialog';
-import { toast } from '@/lib/hooks/use-toast';
-import LanguageModelSelect from '../pipeline/nodes/components/model-select';
-import { LanguageModel } from '@/lib/pipeline/types';
 import { EventType } from '@/lib/events/types';
+import Formatter from '../ui/formatter';
+import { Graph } from '@/lib/flow/graph';
+import { Label } from '../ui/label';
+import { LanguageModel } from '@/lib/pipeline/types';
+import LanguageModelSelect from '../pipeline/nodes/components/model-select';
+import { ScrollArea } from '../ui/scroll-area';
+import { toast } from '@/lib/hooks/use-toast';
+import { useProjectContext } from '@/contexts/project-context';
+import { v4 } from 'uuid';
 
 interface AutoEvalsProps {
   span: Span;

@@ -1,5 +1,6 @@
-import { isUserMemberOfProject } from "@/lib/db/utils";
 import { NextRequest, NextResponse } from "next/server";
+
+import { isUserMemberOfProject } from "@/lib/db/utils";
 
 export async function POST(req: NextRequest) {
 

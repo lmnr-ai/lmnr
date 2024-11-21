@@ -1,19 +1,20 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import Footer from '@/components/landing/footer';
-import PricingCard from './pricing-card';
-import Link from 'next/link';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger
 } from '@/components/ui/accordion';
-import { usePostHog } from 'posthog-js/react';
+
+import { Button } from '@/components/ui/button';
+import Footer from '@/components/landing/footer';
 import Image from 'next/image';
+import Link from 'next/link';
 import noise from '@/assets/landing/noise1.jpeg';
+import PricingCard from './pricing-card';
 import { Slider } from "@/components/ui/slider";
+import { usePostHog } from 'posthog-js/react';
 import { useState } from "react";
 
 export default function Pricing() {

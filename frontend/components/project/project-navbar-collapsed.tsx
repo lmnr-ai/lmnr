@@ -1,29 +1,28 @@
 'use client';
 
-import { cn } from '@/lib/utils';
 import {
   Cable,
   Database,
-  Rows4,
-  Settings,
-  LayoutGrid,
   FlaskConical,
+  LayoutGrid,
   Pen,
-  Tag,
-  Play,
-  PlayCircle
+  PlayCircle,
+  Rows4,
+  Settings
 } from 'lucide-react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import Image from 'next/image';
-import logo from '@/assets/logo/icon.svg';
-import AvatarMenu from '../user/avatar-menu';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
+
+import AvatarMenu from '../user/avatar-menu';
+import { cn } from '@/lib/utils';
+import Image from 'next/image';
+import Link from 'next/link';
+import logo from '@/assets/logo/icon.svg';
+import { usePathname } from 'next/navigation';
 
 interface ProjectNavBarProps {
   projectId: string;

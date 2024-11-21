@@ -1,8 +1,8 @@
 import { authOptions } from '@/lib/auth';
-import { getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
-import { Metadata } from 'next';
 import Datasets from '@/components/datasets/datasets';
+import { getServerSession } from 'next-auth';
+import { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
   title: 'Datasets'

@@ -1,12 +1,11 @@
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
+import { Metadata } from 'next';
+import Profile from '@/components/profile/profile';
+import ProfileHeader from '@/components/profile/profile-header';
 import { redirect } from 'next/navigation';
-
 import { UserContextProvider } from '@/contexts/user-context';
 import WorkspacesNavbar from '@/components/projects/workspaces-navbar';
-import { Metadata } from 'next';
-import ProfileHeader from '@/components/profile/profile-header';
-import Profile from '@/components/profile/profile';
 
 export const metadata: Metadata = {
   title: 'Profile | Laminar'

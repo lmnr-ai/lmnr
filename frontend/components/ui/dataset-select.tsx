@@ -6,9 +6,10 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { useEffect, useState } from 'react';
-import { useProjectContext } from '@/contexts/project-context';
+
 import { Dataset } from '@/lib/dataset/types';
 import { PaginatedResponse } from '@/lib/types';
+import { useProjectContext } from '@/contexts/project-context';
 
 interface DatasetSelectProps {
   onDatasetChange: (dataset: Dataset) => void;

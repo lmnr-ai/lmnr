@@ -1,18 +1,18 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { cn, fetcherJSON } from '@/lib/utils';
-import { notFound, redirect } from 'next/navigation';
-import { Metadata } from 'next';
-import { WorkspaceWithUsers } from '@/lib/workspaces/types';
-import WorkspacesNavbar from '@/components/projects/workspaces-navbar';
-import { UserContextProvider } from '@/contexts/user-context';
-import { WorkspaceStats } from '@/lib/usage/types';
-import WorkspaceComponent from '@/components/workspace/workspace';
-import Header from '@/components/ui/header';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { membersOfWorkspaces, subscriptionTiers, users, workspaces } from '@/lib/db/migrations/schema';
+import { notFound, redirect } from 'next/navigation';
+
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { eq, and } from 'drizzle-orm';
-import { membersOfWorkspaces, workspaces, users, subscriptionTiers } from '@/lib/db/migrations/schema';
+import { eq } from 'drizzle-orm';
+import { getServerSession } from 'next-auth';
+import { Metadata } from 'next';
+import { UserContextProvider } from '@/contexts/user-context';
+import WorkspaceComponent from '@/components/workspace/workspace';
+import WorkspacesNavbar from '@/components/projects/workspaces-navbar';
+import { WorkspaceStats } from '@/lib/usage/types';
+import { WorkspaceWithUsers } from '@/lib/workspaces/types';
 
 export const metadata: Metadata = {
   title: 'Workspace'

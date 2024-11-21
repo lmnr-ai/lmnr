@@ -1,13 +1,9 @@
-import { AiOutlineMinusCircle } from 'react-icons/ai';
-import { useState } from 'react';
 import {
   ChatMessageContentPart,
   ChatMessageImage,
   ChatMessageImageUrl,
   ChatMessageText
 } from '@/lib/types';
-import DefaultTextarea from './default-textarea';
-import { Input } from './input';
 import {
   Select,
   SelectContent,
@@ -15,6 +11,11 @@ import {
   SelectTrigger,
   SelectValue
 } from './select';
+
+import { AiOutlineMinusCircle } from 'react-icons/ai';
+import DefaultTextarea from './default-textarea';
+import { Input } from './input';
+import { useState } from 'react';
 
 const SUPPORTED_MEDIA_TYPES = [
   'image/jpeg',

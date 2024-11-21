@@ -1,22 +1,22 @@
 'use client';
 
-import { useProjectContext } from '@/contexts/project-context';
-import { LabelingQueueItem } from '@/lib/queue/types';
-import { useEffect, useState } from 'react';
+import { ArrowDown, ArrowUp, Loader2, X } from "lucide-react";
 import { LabelClass, Span } from '@/lib/traces/types';
-import { Labels } from './labels';
+import { LabelingQueue, LabelingQueueItem } from '@/lib/queue/types';
+import { useEffect, useState } from 'react';
+
 import { Button } from '../ui/button';
-import { LabelingQueue } from '@/lib/queue/types';
-import Header from '../ui/header';
-import { ArrowDown, ArrowUp, Loader2, Pen, X } from "lucide-react";
-import { Label } from '../ui/label';
-import { ScrollArea } from '../ui/scroll-area';
-import { isChatMessageList } from '@/lib/flow/utils';
 import ChatMessageListTab from '../traces/chat-message-list-tab';
-import Formatter from '../ui/formatter';
-import DefaultTextarea from '../ui/default-textarea';
 import DatasetSelect from '../ui/dataset-select';
+import DefaultTextarea from '../ui/default-textarea';
+import Formatter from '../ui/formatter';
+import Header from '../ui/header';
+import { isChatMessageList } from '@/lib/flow/utils';
+import { Label } from '../ui/label';
+import { Labels } from './labels';
+import { ScrollArea } from '../ui/scroll-area';
 import { Switch } from '../ui/switch';
+import { useProjectContext } from '@/contexts/project-context';
 
 interface QueueProps {
   queue: LabelingQueue;
@@ -34,7 +34,11 @@ export default function Queue({ queue }: QueueProps) {
   } | null>(null);
 
   const [isRemoving, setIsRemoving] = useState(false);
-  const [addedLabels, setAddedLabels] = useState<Array<{ value: number, labelClass: LabelClass, reasoning?: string | null }>>([]);
+  const [addedLabels, setAddedLabels] = useState<Array<{
+    value: number,
+    labelClass: LabelClass,
+    reasoning?: string | null
+  }>>([]);
   const [datasetId, setDatasetId] = useState<string | undefined>(undefined);
   const [insertOnComplete, setInsertOnComplete] = useState(false);
 
@@ -168,7 +172,9 @@ export default function Queue({ queue }: QueueProps) {
                 {addedLabels.map((label, index) => (
                   <div key={index} className="flex flex-col p-2 border border-foreground/10 bg-muted rounded gap-2">
                     <div className="flex items-center gap-2 justify-between w-full">
-                      <span>{Object.entries(label.labelClass.valueMap).find(([key, value]) => value === label.value)?.[0]}</span>
+                      <span>
+                        {Object.entries(label.labelClass.valueMap).find(([key, value]) => value === label.value)?.[0]}
+                      </span>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">{label.labelClass.name}</span>
                         <Button
@@ -187,7 +193,14 @@ export default function Queue({ queue }: QueueProps) {
                         placeholder="Reasoning (optional)"
                         value={label.reasoning || ''}
                         onChange={(e) => {
-                          setAddedLabels(prev => prev.map(l => l.labelClass.id === label.labelClass.id ? { ...l, reasoning: e.target.value } : l));
+                          setAddedLabels(
+                            prev =>
+                              prev.map(l =>
+                                l.labelClass.id === label.labelClass.id
+                                  ? { ...l, reasoning: e.target.value }
+                                  : l
+                              )
+                          );
                         }}
                       />
                     </div>

@@ -1,15 +1,16 @@
 'use client';
 
-import Image from 'next/image';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '../ui/dropdown-menu';
+
+import Image from 'next/image';
 import { signOut } from 'next-auth/react';
 import { useUserContext } from '@/contexts/user-context';
-import Link from 'next/link';
+
 
 export default function AvatarMenu() {
   const { imageUrl } = useUserContext();

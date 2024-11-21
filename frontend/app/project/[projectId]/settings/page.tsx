@@ -1,8 +1,8 @@
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetcherJSON } from '@/lib/utils';
-import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
 import { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import Settings from '@/components/settings/settings';
 
 export const metadata: Metadata = {

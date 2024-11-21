@@ -1,5 +1,5 @@
-import { createClient } from "@clickhouse/client";
 import { config } from "dotenv";
+import { createClient } from "@clickhouse/client";
 
 config({ path: ".env" }); // or .env.local
 

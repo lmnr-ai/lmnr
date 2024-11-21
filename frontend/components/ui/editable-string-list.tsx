@@ -1,4 +1,5 @@
 import { AiOutlineMinusCircle } from 'react-icons/ai';
+
 import { Button } from './button';
 import DefaultTextarea from './default-textarea';
 
@@ -17,7 +18,8 @@ export default function EditableStringList({
     setMessages(newMessages);
   };
 
-  // TODO: Each string must be uniquely identifiable (simply keying by index is not enough since string in the middle can be deleted)
+  // TODO: Each string must be uniquely identifiable (simply keying by index is
+  // not enough since string in the middle can be deleted)
   return (
     <div className="flex flex-col h-full">
       {messages &&

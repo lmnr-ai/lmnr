@@ -1,24 +1,23 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { useState } from 'react';
-import { useToast } from '@/lib/hooks/use-toast';
-import { swrFetcher } from '@/lib/utils';
-
-import { useProjectContext } from '@/contexts/project-context';
-import { useRouter } from 'next/navigation';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Loader2, Trash2 } from 'lucide-react';
-import { ColumnDef } from '@tanstack/react-table';
-import { Dataset } from '@/lib/dataset/types';
-import useSWR from 'swr';
+import { TableCell, TableRow } from '../ui/table';
+
+import { Button } from '@/components/ui/button';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { ColumnDef } from '@tanstack/react-table';
+import CreatePlaygroundDialog from './create-playground-dialog';
 import { DataTable } from '../ui/datatable';
 import Header from '../ui/header';
-import { TableCell, TableRow } from '../ui/table';
 import Mono from '../ui/mono';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import CreatePlaygroundDialog from './create-playground-dialog';
 import { Playground } from '@/lib/playground/types';
+import { swrFetcher } from '@/lib/utils';
+import { useProjectContext } from '@/contexts/project-context';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { useToast } from '@/lib/hooks/use-toast';
 
 export default function Playgrounds() {
   const { projectId } = useProjectContext();
@@ -113,7 +112,8 @@ export default function Playgrounds() {
                   <DialogHeader>
                     <DialogTitle>Delete Playgrounds</DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to delete {selectedRowIds.length} playground(s)? This action cannot be undone.
+                      Are you sure you want to delete {selectedRowIds.length} playground(s)?
+                      This action cannot be undone.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>

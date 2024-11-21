@@ -1,15 +1,16 @@
-import { useProjectContext } from "@/contexts/project-context";
-import { swrFetcher, cn, formatTimestamp } from "@/lib/utils";
-import { useSearchParams } from "next/navigation";
-import { CartesianGrid, XAxis, LineChart, Line, YAxis } from "recharts";
-import useSWR from "swr";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
-import { Skeleton } from "../ui/skeleton";
-import { EvaluationTimeProgression } from "@/lib/evaluation/types";
+import { cn, formatTimestamp, swrFetcher } from "@/lib/utils";
 import { useEffect, useState } from "react";
-import { Minus } from "lucide-react";
-import { Label } from "../ui/label";
+
 import { AggregationFunction } from "@/lib/clickhouse/utils";
+import { EvaluationTimeProgression } from "@/lib/evaluation/types";
+import { Label } from "../ui/label";
+import { Minus } from "lucide-react";
+import { Skeleton } from "../ui/skeleton";
+import { useProjectContext } from "@/contexts/project-context";
+import { useSearchParams } from "next/navigation";
+import useSWR from "swr";
 
 interface ProgressionChartProps {
   className?: string;
@@ -80,7 +81,7 @@ export default function ProgressionChart({
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value) => formatTimestamp(`${value}Z`)}
+            tickFormatter={(value: number) => formatTimestamp(`${value}Z`)}
             height={8}
             padding={{ left: horizontalPadding, right: horizontalPadding }}
           />

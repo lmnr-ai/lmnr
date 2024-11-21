@@ -1,22 +1,23 @@
-import useStore from '@/lib/flow/store';
 import {
-  Handle,
-  Position,
   type Connection,
-  useUpdateNodeInternals,
-  useOnSelectionChange,
+  Edge,
+  Handle,
   Node,
-  Edge
+  Position,
+  useOnSelectionChange,
+  useUpdateNodeInternals
 } from 'reactflow';
-import { type GenericNode, NodeType, NodeHandleType } from '@/lib/flow/types';
+import { createNodeData,NODE_TYPE_TO_DOCS } from '@/lib/flow/utils';
+import { type GenericNode, NodeHandleType, NodeType } from '@/lib/flow/types';
+import { Info, Settings, Trash } from 'lucide-react';
+import { memo, useCallback, useEffect, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
 import { useFlowContext } from '@/contexts/pipeline-version-context';
-import { memo, useCallback, useEffect, useState } from 'react';
-import { NODE_TYPE_TO_DOCS, createNodeData } from '@/lib/flow/utils';
-import { Button } from '@/components/ui/button';
-import { Info, Settings, Trash } from 'lucide-react';
+import useStore from '@/lib/flow/store';
 
 interface GenericNodeComponentProps {
   id: string;

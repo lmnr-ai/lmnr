@@ -1,8 +1,8 @@
 import { ExtractorNode } from '@/lib/flow/types';
-import useStore from '@/lib/flow/store';
+import Ide from '@/components/ui/ide';
 import { Label } from '@/components/ui/label';
 import { memo } from 'react';
-import Ide from '@/components/ui/ide';
+import useStore from '@/lib/flow/store';
 
 const ExtractorNodeComponent = ({ data }: { data: ExtractorNode }) => {
   const updateNodeData = useStore((state) => state.updateNodeData);

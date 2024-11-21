@@ -1,19 +1,16 @@
-import { getServerSession } from 'next-auth';
-import { GitHubSignInButton } from '@/components/sign-in/github-signin';
-import logo from '@/assets/logo/logo.svg';
-import Image from 'next/image';
-import { GoogleSignInButton } from '@/components/sign-in/google-signin';
-import { notFound, redirect } from 'next/navigation';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
-import { EmailSignInButton } from '@/components/sign-in/email-signin';
-import noise from '@/assets/landing/noise.jpeg';
+import { apiKeys, membersOfWorkspaces, workspaces } from '@/lib/db/migrations/schema';
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import { db } from '@/lib/db/drizzle';
-import { and, count, eq } from 'drizzle-orm';
-import { workspaces, membersOfWorkspaces, apiKeys } from '@/lib/db/migrations/schema';
-import { revalidatePath } from 'next/cache';
-import { Button } from '@/components/ui/button';
+import { notFound, redirect } from 'next/navigation';
+
 import { authOptions } from '@/lib/auth';
+import { Button } from '@/components/ui/button';
+import { db } from '@/lib/db/drizzle';
+import { eq } from 'drizzle-orm';
+import { getServerSession } from 'next-auth';
+import Image from 'next/image';
+import logo from '@/assets/logo/logo.svg';
+import noise from '@/assets/landing/noise.jpeg';
+import { revalidatePath } from 'next/cache';
 
 export default async function SignInPage({
   params,

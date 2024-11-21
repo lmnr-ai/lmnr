@@ -1,11 +1,10 @@
-import { memo } from 'react';
-import GenericNodeComponent from './generic-node';
-import { WebSearchNode } from '@/lib/flow/types';
-import { Label } from '@/components/ui/label';
 import DefaultTextarea from '@/components/ui/default-textarea';
-import useStore from '@/lib/flow/store';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { memo } from 'react';
 import { Switch } from '@/components/ui/switch';
+import useStore from '@/lib/flow/store';
+import { WebSearchNode } from '@/lib/flow/types';
 
 const WebSearchNodeComponent = ({ data }: { data: WebSearchNode }) => {
   const { updateNodeData } = useStore();

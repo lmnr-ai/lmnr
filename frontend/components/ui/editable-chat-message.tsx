@@ -1,12 +1,11 @@
-import { AiOutlineMinusCircle } from 'react-icons/ai';
-import TextareaAutosize from 'react-textarea-autosize';
-import { use, useEffect, useRef, useState } from 'react';
 import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
+import { useEffect, useState } from 'react';
+
+import { AiOutlineMinusCircle } from 'react-icons/ai';
+import { Button } from './button';
 import DefaultTextarea from './default-textarea';
-import { List, ListPlus, Minus } from 'lucide-react';
 import EditableChatMessageContentParts from './editable-chat-message-content-parts';
 import { isStringType } from '@/lib/utils';
-import { Button } from './button';
 
 interface EditableChatMessageProps {
   defaultMessage: ChatMessage;

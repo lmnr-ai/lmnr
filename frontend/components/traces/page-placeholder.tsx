@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { useProjectContext } from '@/contexts/project-context';
-import CodeHighlighter from '../ui/code-highlighter';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
+import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+
+import CodeHighlighter from '../ui/code-highlighter';
 import Header from '../ui/header';
+import { useProjectContext } from '@/contexts/project-context';
+import { useState } from 'react';
 
 
 export default function TracesPagePlaceholder() {

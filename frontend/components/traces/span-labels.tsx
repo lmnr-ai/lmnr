@@ -1,23 +1,20 @@
-import { useProjectContext } from '@/contexts/project-context';
-import { LabelSource, SpanLabel } from '@/lib/traces/types';
 import { cn, swrFetcher } from '@/lib/utils';
-import useSWR from 'swr';
-import { DataTable } from '../ui/datatable';
-import { useEffect } from 'react';
-import { ColumnDef } from '@tanstack/react-table';
-
-import { eventEmitter } from '@/lib/event-emitter';
+import { Info, X } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow } from '../ui/table';
-import { Skeleton } from '../ui/skeleton';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
+
 import { Button } from '../ui/button';
-import { Info, X } from 'lucide-react';
+import { eventEmitter } from '@/lib/event-emitter';
+import { Skeleton } from '../ui/skeleton';
+import { SpanLabel } from '@/lib/traces/types';
+import { useEffect } from 'react';
+import { useProjectContext } from '@/contexts/project-context';
+import useSWR from 'swr';
 
 interface SpanLabelsProps {
   spanId: string;

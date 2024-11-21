@@ -1,9 +1,7 @@
-import { db } from '@/lib/db/drizzle';
+import { and, asc, eq } from 'drizzle-orm';
 
-import { asc, and, eq } from 'drizzle-orm';
-import { datasetDatapoints, datasets, evaluationResults, evaluations } from '@/lib/db/migrations/schema';
-import { evaluationScores } from '@/lib/db/migrations/schema';
-import { sql } from 'drizzle-orm';
+import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
+import { db } from '@/lib/db/drizzle';
 
 export async function GET(
   req: Request,

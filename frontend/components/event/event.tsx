@@ -1,28 +1,27 @@
 'use client';
 
-import { ColumnDef } from '@tanstack/react-table';
-import { useEffect, useState } from 'react';
-import { DataTable } from '../ui/datatable';
-import { useProjectContext } from '@/contexts/project-context';
-import Header from '../ui/header';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { formatTimestampFromSeconds } from '@/lib/utils';
-import { Event, EventTemplate } from '@/lib/events/types';
-import { Label } from '../ui/label';
-
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent
 } from '@/components/ui/chart';
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
-import DateRangeFilter from '../ui/date-range-filter';
-import DataTableFilter from '../ui/datatable-filter';
+import { Event, EventTemplate } from '@/lib/events/types';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
 import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { Resizable } from 're-resizable';
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '../ui/datatable';
+import DateRangeFilter from '../ui/date-range-filter';
 import EventView from './event-view';
+import { formatTimestampFromSeconds } from '@/lib/utils';
+import Header from '../ui/header';
+import { Label } from '../ui/label';
 import { PaginatedGetResponseWithProjectPresenceFlag } from '@/lib/types';
+import { Resizable } from 're-resizable';
+import { useProjectContext } from '@/contexts/project-context';
 
 // TODO: add refresh button on realtime updates. See components/traces/traces-table-traces-view.tsx for an example.
 
@@ -311,7 +310,7 @@ function CustomChart({
               content={
                 <ChartTooltipContent
                   labelKey={xAxisKey}
-                  labelFormatter={(label, p) =>
+                  labelFormatter={(label: number, p: any) =>
                     formatTimestampFromSeconds(p[0].payload[xAxisKey])
                   }
                 />

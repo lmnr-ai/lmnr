@@ -1,8 +1,6 @@
 'use client';
 
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
-
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ChartConfig,
   ChartContainer,
@@ -15,12 +13,12 @@ import {
   getGroupByInterval
 } from '@/lib/utils';
 import { useEffect, useState } from 'react';
-import { EventTemplate } from '@/lib/events/types';
+
 import DateRangeFilter from '../ui/date-range-filter';
+import { EventTemplate } from '@/lib/events/types';
+import { GroupByPeriodSelect } from '../ui/group-by-period-select';
 import { Skeleton } from '../ui/skeleton';
 import { useSearchParams } from 'next/navigation';
-import { GroupByPeriodSelect } from '../ui/group-by-period-select';
-import Mono from '../ui/mono';
 
 interface CustomChartProps {
   eventTemplate: EventTemplate;
@@ -123,7 +121,7 @@ export function CustomChart({
                 content={
                   <ChartTooltipContent
                     labelKey={xAxisKey}
-                    labelFormatter={(_, p) =>
+                    labelFormatter={(_: any, p: any) =>
                       formatTimestampFromSeconds(p[0].payload[xAxisKey])
                     }
                   />

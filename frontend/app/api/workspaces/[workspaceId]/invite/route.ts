@@ -1,9 +1,10 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
-import { db } from '@/lib/db/drizzle';
 import { and, count, eq } from 'drizzle-orm';
 import { apiKeys, membersOfWorkspaces, workspaces } from '@/lib/db/migrations/schema';
+
+import { authOptions } from '@/lib/auth';
+import { db } from '@/lib/db/drizzle';
+import { getServerSession } from 'next-auth';
+import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
 import jwt from 'jsonwebtoken';
 import { sendInvitationEmail } from '@/lib/emails/utils';
 

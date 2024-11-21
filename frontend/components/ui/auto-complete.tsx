@@ -1,11 +1,12 @@
-import React from 'react';
 import {
   Command,
-  CommandList,
-  CommandItem,
+  CommandEmpty,
   CommandGroup,
-  CommandEmpty
+  CommandItem,
+  CommandList
 } from '@/components/ui/command';
+
+import React from 'react';
 import { type Tag as TagType } from './tag-input';
 
 type AutocompleteProps = {

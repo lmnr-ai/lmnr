@@ -1,7 +1,8 @@
-import { getEvaluationTimeProgression } from "@/lib/clickhouse/evaluation-scores";
-import { NextRequest, NextResponse } from "next/server";
-import { clickhouseClient } from "@/lib/clickhouse/client";
 import { AggregationFunction, TimeRange } from "@/lib/clickhouse/utils";
+import { NextRequest, NextResponse } from "next/server";
+
+import { clickhouseClient } from "@/lib/clickhouse/client";
+import { getEvaluationTimeProgression } from "@/lib/clickhouse/evaluation-scores";
 
 
 export const GET = async (request: NextRequest, { params }: { params: { projectId: string, groupId: string } }) => {

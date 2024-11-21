@@ -1,28 +1,26 @@
-import { useContext, useState } from 'react';
-import { ProjectContext } from '@/contexts/project-context';
-import { Loader2, MoreVertical, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger
+  DialogTitle
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { PipelineVersionInfo } from '@/lib/pipeline/types';
-import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import { Loader2, MoreVertical, Trash2 } from 'lucide-react';
+import { useContext, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PipelineVersionInfo } from '@/lib/pipeline/types';
+import { ProjectContext } from '@/contexts/project-context';
 
 interface DeletePipelineVersionButtonProps {
   selectedPipelineVersion: PipelineVersionInfo;

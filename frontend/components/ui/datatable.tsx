@@ -1,14 +1,15 @@
-import React, { use, useEffect, useState } from 'react';
 import {
   ColumnDef,
   ExpandedState,
-  Row,
   flexRender,
   getCoreRowModel,
   getExpandedRowModel,
   getPaginationRowModel,
+  Row,
   useReactTable
 } from '@tanstack/react-table';
+import React, { useEffect, useState } from 'react';
+import { ScrollArea, ScrollBar } from './scroll-area';
 import {
   Table,
   TableBody,
@@ -17,13 +18,13 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { DataTablePagination } from './datatable-pagination';
-import { Skeleton } from './skeleton';
-import { cn } from '@/lib/utils';
-import { ScrollArea, ScrollBar } from './scroll-area';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from './label';
+
 import { Button } from './button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
+import { DataTablePagination } from './datatable-pagination';
+import { Label } from './label';
+import { Skeleton } from './skeleton';
 import { X } from 'lucide-react';
 
 const DEFAULT_PAGE_SIZE = 50;

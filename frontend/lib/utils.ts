@@ -1,8 +1,10 @@
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { InputVariable, PipelineVisibility } from './pipeline/types';
-import { ChatMessageContentPart, DatatableFilter } from './types';
 import * as Y from 'yjs';
+
+import { ChatMessageContentPart, DatatableFilter } from './types';
+import { type ClassValue, clsx } from 'clsx';
+import { InputVariable, PipelineVisibility } from './pipeline/types';
+
+import { twMerge } from 'tailwind-merge';
 
 export const TIME_MILLISECONDS_FORMAT = 'timeMilliseconds';
 

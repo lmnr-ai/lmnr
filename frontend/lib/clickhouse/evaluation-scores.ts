@@ -1,9 +1,8 @@
+import { addTimeRangeToQuery,AggregationFunction,aggregationFunctionToCh,TimeRange } from "./utils";
+import { Feature, isFeatureEnabled } from "../features/features";
+
 import { ClickHouseClient } from "@clickhouse/client";
-import { AggregationFunction, TimeRange, addTimeRangeToQuery, aggregationFunctionToCh } from "./utils";
 import { EvaluationTimeProgression } from "../evaluation/types";
-import { BucketRow } from "../types";
-import { Feature } from "../features/features";
-import { isFeatureEnabled } from "../features/features";
 
 const DEFAULT_BUCKET_COUNT = 10;
 const DEFAULT_LOWER_BOUND = 0;

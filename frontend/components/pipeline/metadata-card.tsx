@@ -1,8 +1,8 @@
-import { RunTrace } from '@/lib/traces/types';
 import { Card } from '../ui/card';
-import StatusLabel from '../ui/status-label';
-import { Label } from '../ui/label';
 import { getDurationString } from '@/lib/flow/utils';
+import { Label } from '../ui/label';
+import { RunTrace } from '@/lib/traces/types';
+import StatusLabel from '../ui/status-label';
 
 export default function MetadataCard({ runTrace }: { runTrace: RunTrace }) {
   return (

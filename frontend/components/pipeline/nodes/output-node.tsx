@@ -1,8 +1,3 @@
-import { memo } from 'react';
-import GenericNodeComponent from './generic-node';
-import { type OutputNode } from '@/lib/flow/types';
-import useStore from '@/lib/flow/store';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -10,7 +5,13 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+
 import { EventType } from '@/lib/events/types';
+import GenericNodeComponent from './generic-node';
+import { Label } from '@/components/ui/label';
+import { memo } from 'react';
+import { type OutputNode } from '@/lib/flow/types';
+import useStore from '@/lib/flow/store';
 
 function capitalizeFirstLetter(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);

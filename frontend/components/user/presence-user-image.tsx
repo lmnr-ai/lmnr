@@ -1,10 +1,11 @@
-import Image from 'next/image';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
+
+import Image from 'next/image';
 import { PresenceUser } from '@/lib/user/types';
 
 interface PresenceUserImageProps {

@@ -1,13 +1,11 @@
 import {
-  GenericNodeHandle,
-  InputNode,
-  NodeType,
-  RunnableGraph,
-  MapNode
+  MapNode,
+  RunnableGraph
 } from '@/lib/flow/types';
+
 import { Label } from '@/components/ui/label';
-import useStore from '@/lib/flow/store';
 import PipelineSelect from '@/components/ui/pipeline-select';
+import useStore from '@/lib/flow/store';
 
 export default function MapNodeComponent({ data }: { data: MapNode }) {
   const updateNodeData = useStore((state) => state.updateNodeData);

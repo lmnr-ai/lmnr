@@ -14,13 +14,15 @@ import {
   getGroupByInterval
 } from '@/lib/utils';
 import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
 import DateRangeFilter from '../ui/date-range-filter';
-import { Skeleton } from '../ui/skeleton';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { GroupByPeriodSelect } from '../ui/group-by-period-select';
-import { TraceMetricDatapoint } from '@/lib/traces/types';
 import Header from '../ui/header';
+import { Skeleton } from '../ui/skeleton';
+import { TraceMetricDatapoint } from '@/lib/traces/types';
 import { useProjectContext } from '@/contexts/project-context';
+
 
 interface CustomChartProps {
   className?: string;
@@ -117,7 +119,7 @@ export function CustomChart({
                 type="category"
                 domain={['dataMin', 'dataMax']}
                 tickLine={false}
-                tickFormatter={(value) =>
+                tickFormatter={(value: number) =>
                   formatTimestampFromSecondsWithInterval(
                     value,
                     defaultGroupByInterval ?? 'hour'
@@ -138,7 +140,7 @@ export function CustomChart({
                 content={
                   <ChartTooltipContent
                     labelKey={xAxisKey}
-                    labelFormatter={(_, p) =>
+                    labelFormatter={(_: any, p: any) =>
                       formatTimestampFromSeconds(p[0].payload[xAxisKey])
                     }
                   />
