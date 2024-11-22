@@ -1,3 +1,4 @@
+import 'ace-builds/src-noconflict/ace';
 import 'ace-builds/src-noconflict/ext-beautify';
 import 'ace-builds/src-noconflict/ext-language_tools';
 import 'ace-builds/src-noconflict/mode-handlebars';
