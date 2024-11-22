@@ -1,7 +1,7 @@
-import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/card';
-import { Project } from '@/lib/workspaces/types';
+import { Card } from '@/components/ui/card';
 import { ChevronRightIcon } from 'lucide-react';
+import Link from 'next/link';
+import { Project } from '@/lib/workspaces/types';
 
 interface ProjectCardProps {
   project: Project;

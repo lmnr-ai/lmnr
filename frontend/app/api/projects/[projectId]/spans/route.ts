@@ -1,18 +1,17 @@
-import { db } from '@/lib/db/drizzle';
-import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
-import { spans, traces } from '@/lib/db/migrations/schema';
-import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
-import { Span } from '@/lib/traces/types';
 import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
+import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
+import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
+import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
+
+import { db } from '@/lib/db/drizzle';
 import { NextRequest } from 'next/server';
+import { Span } from '@/lib/traces/types';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
-
   const projectId = params.projectId;
-
 
   const pastHours = req.nextUrl.searchParams.get("pastHours");
   const startTime = req.nextUrl.searchParams.get("startDate");
@@ -30,35 +29,58 @@ export async function GET(
     urlParamFilters = [];
   }
 
-  urlParamFilters = urlParamFilters.map(filter => {
-    if (filter.column === "span_id") {
-      filter.value = filter.value.startsWith("00000000-0000-0000-")
-        ? filter.value
-        : `00000000-0000-0000-${filter.value}`;
-    } else if (filter.column == "path") {
-      filter.column = "(attributes ->> 'lmnr.span.path')";
-    } else if (filter.column === "input_token_count") {
-      filter.column = "(attributes ->> 'gen_ai.usage.input_tokens')::int8";
-    } else if (filter.column === "output_token_count") {
-      filter.column = "(attributes ->> 'gen_ai.usage.output_tokens')::int8";
-    } else if (filter.column === "total_token_count") {
-      filter.column = "(attributes ->> 'llm.usage.total_tokens')::int8";
-    } else if (filter.column === "input_cost") {
-      filter.column = "(attributes ->> 'gen_ai.usage.input_cost')::float8";
-    } else if (filter.column === "output_cost") {
-      filter.column = "(attributes ->> 'gen_ai.usage.output_cost')::float8";
-    } else if (filter.column === "cost") {
-      filter.column = "(attributes ->> 'gen_ai.usage.cost')::float8";
-    } else if (filter.column === "span_type") {
-      // cast to span_type
-      const uppercased = filter.value.toUpperCase().trim();
-      filter.value = uppercased === 'SPAN' ? "'DEFAULT'" : `'${uppercased}'`;
-      filter.castType = "span_type";
-    }
-    return filter;
-  });
+  const labelFilters = urlParamFilters
+    .filter(filter => filter.column === "labels" && filter.operator === "eq")
+    .map(filter => {
+      const [labelName, labelValue] = filter.value.split(/=(.*)/);
+      if (labelValue === undefined || labelValue === '') {
+        return sql`1=1`;
+      }
+      return inArray(
+        sql`span_id`,
+        db
+          .select({ span_id: spans.spanId })
+          .from(spans)
+          .innerJoin(labels, eq(spans.spanId, labels.spanId))
+          .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
+          .where(and(
+            eq(labelClasses.name, labelName),
+            eq(labels.value, sql<number>`(label_classes.value_map ->> ${labelValue})::float8`)
+          ))
+      );
+    });
 
-  // TODO: this is repeated in the paginatedGet below. Deduplicate.
+  urlParamFilters = urlParamFilters
+    // labels are handled separately above
+    .filter(filter => filter.column !== "labels")
+    .map(filter => {
+      if (filter.column === "span_id") {
+        filter.value = filter.value.startsWith("00000000-0000-0000-")
+          ? filter.value
+          : `00000000-0000-0000-${filter.value}`;
+      } else if (filter.column == "path") {
+        filter.column = "(attributes ->> 'lmnr.span.path')";
+      } else if (filter.column === "input_token_count") {
+        filter.column = "(attributes ->> 'gen_ai.usage.input_tokens')::int8";
+      } else if (filter.column === "output_token_count") {
+        filter.column = "(attributes ->> 'gen_ai.usage.output_tokens')::int8";
+      } else if (filter.column === "total_token_count") {
+        filter.column = "(attributes ->> 'llm.usage.total_tokens')::int8";
+      } else if (filter.column === "input_cost") {
+        filter.column = "(attributes ->> 'gen_ai.usage.input_cost')::float8";
+      } else if (filter.column === "output_cost") {
+        filter.column = "(attributes ->> 'gen_ai.usage.output_cost')::float8";
+      } else if (filter.column === "cost") {
+        filter.column = "(attributes ->> 'gen_ai.usage.cost')::float8";
+      } else if (filter.column === "span_type") {
+        // cast to span_type
+        const uppercased = filter.value.toUpperCase().trim();
+        filter.value = (uppercased === 'SPAN') ? "'DEFAULT'" : `'${uppercased}'`;
+        filter.castType = "span_type";
+      }
+      return filter;
+    });
+
   const sqlFilters = filtersToSql(
     urlParamFilters,
     [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)],
@@ -74,14 +96,14 @@ export async function GET(
       db
         .select({ id: traces.id })
         .from(traces)
-        .where(and(
+        .where(
           eq(traces.traceType, "DEFAULT"),
-          eq(traces.projectId, projectId)
-        ))
+        )
     ),
+    sql`project_id = ${projectId}`
   ];
 
-  const filters = getDateRangeFilters(startTime, endTime, pastHours).concat(sqlFilters);
+  const filters = getDateRangeFilters(startTime, endTime, pastHours).concat(sqlFilters, labelFilters);
   // don't query input and output, only query previews
   const { input, output, ...columns } = getTableColumns(spans);
 

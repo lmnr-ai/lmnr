@@ -1,19 +1,20 @@
 'use client';
 
+import { ChevronDownIcon, ChevronRightIcon, RefreshCcw } from 'lucide-react';
 import { SessionPreview, Trace } from '@/lib/traces/types';
-import { ColumnDef } from '@tanstack/react-table';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { DataTable } from '../ui/datatable';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
+import { Button } from '../ui/button';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import DateRangeFilter from '../ui/date-range-filter';
-import { useProjectContext } from '@/contexts/project-context';
-import { useEffect, useState } from 'react';
-import TextSearchFilter from '../ui/text-search-filter';
-import { ChevronDownIcon, ChevronRightIcon, RefreshCcw } from 'lucide-react';
-import { getDuration, getDurationString } from '@/lib/flow/utils';
-import { Button } from '../ui/button';
+import { getDurationString } from '@/lib/flow/utils';
 import { PaginatedResponse } from '@/lib/types';
+import TextSearchFilter from '../ui/text-search-filter';
+import { useProjectContext } from '@/contexts/project-context';
 
 type SessionRow = {
   type: string;
@@ -240,7 +241,17 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     {
       id: 'trace_count',
       name: 'Trace count'
-    }
+    },
+    {
+      id: 'metadata',
+      name: 'Metadata',
+      restrictOperators: ['eq'],
+    },
+    {
+      id: 'labels',
+      name: 'Labels',
+      restrictOperators: ['eq'],
+    },
   ];
 
   return (

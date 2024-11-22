@@ -1,16 +1,17 @@
 'use client';
 
-import { useProjectContext } from '@/contexts/project-context';
-import { ColumnDef } from '@tanstack/react-table';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { useRouter } from 'next/navigation';
-import { DataTable } from '../ui/datatable';
-import Mono from '../ui/mono';
-import Header from '../ui/header';
-import { EventTemplate } from '@/lib/events/types';
-import { useUserContext } from '@/contexts/user-context';
-import { usePostHog } from 'posthog-js/react';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '../ui/datatable';
+import { EventTemplate } from '@/lib/events/types';
+import Header from '../ui/header';
+import Mono from '../ui/mono';
+import { usePostHog } from 'posthog-js/react';
+import { useProjectContext } from '@/contexts/project-context';
+import { useRouter } from 'next/navigation';
+import { useUserContext } from '@/contexts/user-context';
 
 export interface EventsProps {
   events: EventTemplate[];

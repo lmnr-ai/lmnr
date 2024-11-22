@@ -1,14 +1,3 @@
-import React, { useEffect, useState } from 'react';
-import { SpanCard } from '../traces/span-card';
-import {
-  getDuration,
-  getDurationString,
-  renderNodeInput
-} from '@/lib/flow/utils';
-import { ScrollArea } from '../ui/scroll-area';
-import { Label } from '../ui/label';
-import { RunTrace } from '@/lib/traces/types';
-import StatusLabel from '../ui/status-label';
 import {
   CircleDollarSign,
   Clock3,
@@ -17,17 +6,27 @@ import {
   Loader2,
   Play
 } from 'lucide-react';
-import { StreamMessage } from './pipeline-outputs';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Skeleton } from '../ui/skeleton';
-import Formatter from '../ui/formatter';
-import { Button } from '../ui/button';
-import { v4 } from 'uuid';
 import { ConditionValue, NodeType } from '@/lib/flow/types';
-import useStore from '@/lib/flow/store';
-import eventEmitter from '@/lib/pipeline/eventEmitter';
-import { GraphMessagePreview } from '@/lib/pipeline/types';
+import {
+  getDurationString,
+  renderNodeInput
+} from '@/lib/flow/utils';
+import React, { useEffect, useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+
+import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
+import eventEmitter from '@/lib/pipeline/eventEmitter';
+import Formatter from '../ui/formatter';
+import { GraphMessagePreview } from '@/lib/pipeline/types';
+import { Label } from '../ui/label';
+import { RunTrace } from '@/lib/traces/types';
+import { ScrollArea } from '../ui/scroll-area';
+import { Skeleton } from '../ui/skeleton';
+import StatusLabel from '../ui/status-label';
+import { StreamMessage } from './pipeline-outputs';
+import useStore from '@/lib/flow/store';
+import { v4 } from 'uuid';
 
 interface StreaTraceProps {
   streamMessages: StreamMessage[];

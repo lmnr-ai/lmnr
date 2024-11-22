@@ -1,8 +1,8 @@
 import * as React from 'react';
+import { EyeIcon, EyeOffIcon } from 'lucide-react';
+import { fontSans, fontSecurity } from '@/lib/fonts';
 
 import { cn } from '@/lib/utils';
-import { EyeIcon, EyeOffIcon } from 'lucide-react';
-import { fontSecurity, fontSans } from '@/lib/fonts';
 
 export interface InputPasswordProps
   extends React.InputHTMLAttributes<HTMLInputElement> {

@@ -1,6 +1,6 @@
-import { memo } from 'react';
-import GenericNodeComponent from './generic-node';
 import { CodeNode } from '@/lib/flow/types';
+import GenericNodeComponent from './generic-node';
+import { memo } from 'react';
 import useStore from '@/lib/flow/store';
 import { useUpdateNodeInternals } from 'reactflow';
 

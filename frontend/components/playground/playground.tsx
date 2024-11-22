@@ -1,23 +1,23 @@
 'use client';
-
-import { useEffect, useState } from "react";
-import EditableChat from "../ui/editable-chat";
-import EditableChatMessage from "../ui/editable-chat-message";
-import Header from "../ui/header";
 import { ChatMessage, ChatMessageContent } from "@/lib/types";
-import LanguageModelSelect from "../pipeline/nodes/components/model-select";
-import Formatter from "../ui/formatter";
 import { Graph, runGraph } from "@/lib/flow/graph";
-import { createNodeData } from "@/lib/flow/utils";
-import { v4 } from "uuid";
 import { LLMNode, NodeHandleType, NodeType } from "@/lib/flow/types";
-import { useProjectContext } from "@/contexts/project-context";
-import { Button } from "../ui/button";
-import { PlayIcon, Loader2 } from "lucide-react";
-import { ScrollArea } from "../ui/scroll-area";
-import { Playground as PlaygroundType } from "@/lib/playground/types";
+import { Loader2, PlayIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
-const renderText = (text: string, inputs: Record<string, string>) => text.replace(/\{\{([^}]+)\}\}/g, (match, p1) => inputs[p1] || match);
+import { Button } from "../ui/button";
+import { createNodeData } from "@/lib/flow/utils";
+import EditableChat from "../ui/editable-chat";
+import Formatter from "../ui/formatter";
+import Header from "../ui/header";
+import LanguageModelSelect from "../pipeline/nodes/components/model-select";
+import { Playground as PlaygroundType } from "@/lib/playground/types";
+import { ScrollArea } from "../ui/scroll-area";
+import { useProjectContext } from "@/contexts/project-context";
+import { v4 } from "uuid";
+
+const renderText = (text: string, inputs: Record<string, string>) =>
+  text.replace(/\{\{([^}]+)\}\}/g, (match, p1) => inputs[p1] || match);
 
 const renderChatMessageContent = (content: ChatMessageContent, inputs: Record<string, string>) => {
   if (typeof content === 'string') {

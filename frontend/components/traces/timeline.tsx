@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { getDuration, getDurationString } from '@/lib/flow/utils';
-import { ScrollArea, ScrollBar } from '../ui/scroll-area';
-import { Table } from '../ui/table';
+
+import { getDuration } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
-import { cn } from '@/lib/utils';
 import { SPAN_TYPE_TO_COLOR } from '@/lib/traces/utils';
+
 
 interface TimelineProps {
   spans: Span[];

@@ -1,26 +1,25 @@
 'use client';
-import { useProjectContext } from '@/contexts/project-context';
-import { LabelClass, Span } from '@/lib/traces/types';
-import { ColumnDef } from '@tanstack/react-table';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import DateRangeFilter from '../ui/date-range-filter';
-import { DataTable } from '../ui/datatable';
-import DataTableFilter from '../ui/datatable-filter';
-import TextSearchFilter from '../ui/text-search-filter';
-import { Button } from '../ui/button';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
-import { PaginatedResponse } from '@/lib/types';
-import Mono from '../ui/mono';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import { EventTemplate } from '@/lib/events/types';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
+import { Button } from '../ui/button';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '../ui/datatable';
+import DataTableFilter from '../ui/datatable-filter';
+import DateRangeFilter from '../ui/date-range-filter';
+import Mono from '../ui/mono';
+import { PaginatedResponse } from '@/lib/types';
+import { Span } from '@/lib/traces/types';
 import SpanTypeIcon from './span-type-icon';
+import { useProjectContext } from '@/contexts/project-context';
 
 interface SpansTableProps {
   onRowClick?: (traceId: string) => void;
@@ -340,6 +339,11 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     {
       id: 'cost',
       name: 'Cost'
+    },
+    {
+      id: 'labels',
+      name: 'Labels',
+      restrictOperators: ['eq'],
     }
   ];
 

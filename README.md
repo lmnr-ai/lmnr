@@ -109,9 +109,9 @@ await poemWriter();
 First, [create a project](https://www.lmnr.ai/projects) and generate a project API key. Then,
 
 ```sh
-pip install --upgrade 'lmnr[openai]'
+pip install --upgrade 'lmnr[all]'
 ```
-It will install Laminar Python SDK and OpenAI instrumentation package. See list of all instruments [here](https://docs.lmnr.ai/installation)
+It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://docs.lmnr.ai/installation)
 
 
 To start tracing LLM calls just add

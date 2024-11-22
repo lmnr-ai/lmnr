@@ -1,4 +1,4 @@
-import { Html, Text, Link, Preview } from '@react-email/components';
+import { Html, Link, Preview, Text } from '@react-email/components';
 
 export default function WelcomeEmail({ }: {}) {
   return (

@@ -157,7 +157,6 @@ enum TraceMetric {
 #[serde(rename_all = "camelCase")]
 struct GetTraceMetricsParams {
     metric: TraceMetric,
-    /// Total or average
     #[serde(flatten)]
     base_params: GetMetricsQueryParams,
 }
@@ -275,12 +274,6 @@ async fn get_metrics_relative_time(
 ) -> ResponseResult {
     match metric {
         TraceMetric::TraceCount => match aggregation {
-            Aggregation::Average => {
-                return Err(anyhow::anyhow!(
-                    "Average grouping is not supported for traceCount metric"
-                )
-                .into());
-            }
             Aggregation::Total => {
                 let values = ch::spans::get_total_trace_count_metrics_relative(
                     clickhouse,
@@ -292,27 +285,26 @@ async fn get_metrics_relative_time(
 
                 Ok(HttpResponse::Ok().json(values))
             }
-        },
-        TraceMetric::TraceLatencySeconds => match aggregation {
-            Aggregation::Total => {
+            x => {
                 return Err(anyhow::anyhow!(
-                    "Total grouping is not supported for traceLatency metric"
+                    "{} grouping is not supported for traceCount metric",
+                    x.to_string()
                 )
                 .into());
             }
-            Aggregation::Average => {
-                let values = ch::spans::get_trace_latency_seconds_metrics_relative(
-                    clickhouse,
-                    group_by_interval,
-                    project_id,
-                    past_hours,
-                    aggregation,
-                )
-                .await?;
-
-                Ok(HttpResponse::Ok().json(values))
-            }
         },
+        TraceMetric::TraceLatencySeconds => {
+            let values = ch::spans::get_trace_latency_seconds_metrics_relative(
+                clickhouse,
+                group_by_interval,
+                project_id,
+                past_hours,
+                aggregation,
+            )
+            .await?;
+
+            Ok(HttpResponse::Ok().json(values))
+        }
         TraceMetric::TotalTokenCount => match aggregation {
             Aggregation::Total => {
                 let values = ch::spans::get_total_token_count_metrics_relative(
@@ -326,9 +318,10 @@ async fn get_metrics_relative_time(
 
                 Ok(HttpResponse::Ok().json(values))
             }
-            Aggregation::Average => {
+            x => {
                 return Err(anyhow::anyhow!(
-                    "Average grouping is not supported for totalTokenCount metric"
+                    "{} grouping is not supported for totalTokenCount metric",
+                    x.to_string()
                 )
                 .into());
             }
@@ -346,9 +339,10 @@ async fn get_metrics_relative_time(
 
                 Ok(HttpResponse::Ok().json(values))
             }
-            Aggregation::Average => {
+            x => {
                 return Err(anyhow::anyhow!(
-                    "Average grouping is not supported for costUsd metric"
+                    "{} grouping is not supported for costUsd metric",
+                    x.to_string()
                 )
                 .into());
             }
@@ -366,88 +360,57 @@ async fn get_metrics_absolute_time(
     aggregation: Aggregation,
 ) -> ResponseResult {
     match metric {
-        TraceMetric::TraceCount => match aggregation {
-            Aggregation::Average => {
-                return Err(anyhow::anyhow!(
-                    "Average grouping is not supported for traceCount metric"
-                )
-                .into());
-            }
-            Aggregation::Total => {
-                let values = ch::spans::get_total_trace_count_metrics_absolute(
-                    clickhouse,
-                    group_by_interval,
-                    project_id,
-                    start_time,
-                    end_time,
-                )
-                .await?;
+        TraceMetric::TraceCount => {
+            let values = ch::spans::get_total_trace_count_metrics_absolute(
+                clickhouse,
+                group_by_interval,
+                project_id,
+                start_time,
+                end_time,
+                aggregation,
+            )
+            .await?;
 
-                Ok(HttpResponse::Ok().json(values))
-            }
-        },
-        TraceMetric::TraceLatencySeconds => match aggregation {
-            Aggregation::Total => {
-                return Err(anyhow::anyhow!(
-                    "Total grouping is not supported for traceLatency metric"
-                )
-                .into());
-            }
-            Aggregation::Average => {
-                let values = ch::spans::get_trace_latency_seconds_metrics_absolute(
-                    clickhouse,
-                    group_by_interval,
-                    project_id,
-                    start_time,
-                    end_time,
-                    aggregation,
-                )
-                .await?;
+            Ok(HttpResponse::Ok().json(values))
+        }
+        TraceMetric::TraceLatencySeconds => {
+            let values = ch::spans::get_trace_latency_seconds_metrics_absolute(
+                clickhouse,
+                group_by_interval,
+                project_id,
+                start_time,
+                end_time,
+                aggregation,
+            )
+            .await?;
 
-                Ok(HttpResponse::Ok().json(values))
-            }
-        },
-        TraceMetric::TotalTokenCount => match aggregation {
-            Aggregation::Total => {
-                let values = ch::spans::get_total_token_count_metrics_absolute(
-                    clickhouse,
-                    group_by_interval,
-                    project_id,
-                    start_time,
-                    end_time,
-                    aggregation,
-                )
-                .await?;
+            Ok(HttpResponse::Ok().json(values))
+        }
+        TraceMetric::TotalTokenCount => {
+            let values = ch::spans::get_total_token_count_metrics_absolute(
+                clickhouse,
+                group_by_interval,
+                project_id,
+                start_time,
+                end_time,
+                aggregation,
+            )
+            .await?;
 
-                Ok(HttpResponse::Ok().json(values))
-            }
-            Aggregation::Average => {
-                return Err(anyhow::anyhow!(
-                    "Average grouping is not supported for totalTokenCount metric"
-                )
-                .into());
-            }
-        },
-        TraceMetric::CostUsd => match aggregation {
-            Aggregation::Total => {
-                let values = ch::spans::get_cost_usd_metrics_absolute(
-                    clickhouse,
-                    group_by_interval,
-                    project_id,
-                    start_time,
-                    end_time,
-                    aggregation,
-                )
-                .await?;
+            Ok(HttpResponse::Ok().json(values))
+        }
+        TraceMetric::CostUsd => {
+            let values = ch::spans::get_cost_usd_metrics_absolute(
+                clickhouse,
+                group_by_interval,
+                project_id,
+                start_time,
+                end_time,
+                aggregation,
+            )
+            .await?;
 
-                Ok(HttpResponse::Ok().json(values))
-            }
-            Aggregation::Average => {
-                return Err(anyhow::anyhow!(
-                    "Average grouping is not supported for costUsd metric"
-                )
-                .into());
-            }
-        },
+            Ok(HttpResponse::Ok().json(values))
+        }
     }
 }

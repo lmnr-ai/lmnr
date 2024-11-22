@@ -1,15 +1,15 @@
-import { useProjectContext } from "@/contexts/project-context";
-import { swrFetcher, cn, formatTimestamp } from "@/lib/utils";
-import { useSearchParams } from "next/navigation";
-import { CartesianGrid, XAxis, LineChart, Line, YAxis } from "recharts";
-import useSWR from "swr";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
-import { Skeleton } from "../ui/skeleton";
-import { EvaluationTimeProgression } from "@/lib/evaluation/types";
-import { useEffect, useState } from "react";
-import { Minus } from "lucide-react";
-import { Label } from "../ui/label";
+import { useEffect, useMemo, useState } from "react";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
+import { EvaluationTimeProgression } from "@/lib/evaluation/types";
+import { Label } from "../ui/label";
+import { Minus } from "lucide-react";
+import { Skeleton } from "../ui/skeleton";
+import { useProjectContext } from "@/contexts/project-context";
+import { useSearchParams } from "next/navigation";
+import useSWR from "swr";
+import { cn, formatTimestamp, swrFetcher } from "@/lib/utils";
 
 interface ProgressionChartProps {
   className?: string;
@@ -25,13 +25,6 @@ export default function ProgressionChart({
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const groupId = searchParams.get('groupId');
   const { projectId } = useProjectContext();
-
-  const convertScores = (progression: EvaluationTimeProgression[]) =>
-    progression.map(({ timestamp, evaluationId, names, values }) => ({
-      timestamp,
-      evaluationId,
-      ...Object.fromEntries(names.map((name, index) => ([name, values[index]]))),
-    }));
 
   const { data, isLoading, error } = useSWR<EvaluationTimeProgression[]>(
     `/api/projects/${projectId}/evaluation-groups/${groupId}/progression?aggregate=${aggregationFunction}`,
@@ -49,6 +42,15 @@ export default function ProgressionChart({
       setShowScores(Array.from(newKeys));
     }
   }, [data]);
+
+  const convertedScores = useMemo(() =>
+    data?.map(({ timestamp, evaluationId, names, values }) => ({
+      timestamp,
+      evaluationId,
+      ...Object.fromEntries(names.map((name, index) => ([name, values[index]]))),
+    })) ?? [],
+  [data]
+  );
 
   const chartConfig = Object.fromEntries(Array.from(keys).map((key, index) => ([
     key, {
@@ -70,9 +72,9 @@ export default function ProgressionChart({
             <Skeleton className="h-full w-full" />
           </div>
         ) : <LineChart
-          margin={{ top: 10, right: 10, bottom: 0, left: -24 }}
+          margin={{ top: 10, right: 10, bottom: 0, left: -12 }}
           accessibilityLayer
-          data={convertScores(data)}
+          data={convertedScores}
         >
           <CartesianGrid vertical={false} />
           <XAxis
@@ -80,7 +82,7 @@ export default function ProgressionChart({
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value) => formatTimestamp(`${value}Z`)}
+            tickFormatter={(value: number) => formatTimestamp(`${value}Z`)}
             height={8}
             padding={{ left: horizontalPadding, right: horizontalPadding }}
           />

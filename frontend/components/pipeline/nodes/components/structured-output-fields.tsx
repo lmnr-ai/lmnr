@@ -1,6 +1,3 @@
-import Ide from '@/components/ui/ide';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -8,11 +5,15 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { useEffect, useState } from 'react';
+
+import Ide from '@/components/ui/ide';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import Link from 'next/link';
+import { LLMNode } from '@/lib/flow/types';
 import { Switch } from '@/components/ui/switch';
 import useStore from '@/lib/flow/store';
-import { LLMNode } from '@/lib/flow/types';
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
 
 interface StructuredOutputFieldsProps {
   className?: string;

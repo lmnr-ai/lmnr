@@ -1,15 +1,15 @@
 'use client';
 
+import { cn, swrFetcher } from '@/lib/utils';
+
+import AvatarMenu from '../user/avatar-menu';
 import Image from 'next/image';
 import Link from 'next/link';
 import logo from '@/assets/logo/logo.svg';
-import AvatarMenu from '../user/avatar-menu';
+import { Skeleton } from '../ui/skeleton';
+import { usePathname } from 'next/navigation';
 import useSWR from 'swr';
 import { WorkspaceWithProjects } from '@/lib/workspaces/types';
-import { Skeleton } from '../ui/skeleton';
-import { cn, swrFetcher } from '@/lib/utils';
-import { usePathname } from 'next/navigation';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 export default function WorkspacesNavbar() {
   const { data, isLoading } = useSWR('/api/workspaces', swrFetcher);

@@ -125,7 +125,7 @@ pub async fn get_total_trace_count_metrics_relative(
     project_id: Uuid,
     past_hours: i64,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    let query = span_metric_query_relative(
+    let query = trace_metric_query_relative(
         &clickhouse,
         project_id,
         group_by_interval,
@@ -145,14 +145,15 @@ pub async fn get_total_trace_count_metrics_absolute(
     project_id: Uuid,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
+    aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    let query = span_metric_query_absolute(
+    let query = trace_metric_query_absolute(
         &clickhouse,
         project_id,
         group_by_interval,
         start_time,
         end_time,
-        Aggregation::Total,
+        aggregation,
         "COUNT(DISTINCT(trace_id))",
     );
 
@@ -168,7 +169,7 @@ pub async fn get_trace_latency_seconds_metrics_relative(
     past_hours: i64,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
-    let query = span_metric_query_relative(
+    let query = trace_metric_query_relative(
         &clickhouse,
         project_id,
         group_by_interval,
@@ -190,7 +191,7 @@ pub async fn get_trace_latency_seconds_metrics_absolute(
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
-    let query = span_metric_query_absolute(
+    let query = trace_metric_query_absolute(
         &clickhouse,
         project_id,
         group_by_interval,
@@ -212,7 +213,7 @@ pub async fn get_total_token_count_metrics_relative(
     past_hours: i64,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    let query = span_metric_query_relative(
+    let query = trace_metric_query_relative(
         &clickhouse,
         project_id,
         group_by_interval,
@@ -234,7 +235,7 @@ pub async fn get_total_token_count_metrics_absolute(
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<i64>>> {
-    let query = span_metric_query_absolute(
+    let query = trace_metric_query_absolute(
         &clickhouse,
         project_id,
         group_by_interval,
@@ -256,7 +257,7 @@ pub async fn get_cost_usd_metrics_relative(
     past_hours: i64,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
-    let query = span_metric_query_relative(
+    let query = trace_metric_query_relative(
         &clickhouse,
         project_id,
         group_by_interval,
@@ -278,7 +279,7 @@ pub async fn get_cost_usd_metrics_absolute(
     end_time: DateTime<Utc>,
     aggregation: Aggregation,
 ) -> Result<Vec<MetricTimeValue<f64>>> {
-    let query = span_metric_query_absolute(
+    let query = trace_metric_query_absolute(
         &clickhouse,
         project_id,
         group_by_interval,
@@ -293,7 +294,7 @@ pub async fn get_cost_usd_metrics_absolute(
     Ok(res)
 }
 
-fn span_metric_query_relative(
+fn trace_metric_query_relative(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     group_by_interval: GroupByInterval,
@@ -303,6 +304,7 @@ fn span_metric_query_relative(
 ) -> clickhouse::query::Query {
     let ch_round_time = group_by_interval.to_ch_truncate_time();
     let ch_aggregation = aggregation.to_ch_agg_function();
+    let types: Vec<u8> = vec![SpanType::DEFAULT.into(), SpanType::LLM.into()];
 
     let query_string = format!(
         "
@@ -313,6 +315,7 @@ fn span_metric_query_relative(
         {ch_round_time}(MIN(start_time)) as time,
         {metric} as value
     FROM spans
+    WHERE span_type in ?
     GROUP BY project_id, trace_id
     )
     SELECT
@@ -328,11 +331,12 @@ fn span_metric_query_relative(
 
     clickhouse
         .query(&query_string)
+        .bind(types)
         .bind(project_id)
         .bind(past_hours)
 }
 
-fn span_metric_query_absolute(
+fn trace_metric_query_absolute(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     group_by_interval: GroupByInterval,
@@ -345,6 +349,7 @@ fn span_metric_query_absolute(
     let ch_start_time = start_time.timestamp();
     let ch_end_time = end_time.timestamp();
     let ch_aggregation = aggregation.to_ch_agg_function();
+    let types: Vec<u8> = vec![SpanType::DEFAULT.into(), SpanType::LLM.into()];
 
     let query_string = format!(
         "
@@ -355,6 +360,7 @@ fn span_metric_query_absolute(
         {ch_round_time}(MIN(start_time)) as time,
         {metric} as value
     FROM spans
+    WHERE span_type in ?
     GROUP BY project_id, trace_id
     )
     SELECT
@@ -371,6 +377,7 @@ fn span_metric_query_absolute(
 
     clickhouse
         .query(&query_string)
+        .bind(types)
         .bind(project_id)
         .bind(ch_start_time)
         .bind(ch_end_time)

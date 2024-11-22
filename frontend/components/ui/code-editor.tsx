@@ -1,11 +1,11 @@
+import { cn } from '@/lib/utils';
 import CodeMirror from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
+import { EditorView } from '@codemirror/view';
 import { githubDarkStyle } from '@uiw/codemirror-theme-github';
 import { json } from '@codemirror/lang-json';
-import { yaml } from '@codemirror/lang-yaml';
 import { python } from '@codemirror/lang-python';
-import { EditorView } from '@codemirror/view';
-import { cn } from '@/lib/utils';
+import { yaml } from '@codemirror/lang-yaml';
 
 interface CodeEditorProps {
   value: string;

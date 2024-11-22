@@ -1,6 +1,6 @@
 import { db } from "@/lib/db/drizzle";
-import { playgrounds } from "@/lib/db/migrations/schema";
 import { eq } from "drizzle-orm";
+import { playgrounds } from "@/lib/db/migrations/schema";
 import { z } from "zod";
 
 const updatePlaygroundSchema = z.object({

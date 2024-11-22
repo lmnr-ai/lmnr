@@ -1,33 +1,30 @@
-import { useProjectContext } from '@/contexts/project-context';
-import { useUserContext } from '@/contexts/user-context';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/const';
-import { LabelClass, Trace } from '@/lib/traces/types';
-import { createClient } from '@supabase/supabase-js';
-import { ColumnDef } from '@tanstack/react-table';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect, useMemo } from 'react';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import TracesPagePlaceholder from './page-placeholder';
-import { EventTemplate } from '@/lib/events/types';
-import DateRangeFilter from '../ui/date-range-filter';
-import { DataTable } from '../ui/datatable';
-import DataTableFilter from '../ui/datatable-filter';
-import TextSearchFilter from '../ui/text-search-filter';
-import { Button } from '../ui/button';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
-import { PaginatedGetResponseWithProjectPresenceFlag, PaginatedResponse } from '@/lib/types';
-import Mono from '../ui/mono';
-import useSWR from 'swr';
-import { swrFetcher } from '@/lib/utils';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import { Feature } from '@/lib/features/features';
-import { isFeatureEnabled } from '@/lib/features/features';
+import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
+import { Button } from '../ui/button';
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { ColumnDef } from '@tanstack/react-table';
+import { createClient } from '@supabase/supabase-js';
+import { DataTable } from '../ui/datatable';
+import DataTableFilter from '../ui/datatable-filter';
+import DateRangeFilter from '../ui/date-range-filter';
+import Mono from '../ui/mono';
+import { PaginatedGetResponseWithProjectPresenceFlag } from '@/lib/types';
 import SpanTypeIcon from './span-type-icon';
+import TextSearchFilter from '../ui/text-search-filter';
+import { Trace } from '@/lib/traces/types';
+import TracesPagePlaceholder from './page-placeholder';
+import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
 
 interface TracesTableProps {
   onRowClick?: (rowId: string) => void;
@@ -409,6 +406,12 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     {
       name: 'Metadata',
       id: 'metadata',
+      restrictOperators: ['eq']
+    },
+    {
+      name: 'Labels',
+      id: 'labels',
+      restrictOperators: ['eq']
     }
   ];
 

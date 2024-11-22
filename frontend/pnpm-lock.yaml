@@ -340,6 +340,9 @@ devDependencies:
   eslint-plugin-tailwindcss:
     specifier: ^3.17.5
     version: 3.17.5(tailwindcss@3.4.14)
+  eslint-plugin-unused-imports:
+    specifier: ^4.1.4
+    version: 4.1.4(@typescript-eslint/eslint-plugin@8.10.0)(eslint@8.57.1)
   postcss:
     specifier: ^8.4.47
     version: 8.4.47
@@ -7272,6 +7275,19 @@ packages:
       fast-glob: 3.3.2
       postcss: 8.4.47
       tailwindcss: 3.4.14
+    dev: true
+
+  /eslint-plugin-unused-imports@4.1.4(@typescript-eslint/eslint-plugin@8.10.0)(eslint@8.57.1):
+    resolution: {integrity: sha512-YptD6IzQjDardkl0POxnnRBhU1OEePMV0nd6siHaRBbd+lyh6NAhFEobiznKU7kTsSsDeSD62Pe7kAM1b7dAZQ==}
+    peerDependencies:
+      '@typescript-eslint/eslint-plugin': ^8.0.0-0 || ^7.0.0 || ^6.0.0 || ^5.0.0
+      eslint: ^9.0.0 || ^8.0.0
+    peerDependenciesMeta:
+      '@typescript-eslint/eslint-plugin':
+        optional: true
+    dependencies:
+      '@typescript-eslint/eslint-plugin': 8.10.0(@typescript-eslint/parser@8.10.0)(eslint@8.57.1)(typescript@5.6.3)
+      eslint: 8.57.1
     dev: true
 
   /eslint-scope@7.2.2:

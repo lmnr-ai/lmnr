@@ -1,9 +1,9 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
-import { db } from '@/lib/db/drizzle';
 import { and, eq } from 'drizzle-orm';
+import { authOptions } from '@/lib/auth';
 import { datasets } from '@/lib/db/migrations/schema';
+import { db } from '@/lib/db/drizzle';
+import { fetcher } from '@/lib/utils';
+import { getServerSession } from 'next-auth';
 
 export async function GET(
   req: Request,

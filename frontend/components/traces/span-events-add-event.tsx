@@ -1,9 +1,10 @@
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
+import { useState } from 'react';
 import { useToast } from '@/lib/hooks/use-toast';
 
 interface SpanEventsAddEventProps {

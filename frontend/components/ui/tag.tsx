@@ -1,8 +1,9 @@
-import { X } from 'lucide-react';
+import { TagInputProps,type Tag as TagType } from './tag-input';
+
 import { Button } from './button';
-import { TagInputProps, type Tag as TagType } from './tag-input';
 import { cn } from '@/lib/utils';
 import { cva } from 'class-variance-authority';
+import { X } from 'lucide-react';
 
 export const tagVariants = cva(
   'transition-all border inline-flex items-center text-sm pl-2 rounded-md',

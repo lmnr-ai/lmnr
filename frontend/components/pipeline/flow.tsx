@@ -1,25 +1,26 @@
-import { useCallback, useRef, type DragEvent, useState } from 'react';
 import 'reactflow/dist/style.css';
+
+import { type DragEvent, useCallback, useRef, useState } from 'react';
 import ReactFlow, {
-  ConnectionLineType,
   Background,
-  type Edge,
   type Connection,
-  updateEdge,
+  ConnectionLineType,
+  type Edge,
+  MarkerType,
   type Node,
-  MarkerType
+  updateEdge
 } from 'reactflow';
 
-import InputNodeComponent from './nodes/input-node';
-import OutputNodeComponent from './nodes/output-node';
-import GenericNodeComponent from './nodes/generic-node';
 
-import useStore from '@/lib/flow/store';
-import { NodeType } from '@/lib/flow/types';
-import { v4 as uuidv4 } from 'uuid';
 import { createNodeData } from '@/lib/flow/utils';
-import { useFlowContext } from '@/contexts/pipeline-version-context';
 import CustomEdge from './nodes/components/custom-edge';
+import GenericNodeComponent from './nodes/generic-node';
+import InputNodeComponent from './nodes/input-node';
+import { NodeType } from '@/lib/flow/types';
+import OutputNodeComponent from './nodes/output-node';
+import { useFlowContext } from '@/contexts/pipeline-version-context';
+import useStore from '@/lib/flow/store';
+import { v4 as uuidv4 } from 'uuid';
 
 const nodeTypes = {
   [NodeType.INPUT]: InputNodeComponent,

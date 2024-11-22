@@ -1,5 +1,5 @@
-import { useToast } from "@/lib/hooks/use-toast";
 import { Button } from "./button";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface CopyToClipboardButtonProps {
   text: string;

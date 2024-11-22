@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Input } from '@/components/ui/input';
+
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
-import { Label } from '../ui/label';
-import { WorkspaceWithProjects } from '@/lib/workspaces/types';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { WorkspaceWithProjects } from '@/lib/workspaces/types';
 
 interface CreateFirstWorkspaceAndProjectProps {
   name?: string | null;

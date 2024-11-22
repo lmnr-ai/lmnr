@@ -1,20 +1,17 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTable } from '../ui/datatable';
-import { RunTrace, TracePreview } from '@/lib/traces/types';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import useSWR from 'swr';
-import { useProjectContext } from '@/contexts/project-context';
-import { swrFetcher } from '@/lib/utils';
-import { PipelineVersion } from '@/lib/pipeline/types';
-import { use, useEffect, useState } from 'react';
-import { ChevronsRight } from 'lucide-react';
-import StatusLabel from '../ui/status-label';
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup
 } from '../ui/resizable';
+import { RunTrace, TracePreview } from '@/lib/traces/types';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { ColumnDef } from '@tanstack/react-table';
+import { PipelineVersion } from '@/lib/pipeline/types';
 import { Skeleton } from '../ui/skeleton';
+import StatusLabel from '../ui/status-label';
+import { useProjectContext } from '@/contexts/project-context';
+import { useState } from 'react';
 
 export const TRACE_COLUMNS: ColumnDef<RunTrace, any>[] = [
   {

@@ -12,6 +12,12 @@ pub mod utils;
 pub enum Aggregation {
     Total,
     Average,
+    Min,
+    Max,
+    Median,
+    P90,
+    P95,
+    P99,
 }
 
 impl Aggregation {
@@ -19,6 +25,25 @@ impl Aggregation {
         match self {
             Aggregation::Total => "SUM",
             Aggregation::Average => "AVG",
+            Aggregation::Min => "MIN",
+            Aggregation::Max => "MAX",
+            Aggregation::Median => "median",
+            Aggregation::P90 => "quantileExact(0.90)",
+            Aggregation::P95 => "quantileExact(0.95)",
+            Aggregation::P99 => "quantileExact(0.99)",
+        }
+    }
+
+    pub fn to_string(&self) -> &str {
+        match self {
+            Aggregation::Total => "Total",
+            Aggregation::Average => "Average",
+            Aggregation::Min => "Min",
+            Aggregation::Max => "Max",
+            Aggregation::Median => "Median",
+            Aggregation::P90 => "P90",
+            Aggregation::P95 => "P95",
+            Aggregation::P99 => "P99",
         }
     }
 }

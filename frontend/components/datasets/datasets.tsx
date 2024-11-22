@@ -1,25 +1,32 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { useState } from 'react';
-import { useToast } from '@/lib/hooks/use-toast';
-import { swrFetcher } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog';
+import { Loader2, Trash2 } from 'lucide-react';
+import { TableCell, TableRow } from '../ui/table';
 
-import { useProjectContext } from '@/contexts/project-context';
-import { useRouter } from 'next/navigation';
-import { Loader2, MoreVertical, Trash2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { ColumnDef } from '@tanstack/react-table';
-import { Dataset } from '@/lib/dataset/types';
-import useSWR from 'swr';
-import CreateDatasetDialog from './create-dataset-dialog';
+import { Button } from '@/components/ui/button';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { ColumnDef } from '@tanstack/react-table';
+import CreateDatasetDialog from './create-dataset-dialog';
+import { Dataset } from '@/lib/dataset/types';
 import { DataTable } from '../ui/datatable';
 import Header from '../ui/header';
-import { TableCell, TableRow } from '../ui/table';
-import { PaginatedResponse } from '@/lib/types';
 import Mono from '../ui/mono';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { PaginatedResponse } from '@/lib/types';
+import { swrFetcher } from '@/lib/utils';
+import { useProjectContext } from '@/contexts/project-context';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { useToast } from '@/lib/hooks/use-toast';
 
 export default function Datasets() {
   const { projectId } = useProjectContext();

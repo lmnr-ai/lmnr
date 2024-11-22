@@ -1,5 +1,5 @@
-import { ReloadIcon } from '@radix-ui/react-icons';
 import { Button } from '@/components/ui/button';
+import { ReloadIcon } from '@radix-ui/react-icons';
 
 export function ButtonLoading({ loadingText = '', ...props }) {
   return (

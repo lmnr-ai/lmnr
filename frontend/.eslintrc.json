@@ -31,6 +31,22 @@
     "arrow-body-style": [
       "warn",
       "as-needed"
+    ],
+    "no-duplicate-imports": [
+      "error"
+    ],
+    "unused-imports/no-unused-imports": [
+      "error"
+    ],
+    "sort-imports": [
+      "warn",
+      {
+        "ignoreCase": true,
+        "allowSeparatedGroups": false
+      }
     ]
-  }
+  },
+  "plugins": [
+    "unused-imports"
+  ]
 }

@@ -1,11 +1,11 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
-import { NextRequest } from 'next/server';
-import { db } from '@/lib/db/drizzle';
-import { datasetDatapoints, datapointToSpan } from '@/lib/db/migrations/schema';
-import { and, inArray, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
+import { datapointToSpan, datasetDatapoints } from '@/lib/db/migrations/schema';
 
+import { authOptions } from '@/lib/auth';
+import { db } from '@/lib/db/drizzle';
+import { fetcher } from '@/lib/utils';
+import { getServerSession } from 'next-auth';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 
 export async function GET(

@@ -1,10 +1,11 @@
-import { Label } from '@/components/ui/label';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   StaticImageData,
   StaticImport
 } from 'next/dist/shared/lib/get-img-props';
+
 import Image from 'next/image';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useState } from 'react';
 
 export interface NodePreviewProps {

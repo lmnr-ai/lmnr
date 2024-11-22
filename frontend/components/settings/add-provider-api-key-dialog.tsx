@@ -1,7 +1,3 @@
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { useState } from 'react';
-import { Input } from '../ui/input';
 import {
   Dialog,
   DialogClose,
@@ -11,7 +7,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '../ui/dialog';
-import { Plus } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -19,7 +14,13 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+
+import { Button } from '@/components/ui/button';
 import { EnvVars } from '@/lib/env/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Plus } from 'lucide-react';
+import { useState } from 'react';
 
 interface AddProviderApiKeyDialogProps {
   existingKeyNames: string[]

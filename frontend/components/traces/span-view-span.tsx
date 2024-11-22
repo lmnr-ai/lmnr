@@ -1,10 +1,10 @@
+import ChatMessageListTab from './chat-message-list-tab';
+import Formatter from '../ui/formatter';
 import { isChatMessageList } from '@/lib/flow/utils';
 import { ScrollArea } from '../ui/scroll-area';
-import Formatter from '../ui/formatter';
-import ChatMessageListTab from './chat-message-list-tab';
 import { Span } from '@/lib/traces/types';
-import SpanLabels from './span-labels';
 import SpanDatasets from './span-datasets';
+import SpanLabels from './span-labels';
 
 interface SpanViewSpanProps {
   span: Span;
