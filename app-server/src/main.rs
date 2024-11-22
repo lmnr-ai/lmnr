@@ -89,7 +89,7 @@ fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
 
     let general_runtime =
-        create_general_purpose_runtime().expect("Can't optimizer general purpose runtime.");
+        create_general_purpose_runtime().expect("Can't initialize general purpose runtime.");
     let runtime_handle = general_runtime.handle().clone();
 
     let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
