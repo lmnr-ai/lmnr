@@ -1,10 +1,6 @@
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
-import { Skeleton } from "../ui/skeleton";
-import { EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { useEffect, useMemo, useState } from "react";
-import { Minus } from "lucide-react";
-import { Label } from "../ui/label";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
 import { EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { Label } from "../ui/label";
@@ -13,6 +9,7 @@ import { Skeleton } from "../ui/skeleton";
 import { useProjectContext } from "@/contexts/project-context";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
+import { cn, formatTimestamp, swrFetcher } from "@/lib/utils";
 
 interface ProgressionChartProps {
   className?: string;
@@ -52,7 +49,7 @@ export default function ProgressionChart({
       evaluationId,
       ...Object.fromEntries(names.map((name, index) => ([name, values[index]]))),
     })) ?? [],
-    [data]
+  [data]
   );
 
   const chartConfig = Object.fromEntries(Array.from(keys).map((key, index) => ([

@@ -6,18 +6,14 @@ import DateRangeFilter from '../ui/date-range-filter';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { GroupByPeriodSelect } from '../ui/group-by-period-select';
 import Header from '../ui/header';
-import { Skeleton } from '../ui/skeleton';
-import { TraceMetricDatapoint } from '@/lib/traces/types';
 import { useProjectContext } from '@/contexts/project-context';
 import { TraceStatChart } from './trace-stat-chart';
 import { SpanStatChart } from './span-stat-chart';
-import { SpanMetricGroupBy } from '@/lib/clickhouse/spans';
-import { SpanMetric } from '@/lib/clickhouse/spans';
+import { SpanMetricGroupBy, SpanMetric } from '@/lib/clickhouse/spans';
 import { GroupByInterval } from '@/lib/clickhouse/modifiers';
 import { ScrollArea } from '../ui/scroll-area';
 import { AggregationFunction } from '@/lib/clickhouse/utils';
 import SpanSummaryChart from './span-summary-chart';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 
 const AGGREGATIONS: AggregationFunction[] = [
   'AVG',

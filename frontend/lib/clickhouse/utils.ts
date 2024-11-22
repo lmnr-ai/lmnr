@@ -27,15 +27,15 @@ export type AggregationFunction = 'AVG' | 'SUM' | 'MIN' | 'MAX' | 'MEDIAN' | 'p9
 
 export const aggregationFunctionToCh = (f: AggregationFunction) => {
   switch (f) {
-    case 'AVG': return 'avg';
-    case 'SUM': return 'sum';
-    case 'MIN': return 'min';
-    case 'MAX': return 'max';
-    case 'MEDIAN': return 'median';
-    case 'p90': return 'quantileExact(0.90)';
-    case 'p95': return 'quantileExact(0.95)';
-    case 'p99': return 'quantileExact(0.99)';
-    default: throw new Error(`Invalid aggregation function: ${f}`);
+  case 'AVG': return 'avg';
+  case 'SUM': return 'sum';
+  case 'MIN': return 'min';
+  case 'MAX': return 'max';
+  case 'MEDIAN': return 'median';
+  case 'p90': return 'quantileExact(0.90)';
+  case 'p95': return 'quantileExact(0.95)';
+  case 'p99': return 'quantileExact(0.99)';
+  default: throw new Error(`Invalid aggregation function: ${f}`);
   }
 };
 

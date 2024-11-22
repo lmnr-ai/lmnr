@@ -1,14 +1,9 @@
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent
+  ChartConfig
 } from '@/components/ui/chart';
 import {
   cn,
   formatTimestampFromSeconds,
-  formatTimestampFromSecondsWithInterval,
   toFixedIfFloat,
 } from '@/lib/utils';
 import { useEffect, useState } from 'react';

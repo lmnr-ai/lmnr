@@ -1,16 +1,11 @@
-import { SpanMetric } from "@/lib/clickhouse/spans";
-
-import { SpanMetricGroupBy } from "@/lib/clickhouse/spans";
+import { SpanMetricGroupBy, SpanMetric } from "@/lib/clickhouse/spans";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
 import { cn, toFixedIfFloat } from "@/lib/utils";
-import { useEffect, useMemo } from "react";
-import { useState } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { useEffect, useMemo, useState } from "react";
 import { Skeleton } from "../ui/skeleton";
 import { useRouter } from "next/navigation";
 import { buildSpansUrl } from "@/lib/traces/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { TooltipProvider } from "../ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "../ui/tooltip";
 
 interface SpanSummaryChartProps {
   title: string;

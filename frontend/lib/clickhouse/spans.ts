@@ -1,12 +1,12 @@
 import { ClickHouseClient } from "@clickhouse/client";
 import {
-  AggregationFunction,
-  TimeRange,
   addTimeRangeToQuery,
+  AggregationFunction,
   aggregationFunctionToCh,
   getTimeBounds,
   groupByTimeAbsoluteStatement,
-  groupByTimeRelativeStatement
+  groupByTimeRelativeStatement,
+  TimeRange
 } from "./utils";
 import { GroupByInterval, truncateTimeMap } from "./modifiers";
 import { Feature, isFeatureEnabled } from "../features/features";

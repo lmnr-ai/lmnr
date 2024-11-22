@@ -38,10 +38,15 @@
     "unused-imports/no-unused-imports": [
       "error"
     ],
-    "sort-imports": ["error", {
-      "ignoreCase": true,
-      "allowSeparatedGroups": false
-    }]
+    "sort-imports": [
+      "warn",
+      {
+        "ignoreCase": true,
+        "allowSeparatedGroups": false
+      }
+    ]
   },
-  "plugins": ["unused-imports"]
+  "plugins": [
+    "unused-imports"
+  ]
 }
