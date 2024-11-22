@@ -120,7 +120,7 @@ export default function Queue({ queue }: QueueProps) {
                         <div className="pb-2 font-medium text-lg">Output</div>
                         <Formatter
                           className="max-h-[600px]"
-                          value={data.span.output}
+                          value={JSON.stringify(data.span.output)}
                           collapsible
                         />
                       </div>
