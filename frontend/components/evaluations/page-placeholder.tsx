@@ -10,7 +10,7 @@ import { useState } from 'react';
 
 export default function EvalsPagePlaceholder() {
   const { projectId } = useProjectContext();
-  const [tabValue, setTabValue] = useState('python');
+  const [tabValue, setTabValue] = useState('typescript');
 
   const pythonEval = `from lmnr import evaluate
 
@@ -53,16 +53,16 @@ evaluate({
       <Header path="evaluations" />
       <div className="flex flex-col justify-center items-center p-2">
         <div className="flex-col p-4 mb-32 space-y-4 w-[800px]">
-          <h1 className="text-2xl font-semibold mb-4">Evaluations</h1>
-          <h3 className="text-secondary-foreground/80 font-light">
+          <h1 className="text-2xl font-semibold">Evaluations</h1>
+          <p className="text-muted-foreground">
             You don{"'"}t have any evaluations in this project yet. To run an
             evaluation you can start by following the example below.
-          </h3>
-          <h2 className="text-xl font-semibold mb-4">Install Laminar</h2>
+          </p>
+          <h2 className="text-xl font-semibold">Install Laminar</h2>
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">
-              <TabsTrigger value="python">Python</TabsTrigger>
               <TabsTrigger value="typescript">Typescript</TabsTrigger>
+              <TabsTrigger value="python">Python</TabsTrigger>
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
@@ -81,8 +81,8 @@ evaluate({
               </TabsContent>
             </div>
           </Tabs>
-          <h2 className="text-xl font-semibold mb-4">Generate API key</h2>
-          <h3 className="text-secondary-foreground/80 font-light">
+          <h2 className="text-xl font-semibold">Generate API key</h2>
+          <p className="text-muted-foreground">
             Go to
             <a
               href={`/project/${projectId}/settings`}
@@ -93,14 +93,14 @@ evaluate({
               settings page{' '}
             </a>
             to generate an API key and use it in your code.
-          </h3>
-          <h2 className="text-xl font-semibold mb-4">
+          </p>
+          <h2 className="text-xl font-semibold">
             Run your first evaluation
           </h2>
           <Tabs value={tabValue} onValueChange={setTabValue}>
             <TabsList className="border-none flex">
-              <TabsTrigger value="python">Python</TabsTrigger>
               <TabsTrigger value="typescript">Typescript</TabsTrigger>
+              <TabsTrigger value="python">Python</TabsTrigger>
             </TabsList>
             <div className="mt-4">
               <TabsContent value="python">
@@ -119,34 +119,34 @@ evaluate({
               </TabsContent>
             </div>
           </Tabs>
-          <h3 className="text-secondary-foreground/80 font-light">
+          <p className="text-muted-foreground">
             <a
               href="https://docs.lmnr.ai/evaluations/introduction"
-              className="text-primary-foreground font-medium"
+              className="text-primary font-medium underline"
               target="_blank"
             >
-              Read the docs{' '}
+              Read the docs
             </a>
-            to learn more.
-          </h3>
-          <h2 className="text-xl font-semibold mb-4">Run your app</h2>
-          <h3 className="text-secondary-foreground/80 font-light">
+            {' '}to learn more.
+          </p>
+          <h2 className="text-xl font-semibold">Run your app</h2>
+          <p className="text-muted-foreground">
             Run your Python or Typescript app. Refresh the page to see
             evaluations.
-          </h3>
-          <h2 className="text-xl font-semibold mb-4">
+          </p>
+          <h2 className="text-xl font-semibold">
             Cannot run evaluations?
           </h2>
-          <h3 className="text-secondary-foreground/80 font-light">
+          <p className="text-muted-foreground">
             <a
               href="https://discord.com/invite/nNFUUDAKub"
-              className="text-primary-foreground font-medium"
+              className="text-primary font-medium underline"
               target="_blank"
             >
-              Message us{' '}
+              Message us
             </a>
-            and we{"'"}ll be happy to help.
-          </h3>
+            {' '}and we{"'"}ll be happy to help.
+          </p>
         </div>
       </div>
     </div>
