@@ -1,12 +1,11 @@
-import Pipeline from '@/components/pipeline/pipeline';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { getServerSession, Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { PipelineVersion } from '@/lib/pipeline/types';
 import { fetcherJSON } from '@/lib/utils';
-import { Session, getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
 import { Metadata } from 'next';
-import { Feature } from '@/lib/features/features';
-import { isFeatureEnabled } from '@/lib/features/features';
+import Pipeline from '@/components/pipeline/pipeline';
+import { PipelineVersion } from '@/lib/pipeline/types';
+import { redirect } from 'next/navigation';
 
 const URL_QUERY_PARAMS = {
   SELECTED_VERSION_ID: 'versionId'

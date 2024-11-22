@@ -1,13 +1,14 @@
 import {
-  Html,
   Heading,
-  Text,
-  Link,
   Hr,
-  Preview
+  Html,
+  Link,
+  Preview,
+  Text
 } from '@react-email/components';
-import { Tailwind } from '@react-email/tailwind';
+
 import { ItemDescription } from '../checkout/utils';
+import { Tailwind } from '@react-email/tailwind';
 
 const boldClassName = 'w-full flex justify-start mb-1 mt-6';
 const textClassName = 'w-full flex justify-start';

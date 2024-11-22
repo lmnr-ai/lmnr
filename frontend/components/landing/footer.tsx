@@ -1,4 +1,5 @@
 import Image from 'next/image';
+
 import noise from '@/assets/landing/noise2.jpeg';
 
 export default function Footer() {

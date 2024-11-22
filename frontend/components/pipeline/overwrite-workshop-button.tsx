@@ -1,7 +1,3 @@
-import React, { useState } from 'react';
-
-import { Button } from '@/components/ui/button';
-import { useToast } from '../../lib/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -10,11 +6,15 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import React, { useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
+import { Button } from '@/components/ui/button';
 import { Label } from '../ui/label';
-import { Loader2, Pencil, ShieldQuestion } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { PipelineVersionInfo } from '@/lib/pipeline/types';
 import { useProjectContext } from '@/contexts/project-context';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useToast } from '../../lib/hooks/use-toast';
 
 interface OverwriteWorkshopButtonProps {
   workshopVersionId: string;

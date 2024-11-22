@@ -6,8 +6,8 @@ import {
   SubpipelineNode
 } from '@/lib/flow/types';
 import { Label } from '@/components/ui/label';
-import useStore from '@/lib/flow/store';
 import PipelineSelect from '@/components/ui/pipeline-select';
+import useStore from '@/lib/flow/store';
 
 export default function SubpipelineNodeComponent({
   data

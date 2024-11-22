@@ -1,9 +1,9 @@
-import { JsonExtractorNode } from '@/lib/flow/types';
-import useStore from '@/lib/flow/store';
-import { Label } from '@/components/ui/label';
-import { memo } from 'react';
 import Ide from '@/components/ui/ide';
+import { JsonExtractorNode } from '@/lib/flow/types';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
+import { memo } from 'react';
+import useStore from '@/lib/flow/store';
 
 const JsonExtractorNodeComponent = ({ data }: { data: JsonExtractorNode }) => {
   const updateNodeData = useStore((state) => state.updateNodeData);

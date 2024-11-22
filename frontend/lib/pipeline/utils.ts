@@ -1,5 +1,3 @@
-import { Edge } from 'reactflow';
-import { Graph } from '../flow/graph';
 import {
   GenericNode,
   GenericNodeHandle,
@@ -8,8 +6,11 @@ import {
   NodeType,
   SubpipelineNode
 } from '../flow/types';
-import { ChatMessage } from '../types';
 import { InputVariable, PipelineVersion } from './types';
+
+import { ChatMessage } from '../types';
+import { Edge } from 'reactflow';
+import { Graph } from '../flow/graph';
 import { isStringType } from '../utils';
 
 export const PUBLIC_PIPELINE_PROJECT_ID = 'PUBLIC-PIPELINE';

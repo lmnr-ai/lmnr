@@ -1,8 +1,8 @@
 import {
-  RunnableGraph,
   DisplayableGraph,
+  NodeHandleType,
   NodeInput,
-  NodeHandleType
+  RunnableGraph
 } from '@/lib/flow/types';
 import { CheckJobStatus } from '@/lib/check/types';
 

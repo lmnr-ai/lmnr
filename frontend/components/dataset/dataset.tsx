@@ -1,26 +1,34 @@
 'use client';
 
 import { Datapoint, Dataset as DatasetType } from '@/lib/dataset/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '../ui/dialog';
+import { Loader2, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { ColumnDef } from '@tanstack/react-table';
-import AddDatapointsDialog from './add-datapoints-dialog';
-import { DataTable } from '@/components/ui/datatable';
-import IndexDatasetDialog from './index-dataset-dialog';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import ManualAddDatapoint from './manual-add-datapoint-dialog';
-import DatasetPanel from './dataset-panel';
-import Header from '../ui/header';
-import { useToast } from '@/lib/hooks/use-toast';
-import { useProjectContext } from '@/contexts/project-context';
+
+import AddDatapointsDialog from './add-datapoints-dialog';
+import { Button } from '@/components/ui/button';
 import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { ColumnDef } from '@tanstack/react-table';
+import DatasetPanel from './dataset-panel';
+import { DataTable } from '@/components/ui/datatable';
+import DownloadButton from '../ui/download-button';
+import Header from '../ui/header';
+import ManualAddDatapoint from './manual-add-datapoint-dialog';
 import { PaginatedResponse } from '@/lib/types';
 import { Resizable } from 're-resizable';
-import useSWR from 'swr';
 import { swrFetcher } from '@/lib/utils';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Loader2, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import DownloadButton from '../ui/download-button';
+import { useProjectContext } from '@/contexts/project-context';
+import useSWR from 'swr';
+import { useToast } from '@/lib/hooks/use-toast';
 
 interface DatasetProps {
   dataset: DatasetType;
@@ -203,7 +211,8 @@ export default function Dataset({ dataset }: DatasetProps) {
                   <DialogHeader>
                     <DialogTitle>Delete Datapoints</DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to delete {selectedRowIds.length} datapoint(s)? This action cannot be undone.
+                      Are you sure you want to delete
+                      {selectedRowIds.length} datapoint(s)? This action cannot be undone.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>

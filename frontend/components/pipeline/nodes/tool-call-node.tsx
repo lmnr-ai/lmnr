@@ -1,5 +1,5 @@
-import { ToolCallNode } from '@/lib/flow/types';
 import { Label } from '@/components/ui/label';
+import { ToolCallNode } from '@/lib/flow/types';
 
 const ToolCallNodeComponent = ({ data }: { data: ToolCallNode }) => (
   <div className="flex flex-col space-y-2 p-4">

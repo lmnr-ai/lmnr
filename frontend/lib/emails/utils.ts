@@ -1,7 +1,7 @@
+import { ItemDescription } from '../checkout/utils';
 import { Resend } from 'resend';
 import SubscriptionUpdatedEmail from './subscription-updated-email';
 import WelcomeEmail from './welcome-email';
-import { ItemDescription } from '../checkout/utils';
 import WorkspaceInviteEmail from './workspace-invite';
 
 const RESEND = new Resend(

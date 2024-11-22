@@ -1,7 +1,3 @@
-import React, { useState } from 'react';
-
-import { Button } from '@/components/ui/button';
-import { useToast } from '../../lib/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -10,11 +6,14 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Label } from '../ui/label';
-import { Loader2, Pencil, ShieldQuestion } from 'lucide-react';
-import { PipelineVersionInfo } from '@/lib/pipeline/types';
-import { useProjectContext } from '@/contexts/project-context';
+import React, { useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
+import { Button } from '@/components/ui/button';
+import { Label } from '../ui/label';
+import { Loader2 } from 'lucide-react';
+import { useProjectContext } from '@/contexts/project-context';
+import { useToast } from '../../lib/hooks/use-toast';
 
 interface SetTargetVersionButtonProps {
   pipelineId: string;

@@ -1,12 +1,7 @@
-import { Button } from '@/components/ui/button';
-import useStore from '@/lib/flow/store';
-import { InputNode, NodeHandleType, NodeType } from '@/lib/flow/types';
+import { AiOutlineMinusCircle } from 'react-icons/ai';
 import PipelineInput from './pipeline-input';
 import { ScrollArea } from '../ui/scroll-area';
-import { AiOutlineMinusCircle } from 'react-icons/ai';
-import { DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE } from '@/lib/flow/utils';
-import { v4 as uuidv4 } from 'uuid';
-import { PipelineExecutionMode } from '@/lib/pipeline/types';
+import useStore from '@/lib/flow/store';
 
 interface PipelineTraceProps {}
 

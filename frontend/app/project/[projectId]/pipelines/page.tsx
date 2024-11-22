@@ -1,6 +1,6 @@
-import Pipelines from '@/components/pipelines/pipelines';
-
 import { Metadata } from 'next';
+
+import Pipelines from '@/components/pipelines/pipelines';
 
 export const metadata: Metadata = {
   title: 'Pipelines'

@@ -1,9 +1,9 @@
-import { Metadata } from 'next';
-import Evaluations from '@/components/evaluations/evaluations';
-import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { evaluations } from '@/lib/db/migrations/schema';
+import { eq } from 'drizzle-orm';
 import EvalsPagePlaceholder from '@/components/evaluations/page-placeholder';
+import Evaluations from '@/components/evaluations/evaluations';
+import { evaluations } from '@/lib/db/migrations/schema';
+import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Evaluations'

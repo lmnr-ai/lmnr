@@ -1,13 +1,14 @@
-import { useProjectContext } from '@/contexts/project-context';
 import { ChevronsRight, Loader2 } from 'lucide-react';
-import { Skeleton } from '../ui/skeleton';
-import { Label } from '../ui/label';
-import { ScrollArea } from '../ui/scroll-area';
+import { useEffect, useRef, useState } from 'react';
+
 import { Button } from '../ui/button';
-import Mono from '../ui/mono';
 import { Datapoint } from '@/lib/dataset/types';
 import Formatter from '../ui/formatter';
-import { useEffect, useRef, useState } from 'react';
+import { Label } from '../ui/label';
+import Mono from '../ui/mono';
+import { ScrollArea } from '../ui/scroll-area';
+import { Skeleton } from '../ui/skeleton';
+import { useProjectContext } from '@/contexts/project-context';
 import { useToast } from '@/lib/hooks/use-toast';
 
 interface DatasetPanelProps {

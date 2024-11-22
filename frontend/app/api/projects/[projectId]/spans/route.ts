@@ -1,10 +1,11 @@
-import { db } from '@/lib/db/drizzle';
-import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
-import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
-import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
-import { Span } from '@/lib/traces/types';
 import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
+import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
+import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
+import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
+
+import { db } from '@/lib/db/drizzle';
 import { NextRequest } from 'next/server';
+import { Span } from '@/lib/traces/types';
 
 export async function GET(
   req: NextRequest,

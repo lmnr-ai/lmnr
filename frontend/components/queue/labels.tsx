@@ -1,35 +1,10 @@
 import {
-  LabelClass,
-  Span,
-} from '@/lib/traces/types';
-import { cn, swrFetcher } from '@/lib/utils';
-import { useState } from 'react';
-import useSWR from 'swr';
-import {
   ChevronDown,
   Loader2,
   MoreVertical,
   Plus,
 } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { useProjectContext } from '@/contexts/project-context';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '../ui/table';
-import { PopoverClose } from '@radix-ui/react-popover';
-import { toast } from '@/lib/hooks/use-toast';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '../ui/dropdown-menu';
+import { cn, swrFetcher } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -39,7 +14,31 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '../ui/dropdown-menu';
+import {
+  LabelClass,
+  Span,
+} from '@/lib/traces/types';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableRow
+} from '../ui/table';
+
 import { AddLabel } from '../traces/add-label';
+import { Button } from '../ui/button';
+import { PopoverClose } from '@radix-ui/react-popover';
+import { toast } from '@/lib/hooks/use-toast';
+import { useProjectContext } from '@/contexts/project-context';
+import { useState } from 'react';
+import useSWR from 'swr';
 
 interface LabelsProps {
   span: Span | undefined;

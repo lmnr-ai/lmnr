@@ -1,21 +1,13 @@
-import { useProjectContext } from '@/contexts/project-context';
 import { cn, swrFetcher } from '@/lib/utils';
-import useSWR from 'swr';
-import { useEffect } from 'react';
-
-import { eventEmitter } from '@/lib/event-emitter';
 import { Table, TableBody, TableCell, TableRow } from '../ui/table';
-import { Skeleton } from '../ui/skeleton';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '../ui/tooltip';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { Button } from '../ui/button';
-import { ArrowUpRight, Info, X } from 'lucide-react';
+
+import { ArrowUpRight } from 'lucide-react';
+import { eventEmitter } from '@/lib/event-emitter';
 import Link from 'next/link';
+import { Skeleton } from '../ui/skeleton';
+import { useEffect } from 'react';
+import { useProjectContext } from '@/contexts/project-context';
+import useSWR from 'swr';
 
 interface SpanDatasetsProps {
   spanId: string;

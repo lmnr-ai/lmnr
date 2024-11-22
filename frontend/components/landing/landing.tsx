@@ -1,28 +1,27 @@
 'use client';
 
-import Image from 'next/image';
-import yc from '@/assets/landing/yc.svg';
-import traces from '@/assets/landing/traces.png';
-import evals from '@/assets/landing/evals.png';
-import labels from '@/assets/landing/labels.png';
-import onlineEvals from '@/assets/landing/online-evals.png';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useEffect, useState } from 'react';
 
-import { ArrowUpRight } from 'lucide-react';
-import smallTrace from '@/assets/landing/small-trace.png';
-import moa from '@/assets/landing/MoA.png';
-import dataset from '@/assets/landing/dataset.png';
-import palantir from '@/assets/landing/palantir.svg';
 import amazon from '@/assets/landing/amazon.svg';
+import { ArrowUpRight } from 'lucide-react';
+import { Button } from '../ui/button';
+import CodeEditor from '../ui/code-editor';
+import dataset from '@/assets/landing/dataset.png';
+import evals from '@/assets/landing/evals.png';
+import Footer from './footer';
 import github from '@/assets/landing/github-mark-white.svg';
+import Image from 'next/image';
+import labels from '@/assets/landing/labels.png';
+import Link from 'next/link';
+import moa from '@/assets/landing/MoA.png';
 import noise from '@/assets/landing/noise.jpeg';
 import noise1 from '@/assets/landing/noise1.jpeg';
-
-import Link from 'next/link';
-import Footer from './footer';
-import { Button } from '../ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import CodeEditor from '../ui/code-editor';
-import { useEffect, useState } from 'react';
+import onlineEvals from '@/assets/landing/online-evals.png';
+import palantir from '@/assets/landing/palantir.svg';
+import smallTrace from '@/assets/landing/small-trace.png';
+import traces from '@/assets/landing/traces.png';
+import yc from '@/assets/landing/yc.svg';
 
 export default function Landing() {
   const [stars, setStars] = useState<number | null>(null);

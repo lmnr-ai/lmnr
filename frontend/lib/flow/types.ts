@@ -1,8 +1,9 @@
 import { Edge, type Node } from 'reactflow';
+
 import { ChatMessage } from '../types';
-import { GraphMessage } from '../pipeline/types';
 import { Dataset } from '../dataset/types';
 import { EventType } from '../events/types';
+import { GraphMessage } from '../pipeline/types';
 
 export enum NodeType {
   INPUT = 'Input',

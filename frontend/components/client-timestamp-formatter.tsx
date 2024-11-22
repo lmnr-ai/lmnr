@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
 import {
-  TIME_MILLISECONDS_FORMAT,
   convertToLocalTimeWithMillis,
-  formatTimestamp
+  formatTimestamp,
+  TIME_MILLISECONDS_FORMAT
 } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 
 // This component is a client-side only component that will format a timestamp
 // If it's not used, then there will be error because SSR will try to render

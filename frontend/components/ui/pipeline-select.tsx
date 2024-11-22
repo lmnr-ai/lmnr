@@ -1,3 +1,5 @@
+import { GitCommitVertical, Loader2 } from 'lucide-react';
+import { Pipeline, PipelineVersion } from '@/lib/pipeline/types';
 import {
   Select,
   SelectContent,
@@ -8,9 +10,8 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { useEffect, useState } from 'react';
-import { Pipeline, PipelineVersion } from '@/lib/pipeline/types';
+
 import { useProjectContext } from '@/contexts/project-context';
-import { GitBranch, GitCommitVertical, Loader2, Radio } from 'lucide-react';
 
 interface PipelineSelectProps {
   onPipelineChange?: (pipeline: Pipeline) => void;
@@ -46,7 +47,8 @@ export default function PipelineSelect({
   >(defaultPipelineName);
   const [defaultPipelineVersionNameState, setDefaultPipelineVersionName] =
     useState<string | undefined>(defaultPipelineVersionName);
-  // and this one. For some reason, this component re-renders itself with defaultPipelineId = undefined even when it is passed correctly.
+  // and this one. For some reason, this component re-renders itself with
+  // defaultPipelineId = undefined even when it is passed correctly.
   // So infer the pipeline id from the version id. This is slow and not the best UX.
   const [defaultPipelineIdState, setDefaultPipelineId] = useState<
     string | undefined

@@ -1,6 +1,3 @@
-import { Project, WorkspaceWithProjects } from '@/lib/workspaces/types';
-import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,17 +6,21 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import { Loader2, Plus } from 'lucide-react';
+import { Project, WorkspaceWithProjects } from '@/lib/workspaces/types';
 import {
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
-  SelectItem
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
+import { useCallback, useState } from 'react';
+
 import { Button } from '../ui/button';
-import { Loader2, Plus } from 'lucide-react';
-import { Label } from '../ui/label';
 import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/lib/hooks/use-toast';
 
 interface ProjectCreateDialogProps {

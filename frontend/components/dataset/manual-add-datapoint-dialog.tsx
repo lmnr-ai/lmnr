@@ -1,6 +1,3 @@
-import { useProjectContext } from '@/contexts/project-context';
-import { useCallback, useState } from 'react';
-import { useToast } from '../../lib/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -9,9 +6,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '../ui/dialog';
+import { useCallback, useState } from 'react';
+
 import { Button } from '../ui/button';
-import { Loader2 } from 'lucide-react';
 import CodeEditor from '../ui/code-editor';
+import { Loader2 } from 'lucide-react';
+import { useProjectContext } from '@/contexts/project-context';
+import { useToast } from '../../lib/hooks/use-toast';
 
 const DEFAULT_DATA = '{\n  "data": {},\n  "target": {}\n}';
 

@@ -1,5 +1,6 @@
 
 import { Metadata } from 'next';
+
 import Queues from '@/components/queues/queues';
 
 export const metadata: Metadata = {
