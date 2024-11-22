@@ -78,7 +78,7 @@ pub async fn get_llm_usage_for_span(
         input_cost,
         output_cost,
         total_cost,
-        response_model: attributes.request_model().clone(),
+        response_model: attributes.response_model().clone(),
         request_model: attributes.request_model().clone(),
         provider_name,
     }
