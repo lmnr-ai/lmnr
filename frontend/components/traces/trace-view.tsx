@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '../ui/button';
 import { ChevronsRight } from 'lucide-react';
-import Mono from '../ui/mono';
+import MonoWithCopy from '../ui/mono-with-copy';
 import { Skeleton } from '../ui/skeleton';
 import { Span } from '@/lib/traces/types';
 import { SpanCard } from './span-card';
@@ -150,7 +150,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           <ChevronsRight />
         </Button>
         <div>Trace</div>
-        <Mono className="text-secondary-foreground">{traceId}</Mono>
+        <MonoWithCopy className="text-secondary-foreground">{traceId}</MonoWithCopy>
         <div className="flex-grow" />
         <div>
           {selectedSpan && (

@@ -1,5 +1,6 @@
-import { ClickHouseClient } from "@clickhouse/client";
 import { chStepMap, GroupByInterval, intervalMap, truncateTimeMap } from "./modifiers";
+
+import { ClickHouseClient } from "@clickhouse/client";
 
 interface TimeBounds {
   minTime: number;

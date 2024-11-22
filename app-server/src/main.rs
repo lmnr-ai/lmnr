@@ -404,6 +404,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
+                                .service(api::v1::semantic_search::semantic_search)
                                 .app_data(PayloadConfig::new(10 * 1024 * 1024)),
                         )
                         // Scopes with generic auth
@@ -493,10 +494,10 @@ fn main() -> anyhow::Result<()> {
                                         )
                                         .service(routes::datasets::delete_dataset)
                                         .service(routes::datasets::upload_datapoint_file)
-                                        .service(routes::datasets::create_datapoints)
+                                        .service(routes::datasets::create_datapoint_embeddings)
                                         .service(routes::datasets::get_datapoints)
-                                        .service(routes::datasets::update_datapoint_data)
-                                        .service(routes::datasets::delete_datapoints)
+                                        .service(routes::datasets::update_datapoint_embeddings)
+                                        .service(routes::datasets::delete_datapoint_embeddings)
                                         .service(routes::datasets::delete_all_datapoints)
                                         .service(routes::datasets::index_dataset)
                                         .service(routes::traces::get_traces)

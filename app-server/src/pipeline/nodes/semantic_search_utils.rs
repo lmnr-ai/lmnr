@@ -38,6 +38,7 @@ pub(super) fn render_query_res_point(
 ) -> String {
     let mut data = res_point.data.clone();
     data.insert("relevance_index".to_string(), relevance_index.to_string());
+    data.insert("score".to_string(), res_point.score.to_string());
     let inputs: HashMap<String, NodeInput> = data.into_iter().map(|(k, v)| (k, v.into())).collect();
     render_template(template, &inputs)
 }

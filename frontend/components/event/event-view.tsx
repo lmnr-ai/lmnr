@@ -6,6 +6,7 @@ import { Event } from '@/lib/events/types';
 import Formatter from '../ui/formatter';
 import { Label } from '../ui/label';
 import Mono from '../ui/mono';
+import MonoWithCopy from '../ui/mono-with-copy';
 import { ScrollArea } from '../ui/scroll-area';
 import { Span } from '@/lib/traces/types';
 import { useProjectContext } from '@/contexts/project-context';
@@ -34,7 +35,7 @@ export default function EventView({ onClose, event }: EventViewProps) {
             <ChevronsRight />
           </Button>
           <div>Event</div>
-          <Mono className="text-secondary-foreground">{event.id}</Mono>
+          <MonoWithCopy>{event.id}</MonoWithCopy>
         </div>
         <div className="flex-grow flex-col flex space-y-2 p-4">
           <div className="flex justify-between">

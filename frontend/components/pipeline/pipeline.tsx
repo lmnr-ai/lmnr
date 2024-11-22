@@ -440,7 +440,8 @@ export default function Pipeline({ pipeline, isSupabaseEnabled }: PipelineProps)
   useEffect(() => {
     if (!selectedPipelineVersion) return;
 
-    // The node may be focused, but if we're not in Node execution mode, we're still working with whole pipeline's inputs.
+    // The node may be focused, but if we're not in Node execution mode,
+    // we're still working with whole pipeline's inputs.
     let storeFocusedNodeId =
       mode === PipelineExecutionMode.Node ? focusedNodeId : null;
     setStoredInputs(selectedPipelineVersion.id!, storeFocusedNodeId, allInputs);
