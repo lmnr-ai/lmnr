@@ -9,11 +9,13 @@ import {
   cn,
   formatTimestampFromSeconds,
   formatTimestampFromSecondsWithInterval,
+  toFixedIfFloat,
 } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '../ui/skeleton';
 import { TraceMetricDatapoint } from '@/lib/traces/types';
 import { GroupByInterval } from '@/lib/clickhouse/modifiers';
+import { DefaultLineChart } from './span-stat-chart';
 
 
 interface TraceStartChartProps {
@@ -28,7 +30,8 @@ interface TraceStartChartProps {
   endDate?: string;
   defaultGroupByInterval?: string;
   projectId: string;
-  countComponent?: (data: TraceMetricDatapoint[]) => React.ReactNode;
+  addDollarSign?: boolean;
+  showTotal?: boolean;
 }
 
 export function TraceStatChart({
@@ -42,14 +45,16 @@ export function TraceStatChart({
   startDate,
   endDate,
   defaultGroupByInterval,
-  countComponent,
+  addDollarSign = false,
+  showTotal = true,
   projectId
 }: TraceStartChartProps) {
   const [data, setData] = useState<TraceMetricDatapoint[] | null>(null);
+  const [totalCount, setTotalCount] = useState<number>(0);
 
   const chartConfig = {
-    [xAxisKey]: {
-      color: 'hsl(var(--chart-2))'
+    "value": {
+      color: 'hsl(var(--chart-1))'
     }
   } satisfies ChartConfig;
 
@@ -79,68 +84,39 @@ export function TraceStatChart({
       .then((res) => res.json())
       .then((data: any) => {
         setData(data);
+        const total = data.reduce((sum: number, point: TraceMetricDatapoint) => sum + point.value, 0);
+        setTotalCount(total);
       });
   }, [defaultGroupByInterval, pastHours, startDate, endDate, aggregation, metric, projectId]);
 
   return (
-    <div className={cn(className, 'flex flex-col space-y-2')}>
-      <div className="py-2 flex-none">
+    <div className={cn(className, 'flex flex-col space-y-2 border rounded-lg p-4 h-full border-dashed border-border')}>
+      <div className="flex-none">
         <div className="flex-col space-y-2 justify-between text-sm font-medium">
-          <div className="flex-grow text-secondary-foreground">{title}</div>
-          {countComponent && data && countComponent(data)}
+          <div className="flex justify-between items-center">
+            <div className="flex-grow text-secondary-foreground">{title}</div>
+          </div>
         </div>
       </div>
+      {showTotal && (
+        <div className="text-2xl font-medium">
+          {addDollarSign ? `$${toFixedIfFloat(totalCount)}` : toFixedIfFloat(totalCount)}
+        </div>
+      )}
       <div className="flex-1">
         {data === null ? (
           <Skeleton className="h-full w-full" />
         ) : (
-          <ChartContainer
-            config={chartConfig}
-            className="aspect-auto h-full w-full"
-          >
-            <LineChart
-              accessibilityLayer
-              data={data}
-              margin={{
-                left: 0,
-                right: 0
-              }}
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                type="category"
-                domain={['dataMin', 'dataMax']}
-                tickLine={false}
-                tickFormatter={(value) =>
-                  formatTimestampFromSecondsWithInterval(
-                    value,
-                    defaultGroupByInterval as GroupByInterval
-                  )
-                }
-                axisLine={false}
-                tickMargin={8}
-                dataKey={xAxisKey}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                tickCount={3}
-              />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    labelKey={xAxisKey}
-                    labelFormatter={(_, p) =>
-                      formatTimestampFromSeconds(p[0].payload[xAxisKey])
-                    }
-                  />
-                }
-              />
-              <Line dataKey={yAxisKey} dot={false} fill="hsl(var(--chart-1))" />
-            </LineChart>
-          </ChartContainer>
+          <DefaultLineChart
+            data={data?.map((d) => ({
+              "value": d.value,
+              "timestamp": formatTimestampFromSeconds(d.time)
+            })) ?? []}
+            xAxisKey="timestamp"
+            chartConfig={chartConfig}
+            groupByInterval={defaultGroupByInterval as GroupByInterval}
+            keys={new Set(["value"])}
+          />
         )}
       </div>
     </div>

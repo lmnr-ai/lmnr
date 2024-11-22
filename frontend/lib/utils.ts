@@ -436,3 +436,5 @@ export const isGroupByIntervalAvailable = (
   }
   return false;
 };
+
+export const toFixedIfFloat = (value: number) => value % 1 === 0 ? value : parseFloat(`${value}`)?.toFixed(3);

@@ -84,72 +84,68 @@ export default function Dashboard() {
       </Header>
       <div className="flex-grow flex flex-col h-0">
         <ScrollArea className="h-full">
-          <div className="flex-1 space-y-8 p-4">
-            <div className="grid grid-cols-3 gap-4">
-              {SPAN_SUMMARY_CHARTS.map((chart) => (
-                <div className="col-span-1" key={chart.title}>
-                  <SpanSummaryChart
-                    {...chart}
-                    className="w-full"
-                    projectId={projectId}
-                    pastHours={pastHours ?? ''}
-                    startDate={startDate ?? ''}
-                    endDate={endDate ?? ''}
-                  />
-                </div>
-              ))}
+          <div className="grid grid-cols-3 gap-4 p-4">
+            {SPAN_SUMMARY_CHARTS.map((chart) => (
+              <div className="col-span-1 h-72" key={chart.title}>
+                <SpanSummaryChart
+                  {...chart}
+                  className="w-full"
+                  projectId={projectId}
+                  pastHours={pastHours ?? ''}
+                  startDate={startDate ?? ''}
+                  endDate={endDate ?? ''}
+                  addDollarSign={chart.metric === SpanMetric.TotalCost}
+                />
+              </div>
+            ))}
+            <div className="col-span-1">
+              <SpanStatChart
+                title="Latency by model"
+                projectId={projectId}
+                className="w-full"
+                metric={SpanMetric.Latency}
+                defaultAggregation="p90"
+                aggregations={AGGREGATIONS}
+                groupBy={SpanMetricGroupBy.Model}
+                pastHours={pastHours ?? ''}
+                startDate={startDate ?? ''}
+                endDate={endDate ?? ''}
+                groupByInterval={groupByInterval as GroupByInterval}
+              />
             </div>
-            <div className="flex space-x-4">
-              <div className="flex-1">
-                <SpanStatChart
-                  title="Span latency, s"
-                  projectId={projectId}
-                  className="h-[40vh] w-full"
-                  metric={SpanMetric.Latency}
-                  defaultAggregation="p90"
-                  aggregations={AGGREGATIONS}
-                  groupBy={SpanMetricGroupBy.Model}
-                  pastHours={pastHours ?? ''}
-                  startDate={startDate ?? ''}
-                  endDate={endDate ?? ''}
-                  groupByInterval={groupByInterval as GroupByInterval}
-                />
-              </div>
-              <div className="flex-1">
-                <SpanStatChart
-                  title="Tokens"
-                  projectId={projectId}
-                  className="h-[40vh] w-full"
-                  metric={SpanMetric.TotalTokens}
-                  aggregations={AGGREGATIONS}
-                  defaultAggregation="SUM"
-                  groupBy={SpanMetricGroupBy.Model}
-                  pastHours={pastHours ?? ''}
-                  startDate={startDate ?? ''}
-                  endDate={endDate ?? ''}
-                  groupByInterval={groupByInterval as GroupByInterval}
-                />
-              </div>
-              <div className="flex-1">
-                <SpanStatChart
-                  title="Cost"
-                  projectId={projectId}
-                  className="h-[40vh] w-full"
-                  metric={SpanMetric.TotalCost}
-                  aggregations={AGGREGATIONS}
-                  defaultAggregation="SUM"
-                  groupBy={SpanMetricGroupBy.Model}
-                  pastHours={pastHours ?? ''}
-                  startDate={startDate ?? ''}
-                  endDate={endDate ?? ''}
-                  groupByInterval={groupByInterval as GroupByInterval}
-                />
-              </div>
+            <div className="col-span-1 h-72">
+              <SpanStatChart
+                title="Tokens by model"
+                projectId={projectId}
+                className="w-full"
+                metric={SpanMetric.TotalTokens}
+                aggregations={AGGREGATIONS}
+                defaultAggregation="SUM"
+                groupBy={SpanMetricGroupBy.Model}
+                pastHours={pastHours ?? ''}
+                startDate={startDate ?? ''}
+                endDate={endDate ?? ''}
+                groupByInterval={groupByInterval as GroupByInterval}
+              />
             </div>
-            <div className="flex-1">
+            <div className="col-span-1 h-72">
+              <SpanStatChart
+                title="Cost by model"
+                projectId={projectId}
+                className="w-full"
+                metric={SpanMetric.TotalCost}
+                aggregations={AGGREGATIONS}
+                defaultAggregation="SUM"
+                groupBy={SpanMetricGroupBy.Model}
+                pastHours={pastHours ?? ''}
+                startDate={startDate ?? ''}
+                endDate={endDate ?? ''}
+                groupByInterval={groupByInterval as GroupByInterval}
+              />
+            </div>
+            <div className="col-span-2 h-72">
               <TraceStatChart
                 projectId={projectId}
-                className="h-[40vh]"
                 metric="traceCount"
                 aggregation="Total"
                 title="Traces"
@@ -159,73 +155,51 @@ export default function Dashboard() {
                 startDate={startDate}
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
-                countComponent={(data: TraceMetricDatapoint[]) => (
-                  <span className="text-2xl">
-                    {data?.reduce((acc, curr) => acc + curr.value, 0)}
-                  </span>
-                )}
               />
             </div>
-            <div className="flex space-x-4">
-              <div className="flex-1">
-                <TraceStatChart
-                  projectId={projectId}
-                  className="h-[40vh]"
-                  metric="traceLatencySeconds"
-                  aggregation="P90"
-                  title="Trace latency (p90)"
-                  xAxisKey="time"
-                  yAxisKey="value"
-                  pastHours={pastHours}
-                  startDate={startDate}
-                  endDate={endDate}
-                  defaultGroupByInterval={groupByInterval}
-                  countComponent={() => <></>}
-                />
-              </div>
-              <div className="flex-1">
-                <TraceStatChart
-                  projectId={projectId}
-                  className="h-[40vh]"
-                  metric="totalTokenCount"
-                  aggregation="Total"
-                  title="Tokens"
-                  xAxisKey="time"
-                  yAxisKey="value"
-                  pastHours={pastHours}
-                  startDate={startDate}
-                  endDate={endDate}
-                  defaultGroupByInterval={groupByInterval}
-                  countComponent={(data: TraceMetricDatapoint[]) => (
-                    <span className="text-2xl">
-                      {data?.reduce((acc, curr) => acc + curr.value, 0)}
-                    </span>
-                  )}
-                />
-              </div>
-              <div className="flex-1">
-                <TraceStatChart
-                  projectId={projectId}
-                  className="h-[40vh]"
-                  metric="costUsd"
-                  aggregation="Total"
-                  title="Cost"
-                  xAxisKey="time"
-                  yAxisKey="value"
-                  pastHours={pastHours}
-                  startDate={startDate}
-                  endDate={endDate}
-                  defaultGroupByInterval={groupByInterval}
-                  countComponent={(data: TraceMetricDatapoint[]) => (
-                    <span className="text-2xl">
-                      {'$' +
-                        data
-                          ?.reduce((acc, curr) => acc + curr.value, 0)
-                          .toFixed(5)}
-                    </span>
-                  )}
-                />
-              </div>
+            <div className="col-span-1 h-72">
+              <TraceStatChart
+                projectId={projectId}
+                metric="traceLatencySeconds"
+                aggregation="P90"
+                title="Trace latency (p90)"
+                xAxisKey="time"
+                yAxisKey="value"
+                pastHours={pastHours}
+                startDate={startDate}
+                endDate={endDate}
+                defaultGroupByInterval={groupByInterval}
+                showTotal={false}
+              />
+            </div>
+            <div className="col-span-1 h-72">
+              <TraceStatChart
+                projectId={projectId}
+                metric="totalTokenCount"
+                aggregation="Total"
+                title="Tokens"
+                xAxisKey="time"
+                yAxisKey="value"
+                pastHours={pastHours}
+                startDate={startDate}
+                endDate={endDate}
+                defaultGroupByInterval={groupByInterval}
+              />
+            </div>
+            <div className="col-span-1 h-72">
+              <TraceStatChart
+                projectId={projectId}
+                metric="costUsd"
+                aggregation="Total"
+                title="Total cost"
+                xAxisKey="time"
+                yAxisKey="value"
+                pastHours={pastHours}
+                startDate={startDate}
+                endDate={endDate}
+                defaultGroupByInterval={groupByInterval}
+                addDollarSign={true}
+              />
             </div>
           </div>
         </ScrollArea>

@@ -95,24 +95,30 @@ export function SpanStatChart({
   ]))) satisfies ChartConfig;
 
   return (
-    <div className={cn('flex flex-col space-y-2')}>
-      <div className="py-2 flex-none flex items-center space-x-2">
-        <div className="flex space-x-2 justify-between text-sm font-medium">
+    <div className={cn('flex flex-col space-y-2 border rounded-lg p-4 h-full border-dashed border-border')}>
+      <div className="flex-none flex items-center space-x-2">
+        <div className="flex space-x-2 justify-between text-sm font-medium items-center">
           <div className="flex-grow text-secondary-foreground">{title}</div>
           {aggregations && (
-            <Select
-              value={aggregation}
-              onValueChange={(value) => setAggregation(value as AggregationFunction)}
-            >
-              <SelectTrigger className="w-24 flex-none">
-                <SelectValue placeholder="Select aggregation" />
-              </SelectTrigger>
-              <SelectContent>
-                {aggregations.map((agg) => (
-                  <SelectItem key={agg} value={agg}>{agg}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex-none">
+              <Select
+                value={aggregation}
+                onValueChange={(value) => setAggregation(value as AggregationFunction)}
+              >
+                <SelectTrigger className="flex-none text-xs px-2 h-6">
+                  <SelectValue placeholder="Select aggregation" className="m-0" />
+                </SelectTrigger>
+                <SelectContent>
+                  {aggregations.map((agg) => (
+                    <SelectItem key={agg} value={agg}
+                      className="text-xs"
+                    >
+                      {agg.toLocaleLowerCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
       </div>
@@ -225,26 +231,38 @@ function StackedBarChart({
   );
 }
 
-function DefaultLineChart({
+export function DefaultLineChart({
   data,
   keys,
   xAxisKey,
   chartConfig,
   groupByInterval
 }: ChartProps) {
-  // Ideally, we don't need to calculate this, and should be able to pass
-  // `domain=['dataMin', 'dataMax']` to the YAxis, but it doesn't work.
   const dataMax = useMemo(() => Math.max(...data.map((d) => Object.entries(d)
     .filter(([key]) => key !== xAxisKey)
     .map(([_, value]) => value)
     .reduce((a, b) => Math.max(a, b), 0))), [data]);
 
+  // Calculate left margin based on number of digits
+  const leftMargin = useMemo(() => {
+    const digits = String(Math.floor(dataMax)).length;
+    return digits * 8;
+  }, [dataMax]);
+
   return (
     <ChartContainer
       config={chartConfig}
-      className="aspect-auto h-[40vh] w-full"
+      className="aspect-auto w-full h-full"
     >
-      <LineChart data={data}>
+      <LineChart
+        data={data}
+        margin={{
+          left: -47 + leftMargin,
+          right: 8,
+          top: 8,
+          bottom: 8
+        }}
+      >
         <CartesianGrid vertical={false} />
         <XAxis
           type="category"
@@ -264,7 +282,7 @@ function DefaultLineChart({
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          tickCount={3}
+          tickCount={5}
           domain={['auto', dataMax]}
         />
         <ChartTooltip
