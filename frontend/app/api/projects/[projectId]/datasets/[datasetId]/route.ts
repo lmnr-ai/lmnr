@@ -16,6 +16,10 @@ export async function GET(
     where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId))
   });
 
+  if (!dataset) {
+    return new Response('Dataset not found', { status: 404 });
+  }
+
   return new Response(JSON.stringify(dataset), { status: 200 });
 }
 

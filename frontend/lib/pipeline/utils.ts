@@ -6,7 +6,8 @@ import {
   NodeType,
   SubpipelineNode
 } from '../flow/types';
-import { InputVariable, PipelineVersion } from './types';
+import { InputVariable, PipelineTemplate, PipelineVersion } from './types';
+import { v4 as uuidv4 } from 'uuid';
 
 import { ChatMessage } from '../types';
 import { Edge } from 'reactflow';
@@ -260,4 +261,38 @@ export const removeHashFromId = (pipelineVersion: PipelineVersion) => {
     edge.source = edge.source.split('_')[0];
     edge.target = edge.target.split('_')[0];
   }
+};
+
+export const insertNodeIdsToTemplate = async (
+  template: PipelineTemplate
+): Promise<PipelineTemplate> => {
+  let runnableGraph = JSON.stringify(template.runnableGraph);
+  let displayableGraph = JSON.stringify(template.displayableGraph);
+
+  for (let i = 0; i < Math.abs(template.numberOfNodes); i++) {
+    const nodeId = uuidv4(); // Generate a UUID
+    const nodeIdTemplate = `<node_${i}_id>`;
+    runnableGraph = runnableGraph.replace(
+      new RegExp(nodeIdTemplate, 'g'),
+      nodeId
+    );
+    displayableGraph = displayableGraph.replace(
+      new RegExp(nodeIdTemplate, 'g'),
+      nodeId
+    );
+  }
+
+  const updatedRunnableGraph = JSON.parse(runnableGraph);
+  const updatedDisplayableGraph = JSON.parse(displayableGraph);
+
+  return {
+    id: template.id,
+    createdAt: template.createdAt,
+    name: template.name,
+    description: template.description,
+    runnableGraph: updatedRunnableGraph,
+    displayableGraph: updatedDisplayableGraph,
+    numberOfNodes: template.numberOfNodes,
+    displayGroup: template.displayGroup
+  };
 };
