@@ -125,9 +125,6 @@ export async function DELETE(
   const datapointIds = searchParams.get('datapointIds')?.split(',');
   const indexedOn = searchParams.get('indexedOn');
 
-  console.log('indexedOn', indexedOn);
-  console.log('datapointIds', datapointIds);
-
   if (!datapointIds) {
     return new Response('At least one Datapoint ID is required', { status: 400 });
   }

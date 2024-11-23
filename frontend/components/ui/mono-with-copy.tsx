@@ -17,7 +17,7 @@ export default function MonoWithCopy({
     <div className="flex items-center group space-x-2">
       <Mono className={className}>{children}</Mono>
       <CopyToClipboard
-        text={children as string}
+        text={String(children)}
         className="hidden group-hover:block max-h-4"
       >
         <Copy size={copySize ?? 16} />

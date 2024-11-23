@@ -3,10 +3,6 @@
     "next/core-web-vitals",
     "prettier"
   ],
-  "ignorePatterns": [
-    "lib/semantic-search/generated/**/*.js",
-    "lib/semantic-search/generated/**/*.mjs"
-  ],
   "rules": {
     "indent": [
       "error",
