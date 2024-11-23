@@ -76,9 +76,11 @@ export default function PipelineHistory({
   //   if (!selectedRunTrace) {
   //     return;
   //   }
-  //   fetch(`/api/projects/${projectId}/traces/trace/${selectedRunTrace?.runId}`).then((res) => res.json()).then((data) => {
-  //     setFullTrace(data)
-  //   })
+  //   fetch(`/api/projects/${projectId}/traces/trace/${selectedRunTrace?.runId}`)
+  //     .then((res) => res.json())
+  //     .then((data) => {
+  //       setFullTrace(data)
+  //     })
   // }, [selectedRunTrace])
 
   // useEffect(() => {

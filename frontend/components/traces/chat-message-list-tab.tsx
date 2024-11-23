@@ -23,11 +23,11 @@ interface ContentPartImageProps {
 }
 
 function ContentPartImage({ b64_data }: ContentPartImageProps) {
-  return <img className="" src={`data:image/png;base64,${b64_data}`} />;
+  return <img src={`data:image/png;base64,${b64_data}`} alt="span image" />;
 }
 
 function ContentPartImageUrl(url: string) {
-  return <img src={url} />;
+  return <img src={url} alt="span image" />;
 }
 
 interface ContentPartsProps {

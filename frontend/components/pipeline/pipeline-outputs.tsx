@@ -306,6 +306,7 @@ export default function PipelineOutputs({
 
     runId.current = v4();
     setRunTrace(undefined);
+    console.log(JSON.stringify(graph.toObject(), null, 2));
 
     const response = await fetch(
       `/api/projects/${projectId}/pipelines/run/graph`,

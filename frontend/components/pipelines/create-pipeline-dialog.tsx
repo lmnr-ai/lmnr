@@ -64,7 +64,8 @@ export function CreatePipelineDialog({ onUpdate }: CreatePipelineDialogProps) {
     });
 
     if (res.status !== 200) {
-      // Just a generic error message, since most likely the error has happened because the pipeline with the same name already exists.
+      // Just a generic error message, since most likely the error
+      // has happened because the pipeline with the same name already exists.
       toast({
         title: 'Error creating pipeline',
         description: 'Pipeline name must be unique in the project',

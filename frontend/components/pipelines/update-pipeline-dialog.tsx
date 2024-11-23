@@ -74,10 +74,9 @@ export function UpdatePipelineDialog({
         </DialogTrigger>
         <DialogContent
           className="sm:max-w-[425px]"
-          aria-description="Edit pipeline"
         >
           <DialogHeader>
-            <DialogTitle>Edit pipeline {oldPipeline.name}</DialogTitle>
+            <DialogTitle>Rename pipeline</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <Label>Name</Label>

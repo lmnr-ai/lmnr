@@ -32,16 +32,20 @@ pub struct Datapoint {
 
 impl Datapoint {
     pub fn try_from_raw_value(dataset_id: Uuid, raw: &Value) -> Option<Self> {
-        let id = Uuid::new_v4();
         match raw {
             Value::Object(raw_obj) => {
                 // Checks that the object has a `data` field and optionally a `target` field
                 // and no other fields
                 let data = raw_obj.get("data");
+                let id = raw_obj
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| Uuid::parse_str(s).ok())
+                    .unwrap_or(Uuid::new_v4());
                 if data.is_some()
                     && raw_obj
                         .keys()
-                        .all(|k| matches!(k.as_str(), "data" | "target" | "metadata"))
+                        .all(|k| matches!(k.as_str(), "data" | "target" | "metadata" | "id"))
                 {
                     Some(Datapoint {
                         id,
@@ -63,7 +67,7 @@ impl Datapoint {
             }
             Value::Null => None,
             x => Some(Datapoint {
-                id,
+                id: Uuid::new_v4(),
                 dataset_id,
                 data: x.to_owned(),
                 target: None,

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
@@ -74,7 +74,7 @@ pub async fn insert_raw_data(
 
 pub async fn get_all_datapoints(pool: &PgPool, dataset_id: Uuid) -> Result<Vec<Datapoint>> {
     let datapoints = sqlx::query_as::<_, Datapoint>(
-        "SELECT id, dataset_id, data, target
+        "SELECT id, dataset_id, data, target, metadata
         FROM dataset_datapoints
         WHERE dataset_id = $1
         ORDER BY
@@ -111,37 +111,6 @@ pub async fn get_datapoints(
     .await?;
 
     Ok(datapoints)
-}
-
-pub async fn update_datapoint(
-    pool: &PgPool,
-    datapoint_id: &Uuid,
-    data: &Value,
-    target: &Value,
-    metadata: &Option<Value>,
-) -> Result<Datapoint> {
-    let datapoint = sqlx::query_as::<_, Datapoint>(
-        "UPDATE dataset_datapoints SET data = $2, target = $3, metadata = $4
-        WHERE id = $1
-        RETURNING id, dataset_id, data, target, metadata",
-    )
-    .bind(datapoint_id)
-    .bind(data)
-    .bind(target)
-    .bind(metadata)
-    .fetch_optional(pool)
-    .await?;
-
-    datapoint.context(anyhow::anyhow!("Failed to find datapoint by id"))
-}
-
-pub async fn delete_datapoints(pool: &PgPool, datapoint_ids: &Vec<Uuid>) -> Result<()> {
-    sqlx::query("DELETE FROM dataset_datapoints WHERE id in (SELECT * FROM UNNEST($1::uuid[]))")
-        .bind(datapoint_ids)
-        .execute(pool)
-        .await?;
-
-    Ok(())
 }
 
 #[derive(FromRow)]

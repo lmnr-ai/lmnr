@@ -22,7 +22,9 @@ import DatasetPanel from './dataset-panel';
 import { DataTable } from '@/components/ui/datatable';
 import DownloadButton from '../ui/download-button';
 import Header from '../ui/header';
+import IndexDatasetDialog from './index-dataset-dialog';
 import ManualAddDatapoint from './manual-add-datapoint-dialog';
+import MonoWithCopy from '../ui/mono-with-copy';
 import { PaginatedResponse } from '@/lib/types';
 import { Resizable } from 're-resizable';
 import { swrFetcher } from '@/lib/utils';
@@ -40,9 +42,7 @@ export default function Dataset({ dataset }: DatasetProps) {
   const pathName = usePathname();
   const { projectId } = useProjectContext();
   const { toast } = useToast();
-  const [datapoints, setDatapoints] = useState<Datapoint[] | undefined>(
-    undefined
-  );
+  const [datapoints, setDatapoints] = useState<Datapoint[] | undefined>(undefined);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -69,7 +69,8 @@ export default function Dataset({ dataset }: DatasetProps) {
   const pageCount = Math.ceil(totalCount / pageSize);
 
   const { data, mutate } = useSWR<PaginatedResponse<Datapoint>>(
-    `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+    `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` +
+      `?pageNumber=${pageNumber}&pageSize=${pageSize}`,
     swrFetcher
   );
 
@@ -115,7 +116,9 @@ export default function Dataset({ dataset }: DatasetProps) {
   const handleDeleteDatapoints = async (datapointIds: string[]) => {
     setIsDeleting(true);
     const response = await fetch(
-      `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?datapointIds=${datapointIds.join(',')}`,
+      `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` +
+        `?datapointIds=${datapointIds.join(',')}` +
+        (dataset.indexedOn ? `&indexedOn=${dataset.indexedOn}` : ''),
       {
         method: 'DELETE',
         headers: {
@@ -134,6 +137,10 @@ export default function Dataset({ dataset }: DatasetProps) {
         description: `Successfully deleted ${datapointIds.length} datapoint(s).`,
       });
       mutate();
+    }
+
+    if (selectedDatapoint && datapointIds.includes(selectedDatapoint.id)) {
+      handleDatapointSelect(null);
     }
 
     setIsDeleting(false);
@@ -166,9 +173,15 @@ export default function Dataset({ dataset }: DatasetProps) {
     <div className="h-full flex flex-col">
       <Header path={'datasets/' + dataset.name} />
       <div className="flex flex-none p-4 items-center space-x-4">
-        <div className="flex-grow text-2xl font-medium">
-          <h1>{dataset.name}</h1>
+        <div className="flex-grow flex items-center space-x-4">
+          <h1 className="text-2xl font-medium">{dataset.name}</h1>
+          <MonoWithCopy className="text-secondary-foreground pt-1">{dataset.id}</MonoWithCopy>
         </div>
+        <IndexDatasetDialog
+          datasetId={dataset.id}
+          defaultDataset={dataset}
+          onUpdate={mutate}
+        />
         <DownloadButton
           uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
           fileFormat="JSON"
@@ -255,6 +268,7 @@ export default function Dataset({ dataset }: DatasetProps) {
                   handleDatapointSelect(null);
                   mutate();
                 }}
+                indexedOn={dataset.indexedOn}
               />
             </div>
           </Resizable>

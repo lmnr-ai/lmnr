@@ -14,11 +14,13 @@ import { useProjectContext } from '@/contexts/project-context';
 interface DatasetSelectProps {
   onDatasetChange: (dataset: Dataset) => void;
   selectedDatasetId?: string;
+  onlyShowIndexed?: boolean;
 }
 
 export default function DatasetSelect({
   onDatasetChange,
-  selectedDatasetId
+  selectedDatasetId,
+  onlyShowIndexed
 }: DatasetSelectProps) {
   const { projectId } = useProjectContext();
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -27,7 +29,7 @@ export default function DatasetSelect({
     fetch(`/api/projects/${projectId}/datasets`)
       .then((res) => res.json())
       .then((datasets: PaginatedResponse<Dataset>) => {
-        setDatasets(datasets.items);
+        setDatasets(onlyShowIndexed ? datasets.items.filter(dataset => dataset.indexedOn != null) : datasets.items);
       });
   }, []);
 
