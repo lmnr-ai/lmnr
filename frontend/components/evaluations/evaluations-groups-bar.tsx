@@ -3,6 +3,7 @@ import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "../ui/datatable";
 import { swrFetcher } from "@/lib/utils";
+import { useEffect } from "react";
 import { useProjectContext } from "@/contexts/project-context";
 import useSWR from "swr";
 
@@ -17,9 +18,13 @@ export default function EvaluationsGroupsBar() {
     swrFetcher,
   );
 
-  if (groups && groups.length > 0 && !searchParams.get('groupId')) {
-    router.push(`/project/${projectId}/evaluations?groupId=${groups[0].groupId}`);
-  }
+  const groupId = searchParams.get('groupId');
+
+  useEffect(() => {
+    if (groups && groups.length > 0 && !groupId) {
+      router.replace(`/project/${projectId}/evaluations?groupId=${groups[0].groupId}`);
+    }
+  }, [groups, groupId, router, projectId]);
 
   const columns: ColumnDef<{ groupId: string, lastEvaluationCreatedAt: string }>[] = [
     {
@@ -33,15 +38,13 @@ export default function EvaluationsGroupsBar() {
     },
   ];
 
-  const selectedGroupId = searchParams.get('groupId');
-
   return <div className="flex-none w-80 border-r flex flex-col">
     <div className="font-medium p-2 px-4 text-lg">Groups</div>
     <DataTable
       columns={columns}
       data={groups}
       getRowId={(row) => row.groupId}
-      focusedRowId={selectedGroupId}
+      focusedRowId={groupId}
       onRowClick={(row) => {
         router.push(`/project/${projectId}/evaluations?groupId=${row.original.groupId}`);
       }}
