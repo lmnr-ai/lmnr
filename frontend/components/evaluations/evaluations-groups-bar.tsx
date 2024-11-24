@@ -3,6 +3,7 @@ import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "../ui/datatable";
 import { swrFetcher } from "@/lib/utils";
+import { useEffect } from "react";
 import { useProjectContext } from "@/contexts/project-context";
 import useSWR from "swr";
 
@@ -17,9 +18,11 @@ export default function EvaluationsGroupsBar() {
     swrFetcher,
   );
 
-  if (groups && groups.length > 0 && !searchParams.get('groupId')) {
-    router.push(`/project/${projectId}/evaluations?groupId=${groups[0].groupId}`);
-  }
+  useEffect(() => {
+    if (groups && groups.length > 0 && !searchParams.get('groupId')) {
+      router.replace(`/project/${projectId}/evaluations?groupId=${groups[0].groupId}`);
+    }
+  }, [groups, searchParams, router, projectId]);
 
   const columns: ColumnDef<{ groupId: string, lastEvaluationCreatedAt: string }>[] = [
     {
