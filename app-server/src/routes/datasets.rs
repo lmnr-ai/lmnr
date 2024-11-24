@@ -57,7 +57,9 @@ async fn upload_datapoint_file(
 
     let (filename, is_unstructured_file, bytes) = read_multipart_file(payload).await?;
 
-    let dataset = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await?;
+    let Some(dataset) = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await? else {
+        return Ok(HttpResponse::NotFound().body("Dataset not found"));
+    };
 
     let mut indexed_on = dataset.indexed_on.clone();
     if indexed_on.is_none() && is_unstructured_file {
@@ -257,7 +259,9 @@ async fn index_dataset(
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let index_column = &request.index_column;
-    let dataset = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await?;
+    let Some(dataset) = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await? else {
+        return Ok(HttpResponse::NotFound().body("Dataset not found"));
+    };
 
     if &dataset.indexed_on == index_column {
         return Ok(HttpResponse::Ok().json(dataset));

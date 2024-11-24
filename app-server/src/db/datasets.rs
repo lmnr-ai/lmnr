@@ -1,10 +1,14 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::datasets::Dataset;
 
-pub async fn get_dataset(pool: &PgPool, project_id: Uuid, dataset_id: Uuid) -> Result<Dataset> {
+pub async fn get_dataset(
+    pool: &PgPool,
+    project_id: Uuid,
+    dataset_id: Uuid,
+) -> Result<Option<Dataset>> {
     let dataset = sqlx::query_as::<_, Dataset>(
         "SELECT id, created_at, name, project_id, indexed_on FROM datasets WHERE id = $1 AND project_id = $2",
     )
@@ -12,8 +16,7 @@ pub async fn get_dataset(pool: &PgPool, project_id: Uuid, dataset_id: Uuid) -> R
     .bind(project_id)
     .fetch_optional(pool)
     .await?;
-
-    dataset.context("Dataset with such id and project_id not found")
+    Ok(dataset)
 }
 
 pub async fn delete_dataset(pool: &PgPool, dataset_id: Uuid) -> Result<()> {
