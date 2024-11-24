@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::db::project_api_keys::ProjectApiKey;
+use crate::db::{self, DB};
 use crate::features::{is_feature_enabled, Feature};
 use crate::routes::types::ResponseResult;
 use crate::semantic_search::SemanticSearch;
@@ -40,6 +41,7 @@ struct SemanticSearchResponse {
 #[post("/semantic-search")]
 pub async fn semantic_search(
     params: web::Json<SemanticSearchRequest>,
+    db: web::Data<DB>,
     project_api_key: ProjectApiKey,
     semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
@@ -51,8 +53,14 @@ pub async fn semantic_search(
     let project_id = project_api_key.project_id;
     let semantic_search = semantic_search.into_inner();
     let params = params.into_inner();
-
     let dataset_id = params.dataset_id;
+
+    if db::datasets::get_dataset(&db.pool, project_id, dataset_id)
+        .await?
+        .is_none()
+    {
+        return Ok(HttpResponse::NotFound().body("Dataset not found"));
+    }
 
     let payloads = vec![HashMap::from([(
         "datasource_id".to_string(),
