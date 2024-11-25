@@ -32,6 +32,10 @@ export async function POST(
 
   const body = await req.json();
 
+  if (body.scoreName) {
+    body.scoreName = body.scoreName.trim() + (user.name ? ` (${user.name})` : '');
+  }
+
   return await fetcher(`/projects/${projectId}/spans/${spanId}/labels`, {
     method: 'POST',
     headers: {

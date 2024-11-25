@@ -199,7 +199,7 @@ pub async fn update_span_label(
         VALUES ($1, $2, $3, $4, $5, now(), $6, $7)
         ON CONFLICT (span_id, class_id, user_id)
         DO UPDATE SET value = $5, updated_at = now(), label_source = $6,
-            reasoning = CASE WHEN $7 IS NOT NULL THEN $7 ELSE labels.reasoning END
+            reasoning = COALESCE($7, labels.reasoning)
         RETURNING
             id,
             span_id,

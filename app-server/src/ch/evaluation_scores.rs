@@ -276,3 +276,26 @@ WHERE project_id = ?
 
     Ok(row)
 }
+
+pub async fn delete_evaluation_score(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    result_id: Uuid,
+    label_id: Uuid,
+) -> Result<()> {
+    if !is_feature_enabled(Feature::FullBuild) {
+        return Ok(());
+    }
+    // Note, this does not immediately physically delete the data.
+    // https://clickhouse.com/docs/en/sql-reference/statements/delete
+    clickhouse
+        .query(
+            "DELETE FROM evaluation_scores WHERE project_id = ? AND result_id = ? AND label_id = ?",
+        )
+        .bind(project_id)
+        .bind(result_id)
+        .bind(label_id)
+        .execute()
+        .await?;
+    Ok(())
+}
