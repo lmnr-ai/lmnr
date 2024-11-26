@@ -1,5 +1,6 @@
 import { cn, swrFetcher } from '@/lib/utils';
 import { Info, X } from 'lucide-react';
+import { Span, SpanLabel } from '@/lib/traces/types';
 import { Table, TableBody, TableCell, TableRow } from '../ui/table';
 import {
   Tooltip,
@@ -11,20 +12,21 @@ import {
 import { Button } from '../ui/button';
 import { eventEmitter } from '@/lib/event-emitter';
 import { Skeleton } from '../ui/skeleton';
-import { SpanLabel } from '@/lib/traces/types';
 import { useEffect } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
+import { useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 
 interface SpanLabelsProps {
-  spanId: string;
+  span: Span;
 }
 
-export default function SpanLabels({ spanId }: SpanLabelsProps) {
+export default function SpanLabels({ span }: SpanLabelsProps) {
   const { projectId } = useProjectContext();
+  const searchParams = new URLSearchParams(useSearchParams().toString());
 
   const { data, isLoading, mutate } = useSWR<SpanLabel[]>(
-    `/api/projects/${projectId}/spans/${spanId}/labels`,
+    `/api/projects/${projectId}/spans/${span.spanId}/labels`,
     swrFetcher
   );
 
@@ -40,8 +42,12 @@ export default function SpanLabels({ spanId }: SpanLabelsProps) {
   }, [mutate]);
 
   const removeLabel = async (labelId: string) => {
+    const params = (searchParams.get('datapointId') && span.attributes['lmnr.span.type'] === 'EXECUTOR')
+      ? `?datapointId=${searchParams.get('datapointId')}`
+      : '';
+    console.log(params);
     const response = await fetch(
-      `/api/projects/${projectId}/spans/${spanId}/labels/${labelId}`,
+      `/api/projects/${projectId}/spans/${span.spanId}/labels/${labelId}` + params,
       {
         method: 'DELETE',
         headers: {

@@ -61,7 +61,7 @@ export type Span = {
   name: string;
   startTime: string;
   endTime: string;
-  attributes: any;
+  attributes: Record<string, any>;
   input: any | null;
   output: any | null;
   inputPreview: string | null;

@@ -9,7 +9,7 @@ import Header from '../ui/header';
 import { useProjectContext } from '@/contexts/project-context';
 import { TraceStatChart } from './trace-stat-chart';
 import { SpanStatChart } from './span-stat-chart';
-import { SpanMetricGroupBy, SpanMetric } from '@/lib/clickhouse/spans';
+import { SpanMetric, SpanMetricGroupBy } from '@/lib/clickhouse/spans';
 import { GroupByInterval } from '@/lib/clickhouse/modifiers';
 import { ScrollArea } from '../ui/scroll-area';
 import { AggregationFunction } from '@/lib/clickhouse/utils';

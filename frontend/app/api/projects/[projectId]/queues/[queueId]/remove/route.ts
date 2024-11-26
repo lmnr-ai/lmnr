@@ -1,15 +1,24 @@
 
-import { and, eq } from 'drizzle-orm';
-import { datapointToSpan, datasetDatapoints, evaluationResults, evaluations, evaluationScores, labelingQueueItems, labelingQueues, labels, spans } from '@/lib/db/migrations/schema';
+import { and, eq, sql } from 'drizzle-orm';
+import {
+  datapointToSpan,
+  datasetDatapoints,
+  evaluationResults,
+  evaluations,
+  evaluationScores,
+  labelingQueueItems,
+  labels,
+  spans
+} from '@/lib/db/migrations/schema';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
+import { authOptions } from '@/lib/auth';
 import { clickhouseClient } from '@/lib/clickhouse/client';
 import { dateToNanoseconds } from '@/lib/clickhouse/utils';
 import { db } from '@/lib/db/drizzle';
+import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 
-
-const NANOS_PER_MILLISECOND = 1_000_000;
 
 const removeQueueItemSchema = z.object({
   id: z.string(),
@@ -31,6 +40,8 @@ const removeQueueItemSchema = z.object({
 // remove an item from the queue
 export async function POST(request: Request, { params }: { params: { projectId: string; queueId: string } }) {
 
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
 
   const body = await request.json();
   const result = removeQueueItemSchema.safeParse(body);
@@ -50,21 +61,29 @@ export async function POST(request: Request, { params }: { params: { projectId: 
     labelSource: "MANUAL" as const,
   }));
 
-  await db.insert(labels).values(newLabels);
+  const insertedLabels = await db.insert(labels).values(newLabels).onConflictDoUpdate({
+    target: [labels.spanId, labels.classId, labels.userId],
+    set: {
+      value: sql`excluded.value`,
+      labelSource: sql`excluded.label_source`,
+      reasoning: sql`COALESCE(excluded.reasoning, labels.reasoning)`,
+    }
+  }).returning();
 
   if (action.resultId) {
-    const labelingQueue = await db.query.labelingQueues.findFirst({
-      where: eq(labelingQueues.id, params.queueId)
-    });
-
     const resultId = action.resultId;
+    const userName = user.name ? ` (${user.name})` : '';
 
     // create new results in batch
-    const evaluationValues = addedLabels.map(({ value, labelClass }) => ({
-      score: value ?? 0,
-      name: `${labelClass.name}_${labelingQueue?.name}`,
-      resultId,
-    }));
+    const evaluationValues = insertedLabels.map(({ value, classId, id: labelId }) => {
+      const labelClass = addedLabels.find(({ labelClass }) => labelClass.id === classId)?.labelClass;
+      return {
+        score: value ?? 0,
+        name: `${labelClass?.name}${userName}`,
+        resultId,
+        labelId,
+      };
+    });
 
     await db.insert(evaluationScores).values(evaluationValues);
 
@@ -92,7 +111,8 @@ export async function POST(request: Request, { params }: { params: { projectId: 
             result_id: resultId,
             name: value.name,
             value: value.score,
-            timestamp: dateToNanoseconds(new Date())
+            timestamp: dateToNanoseconds(new Date()),
+            label_id: value.labelId,
           }))
         });
       }
