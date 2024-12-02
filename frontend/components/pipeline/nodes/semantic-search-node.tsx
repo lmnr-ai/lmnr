@@ -2,8 +2,9 @@ import { Database, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
-  DialogHeader,
+  DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
 import { memo, useState } from 'react';
@@ -14,8 +15,10 @@ import DatasetSelect from '@/components/ui/dataset-select';
 import DefaultTextarea from '@/components/ui/default-textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import Link from 'next/link';
 import { type SemanticSearchNode } from '@/lib/flow/types';
 import { Slider } from '@/components/ui/slider';
+import { useProjectContext } from '@/contexts/project-context';
 import useStore from '@/lib/flow/store';
 
 const SemanticSearchNodeComponent = ({
@@ -25,6 +28,7 @@ const SemanticSearchNodeComponent = ({
 }) => {
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { projectId } = useProjectContext();
 
   const id = data.id;
   const updateNodeData = useStore((state) => state.updateNodeData);
@@ -90,15 +94,16 @@ const SemanticSearchNodeComponent = ({
               className="mt-2"
               onClick={() => setDialogOpen(true)}
             >
-              Add datasource
+              Add dataset
             </Button>
           </DialogTrigger>
           <DialogContent className="md:max-w-[400px]">
-            <DialogHeader>
-              <h1 className="text-lg font-semibold">New datasource</h1>
-            </DialogHeader>
-            <Label>Dataset</Label>
+            <DialogTitle>New dataset</DialogTitle>
+            <DialogDescription>
+              Select dataset. Only indexed datasets are shown.
+            </DialogDescription>
             <DatasetSelect
+              onlyShowIndexed
               onDatasetChange={(dataset) => {
                 setSelectedDataset(dataset);
               }}
@@ -126,9 +131,15 @@ const SemanticSearchNodeComponent = ({
               className="mt-2 flex h-10 items-center space-x-2 rounded bg-secondary p-2 border group"
             >
               <Database size={14} />
-              <Label className="truncate">{(dataset as Dataset).name}</Label>
+              <Label className="truncate">
+                <Link href={`/project/${projectId}/datasets/${dataset.id}`}>{dataset.name}</Link>
+              </Label>
+              <Label className="text-xs text-muted-foreground">
+                indexed on {`'${dataset.indexedOn}'`}
+              </Label>
               <div className="flex-grow"></div>
-              <button
+              <Button
+                variant={'ghost'}
                 className="hidden group-hover:block"
                 onClick={() => {
                   updateNodeData(id, {
@@ -137,7 +148,7 @@ const SemanticSearchNodeComponent = ({
                 }}
               >
                 <X size={14} />
-              </button>
+              </Button>
             </div>
           ))}
         </div>

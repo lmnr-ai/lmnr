@@ -1,5 +1,5 @@
-import { SpanMetricGroupBy } from '../clickhouse/spans';
 import { DatatableFilter } from '../types';
+import { SpanMetricGroupBy } from '../clickhouse/spans';
 import { SpanType } from './types';
 
 export const SPAN_TYPE_TO_COLOR = {

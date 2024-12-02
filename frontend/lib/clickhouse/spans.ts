@@ -1,4 +1,3 @@
-import { ClickHouseClient } from "@clickhouse/client";
 import {
   addTimeRangeToQuery,
   AggregationFunction,
@@ -8,8 +7,10 @@ import {
   groupByTimeRelativeStatement,
   TimeRange
 } from "./utils";
-import { GroupByInterval, truncateTimeMap } from "./modifiers";
 import { Feature, isFeatureEnabled } from "../features/features";
+import { GroupByInterval, truncateTimeMap } from "./modifiers";
+
+import { ClickHouseClient } from "@clickhouse/client";
 
 export enum SpanMetricGroupBy {
   Model = 'model',

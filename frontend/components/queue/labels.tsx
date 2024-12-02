@@ -123,18 +123,20 @@ export function Labels({ span, onAddLabel }: LabelsProps) {
                       </PopoverTrigger>
                       <PopoverContent side="bottom" align="end">
                         <div className="flex flex-col space-y-2">
-                          {Object.entries(labelClass.valueMap).map(([key, value], index) => (
-                            <PopoverClose key={index}>
-                              <div
-                                onClick={() => {
-                                  onAddLabel(value, labelClass);
-                                }}
-                                className="cursor-pointer hover:bg-secondary-foreground/10 p-1 rounded border px-2"
-                              >
-                                {key}
-                              </div>
-                            </PopoverClose>
-                          ))}
+                          {Object.entries(labelClass.valueMap)
+                            .sort(([, valA], [_, valB]) => valA - valB)
+                            .map(([key, value], index) => (
+                              <PopoverClose key={index}>
+                                <div
+                                  onClick={() => {
+                                    onAddLabel(value, labelClass);
+                                  }}
+                                  className="cursor-pointer hover:bg-secondary-foreground/10 p-1 rounded border px-2"
+                                >
+                                  {key}
+                                </div>
+                              </PopoverClose>
+                            ))}
                         </div>
                       </PopoverContent>
                     </Popover>

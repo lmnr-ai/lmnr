@@ -53,7 +53,8 @@ export default function PipelineTrace({}: PipelineTraceProps) {
               let inputNodes
 
               if (mode === PipelineExecutionMode.Node && focusedNodeId) {
-                inputNodes = Array.from(getRunGraph().nodes.values()).filter(node => node.type === NodeType.INPUT) as InputNode[];
+                inputNodes = Array.from(getRunGraph().nodes.values())
+                  .filter(node => node.type === NodeType.INPUT) as InputNode[];
               } else {
                 // Private pipelines will only come here if they are not in Unit test mode
                 // Public pipelines don't have Unit test mode and will always come here

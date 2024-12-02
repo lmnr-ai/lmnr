@@ -6,15 +6,17 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Loader2, NotepadText } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Dataset } from '@/lib/dataset/types';
 import { Input } from '../ui/input';
 import { Label } from '@/components/ui/label';
+import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
 import { useProjectContext } from '@/contexts/project-context';
-import { useToast } from '../../lib/hooks/use-toast';
+import { useToast } from '@/lib/hooks/use-toast';
 
 interface IndexDatasetDialogProps {
   datasetId: string;
@@ -43,7 +45,7 @@ export default function IndexDatasetDialog({
       `/api/projects/${projectId}/datasets/${datasetId}/index`,
       {
         method: 'POST',
-        body: JSON.stringify({ indexColumn: selectedIndexKey }),
+        body: JSON.stringify({ indexColumn: selectedIndexKey !== '' ? selectedIndexKey : null }),
         cache: 'no-cache'
       }
     );
@@ -71,21 +73,35 @@ export default function IndexDatasetDialog({
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="h-7 ml-4">
-          <NotepadText className="w-4 mr-1 text-gray-500" />
-          Index
-        </Button>
+        {defaultDataset.indexedOn ? (
+          <div
+            className={cn(
+              'text-sm text-secondary-foreground cursor-pointer rounded border py-0.5 px-2',
+              'border-primary bg-primary/10 text-primary'
+            )}
+          >
+            Indexed on {`'${defaultDataset.indexedOn}'`} key
+          </div>
+        ) : (
+          <Button variant="outline">Not indexed</Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Index dataset</DialogTitle>
         </DialogHeader>
         <Label>
-          Type the key to index this dataset on for semantic search.
+          Type the key from datapoint {'"'}data{'"'} to index this dataset.
         </Label>
-        <Label className="text-sm text-slate-400">
-          {'New datapoints are indexed automatically. ' +
-            'Only datapoints with this key in data" will be indexed.'}
+        <Label className="text-sm text-secondary-foreground">
+          New datapoints are indexed automatically.{' '}
+          <Link
+            className="text-primary"
+            href="https://docs.lmnr.ai/datasets/indexing"
+            target="_blank"
+          >
+            Learn more
+          </Link>
         </Label>
         <Input
           defaultValue={defaultDataset?.indexedOn ?? ''}
@@ -96,14 +112,13 @@ export default function IndexDatasetDialog({
             className="my-4"
             disabled={
               isLoading ||
-              !selectedIndexKey ||
               selectedIndexKey === defaultDataset.indexedOn
             }
             onClick={async () => await indexDataset()}
             handleEnter
           >
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-            Index
+            {selectedIndexKey === '' ? 'Unindex' : 'Index'}
           </Button>
         </DialogFooter>
       </DialogContent>

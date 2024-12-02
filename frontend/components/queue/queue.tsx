@@ -14,6 +14,7 @@ import Header from '../ui/header';
 import { isChatMessageList } from '@/lib/flow/utils';
 import { Label } from '../ui/label';
 import { Labels } from './labels';
+import MonoWithCopy from "../ui/mono-with-copy";
 import { ScrollArea } from '../ui/scroll-area';
 import { Switch } from '../ui/switch';
 import { useProjectContext } from '@/contexts/project-context';
@@ -103,7 +104,12 @@ export default function Queue({ queue }: QueueProps) {
                 <ScrollArea className="flex overflow-auto w-full mt-0">
                   <div className="flex flex-col max-h-0">
                     <div className="flex flex-col p-4 gap-4">
-                      <Label className="text-xs text-secondary-foreground font-mono">Span id {data.span.spanId}</Label>
+                      <div className="flex items-center space-x-2">
+                        <Label className="text-xs text-secondary-foreground font-mono">Span id</Label>
+                        <MonoWithCopy className="text-secondary-foreground">
+                          {data.span.spanId.replace(/^00000000-0000-0000-/g, '')}
+                        </MonoWithCopy>
+                      </div>
                       <div className="w-full h-full">
                         <div className="pb-2 font-medium text-lg">Input</div>
                         {isChatMessageList(data.span.input) ? (
@@ -120,7 +126,7 @@ export default function Queue({ queue }: QueueProps) {
                         <div className="pb-2 font-medium text-lg">Output</div>
                         <Formatter
                           className="max-h-[600px]"
-                          value={data.span.output}
+                          value={JSON.stringify(data.span.output)}
                           collapsible
                         />
                       </div>

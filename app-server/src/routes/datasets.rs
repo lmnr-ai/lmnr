@@ -7,13 +7,17 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    datasets::{datapoints, utils::read_multipart_file},
+    datasets::{
+        datapoints::{self, Datapoint},
+        utils::{index_new_points, read_multipart_file},
+    },
     db::{self, datapoints::DatapointView, datasets, DB},
     routes::{PaginatedGetQueryParams, PaginatedResponse, ResponseResult},
     semantic_search::SemanticSearch,
 };
 
 const DEFAULT_PAGE_SIZE: usize = 50;
+const BATCH_SIZE: usize = 50;
 
 #[delete("datasets/{dataset_id}")]
 async fn delete_dataset(
@@ -53,7 +57,9 @@ async fn upload_datapoint_file(
 
     let (filename, is_unstructured_file, bytes) = read_multipart_file(payload).await?;
 
-    let dataset = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await?;
+    let Some(dataset) = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await? else {
+        return Ok(HttpResponse::NotFound().body("Dataset not found"));
+    };
 
     let mut indexed_on = dataset.indexed_on.clone();
     if indexed_on.is_none() && is_unstructured_file {
@@ -69,90 +75,95 @@ async fn upload_datapoint_file(
         datapoints::insert_datapoints_from_file(&bytes, &filename, dataset_id, db.clone()).await?;
 
     if indexed_on.is_some() {
-        dataset
-            .index_new_points(
-                datapoints.clone(),
-                semantic_search.as_ref().clone(),
-                project_id.to_string(),
-                indexed_on,
-            )
-            .await?;
+        index_new_points(
+            datapoints.clone(),
+            semantic_search.as_ref().clone(),
+            project_id.to_string(),
+            indexed_on,
+        )
+        .await?;
     }
 
     Ok(HttpResponse::Ok().json(datapoints))
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateDatapointsRequest {
     datapoints: Vec<serde_json::Value>,
+    indexed_on: String,
 }
 
 #[post("datasets/{dataset_id}/datapoints")]
-async fn create_datapoints(
+async fn create_datapoint_embeddings(
     path: web::Path<(Uuid, Uuid)>,
-    db: web::Data<DB>,
     req: web::Json<CreateDatapointsRequest>,
     semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
-    let input_datapoints = req.into_inner().datapoints;
+    let req = req.into_inner();
+    let indexed_on = req.indexed_on;
+    let input_datapoints = req.datapoints;
 
-    let dataset = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await?;
+    let datapoints = input_datapoints
+        .iter()
+        .filter_map(|value| Datapoint::try_from_raw_value(dataset_id.to_owned(), value))
+        .collect::<Vec<_>>();
 
-    let datapoints =
-        db::datapoints::insert_raw_data(&db.pool, &dataset_id, &input_datapoints).await?;
-
-    if dataset.indexed_on.is_some() {
-        dataset
-            .index_new_points(
-                datapoints.clone(),
-                semantic_search.as_ref().clone(),
-                project_id.to_string(),
-                dataset.indexed_on.clone(),
-            )
-            .await?;
-    }
+    index_new_points(
+        datapoints.clone(),
+        semantic_search.as_ref().clone(),
+        project_id.to_string(),
+        Some(indexed_on),
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(datapoints))
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct UpdateDatapointRequest {
     data: Value,
-    target: Value,
+    target: Option<Value>,
     metadata: Option<Value>,
+    indexed_on: String,
 }
 
 #[post("datasets/{dataset_id}/datapoints/{datapoint_id}")]
-async fn update_datapoint_data(
+async fn update_datapoint_embeddings(
     path: web::Path<(Uuid, Uuid, Uuid)>,
-    db: web::Data<DB>,
     req: web::Json<UpdateDatapointRequest>,
     semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();
 
-    let updated_datapoint = db::datapoints::update_datapoint(
-        &db.pool,
-        &datapoint_id,
-        &req.data,
-        &req.target,
-        &req.metadata,
+    semantic_search
+        .delete_embeddings(
+            &project_id.to_string(),
+            vec![HashMap::from([(
+                "id".to_string(),
+                datapoint_id.to_string(),
+            )])],
+        )
+        .await?;
+
+    let updated_datapoint = Datapoint {
+        id: datapoint_id,
+        dataset_id,
+        data: req.data,
+        target: req.target,
+        metadata: req.metadata,
+    };
+
+    index_new_points(
+        vec![updated_datapoint.clone()],
+        semantic_search.as_ref().clone(),
+        project_id.to_string(),
+        Some(req.indexed_on),
     )
     .await?;
-
-    let dataset = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await?;
-    if dataset.indexed_on.is_some() {
-        dataset
-            .index_new_points(
-                vec![updated_datapoint.clone()],
-                semantic_search.as_ref().clone(),
-                project_id.to_string(),
-                dataset.indexed_on.clone(),
-            )
-            .await?;
-    }
 
     Ok(HttpResponse::Ok().json(updated_datapoint))
 }
@@ -163,23 +174,25 @@ pub struct DeleteDatapointRequest {
 }
 
 #[delete("datasets/{dataset_id}/datapoints")]
-async fn delete_datapoints(
+async fn delete_datapoint_embeddings(
     path: web::Path<(Uuid, Uuid)>,
-    db: web::Data<DB>,
     req: web::Json<DeleteDatapointRequest>,
     semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
-    let (project_id, _dataset_id) = path.into_inner();
+    let (project_id, dataset_id) = path.into_inner();
     let datapoint_ids = req.into_inner().ids;
-
-    db::datapoints::delete_datapoints(&db.pool, &datapoint_ids).await?;
 
     semantic_search
         .delete_embeddings(
             &project_id.to_string(),
             datapoint_ids
                 .iter()
-                .map(|id| HashMap::from([("id".to_string(), id.to_string())]))
+                .map(|id| {
+                    HashMap::from([
+                        ("id".to_string(), id.to_string()),
+                        ("datasource_id".to_string(), dataset_id.to_string()),
+                    ])
+                })
                 .collect::<Vec<_>>(),
         )
         .await?;
@@ -246,14 +259,16 @@ async fn index_dataset(
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let index_column = &request.index_column;
-    let dataset = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await?;
+    let Some(dataset) = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await? else {
+        return Ok(HttpResponse::NotFound().body("Dataset not found"));
+    };
 
     if &dataset.indexed_on == index_column {
         return Ok(HttpResponse::Ok().json(dataset));
     }
 
-    // TODO: batch process this in pages
     let datapoints = db::datapoints::get_all_datapoints(&db.pool, dataset_id).await?;
+
     // First, delete old embeddings
     if dataset.indexed_on.is_some() {
         semantic_search
@@ -266,17 +281,17 @@ async fn index_dataset(
             )
             .await?;
     }
-
-    // Then, index all embeddings
-    if index_column.is_some() {
-        dataset
-            .index_new_points(
-                datapoints.clone(),
+    for batch in datapoints.chunks(BATCH_SIZE) {
+        // Then, index all embeddings
+        if index_column.is_some() {
+            index_new_points(
+                batch.to_vec(),
                 semantic_search.as_ref().clone(),
                 project_id.to_string(),
                 index_column.clone(),
             )
             .await?;
+        }
     }
 
     let dataset =

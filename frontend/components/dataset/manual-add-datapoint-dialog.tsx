@@ -106,7 +106,7 @@ export default function ManualAddDatapointDialog({
         </div>
         {!isValidJson() && (
           <div className="text-red-500">
-            Please enter a valid JSON map with a &dquote;data&dquote; field
+            Please enter a valid JSON map that has a {'"'}data{'"'} key
           </div>
         )}
         <DialogFooter className="mt-4">

@@ -1,7 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 
+import { authOptions } from '@/lib/auth';
 import { datasetDatapoints } from '@/lib/db/migrations/schema';
 import { db } from '@/lib/db/drizzle';
+import { fetcher } from '@/lib/utils';
+import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 
 export async function POST(
@@ -23,6 +26,7 @@ export async function POST(
     data: z.any(),
     target: z.any().nullable(),
     metadata: z.any().nullable(),
+    indexedOn: z.string().nullable()
   });
 
   const result = schema.safeParse(body);
@@ -31,7 +35,7 @@ export async function POST(
     return new Response('Invalid request body', { status: 400 });
   }
 
-  const { data, target, metadata } = result.data;
+  const { data, target, metadata, indexedOn } = result.data;
 
   try {
     const updatedDatapoint = await db
@@ -51,6 +55,27 @@ export async function POST(
 
     if (updatedDatapoint.length === 0) {
       return new Response('Datapoint not found', { status: 404 });
+    }
+
+    if (indexedOn != null) {
+      const session = await getServerSession(authOptions);
+      const user = session!.user;
+      await fetcher(
+        `/projects/${params.projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${user.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            data: updatedDatapoint[0].data,
+            target: updatedDatapoint[0].target,
+            metadata: updatedDatapoint[0].metadata,
+            indexedOn
+          })
+        }
+      );
     }
 
     return new Response(JSON.stringify(updatedDatapoint[0]), {

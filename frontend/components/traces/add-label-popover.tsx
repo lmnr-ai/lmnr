@@ -48,6 +48,7 @@ import { renderNodeInput } from '@/lib/flow/utils';
 import { Switch } from '../ui/switch';
 import { toast } from '@/lib/hooks/use-toast';
 import { useProjectContext } from '@/contexts/project-context';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import useSWR from 'swr';
 import { v4 } from 'uuid';
@@ -174,7 +175,7 @@ export function AddLabelPopover({ span }: AddLabelPopoverProps) {
             <Tag size={14} className="mr-2" /> Add label
           </Button>
         </PopoverTrigger>
-        <PopoverContent side="bottom" align="end" className="min-w-[550px]">
+        <PopoverContent side="bottom" align="end" className="flex flex-col min-w-[550px]">
           <div className="flex-col items-center space-y-2">
             {mode === 'list' && (
               <>
@@ -369,6 +370,7 @@ function AddLabelInstance({
   onAddLabel: (value: string) => void;
 }) {
   const [isLoading, setIsLoading] = useState(false);
+  const searchParams = useSearchParams();
 
   const addLabel = async (
     value: string,
@@ -385,6 +387,18 @@ function AddLabelInstance({
       });
       return;
     }
+    const body = {
+      classId: labelClass.id,
+      value: labelClass.valueMap[value],
+      source,
+      reasoning,
+      scoreName: labelClass.name,
+      datapointId: null
+    } as Record<string, any>;
+
+    if (span.attributes['lmnr.span.type'] === 'EXECUTOR') {
+      body.datapointId = searchParams.get('datapointId');
+    }
 
     const response = await fetch(
       `/api/projects/${projectId}/spans/${span.spanId}/labels`,
@@ -393,12 +407,7 @@ function AddLabelInstance({
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          classId: labelClass.id,
-          value: labelClass.valueMap[value],
-          source: source,
-          reasoning: reasoning
-        })
+        body: JSON.stringify(body)
       }
     );
 
@@ -510,18 +519,20 @@ function AddLabelInstance({
       <PopoverContent side="bottom" align="end">
         <div className="flex flex-col">
           <div className="flex flex-col space-y-2">
-            {Object.entries(labelClass.valueMap).map(([key, value], index) => (
-              <PopoverClose key={index}>
-                <div
-                  onClick={() => {
-                    addLabel(key, labelClass, LabelSource.MANUAL);
-                  }}
-                  className="cursor-pointer hover:bg-secondary-foreground/10 p-1 rounded border px-2"
-                >
-                  {key}
-                </div>
-              </PopoverClose>
-            ))}
+            {Object.entries(labelClass.valueMap)
+              .sort(([, valA], [_, valB]) => valA - valB)
+              .map(([key, value], index) => (
+                <PopoverClose key={index}>
+                  <div
+                    onClick={() => {
+                      addLabel(key, labelClass, LabelSource.MANUAL);
+                    }}
+                    className="cursor-pointer hover:bg-secondary-foreground/10 p-1 rounded border px-2"
+                  >
+                    {key}
+                  </div>
+                </PopoverClose>
+              ))}
           </div>
           {labelClass.evaluatorRunnableGraph && (
             <div className="flex border-t pt-2 mt-2">

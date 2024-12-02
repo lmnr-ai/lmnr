@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use serde_json::Value;
 use uuid::Uuid;
 
 use crate::db::trace::TraceType;
@@ -17,7 +16,7 @@ pub struct TraceAttributes {
     pub total_token_count: Option<i64>,
     pub input_cost: Option<f64>,
     pub output_cost: Option<f64>,
-    /// Total costis not calculated on this struct and must be set manually
+    /// Total cost is not calculated on this struct and must be set manually
     pub cost: Option<f64>,
     pub session_id: Option<String>,
     pub trace_type: Option<TraceType>,
