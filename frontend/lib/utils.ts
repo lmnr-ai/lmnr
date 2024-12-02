@@ -80,6 +80,12 @@ export function formatDate(input: string | number | Date): string {
   });
 }
 
+export const formatUTCDate = (date: string) => {
+  const timeZoneOffset = new Date().getTimezoneOffset();
+  return new Date(new Date(date).getTime() + timeZoneOffset * 60000)
+    .toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
 // E.g. 2024-09-04T20:18:58.330355+00:00 -> 13:18:58.330
 export function convertToLocalTimeWithMillis(isoDateString: string): string {
   const date = new Date(isoDateString);
