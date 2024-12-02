@@ -169,8 +169,8 @@ impl Model {
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
-            Model::GteBase => "GTE_BASE",
-            Model::CohereMultilingual => "COHERE_MULTILINGUAL",
+            Self::GteBase => "GTE_BASE",
+            Self::CohereMultilingual => "COHERE_MULTILINGUAL",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
