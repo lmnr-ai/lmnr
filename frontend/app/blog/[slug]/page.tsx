@@ -59,9 +59,10 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                 p: (props) => <p className="text-lg py-2" {...props} />,
                 a: (props) => <a className="text-primary underline" {...props} />,
                 blockquote: (props) => <blockquote className="border-l-2 border-primary pl-4 py-2" {...props} />,
-                pre: (props) => <PreHighlighter className="pl-4 py-4" {...props} />, // codeblock
-                code: (props) =>
-                  <span className="text-lg bg-secondary text-primary font-mono px-0.5" {...props} />, // inline code
+                // codeblock
+                pre: (props) => <PreHighlighter className="pl-4 py-4" {...props} />,
+                // inline code
+                code: (props) => <span className="text-lg bg-secondary text-primary font-mono px-0.5" {...props} />,
               }}
             />
           </div>

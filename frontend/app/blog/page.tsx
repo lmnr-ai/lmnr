@@ -31,7 +31,7 @@ export default async function BlogsPage() {
       <LandingHeader hasSession={session !== null && session !== undefined} />
       <div className="mt-32 pb-48 grid grid-cols-1 gap-4 md:w-[1000px] w-full md:grid-cols-3 mx-auto">
         {posts.map((post, index) => (
-          <Link href={`/blog/${post.slug}`} key={index} className="">
+          <Link href={`/blog/${post.slug}`} key={index}>
             <Card key={index} className="overflow-hidden h-[350px]">
               {post.data.image && <Image src={post.data.image} alt={post.data.title} width={400} height={200} className="object-cover mx-auto"/>}
               <CardHeader>
