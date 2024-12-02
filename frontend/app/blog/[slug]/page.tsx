@@ -8,6 +8,7 @@ import MDHeading from "@/components/blog/md-heading";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import type { Metadata } from "next";
 import Footer from "@/components/landing/footer";
+import PreHighlighter from "@/components/blog/pre-highlighter";
 
 export const generateMetadata = async ({
   params,
@@ -55,8 +56,13 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                 h2: (props) => <MDHeading props={props} level={1} />,
                 h3: (props) => <MDHeading props={props} level={2} />,
                 h4: (props) => <MDHeading props={props} level={3} />,
-                p: (props) => <p className="text-lg py-1" {...props} />,
+                p: (props) => <p className="text-lg py-2" {...props} />,
                 a: (props) => <a className="text-primary underline" {...props} />,
+                blockquote: (props) => <blockquote className="border-l-2 border-primary pl-4 py-2" {...props} />,
+                // codeblock
+                pre: (props) => <PreHighlighter className="pl-4 py-4" {...props} />,
+                // inline code
+                code: (props) => <span className="text-lg bg-secondary text-primary font-mono px-0.5" {...props} />,
               }}
             />
           </div>

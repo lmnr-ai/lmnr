@@ -27,13 +27,13 @@ export default async function BlogsPage() {
   const posts = getBlogPosts({ sortByDate: true });
   const session = await getServerSession(authOptions);
   return <>
-    <LandingHeader hasSession={session !== null && session !== undefined} />
-    <div className="mt-32 h-full flex justify-center pb-48">
-      <div className="grid grid-cols-1 gap-4 md:w-[1000px] w-full md:grid-cols-3">
+    <div className="h-full">
+      <LandingHeader hasSession={session !== null && session !== undefined} />
+      <div className="mt-32 pb-48 grid grid-cols-1 gap-4 md:w-[1000px] w-full md:grid-cols-3 mx-auto">
         {posts.map((post, index) => (
           <Link href={`/blog/${post.slug}`} key={index}>
-            <Card key={index} className="overflow-hidden">
-              {post.data.image && <Image src={post.data.image} alt={post.data.title} width={400} height={400} className="object-cover mx-auto"/>}
+            <Card key={index} className="overflow-hidden h-[350px]">
+              {post.data.image && <Image src={post.data.image} alt={post.data.title} width={400} height={200} className="object-cover mx-auto"/>}
               <CardHeader>
                 <CardTitle>
                   {post.data.title}
@@ -48,7 +48,7 @@ export default async function BlogsPage() {
           </Link>
         ))}
       </div>
+      <Footer />
     </div>
-    <Footer />
   </>;
 }
