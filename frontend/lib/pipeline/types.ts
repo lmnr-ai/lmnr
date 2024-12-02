@@ -69,6 +69,17 @@ export type TemplateInfo = {
   displayGroup: string;
 };
 
+export type PipelineTemplate = {
+  id: string;
+  createdAt: string;
+  name: string;
+  runnableGraph: any;
+  displayableGraph: any;
+  numberOfNodes: number;
+  description: string;
+  displayGroup: string;
+};
+
 /**
  * Frontend side type for handling input variables
  *
@@ -261,7 +272,7 @@ const providerMapping: { provider: string; models: LanguageModel[] }[] = [
       {
         id: 'bedrock:anthropic.claude-instant-v1',
         name: 'bedrock:anthropic.claude-instant-v1'
-      },
+      }
     ]
   },
   {
@@ -279,3 +290,6 @@ export const PROVIDERS = providerMapping.map((provider) => provider.provider);
 export const LANGUAGE_MODELS = providerMapping.flatMap(
   (provider) => provider.models
 );
+export const DEFAULT_NEW_PIPELINE_VERSION_ID_STRING =
+  'db6d1708-9836-42f2-a3ea-732ca7709039';
+export const DEFAULT_PIPELINE_VERSION_NAME = 'main';
