@@ -17,6 +17,7 @@ pub struct HumanEvaluator {
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationDatapointResult {
     pub data: Value,
+    #[serde(default)]
     pub target: Value,
     pub executor_output: Option<Value>,
     #[serde(default)]
