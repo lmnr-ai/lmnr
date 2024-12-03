@@ -155,7 +155,7 @@ evaluate({
     executor: decideTool,
     evaluators: {
         exactTool: (output, target) => output.name === target,
-    }
+    },
     config: {
         projectApiKey: "...", // Your Lamianr project API key
     }
@@ -180,7 +180,7 @@ evaluate(
     data,
     executor=decide_tool,
     evaluators={
-        "exact_tool": (output, target) => output.name == target,
+        "exact_tool": lambda output, target: output.name == target,
     },
     project_api_key="...",
 )
