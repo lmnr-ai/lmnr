@@ -217,7 +217,7 @@ SELECT
     SUM(CASE
         -- exclusive on upper bound to avoid counting the same value twice
         WHEN (value >= intervals.lower_bound AND value < intervals.upper_bound)
-            OR value = ? THEN 1
+            OR (value = ? AND intervals.interval_num = ?) THEN 1
         ELSE 0
     END) AS height
 FROM evaluation_scores
@@ -236,6 +236,7 @@ ORDER BY intervals.interval_num",
         .bind(lower_bound)
         .bind(step_size)
         .bind(upper_bound)
+        .bind(bucket_count)
         .bind(project_id)
         .bind(evaluation_id)
         .bind(name)
