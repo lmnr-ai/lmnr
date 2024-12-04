@@ -399,7 +399,6 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(project_auth.clone())
                                 .service(api::v1::pipelines::run_pipeline_graph)
                                 .service(api::v1::pipelines::ping_healthcheck)
-                                .service(api::v1::traces::get_events_for_session)
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::evaluations::create_evaluation)
@@ -514,12 +513,6 @@ fn main() -> anyhow::Result<()> {
                                             routes::labels::get_registered_label_classes_for_path,
                                         )
                                         .service(routes::labels::update_label_class)
-                                        .service(routes::events::get_event_templates)
-                                        .service(routes::events::get_event_template)
-                                        .service(routes::events::update_event_template)
-                                        .service(routes::events::delete_event_template)
-                                        .service(routes::events::get_events_by_template_id)
-                                        .service(routes::events::get_events_metrics)
                                         .service(routes::traces::get_traces_metrics)
                                         .service(routes::provider_api_keys::save_api_key),
                                 ),

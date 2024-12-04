@@ -1,18 +1,13 @@
 use std::sync::Arc;
 
-use actix_web::{get, post, web, HttpRequest, HttpResponse};
+use actix_web::{post, web, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use lapin::Connection;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    db::{
-        events::{self, EventObservation},
-        project_api_keys::ProjectApiKey,
-        spans::Span,
-        DB,
-    },
+    db::{events::EventObservation, project_api_keys::ProjectApiKey, spans::Span, DB},
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
@@ -77,24 +72,4 @@ pub async fn process_traces(
     } else {
         Ok(HttpResponse::Ok().finish())
     }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GetEventsForSessionRequest {
-    session_id: String,
-}
-
-#[get("session-events")]
-pub async fn get_events_for_session(
-    request: web::Query<GetEventsForSessionRequest>,
-    project_api_key: ProjectApiKey,
-    db: web::Data<DB>,
-) -> ResponseResult {
-    let project_id = project_api_key.project_id;
-    let session_id = request.session_id.clone();
-    let events = events::get_events_for_session(&db.pool, &session_id, &project_id)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to get events for session: {}", e))?;
-    Ok(HttpResponse::Ok().json(events))
 }
