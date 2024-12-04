@@ -36,6 +36,10 @@ pub async fn push_spans_to_queue(
                 for otel_span in scope_span.spans {
                     let mut span = Span::from_otel_span(otel_span.clone());
 
+                    if !span.should_save() {
+                        continue;
+                    }
+
                     let span_usage = super::utils::get_llm_usage_for_span(
                         &mut span.get_attributes(),
                         db.clone(),
@@ -92,6 +96,10 @@ pub async fn push_spans_to_queue(
                     } else {
                         log::warn!("Unknown event type: {}", event_type);
                     }
+                }
+
+                if !span.should_save() {
+                    continue;
                 }
 
                 let rabbitmq_span_message = RabbitMqSpanMessage {

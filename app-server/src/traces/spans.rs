@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -38,6 +38,14 @@ const OUTPUT_ATTRIBUTE_NAME: &str = "lmnr.span.output";
 /// null. We hackily use this when we wrap a span in a NonRecordingSpan that
 /// is not sent to the backend – this is done to overwrite trace IDs for spans.
 const OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME: &str = "lmnr.internal.override_parent_span";
+const TRACING_LEVEL_ATTRIBUTE_NAME: &str = "lmnr.internal.tracing_level";
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum TracingLevel {
+    Off,
+    MetaOnly,
+}
 
 pub struct SpanAttributes {
     pub attributes: HashMap<String, Value>,
@@ -239,6 +247,12 @@ impl SpanAttributes {
         }
         res
     }
+
+    fn tracing_level(&self) -> Option<TracingLevel> {
+        self.attributes
+            .get(TRACING_LEVEL_ATTRIBUTE_NAME)
+            .and_then(|s| serde_json::from_value(s.clone()).ok())
+    }
 }
 
 impl Span {
@@ -251,6 +265,10 @@ impl Span {
 
     pub fn set_attributes(&mut self, attributes: &SpanAttributes) {
         self.attributes = serde_json::to_value(&attributes.attributes).unwrap();
+    }
+
+    pub fn should_save(&self) -> bool {
+        self.get_attributes().tracing_level() != Some(TracingLevel::Off)
     }
 
     /// Create a span from an OpenTelemetry span.
@@ -377,6 +395,11 @@ impl Span {
         // do that when we add a new span to a trace as a root span.
         if let Some(Value::Bool(true)) = attributes.get(OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME) {
             span.parent_span_id = None;
+        }
+
+        if let Some(TracingLevel::MetaOnly) = span.get_attributes().tracing_level() {
+            span.input = None;
+            span.output = None;
         }
 
         span
