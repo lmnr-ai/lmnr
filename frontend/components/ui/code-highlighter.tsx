@@ -1,3 +1,5 @@
+import { Button } from './button';
+import { CopyIcon } from 'lucide-react';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import React from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -6,17 +8,26 @@ interface CodeProps {
   language?: string;
   code: string;
   className?: string;
-  showLineNumbers?: boolean;
+  copyable?: boolean;
 }
 
 export default function CodeHighlighter({
   language,
   code,
   className,
-  showLineNumbers = false
+  copyable = false
 }: CodeProps) {
   return (
     <div className={className}>
+      <div className="relative">
+        <Button
+          onClick={() => navigator.clipboard.writeText(code)}
+          className="absolute right-2 top-2"
+          variant="ghost"
+        >
+          <CopyIcon className="w-4 h-4" />
+        </Button>
+      </div>
       <SyntaxHighlighter
         language={language}
         style={{
@@ -29,8 +40,6 @@ export default function CodeHighlighter({
           }
         }}
         useInlineStyles={true}
-        showLineNumbers={showLineNumbers}
-        showInlineLineNumbers={showLineNumbers}
         customStyle={{
           backgroundColor: 'transparent',
           padding: '0',

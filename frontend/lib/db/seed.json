@@ -2381,6 +2381,80 @@
         "additional_prices": {}
       },
       {
+        "id": "64ac4ea2-e503-4775-ae64-c536cc28aa0d",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-haiku-20241022-v1:0",
+        "input_price_per_million": 1.0,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "31496f84-c7bb-4283-8330-5cd5032cb363",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-20240620-v1:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "1ae55a6f-b852-439b-b50e-fc4db324f143",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-20241022-v2:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "2621499c-70dc-4426-a1d3-7257691deff5",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-haiku-20240307-v1:0",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 1.25,
+        "input_cached_price_per_million": 0.03,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 0.3
+        }
+      },
+      {
+        "id": "fa414f72-b29a-4b24-bb30-acc10ba0c341",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-opus-20240229-v1:0",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_caching_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "dd46cc51-83c3-421d-91d4-0f3f3c9c3d03",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-sonnet-20240229-v1:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "1427ff14-26d4-4723-92d9-dbfd939b1ea3",
         "created_at": "2024-10-16 18:18:03.452359+00",
         "updated_at": "2024-10-16 18:18:03.452359+00",

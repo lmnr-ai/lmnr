@@ -25,7 +25,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
   }, []);
 
   const menuItemStyle =
-    'text-sm md:text-base font-medium px-2 md:px-2 py-2 md:py-1 transition-colors w-full text-left  whitespace-nowrap md:rounded-sm hover:bg-secondary';
+    'text-sm md:text-base font-medium px-2 md:px-2 py-2 md:py-1 transition-colors w-full text-left whitespace-nowrap md:rounded-sm hover:bg-secondary';
 
   return (
     <>
@@ -60,6 +60,9 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
             </Link>
             <Link href="/pricing" className={menuItemStyle}>
               Pricing
+            </Link>
+            <Link href="/blog" className={menuItemStyle}>
+              Blog
             </Link>
             <Link target="_blank" href="https://github.com/lmnr-ai/lmnr" className={menuItemStyle}>
               GitHub {starCount && `★ ${starCount}`}
