@@ -19,6 +19,7 @@ import Mono from '../ui/mono';
 import { PaginatedResponse } from '@/lib/types';
 import { Span } from '@/lib/traces/types';
 import SpanTypeIcon from './span-type-icon';
+import TextSearchFilter from '../ui/text-search-filter';
 import { useProjectContext } from '@/contexts/project-context';
 
 interface SpansTableProps {
@@ -370,7 +371,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       totalItemsCount={totalCount}
       enableRowSelection
     >
-      {/* <TextSearchFilter /> */}
+      <TextSearchFilter />
       <DataTableFilter
         possibleFilters={filterColumns}
       />
