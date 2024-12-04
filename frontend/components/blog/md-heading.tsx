@@ -1,7 +1,8 @@
 
-import { cn } from "@/lib/utils";
-import { headingToUrl } from "@/lib/blog/utils";
 import Link from "next/link";
+
+import { headingToUrl } from "@/lib/blog/utils";
+import { cn } from "@/lib/utils";
 
 interface MDHeadingProps {
   props: any;

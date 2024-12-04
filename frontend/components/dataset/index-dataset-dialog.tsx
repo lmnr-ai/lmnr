@@ -1,3 +1,8 @@
+import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import React, { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -6,17 +11,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import React, { useState } from 'react';
-
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { Dataset } from '@/lib/dataset/types';
-import { Input } from '../ui/input';
 import { Label } from '@/components/ui/label';
-import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
 import { useProjectContext } from '@/contexts/project-context';
+import { Dataset } from '@/lib/dataset/types';
 import { useToast } from '@/lib/hooks/use-toast';
+import { cn } from '@/lib/utils';
+
+import { Input } from '../ui/input';
 
 interface IndexDatasetDialogProps {
   datasetId: string;

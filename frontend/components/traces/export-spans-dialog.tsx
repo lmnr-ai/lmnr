@@ -1,4 +1,15 @@
 import { Database, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { Dataset } from '@/lib/dataset/types';
+import { eventEmitter } from '@/lib/event-emitter';
+import { useToast } from '@/lib/hooks/use-toast';
+import { Span } from '@/lib/traces/types';
+import { cn } from '@/lib/utils';
+
+import { Button } from '../ui/button';
+import DatasetSelect from '../ui/dataset-select';
 import {
   Dialog,
   DialogContent,
@@ -6,18 +17,8 @@ import {
   DialogTitle,
   DialogTrigger
 } from '../ui/dialog';
-
-import { Button } from '../ui/button';
-import { cn } from '@/lib/utils';
-import { Dataset } from '@/lib/dataset/types';
-import DatasetSelect from '../ui/dataset-select';
-import { eventEmitter } from '@/lib/event-emitter';
 import Formatter from '../ui/formatter';
 import { Label } from '../ui/label';
-import { Span } from '@/lib/traces/types';
-import { useProjectContext } from '@/contexts/project-context';
-import { useState } from 'react';
-import { useToast } from '@/lib/hooks/use-toast';
 
 interface ExportSpansDialogProps {
   span: Span;

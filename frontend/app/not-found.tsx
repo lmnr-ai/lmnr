@@ -1,6 +1,7 @@
-import icon from '@/assets/logo/icon.png';
 import Image from 'next/image';
 import Link from 'next/link';
+
+import icon from '@/assets/logo/icon.png';
 
 export default function NotFound() {
   return (

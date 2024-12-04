@@ -1,8 +1,9 @@
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
-import { getServerSession } from 'next-auth';
-import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
 import { type NextRequest } from 'next/server';
+import { getServerSession } from 'next-auth';
+
+import { authOptions } from '@/lib/auth';
+import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
+import { fetcher } from '@/lib/utils';
 
 export async function POST(req: NextRequest): Promise<Response> {
   const session = await getServerSession(authOptions);

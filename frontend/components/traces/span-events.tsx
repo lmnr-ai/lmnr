@@ -1,11 +1,12 @@
+import { ColumnDef } from '@tanstack/react-table';
 import { useEffect, useState } from 'react';
 
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTable } from '../ui/datatable';
 import { Event } from '@/lib/events/types';
 import { Span } from '@/lib/traces/types';
 import {TIME_MILLISECONDS_FORMAT } from '@/lib/utils';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { DataTable } from '../ui/datatable';
 
 interface TagsProps {
   span: Span;

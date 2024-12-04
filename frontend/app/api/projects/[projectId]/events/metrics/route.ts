@@ -1,7 +1,8 @@
+import { NextRequest } from 'next/server';
+import { getServerSession } from 'next-auth';
+
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
-import { getServerSession } from 'next-auth';
-import { NextRequest } from 'next/server';
 
 export async function GET(
   req: NextRequest,

@@ -1,6 +1,15 @@
-import { cn, swrFetcher } from '@/lib/utils';
 import { Info, X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
+import useSWR from 'swr';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { eventEmitter } from '@/lib/event-emitter';
 import { Span, SpanLabel } from '@/lib/traces/types';
+import { cn, swrFetcher } from '@/lib/utils';
+
+import { Button } from '../ui/button';
+import { Skeleton } from '../ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '../ui/table';
 import {
   Tooltip,
@@ -8,14 +17,6 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-
-import { Button } from '../ui/button';
-import { eventEmitter } from '@/lib/event-emitter';
-import { Skeleton } from '../ui/skeleton';
-import { useEffect } from 'react';
-import { useProjectContext } from '@/contexts/project-context';
-import { useSearchParams } from 'next/navigation';
-import useSWR from 'swr';
 
 interface SpanLabelsProps {
   span: Span;

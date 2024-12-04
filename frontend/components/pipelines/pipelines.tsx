@@ -1,29 +1,30 @@
 'use client';
 
+import { ColumnDef } from '@tanstack/react-table';
+import { MoreVertical } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { usePostHog } from 'posthog-js/react';
+import useSWR from 'swr';
+
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
-import { TableCell, TableRow } from '../ui/table';
-
-import { Button } from '@/components/ui/button';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { ColumnDef } from '@tanstack/react-table';
-import { CreatePipelineDialog } from './create-pipeline-dialog';
-import { DataTable } from '../ui/datatable';
-import Header from '../ui/header';
-import { MoreVertical } from 'lucide-react';
 import { Pipeline } from '@/lib/pipeline/types';
 import { swrFetcher } from '@/lib/utils';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { DataTable } from '../ui/datatable';
+import Header from '../ui/header';
+import { TableCell, TableRow } from '../ui/table';
+import { CreatePipelineDialog } from './create-pipeline-dialog';
 import { UpdatePipelineDialog } from './update-pipeline-dialog';
-import { usePostHog } from 'posthog-js/react';
-import { useProjectContext } from '@/contexts/project-context';
-import { useRouter } from 'next/navigation';
-import useSWR from 'swr';
-import { useUserContext } from '@/contexts/user-context';
 
 export default function Pipelines() {
   const { projectId } = useProjectContext();

@@ -1,8 +1,9 @@
-import { Button } from './button';
 import { CopyIcon } from 'lucide-react';
-import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import React from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+
+import { Button } from './button';
 
 interface CodeProps {
   language?: string;

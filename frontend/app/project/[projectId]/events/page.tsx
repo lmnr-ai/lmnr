@@ -1,10 +1,11 @@
-import { authOptions } from '@/lib/auth';
-import Events from '@/components/events/events';
-import { EventTemplate } from '@/lib/events/types';
-import { fetcherJSON } from '@/lib/utils';
-import { getServerSession } from 'next-auth';
 import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+
+import Events from '@/components/events/events';
+import { authOptions } from '@/lib/auth';
+import { EventTemplate } from '@/lib/events/types';
+import { fetcherJSON } from '@/lib/utils';
 
 export const metadata: Metadata = {
   title: 'Events'

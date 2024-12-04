@@ -1,10 +1,10 @@
+import { CheckJobStatus } from '@/lib/check/types';
 import {
   DisplayableGraph,
   NodeHandleType,
   NodeInput,
   RunnableGraph
 } from '@/lib/flow/types';
-import { CheckJobStatus } from '@/lib/check/types';
 
 export type PipelineType = 'WORKSHOP' | 'COMMIT';
 export type PipelineVisibility = 'PUBLIC' | 'PRIVATE';

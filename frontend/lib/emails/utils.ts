@@ -1,5 +1,6 @@
-import { ItemDescription } from '../checkout/utils';
 import { Resend } from 'resend';
+
+import { ItemDescription } from '../checkout/utils';
 import SubscriptionUpdatedEmail from './subscription-updated-email';
 import WelcomeEmail from './welcome-email';
 import WorkspaceInviteEmail from './workspace-invite';

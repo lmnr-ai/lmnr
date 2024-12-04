@@ -1,17 +1,18 @@
+import { useEffect, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent
 } from '@/components/ui/chart';
-import { useEffect, useState } from 'react';
-
+import { useProjectContext } from '@/contexts/project-context';
 import { BucketRow } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
 import { Label } from '../ui/label';
 import { Skeleton } from '../ui/skeleton';
-import { useProjectContext } from '@/contexts/project-context';
 
 const getTransformedData = (
   data: {[scoreName: string]: BucketRow[]}

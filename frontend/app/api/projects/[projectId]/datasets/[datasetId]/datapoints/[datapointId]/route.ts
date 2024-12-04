@@ -1,11 +1,11 @@
 import { and, eq } from 'drizzle-orm';
-
-import { authOptions } from '@/lib/auth';
-import { datasetDatapoints } from '@/lib/db/migrations/schema';
-import { db } from '@/lib/db/drizzle';
-import { fetcher } from '@/lib/utils';
 import { getServerSession } from 'next-auth';
 import { z } from 'zod';
+
+import { authOptions } from '@/lib/auth';
+import { db } from '@/lib/db/drizzle';
+import { datasetDatapoints } from '@/lib/db/migrations/schema';
+import { fetcher } from '@/lib/utils';
 
 export async function POST(
   req: Request,

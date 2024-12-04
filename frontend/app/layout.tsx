@@ -1,10 +1,13 @@
 import '@/app/globals.css';
+
+import { Metadata } from 'next';
+import dynamic from 'next/dynamic';
+
+import { Toaster } from '@/components/ui/toaster';
 import { sans } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
-import dynamic from 'next/dynamic';
-import { Metadata } from 'next';
+
 import { PHProvider } from './providers';
-import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.lmnr.ai'),

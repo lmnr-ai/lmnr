@@ -1,24 +1,25 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent
 } from '@/components/ui/chart';
+import { EventTemplate } from '@/lib/events/types';
 import {
   cn,
   formatTimestampFromSeconds,
   getGroupByInterval
 } from '@/lib/utils';
-import { useEffect, useState } from 'react';
 
 import DateRangeFilter from '../ui/date-range-filter';
-import { EventTemplate } from '@/lib/events/types';
 import { GroupByPeriodSelect } from '../ui/group-by-period-select';
 import { Skeleton } from '../ui/skeleton';
-import { useSearchParams } from 'next/navigation';
 
 interface CustomChartProps {
   eventTemplate: EventTemplate;

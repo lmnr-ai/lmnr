@@ -1,8 +1,8 @@
 'use client';
 
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
-import * as React from 'react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
+import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -54,4 +54,4 @@ const AccordionContent = React.forwardRef<
 ));
 AccordionContent.displayName = AccordionPrimitive.Content.displayName;
 
-export { Accordion, AccordionItem, AccordionTrigger, AccordionContent };
+export { Accordion, AccordionContent,AccordionItem, AccordionTrigger };

@@ -1,5 +1,6 @@
-import { db } from '@/lib/db/drizzle';
 import { eq } from 'drizzle-orm';
+
+import { db } from '@/lib/db/drizzle';
 import { labelClassesForPath } from '@/lib/db/migrations/schema';
 
 export async function DELETE(

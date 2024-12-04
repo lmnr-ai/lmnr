@@ -1,12 +1,14 @@
 'use client';
 
+import useSWR from 'swr';
+
+import { useUserContext } from '@/contexts/user-context';
+import { swrFetcher } from '@/lib/utils';
+import { Workspace } from '@/lib/workspaces/types';
+
 import { Label } from '../ui/label';
 import { Skeleton } from '../ui/skeleton';
 import SubscriptionTierCard from './subscription-tier-card';
-import { swrFetcher } from '@/lib/utils';
-import useSWR from 'swr';
-import { useUserContext } from '@/contexts/user-context';
-import { Workspace } from '@/lib/workspaces/types';
 import WorkspaceCards from './workspace-cards';
 
 export default function Usage() {

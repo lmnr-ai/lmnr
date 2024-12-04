@@ -1,17 +1,15 @@
 'use client';
 
+import { ArrowUpRight, X } from 'lucide-react';
+import Image, { StaticImageData } from 'next/image';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import amazon from '@/assets/landing/amazon.svg';
-import { ArrowUpRight, X } from 'lucide-react';
-import { Button } from '../ui/button';
-import CodeEditor from '../ui/code-editor';
 import dataset from '@/assets/landing/dataset.png';
 import evals from '@/assets/landing/evals.png';
-import Footer from './footer';
 import github from '@/assets/landing/github-mark-white.svg';
 import labels from '@/assets/landing/labels.png';
-import Link from 'next/link';
 import moa from '@/assets/landing/MoA.png';
 import noise from '@/assets/landing/noise.jpeg';
 import noise1 from '@/assets/landing/noise1.jpeg';
@@ -19,9 +17,12 @@ import onlineEvals from '@/assets/landing/online-evals.png';
 import palantir from '@/assets/landing/palantir.svg';
 import smallTrace from '@/assets/landing/small-trace.png';
 import traces from '@/assets/landing/traces.png';
-import CodeHighlighter from "../ui/code-highlighter";
-import Image, { StaticImageData } from 'next/image';
 import yc from '@/assets/landing/yc.svg';
+
+import { Button } from '../ui/button';
+import CodeEditor from '../ui/code-editor';
+import CodeHighlighter from "../ui/code-highlighter";
+import Footer from './footer';
 
 interface Section {
   id: string;
@@ -232,7 +233,7 @@ export default function Landing() {
             </span>
             <div className="text-xl font-medium text-secondary-foreground flex flex-col gap-4">
               <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Struggling to monitor LLM calls in production.</span>
-              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Don't know how last prompt change affected performance.</span>
+              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Don&apos;t know how last prompt change affected performance.</span>
               <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Lacking data for fine-tuning and prompt engineering.</span>
             </div>
           </div>
@@ -508,7 +509,7 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === 'typescript'
             ? 'bg-white text-black'
             : 'text-white font-medium'
-            }`}
+          }`}
         >
           TypeScript
         </button>
@@ -517,7 +518,7 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === 'python'
             ? 'bg-white text-black'
             : 'text-white font-medium'
-            }`}
+          }`}
         >
           Python
         </button>

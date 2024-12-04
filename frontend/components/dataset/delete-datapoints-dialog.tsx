@@ -1,3 +1,7 @@
+import { Loader2 } from 'lucide-react';
+import { useState } from 'react';
+
+import { Button } from '../ui/button';
 import {
   Dialog,
   DialogContent,
@@ -6,11 +10,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from '../ui/dialog';
-
-import { Button } from '../ui/button';
 import { Label } from '../ui/label';
-import { Loader2 } from 'lucide-react';
-import { useState } from 'react';
 
 export interface DeleteDatapointsDialogProps {
   selectedDatapointIds: string[];

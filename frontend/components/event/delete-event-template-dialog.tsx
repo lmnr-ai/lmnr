@@ -1,5 +1,9 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -8,13 +12,9 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-
-import { Button } from '@/components/ui/button';
-import { EventTemplate } from '@/lib/events/types';
 import { Label } from '@/components/ui/label';
 import { useProjectContext } from '@/contexts/project-context';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { EventTemplate } from '@/lib/events/types';
 
 interface DeleteEventTemplateProps {
   defaultEventTemplate: EventTemplate;

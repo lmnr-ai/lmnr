@@ -1,14 +1,14 @@
-import { getBlogPost } from "@/lib/blog/utils";
-
-import { authOptions } from "@/lib/auth";
-import BlogMeta from "@/components/blog/blog-meta";
-import { getServerSession } from "next-auth";
-import LandingHeader from "@/components/landing/landing-header";
-import MDHeading from "@/components/blog/md-heading";
-import { MDXRemote } from "next-mdx-remote/rsc";
 import type { Metadata } from "next";
-import Footer from "@/components/landing/footer";
+import { getServerSession } from "next-auth";
+import { MDXRemote } from "next-mdx-remote/rsc";
+
+import BlogMeta from "@/components/blog/blog-meta";
+import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
+import Footer from "@/components/landing/footer";
+import LandingHeader from "@/components/landing/landing-header";
+import { authOptions } from "@/lib/auth";
+import { getBlogPost } from "@/lib/blog/utils";
 
 export const generateMetadata = async ({
   params,

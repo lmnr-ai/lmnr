@@ -1,11 +1,11 @@
-import { NodeHandleType, RouterNode } from '@/lib/flow/types';
+import { v4 } from 'uuid';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import useStore from '@/lib/flow/store';
-import { v4 } from 'uuid';
+import { NodeHandleType, RouterNode } from '@/lib/flow/types';
 
 export default function SwitchNodeComponent({ data }: { data: RouterNode }) {
   const { updateNodeData, dropEdgeForHandle } = useStore((state) => state);

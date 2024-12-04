@@ -1,3 +1,8 @@
+import { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { getServerSession } from "next-auth";
+
 import Footer from "@/components/landing/footer";
 import LandingHeader from "@/components/landing/landing-header";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,10 +10,6 @@ import { Label } from "@/components/ui/label";
 import { authOptions } from "@/lib/auth";
 import { getBlogPosts } from "@/lib/blog/utils";
 import { formatUTCDate } from "@/lib/utils";
-import { Metadata } from "next";
-import { getServerSession } from "next-auth";
-import Image from "next/image";
-import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Laminar Blog",

@@ -1,13 +1,13 @@
 'use client';
 
-import * as React from 'react';
-import { Button, type ButtonProps } from '@/components/ui/button';
-
-import { cn } from '@/lib/utils';
-import google from '@/assets/logo/google.svg';
-import { IconSpinner } from '@/components/ui/icons';
 import Image from 'next/image';
 import { signIn } from 'next-auth/react';
+import * as React from 'react';
+
+import google from '@/assets/logo/google.svg';
+import { Button, type ButtonProps } from '@/components/ui/button';
+import { IconSpinner } from '@/components/ui/icons';
+import { cn } from '@/lib/utils';
 
 interface GitHubSignInButtonProps extends ButtonProps {
   showIcon?: boolean;

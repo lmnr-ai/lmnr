@@ -1,4 +1,29 @@
+import {
+  StaticImageData,
+  StaticImport
+} from 'next/dist/shared/lib/get-img-props';
+import { v4 as uuidv4 } from 'uuid';
+
+import CodeNodePreview from '@/assets/pipeline/node-previews/code-node-preview.png';
+import CodeSandboxNodePreview from '@/assets/pipeline/node-previews/code-sandbox-node-preview.png';
+import FunctionNodePreview from '@/assets/pipeline/node-previews/function-node-preview.png';
+import InputNodePreview from '@/assets/pipeline/node-previews/input-node-preview.png';
+import JsonExtractorNodePreview from '@/assets/pipeline/node-previews/json-extractor-node-preview.png';
+import LLMNodePreview from '@/assets/pipeline/node-previews/llm-node-preview.png';
+import MapNodePreview from '@/assets/pipeline/node-previews/map-node-preview.png';
+import OutputNodePreview from '@/assets/pipeline/node-previews/output-node-preview.png';
+import SemanticSearchNodePreview from '@/assets/pipeline/node-previews/semantic-search-node-preview.png';
+import SemanticSimilarityNodePreview from '@/assets/pipeline/node-previews/semantic-similarity-node-preview.png';
+import SemanticSwitchNodePreview from '@/assets/pipeline/node-previews/semantic-switch-node-preview.png';
+import StringTemplateNodePreview from '@/assets/pipeline/node-previews/string-template-node-preview.png';
+import SubpipelineNodePreview from '@/assets/pipeline/node-previews/subpipeline-node-preview.png';
+import SwitchNodePreview from '@/assets/pipeline/node-previews/switch-node-preview.png';
+import ToolCallNodePreview from '@/assets/pipeline/node-previews/tool-call-node-preview.png';
+import WebSearchNodePreview from '@/assets/pipeline/node-previews/web-search-node-preview.png';
+import { DEFAULT_CODE } from '@/components/pipeline/nodes/code';
+
 import { ChatMessage, ChatMessageContentPart } from '../types';
+import { generateShortHash, isStringType } from '../utils';
 import {
   CodeNode,
   CodeSandboxNode,
@@ -23,34 +48,6 @@ import {
   WebSearchNode,
   ZenguardNode
 } from './types';
-import { generateShortHash, isStringType } from '../utils';
-import {
-  StaticImageData,
-  StaticImport
-} from 'next/dist/shared/lib/get-img-props';
-
-import CodeNodePreview from '@/assets/pipeline/node-previews/code-node-preview.png';
-import CodeSandboxNodePreview from '@/assets/pipeline/node-previews/code-sandbox-node-preview.png';
-
-import { DEFAULT_CODE } from '@/components/pipeline/nodes/code';
-
-import FunctionNodePreview from '@/assets/pipeline/node-previews/function-node-preview.png';
-import InputNodePreview from '@/assets/pipeline/node-previews/input-node-preview.png';
-import JsonExtractorNodePreview from '@/assets/pipeline/node-previews/json-extractor-node-preview.png';
-import LLMNodePreview from '@/assets/pipeline/node-previews/llm-node-preview.png';
-import MapNodePreview from '@/assets/pipeline/node-previews/map-node-preview.png';
-import OutputNodePreview from '@/assets/pipeline/node-previews/output-node-preview.png';
-import SemanticSearchNodePreview from '@/assets/pipeline/node-previews/semantic-search-node-preview.png';
-import SemanticSimilarityNodePreview from '@/assets/pipeline/node-previews/semantic-similarity-node-preview.png';
-import SemanticSwitchNodePreview from '@/assets/pipeline/node-previews/semantic-switch-node-preview.png';
-import StringTemplateNodePreview from '@/assets/pipeline/node-previews/string-template-node-preview.png';
-import SubpipelineNodePreview from '@/assets/pipeline/node-previews/subpipeline-node-preview.png';
-import SwitchNodePreview from '@/assets/pipeline/node-previews/switch-node-preview.png';
-import ToolCallNodePreview from '@/assets/pipeline/node-previews/tool-call-node-preview.png';
-
-import { v4 as uuidv4 } from 'uuid';
-
-import WebSearchNodePreview from '@/assets/pipeline/node-previews/web-search-node-preview.png';
 
 export const NODE_TYPE_TO_DOCS = {
   [NodeType.INPUT]: 'https://docs.lmnr.ai/nodes/input-output',

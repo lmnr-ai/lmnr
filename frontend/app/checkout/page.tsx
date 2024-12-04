@@ -1,10 +1,10 @@
-import { fetcher, fetcherJSON } from '@/lib/utils';
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+import Stripe from 'stripe';
 
 import { authOptions } from '@/lib/auth';
-import { getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
-import Stripe from 'stripe';
 import { UserSubscriptionInfo } from '@/lib/checkout/types';
+import { fetcher, fetcherJSON } from '@/lib/utils';
 
 export default async function CheckoutPage({
   searchParams

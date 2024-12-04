@@ -1,8 +1,9 @@
-import { db } from '@/lib/db/drizzle';
 import { eq } from 'drizzle-orm';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+
 import Playground from '@/components/playground/playground';
+import { db } from '@/lib/db/drizzle';
 import { playgrounds } from '@/lib/db/migrations/schema';
 import { Playground as PlaygroundType } from '@/lib/playground/types';
 

@@ -1,15 +1,17 @@
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
+import { Minus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import useSWR from "swr";
+
+import { useProjectContext } from "@/contexts/project-context";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
 import { EvaluationTimeProgression } from "@/lib/evaluation/types";
-import { Label } from "../ui/label";
-import { Minus } from "lucide-react";
-import { Skeleton } from "../ui/skeleton";
-import { useProjectContext } from "@/contexts/project-context";
-import { useSearchParams } from "next/navigation";
-import useSWR from "swr";
 import { cn, formatTimestamp, swrFetcher } from "@/lib/utils";
+
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
+import { Label } from "../ui/label";
+import { Skeleton } from "../ui/skeleton";
 
 interface ProgressionChartProps {
   className?: string;

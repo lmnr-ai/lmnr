@@ -1,3 +1,9 @@
+import { v4 } from 'uuid';
+
+import { getRequiredEnvVars } from '@/lib/env/utils';
+
+import { GraphMessagePreview } from '../pipeline/types';
+import { TraceMessages } from '../traces/types';
 import {
   ConditionNode,
   type GenericNode,
@@ -7,11 +13,6 @@ import {
   NodeType,
   type OutputNode
 } from './types';
-
-import { getRequiredEnvVars } from '@/lib/env/utils';
-import { GraphMessagePreview } from '../pipeline/types';
-import { TraceMessages } from '../traces/types';
-import { v4 } from 'uuid';
 
 export class Graph {
   nodes: Map<string, GenericNode>;

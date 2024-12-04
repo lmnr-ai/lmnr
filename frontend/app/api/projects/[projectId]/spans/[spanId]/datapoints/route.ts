@@ -1,6 +1,7 @@
-import { datapointToSpan } from "@/lib/db/migrations/schema";
-import { db } from "@/lib/db/drizzle";
 import { eq } from "drizzle-orm";
+
+import { db } from "@/lib/db/drizzle";
+import { datapointToSpan } from "@/lib/db/migrations/schema";
 
 export async function GET(
   request: Request,

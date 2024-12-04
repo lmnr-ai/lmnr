@@ -1,6 +1,6 @@
+import { CheckJob } from '@/lib/check/types';
 import { EndpointPipelineVersion, PipelineVersion } from '@/lib/pipeline/types';
 
-import { CheckJob } from '@/lib/check/types';
 import { Dataset } from '../dataset/types';
 import { RunnableGraph } from '../flow/types';
 

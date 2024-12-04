@@ -1,5 +1,9 @@
 'use client';
 
+import { Loader2, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useState } from 'react';
+
 import {
   Dialog,
   DialogContent,
@@ -8,7 +12,14 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Loader2, Plus } from 'lucide-react';
+import { useToast } from '@/lib/hooks/use-toast';
+import { WorkspaceStats } from '@/lib/usage/types';
+import { formatTimestamp } from '@/lib/utils';
+import { WorkspaceUser, WorkspaceWithUsers } from '@/lib/workspaces/types';
+
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import {
   Table,
   TableBody,
@@ -23,17 +34,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import { useCallback, useState } from 'react';
-import { WorkspaceUser, WorkspaceWithUsers } from '@/lib/workspaces/types';
-
-import { Button } from '../ui/button';
-import { formatTimestamp } from '@/lib/utils';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
 import PurchaseSeatsDialog from './purchase-seats-dialog';
-import { useRouter } from 'next/navigation';
-import { useToast } from '@/lib/hooks/use-toast';
-import { WorkspaceStats } from '@/lib/usage/types';
 
 interface WorkspaceUsersProps {
   workspace: WorkspaceWithUsers;

@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+import React from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -5,11 +7,9 @@ import {
   getBezierPath
 } from 'reactflow';
 
-import { cn } from '@/lib/utils';
-import React from 'react';
 import { useFlowContext } from '@/contexts/pipeline-version-context';
 import useStore from '@/lib/flow/store';
-import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const onEdgeClick = (evt: any, id: any) => {
   evt.stopPropagation();

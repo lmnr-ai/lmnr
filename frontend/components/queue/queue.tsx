@@ -1,23 +1,24 @@
 'use client';
 
 import { ArrowDown, ArrowUp, Loader2, X } from "lucide-react";
-import { LabelClass, Span } from '@/lib/traces/types';
-import { LabelingQueue, LabelingQueueItem } from '@/lib/queue/types';
 import { useEffect, useState } from 'react';
 
-import { Button } from '../ui/button';
+import { useProjectContext } from '@/contexts/project-context';
+import { isChatMessageList } from '@/lib/flow/utils';
+import { LabelingQueue, LabelingQueueItem } from '@/lib/queue/types';
+import { LabelClass, Span } from '@/lib/traces/types';
+
 import ChatMessageListTab from '../traces/chat-message-list-tab';
+import { Button } from '../ui/button';
 import DatasetSelect from '../ui/dataset-select';
 import DefaultTextarea from '../ui/default-textarea';
 import Formatter from '../ui/formatter';
 import Header from '../ui/header';
-import { isChatMessageList } from '@/lib/flow/utils';
 import { Label } from '../ui/label';
-import { Labels } from './labels';
 import MonoWithCopy from "../ui/mono-with-copy";
 import { ScrollArea } from '../ui/scroll-area';
 import { Switch } from '../ui/switch';
-import { useProjectContext } from '@/contexts/project-context';
+import { Labels } from './labels';
 
 interface QueueProps {
   queue: LabelingQueue;

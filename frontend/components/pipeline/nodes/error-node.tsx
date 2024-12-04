@@ -1,6 +1,8 @@
-import { ErrorNode } from '@/lib/flow/types';
-import GenericNodeComponent from './generic-node';
 import { memo } from 'react';
+
+import { ErrorNode } from '@/lib/flow/types';
+
+import GenericNodeComponent from './generic-node';
 
 const ErrorNodeComponent = ({ id, data }: { id: string; data: ErrorNode }) => (
   <>

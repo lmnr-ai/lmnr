@@ -1,7 +1,9 @@
 import { AiOutlineMinusCircle } from 'react-icons/ai';
-import PipelineInput from './pipeline-input';
-import { ScrollArea } from '../ui/scroll-area';
+
 import useStore from '@/lib/flow/store';
+
+import { ScrollArea } from '../ui/scroll-area';
+import PipelineInput from './pipeline-input';
 
 interface PipelineTraceProps {}
 

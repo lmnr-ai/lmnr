@@ -1,10 +1,11 @@
+import { Label } from '@/components/ui/label';
+import useStore from '@/lib/flow/store';
 import {
   type GenericNodeHandle,
   type StringTemplateNode
 } from '@/lib/flow/types';
-import { Label } from '@/components/ui/label';
+
 import TemplatedTextArea from './components/templated-text-area';
-import useStore from '@/lib/flow/store';
 
 const StringTemplateNodeComponent = ({
   data

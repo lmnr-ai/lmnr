@@ -1,11 +1,12 @@
-import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
 import { useEffect, useState } from 'react';
-
 import { AiOutlineMinusCircle } from 'react-icons/ai';
+
+import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
+import { isStringType } from '@/lib/utils';
+
 import { Button } from './button';
 import DefaultTextarea from './default-textarea';
 import EditableChatMessageContentParts from './editable-chat-message-content-parts';
-import { isStringType } from '@/lib/utils';
 
 interface EditableChatMessageProps {
   defaultMessage: ChatMessage;

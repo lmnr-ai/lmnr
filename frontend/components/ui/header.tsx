@@ -1,8 +1,10 @@
 'use client';
 
-import { Button } from './button';
 import Link from 'next/link';
+
 import { useProjectContext } from '@/contexts/project-context';
+
+import { Button } from './button';
 
 interface HeaderProps {
   path: string;

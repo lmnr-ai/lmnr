@@ -1,11 +1,11 @@
 'use client';
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-
 import { WorkspaceStats } from '@/lib/usage/types';
+import { WorkspaceWithUsers } from '@/lib/workspaces/types';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import WorkspaceUsage from './workspace-usage';
 import WorkspaceUsers from './workspace-users';
-import { WorkspaceWithUsers } from '@/lib/workspaces/types';
 
 interface WorkspaceProps {
   workspace: WorkspaceWithUsers;

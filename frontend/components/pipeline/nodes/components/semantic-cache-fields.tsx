@@ -1,18 +1,18 @@
+import { AlertTriangle } from 'lucide-react';
+
+import DatasetSelect from '@/components/ui/dataset-select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
-
-import { AlertTriangle } from 'lucide-react';
-import DatasetSelect from '@/components/ui/dataset-select';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { LLMNode } from '@/lib/flow/types';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
 import useStore from '@/lib/flow/store';
+import { LLMNode } from '@/lib/flow/types';
 
 interface SemanticCacheFieldsProps {
   data: LLMNode;

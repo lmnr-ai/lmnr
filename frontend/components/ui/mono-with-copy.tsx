@@ -1,6 +1,8 @@
 import { Copy } from 'lucide-react';
-import CopyToClipboard from './copy-to-clipboard';
+
 import Mono from '@/components/ui/mono';
+
+import CopyToClipboard from './copy-to-clipboard';
 
 interface MonoWithCopyProps {
   children: React.ReactNode;
