@@ -223,7 +223,7 @@ export default function Landing() {
         <div className="flex flex-col md:items-center md:w-[1200px] md:px-0 py-16">
           <div className="flex flex-col gap-4">
             <span
-              className="text-4xl md:text-5xl text-white font-medium"
+              className="text-4xl md:text-6xl text-white font-medium"
             >
               Building with LLMs? <br />
             </span>
@@ -236,10 +236,10 @@ export default function Landing() {
               <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Lacking data for fine-tuning and prompt engineering.</span>
             </div>
           </div>
-          <p className="text-xl md:text-6xl text-white/90 font-medium pt-24 pb-4">
+          <p className="text-xl md:text-6xl text-white/90 font-medium md:leading-tight pt-24 pb-4">
             Laminar is a single solution for <br />
             <span className="font-medium text-primary">tracing</span>, <span className="font-medium text-primary">evaluating</span>, and <span className="font-medium text-primary">labeling</span> <br />
-            LLM apps.
+            LLM products.
           </p>
         </div>
 

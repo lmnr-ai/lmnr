@@ -30,7 +30,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
   return (
     <>
       <header className="flex flex-col md:flex-row w-full justify-between md:justify-center items-center fixed z-50 backdrop-blur-lg">
-        <div className="w-full px-8 md:px-0 flex flex-col md:flex-row md:w-[1000px] justify-between items-center">
+        <div className="w-full px-8 md:px-0 flex flex-col md:flex-row md:w-[1200px] justify-between items-center">
           <div className="flex justify-between w-full items-center h-20">
             <Link href="/">
               <Image alt="logo" src={logo} width={150} priority />
@@ -64,11 +64,11 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
             <Link href="/blog" className={menuItemStyle}>
               Blog
             </Link>
-            <Link target="_blank" href="https://github.com/lmnr-ai/lmnr" className={menuItemStyle}>
-              GitHub {starCount && `★ ${starCount}`}
-            </Link>
             <Link target="_blank" href="https://discord.gg/nNFUUDAKub" className={menuItemStyle}>
               Discord
+            </Link>
+            <Link target="_blank" href="https://github.com/lmnr-ai/lmnr" className={menuItemStyle}>
+              GitHub {starCount && `★ ${starCount}`}
             </Link>
             <Link target="_blank" href="https://cal.com/robert-lmnr/demo">
               <Button
