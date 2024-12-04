@@ -1,5 +1,5 @@
 import '@/app/globals.css';
-import { sans, sans2 } from '@/lib/fonts';
+import { sans } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 import dynamic from 'next/dynamic';
 import { Metadata } from 'next';
@@ -20,9 +20,8 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  console.log(sans2.variable);
   return (
-    <html lang="en" className={cn('h-full antialiased', sans.variable, sans2.variable)}>
+    <html lang="en" className={cn('h-full antialiased', sans.variable)}>
       <PHProvider>
         <body
           className="flex flex-col h-full"

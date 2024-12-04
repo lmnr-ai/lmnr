@@ -8,8 +8,3 @@ export const sans = Inter({
   style: 'normal',
   variable: '--font-inter'
 });
-
-
-import { GeistMono } from 'geist/font/mono';
-
-export const sans2 = GeistMono
