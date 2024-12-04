@@ -1,0 +1,161 @@
+---
+title: "Launch Week #1, Day 3: Semantic Retrieval"
+date: "2024-12-04"
+description: "Semantic retrieval API on Laminar"
+author:
+  name: Dinmukhamed Mailibay
+  url: https://x.com/din_mlb
+image: /blog/2024-12-04-semantic-retrieval.png
+tags: ["launch week 1", "semantic retrieval"]
+---
+
+From the very early days of Laminar, we kept promoting dynamic few-shot examples
+to everyone. This was partly inspired by the paper we read as undergrads, called
+[LM-BFF](https://arxiv.org/abs/2012.15723), that introduced the idea of dynamic
+demonstrations of carefully curated few-shot examples in 2020 – back before GPT-3.5
+was even a thing.
+
+The idea behind dynamic few-shot examples is very simple – instead of hard-coding
+several examples in the prompt, we look up examples that are most similar to the input.
+This can significantly improve the quality and task alignment of the model's output.
+
+The only mode this was available until today was through Laminar's pipeline builder,
+and this was clearly very limiting.
+
+Today, we are excited to announce the new API for semantic data retrieval.
+
+## How it works
+
+To make use of Laminar's semantic retrieval API, you first need to upload and index
+a dataset. For the example of this blog post, we are going to use a dataset of
+small snippets of general knowledge facts. Here's a small excerpt:
+
+```json
+[
+    {
+        "data": {
+            "text": "The Hubble Space Telescope is a telescope in space that was launched by NASA in 1990. ..."
+        }
+    },
+]
+```
+
+See the full dataset (just 10 examples) [here](https://gist.github.com/dinmukhamedm/f90286065c3201e6c75fc7d2e3fda704).
+
+We then create new dataset on Laminar and upload this file. Don't forget to index
+it on the `text` field.
+
+![Uploaded dataset](/blog/2024-12-04-semantic-retrieval-img-1.png)
+
+The index step does the following for every data point:
+
+1. Split the text into overlapping chunks
+1. Embed each chunk using an embedding model
+1. Store the embeddings in our vector database with a link to the original data point
+
+We can now query the dataset using the `semantic-search` API.
+
+## The API
+
+Let's make a call to the API from Postman. We'll need the dataset ID from the
+previous step and our project API key.
+
+Let's query for `"Telescopes"` and see if we get the result about the Hubble Space Telescope.
+
+Set the Authorization to `Bearer <your-api-key>`, and make a POST request to
+`https://api.lmnr.ai/v1/semantic-search`.
+
+![Postman request](/blog/2024-12-04-semantic-retrieval-img-2.png)
+
+You can make a similar request from our TypeScript and Python SDKs or from any
+other language you prefer. You can also customize the search parameters to change
+the number of returned results and the similarity threshold.
+
+Read more about the API in our [docs](https://docs.lmnr.ai/api-reference/semantic-search/semantic-search).
+
+## The uses
+
+LLMs are very smart, but I like to think of prompting as explaining the task to
+a human. Just like humans, LLMs can try to guess what you mean, but the more
+specific you are, the better the results are. And just like with humans,
+examples are extremely helpful to convey the essence of the task.
+
+But examples are only helpful if they are relevant. An irrelevant example can
+even do more harm than good, especially if you ask the LLM to pay special attention
+to the examples rather than instructions – and I have made this mistake previously
+when trying to get LLMs to follow examples.
+
+This is actually similar to how a human would approach a new task. If you are
+new to a job, you would ask a more experienced colleague for examples of what
+the final result should look like. But if the example is not relevant, you might
+get the wrong idea and end up doing the wrong thing.
+
+This is where semantic search comes in. By finding the most similar examples,
+you can ensure that the examples you are showing to the LLM are indeed relevant
+and can help the LLM do the task better.
+
+### Example
+
+And if we are talking about how helpful examples are, I might as well include
+an example of how dynamic few-shot examples can be useful in practice.
+
+Let's say we are building a customer support chatbot. We have a manually curated
+dataset of previous conversations between our customers and our support agents where
+we have collected only the correct answers.
+
+Our prompt could be composed like this:
+
+```javascript
+import { Laminar } from '@lmnr-ai/lmnr'
+
+const baseSystemPrompt = `You are a customer support agent for a company. Follow these instructions:
+- Be polite and professional at all times
+- ...
+
+Follow the examples below to understand how to answer the questions.
+`;
+
+const fewShotExamples = await Laminar.semanticSearch({
+    datasetId: 'dataset-id',
+    query: userQuestion
+    limit: 3,
+});
+
+const examplesString = fewShotExamples.map(example => `
+- Question: ${example.data.question}
+- Answer: ${example.data.answer}
+`).join('\n');
+
+const prompt = `${baseSystemPrompt}
+
+${examplesString}
+`;
+```
+
+And similarly in Python:
+
+```python
+from lmnr import Laminar
+
+few_shot_examples = await Laminar.semantic_search(
+    dataset_id='dataset-id',
+    query=user_question,
+    limit=3,
+)
+
+examples_string = '\n'.join([
+    f"- Question: {example['data']['question']}\n- Answer: {example['data']['answer']}"
+    for example in few_shot_examples
+])
+
+prompt = f"{base_system_prompt}\n\n{examples_string}"
+```
+
+## Conclusion
+
+Semantic search is a powerful tool and dynamic few-shot examples is just one of
+the many ways you can use it.
+
+We are excited to see what you build with semantic search API. If you have any
+questions, ideas, or feedback, feel free to jump into our [Discord](https://discord.gg/nNFUUDAKub)
+and chat with us directly.
