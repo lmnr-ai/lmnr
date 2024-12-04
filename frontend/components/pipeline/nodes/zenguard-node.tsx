@@ -1,12 +1,13 @@
-import { DetectorType, ZenguardNode } from '@/lib/flow/types';
+import { memo } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import GenericNodeComponent from './generic-node';
 import { IconZenguard } from '@/components/ui/icons';
 import { Label } from '@/components/ui/label';
-import { memo } from 'react';
 import useStore from '@/lib/flow/store';
+import { DetectorType, ZenguardNode } from '@/lib/flow/types';
+
+import GenericNodeComponent from './generic-node';
 
 
 const DETECTOR_TYPE_TO_DISPLAY_NAME_MAP: Record<DetectorType, string> = {

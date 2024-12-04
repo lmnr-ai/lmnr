@@ -1,3 +1,7 @@
+import { Loader2, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
 import {
   Dialog,
   DialogContent,
@@ -6,14 +10,11 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Loader2, Plus } from 'lucide-react';
+import { WorkspaceWithProjects } from '@/lib/workspaces/types';
 
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { WorkspaceWithProjects } from '@/lib/workspaces/types';
 
 interface WorkspaceCreateDialogProps {
   onWorkspaceCreate?: () => void;

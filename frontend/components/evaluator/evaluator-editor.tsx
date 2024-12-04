@@ -1,23 +1,24 @@
+import { Loader2, Play } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { v4 } from 'uuid';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { EventType } from '@/lib/events/types';
+import { Graph } from '@/lib/flow/graph';
 import { CodeNode, LLMNode, NodeHandleType, NodeType, OutputNode } from '@/lib/flow/types';
 import { createNodeData, renderNodeInput } from '@/lib/flow/utils';
+import { toast } from '@/lib/hooks/use-toast';
+import { LanguageModel } from '@/lib/pipeline/types';
 import { LabelClass, Span } from '@/lib/traces/types';
-import { Loader2, Play } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { useEffect, useRef, useState } from 'react';
 
+import LanguageModelSelect from '../pipeline/nodes/components/model-select';
 import { Button } from '../ui/button';
 import CodeEditor from '../ui/code-editor';
 import { DialogClose } from '../ui/dialog';
-import { EventType } from '@/lib/events/types';
 import Formatter from '../ui/formatter';
-import { Graph } from '@/lib/flow/graph';
 import { Label } from '../ui/label';
-import { LanguageModel } from '@/lib/pipeline/types';
-import LanguageModelSelect from '../pipeline/nodes/components/model-select';
 import { ScrollArea } from '../ui/scroll-area';
-import { toast } from '@/lib/hooks/use-toast';
-import { useProjectContext } from '@/contexts/project-context';
-import { v4 } from 'uuid';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 interface AutoEvalsProps {
   span: Span;

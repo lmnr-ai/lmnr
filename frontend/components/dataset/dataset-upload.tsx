@@ -1,10 +1,10 @@
+import { Loader2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
-import { uploadFile } from '@/lib/dataset/utils';
 import { useProjectContext } from '@/contexts/project-context';
+import { uploadFile } from '@/lib/dataset/utils';
 import { useToast } from '@/lib/hooks/use-toast';
 
 interface DatasetUploadProps {

@@ -1,11 +1,11 @@
-import { GenericNodeHandle, NodeHandleType } from '@/lib/flow/types';
 import { useCallback, useRef } from 'react';
+import { IAceEditorProps } from 'react-ace';
+import { v4 } from 'uuid';
 
 import DefaultTextarea from '@/components/ui/default-textarea';
-import { IAceEditorProps } from 'react-ace';
 import Ide from '@/components/ui/ide';
 import { Label } from '@/components/ui/label';
-import { v4 } from 'uuid';
+import { GenericNodeHandle, NodeHandleType } from '@/lib/flow/types';
 
 interface TemplatedTextAreaProps extends IAceEditorProps {
   defaultInputs: Map<string, GenericNodeHandle>;

@@ -1,6 +1,21 @@
 'use client';
 
+import { ColumnDef } from '@tanstack/react-table';
+import { Loader2, Trash2 } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Resizable } from 're-resizable';
+import { useEffect, useState } from 'react';
+import useSWR from 'swr';
+
+import { Button } from '@/components/ui/button';
+import { DataTable } from '@/components/ui/datatable';
+import { useProjectContext } from '@/contexts/project-context';
 import { Datapoint, Dataset as DatasetType } from '@/lib/dataset/types';
+import { useToast } from '@/lib/hooks/use-toast';
+import { PaginatedResponse } from '@/lib/types';
+import { swrFetcher } from '@/lib/utils';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
 import {
   Dialog,
   DialogContent,
@@ -10,27 +25,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '../ui/dialog';
-import { Loader2, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-
-import AddDatapointsDialog from './add-datapoints-dialog';
-import { Button } from '@/components/ui/button';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { ColumnDef } from '@tanstack/react-table';
-import DatasetPanel from './dataset-panel';
-import { DataTable } from '@/components/ui/datatable';
 import DownloadButton from '../ui/download-button';
 import Header from '../ui/header';
+import MonoWithCopy from '../ui/mono-with-copy';
+import AddDatapointsDialog from './add-datapoints-dialog';
+import DatasetPanel from './dataset-panel';
 import IndexDatasetDialog from './index-dataset-dialog';
 import ManualAddDatapoint from './manual-add-datapoint-dialog';
-import MonoWithCopy from '../ui/mono-with-copy';
-import { PaginatedResponse } from '@/lib/types';
-import { Resizable } from 're-resizable';
-import { swrFetcher } from '@/lib/utils';
-import { useProjectContext } from '@/contexts/project-context';
-import useSWR from 'swr';
-import { useToast } from '@/lib/hooks/use-toast';
 
 interface DatasetProps {
   dataset: DatasetType;

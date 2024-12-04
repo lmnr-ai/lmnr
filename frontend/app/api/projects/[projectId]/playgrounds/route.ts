@@ -1,5 +1,6 @@
-import { db } from '@/lib/db/drizzle';
 import { eq } from 'drizzle-orm';
+
+import { db } from '@/lib/db/drizzle';
 import { playgrounds } from '@/lib/db/migrations/schema';
 
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {

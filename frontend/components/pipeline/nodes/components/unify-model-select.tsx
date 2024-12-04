@@ -1,3 +1,9 @@
+import { X } from 'lucide-react';
+import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -6,12 +12,6 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { UnifyNode, UnifyThreshold } from '@/lib/flow/types';
-
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useState } from 'react';
-import { X } from 'lucide-react';
 
 const TYPE_MANUALLY = '– type manually –';
 const selectableModelNames = [

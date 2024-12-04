@@ -1,6 +1,7 @@
+import { z } from 'zod';
+
 import { db } from '@/lib/db/drizzle';
 import { labelingQueueItems } from '@/lib/db/migrations/schema';
-import { z } from 'zod';
 
 const pushQueueItemSchema = z.object({
   spanId: z.string(),

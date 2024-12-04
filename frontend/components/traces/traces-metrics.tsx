@@ -1,22 +1,23 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent
 } from '@/components/ui/chart';
+import { useProjectContext } from '@/contexts/project-context';
+import { TraceMetricDatapoint } from '@/lib/traces/types';
 import {
   formatTimestampFromSeconds,
   getGroupByInterval
 } from '@/lib/utils';
-import { useEffect, useState } from 'react';
 
 import { Skeleton } from '../ui/skeleton';
-import { TraceMetricDatapoint } from '@/lib/traces/types';
-import { useProjectContext } from '@/contexts/project-context';
-import { useSearchParams } from 'next/navigation';
 
 interface CustomChartProps {
   metric: string;

@@ -1,7 +1,8 @@
 'use client';
 
-import { Label } from '../ui/label';
 import { useUserContext } from '@/contexts/user-context';
+
+import { Label } from '../ui/label';
 
 export default function Profile() {
   const user = useUserContext();

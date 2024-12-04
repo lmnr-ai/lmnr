@@ -1,8 +1,9 @@
-import { Button } from './button';
 import { CopyIcon } from 'lucide-react';
-import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import React from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+
+import { Button } from './button';
 
 interface CodeProps {
   language?: string;
@@ -30,19 +31,28 @@ export default function CodeHighlighter({
       </div>
       <SyntaxHighlighter
         language={language}
-        style={oneDark}
-        showLineNumbers={false}
-        showInlineLineNumbers={false}
+        style={{
+          ...oneDark,
+          '.linenumber': {
+            fontStyle: 'normal !important'
+          },
+          'span': {
+            fontStyle: 'normal !important',
+          }
+        }}
+        useInlineStyles={true}
         customStyle={{
           backgroundColor: 'transparent',
           padding: '0',
           margin: '0',
           fontSize: '0.9rem',
-          lineHeight: '1.5'
+          lineHeight: '1.5',
+          fontStyle: 'normal',
         }}
         codeTagProps={{
           style: {
-            backgroundColor: 'transparent !important'
+            backgroundColor: 'transparent !important',
+            fontStyle: 'normal !important'
           }
         }}
       >

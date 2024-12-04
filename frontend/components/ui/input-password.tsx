@@ -1,6 +1,5 @@
-import * as React from 'react';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
-import { fontSans, fontSecurity } from '@/lib/fonts';
+import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -31,7 +30,6 @@ const InputPassword = React.forwardRef<HTMLInputElement, InputPasswordProps>(
           type="text"
           placeholder={placeholder ?? ''}
           className={cn(
-            showPassword || !value ? fontSans.variable : fontSecurity.className,
             'flex h-9 px-3 w-full py-1 rounded-l-md border border-input border-r-0 text-sm transition-colors focus-visible:outline-none file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50'
           )}
           ref={ref}

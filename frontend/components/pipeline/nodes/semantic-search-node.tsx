@@ -1,4 +1,10 @@
 import { Database, X } from 'lucide-react';
+import Link from 'next/link';
+import { memo, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import DatasetSelect from '@/components/ui/dataset-select';
+import DefaultTextarea from '@/components/ui/default-textarea';
 import {
   Dialog,
   DialogContent,
@@ -7,19 +13,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { memo, useState } from 'react';
-
-import { Button } from '@/components/ui/button';
-import { Dataset } from '@/lib/dataset/types';
-import DatasetSelect from '@/components/ui/dataset-select';
-import DefaultTextarea from '@/components/ui/default-textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import Link from 'next/link';
-import { type SemanticSearchNode } from '@/lib/flow/types';
 import { Slider } from '@/components/ui/slider';
 import { useProjectContext } from '@/contexts/project-context';
+import { Dataset } from '@/lib/dataset/types';
 import useStore from '@/lib/flow/store';
+import { type SemanticSearchNode } from '@/lib/flow/types';
 
 const SemanticSearchNodeComponent = ({
   data

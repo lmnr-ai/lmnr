@@ -1,11 +1,11 @@
 import { and, eq } from 'drizzle-orm';
+import { NextRequest } from 'next/server';
+import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { fetcher } from '@/lib/utils';
-import { getServerSession } from 'next-auth';
-import { NextRequest } from 'next/server';
 import { providerApiKeys } from '@/lib/db/migrations/schema';
+import { fetcher } from '@/lib/utils';
 export async function GET(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
   const projectId = params.projectId;
 

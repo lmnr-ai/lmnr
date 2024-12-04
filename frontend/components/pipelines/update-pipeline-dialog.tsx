@@ -1,5 +1,9 @@
 'use client';
 
+import { Loader2, Pencil } from 'lucide-react';
+import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -8,16 +12,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Loader2, Pencil } from 'lucide-react';
-
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { DropdownMenuItem } from '../ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Pipeline } from '@/lib/pipeline/types';
 import { useProjectContext } from '@/contexts/project-context';
-import { useState } from 'react';
+import { Pipeline } from '@/lib/pipeline/types';
+import { cn } from '@/lib/utils';
+
+import { DropdownMenuItem } from '../ui/dropdown-menu';
 
 interface UpdatePipelineDialogProps {
   oldPipeline: Pipeline;

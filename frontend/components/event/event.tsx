@@ -1,27 +1,28 @@
 'use client';
 
+import { ColumnDef } from '@tanstack/react-table';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Resizable } from 're-resizable';
+import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent
 } from '@/components/ui/chart';
+import { useProjectContext } from '@/contexts/project-context';
 import { Event, EventTemplate } from '@/lib/events/types';
-import { useEffect, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { PaginatedGetResponseWithProjectPresenceFlag } from '@/lib/types';
+import { formatTimestampFromSeconds } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '../ui/datatable';
 import DateRangeFilter from '../ui/date-range-filter';
-import EventView from './event-view';
-import { formatTimestampFromSeconds } from '@/lib/utils';
 import Header from '../ui/header';
 import { Label } from '../ui/label';
-import { PaginatedGetResponseWithProjectPresenceFlag } from '@/lib/types';
-import { Resizable } from 're-resizable';
-import { useProjectContext } from '@/contexts/project-context';
+import EventView from './event-view';
 
 // TODO: add refresh button on realtime updates. See components/traces/traces-table-traces-view.tsx for an example.
 

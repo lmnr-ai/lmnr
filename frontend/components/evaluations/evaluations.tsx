@@ -1,5 +1,24 @@
 'use client';
 
+import { ColumnDef } from '@tanstack/react-table';
+import { Loader2, Trash2 } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { usePostHog } from 'posthog-js/react';
+import { useState } from 'react';
+import useSWR from 'swr';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
+import { AggregationFunction } from '@/lib/clickhouse/utils';
+import { Evaluation } from '@/lib/evaluation/types';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { useToast } from '@/lib/hooks/use-toast';
+import { PaginatedResponse } from '@/lib/types';
+import { swrFetcher } from '@/lib/utils';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { Button } from '../ui/button';
+import { DataTable } from '../ui/datatable';
 import {
   Dialog,
   DialogContent,
@@ -9,29 +28,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '../ui/dialog';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
-import { Loader2, Trash2 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { useRouter, useSearchParams } from 'next/navigation';
-
-import { AggregationFunction } from '@/lib/clickhouse/utils';
-import { Button } from '../ui/button';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTable } from '../ui/datatable';
-import { Evaluation } from '@/lib/evaluation/types';
-import EvaluationsGroupsBar from './evaluations-groups-bar';
 import Header from '../ui/header';
 import Mono from '../ui/mono';
-import { PaginatedResponse } from '@/lib/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import EvaluationsGroupsBar from './evaluations-groups-bar';
 import ProgressionChart from './progression-chart';
-import { swrFetcher } from '@/lib/utils';
-import { usePostHog } from 'posthog-js/react';
-import { useProjectContext } from '@/contexts/project-context';
-import { useState } from 'react';
-import useSWR from 'swr';
-import { useToast } from '@/lib/hooks/use-toast';
-import { useUserContext } from '@/contexts/user-context';
 
 
 export default function Evaluations() {

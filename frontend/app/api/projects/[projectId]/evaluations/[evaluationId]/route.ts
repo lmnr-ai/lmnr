@@ -1,10 +1,10 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
+
+import { db } from '@/lib/db/drizzle';
 import {
   evaluationResults,
   evaluations,evaluationScores
 } from '@/lib/db/migrations/schema';
-
-import { db } from '@/lib/db/drizzle';
 
 export async function GET(
   req: Request,

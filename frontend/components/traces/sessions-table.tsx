@@ -1,20 +1,21 @@
 'use client';
 
-import { ChevronDownIcon, ChevronRightIcon, RefreshCcw } from 'lucide-react';
-import { SessionPreview, Trace } from '@/lib/traces/types';
-import { useEffect, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-
-import { Button } from '../ui/button';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { ColumnDef } from '@tanstack/react-table';
+import { ChevronDownIcon, ChevronRightIcon, RefreshCcw } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { getDurationString } from '@/lib/flow/utils';
+import { SessionPreview, Trace } from '@/lib/traces/types';
+import { PaginatedResponse } from '@/lib/types';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { Button } from '../ui/button';
 import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import DateRangeFilter from '../ui/date-range-filter';
-import { getDurationString } from '@/lib/flow/utils';
-import { PaginatedResponse } from '@/lib/types';
 import TextSearchFilter from '../ui/text-search-filter';
-import { useProjectContext } from '@/contexts/project-context';
 
 type SessionRow = {
   type: string;

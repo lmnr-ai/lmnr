@@ -1,7 +1,37 @@
 'use client';
+import { createClient } from '@supabase/supabase-js';
+import { ChevronsRight, PlayIcon, StopCircle } from 'lucide-react';
+import { usePostHog } from 'posthog-js/react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { ImperativePanelHandle } from 'react-resizable-panels';
+import { v4 as uuidv4 } from 'uuid';
 import * as Y from 'yjs';
 
-import { ChevronsRight, PlayIcon, StopCircle } from 'lucide-react';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup
+} from '@/components/ui/resizable';
+import { FlowContextProvider } from '@/contexts/pipeline-version-context';
+import { ProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { Graph } from '@/lib/flow/graph';
+import useStore from '@/lib/flow/store';
+import { InputNode, NodeType } from '@/lib/flow/types';
+import { DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE } from '@/lib/flow/utils';
+import { usePrevious } from '@/lib/hooks/use-previous';
+import { useToast } from '@/lib/hooks/use-toast';
+import eventEmitter from '@/lib/pipeline/eventEmitter';
+import {
+  InputVariable,
+  Pipeline as PipelineType,
+  PipelineExecutionMode,
+  PipelineVersion
+} from '@/lib/pipeline/types';
+import { removeHashFromId } from '@/lib/pipeline/utils';
+import { PresenceUser } from '@/lib/user/types';
 import {
   cn,
   convertAllStoredInputsToUnseen,
@@ -10,49 +40,19 @@ import {
   setStoredInputs,
   STORED_INPUTS_STATE_UNSEEN
 } from '@/lib/utils';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
-import { InputNode, NodeType } from '@/lib/flow/types';
-import {
-  InputVariable,
-  PipelineExecutionMode,
-  Pipeline as PipelineType,
-  PipelineVersion
-} from '@/lib/pipeline/types';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@/components/ui/resizable';
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '../ui/button';
-import { createClient } from '@supabase/supabase-js';
-import { DEFAULT_INPUT_VALUE_FOR_HANDLE_TYPE } from '@/lib/flow/utils';
-import eventEmitter from '@/lib/pipeline/eventEmitter';
-import Flow from './flow';
-import { FlowContextProvider } from '@/contexts/pipeline-version-context';
-import { Graph } from '@/lib/flow/graph';
 import Header from '../ui/header';
-import { ImperativePanelHandle } from 'react-resizable-panels';
 import { Label } from '../ui/label';
-import PipelineBottomPanel from './pipeline-bottom-panel';
-import PipelineHeader from './pipeline-header';
-import PipelineSheet from './pipeline-sheet';
-import PipelineTrace from './pipeline-trace';
-import { PresenceUser } from '@/lib/user/types';
-import { ProjectContext } from '@/contexts/project-context';
-import { removeHashFromId } from '@/lib/pipeline/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
 import { Switch } from '../ui/switch';
+import Flow from './flow';
+import PipelineBottomPanel from './pipeline-bottom-panel';
+import PipelineHeader from './pipeline-header';
+import PipelineSheet from './pipeline-sheet';
 import Toolbar from './pipeline-toolbar';
-import { usePostHog } from 'posthog-js/react';
-import { usePrevious } from '@/lib/hooks/use-previous';
-import useStore from '@/lib/flow/store';
-import { useToast } from '@/lib/hooks/use-toast';
-import { useUserContext } from '@/contexts/user-context';
-import { v4 as uuidv4 } from 'uuid';
+import PipelineTrace from './pipeline-trace';
 
 interface PipelineProps {
   pipeline: PipelineType;

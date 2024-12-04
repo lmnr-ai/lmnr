@@ -1,7 +1,8 @@
-import { Card } from '../ui/card';
-import { cn } from '@/lib/utils';
-import { Label } from '../ui/label';
 import { TemplateInfo } from '@/lib/pipeline/types';
+import { cn } from '@/lib/utils';
+
+import { Card } from '../ui/card';
+import { Label } from '../ui/label';
 
 interface TemplateSelectProps {
   className?: string;

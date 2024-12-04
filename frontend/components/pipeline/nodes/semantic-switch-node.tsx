@@ -1,11 +1,11 @@
-import { NodeHandleType, SemanticSwitchNode } from '@/lib/flow/types';
+import { X } from 'lucide-react';
+import { v4 } from 'uuid';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import useStore from '@/lib/flow/store';
-import { v4 } from 'uuid';
-import { X } from 'lucide-react';
+import { NodeHandleType, SemanticSwitchNode } from '@/lib/flow/types';
 
 export default function SemanticSwitchNodeComponent({
   data

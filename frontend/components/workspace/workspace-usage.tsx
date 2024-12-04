@@ -1,10 +1,12 @@
-import { Button } from '../ui/button';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { cn } from '@/lib/utils';
 import { Label } from '@radix-ui/react-label';
 import { useRouter } from 'next/navigation';
-import { Workspace } from '@/lib/workspaces/types';
+
 import { WorkspaceStats } from '@/lib/usage/types';
+import { cn } from '@/lib/utils';
+import { Workspace } from '@/lib/workspaces/types';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { Button } from '../ui/button';
 
 interface WorkspaceUsageProps {
   workspace: Workspace;

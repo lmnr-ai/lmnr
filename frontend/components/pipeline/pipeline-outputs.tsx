@@ -1,31 +1,32 @@
 import {
+  createParser,
+  type ParsedEvent,
+  type ReconnectInterval
+} from 'eventsource-parser';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { v4 } from 'uuid';
+
+import { useProjectContext } from '@/contexts/project-context';
+import useStore from '@/lib/flow/store';
+import { NodeInput, NodeType } from '@/lib/flow/types';
+import { filterRunRequiredEnvVars } from '@/lib/flow/utils';
+import eventEmitter from '@/lib/pipeline/eventEmitter';
+import {
   BreakpointChunk,
   GraphMessage,
   NodeStreamChunk,
   PipelineVersion
 } from '@/lib/pipeline/types';
 import {
-  createParser,
-  type ParsedEvent,
-  type ReconnectInterval
-} from 'eventsource-parser';
-import { getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
-import {
   GRAPH_VALID,
   validateGraph,
   validateInputs
 } from '@/lib/pipeline/utils';
-import { NodeInput, NodeType } from '@/lib/flow/types';
-import { useCallback, useEffect, useRef, useState } from 'react';
-
-import eventEmitter from '@/lib/pipeline/eventEmitter';
-import { filterRunRequiredEnvVars } from '@/lib/flow/utils';
 import { RunTrace } from '@/lib/traces/types';
-import StreamTrace from './stream-trace';
-import { useProjectContext } from '@/contexts/project-context';
-import useStore from '@/lib/flow/store';
+import { getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
+
 import { useToast } from '../../lib/hooks/use-toast';
-import { v4 } from 'uuid';
+import StreamTrace from './stream-trace';
 
 export type StreamMessage = {
   id: string;

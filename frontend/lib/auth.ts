@@ -1,12 +1,12 @@
+import jwt from 'jsonwebtoken';
 import type { DefaultSession, NextAuthOptions, User } from 'next-auth';
-import { Feature, isFeatureEnabled } from './features/features';
-
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { fetcher } from './utils';
 import GithubProvider from 'next-auth/providers/github';
 import GoogleProvider from 'next-auth/providers/google';
-import jwt from 'jsonwebtoken';
+
 import { sendWelcomeEmail } from './emails/utils';
+import { Feature, isFeatureEnabled } from './features/features';
+import { fetcher } from './utils';
 
 declare module 'next-auth' {
   interface Session {

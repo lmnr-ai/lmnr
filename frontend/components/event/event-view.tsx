@@ -1,17 +1,18 @@
+import { ChevronsRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { Event } from '@/lib/events/types';
+import { Span } from '@/lib/traces/types';
 import { convertToLocalTimeWithMillis, swrFetcher } from '@/lib/utils';
 
 import { Button } from '../ui/button';
-import { ChevronsRight } from 'lucide-react';
-import { Event } from '@/lib/events/types';
 import Formatter from '../ui/formatter';
 import { Label } from '../ui/label';
 import Mono from '../ui/mono';
 import MonoWithCopy from '../ui/mono-with-copy';
 import { ScrollArea } from '../ui/scroll-area';
-import { Span } from '@/lib/traces/types';
-import { useProjectContext } from '@/contexts/project-context';
-import { useRouter } from 'next/navigation';
-import useSWR from 'swr';
 
 interface EventViewProps {
   onClose: () => void;

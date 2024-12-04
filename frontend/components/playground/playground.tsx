@@ -1,20 +1,21 @@
 'use client';
-import { ChatMessage, ChatMessageContent } from "@/lib/types";
-import { Graph, runGraph } from "@/lib/flow/graph";
-import { LLMNode, NodeHandleType, NodeType } from "@/lib/flow/types";
 import { Loader2, PlayIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { v4 } from "uuid";
 
-import { Button } from "../ui/button";
+import { useProjectContext } from "@/contexts/project-context";
+import { Graph, runGraph } from "@/lib/flow/graph";
+import { LLMNode, NodeHandleType, NodeType } from "@/lib/flow/types";
 import { createNodeData } from "@/lib/flow/utils";
+import { Playground as PlaygroundType } from "@/lib/playground/types";
+import { ChatMessage, ChatMessageContent } from "@/lib/types";
+
+import LanguageModelSelect from "../pipeline/nodes/components/model-select";
+import { Button } from "../ui/button";
 import EditableChat from "../ui/editable-chat";
 import Formatter from "../ui/formatter";
 import Header from "../ui/header";
-import LanguageModelSelect from "../pipeline/nodes/components/model-select";
-import { Playground as PlaygroundType } from "@/lib/playground/types";
 import { ScrollArea } from "../ui/scroll-area";
-import { useProjectContext } from "@/contexts/project-context";
-import { v4 } from "uuid";
 
 const renderText = (text: string, inputs: Record<string, string>) =>
   text.replace(/\{\{([^}]+)\}\}/g, (match, p1) => inputs[p1] || match);

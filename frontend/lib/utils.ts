@@ -1,11 +1,10 @@
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import * as Y from 'yjs';
 
-import { ChatMessageContentPart, DatatableFilter } from './types';
-import { type ClassValue, clsx } from 'clsx';
-import { InputVariable, PipelineVisibility } from './pipeline/types';
-
 import { GroupByInterval } from './clickhouse/modifiers';
-import { twMerge } from 'tailwind-merge';
+import { InputVariable, PipelineVisibility } from './pipeline/types';
+import { ChatMessageContentPart, DatatableFilter } from './types';
 
 export const TIME_MILLISECONDS_FORMAT = 'timeMilliseconds';
 

@@ -1,3 +1,5 @@
+import React from 'react';
+
 import {
   Dialog,
   DialogContent,
@@ -6,11 +8,10 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import { Graph } from '@/lib/flow/graph';
 import { LabelClass, Span } from '@/lib/traces/types';
 
 import { EvaluatorEditor } from './evaluator-editor';
-import { Graph } from '@/lib/flow/graph';
-import React from 'react';
 
 interface EvaluatorEditorDialogProps {
   span: Span;

@@ -1,7 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 
-import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
 import { db } from '@/lib/db/drizzle';
+import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
 
 export async function GET(
   req: Request,

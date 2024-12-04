@@ -1,5 +1,5 @@
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const eventSource = pgEnum("event_source", ['AUTO', 'MANUAL', 'CODE']);
 export const eventType = pgEnum("event_type", ['BOOLEAN', 'STRING', 'NUMBER']);

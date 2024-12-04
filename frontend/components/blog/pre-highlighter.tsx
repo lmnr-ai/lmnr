@@ -1,8 +1,9 @@
 'use client';
 
-import { cn } from "@/lib/utils";
-import CodeHighlighter from "@/components/ui/code-highlighter";
 import React from "react";
+
+import CodeHighlighter from "@/components/ui/code-highlighter";
+import { cn } from "@/lib/utils";
 
 interface PreHighlighterProps {
   children?: React.ReactElement | React.ReactNode;

@@ -1,3 +1,7 @@
+import { Loader2, PlusCircle } from 'lucide-react';
+import React, { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -6,17 +10,14 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { GRAPH_VALID, validateGraph } from '@/lib/pipeline/utils';
-import { Loader2, PlusCircle } from 'lucide-react';
-import React, { useState } from 'react';
-
-import { Button } from '@/components/ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { PipelineVersionInfo } from '@/lib/pipeline/types';
 import { useProjectContext } from '@/contexts/project-context';
 import useStore from '@/lib/flow/store';
+import { PipelineVersionInfo } from '@/lib/pipeline/types';
+import { GRAPH_VALID, validateGraph } from '@/lib/pipeline/utils';
+
 import { useToast } from '../../lib/hooks/use-toast';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 
 interface CommitButtonProps {
   selectedPipelineVersion: PipelineVersionInfo;

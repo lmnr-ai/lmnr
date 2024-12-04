@@ -6,27 +6,28 @@ import {
   Loader2,
   Play
 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { v4 } from 'uuid';
+
+import useStore from '@/lib/flow/store';
 import { ConditionValue, NodeType } from '@/lib/flow/types';
 import {
   getDurationString,
   renderNodeInput
 } from '@/lib/flow/utils';
-import React, { useEffect, useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import eventEmitter from '@/lib/pipeline/eventEmitter';
+import { GraphMessagePreview } from '@/lib/pipeline/types';
+import { RunTrace } from '@/lib/traces/types';
+import { cn } from '@/lib/utils';
 
 import { Button } from '../ui/button';
-import { cn } from '@/lib/utils';
-import eventEmitter from '@/lib/pipeline/eventEmitter';
 import Formatter from '../ui/formatter';
-import { GraphMessagePreview } from '@/lib/pipeline/types';
 import { Label } from '../ui/label';
-import { RunTrace } from '@/lib/traces/types';
 import { ScrollArea } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
 import StatusLabel from '../ui/status-label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { StreamMessage } from './pipeline-outputs';
-import useStore from '@/lib/flow/store';
-import { v4 } from 'uuid';
 
 interface StreaTraceProps {
   streamMessages: StreamMessage[];

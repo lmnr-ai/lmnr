@@ -5,7 +5,7 @@ import noise from '@/assets/landing/noise2.jpeg';
 export default function Footer() {
   return (
     <div className="w-full flex flex-col md:justify-center md:items-center text-center text-lg">
-      <div className="relative md:w-[1000px] overflow-hidden md:rounded-lg md:mb-16">
+      <div className="relative md:w-[1200px] overflow-hidden md:rounded-lg md:mb-16">
         <div className="inset-0 absolute z-10 overflow-hidden">
           <Image src={noise} alt="" className="w-full h-full object-cover object-top" />
         </div>

@@ -1,7 +1,8 @@
-import { ChatMessageContentPart, ChatMessageText } from '@/lib/types';
 import { useEffect, useRef } from 'react';
-
 import { AiOutlinePlusCircle } from 'react-icons/ai';
+
+import { ChatMessageContentPart, ChatMessageText } from '@/lib/types';
+
 import EditableChatMessageContentPart from './editable-chat-message-content-part';
 
 interface EditableChatMessageContentPartsProps {

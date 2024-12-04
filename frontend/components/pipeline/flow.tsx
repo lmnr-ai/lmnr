@@ -10,17 +10,17 @@ import ReactFlow, {
   type Node,
   updateEdge
 } from 'reactflow';
+import { v4 as uuidv4 } from 'uuid';
 
-
+import { useFlowContext } from '@/contexts/pipeline-version-context';
+import useStore from '@/lib/flow/store';
+import { NodeType } from '@/lib/flow/types';
 import { createNodeData } from '@/lib/flow/utils';
+
 import CustomEdge from './nodes/components/custom-edge';
 import GenericNodeComponent from './nodes/generic-node';
 import InputNodeComponent from './nodes/input-node';
-import { NodeType } from '@/lib/flow/types';
 import OutputNodeComponent from './nodes/output-node';
-import { useFlowContext } from '@/contexts/pipeline-version-context';
-import useStore from '@/lib/flow/store';
-import { v4 as uuidv4 } from 'uuid';
 
 const nodeTypes = {
   [NodeType.INPUT]: InputNodeComponent,

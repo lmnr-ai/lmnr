@@ -1,6 +1,7 @@
-import icon from '@/assets/logo/icon_light.svg';
 import Image from 'next/image';
 import Link from 'next/link';
+
+import icon from '@/assets/logo/icon_light.svg';
 
 export default function InternalError() {
   return (

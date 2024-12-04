@@ -5,20 +5,21 @@ import {
   Gauge,
   MessageCircleMore,
 } from 'lucide-react';
-import { Span, SpanType } from '@/lib/traces/types';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import useSWR from 'swr';
 
+import { useProjectContext } from '@/contexts/project-context';
+import { Span, SpanType } from '@/lib/traces/types';
+import { swrFetcher } from '@/lib/utils';
+
+import Formatter from '../ui/formatter';
+import { Skeleton } from '../ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { AddLabelPopover } from './add-label-popover';
 import AddToLabelingQueuePopover from './add-to-labeling-queue-popover';
 import ExportSpansDialog from './export-spans-dialog';
-import Formatter from '../ui/formatter';
-import { Skeleton } from '../ui/skeleton';
 import SpanEvents from './span-events';
 import { SpanViewSpan } from './span-view-span';
 import StatsShields from './stats-shields';
-import { swrFetcher } from '@/lib/utils';
-import { useProjectContext } from '@/contexts/project-context';
-import useSWR from 'swr';
 
 interface SpanViewProps {
   spanId: string;

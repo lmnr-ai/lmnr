@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
+
+import { LOOKUP_KEY_TO_TIER_NAME } from '@/lib/checkout/utils';
+
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
-import Link from 'next/link';
-import { LOOKUP_KEY_TO_TIER_NAME } from '@/lib/checkout/utils';
 
 export interface CheckoutSuccessProps {
   sessionId: string;

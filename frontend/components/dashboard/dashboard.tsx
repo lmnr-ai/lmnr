@@ -1,19 +1,21 @@
 'use client';
 
-import { getGroupByInterval } from '@/lib/utils';
-import { useEffect } from 'react';
-import DateRangeFilter from '../ui/date-range-filter';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { GroupByInterval } from '@/lib/clickhouse/modifiers';
+import { SpanMetric, SpanMetricGroupBy } from '@/lib/clickhouse/spans';
+import { AggregationFunction } from '@/lib/clickhouse/utils';
+import { getGroupByInterval } from '@/lib/utils';
+
+import DateRangeFilter from '../ui/date-range-filter';
 import { GroupByPeriodSelect } from '../ui/group-by-period-select';
 import Header from '../ui/header';
-import { useProjectContext } from '@/contexts/project-context';
-import { TraceStatChart } from './trace-stat-chart';
-import { SpanStatChart } from './span-stat-chart';
-import { SpanMetric, SpanMetricGroupBy } from '@/lib/clickhouse/spans';
-import { GroupByInterval } from '@/lib/clickhouse/modifiers';
 import { ScrollArea } from '../ui/scroll-area';
-import { AggregationFunction } from '@/lib/clickhouse/utils';
+import { SpanStatChart } from './span-stat-chart';
 import SpanSummaryChart from './span-summary-chart';
+import { TraceStatChart } from './trace-stat-chart';
 
 const AGGREGATIONS: AggregationFunction[] = [
   'AVG',

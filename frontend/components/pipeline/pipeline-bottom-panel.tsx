@@ -1,11 +1,12 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
+import { useState } from 'react';
 import { ImperativePanelHandle } from 'react-resizable-panels';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PipelineVersion } from '@/lib/pipeline/types';
+
+import { Skeleton } from '../ui/skeleton';
 import PipelineHistory from './pipeline-history';
 import PipelineOutputs from './pipeline-outputs';
-import { PipelineVersion } from '@/lib/pipeline/types';
-import { Skeleton } from '../ui/skeleton';
-import { useState } from 'react';
 
 interface PipelineBottomPanelProps {
   pipelineVersion: PipelineVersion;

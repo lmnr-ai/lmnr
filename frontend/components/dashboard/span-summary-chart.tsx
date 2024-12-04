@@ -1,10 +1,12 @@
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+
 import { SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/spans";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
-import { cn, toFixedIfFloat } from "@/lib/utils";
-import { useEffect, useMemo, useState } from "react";
-import { Skeleton } from "../ui/skeleton";
-import { useRouter } from "next/navigation";
 import { buildSpansUrl } from "@/lib/traces/utils";
+import { cn, toFixedIfFloat } from "@/lib/utils";
+
+import { Skeleton } from "../ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
 interface SpanSummaryChartProps {

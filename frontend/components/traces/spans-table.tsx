@@ -1,26 +1,27 @@
 'use client';
+import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { Span } from '@/lib/traces/types';
+import { PaginatedResponse } from '@/lib/types';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { Button } from '../ui/button';
+import { DataTable } from '../ui/datatable';
+import DataTableFilter from '../ui/datatable-filter';
+import DateRangeFilter from '../ui/date-range-filter';
+import Mono from '../ui/mono';
+import TextSearchFilter from '../ui/text-search-filter';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import { useEffect, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-
-import { Button } from '../ui/button';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTable } from '../ui/datatable';
-import DataTableFilter from '../ui/datatable-filter';
-import DateRangeFilter from '../ui/date-range-filter';
-import Mono from '../ui/mono';
-import { PaginatedResponse } from '@/lib/types';
-import { Span } from '@/lib/traces/types';
 import SpanTypeIcon from './span-type-icon';
-import TextSearchFilter from '../ui/text-search-filter';
-import { useProjectContext } from '@/contexts/project-context';
 
 interface SpansTableProps {
   onRowClick?: (traceId: string) => void;

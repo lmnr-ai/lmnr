@@ -1,3 +1,6 @@
+import { type NextRequest } from 'next/server';
+import stripe from 'stripe';
+
 import {
   getIdFromStripeObject,
   isLookupKeyForAdditionalSeats,
@@ -5,10 +8,7 @@ import {
   LOOKUP_KEY_TO_TIER_NAME,
   manageSubscriptionEvent
 } from '@/lib/checkout/utils';
-
-import { type NextRequest } from 'next/server';
 import { sendOnPaymentReceivedEmail } from '@/lib/emails/utils';
-import stripe from 'stripe';
 
 async function sendEmailOnInvoiceReceived(
   itemDescriptions: ItemDescription[],

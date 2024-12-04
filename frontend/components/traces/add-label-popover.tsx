@@ -1,3 +1,4 @@
+import { PopoverClose } from '@radix-ui/react-popover';
 import {
   ChevronDown,
   Loader2,
@@ -5,8 +6,27 @@ import {
   Plus,
   Tag
 } from 'lucide-react';
-import { cn, swrFetcher } from '@/lib/utils';
+import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { v4 } from 'uuid';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { eventEmitter } from '@/lib/event-emitter';
+import { Graph } from '@/lib/flow/graph';
 import { CodeNode, LLMNode, NodeType } from '@/lib/flow/types';
+import { renderNodeInput } from '@/lib/flow/utils';
+import { toast } from '@/lib/hooks/use-toast';
+import {
+  LabelClass,
+  LabelSource,
+  RegisteredLabelClassForPath,
+  Span,
+} from '@/lib/traces/types';
+import { cn, swrFetcher } from '@/lib/utils';
+
+import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
+import { Button } from '../ui/button';
 import {
   Dialog,
   DialogContent,
@@ -22,13 +42,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '../ui/dropdown-menu';
-import {
-  LabelClass,
-  LabelSource,
-  RegisteredLabelClassForPath,
-  Span,
-} from '@/lib/traces/types';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Switch } from '../ui/switch';
 import {
   Table,
   TableBody,
@@ -37,21 +52,7 @@ import {
   TableHeader,
   TableRow
 } from '../ui/table';
-
 import { AddLabel } from './add-label';
-import { Button } from '../ui/button';
-import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
-import { eventEmitter } from '@/lib/event-emitter';
-import { Graph } from '@/lib/flow/graph';
-import { PopoverClose } from '@radix-ui/react-popover';
-import { renderNodeInput } from '@/lib/flow/utils';
-import { Switch } from '../ui/switch';
-import { toast } from '@/lib/hooks/use-toast';
-import { useProjectContext } from '@/contexts/project-context';
-import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
-import useSWR from 'swr';
-import { v4 } from 'uuid';
 
 const getEvaluatorType = (labelClass: LabelClass) => {
   if (!labelClass.evaluatorRunnableGraph) {

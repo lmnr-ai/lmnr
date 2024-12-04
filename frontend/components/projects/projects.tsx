@@ -1,14 +1,15 @@
 'use client';
 
-import { cn, swrFetcher } from '@/lib/utils';
+import React from 'react';
+import useSWR from 'swr';
 
 import ProjectCard from '@/components/projects/project-card';
-import ProjectCreateDialog from './project-create-dialog';
-import React from 'react';
-import { Skeleton } from '../ui/skeleton';
-import useSWR from 'swr';
-import WorkspaceCreateDialog from './workspace-create-dialog';
+import { cn, swrFetcher } from '@/lib/utils';
 import { WorkspaceWithProjects } from '@/lib/workspaces/types';
+
+import { Skeleton } from '../ui/skeleton';
+import ProjectCreateDialog from './project-create-dialog';
+import WorkspaceCreateDialog from './workspace-create-dialog';
 
 interface ProjectsProps {
   isWorkspaceEnabled: boolean;

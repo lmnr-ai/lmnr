@@ -1,30 +1,31 @@
+import { createClient } from '@supabase/supabase-js';
+import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { Trace } from '@/lib/traces/types';
+import { PaginatedGetResponseWithProjectPresenceFlag } from '@/lib/types';
+
+import ClientTimestampFormatter from '../client-timestamp-formatter';
+import { Button } from '../ui/button';
+import { DataTable } from '../ui/datatable';
+import DataTableFilter from '../ui/datatable-filter';
+import DateRangeFilter from '../ui/date-range-filter';
+import Mono from '../ui/mono';
+import TextSearchFilter from '../ui/text-search-filter';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import { useEffect, useMemo, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-
-import { Button } from '../ui/button';
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { ColumnDef } from '@tanstack/react-table';
-import { createClient } from '@supabase/supabase-js';
-import { DataTable } from '../ui/datatable';
-import DataTableFilter from '../ui/datatable-filter';
-import DateRangeFilter from '../ui/date-range-filter';
-import Mono from '../ui/mono';
-import { PaginatedGetResponseWithProjectPresenceFlag } from '@/lib/types';
-import SpanTypeIcon from './span-type-icon';
-import TextSearchFilter from '../ui/text-search-filter';
-import { Trace } from '@/lib/traces/types';
 import TracesPagePlaceholder from './page-placeholder';
-import { useProjectContext } from '@/contexts/project-context';
-import { useUserContext } from '@/contexts/user-context';
+import SpanTypeIcon from './span-type-icon';
 
 interface TracesTableProps {
   onRowClick?: (rowId: string) => void;

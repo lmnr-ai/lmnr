@@ -1,11 +1,11 @@
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
-
-import { authOptions } from '@/lib/auth';
-import { getServerSession } from 'next-auth';
-import Landing from '@/components/landing/landing';
-import LandingHeader from '@/components/landing/landing-header';
 import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+
+import Landing from '@/components/landing/landing';
+import LandingHeader from '@/components/landing/landing-header';
+import { authOptions } from '@/lib/auth';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 
 export const metadata: Metadata = {

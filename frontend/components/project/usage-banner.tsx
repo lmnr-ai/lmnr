@@ -1,7 +1,8 @@
 'use client';
 
-import { Label } from '../ui/label';
 import { useRouter } from 'next/navigation';
+
+import { Label } from '../ui/label';
 
 interface ProjectUsageBannerProps {
   workspaceId: string;
