@@ -48,7 +48,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
           {/* <ScrollArea className="h-full flex-grow w-full mx-auto bg-background px-16">
             <div className="h-0"> */}
           <BlogMeta data={data} />
-          <div className="pt-12 pb-48">
+          <div className="pt-4 pb-48">
             <MDXRemote
               source={content}
               components={{
@@ -56,13 +56,16 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                 h2: (props) => <MDHeading props={props} level={1} />,
                 h3: (props) => <MDHeading props={props} level={2} />,
                 h4: (props) => <MDHeading props={props} level={3} />,
-                p: (props) => <p className="text-lg py-2" {...props} />,
-                a: (props) => <a className="text-primary underline" {...props} />,
+                p: (props) => <p className="py-2 text-secondary-foreground" {...props} />,
+                a: (props) => <a className="text-primary underline" target="_blank" rel="noopener noreferrer" {...props} />,
                 blockquote: (props) => <blockquote className="border-l-2 border-primary pl-4 py-2" {...props} />,
                 // codeblock
                 pre: (props) => <PreHighlighter className="pl-4 py-4" {...props} />,
                 // inline code
-                code: (props) => <span className="text-lg bg-secondary text-primary font-mono px-0.5" {...props} />,
+                code: (props) => <span className="text-sm bg-secondary text-primary font-mono px-0.5" {...props} />,
+                ul: (props) => <ul className="list-disc pl-4 text-secondary-foreground" {...props} />,
+                ol: (props) => <ol className="list-decimal pl-4 text-secondary-foreground" {...props} />,
+                img: (props) => <img className="w-full border rounded-lg" {...props} />,
               }}
             />
           </div>

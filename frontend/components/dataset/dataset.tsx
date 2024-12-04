@@ -180,7 +180,10 @@ export default function Dataset({ dataset }: DatasetProps) {
         <IndexDatasetDialog
           datasetId={dataset.id}
           defaultDataset={dataset}
-          onUpdate={mutate}
+          onUpdate={() => {
+            mutate();
+            router.refresh();
+          }}
         />
         <DownloadButton
           uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
