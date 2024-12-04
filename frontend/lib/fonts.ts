@@ -1,27 +1,15 @@
 import {
-  JetBrains_Mono as FontMono,
-  Inter as FontSans,
-  Outfit as FontSans2
+  Inter,
 } from 'next/font/google';
-import localFont from 'next/font/local';
 
-export const fontSans = FontSans({
+export const sans = Inter({
   subsets: ['latin'],
-  variable: '--font-sans'
+  display: 'swap',
+  style: 'normal',
+  variable: '--font-inter'
 });
 
-export const fontSans2 = FontSans2({
-  subsets: ['latin'],
-  variable: '--font-sans2'
-});
 
-export const fontMono = FontMono({
-  subsets: ['latin'],
-  variable: '--font-mono'
-});
+import { GeistMono } from 'geist/font/mono';
 
-export const fontSecurity = localFont({
-  src: '../assets/fonts/text-security-disc.woff2',
-  weight: '500',
-  style: 'normal'
-});
+export const sans2 = GeistMono

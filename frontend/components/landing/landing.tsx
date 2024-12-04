@@ -1,17 +1,15 @@
 'use client';
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from 'react';
 
 import amazon from '@/assets/landing/amazon.svg';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import CodeEditor from '../ui/code-editor';
 import dataset from '@/assets/landing/dataset.png';
 import evals from '@/assets/landing/evals.png';
 import Footer from './footer';
 import github from '@/assets/landing/github-mark-white.svg';
-import Image from 'next/image';
 import labels from '@/assets/landing/labels.png';
 import Link from 'next/link';
 import moa from '@/assets/landing/MoA.png';
@@ -21,10 +19,105 @@ import onlineEvals from '@/assets/landing/online-evals.png';
 import palantir from '@/assets/landing/palantir.svg';
 import smallTrace from '@/assets/landing/small-trace.png';
 import traces from '@/assets/landing/traces.png';
+import CodeHighlighter from "../ui/code-highlighter";
+import Image, { StaticImageData } from 'next/image';
 import yc from '@/assets/landing/yc.svg';
+
+interface Section {
+  id: string;
+  title: string;
+  description: string;
+  pythonCodeExample: string;
+  tsCodeExample: string;
+  docsLink: string;
+  callToAction: string;
+  image: StaticImageData;
+}
+
+const sections: Section[] = [
+  {
+    id: 'traces',
+    title: 'Trace',
+    description: 'Tracing your LLM application provides visibility into execution steps while collecting valuable data for evaluations, few-shot examples, and fine-tuning.',
+    pythonCodeExample: `from lmnr import Laminar, observe
+
+# automatically traces common LLM frameworks and SDKs
+Laminar.initialize(project_api_key="...")
+
+@observe() # you can also manually trace any function
+def my_function(...):
+...`,
+    tsCodeExample: `import { Laminar, observe } from '@lmnr-ai/lmnr';
+
+// automatically traces common LLM frameworks and SDKs
+Laminar.initialize({ projectApiKey: "..." });
+
+// you can also manually trace any function
+const myFunction = observe({name: 'myFunc'}, async () => {
+...
+})`,
+    image: traces,
+    docsLink: 'https://docs.lmnr.ai/tracing/introduction',
+    callToAction: 'Start tracing your LLM app'
+  },
+  {
+    id: 'evals',
+    title: 'Evaluate',
+    description: 'Evaluations are unit tests for your LLM application. They help you answer questions like "Did my last change improve the performance?". Run custom evals via code, CLI, or CI/CD pipeline.',
+    image: evals,
+    pythonCodeExample: `from lmnr import evaluate
+
+evaluate(
+  data=[ ... ],
+  executor=my_function,
+  evaluators={
+    "accuracy": lambda output, target: ...
+  }
+)`,
+    tsCodeExample: `import { evaluate } from '@lmnr-ai/lmnr';
+
+evaluate({
+  data: [ ... ],
+  executor: myFunction,
+  evaluators: {
+      accuracy: (output, target) => ...
+  }
+});`,
+    docsLink: 'https://docs.lmnr.ai/evaluations/introduction',
+    callToAction: 'Bring rigor to your LLM app'
+  },
+  {
+    id: 'labels',
+    title: 'Label',
+    description: 'Label LLM outputs to identify successes and failures. Build datasets for fine-tuning, prompt examples, and targeted improvements. Use human labels for evaluations.',
+    image: labels,
+    docsLink: 'https://docs.lmnr.ai/labels/introduction',
+    pythonCodeExample: `from lmnr import Laminar
+
+my_labels = { "success": "yes", }
+# labels will be recorded for the LLM span
+with Laminar.with_labels(my_labels):
+  openai_client.chat.completions.create(
+      messages=[ ... ]
+  )
+`,
+    tsCodeExample: `import { Laminar, withLabels} from '@lmnr-ai/lmnr';
+
+// Simple wrapper to record labels for LLM calls
+await withLabels({ label: 'value' }, (message: string) => {
+  return openaiClient.chat.completions.create({
+    messages: [{ role: 'user', content: message }],
+      // ...
+    });
+}, "What is the capital of France?");`,
+    callToAction: 'Label data'
+  }
+];
 
 export default function Landing() {
   const [stars, setStars] = useState<number | null>(null);
+  const [selectedSection, setSelectedSection] = useState<Section>(sections[0]);
+  const [autoRotate, setAutoRotate] = useState(true);
 
   useEffect(() => {
     fetch('/api/stars', { cache: 'no-cache' })
@@ -33,70 +126,45 @@ export default function Landing() {
       .catch(err => console.error('Failed to fetch GitHub stars:', err));
   }, []);
 
-  const sections = [
-    {
-      id: 'traces',
-      title: 'Traces',
-      description: 'When you trace your LLM application, you get a clear picture of every step of execution and simultaneously collect invaluable data. You can use it to set up better evaluations, as dynamic few-shot examples, and for fine-tuning.',
-      codeExample: `from lmnr import Laminar, observe
+  // Reset timer when user manually selects section
+  const handleSectionSelect = (section: Section) => {
+    setSelectedSection(section);
+    setAutoRotate(false);
+    // Reset auto-rotate after 20 seconds
+    setTimeout(() => setAutoRotate(true), 20000);
+  };
 
-# automatically instruments common 
-# LLM frameworks and libraries
-Laminar.initialize(project_api_key="...")
+  // Auto-rotate timer
+  useEffect(() => {
+    if (!autoRotate) return;
 
-@observe() # annotate all functions you want to trace
-def my_function():
-  ...
-`,
-      image: traces,
-      docsLink: 'https://docs.lmnr.ai/tracing/introduction'
-    },
-    {
-      id: 'evals',
-      title: 'Evals',
-      description: 'Evaluations are unit tests for your prompts. Without them, any iteration attempt is blind. Laminar gives you powerful tools to build and run evaluations to facilitate the iteration process. Run them from the code, terminal, or as a part of your CI/CD pipeline.',
-      image: evals,
-      codeExample: `from lmnr import evaluate
+    const timer = setInterval(() => {
+      setSelectedSection(current => {
+        const currentIndex = sections.findIndex(section => section.id === current.id);
+        const nextIndex = (currentIndex + 1) % sections.length;
+        return sections[nextIndex];
+      });
+    }, 15000);
 
-evaluate(
-    data=[
-        {
-          "data": { ... },
-          "target": { ... }
-        },
-    ],
-    executor=my_function,
-    evaluators={
-      "accuracy": lambda output, target: ...
-    }
-)`,
-      docsLink: 'https://docs.lmnr.ai/evaluations/introduction'
-    },
-    {
-      id: 'labels',
-      title: 'Labels',
-      description: 'Labeling LLM outputs helps you identify exactly where your AI application succeeds or fails. Laminar helps you build labeled datasets, which you can use to fine-tune your models, add successful examples to your prompts, and fix problem areas.',
-      image: labels,
-      docsLink: 'https://docs.lmnr.ai/labels/introduction'
-    }
-  ];
+    return () => clearInterval(timer);
+  }, [autoRotate]);
 
   return (
     <>
       <div className="flex flex-col z-30 items-center space-y-16 pt-28">
-        <div className="flex flex-col md:w-[1000px] space-y-8">
+        <div className="flex flex-col md:w-[1200px] space-y-8">
           <div className="flex flex-col">
             <div className="flex flex-col items-center pt-4 text-center relative">
               <div className="inset-0 absolute z-10 md:rounded-lg overflow-hidden">
                 <Image src={noise} alt="" className="w-full h-full" priority />
               </div>
               <div className="z-20 flex flex-col items-center space-y-10 p-8">
-                <p className="text-4xl tracking-tighter md:px-0 md:text-7xl md:leading-tight md:tracking-normal text-white font-medium">
-                  AI engineering <br /> from first principles
+                <p className="text-6xl md:px-0 md:text-8xl md:leading-tight text-white font-medium animate-in fade-in duration-500">
+                  The AI engineering <br /> platform
                 </p>
-                <p className="text-[1.2rem] md:text-2xl md:w-[500px] md:tracking-normal font-medium text-white">
-                  Laminar is an open-source all-in-one platform
-                  for engineering best-in-class LLM products.
+                <p className="text-[1.2rem] md:text-2xl md:w-[750px] font-medium text-white">
+                  Laminar is an open-source platform
+                  for engineering LLM products. Trace, evaluate, label, and analyze LLM apps.
                 </p>
                 <div className="flex w-full justify-center">
                   <Link target="_blank" href="https://github.com/lmnr-ai/lmnr">
@@ -152,99 +220,91 @@ evaluate(
             </div>
           </div>
         </div>
-        <div className="flex flex-col md:items-center md:w-[1000px] md:px-0">
-          <p
-            className="text-center text-2xl px-8 md:my-16 font-medium md:text-4xl md:leading-relaxed text-white"
-          >
-            Data governs the quality of your LLM application. <br />
-            Laminar helps you collect it, understand it, and use it.
+        <div className="flex flex-col md:items-center md:w-[1200px] md:px-0 py-16">
+          <div className="flex flex-col gap-4">
+            <span
+              className="text-4xl md:text-5xl text-white font-medium"
+            >
+              Building with LLMs? <br />
+            </span>
+            <span className="text-3xl md:text-2xl md:leading-relaxed font-medium">
+              Then, you might be <br />
+            </span>
+            <div className="text-xl font-medium text-secondary-foreground flex flex-col gap-4">
+              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Struggling to monitor LLM calls in production.</span>
+              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Don't know how last prompt change affected performance.</span>
+              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Lacking data for fine-tuning and prompt engineering.</span>
+            </div>
+          </div>
+          <p className="text-xl md:text-6xl text-white/90 font-medium pt-24 pb-4">
+            Laminar is a single solution for <br />
+            <span className="font-medium text-primary">tracing</span>, <span className="font-medium text-primary">evaluating</span>, and <span className="font-medium text-primary">labeling</span> <br />
+            LLM apps.
           </p>
         </div>
 
-        <div className="flex flex-col md:items-center space-y-16 md:w-[1000px] md:px-0">
-          <Tabs
-            defaultValue="traces"
-            className="w-full"
-          >
-            <div className="flex flex-col space-y-4 w-full relative mb-8">
-              <div className="absolute inset-0 z-0 md:rounded-lg overflow-hidden">
-                <Image
-                  src={noise1}
-                  alt=""
-                  className="w-full h-full object-cover"
+        <div className="flex flex-col md:items-center md:w-[1200px]">
+          <div className="flex flex-col gap-16 w-full relative md:p-8 md:pb-0">
+            <div className="absolute inset-0 z-0 md:rounded-lg overflow-hidden">
+              <Image
+                src={noise1}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="z-20 text-white gap-4 grid grid-cols-1 md:grid-cols-2 h-80">
+              <div key={selectedSection.id} className="flex flex-col gap-8">
+                <div className="flex border-none gap-4 font-medium">
+                  {sections.map((section, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSectionSelect(section)}
+                      className={`border border-white/40 h-8 px-3 rounded transition-colors duration-200 ${selectedSection.id === section.id
+                        ? 'bg-white text-black border-b-2'
+                        : 'text-white hover:bg-white/10 '}`}
+                    >
+                      {section.title}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-col space-y-4 animate-in fade-in fade-out duration-700">
+                  <h1 className="text-5xl font-semibold">{selectedSection.title}</h1>
+                  <p className="font-medium text-xl md:text-xl text-white/90">
+                    {selectedSection.description}
+                  </p>
+                  {selectedSection.docsLink && (
+                    <div className="flex flex-col space-y-2 justify-start">
+                      <Link
+                        href={selectedSection.docsLink}
+                        target="_blank"
+                      >
+                        <Button variant="light" className="h-8">
+                          {selectedSection.callToAction}
+                          <ArrowUpRight className="ml-1 h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col w-full h-full">
+                <CodeTabs
+                  pythonCode={selectedSection.pythonCodeExample}
+                  tsCode={selectedSection.tsCodeExample}
                 />
               </div>
-              <div className="z-20 text-white">
-                <TabsList
-                  className="flex justify-center border-none mb-8"
-                >
-                  {
-                    sections.map((section, i) => (
-                      <TabsTrigger key={i} value={section.id}
-                        className="border-none data-[state=active]:bg-white data-[state=active]:text-black data-[state=inactive]:text-white data-[state=inactive]:font-medium h-8 px-2 rounded">
-                        {section.title}
-                      </TabsTrigger>
-                    ))
-                  }
-                </TabsList>
-                {
-                  sections.map((section, i) => (
-                    <TabsContent key={i} value={section.id}>
-                      <div className="flex-col w-full grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex flex-col space-y-4 p-8">
-                          <h1 className="text-4xl font-semibold">
-                            {section.title}
-                          </h1>
-                          <p className="leading-tight font-medium text-lg text-white/90">
-                            {section.description}
-                          </p>
-                          {section.docsLink && (
-                            <div className="flex flex-col space-y-2 justify-start">
-                              <Link
-                                href={section.docsLink}
-                                target="_blank"
-                                className="text-white/90 flex items-center mt-4 border border-white/80 rounded-lg p-2"
-                              >
-                                Read more about {section.title.toLowerCase()} <ArrowUpRight className="ml-2 h-4 w-4" />
-                              </Link>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-col w-full">
-                          {section.codeExample && (
-                            <CodeEditor
-                              background="bg-black"
-                              className="bg-black md:rounded-tl-lg md:rounded-br-lg border-white"
-                              value={section.codeExample}
-                              language="python"
-                              editable={false}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </TabsContent>
-                  ))
-                }
-              </div>
             </div>
-            <div>
-              {
-                sections.map((section, i) => (
-                  <TabsContent key={i} value={section.id}>
-                    <div className="bg-secondary border rounded overflow-hidden w-full">
-                      <Image
-                        alt={section.title}
-                        src={section.image}
-                        className="overflow-hidden rounded md:shadow-lg w-full h-full"
-                      />
-                    </div>
-                  </TabsContent>
-                ))
-              }
+            <div key={selectedSection.id} className="z-20 animate-in fade-in fade-out duration-700">
+              <Image
+                alt={selectedSection.title}
+                src={selectedSection.image}
+                priority
+                className="rounded-t-lg w-full object-cover object-top h-[500px]"
+              />
             </div>
-          </Tabs>
+          </div>
         </div>
-        <div className="flex flex-col md:items-center md:w-[1000px] px-4 md:px-0">
+        <div className="flex flex-col md:items-center md:w-[1200px] px-4 md:px-0">
           <div className="flex flex-col w-full space-y-4">
             <div className="flex flex-col space-y-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -274,23 +334,16 @@ function TracingCard() {
   return (
     <div
       className="bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group">
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <Image
-          src={noise1}
-          alt=""
-          className="w-full h-full object-cover object-top"
-        />
-      </div>
       <Link
         href="https://docs.lmnr.ai/tracing/introduction"
         target="_blank"
         className="flex flex-col h-full relative z-10"
       >
         <div className="p-6 flex-grow space-y-2">
-          <h1 className="text-xl font-medium group-hover:text-white transition-colors duration-200">Zero-overhead observability</h1>
-          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
-            All traces are sent in the background via gRPC with minimal overhead.
-            Tracing of text and image models is supported, audio models are coming soon.
+          <h1 className="text-2xl font-medium group-hover:text-white transition-colors duration-200">LLM observability that just works</h1>
+          <p className="text-secondary-foreground/80 group-hover:text-white transition-colors duration-200">
+            Add 2 lines of code to trace all LLM calls and traces.
+            Traces are sent in the background via gRPC with minimal performance and latency overhead.
           </p>
           <div className="flex">
             <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
@@ -315,21 +368,14 @@ function TracingCard() {
 function DatasetCard() {
   return (
     <div className="bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group">
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <Image
-          src={noise1}
-          alt=""
-          className="w-full h-full object-cover object-top"
-        />
-      </div>
       <Link
         href="https://docs.lmnr.ai/datasets/introduction"
         target="_blank"
         className="flex flex-col h-full relative z-10"
       >
         <div className="p-6 flex-grow space-y-2">
-          <h3 className="text-xl font-medium group-hover:text-white transition-colors duration-200">Datasets</h3>
-          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
+          <h3 className="text-2xl font-medium group-hover:text-white transition-colors duration-200">Datasets</h3>
+          <p className="text-secondary-foreground/80 group-hover:text-white transition-colors duration-200">
             You can build datasets from your traces, and use them in evaluations, fine-tuning and prompt engineering.
           </p>
           <div className="flex">
@@ -343,7 +389,7 @@ function DatasetCard() {
             <Image
               src={dataset}
               alt="Dataset visualization"
-              className="w-full object-cover object-top max-h-[215px]"
+              className="w-full object-cover object-top max-h-[250px]"
             />
           </div>
         </div>
@@ -355,22 +401,16 @@ function DatasetCard() {
 function EvaluationsCard() {
   return (
     <div className="bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group">
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <Image
-          src={noise1}
-          alt=""
-          className="w-full h-full object-cover object-top"
-        />
-      </div>
       <Link
         href="https://docs.lmnr.ai/evaluations/online-evaluations"
         target="_blank"
         className="flex flex-col h-full relative z-10"
       >
         <div className="p-6 flex-grow space-y-2">
-          <h3 className="text-xl font-medium group-hover:text-white transition-colors duration-200">Online evaluations</h3>
-          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
-            You can setup LLM-as-a-judge or Python script evaluators to run on each received span. Evaluators label spans, which is more scalable than human labeling, and especially helpful for smaller teams.
+          <h3 className="text-2xl font-medium group-hover:text-white transition-colors duration-200">Online evaluations</h3>
+          <p className="text-secondary-foreground/80 group-hover:text-white transition-colors duration-200">
+            Setup LLM or Python online evaluators to process each received span.
+            Evaluators automatically label spans, which is more scalable than human labeling.
           </p>
           <div className="flex">
             <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
@@ -395,28 +435,19 @@ function EvaluationsCard() {
 function PromptChainsCard({ className }: { className?: string }) {
   return (
     <div className={`bg-secondary/30 text-white border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group ${className}`}>
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <Image
-          src={noise1}
-          alt=""
-          className="w-full h-full object-cover object-top"
-        />
-      </div>
       <Link
         href="https://docs.lmnr.ai/pipeline/introduction"
         target="_blank"
         className="flex flex-col h-full relative z-10"
       >
         <div className="p-6 flex-grow space-y-2">
-          <h3 className="text-xl font-medium">Prompt chain management</h3>
-          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
-            Laminar lets you go beyond a single prompt. You can build and host
-            complex chains, including mixtures of agents or self-reflecting LLM
-            pipelines.
+          <h3 className="text-2xl font-medium">Serverless LLM pipelines</h3>
+          <p className="text-secondary-foreground/80 group-hover:text-white transition-colors duration-200">
+            Our pipeline builder is an incredible prototyping tool. It lets you quickly build and iterate on both simple prompts and complex LLM chains. After that
           </p>
           <div className="flex">
             <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
-              Build LLM chains <ArrowUpRight className="ml-2 h-4 w-4" />
+              Deploy LLM pipeline <ArrowUpRight className="ml-2 h-4 w-4" />
             </div>
           </div>
         </div>
@@ -437,21 +468,14 @@ function PromptChainsCard({ className }: { className?: string }) {
 function SelfHostCard() {
   return (
     <div className="bg-secondary/30 border rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden group">
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <Image
-          src={noise1}
-          alt=""
-          className="w-full h-full object-cover object-top"
-        />
-      </div>
       <Link
         href="https://github.com/lmnr-ai/lmnr"
         target="_blank"
         className="flex flex-col h-full relative z-10"
       >
         <div className="p-6 flex-grow space-y-2">
-          <h3 className="text-xl font-medium group-hover:text-white transition-colors duration-200">Fully open-source</h3>
-          <p className="text-secondary-foreground/80 text-sm group-hover:text-white transition-colors duration-200">
+          <h3 className="text-2xl font-medium group-hover:text-white transition-colors duration-200">Fully open-source</h3>
+          <p className="text-secondary-foreground/80 group-hover:text-white transition-colors duration-200">
             Laminar is fully open-source and easy to self-host. Get started with just a few commands.
           </p>
           <CodeEditor
@@ -464,11 +488,57 @@ docker compose up -d`}
           />
           <div className="flex">
             <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
-              Learn about self-hosting <ArrowUpRight className="ml-2 h-4 w-4" />
+              Self-host Laminar <ArrowUpRight className="ml-2 h-4 w-4" />
             </div>
           </div>
         </div>
       </Link>
+    </div>
+  );
+}
+
+function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string }) {
+  const [selectedLang, setSelectedLang] = useState('typescript');
+
+  return (
+    <div className="w-full bg-black rounded-lg h-full flex flex-col">
+      <div className="p-4 flex space-x-2 text-sm font-medium">
+        <button
+          onClick={() => setSelectedLang('typescript')}
+          className={`border border-white/40 h-7 px-2 rounded ${selectedLang === 'typescript'
+            ? 'bg-white text-black'
+            : 'text-white font-medium'
+            }`}
+        >
+          TypeScript
+        </button>
+        <button
+          onClick={() => setSelectedLang('python')}
+          className={`border border-white/40 h-7 px-2 rounded ${selectedLang === 'python'
+            ? 'bg-white text-black'
+            : 'text-white font-medium'
+            }`}
+        >
+          Python
+        </button>
+      </div>
+
+      <div className="p-4">
+        {selectedLang === 'python' && (
+          <CodeHighlighter
+            className="bg-black border-white"
+            code={pythonCode || ''}
+            language="python"
+          />
+        )}
+        {selectedLang === 'typescript' && (
+          <CodeHighlighter
+            className="bg-black border-white"
+            code={tsCode || ''}
+            language="javascript"
+          />
+        )}
+      </div>
     </div>
   );
 }

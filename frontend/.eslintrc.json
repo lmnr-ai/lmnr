@@ -1,7 +1,9 @@
 {
   "extends": [
     "next/core-web-vitals",
-    "prettier"
+    "prettier",
+    "plugin:prettier/recommended",
+    "plugin:simple-import-sort/recommended"
   ],
   "rules": {
     "indent": [
@@ -44,9 +46,12 @@
         "ignoreCase": true,
         "allowSeparatedGroups": false
       }
-    ]
+    ],
+    "simple-import-sort/imports": "error",
+    "simple-import-sort/exports": "error"
   },
   "plugins": [
-    "unused-imports"
+    "unused-imports",
+    "simple-import-sort"
   ]
 }
