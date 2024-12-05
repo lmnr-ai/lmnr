@@ -270,12 +270,7 @@ fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Opt
                     .strip_prefix("event.")
                     .unwrap()
                     .to_string();
-                filter_by_event_value(
-                    query,
-                    template_name,
-                    filter.filter_operator.clone(),
-                    filter.filter_value.clone(),
-                );
+                filter_by_event_name(query, template_name);
                 return;
             }
             if filter.filter_column == "labels" {
@@ -347,26 +342,17 @@ fn add_filters_to_traces_query(query: &mut QueryBuilder<Postgres>, filters: &Opt
     }
 }
 
-fn filter_by_event_value(
-    query: &mut QueryBuilder<Postgres>,
-    template_name: String,
-    filter_operator: FilterOperator,
-    event_value: Value,
-) {
+fn filter_by_event_name(query: &mut QueryBuilder<Postgres>, name: String) {
     query.push(
         " AND id IN
         (SELECT trace_id
         FROM spans
-        JOIN old_events ON spans.span_id = old_events.span_id
-        JOIN event_templates ON old_events.template_id = event_templates.id
-        WHERE event_templates.name = 
+        JOIN events ON spans.span_id = events.span_id
+        WHERE events.name = 
     ",
     );
-    query.push_bind(template_name);
-    query.push(" AND old_events.value ");
-    query.push(filter_operator.to_sql_operator());
-    query.push_bind(event_value);
-    query.push("::jsonb)");
+    query.push_bind(name);
+    query.push(")");
 }
 
 fn filter_by_span_label_value(

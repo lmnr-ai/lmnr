@@ -3,7 +3,6 @@ use sqlx::PgPool;
 pub mod datapoints;
 pub mod datasets;
 pub mod evaluations;
-pub mod event_templates;
 pub mod events;
 pub mod labeling_queues;
 pub mod labels;

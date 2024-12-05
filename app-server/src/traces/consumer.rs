@@ -19,6 +19,7 @@ use crate::{
     storage::Storage,
     traces::{
         evaluators::run_evaluator,
+        events::record_events,
         utils::{record_labels_to_db, record_span_to_db},
     },
 };
@@ -191,6 +192,12 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
                 .ack(BasicAckOptions::default())
                 .await
                 .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
+        }
+
+        if let Err(e) =
+            record_events(db.clone(), clickhouse.clone(), rabbitmq_span_message.events).await
+        {
+            log::error!("Failed to record events: {:?}", e);
         }
 
         if let Err(e) = record_labels_to_db(
