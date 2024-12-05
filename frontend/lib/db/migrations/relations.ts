@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { apiKeys, datapointToSpan,datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, events, eventTemplates, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, membersOfWorkspaces, oldEvents, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, spans, subscriptionTiers, targetPipelineVersions, traces, users, userSubscriptionInfo, workspaces, workspaceUsage } from "./schema";
+import { apiKeys, datapointToSpan,datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, events, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, spans, subscriptionTiers, targetPipelineVersions, traces, users, userSubscriptionInfo, workspaces, workspaceUsage } from "./schema";
 
 export const targetPipelineVersionsRelations = relations(targetPipelineVersions, ({one}) => ({
   pipeline: one(pipelines, {
@@ -38,7 +38,6 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   labelingQueues: many(labelingQueues),
   providerApiKeys: many(providerApiKeys),
   evaluations: many(evaluations),
-  eventTemplates: many(eventTemplates),
   playgrounds: many(playgrounds),
   labelClassesForPaths: many(labelClassesForPath),
   datasets: many(datasets),
@@ -64,21 +63,6 @@ export const evaluationsRelations = relations(evaluations, ({one, many}) => ({
   evaluationResults: many(evaluationResults),
   project: one(projects, {
     fields: [evaluations.projectId],
-    references: [projects.id]
-  }),
-}));
-
-export const oldEventsRelations = relations(oldEvents, ({one}) => ({
-  eventTemplate: one(eventTemplates, {
-    fields: [oldEvents.templateId],
-    references: [eventTemplates.id]
-  }),
-}));
-
-export const eventTemplatesRelations = relations(eventTemplates, ({one, many}) => ({
-  oldEvents: many(oldEvents),
-  project: one(projects, {
-    fields: [eventTemplates.projectId],
     references: [projects.id]
   }),
 }));
