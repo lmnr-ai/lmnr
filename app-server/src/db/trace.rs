@@ -357,13 +357,13 @@ fn filter_by_event_value(
         " AND id IN
         (SELECT trace_id
         FROM spans
-        JOIN events ON spans.span_id = events.span_id
-        JOIN event_templates ON events.template_id = event_templates.id
+        JOIN old_events ON spans.span_id = old_events.span_id
+        JOIN event_templates ON old_events.template_id = event_templates.id
         WHERE event_templates.name = 
     ",
     );
     query.push_bind(template_name);
-    query.push(" AND events.value ");
+    query.push(" AND old_events.value ");
     query.push(filter_operator.to_sql_operator());
     query.push_bind(event_value);
     query.push("::jsonb)");

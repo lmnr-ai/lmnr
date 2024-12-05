@@ -147,22 +147,22 @@ pub async fn get_trace_spans(
     let mut query = sqlx::QueryBuilder::<Postgres>::new(
         "WITH span_events AS (
             SELECT
-                events.span_id,
+                old_events.span_id,
                 event_templates.project_id,
                 jsonb_agg(
                     jsonb_build_object(
-                        'id', events.id,
-                        'spanId', events.span_id,
-                        'timestamp', events.timestamp,
-                        'templateId', events.template_id,
+                        'id', old_events.id,
+                        'spanId', old_events.span_id,
+                        'timestamp', old_events.timestamp,
+                        'templateId', old_events.template_id,
                         'templateName', event_templates.name,
                         'templateEventType', event_templates.event_type,
-                        'source', events.source
+                        'source', old_events.source
                     )
                 ) AS events
-            FROM events
-            JOIN event_templates ON events.template_id = event_templates.id
-            GROUP BY events.span_id, event_templates.project_id
+            FROM old_events
+            JOIN event_templates ON old_events.template_id = event_templates.id
+            GROUP BY old_events.span_id, event_templates.project_id
         ),
         span_labels AS (
             SELECT labels.span_id,
