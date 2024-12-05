@@ -1,8 +1,6 @@
 import { sql } from "drizzle-orm";
 import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
-export const eventSource = pgEnum("event_source", ['AUTO', 'MANUAL', 'CODE']);
-export const eventType = pgEnum("event_type", ['BOOLEAN', 'STRING', 'NUMBER']);
 export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO', 'CODE']);
 export const labelType = pgEnum("label_type", ['BOOLEAN', 'CATEGORICAL']);
 export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION']);
@@ -80,25 +78,6 @@ export const evaluationResults = pgTable("evaluation_results", {
     name: "evaluation_results_evaluation_id_fkey1"
   }).onUpdate("cascade").onDelete("cascade"),
   selectByNextApiKey: pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_evaluation_id_accessible_for_api_key(api_key(), evaluation_id)` }),
-}));
-
-export const oldEvents = pgTable("old_events", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  spanId: uuid("span_id").notNull(),
-  timestamp: timestamp({ withTimezone: true, mode: 'string' }).notNull(),
-  templateId: uuid("template_id").notNull(),
-  source: eventSource().notNull(),
-  metadata: jsonb(),
-  value: jsonb().notNull(),
-  data: text(),
-  inputs: jsonb(),
-}, (table) => ({
-  eventsTemplateIdFkey: foreignKey({
-    columns: [table.templateId],
-    foreignColumns: [eventTemplates.id],
-    name: "events_template_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
 }));
 
 export const labelingQueues = pgTable("labeling_queues", {
@@ -190,21 +169,6 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   extraSpanPrice: doublePrecision("extra_span_price").default(sql`'0'`).notNull(),
   extraEventPrice: doublePrecision("extra_event_price").default(sql`'0'`).notNull(),
 });
-
-export const eventTemplates = pgTable("event_templates", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  name: text().notNull(),
-  projectId: uuid("project_id").notNull(),
-  eventType: eventType("event_type").default('BOOLEAN').notNull(),
-}, (table) => ({
-  eventTemplatesProjectIdFkey: foreignKey({
-    columns: [table.projectId],
-    foreignColumns: [projects.id],
-    name: "event_templates_project_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-  uniqueNameProjectId: unique("unique_name_project_id").on(table.name, table.projectId),
-}));
 
 export const evaluationScores = pgTable("evaluation_scores", {
   id: uuid().defaultRandom().primaryKey().notNull(),
