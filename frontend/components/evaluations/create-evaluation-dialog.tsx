@@ -1,6 +1,10 @@
 'use client';
 
-import { cn, getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -9,18 +13,15 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-
-import { Button } from '@/components/ui/button';
-import DatasetSelect from '../ui/dataset-select';
-import { DisplayableGraph } from '@/lib/flow/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
+import { useProjectContext } from '@/contexts/project-context';
+import { DisplayableGraph } from '@/lib/flow/types';
+import { cn, getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
+
+import DatasetSelect from '../ui/dataset-select';
 import PipelineSelect from '../ui/pipeline-select';
 import { Switch } from '../ui/switch';
-import { useProjectContext } from '@/contexts/project-context';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
 
 export default function CreateEvaluationDialog() {
   const { projectId } = useProjectContext();

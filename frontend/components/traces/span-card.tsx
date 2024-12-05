@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getDurationString } from '@/lib/flow/utils';
-import { Label } from '../ui/label';
 import { Span } from '@/lib/traces/types';
+
+import { Label } from '../ui/label';
 import SpanTypeIcon from './span-type-icon';
 
 const ROW_HEIGHT = 36;

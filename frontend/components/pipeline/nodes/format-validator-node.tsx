@@ -1,7 +1,7 @@
-import { FormatValidatorNode } from '@/lib/flow/types';
 import Ide from '@/components/ui/ide';
 import { Label } from '@/components/ui/label';
 import useStore from '@/lib/flow/store';
+import { FormatValidatorNode } from '@/lib/flow/types';
 
 const FormatValidatorNodeComponent = ({
   data

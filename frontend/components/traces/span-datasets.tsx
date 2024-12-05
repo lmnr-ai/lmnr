@@ -1,13 +1,14 @@
-import { cn, swrFetcher } from '@/lib/utils';
-import { Table, TableBody, TableCell, TableRow } from '../ui/table';
-
 import { ArrowUpRight } from 'lucide-react';
-import { eventEmitter } from '@/lib/event-emitter';
 import Link from 'next/link';
-import { Skeleton } from '../ui/skeleton';
 import { useEffect } from 'react';
-import { useProjectContext } from '@/contexts/project-context';
 import useSWR from 'swr';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { eventEmitter } from '@/lib/event-emitter';
+import { cn, swrFetcher } from '@/lib/utils';
+
+import { Skeleton } from '../ui/skeleton';
+import { Table, TableBody, TableCell, TableRow } from '../ui/table';
 
 interface SpanDatasetsProps {
   spanId: string;

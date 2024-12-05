@@ -1,7 +1,8 @@
+import { memo } from 'react';
+
 import DefaultTextarea from '@/components/ui/default-textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { memo } from 'react';
 import { Switch } from '@/components/ui/switch';
 import useStore from '@/lib/flow/store';
 import { WebSearchNode } from '@/lib/flow/types';

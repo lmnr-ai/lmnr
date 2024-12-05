@@ -1,10 +1,7 @@
 import { GitCommitVertical, PanelLeft, PanelRight } from 'lucide-react';
-import {
-  Pipeline,
-  PipelineVersion,
-  PipelineVersionInfo
-} from '@/lib/pipeline/types';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+
 import {
   Select,
   SelectContent,
@@ -14,18 +11,22 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-
+import PresenceUserImage from '@/components/user/presence-user-image';
+import { useProjectContext } from '@/contexts/project-context';
+import {
+  Pipeline,
+  PipelineVersion,
+  PipelineVersionInfo
+} from '@/lib/pipeline/types';
+import { PresenceUser } from '@/lib/user/types';
 import { cn } from '@/lib/utils';
+
+import { Skeleton } from '../ui/skeleton';
 import CommitButton from './commit-button';
 import ForkButton from './fork-button';
 import OverwriteWorkshopButton from './overwrite-workshop-button';
-import { PresenceUser } from '@/lib/user/types';
-import PresenceUserImage from '@/components/user/presence-user-image';
 import SetTargetVersionButton from './target-version';
-import { Skeleton } from '../ui/skeleton';
 import UseApi from './use-api';
-import { useProjectContext } from '@/contexts/project-context';
 
 const getWorkshopVersionId = (pipelineVersions: PipelineVersionInfo[]) =>
   pipelineVersions.filter((pv) => pv.pipelineType === 'WORKSHOP')[0].id;

@@ -1,5 +1,6 @@
 import { GitCommitVertical, Loader2 } from 'lucide-react';
-import { Pipeline, PipelineVersion } from '@/lib/pipeline/types';
+import { useEffect, useState } from 'react';
+
 import {
   Select,
   SelectContent,
@@ -9,9 +10,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { useEffect, useState } from 'react';
-
 import { useProjectContext } from '@/contexts/project-context';
+import { Pipeline, PipelineVersion } from '@/lib/pipeline/types';
 
 interface PipelineSelectProps {
   onPipelineChange?: (pipeline: Pipeline) => void;

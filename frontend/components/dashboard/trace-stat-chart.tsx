@@ -1,15 +1,17 @@
+import { useEffect, useState } from 'react';
+
 import {
   ChartConfig
 } from '@/components/ui/chart';
+import { GroupByInterval } from '@/lib/clickhouse/modifiers';
+import { TraceMetricDatapoint } from '@/lib/traces/types';
 import {
   cn,
   formatTimestampFromSeconds,
   toFixedIfFloat,
 } from '@/lib/utils';
-import { useEffect, useState } from 'react';
+
 import { Skeleton } from '../ui/skeleton';
-import { TraceMetricDatapoint } from '@/lib/traces/types';
-import { GroupByInterval } from '@/lib/clickhouse/modifiers';
 import { DefaultLineChart } from './span-stat-chart';
 
 

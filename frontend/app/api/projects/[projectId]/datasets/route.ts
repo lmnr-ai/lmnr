@@ -1,8 +1,8 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
-
-import { datasets } from '@/lib/db/migrations/schema';
-import { db } from '@/lib/db/drizzle';
 import { NextRequest } from 'next/server';
+
+import { db } from '@/lib/db/drizzle';
+import { datasets } from '@/lib/db/migrations/schema';
 import { paginatedGet } from '@/lib/db/utils';
 
 export async function POST(

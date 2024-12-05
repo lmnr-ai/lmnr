@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
-
 import { ArrowRight } from 'lucide-react';
-import { Skeleton } from '../ui/skeleton';
-import { swrFetcher } from '@/lib/utils';
-import { useProjectContext } from '@/contexts/project-context';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
+
+import { useProjectContext } from '@/contexts/project-context';
+import { swrFetcher } from '@/lib/utils';
+
+import { Skeleton } from '../ui/skeleton';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId'

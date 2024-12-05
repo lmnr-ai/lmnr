@@ -1,8 +1,8 @@
-import { CodeNode, GenericNodeHandle, NodeHandleType } from '@/lib/flow/types';
-
 import Editor from '@monaco-editor/react';
-import useStore from '@/lib/flow/store';
 import { v4 } from 'uuid';
+
+import useStore from '@/lib/flow/store';
+import { CodeNode, GenericNodeHandle, NodeHandleType } from '@/lib/flow/types';
 
 export const DEFAULT_CODE = `"""
 Implement the function "main" in this module.

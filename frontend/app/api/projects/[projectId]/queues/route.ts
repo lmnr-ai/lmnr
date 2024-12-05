@@ -1,8 +1,8 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
+import { NextRequest } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
 import { labelingQueues } from '@/lib/db/migrations/schema';
-import { NextRequest } from 'next/server';
 import { paginatedGet } from '@/lib/db/utils';
 
 export async function POST(

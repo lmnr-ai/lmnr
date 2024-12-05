@@ -1,12 +1,12 @@
-import { FunctionNode, NodeHandleType } from '@/lib/flow/types';
 import { Plus, Trash2Icon } from 'lucide-react';
+import { memo } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { memo } from 'react';
 import useStore from '@/lib/flow/store';
-import { v4 as uuidv4 } from 'uuid';
+import { FunctionNode, NodeHandleType } from '@/lib/flow/types';
 
 const FunctionNodeComponent = ({ data }: { data: FunctionNode }) => {
   const updateNodeData = useStore((state) => state.updateNodeData);

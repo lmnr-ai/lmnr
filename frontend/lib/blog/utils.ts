@@ -1,7 +1,8 @@
-import { BlogListItem, MatterAndContent } from "./types";
 import fs from "fs";
 import matter from "gray-matter";
 import path from "path";
+
+import { BlogListItem, MatterAndContent } from "./types";
 
 const BLOG_DIR = path.join(process.cwd(), "assets/blog");
 

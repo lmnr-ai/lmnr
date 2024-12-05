@@ -1,13 +1,13 @@
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
-
-import { EmailSignInButton } from '@/components/sign-in/email-signin';
+import Image from 'next/image';
+import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
+
+import noise from '@/assets/landing/noise.jpeg';
+import logo from '@/assets/logo/logo.svg';
+import { EmailSignInButton } from '@/components/sign-in/email-signin';
 import { GitHubSignInButton } from '@/components/sign-in/github-signin';
 import { GoogleSignInButton } from '@/components/sign-in/google-signin';
-import Image from 'next/image';
-import logo from '@/assets/logo/logo.svg';
-import noise from '@/assets/landing/noise.jpeg';
-import { redirect } from 'next/navigation';
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 export default async function SignInPage({
   params,

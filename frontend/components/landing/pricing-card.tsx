@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import React from 'react';
+
+import { cn } from '@/lib/utils';
 
 export interface PricingCardProps {
   className?: string;

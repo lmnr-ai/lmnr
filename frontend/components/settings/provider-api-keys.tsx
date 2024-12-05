@@ -1,14 +1,15 @@
 'use client';
 
+import { Trash2 } from 'lucide-react';
+import useSWR from 'swr';
+
+import { Label } from '@/components/ui/label';
+import { useProjectContext } from '@/contexts/project-context';
+import { ProviderApiKey } from '@/lib/settings/types';
 import { formatTimestamp, swrFetcher } from '@/lib/utils';
 
-import AddProviderApiKeyVarDialog from './add-provider-api-key-dialog';
 import { Button } from '../ui/button';
-import { Label } from '@/components/ui/label';
-import { ProviderApiKey } from '@/lib/settings/types';
-import { Trash2 } from 'lucide-react';
-import { useProjectContext } from '@/contexts/project-context';
-import useSWR from 'swr';
+import AddProviderApiKeyVarDialog from './add-provider-api-key-dialog';
 
 export default function ProviderApiKeys() {
 

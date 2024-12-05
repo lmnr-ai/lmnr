@@ -1,6 +1,6 @@
+import { labelClasses } from '../db/migrations/schema';
 import { Event } from '../events/types';
 import { GraphMessagePreview } from '../pipeline/types';
-import { labelClasses } from '../db/migrations/schema';
 
 export type TraceMessages = { [key: string]: GraphMessagePreview };
 

@@ -1,5 +1,12 @@
 
 import { and, eq, sql } from 'drizzle-orm';
+import { getServerSession } from 'next-auth';
+import { z } from 'zod';
+
+import { authOptions } from '@/lib/auth';
+import { clickhouseClient } from '@/lib/clickhouse/client';
+import { dateToNanoseconds } from '@/lib/clickhouse/utils';
+import { db } from '@/lib/db/drizzle';
 import {
   datapointToSpan,
   datasetDatapoints,
@@ -11,13 +18,6 @@ import {
   spans
 } from '@/lib/db/migrations/schema';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
-
-import { authOptions } from '@/lib/auth';
-import { clickhouseClient } from '@/lib/clickhouse/client';
-import { dateToNanoseconds } from '@/lib/clickhouse/utils';
-import { db } from '@/lib/db/drizzle';
-import { getServerSession } from 'next-auth';
-import { z } from 'zod';
 
 
 const removeQueueItemSchema = z.object({

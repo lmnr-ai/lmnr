@@ -71,6 +71,20 @@
       "when": 1732571729998,
       "tag": "0009_lean_turbo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1733375589710,
+      "tag": "0010_brainy_wild_child",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1733381569847,
+      "tag": "0011_bitter_daimon_hellstrom",
+      "breakpoints": true
     }
   ]
 }

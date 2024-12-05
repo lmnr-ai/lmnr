@@ -1,16 +1,16 @@
-import { apiKeys, membersOfWorkspaces, workspaces } from '@/lib/db/migrations/schema';
-import jwt, { JwtPayload } from 'jsonwebtoken';
-import { notFound, redirect } from 'next/navigation';
-
-import { authOptions } from '@/lib/auth';
-import { Button } from '@/components/ui/button';
-import { db } from '@/lib/db/drizzle';
 import { eq } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import Image from 'next/image';
-import logo from '@/assets/logo/logo.svg';
-import noise from '@/assets/landing/noise.jpeg';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import { revalidatePath } from 'next/cache';
+import Image from 'next/image';
+import { notFound, redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+
+import noise from '@/assets/landing/noise.jpeg';
+import logo from '@/assets/logo/logo.svg';
+import { Button } from '@/components/ui/button';
+import { authOptions } from '@/lib/auth';
+import { db } from '@/lib/db/drizzle';
+import { apiKeys, membersOfWorkspaces, workspaces } from '@/lib/db/migrations/schema';
 
 export default async function SignInPage({
   params,

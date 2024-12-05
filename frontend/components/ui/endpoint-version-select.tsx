@@ -1,5 +1,8 @@
-import { Endpoint, EndpointPipelineVersionGraph } from '@/lib/endpoint/types';
+import { Label } from '@radix-ui/react-label';
 import { GitBranch, Radio } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Popover,
   PopoverContent,
@@ -12,13 +15,11 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { useEffect, useState } from 'react';
+import { useProjectContext } from '@/contexts/project-context';
+import { Endpoint, EndpointPipelineVersionGraph } from '@/lib/endpoint/types';
+import { GenericNode } from '@/lib/flow/types';
 
 import { Button } from './button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { GenericNode } from '@/lib/flow/types';
-import { Label } from '@radix-ui/react-label';
-import { useProjectContext } from '@/contexts/project-context';
 
 interface EndpointVersionSelectProps {
   onPipelineVersionChange?: (

@@ -1,3 +1,5 @@
+import { Info, Settings, Trash } from 'lucide-react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import {
   type Connection,
   Edge,
@@ -7,17 +9,15 @@ import {
   useOnSelectionChange,
   useUpdateNodeInternals
 } from 'reactflow';
-import { createNodeData,NODE_TYPE_TO_DOCS } from '@/lib/flow/utils';
-import { type GenericNode, NodeHandleType, NodeType } from '@/lib/flow/types';
-import { Info, Settings, Trash } from 'lucide-react';
-import { memo, useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useFlowContext } from '@/contexts/pipeline-version-context';
 import useStore from '@/lib/flow/store';
+import { type GenericNode, NodeHandleType, NodeType } from '@/lib/flow/types';
+import { createNodeData,NODE_TYPE_TO_DOCS } from '@/lib/flow/utils';
+import { cn } from '@/lib/utils';
 
 interface GenericNodeComponentProps {
   id: string;

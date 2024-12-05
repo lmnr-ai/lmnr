@@ -148,21 +148,18 @@ pub async fn get_trace_spans(
         "WITH span_events AS (
             SELECT
                 events.span_id,
-                event_templates.project_id,
+                events.project_id,
                 jsonb_agg(
                     jsonb_build_object(
                         'id', events.id,
                         'spanId', events.span_id,
                         'timestamp', events.timestamp,
-                        'templateId', events.template_id,
-                        'templateName', event_templates.name,
-                        'templateEventType', event_templates.event_type,
-                        'source', events.source
+                        'name', events.name,
+                        'attributes', events.attributes
                     )
                 ) AS events
             FROM events
-            JOIN event_templates ON events.template_id = event_templates.id
-            GROUP BY events.span_id, event_templates.project_id
+            GROUP BY events.span_id, events.project_id
         ),
         span_labels AS (
             SELECT labels.span_id,

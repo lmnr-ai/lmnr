@@ -1,3 +1,4 @@
+import useStore from '@/lib/flow/store';
 import {
   CodeNode,
   GenericNode,
@@ -11,17 +12,16 @@ import {
   WebSearchNode
 } from '@/lib/flow/types';
 
-import CodeNodeComponent from './nodes/code';
 import { Input } from '../ui/input';
-import JsonExtractorNodeComponent from './nodes/json-extractor-node';
 import { Label } from '../ui/label';
-import LLM from './nodes/llm';
 import { ScrollArea } from '../ui/scroll-area';
+import CodeNodeComponent from './nodes/code';
+import JsonExtractorNodeComponent from './nodes/json-extractor-node';
+import LLM from './nodes/llm';
 import SemanticSearchNodeComponent from './nodes/semantic-search-node';
 import SemanticSwitchNodeComponent from './nodes/semantic-switch-node';
 import StringTemplateNodeComponent from './nodes/string-template-node';
 import SwitchNodeComponent from './nodes/switch-node';
-import useStore from '@/lib/flow/store';
 import WebSearchNodeComponent from './nodes/web-search-node';
 
 interface PipelineSheetProps {

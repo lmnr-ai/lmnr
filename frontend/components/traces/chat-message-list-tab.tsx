@@ -1,6 +1,7 @@
 import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
-import Formatter from '../ui/formatter';
 import { isStringType } from '@/lib/utils';
+
+import Formatter from '../ui/formatter';
 
 interface ContentPartTextProps {
   text: string;

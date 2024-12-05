@@ -1,8 +1,8 @@
 import { and, asc, desc, eq, gt, lt, sql } from 'drizzle-orm';
-import { labelingQueueItems, spans } from '@/lib/db/migrations/schema';
+import { z } from 'zod';
 
 import { db } from '@/lib/db/drizzle';
-import { z } from 'zod';
+import { labelingQueueItems, spans } from '@/lib/db/migrations/schema';
 
 // Add request body validation schema
 const RequestBodySchema = z.object({

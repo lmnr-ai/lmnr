@@ -1,8 +1,10 @@
+import Image from "next/image";
+import Link from "next/link";
+
 import { BlogMetadata } from "@/lib/blog/types";
 import { formatUTCDate } from "@/lib/utils";
-import Image from "next/image";
+
 import { Label } from "../ui/label";
-import Link from "next/link";
 
 interface BlogMetaProps {
   data: BlogMetadata;

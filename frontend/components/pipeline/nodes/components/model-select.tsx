@@ -1,5 +1,9 @@
 import { Check, ChevronsUpDown } from 'lucide-react';
-import { cn, swrFetcher } from '@/lib/utils';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import useSWR from 'swr';
+
+import { Button } from '@/components/ui/button';
 import {
   Command,
   CommandEmpty,
@@ -7,20 +11,16 @@ import {
   CommandInput,
   CommandItem
 } from '@/components/ui/command';
-import { LANGUAGE_MODELS, LanguageModel } from '@/lib/pipeline/types';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger
 } from '@/components/ui/popover';
-import { useEffect, useState } from 'react';
-
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-import { ProviderApiKey } from '@/lib/settings/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProjectContext } from '@/contexts/project-context';
-import useSWR from 'swr';
+import { LANGUAGE_MODELS, LanguageModel } from '@/lib/pipeline/types';
+import { ProviderApiKey } from '@/lib/settings/types';
+import { cn, swrFetcher } from '@/lib/utils';
 
 interface ModelSelectProps {
   modelId: string;

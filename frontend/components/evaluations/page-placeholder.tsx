@@ -1,12 +1,13 @@
 'use client';
 
+import { useState } from 'react';
+
+import { useProjectContext } from '@/contexts/project-context';
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from '@/lib/const';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 import CodeHighlighter from '../ui/code-highlighter';
 import Header from '../ui/header';
-import { useProjectContext } from '@/contexts/project-context';
-import { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 export default function EvalsPagePlaceholder() {
   const { projectId } = useProjectContext();

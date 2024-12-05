@@ -1,11 +1,13 @@
-import { useRouter, useSearchParams } from "next/navigation";
-import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "../ui/datatable";
-import { swrFetcher } from "@/lib/utils";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
-import { useProjectContext } from "@/contexts/project-context";
 import useSWR from "swr";
+
+import { useProjectContext } from "@/contexts/project-context";
+import { swrFetcher } from "@/lib/utils";
+
+import ClientTimestampFormatter from "../client-timestamp-formatter";
+import { DataTable } from "../ui/datatable";
 
 export default function EvaluationsGroupsBar() {
   const { projectId } = useProjectContext();

@@ -7,13 +7,14 @@ import {
   Rocket,
   Rows4
 } from 'lucide-react';
-
-import AvatarMenu from '../user/avatar-menu';
-import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import Link from 'next/link';
-import logo from '@/assets/logo/laminar.svg';
 import { usePathname } from 'next/navigation';
+
+import logo from '@/assets/logo/laminar.svg';
+import { cn } from '@/lib/utils';
+
+import AvatarMenu from '../user/avatar-menu';
 
 interface ProjectNavBarProps {
   projectId: string;

@@ -1,11 +1,12 @@
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
 import { Search, X } from 'lucide-react';
-import { SyntheticEvent, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-
-import { cn } from '@/lib/utils';
-import { Input } from './input';
 import { usePostHog } from 'posthog-js/react';
+import { SyntheticEvent, useEffect, useState } from 'react';
+
+import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { cn } from '@/lib/utils';
+
+import { Input } from './input';
 
 export default function TextSearchFilter() {
   const searchParams = new URLSearchParams(useSearchParams().toString());

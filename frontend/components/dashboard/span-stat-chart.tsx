@@ -1,21 +1,23 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent
 } from '@/components/ui/chart';
+import { GroupByInterval } from '@/lib/clickhouse/modifiers';
+import { MetricTimeValue, SpanMetric, SpanMetricGroupBy, SpanMetricType } from '@/lib/clickhouse/spans';
+import { AggregationFunction } from '@/lib/clickhouse/utils';
 import {
   cn,
   formatTimestamp,
   formatTimestampWithInterval,
 } from '@/lib/utils';
-import { useEffect, useMemo, useState } from 'react';
-import { Skeleton } from '../ui/skeleton';
-import { AggregationFunction } from '@/lib/clickhouse/utils';
-import { MetricTimeValue, SpanMetric, SpanMetricGroupBy, SpanMetricType } from '@/lib/clickhouse/spans';
-import { GroupByInterval } from '@/lib/clickhouse/modifiers';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Skeleton } from '../ui/skeleton';
 
 const xAxisKey = 'timestamp';
 

@@ -1,3 +1,6 @@
+import { Label } from '@/components/ui/label';
+import PipelineSelect from '@/components/ui/pipeline-select';
+import useStore from '@/lib/flow/store';
 import {
   GenericNodeHandle,
   InputNode,
@@ -5,9 +8,6 @@ import {
   RunnableGraph,
   SubpipelineNode
 } from '@/lib/flow/types';
-import { Label } from '@/components/ui/label';
-import PipelineSelect from '@/components/ui/pipeline-select';
-import useStore from '@/lib/flow/store';
 
 export default function SubpipelineNodeComponent({
   data

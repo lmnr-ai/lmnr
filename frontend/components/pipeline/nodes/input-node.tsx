@@ -1,4 +1,6 @@
-import { type InputNode, NodeHandleType } from '@/lib/flow/types';
+import { memo } from 'react';
+
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -6,11 +8,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import useStore from '@/lib/flow/store';
+import { type InputNode, NodeHandleType } from '@/lib/flow/types';
 
 import GenericNodeComponent from './generic-node';
-import { Label } from '@/components/ui/label';
-import { memo } from 'react';
-import useStore from '@/lib/flow/store';
 
 const InputNodeComponent = ({ id, data }: { id: string; data: InputNode }) => {
   const { updateNodeData, dropEdgeForHandle } = useStore((state) => state);

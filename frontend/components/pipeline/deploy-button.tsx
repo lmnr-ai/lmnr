@@ -1,3 +1,7 @@
+import { Loader2, Rocket } from 'lucide-react';
+import React, { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -6,19 +10,16 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
+import { useProjectContext } from '@/contexts/project-context';
+import useStore from '@/lib/flow/store';
+import { PipelineVersionInfo } from '@/lib/pipeline/types';
 import { GRAPH_VALID, validateGraph } from '@/lib/pipeline/utils';
-import { Loader2, Rocket } from 'lucide-react';
-import React, { useState } from 'react';
+import { getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
 
-import { Button } from '@/components/ui/button';
+import { useToast } from '../../lib/hooks/use-toast';
 import EndpointSelect from '../ui/endpoint-select';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { PipelineVersionInfo } from '@/lib/pipeline/types';
-import { useProjectContext } from '@/contexts/project-context';
-import useStore from '@/lib/flow/store';
-import { useToast } from '../../lib/hooks/use-toast';
 
 const CREATE_NEW_ENDPOINT_ID = 'create-new-endpoint';
 

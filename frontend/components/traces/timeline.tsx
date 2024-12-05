@@ -128,7 +128,7 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
 
         segmentEvents.push({
           id: event.id,
-          name: event.templateName,
+          name: event.name,
           left: eventLeft
         });
       }

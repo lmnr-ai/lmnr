@@ -1,5 +1,3 @@
-import * as Y from 'yjs';
-
 import {
   addEdge,
   applyEdgeChanges,  applyNodeChanges,  type Connection,
@@ -9,11 +7,12 @@ import {
   type OnConnect,  type OnEdgesChange,
   type OnNodesChange,
   type ReactFlowInstance} from 'reactflow';
-import { type GenericNode, type NodeData } from './types';
-
+import * as Y from 'yjs';
 import { create } from 'zustand';
-import { Graph } from './graph';
+
 import { InputVariable } from '../pipeline/types';
+import { Graph } from './graph';
+import { type GenericNode, type NodeData } from './types';
 
 // duplicating here because we can't export enums
 enum PipelineExecutionMode {

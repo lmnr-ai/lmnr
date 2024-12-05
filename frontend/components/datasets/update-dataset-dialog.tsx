@@ -1,5 +1,9 @@
 'use client';
 
+import { Loader2, Pencil } from 'lucide-react';
+import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -8,15 +12,11 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { Loader2, Pencil } from 'lucide-react';
-
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { Dataset } from '@/lib/dataset/types';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useState } from 'react';
+import { Dataset } from '@/lib/dataset/types';
+import { cn } from '@/lib/utils';
 
 interface UpdateDatasetDialogProps {
   oldDataset: Dataset;

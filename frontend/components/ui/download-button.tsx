@@ -1,7 +1,9 @@
-import { Button } from "./button";
 import { Loader2 } from "lucide-react";
-import { toast } from "@/lib/hooks/use-toast";
 import { useState } from "react";
+
+import { toast } from "@/lib/hooks/use-toast";
+
+import { Button } from "./button";
 
 const downloadFile = async (
   uri: string,

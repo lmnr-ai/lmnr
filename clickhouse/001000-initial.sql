@@ -23,18 +23,17 @@ ENGINE = MergeTree()
 ORDER BY (project_id, start_time, trace_id, span_id)
 SETTINGS index_granularity = 8192;
 
-CREATE TABLE events (
-    id UUID,
-    timestamp DateTime64(9, 'UTC'),
-    source Enum8('CODE' = 0, 'AUTO', 'MANUAL'),
-    template_id UUID,
-    template_name String,
-    event_type Enum8('BOOLEAN' = 0, 'NUMBER', 'STRING'),
-    project_id UUID
-) 
-ENGINE MergeTree()
-ORDER BY (project_id, template_id, id)
-SETTINGS index_granularity = 8192 SETTINGS flatten_nested=0;
+CREATE TABLE events
+(
+    `id` UUID,
+    `project_id` UUID,
+    `span_id` UUID,
+    `timestamp` DateTime64(9, 'UTC'),
+    `name` String
+)
+ENGINE MergeTree
+ORDER BY (project_id, name, timestamp, span_id)
+SETTINGS index_granularity = 8192;
 
 CREATE TABLE evaluation_scores (
     project_id UUID,
