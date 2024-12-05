@@ -7,7 +7,7 @@ use crate::{
     ch::{self, modifiers::GroupByInterval, Aggregation},
     db::{
         self,
-        events::EventWithTemplateName,
+        events::Event,
         modifiers::{DateRange, Filter, RelativeDateInterval},
         spans::Span,
         trace::{Session, Trace, TraceWithTopSpan},
@@ -129,7 +129,7 @@ pub async fn get_single_trace(
 struct SpanWithEvents {
     #[serde(flatten)]
     span: Span,
-    events: Vec<EventWithTemplateName>,
+    events: Vec<Event>,
 }
 
 #[get("spans/{span_id}")]

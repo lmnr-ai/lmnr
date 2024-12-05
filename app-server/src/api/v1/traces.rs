@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    db::{events::EventObservation, project_api_keys::ProjectApiKey, spans::Span, DB},
+    db::{events::Event, project_api_keys::ProjectApiKey, spans::Span, DB},
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
@@ -15,11 +15,11 @@ use crate::{
 };
 use prost::Message;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct RabbitMqSpanMessage {
     pub project_id: Uuid,
     pub span: Span,
-    pub events: Vec<EventObservation>,
+    pub events: Vec<Event>,
 }
 
 #[post("traces")]

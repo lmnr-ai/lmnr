@@ -10,17 +10,14 @@ use uuid::Uuid;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    db::{events::EventObservation, spans::Span, utils::convert_any_value_to_json_value, DB},
+    db::{events::Event, spans::Span, DB},
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
 };
 
-use super::{
-    span_attributes::EVENT_TYPE, utils::record_span_to_db, OBSERVATIONS_EXCHANGE,
-    OBSERVATIONS_ROUTING_KEY,
-};
+use super::{utils::record_span_to_db, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
 
 // TODO: Implement partial_success
 pub async fn push_spans_to_queue(
@@ -72,31 +69,20 @@ pub async fn push_spans_to_queue(
             for otel_span in scope_span.spans {
                 let span = Span::from_otel_span(otel_span.clone());
 
-                let mut events = vec![];
-
-                for event in otel_span.events {
-                    let event_attributes = event
-                        .attributes
-                        .clone()
-                        .into_iter()
-                        .map(|kv| (kv.key, convert_any_value_to_json_value(kv.value)))
-                        .collect::<serde_json::Map<String, serde_json::Value>>();
-
-                    let Some(serde_json::Value::String(event_type)) =
-                        event_attributes.get(EVENT_TYPE)
-                    else {
-                        if event.name != "llm.content.completion.chunk" {
-                            log::warn!("Unknown event type: {:?}", event);
+                let events = otel_span
+                    .events
+                    .into_iter()
+                    .filter_map(|event| {
+                        // OpenLLMetry auto-instrumentation sends this event for every chunk
+                        // While this is helpful to get TTFT, we don't want to store excessive
+                        // events
+                        if event.name == "llm.content.completion.chunk" {
+                            None
+                        } else {
+                            Some(Event::from_otel(event, span.span_id, project_id))
                         }
-                        continue;
-                    };
-
-                    if event_type == "default" {
-                        events.push(EventObservation::from_otel(event, span.span_id));
-                    } else {
-                        log::warn!("Unknown event type: {}", event_type);
-                    }
-                }
+                    })
+                    .collect::<Vec<Event>>();
 
                 if !span.should_save() {
                     continue;

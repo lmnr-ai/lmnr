@@ -126,7 +126,6 @@ impl Graph {
                 name: handle.name.clone().unwrap(),
                 inputs: vec![output_node_input_handle.clone()],
                 inputs_mappings: HashMap::from([(output_node_input_handle.id, handle.id)]),
-                output_cast_type: None,
             });
             pred.insert(output_node.id(), vec![node.id()]);
             nodes.insert(output_node.name().clone(), output_node);

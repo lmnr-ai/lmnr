@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const eventSource = pgEnum("event_source", ['AUTO', 'MANUAL', 'CODE']);
 export const eventType = pgEnum("event_type", ['BOOLEAN', 'STRING', 'NUMBER']);
@@ -82,7 +82,7 @@ export const evaluationResults = pgTable("evaluation_results", {
   selectByNextApiKey: pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_evaluation_id_accessible_for_api_key(api_key(), evaluation_id)` }),
 }));
 
-export const events = pgTable("events", {
+export const oldEvents = pgTable("old_events", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   spanId: uuid("span_id").notNull(),
@@ -433,6 +433,22 @@ export const users = pgTable("users", {
 }, (table) => ({
   usersEmailKey: unique("users_email_key").on(table.email),
   enableInsertForAuthenticatedUsersOnly: pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "insert", to: ["service_role"], withCheck: sql`true`  }),
+}));
+
+export const events = pgTable("events", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  timestamp: timestamp({ withTimezone: true, mode: 'string' }).notNull(),
+  name: text().notNull(),
+  attributes: jsonb().default({}).notNull(),
+  spanId: uuid("span_id").notNull(),
+  projectId: uuid("project_id").notNull(),
+}, (table) => ({
+  eventsSpanIdProjectIdFkey: foreignKey({
+    columns: [table.spanId, table.projectId],
+    foreignColumns: [spans.spanId, spans.projectId],
+    name: "events_span_id_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
 }));
 
 export const userSubscriptionInfo = pgTable("user_subscription_info", {
