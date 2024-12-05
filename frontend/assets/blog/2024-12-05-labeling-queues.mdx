@@ -76,7 +76,7 @@ evaluation configuration.
 
 TypeScript:
 
-```typescript
+```javascript
 import { evaluate, HumanEvaluator } from '@lmnr-ai/lmnr';
 
 evaluate({
@@ -84,7 +84,6 @@ evaluate({
     executor: async (data) => await getCapital(data),
     evaluators: { checkCapitalCorrectness: evaluator },
     projectApiKey: process.env.LMNR_PROJECT_API_KEY,
-    // note, this is new from `@lmnr-ai/lmnr==0.4.18`
     humanEvaluators: [
         HumanEvaluator("my_queue"),
         HumanEvaluator("my_other_queue"),
@@ -95,18 +94,19 @@ evaluate({
 Python:
 
 ```python
-import { evaluate, HumanEvaluator } from '@lmnr-ai/lmnr';
+from lmnr import evaluate, HumanEvaluator
+import os
 
-evaluate({
-    data: evaluationData,
-    executor: async (data) => await getCapital(data),
-    evaluators: { checkCapitalCorrectness: evaluator },
-    projectApiKey: process.env.LMNR_PROJECT_API_KEY,
-    humanEvaluators: [
-        HumanEvaluator("my_queue"),
-        HumanEvaluator("my_other_queue"),
+evaluate(
+    data=data,
+    executor=get_capital,
+    evaluators={'check_capital_correctness': evaluator},
+    project_api_key=os.environ["LMNR_PROJECT_API_KEY"],
+    human_evaluators=[
+        HumanEvaluator(queue_name="my_queue"),
+        HumanEvaluator(queue_name="my_other_queue")
     ],
-})
+)
 ```
 
 When human labelers attach labels to the corresponding data points in the queue,
