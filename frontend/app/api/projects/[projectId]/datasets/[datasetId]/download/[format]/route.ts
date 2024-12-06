@@ -1,9 +1,9 @@
 import { and, asc, eq } from 'drizzle-orm';
+import { json2csv } from 'json-2-csv';
 
 import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
 import { DownloadFormat } from '@/lib/types';
-import { json2csv } from 'json-2-csv';
 
 export async function GET(
   req: Request,
@@ -63,7 +63,7 @@ export async function GET(
       headers
     });
   }
-  // else the format is json, return the datapoints as json
+  // if the format is json, return the datapoints as json
   const contentType = 'application/json';
   const filename = `${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${datasetId}.json`;
   const headers = new Headers();

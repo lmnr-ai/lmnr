@@ -84,7 +84,7 @@ export async function GET(
     });
   }
 
-  // else the format is csv, convert the results to csv
+  // if the format is csv, convert the results to csv
   const csv = await json2csv(flattenedResults, {
     emptyFieldValue: '',
     expandNestedObjects: false

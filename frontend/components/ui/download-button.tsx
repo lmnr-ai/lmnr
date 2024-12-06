@@ -1,16 +1,14 @@
-import { Loader2, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
 import { toast } from "@/lib/hooks/use-toast";
 
-import { Button } from "./button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
-import { cn } from "@/lib/utils";
 
 const downloadFile = async (
   uri: string,
