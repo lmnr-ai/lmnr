@@ -27,7 +27,7 @@ import { DataTablePagination } from './datatable-pagination';
 import { Label } from './label';
 import { ScrollArea, ScrollBar } from './scroll-area';
 import { Skeleton } from './skeleton';
-
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 const DEFAULT_PAGE_SIZE = 50;
 
 interface DataTableProps<TData> {
@@ -91,6 +91,20 @@ export function DataTable<TData>({
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = useState(false);
   const [expandedRows, setExpandedRows] = useState<ExpandedState>({});
+
+  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const pathName = usePathname();
+  const router = useRouter();
+
+  const clearFilters = () => {
+    if (searchParams.size > 0) {
+      // clear all filters
+      if (searchParams.get('filter') !== null) {
+        searchParams.delete('filter');
+      }
+      router.push(`${pathName}?${searchParams.toString()}`);
+    }
+  };
 
   useEffect(() => {
     onSelectedRowsChange?.(Object.keys(rowSelection));
@@ -284,7 +298,12 @@ export function DataTable<TData>({
                 colSpan={columns.length}
                 className="text-center p-4 text-secondary-foreground"
               >
-                No results
+                {searchParams.get('filter') !== null ? 'Applied filters returned no results. ' : 'No results'}
+                {searchParams.get('filter') !== null && (
+                  <Button className="text-primary" variant={'ghost'} onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                )}
               </TableCell>
             </TableRow>
           ))
