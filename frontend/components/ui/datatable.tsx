@@ -97,11 +97,9 @@ export function DataTable<TData>({
   const router = useRouter();
 
   const clearFilters = () => {
-    if (searchParams.size > 0) {
-      // clear all filters
-      if (searchParams.get('filter') !== null) {
-        searchParams.delete('filter');
-      }
+    // clear all filters
+    if (searchParams !== null && searchParams.get('filter') !== null) {
+      searchParams.delete('filter');
       router.push(`${pathName}?${searchParams.toString()}`);
     }
   };
@@ -300,9 +298,9 @@ export function DataTable<TData>({
               >
                 {searchParams.get('filter') !== null ? 'Applied filters returned no results. ' : 'No results'}
                 {searchParams.get('filter') !== null && (
-                  <Button className="text-primary" variant={'ghost'} onClick={clearFilters}>
+                  <span className="text-primary hover:cursor-pointer" onClick={clearFilters}>
                     Clear filters
-                  </Button>
+                  </span>
                 )}
               </TableCell>
             </TableRow>
