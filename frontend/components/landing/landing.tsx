@@ -39,7 +39,9 @@ const sections: Section[] = [
   {
     id: 'traces',
     title: 'Trace',
-    description: 'Tracing your LLM application provides visibility into execution steps while collecting valuable data for evaluations, few-shot examples, and fine-tuning.',
+    description: `Tracing your LLM application provides visibility into every
+    execution step while collecting valuable data for evaluations, few-shot examples, and fine-tuning.
+    With Laminar, you can start tracing with just 2 lines of code.`,
     pythonCodeExample: `from lmnr import Laminar, observe
 
 # automatically traces common LLM frameworks and SDKs
@@ -47,7 +49,9 @@ Laminar.initialize(project_api_key="...")
 
 @observe() # you can also manually trace any function
 def my_function(...):
-...`,
+    ...
+
+`,
     tsCodeExample: `import { Laminar, observe } from '@lmnr-ai/lmnr';
 
 // automatically traces common LLM frameworks and SDKs
@@ -64,7 +68,9 @@ const myFunction = observe({name: 'myFunc'}, async () => {
   {
     id: 'evals',
     title: 'Evaluate',
-    description: 'Evaluations are unit tests for your LLM application. They help you answer questions like "Did my last change improve the performance?". Run custom evals via code, CLI, or CI/CD pipeline.',
+    description: `Evaluations are unit tests for your LLM application. 
+    They help you answer questions like "Did my last change improve the performance?".
+    With Laminar, you can run custom evals via code, CLI, or CI/CD pipeline.`,
     image: evals,
     pythonCodeExample: `from lmnr import evaluate
 
@@ -90,7 +96,8 @@ evaluate({
   {
     id: 'labels',
     title: 'Label',
-    description: 'Label LLM outputs to identify successes and failures. Build datasets for fine-tuning, prompt examples, and targeted improvements. Use human labels for evaluations.',
+    description: `With Laminar, you can label LLM outputs to identify successes and failures.
+    Build datasets for fine-tuning and few-shot examples. Use human labels as evaluation scores.`,
     image: labels,
     docsLink: 'https://docs.lmnr.ai/labels/introduction',
     pythonCodeExample: `from lmnr import Laminar
@@ -101,6 +108,7 @@ with Laminar.with_labels(my_labels):
   openai_client.chat.completions.create(
       messages=[ ... ]
   )
+
 `,
     tsCodeExample: `import { Laminar, withLabels} from '@lmnr-ai/lmnr';
 
@@ -221,27 +229,27 @@ export default function Landing() {
             </div>
           </div>
         </div>
-        <div className="flex flex-col md:items-center md:w-[1200px] md:px-0 py-16">
-          <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:items-center md:w-[1200px] md:px-0 md:py-16">
+          <div className="flex flex-col gap-2 px-8 md:px-0">
             <span
-              className="text-4xl md:text-6xl text-white font-medium"
+              className="text-3xl md:text-6xl text-white font-medium"
             >
               Building with LLMs? <br />
             </span>
-            <span className="text-3xl md:text-2xl md:leading-relaxed font-medium">
+            <span className="text-xl md:text-2xl md:leading-relaxed font-medium">
               Then, you might be <br />
             </span>
-            <div className="text-xl font-medium text-secondary-foreground flex flex-col gap-4">
+            <div className="md:text-2xl font-medium text-secondary-foreground flex flex-col gap-2 md:gap-4">
               <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Struggling to monitor LLM calls in production.</span>
               <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Don&apos;t know how last prompt change affected performance.</span>
               <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Lacking data for fine-tuning and prompt engineering.</span>
             </div>
+            <p className="text-3xl md:text-6xl text-white/90 font-medium md:leading-tighter pt-12 md:pt-24 pb-4">
+              Laminar is a single solution for <br />
+              <span className="font-medium text-primary">tracing</span>, <span className="font-medium text-primary">evaluating</span>, and <span className="font-medium text-primary">labeling</span> <br />
+              LLM products.
+            </p>
           </div>
-          <p className="text-xl md:text-6xl text-white/90 font-medium md:leading-tight pt-24 pb-4">
-            Laminar is a single solution for <br />
-            <span className="font-medium text-primary">tracing</span>, <span className="font-medium text-primary">evaluating</span>, and <span className="font-medium text-primary">labeling</span> <br />
-            LLM products.
-          </p>
         </div>
 
         <div className="flex flex-col md:items-center md:w-[1200px]">
@@ -253,24 +261,24 @@ export default function Landing() {
                 className="w-full h-full object-cover"
               />
             </div>
-            <div className="z-20 text-white gap-4 grid grid-cols-1 md:grid-cols-2 h-80">
-              <div key={selectedSection.id} className="flex flex-col gap-8">
-                <div className="flex border-none gap-4 font-medium">
-                  {sections.map((section, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleSectionSelect(section)}
-                      className={`border border-white/40 h-8 px-3 rounded transition-colors duration-200 ${selectedSection.id === section.id
-                        ? 'bg-white text-black border-b-2'
-                        : 'text-white hover:bg-white/10 '}`}
-                    >
-                      {section.title}
-                    </button>
-                  ))}
-                </div>
+            <div className="z-20 text-white gap-8 grid grid-cols-1 md:grid-cols-2 p-4 md:p-0">
+              <div className="flex border-none gap-4 font-medium col-span-1">
+                {sections.map((section, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSectionSelect(section)}
+                    className={`border border-white/40 h-8 px-3 rounded transition-colors duration-200 ${selectedSection.id === section.id
+                      ? 'bg-white text-black border-b-2'
+                      : 'text-white hover:bg-white/10 '}`}
+                  >
+                    {section.title}
+                  </button>
+                ))}
+              </div>
+              <div key={selectedSection.id} className="grid grid-cols-1 gap-8 col-span-2 md:grid-cols-2">
                 <div className="flex flex-col space-y-4 animate-in fade-in fade-out duration-700">
-                  <h1 className="text-5xl font-semibold">{selectedSection.title}</h1>
-                  <p className="font-medium text-xl md:text-xl text-white/90">
+                  <h1 className="text-4xl md:text-5xl font-semibold">{selectedSection.title}</h1>
+                  <p className="font-medium text-lg md:text-xl text-white/80">
                     {selectedSection.description}
                   </p>
                   {selectedSection.docsLink && (
@@ -287,15 +295,15 @@ export default function Landing() {
                     </div>
                   )}
                 </div>
-              </div>
-              <div className="flex flex-col w-full h-full">
-                <CodeTabs
-                  pythonCode={selectedSection.pythonCodeExample}
-                  tsCode={selectedSection.tsCodeExample}
-                />
+                <div className="flex flex-col w-full h-full">
+                  <CodeTabs
+                    pythonCode={selectedSection.pythonCodeExample}
+                    tsCode={selectedSection.tsCodeExample}
+                  />
+                </div>
               </div>
             </div>
-            <div key={selectedSection.id} className="z-20 animate-in fade-in fade-out duration-700">
+            <div key={selectedSection.id} className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block hidden">
               <Image
                 alt={selectedSection.title}
                 src={selectedSection.image}
@@ -311,7 +319,6 @@ export default function Landing() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <TracingCard />
                 <EvaluationsCard />
-
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -530,6 +537,7 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
             className="bg-black border-white"
             code={pythonCode || ''}
             language="python"
+            copyable={false}
           />
         )}
         {selectedLang === 'typescript' && (
@@ -537,6 +545,7 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
             className="bg-black border-white"
             code={tsCode || ''}
             language="javascript"
+            copyable={false}
           />
         )}
       </div>
