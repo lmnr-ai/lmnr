@@ -9,6 +9,7 @@ import {
   useReactTable
 } from '@tanstack/react-table';
 import { X } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 import { Checkbox } from '@/components/ui/checkbox';
@@ -27,7 +28,6 @@ import { DataTablePagination } from './datatable-pagination';
 import { Label } from './label';
 import { ScrollArea, ScrollBar } from './scroll-area';
 import { Skeleton } from './skeleton';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 const DEFAULT_PAGE_SIZE = 50;
 
 interface DataTableProps<TData> {
