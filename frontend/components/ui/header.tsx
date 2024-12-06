@@ -3,6 +3,7 @@
 import Link from 'next/link';
 
 import { useProjectContext } from '@/contexts/project-context';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 import { Button } from './button';
 
@@ -22,8 +23,11 @@ export default function Header({ path, children, className }: HeaderProps) {
       className={`font-medium flex items-center justify-between flex-none h-12 border-b w-full ${className}`}
     >
       <div className="flex items-center">
+        {projectId.length > 0 && (
+          <SidebarTrigger className='ml-1 -mr-2 hover:bg-secondary'/>
+        )}
         {projectName && (
-          <div className="pl-4 text-secondary-foreground items-center flex space-x-3">
+          <div className="flex items-center pl-4 space-x-3 text-secondary-foreground">
             <p>{projectName}</p>
             <div className="text-secondary-foreground/40">/</div>
           </div>
@@ -45,7 +49,7 @@ export default function Header({ path, children, className }: HeaderProps) {
         ))}
         {children}
       </div>
-      <div className="flex space-x-2 pr-4">
+      <div className="flex pr-4 space-x-2">
         <Button variant={'ghost'}>
           <a href="https://docs.lmnr.ai/" target="_blank">
             Docs
