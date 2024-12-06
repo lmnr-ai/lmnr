@@ -276,8 +276,7 @@ export default function Evaluation({
           {comparedEvaluation === null && (
             <DownloadButton
               uri={`/api/projects/${projectId}/evaluations/${evaluation.id}/download`}
-              fileFormat="CSV"
-              filenameFallback={`evaluation-results-${evaluation.id}.csv`}
+              filenameFallback={`evaluation-results-${evaluation.id}`}
             />
           )}
         </div>

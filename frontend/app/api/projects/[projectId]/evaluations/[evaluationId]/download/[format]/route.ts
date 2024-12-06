@@ -9,14 +9,14 @@ export async function GET(
   {
     params
   }: {
-    params: { projectId: string; evaluationId: string; };
+    params: { projectId: string; evaluationId: string; format: string };
   }
 ): Promise<Response> {
 
 
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;
-
+  const format = params.format;
   const evaluation = await db.query.evaluations.findFirst({
     where: and(
       eq(evaluations.id, evaluationId),
@@ -66,6 +66,14 @@ export async function GET(
       ...scores
     };
   });
+  if (format === 'json') {
+    const json = JSON.stringify(flattenedResults);
+    const contentType = 'application/json';
+    const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${evaluationId}.json`;
+    return new Response(json, {
+      headers: { 'Content-Type': contentType, 'Content-Disposition': `attachment; filename="${filename}"` }
+    });
+  }
   const csv = await json2csv(flattenedResults, {
     emptyFieldValue: '',
     expandNestedObjects: false // we only expand the scores object manually
