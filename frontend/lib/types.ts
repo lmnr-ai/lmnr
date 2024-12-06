@@ -54,3 +54,10 @@ export type BucketRow = {
   upperBound: number;
   heights: number[];
 };
+
+export const DownloadFormat = {
+  JSON: 'json',
+  CSV: 'csv'
+} as const;
+
+export type DownloadFormat = typeof DownloadFormat[keyof typeof DownloadFormat];
