@@ -21,13 +21,15 @@ export default function CodeHighlighter({
   return (
     <div className={className}>
       <div className="relative">
-        <Button
-          onClick={() => navigator.clipboard.writeText(code)}
-          className="absolute right-2 top-2"
-          variant="ghost"
-        >
-          <CopyIcon className="w-4 h-4" />
-        </Button>
+        {copyable && (
+          <Button
+            onClick={() => navigator.clipboard.writeText(code)}
+            className="absolute right-2 top-2"
+            variant="ghost"
+          >
+            <CopyIcon className="w-4 h-4" />
+          </Button>
+        )}
       </div>
       <SyntaxHighlighter
         language={language}
