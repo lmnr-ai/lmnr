@@ -188,7 +188,7 @@ export default function Dataset({ dataset }: DatasetProps) {
         />
         <DownloadButton
           uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
-          supportedFormats={['json']}
+          supportedFormats={['csv', 'json']}
           filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${dataset.id}`}
           variant="outline"
         />

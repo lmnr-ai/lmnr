@@ -2,10 +2,8 @@ import { and, asc, eq } from 'drizzle-orm';
 
 import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
-
-enum DownloadFormat {
-  JSON = 'json'
-}
+import { DownloadFormat } from '@/lib/types';
+import { json2csv } from 'json-2-csv';
 
 export async function GET(
   req: Request,
@@ -22,9 +20,8 @@ export async function GET(
   const format = params.format;
 
   if (!Object.values(DownloadFormat).includes(format)) {
-    // if the format is not supported, return a 400 error
     return Response.json(
-      { error: 'Invalid format. Supported formats are: json' },
+      { error: 'Invalid format. Supported formats are: csv, json' },
       { status: 400 }
     );
   }
@@ -49,6 +46,24 @@ export async function GET(
       metadata: true
     }
   });
+
+  // if the format is csv, convert the datapoints to csv
+  if (format === 'csv') {
+    const csv = await json2csv(datapoints, {
+      emptyFieldValue: '',
+      expandNestedObjects: false
+    });
+    const contentType = 'text/csv';
+    const filename = `${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${datasetId}.csv`;
+    const headers = new Headers();
+    headers.set('Content-Type', contentType);
+    headers.set('Content-Disposition', `attachment; filename="${filename}"`);
+
+    return new Response(csv, {
+      headers
+    });
+  }
+  // else the format is json, return the datapoints as json
   const contentType = 'application/json';
   const filename = `${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${datasetId}.json`;
   const headers = new Headers();

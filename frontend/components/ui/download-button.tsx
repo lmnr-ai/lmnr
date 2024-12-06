@@ -1,5 +1,4 @@
-import { Loader2 } from "lucide-react";
-import { ArrowDownIcon } from "@radix-ui/react-icons";
+import { Loader2, ChevronDown } from "lucide-react";
 import { useState } from "react";
 
 import { toast } from "@/lib/hooks/use-toast";
@@ -71,7 +70,7 @@ export default function DownloadButton({
     <DropdownMenu>
       <DropdownMenuTrigger className="flex h-7  items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none">
         Download
-        <ArrowDownIcon className="h-4 w-4 opacity-50" />
+        <ChevronDown className="h-4 w-4 opacity-50" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -82,7 +81,6 @@ export default function DownloadButton({
             key={format}
             className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
             onClick={() => {
-              console.log(uri + `/${format}`);
               downloadFile(uri + `/${format}`, format, filenameFallback + `.${format}`);
             }}
           >

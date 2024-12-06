@@ -3,11 +3,7 @@ import { json2csv } from 'json-2-csv';
 
 import { db } from '@/lib/db/drizzle';
 import { evaluationResults, evaluations, evaluationScores } from '@/lib/db/migrations/schema';
-
-enum DownloadFormat {
-  CSV = 'csv',
-  JSON = 'json'
-}
+import { DownloadFormat } from '@/lib/types';
 
 export async function GET(
   req: Request,
@@ -78,7 +74,7 @@ export async function GET(
     };
   });
 
-  // if the format is json
+  // else the format is json, return the results as json
   if (format === DownloadFormat.JSON) {
     const json = JSON.stringify(flattenedResults);
     const contentType = 'application/json';
@@ -88,7 +84,7 @@ export async function GET(
     });
   }
 
-  // if the format is csv
+  // else the format is csv, convert the results to csv
   const csv = await json2csv(flattenedResults, {
     emptyFieldValue: '',
     expandNestedObjects: false
