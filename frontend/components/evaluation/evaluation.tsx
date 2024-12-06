@@ -277,6 +277,7 @@ export default function Evaluation({
             <DownloadButton
               uri={`/api/projects/${projectId}/evaluations/${evaluation.id}/download`}
               filenameFallback={`evaluation-results-${evaluation.id}`}
+              supportedFormats={['csv', 'json']}
             />
           )}
         </div>

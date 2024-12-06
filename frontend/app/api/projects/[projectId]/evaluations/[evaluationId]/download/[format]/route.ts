@@ -4,19 +4,30 @@ import { json2csv } from 'json-2-csv';
 import { db } from '@/lib/db/drizzle';
 import { evaluationResults, evaluations, evaluationScores } from '@/lib/db/migrations/schema';
 
+enum DownloadFormat {
+  CSV = 'csv',
+  JSON = 'json'
+}
+
 export async function GET(
   req: Request,
   {
     params
   }: {
-    params: { projectId: string; evaluationId: string; format: string };
+    params: { projectId: string; evaluationId: string; format: DownloadFormat };
   }
 ): Promise<Response> {
-
-
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;
-  const format = params.format;
+  const format = params.format as DownloadFormat;
+
+  if (!Object.values(DownloadFormat).includes(format)) {
+    return Response.json(
+      { error: 'Invalid format. Supported formats are: csv, json' },
+      { status: 400 }
+    );
+  }
+
   const evaluation = await db.query.evaluations.findFirst({
     where: and(
       eq(evaluations.id, evaluationId),
@@ -66,7 +77,9 @@ export async function GET(
       ...scores
     };
   });
-  if (format === 'json') {
+
+  // if the format is json
+  if (format === DownloadFormat.JSON) {
     const json = JSON.stringify(flattenedResults);
     const contentType = 'application/json';
     const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${evaluationId}.json`;
@@ -74,9 +87,11 @@ export async function GET(
       headers: { 'Content-Type': contentType, 'Content-Disposition': `attachment; filename="${filename}"` }
     });
   }
+
+  // if the format is csv
   const csv = await json2csv(flattenedResults, {
     emptyFieldValue: '',
-    expandNestedObjects: false // we only expand the scores object manually
+    expandNestedObjects: false
   });
   const contentType = 'text/csv';
   const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${evaluationId}.csv`;

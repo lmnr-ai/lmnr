@@ -3,18 +3,31 @@ import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
 
+enum DownloadFormat {
+  JSON = 'json'
+}
+
 export async function GET(
   req: Request,
   {
     params
   }: {
-    params: { projectId: string; datasetId: string; };
+    params: { projectId: string; datasetId: string; format: DownloadFormat };
   }
 ): Promise<Response> {
 
 
   const projectId = params.projectId;
   const datasetId = params.datasetId;
+  const format = params.format;
+
+  if (!Object.values(DownloadFormat).includes(format)) {
+    // if the format is not supported, return a 400 error
+    return Response.json(
+      { error: 'Invalid format. Supported formats are: json' },
+      { status: 400 }
+    );
+  }
 
   const dataset = await db.query.datasets.findFirst({
     where: and(
@@ -36,13 +49,11 @@ export async function GET(
       metadata: true
     }
   });
-
   const contentType = 'application/json';
   const filename = `${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${datasetId}.json`;
   const headers = new Headers();
   headers.set('Content-Type', contentType);
   headers.set('Content-Disposition', `attachment; filename="${filename}"`);
-
   return new Response(JSON.stringify(datapoints, null, 2), {
     headers
   });

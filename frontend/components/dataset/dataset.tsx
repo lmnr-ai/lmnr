@@ -71,7 +71,7 @@ export default function Dataset({ dataset }: DatasetProps) {
 
   const { data, mutate } = useSWR<PaginatedResponse<Datapoint>>(
     `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` +
-      `?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+    `?pageNumber=${pageNumber}&pageSize=${pageSize}`,
     swrFetcher
   );
 
@@ -118,8 +118,8 @@ export default function Dataset({ dataset }: DatasetProps) {
     setIsDeleting(true);
     const response = await fetch(
       `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` +
-        `?datapointIds=${datapointIds.join(',')}` +
-        (dataset.indexedOn ? `&indexedOn=${dataset.indexedOn}` : ''),
+      `?datapointIds=${datapointIds.join(',')}` +
+      (dataset.indexedOn ? `&indexedOn=${dataset.indexedOn}` : ''),
       {
         method: 'DELETE',
         headers: {
@@ -188,8 +188,8 @@ export default function Dataset({ dataset }: DatasetProps) {
         />
         <DownloadButton
           uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
-          fileFormat="JSON"
-          filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${dataset.id}.json`}
+          supportedFormats={['json']}
+          filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${dataset.id}`}
           variant="outline"
         />
         <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />

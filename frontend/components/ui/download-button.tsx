@@ -1,5 +1,5 @@
-import { CaretSortIcon } from "@radix-ui/react-icons";
 import { Loader2 } from "lucide-react";
+import { ArrowDownIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
 
 import { toast } from "@/lib/hooks/use-toast";
@@ -55,11 +55,13 @@ interface DownloadButtonProps {
   filenameFallback: string;
   variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost';
   className?: string;
+  supportedFormats?: string[];
 }
 
 export default function DownloadButton({
   uri,
   filenameFallback,
+  supportedFormats = ['csv', 'json'],
   variant = 'secondary',
   className
 }: DownloadButtonProps) {
@@ -67,15 +69,15 @@ export default function DownloadButton({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex h-7 w-full items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none">
-        <span>Download</span>
-        <CaretSortIcon className="h-4 w-4 opacity-50" />
+      <DropdownMenuTrigger className="flex h-7  items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none">
+        Download
+        <ArrowDownIcon className="h-4 w-4 opacity-50" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
         className="relative z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
       >
-        {['csv', 'json'].map((format) => (
+        {supportedFormats.map((format) => (
           <DropdownMenuItem
             key={format}
             className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
