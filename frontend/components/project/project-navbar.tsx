@@ -14,8 +14,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import iconLogo from '@/assets/logo/icon.svg';
-import logo from '@/assets/logo/laminar.svg';
+import smallLogo from '@/assets/logo/icon.svg';
+import fullLogo from '@/assets/logo/logo.svg';
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
@@ -94,7 +94,7 @@ export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarPro
         <Link href="/projects" className={`flex h-14 items-center ${open || openMobile ? 'justify-start pl-2' : 'justify-center'}`}>
           <Image
             alt="Laminar AI logo"
-            src={open || openMobile ? logo : iconLogo}
+            src={open || openMobile ? fullLogo : smallLogo}
             width={open || openMobile ? 120 : 20}
             height={open || openMobile ? undefined : 20}
           />
@@ -122,7 +122,7 @@ export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarPro
         </SidebarMenu>
         <div className="flex-grow" />
         <div className="p-2">
-          <AvatarMenu />
+          <AvatarMenu showDetails={open || openMobile} />
         </div>
       </SidebarContent>
     </Sidebar>

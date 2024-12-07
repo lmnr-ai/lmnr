@@ -6,7 +6,7 @@ import { getServerSession } from 'next-auth';
 import PostHogClient from '@/app/posthog';
 import ProjectNavbar from '@/components/project/project-navbar';
 import ProjectUsageBanner from '@/components/project/usage-banner';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { SidebarProvider } from '@/components/ui/sidebar';
 import { ProjectContextProvider } from '@/contexts/project-context';
 import { UserContextProvider } from '@/contexts/user-context';
 import { authOptions } from '@/lib/auth';

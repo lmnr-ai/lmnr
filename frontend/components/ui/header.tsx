@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 
-import { useProjectContext } from '@/contexts/project-context';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { useProjectContext } from '@/contexts/project-context';
 
 import { Button } from './button';
 
@@ -11,9 +11,10 @@ interface HeaderProps {
   path: string;
   children?: React.ReactNode;
   className?: string;
+  showSidebarTrigger?: boolean;
 }
 
-export default function Header({ path, children, className }: HeaderProps) {
+export default function Header({ path, children, className, showSidebarTrigger = true }: HeaderProps) {
   const { projectId, projectName } = useProjectContext();
 
   const segments = path.split('/');
@@ -23,7 +24,7 @@ export default function Header({ path, children, className }: HeaderProps) {
       className={`font-medium flex items-center justify-between flex-none h-12 border-b w-full ${className}`}
     >
       <div className="flex items-center">
-        {projectId.length > 0 && (
+        {showSidebarTrigger && (
           <SidebarTrigger className='ml-1 -mr-2 hover:bg-secondary'/>
         )}
         {projectName && (
