@@ -21,8 +21,8 @@ import { cn } from "@/lib/utils";
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "14rem";
-const SIDEBAR_WIDTH_MOBILE = "14rem";
+const SIDEBAR_WIDTH = "11rem";
+const SIDEBAR_WIDTH_MOBILE = "11rem";
 const SIDEBAR_WIDTH_ICON = "3.5rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
@@ -70,10 +70,27 @@ const SidebarProvider = React.forwardRef<
         const isMobile = useIsMobile();
         const [openMobile, setOpenMobile] = React.useState(false);
 
-        // This is the internal state of the sidebar.
-        // We use openProp and setOpenProp for control from outside the component.
+        // Initialize with defaultOpen
         const [_open, _setOpen] = React.useState(defaultOpen);
         const open = openProp ?? _open;
+
+        // Move cookie check to useEffect to wait for document to be populated
+        React.useEffect(() => {
+          const sidebarCookie = document.cookie
+            .split('; ')
+            .find(row => row.startsWith(SIDEBAR_COOKIE_NAME))
+            ?.split('=')[1];
+
+          if (sidebarCookie !== undefined) {
+            const savedState = sidebarCookie === 'true';
+            if (setOpenProp) {
+              setOpenProp(savedState);
+            } else {
+              _setOpen(savedState);
+            }
+          }
+        }, [setOpenProp]); // Only runs once on mount
+
         const setOpen = React.useCallback(
           (value: boolean | ((value: boolean) => boolean)) => {
             const openState = typeof value === "function" ? value(open) : value;
@@ -83,7 +100,6 @@ const SidebarProvider = React.forwardRef<
               _setOpen(openState);
             }
 
-            // This sets the cookie to keep the sidebar state.
             document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
           },
           [setOpenProp, open]

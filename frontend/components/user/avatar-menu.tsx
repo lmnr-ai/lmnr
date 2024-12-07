@@ -22,7 +22,7 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Image
             src={imageUrl}
             alt="avatar"
@@ -31,8 +31,8 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
             className="border rounded-full cursor-pointer"
           />
           {showDetails && (
-            <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">{email}</span>
+            <div className="flex flex-col max-w-[110px]">
+              <span className="text-xs truncate text-muted-foreground">{email}</span>
             </div>
           )}
         </div>

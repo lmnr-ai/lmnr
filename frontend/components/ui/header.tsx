@@ -25,7 +25,7 @@ export default function Header({ path, children, className, showSidebarTrigger =
     >
       <div className="flex items-center">
         {showSidebarTrigger && (
-          <SidebarTrigger className='ml-1 -mr-2 hover:bg-secondary'/>
+          <SidebarTrigger className='ml-2 -mr-2 hover:bg-secondary'/>
         )}
         {projectName && (
           <div className="flex items-center pl-4 space-x-3 text-secondary-foreground">

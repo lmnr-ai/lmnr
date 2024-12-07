@@ -121,7 +121,7 @@ export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarPro
           ))}
         </SidebarMenu>
         <div className="flex-grow" />
-        <div className="p-2">
+        <div className="p-4">
           <AvatarMenu showDetails={open || openMobile} />
         </div>
       </SidebarContent>
