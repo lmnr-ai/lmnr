@@ -30,6 +30,8 @@ jobs:
         with:
           node-version: 'lts/*' # Use the latest LTS version of Node.js
           cache: 'pnpm'
+          # Specify the subdirectory containing the lockfile
+          cache-dependency-path: ./frontend/pnpm-lock.yaml
 
       # Step 4: Install dependencies
       - name: Install dependencies
