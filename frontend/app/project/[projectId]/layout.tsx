@@ -1,5 +1,6 @@
 import '@/app/globals.css';
 
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 
@@ -48,6 +49,9 @@ export default async function ProjectIdLayout({
     distinctId: user.email ?? ''
   });
 
+  const cookieStore = cookies();
+  const defaultOpen = cookieStore.get("sidebar:state")?.value === "true";
+
   return (
     <UserContextProvider
       email={user.email!}
@@ -57,7 +61,7 @@ export default async function ProjectIdLayout({
     >
       <ProjectContextProvider projectId={project.id} projectName={project.name}>
         <div className="flex flex-row max-w-full max-h-screen">
-          <SidebarProvider>
+          <SidebarProvider defaultOpen={defaultOpen}>
             <div className="flex flex-col flex-shrink-0 h-screen">
               <ProjectNavbar
                 projectId={projectId}
