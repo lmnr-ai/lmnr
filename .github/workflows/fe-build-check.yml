@@ -23,7 +23,6 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 'lts/*' # Use the latest LTS version of Node.js
-          cache: 'pnpm'         # Cache dependencies for faster builds
 
       # Step 3: Install pnpm
       - name: Install pnpm
