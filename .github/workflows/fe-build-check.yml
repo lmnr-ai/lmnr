@@ -18,15 +18,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2: Set up Node.js
+      # Step 2: Install pnpm
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      # Step 3: Set up Node.js
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 'lts/*' # Use the latest LTS version of Node.js
-
-      # Step 3: Install pnpm
-      - name: Install pnpm
-        run: npm install -g pnpm
+          cache: 'pnpm'
 
       # Step 4: Install dependencies
       - name: Install dependencies
