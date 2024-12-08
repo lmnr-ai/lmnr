@@ -244,7 +244,7 @@ async fn get_datapoints(
     Ok(HttpResponse::Ok().json(response))
 }
 
-#[get("datasets")]
+#[get("projects/{project_id}/datasets")]
 async fn get_datasets(
     db: web::Data<DB>,
     path: web::Path<Uuid>,
