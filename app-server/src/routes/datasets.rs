@@ -230,14 +230,51 @@ async fn get_datapoints(
     query_params: web::Query<PaginatedGetQueryParams>,
 ) -> ResponseResult {
     let (_project_id, dataset_id) = path.into_inner();
-    let limit = query_params.page_size.unwrap_or(DEFAULT_PAGE_SIZE) as i64;
-    let offset = limit * (query_params.page_number) as i64;
+    let limit = query_params.page_size.unwrap_or(DEFAULT_PAGE_SIZE as i64);
+    let offset = limit * query_params.page_number as i64;
     let datapoints = db::datapoints::get_datapoints(&db.pool, dataset_id, limit, offset).await?;
     let total_entries = db::datapoints::count_datapoints(&db.pool, dataset_id).await?;
 
     let response = PaginatedResponse::<DatapointView> {
         items: datapoints,
         total_count: total_entries,
+        any_in_project: true,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+#[get("datasets")]
+async fn get_datasets(
+    db: web::Data<DB>,
+    path: web::Path<Uuid>,
+    query_params: web::Query<PaginatedGetQueryParams>,
+) -> ResponseResult {
+    let project_id = path.into_inner();
+    let limit = query_params.page_size.unwrap_or(DEFAULT_PAGE_SIZE as i64);
+    let offset = limit * query_params.page_number as i64;
+
+    let (datasets_with_counts, total_count) = db::datasets::get_datasets_with_counts(
+        &db.pool,
+        project_id,
+        limit,
+        offset,
+    ).await?;
+
+    let datasets = datasets_with_counts
+        .into_iter()
+        .map(|(dataset, count)| serde_json::json!({
+            "id": dataset.id,
+            "createdAt": dataset.created_at,
+            "name": dataset.name,
+            "indexedOn": dataset.indexed_on,
+            "itemsCount": count
+        }))
+        .collect::<Vec<_>>();
+
+    let response = PaginatedResponse {
+        items: datasets,
+        total_count,
         any_in_project: true,
     };
 
