@@ -1,0 +1,40 @@
+name: Check Frontend Build
+
+on:
+  pull_request:
+    types:
+      - synchronize
+      - opened
+      - reopened
+    paths:
+      - 'frontend/**' # Trigger only if files in the `/frontend` directory change
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 'lts/*' # Use the latest LTS version of Node.js
+          cache: 'pnpm'         # Cache dependencies for faster builds
+
+      # Step 3: Install pnpm
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      # Step 4: Install dependencies
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: pnpm install
+
+      # Step 5: Run the build
+      - name: Build frontend
+        working-directory: ./frontend
+        run: pnpm build
