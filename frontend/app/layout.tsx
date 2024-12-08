@@ -8,6 +8,7 @@ import { sans } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 
 import { PHProvider } from './providers';
+import { SidebarProvider } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.lmnr.ai'),
@@ -31,7 +32,7 @@ export default async function RootLayout({
         >
           <PostHogPageView />
           <div className="flex">
-            <div className="flex flex-col flex-grow min-h-screen max-w-full">
+            <div className="flex flex-col flex-grow max-w-full min-h-screen">
               <main className="z-10 flex flex-col flex-grow">{children}</main>
               <Toaster />
             </div>
