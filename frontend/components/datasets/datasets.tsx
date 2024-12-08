@@ -84,6 +84,11 @@ export default function Datasets() {
       size: 300
     },
     {
+      header: 'Items',
+      accessorKey: 'itemsCount',
+      size: 100,
+    },
+    {
       header: 'Created at',
       accessorKey: 'createdAt',
       cell: (row) => (
