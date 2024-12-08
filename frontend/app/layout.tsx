@@ -8,7 +8,6 @@ import { sans } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 
 import { PHProvider } from './providers';
-import { SidebarProvider } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.lmnr.ai'),
