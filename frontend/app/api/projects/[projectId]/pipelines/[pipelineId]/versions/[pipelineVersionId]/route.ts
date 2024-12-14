@@ -5,16 +5,15 @@ import { fetcher } from '@/lib/utils';
 
 export async function POST(
   req: Request,
-  {
-    params
-  }: {
-    params: {
+  props: {
+    params: Promise<{
       projectId: string;
       pipelineId: string;
       pipelineVersionId: string;
-    };
+    }>;
   }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const pipelineId = params.pipelineId;
   const pipelineVersionId = params.pipelineVersionId;
@@ -41,16 +40,15 @@ export async function POST(
 
 export async function DELETE(
   req: Request,
-  {
-    params
-  }: {
-    params: {
+  props: {
+    params: Promise<{
       projectId: string;
       pipelineId: string;
       pipelineVersionId: string;
-    };
+    }>;
   }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const pipelineId = params.pipelineId;
   const pipelineVersionId = params.pipelineVersionId;
@@ -74,16 +72,15 @@ export async function DELETE(
 
 export async function GET(
   req: Request,
-  {
-    params
-  }: {
-    params: {
+  props: {
+    params: Promise<{
       projectId: string;
       pipelineId: string;
       pipelineVersionId: string;
-    };
+    }>;
   }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const pipelineId = params.pipelineId;
   const pipelineVersionId = params.pipelineVersionId;

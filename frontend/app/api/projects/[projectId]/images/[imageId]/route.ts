@@ -12,8 +12,9 @@ const bucket = process.env.S3_IMGS_BUCKET ?? '';
 
 export async function GET(
   req: Request,
-  { params }: { params: { projectId: string; imageId: string } }
+  props: { params: Promise<{ projectId: string; imageId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const { projectId, imageId } = params;
   const getObjectRequest = new GetObjectCommand({
     Bucket: bucket,

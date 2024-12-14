@@ -9,13 +9,13 @@ import { GitHubSignInButton } from '@/components/sign-in/github-signin';
 import { GoogleSignInButton } from '@/components/sign-in/google-signin';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
-export default async function SignInPage({
-  params,
-  searchParams
-}: {
-  params: {};
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
+export default async function SignInPage(
+  props: {
+    params: Promise<{}>;
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession();
   let callbackUrl = searchParams?.callbackUrl ?? '/onboarding';
   if (Array.isArray(callbackUrl)) {

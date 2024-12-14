@@ -5,10 +5,8 @@ import { labelClasses } from '@/lib/db/migrations/schema';
 
 
 
-export async function GET(
-  req: Request,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
 
@@ -20,13 +18,10 @@ export async function GET(
     .orderBy(desc(labelClasses.createdAt));
 
   return new Response(JSON.stringify(res), { status: 200 });
-
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
 
@@ -47,5 +42,4 @@ export async function POST(
   }
 
   return new Response(JSON.stringify(res[0]), { status: 200 });
-
 }

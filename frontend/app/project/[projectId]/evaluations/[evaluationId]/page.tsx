@@ -15,11 +15,12 @@ export const metadata: Metadata = {
   title: 'Evaluation results'
 };
 
-export default async function EvaluationPage({
-  params
-}: {
-  params: { projectId: string; evaluationId: string };
-}) {
+export default async function EvaluationPage(
+  props: {
+    params: Promise<{ projectId: string; evaluationId: string }>;
+  }
+) {
+  const params = await props.params;
   const evaluationInfo = await getEvaluationInfo(
     params.projectId,
     params.evaluationId

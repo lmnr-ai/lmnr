@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
 import { evaluations } from '@/lib/db/migrations/schema';
 
-export async function GET(request: NextRequest, { params }: { params: { projectId: string } }) {
+export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
   const projectId = params.projectId;
   const groupedEvaluations = db.$with('grouped_evaluations').as(
     db.select({
