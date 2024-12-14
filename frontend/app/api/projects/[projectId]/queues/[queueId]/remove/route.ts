@@ -38,7 +38,11 @@ const removeQueueItemSchema = z.object({
 });
 
 // remove an item from the queue
-export async function POST(request: Request, { params }: { params: { projectId: string; queueId: string } }) {
+export async function POST(
+  request: Request,
+  props: { params: Promise<{ projectId: string; queueId: string }> }
+) {
+  const params = await props.params;
 
   const session = await getServerSession(authOptions);
   const user = session!.user;

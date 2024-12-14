@@ -8,10 +8,8 @@ import { apiKeys, membersOfWorkspaces, workspaces } from '@/lib/db/migrations/sc
 import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
 import { sendInvitationEmail } from '@/lib/emails/utils';
 
-export async function POST(
-  req: Request,
-  { params }: { params: { workspaceId: string } }
-): Promise<Response> {
+export async function POST(req: Request, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
   const user = session!.user;
 
@@ -66,5 +64,4 @@ export async function POST(
   await sendInvitationEmail(email, workspace.name, link);
 
   return Response.json({ success: true });
-
 }

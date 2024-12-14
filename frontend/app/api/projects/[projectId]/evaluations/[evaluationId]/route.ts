@@ -8,8 +8,9 @@ import {
 
 export async function GET(
   req: Request,
-  { params }: { params: { projectId: string; evaluationId: string } }
+  props: { params: Promise<{ projectId: string; evaluationId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;
 

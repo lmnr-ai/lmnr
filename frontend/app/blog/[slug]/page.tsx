@@ -10,11 +10,12 @@ import LandingHeader from "@/components/landing/landing-header";
 import { authOptions } from "@/lib/auth";
 import { getBlogPost } from "@/lib/blog/utils";
 
-export const generateMetadata = async ({
-  params,
-}: {
-  params: { slug: string };
-}): Promise<Metadata> => {
+export const generateMetadata = async (
+  props: {
+    params: Promise<{ slug: string }>;
+  }
+): Promise<Metadata> => {
+  const params = await props.params;
   const { data } = getBlogPost(params.slug);
   return {
     title: data.title,
@@ -34,7 +35,8 @@ export const generateMetadata = async ({
   };
 };
 
-export default async function BlogPostPage({ params }: { params: { slug: string } }) {
+export default async function BlogPostPage(props0: { params: Promise<{ slug: string }> }) {
+  const params = await props0.params;
   const { data, content } = getBlogPost(params.slug);
   const session = await getServerSession(authOptions);
   return (

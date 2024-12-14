@@ -3,10 +3,8 @@ import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const session = await getServerSession(authOptions);
   const user = session!.user;
@@ -26,10 +24,8 @@ export async function POST(
   );
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const session = await getServerSession(authOptions);
   const user = session!.user;
@@ -45,10 +41,8 @@ export async function GET(
   );
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const session = await getServerSession(authOptions);
   const user = session!.user;

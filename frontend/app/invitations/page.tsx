@@ -12,13 +12,13 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { apiKeys, membersOfWorkspaces, workspaces } from '@/lib/db/migrations/schema';
 
-export default async function SignInPage({
-  params,
-  searchParams
-}: {
-  params: {};
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
+export default async function SignInPage(
+  props: {
+    params: Promise<{}>;
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   const user = session?.user;
 

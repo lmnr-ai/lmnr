@@ -5,8 +5,9 @@ import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: Request,
-  { params }: { params: { projectId: string; endpointId: string } }
+  props: { params: Promise<{ projectId: string; endpointId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const endpointId = params.endpointId;
   const session = await getServerSession(authOptions);
@@ -24,8 +25,9 @@ export async function GET(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { projectId: string; endpointId: string } }
+  props: { params: Promise<{ projectId: string; endpointId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const endpointId = params.endpointId;
 

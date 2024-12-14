@@ -5,10 +5,9 @@ import { labelClassesForPath } from '@/lib/db/migrations/schema';
 
 export async function DELETE(
   req: Request,
-  {
-    params
-  }: { params: { projectId: string; labelClassId: string; id: string } }
+  props: { params: Promise<{ projectId: string; labelClassId: string; id: string }> }
 ): Promise<Response> {
+  const params = await props.params;
 
   const projectId = params.projectId;
   const id = params.id;
