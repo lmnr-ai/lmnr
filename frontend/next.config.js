@@ -25,6 +25,7 @@ const nextConfig = {
       },
     ],
   },
+  serverExternalPackages: ["yjs"],
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Ensure that all imports of 'yjs' resolve to the same instance
