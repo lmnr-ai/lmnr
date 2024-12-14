@@ -6,13 +6,7 @@ export const metadata: Metadata = {
   title: 'Dashboard'
 };
 
-export default async function DashboardPage({
-  params,
-  searchParams
-}: {
-  params: { projectId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-}) {
+export default async function DashboardPage() {
 
   return (
     <>

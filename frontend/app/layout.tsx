@@ -2,11 +2,12 @@ import '@/app/globals.css';
 
 import { Metadata } from 'next';
 import { Suspense } from 'react';
+
 import { Toaster } from '@/components/ui/toaster';
 import { sans } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
-import PostHogPageView from './posthog-pageview';
 
+import PostHogPageView from './posthog-pageview';
 import { PHProvider } from './providers';
 
 export const metadata: Metadata = {
