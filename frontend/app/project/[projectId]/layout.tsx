@@ -54,6 +54,7 @@ export default async function ProjectIdLayout(
     distinctId: user.email ?? ''
   });
 
+  // getting the cookies for the sidebar state
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar:state")?.value === "true";
 
