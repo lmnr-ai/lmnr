@@ -135,8 +135,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss": "^3.4.16",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5.7.2",
-    "view": "link:@types/@codemirror/view"
+    "typescript": "^5.7.2"
   },
   "prettier": {
     "arrowParens": "always",
