@@ -82,7 +82,7 @@
     "react": "^19.0.0",
     "react-ace": "^13.0.0",
     "react-contenteditable": "^3.3.7",
-    "react-day-picker": "^9.4.3",
+    "react-day-picker": "^8.10.1",
     "react-dom": "^19.0.0",
     "react-email": "^3.0.4",
     "react-hot-toast": "^2.4.1",
