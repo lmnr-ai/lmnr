@@ -1,11 +1,11 @@
 import '@/app/globals.css';
 
 import { Metadata } from 'next';
-import dynamic from 'next/dynamic';
-
+import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { sans } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
+import PostHogPageView from './posthog-pageview';
 
 import { PHProvider } from './providers';
 
@@ -13,10 +13,6 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://www.lmnr.ai'),
   title: 'laminar'
 };
-
-const PostHogPageView = dynamic(() => import('./posthog-pageview'), {
-  ssr: false
-});
 
 export default async function RootLayout({
   children
@@ -29,7 +25,9 @@ export default async function RootLayout({
         <body
           className="flex flex-col h-full"
         >
-          <PostHogPageView />
+          <Suspense fallback={null}>
+            <PostHogPageView />
+          </Suspense>
           <div className="flex">
             <div className="flex flex-col flex-grow max-w-full min-h-screen">
               <main className="z-10 flex flex-col flex-grow">{children}</main>
