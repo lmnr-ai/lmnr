@@ -51,7 +51,7 @@ export default async function ProjectIdLayout({
 
   // getting the cookies for the sidebar state
   const cookieStore = cookies();
-  const defaultOpen = cookieStore.get("sidebar:state")?.value === "true";
+  const defaultOpen = cookieStore.get("sidebar:state") ? cookieStore.get("sidebar:state")?.value === "true" : true;
 
   return (
     <UserContextProvider
@@ -63,7 +63,7 @@ export default async function ProjectIdLayout({
       <ProjectContextProvider projectId={project.id} projectName={project.name}>
         <div className="flex flex-row max-w-full max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>
-            <div className="flex flex-col flex-shrink-0 h-screen">
+            <div className="z-50 h-screen">
               <ProjectNavbar
                 projectId={projectId}
                 fullBuild={isFeatureEnabled(Feature.FULL_BUILD)}
