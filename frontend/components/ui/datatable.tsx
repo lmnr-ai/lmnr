@@ -154,29 +154,24 @@ export function DataTable<TData>({
       id: '__favorite',
       enableResizing: false,
       header: ({ table }) => (
-          <Favorite
-            isSelected={allRowsAcrossAllPagesSelected}
-            onToggle={() => {
-              table.getRowModel().rows.forEach((row) => {
-                row.toggleSelected();
-              });
-              addFavorite();
-            }}
-          />
+        <Favorite
+          isSelected={allRowsAcrossAllPagesSelected}
+          isHeader={true}
+          onToggleFavorite={() => {}}
+        />
       ),
       size: 40,
       cell: ({ row }) => (
-          <Favorite
-            isSelected={row.getIsSelected()}
-            onToggle={() => {
-              row.toggleSelected();
-              if (!row.getIsSelected()) {
-                addFavorite();
-              } else {
-                removeFavorite();
-              }
-            }}
-          />
+        <Favorite
+          isSelected={row.getIsSelected()}
+          onToggleFavorite={() => {
+            if (!row.getIsSelected()) {
+              addFavorite();
+            } else {
+              removeFavorite();
+            }
+          }}
+        />
       ),
     });
   }
