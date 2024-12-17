@@ -102,6 +102,14 @@ export function DataTable<TData>({
     setRowSelection({});
   }, [data]);
 
+  const addFavorite = () => {
+    console.log('Added favorite - placeholder');
+  };
+
+  const removeFavorite = () => {
+    console.log('Removed favorite - placeholder');
+  };
+
   if (enableRowSelection) {
     columns.unshift({
       id: '__row_selection',
@@ -152,6 +160,7 @@ export function DataTable<TData>({
               table.getRowModel().rows.forEach((row) => {
                 row.toggleSelected();
               });
+              addFavorite();
             }}
           />
       ),
@@ -159,13 +168,18 @@ export function DataTable<TData>({
       cell: ({ row }) => (
           <Favorite
             isSelected={row.getIsSelected()}
-            onToggle={() => row.toggleSelected()}
+            onToggle={() => {
+              row.toggleSelected();
+              if (!row.getIsSelected()) {
+                addFavorite();
+              } else {
+                removeFavorite();
+              }
+            }}
           />
       ),
     });
   }
-
-
 
   const table = useReactTable({
     data: data ?? [],
