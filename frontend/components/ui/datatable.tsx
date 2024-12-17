@@ -146,7 +146,6 @@ export function DataTable<TData>({
       id: '__favorite',
       enableResizing: false,
       header: ({ table }) => (
-        <div className="flex justify-center items-center">
           <Favorite
             isSelected={allRowsAcrossAllPagesSelected}
             onToggle={() => {
@@ -155,16 +154,13 @@ export function DataTable<TData>({
               });
             }}
           />
-        </div>
       ),
       size: 40,
       cell: ({ row }) => (
-        <div className="flex justify-center items-center">
           <Favorite
             isSelected={row.getIsSelected()}
             onToggle={() => row.toggleSelected()}
           />
-        </div>
       ),
     });
   }
