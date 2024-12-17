@@ -27,6 +27,7 @@ import { DataTablePagination } from './datatable-pagination';
 import { Label } from './label';
 import { ScrollArea, ScrollBar } from './scroll-area';
 import { Skeleton } from './skeleton';
+import { Favorite } from '@/components/ui/favorite';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -115,7 +116,7 @@ export function DataTable<TData>({
               onSelectAllAcrossPages?.(false);
             }
           }}
-          onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
+          onChange={table.getToggleAllRowsSelectedHandler()}
           onClick={(e) => {
             e.stopPropagation();
             table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
@@ -139,9 +140,36 @@ export function DataTable<TData>({
             row.toggleSelected(!row.getIsSelected());
           }}
         />
-      )
+      ),
+    });
+    columns.splice(1, 0, {
+      id: '__favorite',
+      enableResizing: false,
+      header: ({ table }) => (
+        <div className="flex justify-center items-center">
+          <Favorite
+            isSelected={allRowsAcrossAllPagesSelected}
+            onToggle={() => {
+              table.getRowModel().rows.forEach((row) => {
+                row.toggleSelected();
+              });
+            }}
+          />
+        </div>
+      ),
+      size: 40,
+      cell: ({ row }) => (
+        <div className="flex justify-center items-center">
+          <Favorite
+            isSelected={row.getIsSelected()}
+            onToggle={() => row.toggleSelected()}
+          />
+        </div>
+      ),
     });
   }
+
+
 
   const table = useReactTable({
     data: data ?? [],
