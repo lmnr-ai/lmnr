@@ -404,7 +404,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::semantic_search::semantic_search)
-                                .app_data(PayloadConfig::new(10 * 1024 * 1024)),
+                                .app_data(PayloadConfig::new(200 * 1024 * 1024)),
                         )
                         // Scopes with generic auth
                         .service(
