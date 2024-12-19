@@ -1,7 +1,7 @@
 use actix_service::Service;
 use actix_web::{
     middleware::{Logger, NormalizePath},
-    web::{self, PayloadConfig},
+    web::{self, JsonConfig, PayloadConfig},
     App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -74,6 +74,8 @@ mod storage;
 mod traces;
 
 const DEFAULT_CACHE_SIZE: u64 = 100; // entries
+const HTTP_PAYLOAD_LIMIT: usize = 100 * 1024 * 1024; // 100MB
+const GRPC_PAYLOAD_DECODING_LIMIT: usize = 100 * 1024 * 1024; // 100MB
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -397,14 +399,15 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
+                                .app_data(PayloadConfig::new(HTTP_PAYLOAD_LIMIT))
+                                .app_data(JsonConfig::default().limit(HTTP_PAYLOAD_LIMIT))
                                 .service(api::v1::pipelines::run_pipeline_graph)
                                 .service(api::v1::pipelines::ping_healthcheck)
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
-                                .service(api::v1::semantic_search::semantic_search)
-                                .app_data(PayloadConfig::new(200 * 1024 * 1024)),
+                                .service(api::v1::semantic_search::semantic_search),
                         )
                         // Scopes with generic auth
                         .service(
@@ -537,7 +540,10 @@ fn main() -> anyhow::Result<()> {
                 );
 
                 Server::builder()
-                    .add_service(TraceServiceServer::new(process_traces_service))
+                    .add_service(
+                        TraceServiceServer::new(process_traces_service)
+                            .max_decoding_message_size(GRPC_PAYLOAD_DECODING_LIMIT),
+                    )
                     .serve_with_shutdown(grpc_address, async {
                         wait_stop_signal("gRPC service").await;
                     })
