@@ -25,6 +25,7 @@
     "@lezer/highlight": "^1.2.1",
     "@monaco-editor/react": "^4.6.0",
     "@mux/mux-player-react": "^2.9.1",
+    "@novnc/novnc": "^1.5.0",
     "@pnpm/types": "^9.4.2",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
