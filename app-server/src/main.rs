@@ -74,8 +74,8 @@ mod storage;
 mod traces;
 
 const DEFAULT_CACHE_SIZE: u64 = 100; // entries
-const HTTP_PAYLOAD_LIMIT: u64 = 100 * 1024 * 1024; // 100MB
-const GRPC_PAYLOAD_DECODING_LIMIT: u64 = 100 * 1024 * 1024; // 100MB
+const HTTP_PAYLOAD_LIMIT: usize = 100 * 1024 * 1024; // 100MB
+const GRPC_PAYLOAD_DECODING_LIMIT: usize = 100 * 1024 * 1024; // 100MB
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
