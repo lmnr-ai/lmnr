@@ -11,17 +11,9 @@ export async function register() {
       const { llmPrices, pipelineTemplates, subscriptionTiers } = await import('lib/db/migrations/schema');
       const { db } = await import('lib/db/drizzle');
 
-      const seed = async () => {
-        // This is a silly check to see if the table is already populated
-        // because drizzle-kit doesn't support seeding yet
-        // https://orm.drizzle.team/docs/kit-seed-data
-        const tiersData = await db.select().from(subscriptionTiers);
-        if (tiersData.length > 0) {
-          return;
-        }
-
-        const seedData = require('lib/db/seed.json');
-        for (const entry of seedData) {
+      const initializeData = async () => {
+        const initialData = require('lib/db/initial-data.json');
+        for (const entry of initialData) {
           const tableName: string = entry.table;
           const tables: Record<string, any> = {
             'subscription_tiers': subscriptionTiers,
@@ -35,13 +27,13 @@ export async function register() {
               [k.replace(/(_[a-z])/g, m => m[1].toUpperCase()), v]))
           );
 
-          await db.insert(table).values(rows);
+          // TODO: figure out do update here
+          await db.insert(table).values(rows).onConflictDoNothing();
         }
       };
 
       await migrate(db, { migrationsFolder: 'lib/db/migrations' });
-      await seed();
-      console.log('Seeded database with data from seed.json');
+      await initializeData();
     } else {
       console.log('Local DB is not enabled, skipping migrations and seeding');
     }

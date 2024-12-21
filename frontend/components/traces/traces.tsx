@@ -67,11 +67,11 @@ export default function Traces() {
               <TabsTrigger value="traces">
                 Traces
               </TabsTrigger>
-              <TabsTrigger value="sessions">
-                Sessions
-              </TabsTrigger>
               <TabsTrigger value="spans">
                 Spans
+              </TabsTrigger>
+              <TabsTrigger value="sessions">
+                Sessions
               </TabsTrigger>
             </TabsList>
           </div>
@@ -83,7 +83,7 @@ export default function Traces() {
               <SessionsTable onRowClick={setTraceId} />
             </TabsContent>
             <TabsContent value="spans" className="w-full">
-              <SpansTable onRowClick={setTraceId}/>
+              <SpansTable onRowClick={setTraceId} />
             </TabsContent>
           </div>
         </Tabs>

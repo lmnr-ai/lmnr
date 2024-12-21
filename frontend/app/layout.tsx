@@ -11,7 +11,25 @@ import { PHProvider } from './providers';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.lmnr.ai'),
-  title: 'laminar'
+  title: 'Laminar',
+  openGraph: {
+    type: 'website',
+    title: 'Laminar',
+    description: 'The AI engineering platform',
+    images: {
+      url: '/opengraph-image.png',
+      alt: 'Laminar'
+    }
+  },
+  twitter: {
+    card: 'summary',
+    description: 'The AI engineering platform',
+    title: 'Laminar',
+    images: {
+      url: '/twitter-image.png',
+      alt: 'Laminar'
+    }
+  }
 };
 
 const PostHogPageView = dynamic(() => import('./posthog-pageview'), {
@@ -31,7 +49,7 @@ export default async function RootLayout({
         >
           <PostHogPageView />
           <div className="flex">
-            <div className="flex flex-col flex-grow min-h-screen max-w-full">
+            <div className="flex flex-col flex-grow max-w-full min-h-screen">
               <main className="z-10 flex flex-col flex-grow">{children}</main>
               <Toaster />
             </div>

@@ -37,6 +37,7 @@ export function EvaluatorEditor({
   const [output, setOutput] = useState<string>('');
   const runnableGraph = useRef<Graph | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [wasTypeCast, setWasTypeCast] = useState(false);
 
   useEffect(() => {
     setInputs(`{
@@ -110,11 +111,11 @@ export function EvaluatorEditor({
 
     let value = res['outputs']['output']['value'];
 
-    // python return True or False but we parse it into JSON as true/false
-    if (value === 'true') {
-      value = 'True';
-    } else if (value === 'false') {
-      value = 'False';
+    if (typeof value !== 'string') {
+      setWasTypeCast(true);
+      value = JSON.stringify(value);
+    } else {
+      setWasTypeCast(false);
     }
 
     setOutput(value);
@@ -207,6 +208,11 @@ export function EvaluatorEditor({
                         Run test
                       </Button>
                     </div>
+                    {wasTypeCast && (
+                      <div className="text-yellow-500 text-sm">
+                        Output was cast to string
+                      </div>
+                    )}
                     <Label>Output</Label>
                     <Formatter
                       className="max-h-[200px]"
@@ -354,7 +360,7 @@ function CodeEvaluator({
   onGraphChanged,
 }: CodeEvaluatorProps) {
   const [code, setCode] = useState<string>(
-    'def main(span_input, span_output):\n    return True'
+    '# has to return a string matching one of the expected values\ndef main(span_input, span_output):\n    return "correct"'
   );
 
 
