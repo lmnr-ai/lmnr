@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Book,
   Cable,
   Database,
   FlaskConical,
@@ -8,15 +9,17 @@ import {
   Pen,
   PlayCircle,
   Rows4,
-  Settings
+  Settings,
+  X
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import smallLogo from '@/assets/logo/icon.svg';
 import fullLogo from '@/assets/logo/logo.svg';
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
 import AvatarMenu from '../user/avatar-menu';
@@ -29,6 +32,19 @@ interface ProjectNavBarProps {
 export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarProps) {
   const pathname = usePathname();
   const { open, openMobile } = useSidebar();
+  const [showStarCard, setShowStarCard] = useState<boolean>(false);
+
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('showStarCard');
+      setShowStarCard(saved !== null ? JSON.parse(saved) : true);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('showStarCard', JSON.stringify(showStarCard));
+  }, [showStarCard]);
 
   const allOptions = [
     {
@@ -90,8 +106,8 @@ export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarPro
 
   return (
     <Sidebar className="border-r" collapsible='icon'>
-      <SidebarHeader className="h-14 bg-background">
-        <Link href="/projects" className={`flex h-14 items-center ${open || openMobile ? 'justify-start pl-2' : 'justify-center'}`}>
+      <SidebarHeader className="h-12 bg-background">
+        <Link href="/projects" className={`flex h-12 items-center ${open || openMobile ? 'justify-start pl-2' : 'justify-center'}`}>
           <Image
             alt="Laminar AI logo"
             src={open || openMobile ? fullLogo : smallLogo}
@@ -100,31 +116,58 @@ export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarPro
           />
         </Link>
       </SidebarHeader>
-      <SidebarContent className="flex flex-col pt-2 bg-background">
-        <SidebarMenu className={`${open || openMobile ? undefined : "justify-center items-center flex"}`}>
+      <SidebarContent className="pt-2 bg-background">
+        <SidebarMenu className={cn(open || openMobile ? undefined : 'justify-center items-center flex')}>
           {navbarOptions.map((option, i) => (
-            <SidebarMenuItem key={i}>
+            <SidebarMenuItem key={i} className='h-7'>
               <SidebarMenuButton
                 asChild
+                className={cn('text-secondary-foreground flex items-center', open || openMobile ? '' : 'justify-center gap-0')}
                 isActive={pathname.startsWith(option.href)}
                 tooltip={option.name}
               >
-                <Link href={option.href} className={cn(
-                  'hover:bg-secondary flex items-center p-2 rounded text-secondary-foreground',
-                  pathname.startsWith(option.href) ? 'bg-secondary text-primary-foreground' : ''
-                )}>
-                  <option.icon className="flex justify-center items-center !w-[20px] !h-[20px]" />
-                  <span>{option.name}</span>
+                <Link href={option.href}>
+                  <option.icon />
+                  {open || openMobile ? <span>{option.name}</span> : null}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
-        <div className="flex-grow" />
-        <div className="p-4">
-          <AvatarMenu showDetails={open || openMobile} />
-        </div>
+        <div className='flex-1' />
+        {showStarCard && open && (
+          <div className={cn(
+            'mx-4 mt-4 p-3 rounded-lg border bg-muted relative',
+            open || openMobile ? 'text-sm' : 'hidden'
+          )}>
+            <button
+              onClick={() => setShowStarCard(false)}
+              className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+            >
+              <X size={16} />
+            </button>
+            <p className="text-xs text-muted-foreground mb-2">
+              Laminar is fully open source
+            </p>
+            <a
+              href="https://github.com/lmnr-ai/lmnr"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-foreground hover:underline"
+            >
+              ⭐ Star it on GitHub
+            </a>
+          </div>
+        )}
       </SidebarContent>
-    </Sidebar>
+      <SidebarFooter className='bg-background p-4 gap-4'>
+        <Link href="https://docs.lmnr.ai" target="_blank" rel="noopener noreferrer"
+          className={cn('h-8 text-secondary-foreground flex items-center gap-2', open || openMobile ? '' : 'justify-center')}>
+          <Book size={16} />
+          {open || openMobile ? <span className='text-sm'>Docs</span> : null}
+        </Link>
+        <AvatarMenu showDetails={open || openMobile} />
+      </SidebarFooter>
+    </Sidebar >
   );
 }

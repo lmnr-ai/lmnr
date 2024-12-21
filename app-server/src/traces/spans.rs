@@ -222,21 +222,32 @@ impl SpanAttributes {
     }
 
     pub fn metadata(&self) -> Option<HashMap<String, String>> {
-        let res = self.get_flattened_association_properties("metadata");
-        if res.is_empty() {
+        let mut metadata = self.get_flattened_association_properties("metadata");
+        let ai_sdk_metadata = self.get_flattened_properties("ai", "telemetry.metadata");
+        metadata.extend(ai_sdk_metadata);
+        if metadata.is_empty() {
             None
         } else {
             Some(
-                res.into_iter()
+                metadata
+                    .into_iter()
                     .map(|(k, v)| (k, json_value_to_string(v)))
                     .collect(),
             )
         }
     }
 
-    fn get_flattened_association_properties(&self, prefix: &str) -> HashMap<String, Value> {
+    fn get_flattened_association_properties(&self, entity: &str) -> HashMap<String, Value> {
+        self.get_flattened_properties(ASSOCIATION_PROPERTIES_PREFIX, entity)
+    }
+
+    fn get_flattened_properties(
+        &self,
+        attribute_prefix: &str,
+        entity: &str,
+    ) -> HashMap<String, Value> {
         let mut res = HashMap::new();
-        let prefix = format!("{ASSOCIATION_PROPERTIES_PREFIX}{prefix}.");
+        let prefix = format!("{attribute_prefix}.{entity}.");
         for (key, value) in self.attributes.iter() {
             if key.starts_with(&prefix) {
                 res.insert(
@@ -611,6 +622,12 @@ fn should_keep_attribute(attribute: &str) -> bool {
     let pattern =
         Regex::new(r"SpanAttributes\.LLM_(PROMPTS|COMPLETIONS)\.\d+\.(content|role)").unwrap();
     if pattern.is_match(attribute) {
+        return false;
+    }
+
+    // AI SDK
+    // remove ai.prompt.messages as it is stored in LLM span's input
+    if attribute == "ai.prompt.messages" {
         return false;
     }
 

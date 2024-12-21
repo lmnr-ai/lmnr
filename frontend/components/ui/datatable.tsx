@@ -208,7 +208,7 @@ export function DataTable<TData>({
         'flex min-w-full border-b',
         !!onRowClick && 'cursor-pointer',
         row.depth > 0 && 'bg-secondary/40',
-        focusedRowId === row.id && 'bg-secondary/50'
+        focusedRowId === row.id && 'bg-secondary/70'
       )}
       key={row.id}
       data-state={row.getIsSelected() && 'selected'}

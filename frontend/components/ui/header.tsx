@@ -25,7 +25,7 @@ export default function Header({ path, children, className, showSidebarTrigger =
     >
       <div className="flex items-center">
         {showSidebarTrigger && (
-          <SidebarTrigger className='ml-2 -mr-2 hover:bg-secondary'/>
+          <SidebarTrigger className='ml-2 -mr-2 hover:bg-secondary' />
         )}
         {projectName && (
           <div className="flex items-center pl-4 space-x-3 text-secondary-foreground">
@@ -51,12 +51,7 @@ export default function Header({ path, children, className, showSidebarTrigger =
         {children}
       </div>
       <div className="flex pr-4 space-x-2">
-        <Button variant={'ghost'}>
-          <a href="https://docs.lmnr.ai/" target="_blank">
-            Docs
-          </a>
-        </Button>
-        <Button variant={'ghost'}>
+        <Button variant='outline'>
           <a href="https://cal.com/skull8888888/30min" target="_blank">
             Book a demo
           </a>
