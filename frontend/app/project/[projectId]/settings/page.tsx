@@ -22,11 +22,12 @@ const getProjectApiKeys = async (projectId: string) => {
   return await res;
 };
 
-export default async function ApiKeysPage({
-  params
-}: {
-  params: { projectId: string };
-}) {
+export default async function ApiKeysPage(
+  props: {
+    params: Promise<{ projectId: string }>;
+  }
+) {
+  const params = await props.params;
   const apiKeys = await getProjectApiKeys(params.projectId);
 
   const session = await getServerSession(authOptions);

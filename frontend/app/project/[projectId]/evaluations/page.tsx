@@ -10,13 +10,14 @@ export const metadata: Metadata = {
   title: 'Evaluations'
 };
 
-export default async function EvaluationsPage({
-  params
-}: {
-  params: { projectId: string };
-}) {
+export default async function EvaluationsPage(
+  props: {
+    params: Promise<{ projectId: string }>;
+  }
+) {
+  const params = await props.params;
   const projectId = params.projectId;
-  const anyInProject = await db.$count(evaluations, eq(evaluations.projectId, projectId)) > 0;
+  const anyInProject = (await db.$count(evaluations, eq(evaluations.projectId, projectId))) > 0;
   if (!anyInProject) {
     return <EvalsPagePlaceholder />;
   }

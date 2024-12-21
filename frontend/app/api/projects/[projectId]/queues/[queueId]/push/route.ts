@@ -8,7 +8,11 @@ const pushQueueItemSchema = z.object({
 });
 
 // push an item to the queue
-export async function POST(request: Request, { params }: { params: { projectId: string; queueId: string } }) {
+export async function POST(
+  request: Request,
+  props: { params: Promise<{ projectId: string; queueId: string }> }
+) {
+  const params = await props.params;
 
   const body = await request.json();
   const result = pushQueueItemSchema.safeParse(body);

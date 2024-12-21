@@ -31,11 +31,12 @@ const getWorkspaceStats = async (
   })) as WorkspaceStats;
 };
 
-export default async function WorkspacePage({
-  params
-}: {
-  params: { workspaceId: string };
-}) {
+export default async function WorkspacePage(
+  props: {
+    params: Promise<{ workspaceId: string }>;
+  }
+) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');

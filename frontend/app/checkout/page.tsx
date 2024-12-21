@@ -6,11 +6,12 @@ import { authOptions } from '@/lib/auth';
 import { UserSubscriptionInfo } from '@/lib/checkout/types';
 import { fetcher, fetcherJSON } from '@/lib/utils';
 
-export default async function CheckoutPage({
-  searchParams
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
+export default async function CheckoutPage(
+  props: {
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const lookupKey =
     (searchParams?.lookupKey as string) ?? 'pro_monthly_2024_09';
   const workspaceId = searchParams?.workspaceId as string;

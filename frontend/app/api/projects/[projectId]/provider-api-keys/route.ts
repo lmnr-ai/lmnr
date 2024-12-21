@@ -6,7 +6,8 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { providerApiKeys } from '@/lib/db/migrations/schema';
 import { fetcher } from '@/lib/utils';
-export async function GET(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
 
@@ -20,7 +21,8 @@ export async function GET(req: NextRequest, { params }: { params: { projectId: s
 }
 
 
-export async function POST(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const session = await getServerSession(authOptions);
   const user = session!.user;
@@ -36,7 +38,8 @@ export async function POST(req: NextRequest, { params }: { params: { projectId: 
   });
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { projectId: string } }): Promise<Response> {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
 

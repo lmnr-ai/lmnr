@@ -9,11 +9,7 @@ export const metadata: Metadata = {
   title: 'Datasets'
 };
 
-export default async function LogsPage({
-  params
-}: {
-  params: { projectId: string };
-}) {
+export default async function LogsPage() {
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect('/sign-in');

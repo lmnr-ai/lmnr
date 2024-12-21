@@ -778,7 +778,6 @@ export default function Pipeline({ pipeline, isSupabaseEnabled }: PipelineProps)
               className="z-40 h-full"
             >
               <PipelineBottomPanel
-                flowPanelRef={flowPanelRef}
                 pipelineVersion={
                   selectedPipelineVersion ?? ({} as PipelineVersion)
                 }

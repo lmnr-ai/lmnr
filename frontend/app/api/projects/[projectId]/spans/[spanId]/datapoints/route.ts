@@ -5,8 +5,9 @@ import { datapointToSpan } from "@/lib/db/migrations/schema";
 
 export async function GET(
   request: Request,
-  { params }: { params: { projectId: string; spanId: string } }
+  props: { params: Promise<{ projectId: string; spanId: string }> }
 ) {
+  const params = await props.params;
 
   const { spanId } = params;
 

@@ -5,7 +5,8 @@ import { GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { getSpanMetricsOverTime, SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/spans";
 import { AggregationFunction, getTimeRange } from "@/lib/clickhouse/utils";
 
-export async function GET(req: NextRequest, { params }: { params: { projectId: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
   const { projectId } = params;
   const searchParams = req.nextUrl.searchParams;
 

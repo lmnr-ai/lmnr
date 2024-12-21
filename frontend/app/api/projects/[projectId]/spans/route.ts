@@ -7,10 +7,8 @@ import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
 import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
 import { Span } from '@/lib/traces/types';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const pastHours = req.nextUrl.searchParams.get("pastHours");

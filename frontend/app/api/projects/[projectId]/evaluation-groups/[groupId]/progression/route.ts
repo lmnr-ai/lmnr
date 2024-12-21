@@ -5,7 +5,11 @@ import { getEvaluationTimeProgression } from "@/lib/clickhouse/evaluation-scores
 import { AggregationFunction, TimeRange } from "@/lib/clickhouse/utils";
 
 
-export const GET = async (request: NextRequest, { params }: { params: { projectId: string, groupId: string } }) => {
+export const GET = async (
+  request: NextRequest,
+  props: { params: Promise<{ projectId: string, groupId: string }> }
+) => {
+  const params = await props.params;
   const { projectId, groupId } = params;
   let timeRange: TimeRange;
   if (request.nextUrl.searchParams.get('pastHours')) {

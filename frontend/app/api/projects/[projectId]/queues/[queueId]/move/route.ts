@@ -12,8 +12,9 @@ const RequestBodySchema = z.object({
 
 export async function POST(
   req: Request,
-  { params }: { params: { projectId: string; queueId: string } }
+  props: { params: Promise<{ projectId: string; queueId: string }> }
 ) {
+  const params = await props.params;
 
   // Validate body
   const body = await req.json();
@@ -117,5 +118,4 @@ export async function POST(
   }
 
   return Response.json({ error: 'Invalid direction' }, { status: 400 });
-
 }
