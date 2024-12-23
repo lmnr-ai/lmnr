@@ -3,6 +3,7 @@ export interface Dataset {
   createdAt?: string;
   name: string;
   indexedOn: string | null;
+  itemsCount: number;
 }
 
 export interface Datapoint {
