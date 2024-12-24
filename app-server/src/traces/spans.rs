@@ -375,6 +375,16 @@ impl Span {
                 );
             }
         }
+
+        // Vercel AI SDK wraps "raw" LLM spans in an additional `ai.generateText` span.
+        // Which is not really an LLM span, but it has the prompt in its attributes.
+        // Set the input to the prompt.
+        if let Some(serde_json::Value::String(s)) = attributes.get("ai.prompt") {
+            span.input = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
+        }
+
         // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
         // attributes over gen_ai/vercel/LiteLLM attributes.
         // Therefore this block is outside and after the LLM span type check.
