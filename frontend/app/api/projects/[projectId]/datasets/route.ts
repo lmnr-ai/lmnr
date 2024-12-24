@@ -1,8 +1,8 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
-import { datasets } from '@/lib/db/migrations/schema';
+import { datasetDatapoints,datasets } from '@/lib/db/migrations/schema';
 import { paginatedGet } from '@/lib/db/utils';
 
 export async function POST(
@@ -42,12 +42,22 @@ export async function GET(
   const pageSize =
     parseInt(req.nextUrl.searchParams.get('pageSize') ?? '50') || 50;
   const filters = [eq(datasets.projectId, projectId)];
+  const { ...columns } = getTableColumns(datasets);
+
   const datasetsData = await paginatedGet({
     table: datasets,
     pageNumber,
     pageSize,
     filters,
-    orderBy: desc(datasets.createdAt)
+    orderBy: desc(datasets.createdAt),
+    columns: {
+      ...columns,
+      datapointsCount: sql<number>`COALESCE((
+        SELECT COUNT(*)
+        FROM ${datasetDatapoints} dp
+        WHERE dp.dataset_id = datasets.id
+      ), 0)::int`.as('datapointsCount')
+    }
   });
 
   return new Response(JSON.stringify(datasetsData), { status: 200 });
