@@ -59,7 +59,7 @@ impl SpanAttributes {
     pub fn session_id(&self) -> Option<String> {
         match self
             .attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}session_id").as_str())
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id").as_str())
         {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -69,7 +69,7 @@ impl SpanAttributes {
     pub fn user_id(&self) -> Option<String> {
         match self
             .attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}user_id").as_str())
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.user_id").as_str())
         {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -78,7 +78,7 @@ impl SpanAttributes {
 
     pub fn trace_type(&self) -> Option<TraceType> {
         self.attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}trace_type").as_str())
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type").as_str())
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
@@ -131,7 +131,7 @@ impl SpanAttributes {
             if provider == "Langchain" {
                 let ls_provider = self
                     .attributes
-                    .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}ls_provider").as_str())
+                    .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.ls_provider").as_str())
                     .and_then(|s| serde_json::from_value(s.clone()).ok());
                 if let Some(ls_provider) = ls_provider {
                     ls_provider
@@ -453,7 +453,7 @@ impl Span {
         };
         let mut attributes = HashMap::new();
         attributes.insert(
-            format!("{ASSOCIATION_PROPERTIES_PREFIX}trace_type",),
+            format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type",),
             json!(trace_type),
         );
         attributes.insert(SPAN_PATH.to_string(), json!(path));
