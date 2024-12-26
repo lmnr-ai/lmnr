@@ -11,7 +11,25 @@ import { PHProvider } from './providers';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.lmnr.ai'),
-  title: 'laminar'
+  title: 'Laminar',
+  openGraph: {
+    type: 'website',
+    title: 'Laminar',
+    description: 'The AI engineering platform',
+    images: {
+      url: '/opengraph-image.png',
+      alt: 'Laminar'
+    }
+  },
+  twitter: {
+    card: 'summary',
+    description: 'The AI engineering platform',
+    title: 'Laminar',
+    images: {
+      url: '/twitter-image.png',
+      alt: 'Laminar'
+    }
+  }
 };
 
 const PostHogPageView = dynamic(() => import('./posthog-pageview'), {

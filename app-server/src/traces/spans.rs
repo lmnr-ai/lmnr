@@ -59,7 +59,7 @@ impl SpanAttributes {
     pub fn session_id(&self) -> Option<String> {
         match self
             .attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}session_id").as_str())
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id").as_str())
         {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -69,7 +69,7 @@ impl SpanAttributes {
     pub fn user_id(&self) -> Option<String> {
         match self
             .attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}user_id").as_str())
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.user_id").as_str())
         {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -78,7 +78,7 @@ impl SpanAttributes {
 
     pub fn trace_type(&self) -> Option<TraceType> {
         self.attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}trace_type").as_str())
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type").as_str())
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
@@ -131,7 +131,7 @@ impl SpanAttributes {
             if provider == "Langchain" {
                 let ls_provider = self
                     .attributes
-                    .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}ls_provider").as_str())
+                    .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.ls_provider").as_str())
                     .and_then(|s| serde_json::from_value(s.clone()).ok());
                 if let Some(ls_provider) = ls_provider {
                     ls_provider
@@ -222,21 +222,32 @@ impl SpanAttributes {
     }
 
     pub fn metadata(&self) -> Option<HashMap<String, String>> {
-        let res = self.get_flattened_association_properties("metadata");
-        if res.is_empty() {
+        let mut metadata = self.get_flattened_association_properties("metadata");
+        let ai_sdk_metadata = self.get_flattened_properties("ai", "telemetry.metadata");
+        metadata.extend(ai_sdk_metadata);
+        if metadata.is_empty() {
             None
         } else {
             Some(
-                res.into_iter()
+                metadata
+                    .into_iter()
                     .map(|(k, v)| (k, json_value_to_string(v)))
                     .collect(),
             )
         }
     }
 
-    fn get_flattened_association_properties(&self, prefix: &str) -> HashMap<String, Value> {
+    fn get_flattened_association_properties(&self, entity: &str) -> HashMap<String, Value> {
+        self.get_flattened_properties(ASSOCIATION_PROPERTIES_PREFIX, entity)
+    }
+
+    fn get_flattened_properties(
+        &self,
+        attribute_prefix: &str,
+        entity: &str,
+    ) -> HashMap<String, Value> {
         let mut res = HashMap::new();
-        let prefix = format!("{ASSOCIATION_PROPERTIES_PREFIX}{prefix}.");
+        let prefix = format!("{attribute_prefix}.{entity}.");
         for (key, value) in self.attributes.iter() {
             if key.starts_with(&prefix) {
                 res.insert(
@@ -364,6 +375,16 @@ impl Span {
                 );
             }
         }
+
+        // Vercel AI SDK wraps "raw" LLM spans in an additional `ai.generateText` span.
+        // Which is not really an LLM span, but it has the prompt in its attributes.
+        // Set the input to the prompt.
+        if let Some(serde_json::Value::String(s)) = attributes.get("ai.prompt") {
+            span.input = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
+        }
+
         // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
         // attributes over gen_ai/vercel/LiteLLM attributes.
         // Therefore this block is outside and after the LLM span type check.
@@ -442,7 +463,7 @@ impl Span {
         };
         let mut attributes = HashMap::new();
         attributes.insert(
-            format!("{ASSOCIATION_PROPERTIES_PREFIX}trace_type",),
+            format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type",),
             json!(trace_type),
         );
         attributes.insert(SPAN_PATH.to_string(), json!(path));
@@ -611,6 +632,12 @@ fn should_keep_attribute(attribute: &str) -> bool {
     let pattern =
         Regex::new(r"SpanAttributes\.LLM_(PROMPTS|COMPLETIONS)\.\d+\.(content|role)").unwrap();
     if pattern.is_match(attribute) {
+        return false;
+    }
+
+    // AI SDK
+    // remove ai.prompt.messages as it is stored in LLM span's input
+    if attribute == "ai.prompt.messages" {
         return false;
     }
 
