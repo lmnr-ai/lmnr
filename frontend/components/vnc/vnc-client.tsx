@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 export default function VNCClient({ url, credentials = {}, onConnect, onDisconnect, onError }:
   { url: string, credentials?: {}, onConnect: () => void, onDisconnect: () => void, onError: (error: any) => void }) {
@@ -8,7 +8,6 @@ export default function VNCClient({ url, credentials = {}, onConnect, onDisconne
   const rfbRef = useRef<any>(null);
 
   useEffect(() => {
-    console.log('VNCClient useEffect');
     if (!canvasRef.current) return;
 
     let isConnected = false;

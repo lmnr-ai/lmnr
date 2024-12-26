@@ -1,16 +1,31 @@
 'use client';
 
+import { useState } from "react";
+
 import VNCClient from "./vnc-client";
 
 export default function VNC() {
+  const [id, setId] = useState("");
+
   return (
     <div className="w-full h-full">
+      <div className="p-4">
+        <input
+          type="text"
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+          className="border p-2 rounded mr-2"
+          placeholder="Enter VNC ID"
+        />
+        <button
+          onClick={() => setId(id)}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          Connect
+        </button>
+      </div>
       <VNCClient
-        url="ws://localhost:6080/ws/eca4d116-7309-44ea-aaba-379d02818d62"
-        credentials={{
-          username: 'admin',
-          password: 'password'
-        }}
+        url={`wss://api.lmnr.ai/ws/${id}`}
         onConnect={() => {
           console.log('Connected to VNC server');
         }}
@@ -21,5 +36,6 @@ export default function VNC() {
           console.error('VNC Error:', error);
         }}
       />
-    </div>);
+    </div>
+  );
 }
