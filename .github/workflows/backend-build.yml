@@ -1,0 +1,39 @@
+name: Backend build
+
+on:
+  pull_request:
+    types:
+      - synchronize
+      - opened
+      - reopened
+    paths:
+      - 'app-server/**'
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+             
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-app-server-pr-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-app-server-pr-
+
+      - name: Build and push image to AWS ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./app-server/Dockerfile
+          push: false
+          platforms: linux/amd64
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
