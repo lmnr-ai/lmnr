@@ -31,8 +31,7 @@ jobs:
       - name: Build and push image to AWS ECR
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ./app-server/Dockerfile
+          context: ./app-server
           push: false
           platforms: linux/amd64
           cache-from: type=local,src=/tmp/.buildx-cache
