@@ -25,7 +25,7 @@ export default function VNC() {
         </button>
       </div>
       <VNCClient
-        url={`wss://api.lmnr.ai/ws/${id}`}
+        url={`wss://api.lmnr.ai/v1/machine/vnc_stream/${id}`}
         onConnect={() => {
           console.log('Connected to VNC server');
         }}
