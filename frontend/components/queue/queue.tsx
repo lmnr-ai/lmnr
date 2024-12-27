@@ -16,6 +16,7 @@ import Formatter from '../ui/formatter';
 import Header from '../ui/header';
 import { Label } from '../ui/label';
 import MonoWithCopy from "../ui/mono-with-copy";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { ScrollArea } from '../ui/scroll-area';
 import { Switch } from '../ui/switch';
 import { Labels } from './labels';
@@ -98,8 +99,8 @@ export default function Queue({ queue }: QueueProps) {
         <Header path={`labeling queues/${queue.name}`} />
       </div>
       <div className="flex-1 flex">
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1">
+        <ResizablePanelGroup direction="horizontal">
+          <ResizablePanel className="flex-1 flex" minSize={20} defaultSize={50}>
             {data?.span ? (
               <div className="flex h-full w-full">
                 <ScrollArea className="flex overflow-auto w-full mt-0">
@@ -140,104 +141,106 @@ export default function Queue({ queue }: QueueProps) {
                 No items in queue
               </div>
             )}
-          </div>
-        </div>
-        <div className="flex-1 flex border-l">
-          <div className="w-2/3 flex flex-col">
-            <div className="flex-none p-4 py-2 border-b text-secondary-foreground flex justify-between items-center">
-              {data && <span>Item {data?.position} of {data?.count}</span>}
-              <div></div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={() => data?.queueData && next(data.queueData.createdAt, 'prev')}
-                  disabled={!data || data.position <= 1}
-                >
-                  <ArrowDown size={16} className="mr-2" />
-                  Prev
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => data?.queueData && next(data.queueData.createdAt, 'next')}
-                  disabled={!data || data.position >= (data.count || 0)}
-                >
-                  <ArrowUp size={16} className="mr-2" />
-                  Next
-                </Button>
-                <Button
-                  onClick={remove}
-                  disabled={isRemoving || !data}
-                >
-                  {isRemoving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Complete
-                </Button>
+          </ResizablePanel>
+          <ResizableHandle withHandle className="z-50" />
+          <ResizablePanel className="flex-1 flex" minSize={20} defaultSize={33}>
+            <div className="w-full flex flex-col">
+              <div className="flex-none p-4 py-2 border-b text-secondary-foreground flex justify-between items-center">
+                {data && <span>Item {data?.position} of {data?.count}</span>}
+                <div></div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => data?.queueData && next(data.queueData.createdAt, 'prev')}
+                    disabled={!data || data.position <= 1}
+                  >
+                    <ArrowDown size={16} className="mr-2" />
+                    Prev
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => data?.queueData && next(data.queueData.createdAt, 'next')}
+                    disabled={!data || data.position >= (data.count || 0)}
+                  >
+                    <ArrowUp size={16} className="mr-2" />
+                    Next
+                  </Button>
+                  <Button
+                    onClick={remove}
+                    disabled={isRemoving || !data}
+                  >
+                    {isRemoving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Complete
+                  </Button>
+                </div>
               </div>
-            </div>
-            <div className="flex-1 p-4">
-              <Label className="text-sm text-secondary-foreground">Labels to be added to the span</Label>
-              <div className="mt-4 space-y-2">
-                {addedLabels.map((label, index) => (
-                  <div key={index} className="flex flex-col p-2 border border-foreground/10 bg-muted rounded gap-2">
-                    <div className="flex items-center gap-2 justify-between w-full">
-                      <span>
-                        {Object.entries(label.labelClass.valueMap).find(([key, value]) => value === label.value)?.[0]}
-                      </span>
+              <div className="flex-1 p-4">
+                <Label className="text-sm text-secondary-foreground">Labels to be added to the span</Label>
+                <div className="mt-4 space-y-2">
+                  {addedLabels.map((label, index) => (
+                    <div key={index} className="flex flex-col p-2 border border-foreground/10 bg-muted rounded gap-2">
+                      <div className="flex items-center gap-2 justify-between w-full">
+                        <span>
+                          {Object.entries(label.labelClass.valueMap).find(([key, value]) => value === label.value)?.[0]}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">{label.labelClass.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeLabel(index)}
+                            className="h-6 px-2"
+                          >
+                            <X size={14} />
+                          </Button>
+                        </div>
+                      </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">{label.labelClass.name}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeLabel(index)}
-                          className="h-6 px-2"
-                        >
-                          <X size={14} />
-                        </Button>
+                        <DefaultTextarea
+                          className="w-full"
+                          placeholder="Reasoning (optional)"
+                          value={label.reasoning || ''}
+                          onChange={(e) => {
+                            setAddedLabels(
+                              prev =>
+                                prev.map(l =>
+                                  l.labelClass.id === label.labelClass.id
+                                    ? { ...l, reasoning: e.target.value }
+                                    : l
+                                )
+                            );
+                          }}
+                        />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <DefaultTextarea
-                        className="w-full"
-                        placeholder="Reasoning (optional)"
-                        value={label.reasoning || ''}
-                        onChange={(e) => {
-                          setAddedLabels(
-                            prev =>
-                              prev.map(l =>
-                                l.labelClass.id === label.labelClass.id
-                                  ? { ...l, reasoning: e.target.value }
-                                  : l
-                              )
-                          );
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="flex-none p-4 border-t">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="insert-dataset">Insert to dataset on complete</Label>
-                <Switch
-                  checked={insertOnComplete}
-                  onCheckedChange={setInsertOnComplete}
-                  id="insert-dataset"
-                />
-              </div>
-
-              {insertOnComplete && (
-                <div className="mt-4">
-                  <DatasetSelect
-                    selectedDatasetId={datasetId}
-                    onDatasetChange={(dataset) => {
-                      setDatasetId(dataset?.id || undefined);
-                    }}
+              <div className="flex-none p-4 border-t">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="insert-dataset">Insert to dataset on complete</Label>
+                  <Switch
+                    checked={insertOnComplete}
+                    onCheckedChange={setInsertOnComplete}
+                    id="insert-dataset"
                   />
                 </div>
-              )}
+
+                {insertOnComplete && (
+                  <div className="mt-4">
+                    <DatasetSelect
+                      selectedDatasetId={datasetId}
+                      onDatasetChange={(dataset) => {
+                        setDatasetId(dataset?.id || undefined);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="w-1/3 p-4 border-l">
+          </ResizablePanel>
+          <ResizableHandle withHandle className="z-50" />
+          <ResizablePanel className="w-1/3 p-4 border-l" minSize={10} defaultSize={17}>
             <Labels
               span={data?.span}
               onAddLabel={(value, labelClass) => {
@@ -249,8 +252,8 @@ export default function Queue({ queue }: QueueProps) {
                 }
               }}
             />
-          </div>
-        </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </div>
   );

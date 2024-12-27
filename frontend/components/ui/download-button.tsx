@@ -1,9 +1,14 @@
-import { Loader2 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
 import { toast } from "@/lib/hooks/use-toast";
 
-import { Button } from "./button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./dropdown-menu";
 
 const downloadFile = async (
   uri: string,
@@ -44,32 +49,43 @@ const downloadFile = async (
 
 interface DownloadButtonProps {
   uri: string;
-  fileFormat: string;
   filenameFallback: string;
   variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost';
   className?: string;
+  supportedFormats?: string[];
 }
 
 export default function DownloadButton({
   uri,
-  fileFormat,
   filenameFallback,
+  supportedFormats = ['csv', 'json'],
   variant = 'secondary',
   className
 }: DownloadButtonProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+
   return (
-    <Button
-      variant={variant}
-      className={className}
-      onClick={async () => {
-        setIsDownloading(true);
-        await downloadFile(uri, fileFormat, filenameFallback);
-        setIsDownloading(false);
-      }}
-    >
-      {isDownloading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-      Download {fileFormat}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger className="flex h-7  items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none">
+        Download
+        <ChevronDown className="h-4 w-4 opacity-50" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="relative z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
+      >
+        {supportedFormats.map((format) => (
+          <DropdownMenuItem
+            key={format}
+            className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
+            onClick={() => {
+              downloadFile(uri + `/${format}`, format, filenameFallback + `.${format}`);
+            }}
+          >
+            Download as {format.toUpperCase()}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
-};
+}

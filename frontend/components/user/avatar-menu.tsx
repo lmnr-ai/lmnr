@@ -12,14 +12,17 @@ import {
   DropdownMenuTrigger
 } from '../ui/dropdown-menu';
 
+interface AvatarMenuProps {
+  showDetails?: boolean;
+}
 
-export default function AvatarMenu() {
-  const { imageUrl } = useUserContext();
+export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
+  const { imageUrl, email } = useUserContext();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger>
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           <Image
             src={imageUrl}
             alt="avatar"
@@ -27,6 +30,11 @@ export default function AvatarMenu() {
             height={28}
             className="border rounded-full cursor-pointer"
           />
+          {showDetails && (
+            <div className="flex flex-col max-w-[110px]">
+              <span className="text-xs truncate text-muted-foreground">{email}</span>
+            </div>
+          )}
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent>

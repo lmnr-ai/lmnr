@@ -34,7 +34,7 @@ export default function LLM({
   useEffect(() => {
     setIsPromptDisabled(
       selectedModelId.startsWith('openai:o1-mini') ||
-        selectedModelId.startsWith('openai:o1-preview')
+      selectedModelId.startsWith('openai:o1-preview')
     );
   }, [selectedModelId]);
 
@@ -160,7 +160,7 @@ export default function LLM({
               updateNodeData(data.id, {
                 modelParams: value
               } as LLMNode);
-            } catch (e) {}
+            } catch (e) { }
           }}
         />
       )}

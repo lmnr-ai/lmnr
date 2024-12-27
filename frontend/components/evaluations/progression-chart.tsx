@@ -28,7 +28,7 @@ export default function ProgressionChart({
   const groupId = searchParams.get('groupId');
   const { projectId } = useProjectContext();
 
-  const { data, isLoading, error } = useSWR<EvaluationTimeProgression[]>(
+  const { data, error } = useSWR<EvaluationTimeProgression[]>(
     `/api/projects/${projectId}/evaluation-groups/${groupId}/progression?aggregate=${aggregationFunction}`,
     swrFetcher
   );
@@ -50,8 +50,7 @@ export default function ProgressionChart({
       timestamp,
       evaluationId,
       ...Object.fromEntries(names.map((name, index) => ([name, values[index]]))),
-    })) ?? [],
-  [data]
+    })) ?? [], [data]
   );
 
   const chartConfig = Object.fromEntries(Array.from(keys).map((key, index) => ([
@@ -67,14 +66,14 @@ export default function ProgressionChart({
     <div className={cn('w-full h-full', className)}>
       <ChartContainer
         config={chartConfig as ChartConfig}
-        className={cn('h-56', 'w-full')}
+        className={cn('h-5/6', 'w-full')}
       >
-        {isLoading || !data || error ? (
+        {!data || error ? (
           <div className="h-full w-full">
             <Skeleton className="h-full w-full" />
           </div>
         ) : <LineChart
-          margin={{ top: 10, right: 10, bottom: 0, left: -12 }}
+          margin={{ top: 10, right: 10, bottom: 5, left: -12 }}
           accessibilityLayer
           data={convertedScores}
         >
@@ -84,7 +83,8 @@ export default function ProgressionChart({
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value: number) => formatTimestamp(`${value}Z`)}
+            // tickFormatter={(value: number) => formatTimestamp(`${value}Z`)}
+            tick={false}
             height={8}
             padding={{ left: horizontalPadding, right: horizontalPadding }}
           />
@@ -96,7 +96,12 @@ export default function ProgressionChart({
           />
           <ChartTooltip
             cursor={false}
-            content={<ChartTooltipContent hideLabel className="min-w-60" />}
+            content={
+              <ChartTooltipContent
+                className="min-w-60"
+                labelFormatter={(value) => formatTimestamp(`${value}Z`)}
+              />
+            }
           />
           {Array.from(keys).filter((key) => showScores.includes(key)).map((key) => (
             <Line
