@@ -1,9 +1,10 @@
 import { ChevronsRight, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
-import { Datapoint } from '@/lib/dataset/types';
 import { useToast } from '@/lib/hooks/use-toast';
+import { swrFetcher } from '@/lib/utils';
 
 import { Button } from '../ui/button';
 import Formatter from '../ui/formatter';
@@ -15,7 +16,7 @@ import { Skeleton } from '../ui/skeleton';
 interface DatasetPanelProps {
   datasetId: string;
   indexedOn: string | null;
-  datapoint: Datapoint;
+  datapointId: string;
   onClose: () => void;
 }
 
@@ -24,17 +25,21 @@ const AUTO_SAVE_TIMEOUT_MS = 750;
 export default function DatasetPanel({
   datasetId,
   indexedOn,
-  datapoint,
+  datapointId,
   onClose,
 }: DatasetPanelProps) {
   const { projectId } = useProjectContext();
+  const { data: datapoint, isLoading } = useSWR(
+    `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
+    swrFetcher
+  );
   // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
-  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint.data);
+  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint?.data);
   const [newTarget, setNewTarget] = useState<Record<string, any> | null>(
-    datapoint.target
+    datapoint?.target
   );
   const [newMetadata, setNewMetadata] = useState<Record<string, any> | null>(
-    datapoint.metadata
+    datapoint?.metadata
   );
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
@@ -52,7 +57,7 @@ export default function DatasetPanel({
     }
     setSaving(true);
     const res = await fetch(
-      `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapoint.id}`,
+      `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
       {
         method: 'POST',
         headers: {
@@ -92,12 +97,13 @@ export default function DatasetPanel({
   }, [newData, newTarget, newMetadata]);
 
   useEffect(() => {
+    if (!datapoint) return;
     setNewData(datapoint.data);
     setNewTarget(datapoint.target);
     setNewMetadata(datapoint.metadata);
   }, [datapoint]);
 
-  return (
+  return isLoading ? (<div>Loading...</div>) : (
     <div className="flex flex-col h-full w-full">
       <div className="h-12 flex flex-none space-x-2 px-3 items-center border-b">
         <Button
