@@ -103,11 +103,15 @@ export default function DatasetPanel({
     setNewMetadata(datapoint.metadata);
   }, [datapoint]);
 
-  return isLoading ? (<div>Loading...</div>) : (
+  return isLoading ? (<div className='p-4 space-y-2 h-full w-full'>
+    <Skeleton className="h-8" />
+    <Skeleton className="h-8" />
+    <Skeleton className="h-8" />
+  </div>) : (
     <div className="flex flex-col h-full w-full">
       <div className="h-12 flex flex-none space-x-2 px-3 items-center border-b">
         <Button
-          variant={'ghost'}
+          variant='ghost'
           className="px-1"
           onClick={async () => {
             await saveChanges();
