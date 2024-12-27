@@ -27,7 +27,6 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 # Build application
 COPY . .
-ENV SQLX_OFFLINE=true
 RUN cargo build --release --all
 
 # Final runtime stage
