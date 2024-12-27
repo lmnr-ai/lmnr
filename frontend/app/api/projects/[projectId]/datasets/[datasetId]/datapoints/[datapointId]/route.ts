@@ -29,10 +29,9 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  {
-    params
-  }: { params: { projectId: string; datasetId: string; datapointId: string } }
+  props: { params: Promise<{ projectId: string; datasetId: string; datapointId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
 
   const datasetId = params.datasetId;
   const datapointId = params.datapointId;

@@ -10,7 +10,11 @@ const updatePlaygroundSchema = z.object({
   outputSchema: z.string().optional()
 });
 
-export async function POST(req: Request, { params }: { params: { projectId: string; playgroundId: string } }) {
+export async function POST(
+  req: Request,
+  props: { params: Promise<{ projectId: string; playgroundId: string }> }
+) {
+  const params = await props.params;
   const body = await req.json();
 
   const parsed = updatePlaygroundSchema.safeParse(body);

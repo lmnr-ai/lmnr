@@ -15,11 +15,12 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 
-export default async function PlaygroundPage({
-  params
-}: {
-  params: { projectId: string; playgroundId: string };
-}) {
+export default async function PlaygroundPage(
+  props: {
+    params: Promise<{ projectId: string; playgroundId: string }>;
+  }
+) {
+  const params = await props.params;
 
   try {
     const playground = await db.query.playgrounds.findFirst({

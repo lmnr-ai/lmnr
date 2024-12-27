@@ -10,11 +10,12 @@ export const metadata: Metadata = {
   title: 'Labeling Queue'
 };
 
-export default async function DatasetPage({
-  params
-}: {
-  params: { projectId: string; queueId: string };
-}) {
+export default async function DatasetPage(
+  props: {
+    params: Promise<{ projectId: string; queueId: string }>;
+  }
+) {
+  const params = await props.params;
 
   const queue = await db.query.labelingQueues.findFirst({
     where: and(

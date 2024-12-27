@@ -5,8 +5,9 @@ import { fetcher } from '@/lib/utils';
 
 export async function POST(
   req: Request,
-  { params }: { params: { projectId: string; labelClassId: string } }
+  props: { params: Promise<{ projectId: string; labelClassId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const labelClassId = params.labelClassId;
   const session = await getServerSession(authOptions);

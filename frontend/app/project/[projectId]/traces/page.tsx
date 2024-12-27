@@ -11,11 +11,12 @@ export const metadata: Metadata = {
   title: 'Traces'
 };
 
-export default async function TracesPage({
-  params
-}: {
-  params: { projectId: string };
-}) {
+export default async function TracesPage(
+  props: {
+    params: Promise<{ projectId: string }>;
+  }
+) {
+  const params = await props.params;
   const projectId = params.projectId;
   const anyInProject = await db.query.spans.findFirst({
     where: eq(spans.projectId, projectId)

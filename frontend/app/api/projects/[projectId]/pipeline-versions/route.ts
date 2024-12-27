@@ -3,10 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
 
-export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const session = await getServerSession(authOptions);

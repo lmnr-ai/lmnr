@@ -4,8 +4,9 @@ import { authOptions } from '@/lib/auth';
 
 export async function POST(
   req: Request,
-  { params }: { params: { projectId: string; spanId: string } }
+  props: { params: Promise<{ projectId: string; spanId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const spanId = params.spanId;
 

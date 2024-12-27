@@ -14,8 +14,8 @@ export default function PreHighlighter({ children, className }: PreHighlighterPr
   if (!children || !React.isValidElement(children)) {
     return null;
   }
-  const code = children.props.children;
-  const language = children.props.className.split(" ").find((c: string) => c.startsWith("language-"))?.split("-")[1];
+  const code = (children.props as any).children;
+  const language = (children.props as any).className.split(" ").find((c: string) => c.startsWith("language-"))?.split("-")[1];
   return <CodeHighlighter
     code={code}
     language={language}
