@@ -232,7 +232,8 @@ async fn get_datapoints(
     let (_project_id, dataset_id) = path.into_inner();
     let limit = query_params.page_size.unwrap_or(DEFAULT_PAGE_SIZE) as i64;
     let offset = limit * (query_params.page_number) as i64;
-    let datapoints = db::datapoints::get_datapoints(&db.pool, dataset_id, limit, offset).await?;
+    let datapoints =
+        db::datapoints::get_datapoint_previews(&db.pool, dataset_id, limit, offset).await?;
     let total_entries = db::datapoints::count_datapoints(&db.pool, dataset_id).await?;
 
     let response = PaginatedResponse::<DatapointView> {

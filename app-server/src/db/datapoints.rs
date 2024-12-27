@@ -88,7 +88,38 @@ pub async fn get_all_datapoints(pool: &PgPool, dataset_id: Uuid) -> Result<Vec<D
     Ok(datapoints)
 }
 
-pub async fn get_datapoints(
+pub async fn get_full_datapoints(
+    pool: &PgPool,
+    dataset_id: Uuid,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<Datapoint>> {
+    let datapoints = sqlx::query_as::<_, Datapoint>(
+        "SELECT
+            id,
+            dataset_id,
+            data,
+            target,
+            metadata,
+            created_at
+        FROM dataset_datapoints
+        WHERE dataset_id = $1
+        ORDER BY
+            created_at ASC,
+            index_in_batch ASC NULLS FIRST
+        LIMIT $2
+        OFFSET $3",
+    )
+    .bind(dataset_id)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(datapoints)
+}
+
+pub async fn get_datapoint_previews(
     pool: &PgPool,
     dataset_id: Uuid,
     limit: i64,
