@@ -4,7 +4,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use machine_manager_service_client::MachineManagerServiceClient;
 pub use machine_manager_service_grpc::*;
-use sqlx::pool;
 use std::sync::Arc;
 use tonic::transport::Channel;
 use uuid::Uuid;
