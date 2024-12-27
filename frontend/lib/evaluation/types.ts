@@ -24,9 +24,9 @@ export type EvaluationDatapointPreview = {
   evaluationId: string;
   createdAt: string;
   scores?: Record<string, any>;
-  data: Record<string, any>;
-  target: Record<string, any>;
-  executorOutput: Record<string, any>;
+  data: any;
+  target: any;
+  executorOutput: any;
   traceId: string;
 };
 
