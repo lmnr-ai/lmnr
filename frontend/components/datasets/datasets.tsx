@@ -17,7 +17,7 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { useProjectContext } from '@/contexts/project-context';
-import { Dataset } from '@/lib/dataset/types';
+import { DatasetInfo } from '@/lib/dataset/types';
 import { useToast } from '@/lib/hooks/use-toast';
 import { PaginatedResponse } from '@/lib/types';
 import { swrFetcher } from '@/lib/utils';
@@ -33,7 +33,7 @@ export default function Datasets() {
   const { projectId } = useProjectContext();
 
   const router = useRouter();
-  const { data, mutate } = useSWR<PaginatedResponse<Dataset>>(
+  const { data, mutate } = useSWR<PaginatedResponse<DatasetInfo>>(
     `/api/projects/${projectId}/datasets/`,
     swrFetcher
   );
@@ -72,7 +72,7 @@ export default function Datasets() {
     setIsDeleteDialogOpen(false);
   };
 
-  const columns: ColumnDef<Dataset>[] = [
+  const columns: ColumnDef<DatasetInfo>[] = [
     {
       cell: ({ row }) => <Mono>{row.original.id}</Mono>,
       size: 300,
@@ -112,7 +112,7 @@ export default function Datasets() {
           onRowClick={(row) => {
             router.push(`/project/${projectId}/datasets/${row.original.id}`);
           }}
-          getRowId={(row: Dataset) => row.id}
+          getRowId={(row: DatasetInfo) => row.id}
           columns={columns}
           data={data?.items}
           selectionPanel={(selectedRowIds) => (
