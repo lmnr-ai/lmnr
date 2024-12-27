@@ -13,8 +13,8 @@ pub struct DatapointView {
     id: Uuid,
     created_at: DateTime<Utc>,
     dataset_id: Uuid,
-    data: Value,
-    target: Option<Value>,
+    data: String,
+    target: Option<String>,
     metadata: Option<Value>,
 }
 
@@ -95,7 +95,13 @@ pub async fn get_datapoints(
     offset: i64,
 ) -> Result<Vec<DatapointView>> {
     let datapoints = sqlx::query_as::<_, DatapointView>(
-        "SELECT id, dataset_id, data, target, metadata, created_at
+        "SELECT
+            id,
+            dataset_id,
+            SUBSTRING(data::text, 0, 100) as data,
+            SUBSTRING(target::text, 0, 100) as target,
+            metadata,
+            created_at
         FROM dataset_datapoints
         WHERE dataset_id = $1
         ORDER BY
