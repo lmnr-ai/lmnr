@@ -6,6 +6,7 @@ pub mod evaluations;
 pub mod events;
 pub mod labeling_queues;
 pub mod labels;
+pub mod machine_manager;
 pub mod modifiers;
 pub mod pipelines;
 pub mod prices;

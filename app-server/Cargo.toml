@@ -66,6 +66,9 @@ sha3 = "0.10.8"
 aws-sdk-s3 = "1.63.0"
 base64 = "0.22.1"
 sodiumoxide = "0.2.7"
+actix-ws = "0.3.0"
+tokio-tungstenite = "*"
+
 
 [build-dependencies]
 tonic-build = "0.12.3"

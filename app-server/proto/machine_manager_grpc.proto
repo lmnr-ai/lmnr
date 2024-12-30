@@ -1,0 +1,54 @@
+syntax = "proto3";
+package machine_manager_service_grpc;
+
+message StartMachineRequest {}
+
+message StartMachineResponse {
+    string machine_id = 1;
+}
+
+enum ComputerAction {
+  KEY = 0;
+  TYPE = 1;
+  MOUSE_MOVE = 2;
+  LEFT_CLICK = 3;
+  LEFT_CLICK_DRAG = 4;
+  RIGHT_CLICK = 5;
+  MIDDLE_CLICK = 6;
+  DOUBLE_CLICK = 7;
+  SCREENSHOT = 8;
+  CURSOR_POSITION = 9;
+}
+
+message ComputerActionCoordinate { 
+  int32 x = 1;
+  int32 y = 2;
+}
+
+message ComputerActionRequest {
+  string machine_id = 1;
+  ComputerAction action = 2;
+  optional string text = 3;
+  optional ComputerActionCoordinate coordinates = 4;
+}
+
+message ComputerActionResponse {
+  optional string output = 1;
+  optional string error = 2;
+  optional string base64_image = 3;
+  optional string system = 4;
+}
+
+message TerminateMachineRequest {
+    string machine_id = 1;
+}
+
+message TerminateMachineResponse {
+    bool success = 1;
+}
+
+service MachineManagerService {
+    rpc StartMachine(StartMachineRequest) returns (StartMachineResponse);
+    rpc TerminateMachine(TerminateMachineRequest) returns (TerminateMachineResponse);
+    rpc ExecuteComputerAction(ComputerActionRequest) returns (ComputerActionResponse);
+}
