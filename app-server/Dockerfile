@@ -37,10 +37,14 @@ WORKDIR /app-server
 RUN apt-get update && apt-get install -y \
     libssl1.1 \
     libfontconfig1 \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app-server/target/release/app-server .
+# Copy data files for name generation
+COPY data/ /app-server/data/
 
 EXPOSE 8000
+EXPOSE 8001
 
 CMD ["./app-server"]
