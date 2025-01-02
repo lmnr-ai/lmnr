@@ -66,6 +66,28 @@ impl Into<ArgChatMessageContent> for ChatMessageContent {
                                         )),
                                     }
                                 }
+                                // FIXME: Remove this once we update the code executor
+                                ChatMessageContentPart::Document(document) => {
+                                    ArgChatMessageContentPart {
+                                        value: Some(chat_message_content_part::Value::Text(
+                                            ArgChatMessageText {
+                                                text: serde_json::json!(document.source.to_owned())
+                                                    .to_string(),
+                                            },
+                                        )),
+                                    }
+                                }
+                                // FIXME: Remove this once we update the code executor
+                                ChatMessageContentPart::DocumentUrl(document_url) => {
+                                    ArgChatMessageContentPart {
+                                        value: Some(chat_message_content_part::Value::Text(
+                                            ArgChatMessageText {
+                                                text: serde_json::json!(document_url.url)
+                                                    .to_string(),
+                                            },
+                                        )),
+                                    }
+                                }
                             })
                             .collect(),
                     }),

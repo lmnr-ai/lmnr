@@ -8,7 +8,7 @@ const client = new S3Client({
   }
 });
 
-const bucket = process.env.S3_IMGS_BUCKET ?? '';
+const bucket = process.env.S3_TRACE_PAYLOADS_BUCKET ?? '';
 
 export async function GET(
   req: Request,

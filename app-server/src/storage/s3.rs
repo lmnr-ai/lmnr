@@ -1,6 +1,8 @@
 use anyhow::Result;
 use aws_sdk_s3::Client;
 
+use super::MediaType;
+
 #[derive(Clone)]
 pub struct S3Storage {
     client: Client,
@@ -12,28 +14,22 @@ impl S3Storage {
         Self { client, bucket }
     }
 
-    fn get_url(&self, key: &str) -> String {
+    fn get_url(&self, key: &str, media_type: MediaType) -> String {
         let parts = key
             .strip_prefix("project/")
             .unwrap()
             .split("/")
             .collect::<Vec<&str>>();
-        format!("/api/projects/{}/images/{}", parts[0], parts[1])
-    }
-
-    fn get_key_from_url(&self, url: &str) -> String {
-        let parts = url
-            .strip_prefix("/api/projects/")
-            .unwrap()
-            .split("/")
-            .collect::<Vec<&str>>();
-        format!("project/{}/{}", parts[0], parts[1])
+        match media_type {
+            MediaType::Image => format!("/api/projects/{}/images/{}", parts[0], parts[1]),
+            MediaType::Document => format!("/api/projects/{}/documents/{}", parts[0], parts[1]),
+        }
     }
 }
 
 #[async_trait::async_trait]
 impl super::Storage for S3Storage {
-    async fn store(&self, data: Vec<u8>, key: &str) -> Result<String> {
+    async fn store(&self, data: Vec<u8>, key: &str, media_type: MediaType) -> Result<String> {
         self.client
             .put_object()
             .bucket(&self.bucket)
@@ -42,20 +38,6 @@ impl super::Storage for S3Storage {
             .send()
             .await?;
 
-        Ok(self.get_url(key))
-    }
-
-    async fn retrieve(&self, key: &str) -> Result<Vec<u8>> {
-        let key = self.get_key_from_url(key);
-        let resp = self
-            .client
-            .get_object()
-            .bucket(&self.bucket)
-            .key(key)
-            .send()
-            .await?;
-
-        let bytes = resp.body.collect().await?.to_vec();
-        Ok(bytes)
+        Ok(self.get_url(key, media_type))
     }
 }

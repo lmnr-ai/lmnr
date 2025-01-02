@@ -22,10 +22,17 @@ export type ChatMessageImage = {
   data: string;
 };
 
+export type ChatMessageDocumentUrl = {
+  type: 'document_url';
+  mediaType: string; // e.g. "application/pdf"
+  url: string;
+};
+
 export type ChatMessageContentPart =
   | ChatMessageText
   | ChatMessageImageUrl
-  | ChatMessageImage;
+  | ChatMessageImage
+  | ChatMessageDocumentUrl;
 
 export type ChatMessageContent = string | ChatMessageContentPart[];
 
