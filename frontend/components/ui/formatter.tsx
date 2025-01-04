@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Button } from './button';
 import CodeEditor from './code-editor';
 import CopyToClipboardButton from './copy-to-clipboard';
+import CustomRenderer from './custom-renderer';
 import { DialogTitle } from './dialog';
 import { ScrollArea } from './scroll-area';
 import {
@@ -88,6 +89,9 @@ export default function Formatter({
                 <SelectItem key="JSON" value="json">
                   JSON
                 </SelectItem>
+                <SelectItem key="CUSTOM" value="custom">
+                  Custom
+                </SelectItem>
               </SelectContent>
             </Select>
             {collapsible && (
@@ -125,7 +129,7 @@ export default function Formatter({
               </SheetTrigger>
               <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
                 <DialogTitle className='hidden'></DialogTitle>
-                <div className="flex-none border-b items-center flex px-4 justify-between">
+                <div className="flex-none border-b items-center flex px-2 justify-between">
                   <div className="flex justify-start">
                     <Select
                       value={mode}
@@ -143,6 +147,9 @@ export default function Formatter({
                         </SelectItem>
                         <SelectItem key="JSON" value="json">
                           JSON
+                        </SelectItem>
+                        <SelectItem key="CUSTOM" value="custom">
+                          Custom
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -163,24 +170,30 @@ export default function Formatter({
                 </div>
                 <ScrollArea className="flex-grow">
                   <div className="flex flex-col">
-                    <CodeEditor
-                      value={renderText(expandedValue)}
-                      editable={editable}
-                      language={mode}
-                      onChange={(v) => {
-                        setExpandedValue(v);
-                        if (mode === 'yaml') {
-                          try {
-                            const parsedYaml = YAML.parse(v);
-                            onChange?.(JSON.stringify(parsedYaml, null, 2));
-                          } catch (e) {
+                    {mode === 'custom' ? (
+                      <CustomRenderer
+                        data={renderText(expandedValue)}
+                      />
+                    ) : (
+                      <CodeEditor
+                        value={renderText(expandedValue)}
+                        editable={editable}
+                        language={mode}
+                        onChange={(v) => {
+                          setExpandedValue(v);
+                          if (mode === 'yaml') {
+                            try {
+                              const parsedYaml = YAML.parse(v);
+                              onChange?.(JSON.stringify(parsedYaml, null, 2));
+                            } catch (e) {
+                              onChange?.(v);
+                            }
+                          } else {
                             onChange?.(v);
                           }
-                        } else {
-                          onChange?.(v);
-                        }
-                      }}
-                    />
+                        }}
+                      />
+                    )}
                   </div>
                 </ScrollArea>
               </SheetContent>
@@ -189,25 +202,31 @@ export default function Formatter({
         </div>
       </div>
       {(!collapsible || !isCollapsed) && (
-        <div className="overflow-auto flex-1 flex bg-card">
-          <CodeEditor
-            value={renderText(value)}
-            editable={editable}
-            language={mode}
-            onChange={(v) => {
-              setExpandedValue(v);
-              if (mode === 'yaml') {
-                try {
-                  const parsedYaml = YAML.parse(v);
-                  onChange?.(JSON.stringify(parsedYaml, null, 2));
-                } catch (e) {
+        <div className="overflow-hidden flex-1 flex bg-card">
+          {mode === 'custom' ? (
+            <CustomRenderer
+              data={renderText(value)}
+            />
+          ) : (
+            <CodeEditor
+              value={renderText(value)}
+              editable={editable}
+              language={mode}
+              onChange={(v) => {
+                setExpandedValue(v);
+                if (mode === 'yaml') {
+                  try {
+                    const parsedYaml = YAML.parse(v);
+                    onChange?.(JSON.stringify(parsedYaml, null, 2));
+                  } catch (e) {
+                    onChange?.(v);
+                  }
+                } else {
                   onChange?.(v);
                 }
-              } else {
-                onChange?.(v);
-              }
-            }}
-          />
+              }}
+            />
+          )}
         </div>
       )}
     </div>
