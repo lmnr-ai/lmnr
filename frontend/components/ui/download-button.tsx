@@ -55,6 +55,7 @@ interface DownloadButtonProps {
   variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost';
   className?: string;
   supportedFormats?: string[];
+  text?: string;
 }
 
 export default function DownloadButton(props: DownloadButtonProps) {
@@ -68,7 +69,8 @@ function DownloadButtonSingleFormat({
   uri,
   filenameFallback,
   variant,
-  className
+  className,
+  text
 }: DownloadButtonProps) {
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -86,7 +88,7 @@ function DownloadButtonSingleFormat({
         setIsDownloading(false);
       }}
     >
-      Download
+      {text || 'Download'}
     </Button>
   );
 }

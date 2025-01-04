@@ -6,14 +6,9 @@ use uuid::Uuid;
 pub mod mock;
 pub mod s3;
 
-pub enum MediaType {
-    Image,
-    Document,
-}
-
 #[async_trait]
 pub trait Storage: Sync + Send {
-    async fn store(&self, data: Vec<u8>, key: &str, media_type: MediaType) -> Result<String>;
+    async fn store(&self, data: Vec<u8>, key: &str) -> Result<String>;
 }
 
 pub fn create_key(project_id: &Uuid, file_extension: &Option<String>) -> String {

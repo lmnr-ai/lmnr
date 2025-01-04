@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::storage::{MediaType, Storage};
+use crate::storage::Storage;
 
 use super::providers::openai::OpenAIImageUrl;
 
@@ -239,7 +239,7 @@ impl ChatMessageContentPart {
             ChatMessageContentPart::Image(image) => {
                 let key = crate::storage::create_key(project_id, &None);
                 let data = crate::storage::base64_to_bytes(&image.data)?;
-                let url = storage.store(data, &key, MediaType::Image).await?;
+                let url = storage.store(data, &key).await?;
                 Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                     url,
                     detail: Some(format!("media_type:{};base64", image.media_type)),
@@ -253,7 +253,7 @@ impl ChatMessageContentPart {
                 };
                 let key = crate::storage::create_key(project_id, &file_extension);
                 let data = crate::storage::base64_to_bytes(&document.source.data)?;
-                let url = storage.store(data, &key, MediaType::Document).await?;
+                let url = storage.store(data, &key).await?;
                 Ok(ChatMessageContentPart::DocumentUrl(
                     ChatMessageDocumentUrl {
                         media_type: document.source.media_type.clone(),

@@ -3,7 +3,7 @@ import { isStringType } from '@/lib/utils';
 
 import DownloadButton from '../ui/download-button';
 import Formatter from '../ui/formatter';
-import { Label } from '../ui/label';
+import PdfRenderer from '../ui/pdf-renderer';
 
 interface ContentPartTextProps {
   text: string;
@@ -29,25 +29,19 @@ function ContentPartImage({ b64_data }: ContentPartImageProps) {
   return <img src={`data:image/png;base64,${b64_data}`} alt="span image" />;
 }
 
-function ContentPartImageUrl(url: string) {
-  return <img src={url} alt="span image" />;
+function ContentPartImageUrl({ url }: { url: string }) {
+  return <img src={`${url}?payloadType=image`} alt="span image" />;
 }
 
-function ContentPartDocumentUrl(url: string) {
-  return (
-    <div className="flex space-x-2 p-2 border rounded-md">
-      <Label className="flex py-1">
-        Attachment{' '}
-        {url.endsWith('.pdf') ? '(PDF)' : ''}
-      </Label>
-      <DownloadButton
-        uri={url}
-        filenameFallback={url}
-        supportedFormats={[]}
-        variant="outline"
-      />
-    </div>
-  );
+function ContentPartDocumentUrl({ url }: { url: string }) {
+  return url.endsWith('.pdf')
+    ? <PdfRenderer url={url} className="w-full h-[50vh]" />
+    : <DownloadButton
+      uri={url}
+      filenameFallback={url}
+      supportedFormats={[]}
+      variant="outline"
+    />;
 }
 
 interface ContentPartsProps {
@@ -65,9 +59,9 @@ function ContentParts({ contentParts }: ContentPartsProps) {
           ) : contentPart.type === 'image' ? (
             <ContentPartImage b64_data={contentPart.data} />
           ) : contentPart.type === 'image_url' ? (
-            ContentPartImageUrl(contentPart.url)
+            <ContentPartImageUrl url={contentPart.url} />
           ) : contentPart.type === 'document_url' ? (
-            ContentPartDocumentUrl(contentPart.url)
+            <ContentPartDocumentUrl url={contentPart.url} />
           ) : (
             <div>Unknown content part</div>
           )}
