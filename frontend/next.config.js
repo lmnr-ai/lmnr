@@ -34,6 +34,12 @@ const nextConfig = {
       // Ensure that all imports of 'yjs' resolve to the same instance
       config.resolve.alias['yjs'] = path.resolve(__dirname, 'node_modules/yjs');
     }
+
+    if (isServer) {
+      config.externals.push({
+        'canvas': 'commonjs canvas'
+      })
+    }
     return config;
   },
 };
