@@ -1,21 +1,38 @@
-import { getServerSession } from 'next-auth';
+import { eq } from 'drizzle-orm';
 
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
+import { db } from '@/lib/db/drizzle';
+import { projects } from '@/lib/db/migrations/schema';
 
-export async function DELETE(
+export async function PUT(
   req: Request,
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
-  const projectId = params.projectId;
+  const { projectId } = params;
+  const { name } = await req.json();
 
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+  if (!name) {
+    return new Response(JSON.stringify({ error: 'Project name is required.' }), {
+      status: 400,
+    });
+  }
 
-  return fetcher(`/projects/${projectId}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
+  try {
+    // Perform the update query
+    const result = await db.update(projects).set({ name }).where(eq(projects.id, projectId));
+
+    // Check if any rows were updated
+    if (result.count === 0) {
+      return new Response(JSON.stringify({ error: 'Project not found.' }), {
+        status: 404,
+      });
     }
-  });
+
+    return new Response(JSON.stringify({ message: 'Project renamed successfully.' }), {
+      status: 200,
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: 'Internal server error.' }), {
+      status: 500,
+    });
+  }
 }
