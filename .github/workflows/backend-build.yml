@@ -28,7 +28,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-app-server-pr-
 
-      - name: Build and push image to AWS ECR
+      - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
           context: ./app-server
