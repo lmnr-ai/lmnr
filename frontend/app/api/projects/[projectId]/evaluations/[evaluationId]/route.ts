@@ -3,7 +3,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import {
   evaluationResults,
-  evaluations,evaluationScores
+  evaluations, evaluationScores
 } from '@/lib/db/migrations/schema';
 
 export async function GET(
@@ -39,11 +39,10 @@ export async function GET(
       id: evaluationResults.id,
       createdAt: evaluationResults.createdAt,
       evaluationId: evaluationResults.evaluationId,
-      data: evaluationResults.data,
-      target: evaluationResults.target,
+      data: sql<string>`SUBSTRING(${evaluationResults.data}::text, 0, 100)`.as('data'),
+      target: sql<string>`SUBSTRING(${evaluationResults.target}::text, 0, 100)`.as('target'),
       executorOutput: evaluationResults.executorOutput,
       scores: subQueryScoreCte.cteScores,
-      traceId: evaluationResults.traceId
     })
     .from(evaluationResults)
     .leftJoin(
