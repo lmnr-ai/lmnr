@@ -408,7 +408,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::semantic_search::semantic_search)
-                                .service(api::v1::spans::upload_spans),
+                                .service(api::v1::queues::upload_to_queue),
                         )
                         // Scopes with generic auth
                         .service(
