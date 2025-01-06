@@ -1,9 +1,12 @@
 import { eq } from 'drizzle-orm';
+import { getServerSession } from 'next-auth';
 
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/migrations/schema';
+import { fetcher } from '@/lib/utils';
 
-export async function PUT(
+export async function POST(
   req: Request,
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
@@ -17,10 +20,8 @@ export async function PUT(
   }
 
   try {
-    // Perform the update query
     const result = await db.update(projects).set({ name }).where(eq(projects.id, projectId));
 
-    // Check if any rows were updated
     if (result.count === 0) {
       return new Response(JSON.stringify({ error: 'Project not found.' }), {
         status: 404,
@@ -36,3 +37,19 @@ export async function PUT(
     });
   }
 }
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { projectId: string } }
+): Promise<Response> {
+  const projectId = params.projectId;
+  const session = await getServerSession(authOptions);
+  const user = session!.user;
+  return fetcher(`/projects/${projectId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${user.apiKey}`
+    }
+  });
+}
+

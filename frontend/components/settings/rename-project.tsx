@@ -12,6 +12,7 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { useProjectContext } from '@/contexts/project-context';
+import { useToast } from '@/lib/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 import { Button } from '../ui/button';
@@ -26,12 +27,13 @@ export default function RenameProject({}: RenameProjectProps) {
   const [newProjectName, setNewProjectName] = useState<string>('');
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { toast } = useToast();
 
   const renameProject = async () => {
     setIsLoading(true);
 
     const res = await fetch(`/api/projects/${projectId}`, {
-      method: 'PUT',
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -41,11 +43,16 @@ export default function RenameProject({}: RenameProjectProps) {
     });
 
     if (res.ok) {
-      // Reload the page to reflect the updated name
+      toast({
+        title: 'Project Renamed',
+        description: `Project renamed successfully!.`,
+      });
       window.location.reload();
     } else {
-      // Handle error (e.g., show toast or error message)
-      console.error('Failed to rename project');
+      toast({
+        title: 'Error',
+        description: 'Something went wrong. Please try again later.',
+      });
     }
 
     setIsLoading(false);
