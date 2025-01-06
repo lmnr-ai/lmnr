@@ -22,10 +22,17 @@ export type ChatMessageImage = {
   data: string;
 };
 
+export type ChatMessageDocumentUrl = {
+  type: 'document_url';
+  mediaType: string; // e.g. "application/pdf"
+  url: string;
+};
+
 export type ChatMessageContentPart =
   | ChatMessageText
   | ChatMessageImageUrl
-  | ChatMessageImage;
+  | ChatMessageImage
+  | ChatMessageDocumentUrl;
 
 export type ChatMessageContent = string | ChatMessageContentPart[];
 
@@ -54,3 +61,10 @@ export type BucketRow = {
   upperBound: number;
   heights: number[];
 };
+
+export const DownloadFormat = {
+  JSON: 'json',
+  CSV: 'csv'
+} as const;
+
+export type DownloadFormat = typeof DownloadFormat[keyof typeof DownloadFormat];

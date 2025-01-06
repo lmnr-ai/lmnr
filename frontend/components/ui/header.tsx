@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useProjectContext } from '@/contexts/project-context';
 
 import { Button } from './button';
@@ -10,9 +11,10 @@ interface HeaderProps {
   path: string;
   children?: React.ReactNode;
   className?: string;
+  showSidebarTrigger?: boolean;
 }
 
-export default function Header({ path, children, className }: HeaderProps) {
+export default function Header({ path, children, className, showSidebarTrigger = true }: HeaderProps) {
   const { projectId, projectName } = useProjectContext();
 
   const segments = path.split('/');
@@ -22,8 +24,11 @@ export default function Header({ path, children, className }: HeaderProps) {
       className={`font-medium flex items-center justify-between flex-none h-12 border-b w-full ${className}`}
     >
       <div className="flex items-center">
+        {showSidebarTrigger && (
+          <SidebarTrigger className='ml-2 -mr-2 hover:bg-secondary' />
+        )}
         {projectName && (
-          <div className="pl-4 text-secondary-foreground items-center flex space-x-3">
+          <div className="flex items-center pl-4 space-x-3 text-secondary-foreground">
             <p>{projectName}</p>
             <div className="text-secondary-foreground/40">/</div>
           </div>
@@ -45,13 +50,8 @@ export default function Header({ path, children, className }: HeaderProps) {
         ))}
         {children}
       </div>
-      <div className="flex space-x-2 pr-4">
-        <Button variant={'ghost'}>
-          <a href="https://docs.lmnr.ai/" target="_blank">
-            Docs
-          </a>
-        </Button>
-        <Button variant={'ghost'}>
+      <div className="flex pr-4 space-x-2">
+        <Button variant='outline'>
           <a href="https://cal.com/skull8888888/30min" target="_blank">
             Book a demo
           </a>

@@ -6,7 +6,7 @@ import Evaluation from '@/components/evaluation/evaluation';
 import { db } from '@/lib/db/drizzle';
 import {
   evaluationResults,
-  evaluations,evaluationScores
+  evaluations, evaluationScores
 } from '@/lib/db/migrations/schema';
 import { EvaluationResultsInfo } from '@/lib/evaluation/types';
 
@@ -70,8 +70,8 @@ async function getEvaluationInfo(
       id: evaluationResults.id,
       createdAt: evaluationResults.createdAt,
       evaluationId: evaluationResults.evaluationId,
-      data: evaluationResults.data,
-      target: evaluationResults.target,
+      data: sql<string>`SUBSTRING(${evaluationResults.data}::text, 0, 100)`.as('data'),
+      target: sql<string>`SUBSTRING(${evaluationResults.target}::text, 0, 100)`.as('target'),
       executorOutput: evaluationResults.executorOutput,
       scores: subQueryScoreCte.cteScores,
       traceId: evaluationResults.traceId
