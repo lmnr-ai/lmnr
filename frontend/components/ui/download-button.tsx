@@ -2,7 +2,9 @@ import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
 import { toast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
+import { Button } from "./button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,8 +14,8 @@ import {
 
 const downloadFile = async (
   uri: string,
-  fileFormat: string,
   filenameFallback: string,
+  fileFormat?: string,
 ) => {
   try {
     const response = await fetch(uri);
@@ -41,7 +43,7 @@ const downloadFile = async (
     window.URL.revokeObjectURL(url);
   } catch (error) {
     toast({
-      title: `Error downloading ${fileFormat}`,
+      title: `Error downloading ${fileFormat || 'file'}`,
       variant: 'destructive'
     });
   }
@@ -53,20 +55,61 @@ interface DownloadButtonProps {
   variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost';
   className?: string;
   supportedFormats?: string[];
+  text?: string;
 }
 
-export default function DownloadButton({
+export default function DownloadButton(props: DownloadButtonProps) {
+  if (props.supportedFormats?.length && props.supportedFormats?.length > 1) {
+    return <DownloadButtonMultipleFormats {...props} />;
+  }
+  return <DownloadButtonSingleFormat {...props} />;
+}
+
+function DownloadButtonSingleFormat({
+  uri,
+  filenameFallback,
+  variant,
+  className,
+  text
+}: DownloadButtonProps) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  return (
+    <Button
+      variant={variant}
+      className={cn(
+        'flex h-7 items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none',
+        className
+      )}
+      disabled={isDownloading}
+      onClick={async () => {
+        setIsDownloading(true);
+        await downloadFile(uri, filenameFallback);
+        setIsDownloading(false);
+      }}
+    >
+      {text || 'Download'}
+    </Button>
+  );
+}
+
+function DownloadButtonMultipleFormats({
   uri,
   filenameFallback,
   supportedFormats = ['csv', 'json'],
-  variant = 'secondary',
   className
 }: DownloadButtonProps) {
   const [isDownloading, setIsDownloading] = useState(false);
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex h-7  items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none">
+      <DropdownMenuTrigger
+        className={cn(
+          'flex h-7  items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none',
+          className
+        )}
+        disabled={isDownloading}
+      >
         Download
         <ChevronDown className="h-4 w-4 opacity-50" />
       </DropdownMenuTrigger>
@@ -78,8 +121,10 @@ export default function DownloadButton({
           <DropdownMenuItem
             key={format}
             className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
-            onClick={() => {
-              downloadFile(uri + `/${format}`, format, filenameFallback + `.${format}`);
+            onClick={async () => {
+              setIsDownloading(true);
+              await downloadFile(uri + `/${format}`, format, filenameFallback + `.${format}`);
+              setIsDownloading(false);
             }}
           >
             Download as {format.toUpperCase()}

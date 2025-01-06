@@ -7,8 +7,4 @@ impl super::Storage for MockStorage {
     async fn store(&self, _data: Vec<u8>, _key: &str) -> Result<String> {
         Ok("mock".to_string())
     }
-
-    async fn retrieve(&self, _key: &str) -> Result<Vec<u8>> {
-        Ok(vec![])
-    }
 }
