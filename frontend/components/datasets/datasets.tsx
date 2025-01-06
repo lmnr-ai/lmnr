@@ -32,7 +32,7 @@ export default function Datasets() {
   const router = useRouter();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
-  const [datasets, setDatasets] = useState<Dataset[] | undefined>(undefined);
+  const [datasets, setDatasets] = useState<DatasetInfo[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0);
 
   const pageNumber = searchParams.get('pageNumber')
@@ -52,7 +52,7 @@ export default function Datasets() {
     }
     );
 
-    const data = (await res.json()) as PaginatedResponse<Dataset>;
+    const data = (await res.json()) as PaginatedResponse<DatasetInfo>;
     setDatasets(data.items);
     setTotalCount(data.totalCount);
   };
