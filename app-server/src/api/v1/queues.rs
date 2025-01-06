@@ -107,5 +107,5 @@ async fn upload_to_queue(
         .collect::<Vec<_>>();
     crate::db::labeling_queues::push_to_labeling_queue(&db.pool, &queue.id, &queue_entries).await?;
 
-    Ok(HttpResponse::Ok().body("Spans uploaded successfully"))
+    Ok(HttpResponse::Ok().body("Items uploaded successfully"))
 }

@@ -30,11 +30,11 @@ const removeQueueItemSchema = z.object({
       id: z.string()
     }),
     reasoning: z.string().optional().nullable()
-  })),
-  action: z.object({
+  })).nonempty(),
+  action: z.null().or(z.object({
     resultId: z.string().optional(),
     datasetId: z.string().optional()
-  })
+  }))
 });
 
 // remove an item from the queue
@@ -70,7 +70,7 @@ export async function POST(request: Request, { params }: { params: { projectId: 
     }
   }).returning();
 
-  if (action.resultId) {
+  if (action?.resultId) {
     const resultId = action.resultId;
     const userName = user.name ? ` (${user.name})` : '';
 
@@ -119,8 +119,7 @@ export async function POST(request: Request, { params }: { params: { projectId: 
     }
   }
 
-  if (action.datasetId) {
-
+  if (action?.datasetId) {
     const span = await db.query.spans.findFirst({
       where: and(eq(spans.spanId, spanId), eq(spans.projectId, params.projectId))
     });
@@ -135,7 +134,7 @@ export async function POST(request: Request, { params }: { params: { projectId: 
       metadata: {
         spanId: span.spanId,
       },
-      datasetId: action.datasetId,
+      datasetId: action?.datasetId,
     }).returning();
 
     await db.insert(datapointToSpan).values({
