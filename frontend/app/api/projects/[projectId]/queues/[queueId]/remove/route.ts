@@ -30,7 +30,7 @@ const removeQueueItemSchema = z.object({
       id: z.string()
     }),
     reasoning: z.string().optional().nullable()
-  })).nonempty(),
+  })),
   action: z.null().or(z.object({
     resultId: z.string().optional(),
     datasetId: z.string().optional()
@@ -61,14 +61,16 @@ export async function POST(request: Request, { params }: { params: { projectId: 
     labelSource: "MANUAL" as const,
   }));
 
-  const insertedLabels = await db.insert(labels).values(newLabels).onConflictDoUpdate({
-    target: [labels.spanId, labels.classId, labels.userId],
-    set: {
-      value: sql`excluded.value`,
-      labelSource: sql`excluded.label_source`,
-      reasoning: sql`COALESCE(excluded.reasoning, labels.reasoning)`,
-    }
-  }).returning();
+  const insertedLabels = newLabels.length > 0
+    ? await db.insert(labels).values(newLabels).onConflictDoUpdate({
+      target: [labels.spanId, labels.classId, labels.userId],
+      set: {
+        value: sql`excluded.value`,
+        labelSource: sql`excluded.label_source`,
+        reasoning: sql`COALESCE(excluded.reasoning, labels.reasoning)`,
+      }
+    }).returning()
+    : [];
 
   if (action?.resultId) {
     const resultId = action.resultId;
