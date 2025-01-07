@@ -1,3 +1,4 @@
+import { html } from '@codemirror/lang-html';
 import { json } from '@codemirror/lang-json';
 import { python } from '@codemirror/lang-python';
 import { yaml } from '@codemirror/lang-yaml';
@@ -16,6 +17,7 @@ interface CodeEditorProps {
   onChange?: (value: string) => void;
   placeholder?: string;
   background?: string;
+  lineWrapping?: boolean;
 }
 
 const myTheme = createTheme({
@@ -41,10 +43,10 @@ export default function CodeEditor({
   onChange,
   className,
   placeholder,
-  background
+  background,
+  lineWrapping = true
 }: CodeEditorProps) {
   const extensions = [
-    EditorView.lineWrapping,
     EditorView.theme({
       '&.cm-focused': {
         outline: 'none !important'
@@ -55,12 +57,18 @@ export default function CodeEditor({
     })
   ];
 
+  if (lineWrapping) {
+    extensions.push(EditorView.lineWrapping);
+  }
+
   if (language === 'python') {
     extensions.push(python());
   } else if (language === 'json') {
     extensions.push(json());
   } else if (language === 'yaml') {
     extensions.push(yaml());
+  } else if (language === 'html') {
+    extensions.push(html());
   }
 
   return (

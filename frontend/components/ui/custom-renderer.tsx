@@ -1,4 +1,5 @@
 import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { Resizable } from "re-resizable";
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
@@ -80,12 +81,14 @@ function TemplateDialog({
 
   useEffect(() => {
     if (iFrameRef.current) {
-      iFrameRef.current.contentWindow?.postMessage({
-        type: 'INIT_DATA',
-        payload: jsonData
-      }, '*');
+      // Add a 100ms delay before sending the postMessage
+      const timer = setTimeout(() => {
+        iFrameRef.current?.contentWindow?.postMessage(jsonData, '*');
+      }, 100); // Delay in milliseconds
+
+      return () => clearTimeout(timer);
     }
-  }, [jsonData, iFrameRef, htmlContent]);
+  }, [jsonData, iFrameRef, htmlContent, isIframeReady]);
 
   // Add a check for when the dialog opens
   useEffect(() => {
@@ -104,8 +107,6 @@ function TemplateDialog({
     }
   }, [open]);
 
-
-  // Then, handle the content updates
   useEffect(() => {
     if (!isIframeReady || !iFrameRef.current) return;
     const iframe = iFrameRef.current;
@@ -221,7 +222,8 @@ function TemplateDialog({
                         <CodeEditor
                           value={jsonData}
                           onChange={setJsonData}
-                          language="json"
+                          language="html"
+                          lineWrapping={false}
                         />
                       </div>
                     </div>
@@ -270,10 +272,7 @@ export default function CustomRenderer({ data, permissions }: RendererProps) {
   }, [htmlContent]);
 
   useEffect(() => {
-    iFrameRef.current?.contentWindow?.postMessage({
-      type: 'INIT_DATA',
-      payload: data
-    }, '*');
+    iFrameRef.current?.contentWindow?.postMessage(data, '*');
   }, [data, iFrameRef, htmlContent]);
 
   const handleTemplateSelect = (value: string) => {
@@ -384,12 +383,25 @@ export default function CustomRenderer({ data, permissions }: RendererProps) {
           )}
         </div>
         <div className="flex flex-col gap-2">
-          <iframe
-            ref={iFrameRef}
-            className="w-full h-64 border-0"
-            sandbox={sandbox}
-            title="Custom Visualization"
-          />
+          <Resizable
+            defaultSize={{ width: '100%', height: '400px' }}
+            enable={{
+              top: false,
+              right: false,
+              bottom: true,
+              left: false,
+              topRight: false,
+              bottomRight: false,
+              bottomLeft: false,
+            }}
+          >
+            <iframe
+              ref={iFrameRef}
+              className="w-full h-full border-0"
+              sandbox={sandbox}
+              title="Custom Visualization"
+            />
+          </Resizable>
         </div>
 
         <TemplateDialog
@@ -425,46 +437,12 @@ const DEFAULT_HTML_TEMPLATE = `
     </div>
     
     <script>
-      // API for sending messages to parent
-      window.sendToParent = function(type, payload) {
-        window.parent.postMessage({
-          type: type,
-          payload: payload
-        }, '*');
-      };
-
       // Handle incoming messages
       window.addEventListener('message', (event) => {
-        try {
-          const { type, payload } = event.data;
-          
-          switch(type) {
-            case 'INIT_DATA':
-              window.userData = JSON.parse(JSON.stringify(payload));
-              if (typeof window.onDataReceived === 'function') {
-                window.onDataReceived(window.userData);
-              }
-              break;
-              
-            case 'UPDATE_DATA':
-              window.userData = JSON.parse(JSON.stringify(payload));
-              if (typeof window.onDataUpdated === 'function') {
-                window.onDataUpdated(window.userData);
-              }
-              break;
-              
-            default:
-              if (typeof window.onMessageReceived === 'function') {
-                window.onMessageReceived(type, payload);
-              }
-          }
-        } catch (error) {
-          sendToParent('ERROR', { message: error.message });
-        }
+        const data = event.data;
+        document.getElementById('user-content').innerHTML = JSON.stringify(data);
       });
 
-      // Signal ready to receive data
-      sendToParent('READY');
     </script>
   </body>
 </html>
