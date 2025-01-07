@@ -428,7 +428,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::semantic_search::semantic_search)
-                                .service(api::v1::queues::upload_to_queue)
+                                .service(api::v1::queues::push_to_queue)
                                 .service(api::v1::machine_manager::start_machine)
                                 .service(api::v1::machine_manager::terminate_machine)
                                 .service(api::v1::machine_manager::execute_computer_action),

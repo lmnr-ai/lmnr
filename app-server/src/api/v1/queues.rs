@@ -41,8 +41,8 @@ struct UploadToQueueRequest {
     queue_name: String,
 }
 
-#[post("/queues/upload")]
-async fn upload_to_queue(
+#[post("/queues/push")]
+async fn push_to_queue(
     project_api_key: ProjectApiKey,
     req: web::Json<UploadToQueueRequest>,
     db: web::Data<DB>,
