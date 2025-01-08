@@ -15,6 +15,7 @@ use crate::{
         DB,
     },
     evaluations::utils::LabelingQueueEntry,
+    features::{is_feature_enabled, Feature},
     routes::types::ResponseResult,
     traces::span_attributes::ASSOCIATION_PROPERTIES_PREFIX,
 };
@@ -63,6 +64,28 @@ async fn push_to_queue(
     };
 
     let mut span_ids = Vec::with_capacity(request_items.len());
+    let num_spans = request_items.len();
+    crate::db::stats::add_spans_and_events_to_project_usage_stats(
+        &db.pool,
+        &project_id,
+        num_spans as i64,
+        0,
+    )
+    .await?;
+    if is_feature_enabled(Feature::UsageLimit) {
+        if let Ok(limits_exceeded) =
+            crate::traces::limits::update_workspace_limit_exceeded_by_project_id(
+                db.clone(),
+                cache.clone(),
+                project_id,
+            )
+            .await
+        {
+            if limits_exceeded.spans {
+                return Ok(HttpResponse::TooManyRequests().body("Workspace span limit exceeded"));
+            }
+        }
+    }
 
     for request_item in request_items {
         let mut attributes = request_item.attributes;
