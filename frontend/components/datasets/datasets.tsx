@@ -2,9 +2,8 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Loader2, Trash2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import useSWR from 'swr';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -20,7 +19,6 @@ import { useProjectContext } from '@/contexts/project-context';
 import { DatasetInfo } from '@/lib/dataset/types';
 import { useToast } from '@/lib/hooks/use-toast';
 import { PaginatedResponse } from '@/lib/types';
-import { swrFetcher } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { DataTable } from '../ui/datatable';
@@ -31,12 +29,39 @@ import CreateDatasetDialog from './create-dataset-dialog';
 
 export default function Datasets() {
   const { projectId } = useProjectContext();
-
   const router = useRouter();
-  const { data, mutate } = useSWR<PaginatedResponse<DatasetInfo>>(
-    `/api/projects/${projectId}/datasets/`,
-    swrFetcher
-  );
+  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const pathName = usePathname();
+  const [datasets, setDatasets] = useState<DatasetInfo[] | undefined>(undefined);
+  const [totalCount, setTotalCount] = useState<number>(0);
+
+  const pageNumber = searchParams.get('pageNumber')
+    ? parseInt(searchParams.get('pageNumber')!)
+    : 0;
+  const pageSize = searchParams.get('pageSize')
+    ? parseInt(searchParams.get('pageSize')!)
+    : 50;
+
+
+  const getDatasets = async () => {
+    setDatasets(undefined);
+    const url = `/api/projects/${projectId}/datasets/?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+
+    const res = await fetch(url, {
+      method: 'GET',
+    }
+    );
+
+    const data = (await res.json()) as PaginatedResponse<DatasetInfo>;
+    setDatasets(data.items);
+    setTotalCount(data.totalCount);
+  };
+
+  useEffect(() => {
+    getDatasets();
+  }, [pageNumber, pageSize]);
+
+  const pageCount = Math.ceil(totalCount / pageSize);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -53,7 +78,7 @@ export default function Datasets() {
       );
 
       if (res.ok) {
-        mutate();
+        getDatasets();
         toast({
           title: 'Datasets deleted',
           description: `Successfully deleted ${datasetIds.length} dataset(s).`,
@@ -114,7 +139,18 @@ export default function Datasets() {
           }}
           getRowId={(row: DatasetInfo) => row.id}
           columns={columns}
-          data={data?.items}
+          data={datasets}
+          paginated
+          manualPagination
+          pageCount={pageCount}
+          defaultPageSize={pageSize}
+          defaultPageNumber={pageNumber}
+          onPageChange={(pageNumber, pageSize) => {
+            searchParams.set('pageNumber', pageNumber.toString());
+            searchParams.set('pageSize', pageSize.toString());
+            router.push(`${pathName}?${searchParams.toString()}`);
+          }}
+          totalItemsCount={totalCount}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
