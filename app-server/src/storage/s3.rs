@@ -18,16 +18,7 @@ impl S3Storage {
             .unwrap()
             .split("/")
             .collect::<Vec<&str>>();
-        format!("/api/projects/{}/images/{}", parts[0], parts[1])
-    }
-
-    fn get_key_from_url(&self, url: &str) -> String {
-        let parts = url
-            .strip_prefix("/api/projects/")
-            .unwrap()
-            .split("/")
-            .collect::<Vec<&str>>();
-        format!("project/{}/{}", parts[0], parts[1])
+        format!("/api/projects/{}/payloads/{}", parts[0], parts[1])
     }
 }
 
@@ -43,19 +34,5 @@ impl super::Storage for S3Storage {
             .await?;
 
         Ok(self.get_url(key))
-    }
-
-    async fn retrieve(&self, key: &str) -> Result<Vec<u8>> {
-        let key = self.get_key_from_url(key);
-        let resp = self
-            .client
-            .get_object()
-            .bucket(&self.bucket)
-            .key(key)
-            .send()
-            .await?;
-
-        let bytes = resp.body.collect().await?.to_vec();
-        Ok(bytes)
     }
 }

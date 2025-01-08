@@ -545,7 +545,7 @@ impl Span {
             .collect()
     }
 
-    pub async fn store_input_images<S: Storage + ?Sized>(
+    pub async fn store_input_media<S: Storage + ?Sized>(
         &mut self,
         project_id: &Uuid,
         storage: Arc<S>,
@@ -558,7 +558,7 @@ impl Span {
                     if let ChatMessageContent::ContentPartList(parts) = message.content {
                         let mut new_parts = Vec::new();
                         for part in parts {
-                            new_parts.push(part.store_image(project_id, storage.clone()).await?);
+                            new_parts.push(part.store_media(project_id, storage.clone()).await?);
                         }
                         message.content = ChatMessageContent::ContentPartList(new_parts);
                     }
@@ -664,11 +664,11 @@ fn input_chat_messages_from_prompt_content(
 
     let mut i = 0;
     while attributes
-        .get(format!("{}.{}.content", prefix, i).as_str())
+        .get(format!("{prefix}.{i}.content").as_str())
         .is_some()
     {
         let content = if let Some(serde_json::Value::String(s)) =
-            attributes.get(format!("{}.{}.content", prefix, i).as_str())
+            attributes.get(format!("{prefix}.{i}.content").as_str())
         {
             s.clone()
         } else {
@@ -676,7 +676,7 @@ fn input_chat_messages_from_prompt_content(
         };
 
         let role = if let Some(serde_json::Value::String(s)) =
-            attributes.get(format!("{}.{}.role", prefix, i).as_str())
+            attributes.get(format!("{prefix}.{i}.role").as_str())
         {
             s.clone()
         } else {

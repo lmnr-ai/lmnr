@@ -684,7 +684,7 @@ export const renderChatMessageContentParts = (
         return part.text;
       } else if (part.type === 'image_url') {
         return part.url;
-      } else {
+      } else if (part.type === 'image') {
         let data;
         if (part.data.length <= 30) {
           data = part.data;
@@ -694,6 +694,8 @@ export const renderChatMessageContentParts = (
           data = `${firstPart}...${lastPart}`;
         }
         return `Image\nMedia type: ${part.mediaType}\nData: ${data}`;
+      } else if (part.type === 'document_url') {
+        return `Document\nMedia type: ${part.mediaType}\nUri: ${part.url}`;
       }
     })
     .join('\n\n');

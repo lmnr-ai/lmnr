@@ -22,7 +22,7 @@
 - [x] Datasets
     - [x] Export production trace data to datasets.
     - [x] Run evals on hosted golden datasets.
-    - [ ] Index dataset and retrieve semantically-similar dynamic few-shot examples to improve your prompts. Coming very soon.
+    - [X] Index dataset and retrieve semantically-similar dynamic few-shot examples to improve your prompts.
 - [x] Built for scale
     - [x] Written in Rust 🦀
     - [x] Traces are sent via gRPC, ensuring the best performance and lowest overhead.

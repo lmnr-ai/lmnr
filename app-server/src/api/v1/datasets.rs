@@ -30,7 +30,7 @@ async fn get_datapoints(
     };
 
     let datapoints =
-        datapoints::get_datapoints(&db.pool, dataset.id, query.limit, query.offset).await?;
+        datapoints::get_full_datapoints(&db.pool, dataset.id, query.limit, query.offset).await?;
 
     let total_count = datapoints::count_datapoints(&db.pool, dataset.id).await?;
 

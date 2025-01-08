@@ -7,7 +7,6 @@ import { GroupByInterval } from '@/lib/clickhouse/modifiers';
 import { TraceMetricDatapoint } from '@/lib/traces/types';
 import {
   cn,
-  formatTimestampFromSeconds,
   toFixedIfFloat,
 } from '@/lib/utils';
 
@@ -107,12 +106,13 @@ export function TraceStatChart({
           <DefaultLineChart
             data={data?.map((d) => ({
               "value": d.value,
-              "timestamp": formatTimestampFromSeconds(d.time)
+              "timestamp": d.time
             })) ?? []}
             xAxisKey="timestamp"
             chartConfig={chartConfig}
             groupByInterval={defaultGroupByInterval as GroupByInterval}
             keys={new Set(["value"])}
+            numericTimestamp={true}
           />
         )}
       </div>

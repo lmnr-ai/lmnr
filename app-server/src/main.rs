@@ -10,6 +10,9 @@ use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient
 use dashmap::DashMap;
 use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
 use features::{is_feature_enabled, Feature};
+use machine_manager::{
+    machine_manager_service_client::MachineManagerServiceClient, MachineManager, MachineManagerImpl,
+};
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use projects::Project;
@@ -62,6 +65,7 @@ mod evaluations;
 mod features;
 mod labels;
 mod language_model;
+mod machine_manager;
 mod names;
 mod opentelemetry;
 mod pipeline;
@@ -239,7 +243,7 @@ fn main() -> anyhow::Result<()> {
         let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
         let s3_storage = storage::s3::S3Storage::new(
             s3_client,
-            env::var("S3_IMGS_BUCKET").expect("S3_IMGS_BUCKET must be set"),
+            env::var("S3_TRACE_PAYLOADS_BUCKET").expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
         );
         Arc::new(s3_storage)
     } else {
@@ -287,6 +291,20 @@ fn main() -> anyhow::Result<()> {
                 } else {
                     Arc::new(code_executor::mock::MockCodeExecutor {})
                 };
+
+                let machine_manager: Arc<dyn MachineManager> =
+                    if is_feature_enabled(Feature::FullBuild) {
+                        let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
+                            .expect("MACHINE_MANAGER_URL_GRPC must be set");
+                        let machine_manager_client = Arc::new(
+                            MachineManagerServiceClient::connect(machine_manager_url_grpc)
+                                .await
+                                .unwrap(),
+                        );
+                        Arc::new(MachineManagerImpl::new(machine_manager_client))
+                    } else {
+                        Arc::new(machine_manager::MockMachineManager {})
+                    };
 
                 let client = reqwest::Client::new();
                 let anthropic = language_model::Anthropic::new(client.clone());
@@ -380,6 +398,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(semantic_search.clone()))
                         .app_data(web::Data::new(chunker_runner.clone()))
                         .app_data(web::Data::new(storage.clone()))
+                        .app_data(web::Data::new(machine_manager.clone()))
                         // Scopes with specific auth or no auth
                         .service(
                             web::scope("api/v1/auth")
@@ -396,6 +415,7 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(shared_secret_auth)
                                 .service(routes::subscriptions::update_subscription),
                         )
+                        .service(api::v1::machine_manager::vnc_stream) // vnc stream does not need auth
                         .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
@@ -407,7 +427,11 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
-                                .service(api::v1::semantic_search::semantic_search),
+                                .service(api::v1::semantic_search::semantic_search)
+                                .service(api::v1::queues::push_to_queue)
+                                .service(api::v1::machine_manager::start_machine)
+                                .service(api::v1::machine_manager::terminate_machine)
+                                .service(api::v1::machine_manager::execute_computer_action),
                         )
                         // Scopes with generic auth
                         .service(

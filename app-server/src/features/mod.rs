@@ -20,7 +20,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::Storage => {
             env::var("AWS_ACCESS_KEY_ID").is_ok()
                 && env::var("AWS_SECRET_ACCESS_KEY").is_ok()
-                && env::var("S3_IMGS_BUCKET").is_ok()
+                && env::var("S3_TRACE_PAYLOADS_BUCKET").is_ok()
         }
         Feature::FullBuild => ["FULL", "PRODUCTION"].contains(
             &env::var("ENVIRONMENT")

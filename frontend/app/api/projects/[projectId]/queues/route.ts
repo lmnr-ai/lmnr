@@ -11,8 +11,6 @@ export async function POST(
 ): Promise<Response> {
   const projectId = params.projectId;
 
-
-
   const body = await req.json();
   const { name } = body;
 
