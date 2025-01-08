@@ -38,6 +38,7 @@ export default function Formatter({
   collapsible = false,
   presetKey = null
 }: OutputFormatterProps) {
+
   const [mode, setMode] = useState(() => {
     if (presetKey) {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);

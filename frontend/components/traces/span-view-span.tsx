@@ -24,12 +24,16 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
               <SpanDatasets spanId={span.spanId} />
               <div className="pb-2 font-medium text-lg">Input</div>
               {isChatMessageList(span.input) ? (
-                <ChatMessageListTab messages={span.input} />
+                <ChatMessageListTab
+                  messages={span.input}
+                  presetKey={`input-${span.attributes['lmnr.span.path']}`}
+                />
               ) : (
                 <Formatter
                   className="max-h-1/3"
                   collapsible
                   value={JSON.stringify(span.input)}
+                  presetKey={`input-${span.attributes['lmnr.span.path']}`}
                 />
               )}
             </div>
@@ -42,6 +46,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
                     ? span.output
                     : JSON.stringify(span.output)
                 }
+                presetKey={`output-${span.attributes['lmnr.span.path']}`}
                 collapsible
               />
             </div>

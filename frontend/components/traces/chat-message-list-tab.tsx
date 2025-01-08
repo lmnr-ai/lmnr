@@ -7,15 +7,17 @@ import PdfRenderer from '../ui/pdf-renderer';
 
 interface ContentPartTextProps {
   text: string;
+  presetKey?: string | null;
 }
 
-function ContentPartText({ text }: ContentPartTextProps) {
+function ContentPartText({ text, presetKey }: ContentPartTextProps) {
   return (
     <div className="w-full h-full">
       <Formatter
         collapsible
         value={text}
         className="rounded-none max-h-[50vh] border-none"
+        presetKey={presetKey}
       />
     </div>
   );
@@ -49,7 +51,6 @@ interface ContentPartsProps {
 }
 
 function ContentParts({ contentParts }: ContentPartsProps) {
-  console.log(contentParts);
   return (
     <div className="flex flex-col space-y-2">
       {contentParts.map((contentPart, index) => (
@@ -73,10 +74,12 @@ function ContentParts({ contentParts }: ContentPartsProps) {
 
 interface ChatMessageListTabProps {
   messages: ChatMessage[];
+  presetKey?: string | null;
 }
 
 export default function ChatMessageListTab({
-  messages
+  messages,
+  presetKey
 }: ChatMessageListTabProps) {
   return (
     <div className="w-full h-full flex flex-col space-y-4">
@@ -87,7 +90,10 @@ export default function ChatMessageListTab({
           </div>
           <div>
             {isStringType(message.content) ? (
-              <ContentPartText text={message.content} />
+              <ContentPartText
+                text={message.content}
+                presetKey={`${presetKey}-${index}`}
+              />
             ) : (
               <ContentParts contentParts={message.content} />
             )}
