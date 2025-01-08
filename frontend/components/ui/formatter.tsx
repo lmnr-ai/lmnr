@@ -26,6 +26,7 @@ interface OutputFormatterProps {
   editable?: boolean;
   onChange?: (value: string) => void;
   collapsible?: boolean;
+  presetKey?: string | null;
 }
 
 export default function Formatter({
@@ -34,11 +35,25 @@ export default function Formatter({
   editable = false,
   onChange,
   className,
-  collapsible = false
+  collapsible = false,
+  presetKey = null
 }: OutputFormatterProps) {
-  const [mode, setMode] = useState(defaultMode);
+  const [mode, setMode] = useState(() => {
+    if (presetKey) {
+      const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
+      return savedMode || defaultMode;
+    }
+    return defaultMode;
+  });
   const [expandedValue, setExpandedValue] = useState(value);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const handleModeChange = (newMode: string) => {
+    setMode(newMode);
+    if (presetKey) {
+      localStorage.setItem(`formatter-mode-${presetKey}`, newMode);
+    }
+  };
 
   const renderText = (value: string) => {
     // if mode is YAML try to parse it as YAML
@@ -74,7 +89,7 @@ export default function Formatter({
           <div className="flex items-center gap-2">
             <Select
               value={mode}
-              onValueChange={(value) => setMode(value)}
+              onValueChange={handleModeChange}
             >
               <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-5">
                 <SelectValue placeholder="Select tag type" />
@@ -133,7 +148,7 @@ export default function Formatter({
                   <div className="flex justify-start">
                     <Select
                       value={mode}
-                      onValueChange={(value) => setMode(value)}
+                      onValueChange={handleModeChange}
                     >
                       <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-6">
                         <SelectValue placeholder="Select tag type" />
@@ -173,6 +188,7 @@ export default function Formatter({
                     {mode === 'custom' ? (
                       <CustomRenderer
                         data={renderText(expandedValue)}
+                        presetKey={presetKey}
                       />
                     ) : (
                       <CodeEditor
@@ -206,6 +222,7 @@ export default function Formatter({
           {mode === 'custom' ? (
             <CustomRenderer
               data={renderText(value)}
+              presetKey={presetKey}
             />
           ) : (
             <CodeEditor

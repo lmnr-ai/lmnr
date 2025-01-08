@@ -1,8 +1,10 @@
 
+import { isChatMessageList } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
 
 import Formatter from '../ui/formatter';
 import { ScrollArea } from '../ui/scroll-area';
+import ChatMessageListTab from './chat-message-list-tab';
 import SpanDatasets from './span-datasets';
 import SpanLabels from './span-labels';
 
@@ -21,15 +23,15 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
               <SpanLabels span={span} />
               <SpanDatasets spanId={span.spanId} />
               <div className="pb-2 font-medium text-lg">Input</div>
-              {/* {isChatMessageList(span.input) ? (
+              {isChatMessageList(span.input) ? (
                 <ChatMessageListTab messages={span.input} />
-              ) : ( */}
-              <Formatter
-                className="max-h-1/3"
-                collapsible
-                value={JSON.stringify(span.input)}
-              />
-              {/* )} */}
+              ) : (
+                <Formatter
+                  className="max-h-1/3"
+                  collapsible
+                  value={JSON.stringify(span.input)}
+                />
+              )}
             </div>
             <div className="p-4 w-full h-full">
               <div className="pb-2 font-medium text-lg">Output</div>

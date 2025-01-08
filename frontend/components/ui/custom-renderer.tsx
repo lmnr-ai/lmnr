@@ -246,7 +246,17 @@ function TemplateDialog({
   );
 }
 
-export default function CustomRenderer({ data, permissions }: RendererProps) {
+interface CustomRendererProps {
+  data: string,
+  permissions?: string,
+  presetKey?: string | null,
+}
+
+export default function CustomRenderer({
+  data,
+  permissions,
+  presetKey = null,
+}: CustomRendererProps) {
   const iFrameRef = useRef<HTMLIFrameElement>(null);
   const [htmlContent, setHtmlContent] = useState(DEFAULT_HTML_TEMPLATE);
   const sandbox = permissions ?? 'allow-scripts';
@@ -256,6 +266,24 @@ export default function CustomRenderer({ data, permissions }: RendererProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [templateDialogMode, setTemplateDialogMode] = useState<'create' | 'edit'>('create');
+
+  useEffect(() => {
+    if (presetKey && templates) {
+      // Try to get the stored template ID for this preset
+      const storedTemplateId = localStorage.getItem(`template-${presetKey}`);
+      if (storedTemplateId) {
+        // Find the template in our templates list
+        const template = templates.find((t: TemplateInfo) => t.id === storedTemplateId);
+        if (template) {
+          // Fetch and set the template
+          fetch(`/api/projects/${projectId}/render-templates/${storedTemplateId}`)
+            .then(response => response.json())
+            .then(data => setSelectedTemplate(data))
+            .catch(error => console.error('Error fetching template:', error));
+        }
+      }
+    }
+  }, [presetKey, templates, projectId]);
 
   // Then, handle the content updates
   useEffect(() => {
@@ -283,6 +311,11 @@ export default function CustomRenderer({ data, permissions }: RendererProps) {
 
     const template = templates?.find((t: TemplateInfo) => t.id === value);
     if (template) {
+      // Store the template ID if we have a preset key
+      if (presetKey) {
+        localStorage.setItem(`template-${presetKey}`, value);
+      }
+
       fetch(`/api/projects/${projectId}/render-templates/${value}`)
         .then(response => response.json())
         .then(data => setSelectedTemplate(data))

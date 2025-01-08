@@ -121,6 +121,7 @@ export default function Queue({ queue }: QueueProps) {
                             className="max-h-1/3"
                             collapsible
                             value={JSON.stringify(data.span.input)}
+                            presetKey={`input-${queue.id}`}
                           />
                         )}
                       </div>
