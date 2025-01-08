@@ -93,7 +93,12 @@ async fn authenticate_request(
 }
 
 fn extract_bearer_token(metadata: &tonic::metadata::MetadataMap) -> anyhow::Result<String> {
-    if let Some(auth_header) = metadata.get("authorization") {
+    // Default OpenTelemetry gRPC exporter uses `"authorization"` with lowercase `a`,
+    // but users may use `"Authorization"` with uppercase `A` in custom exporters.
+    let header = metadata
+        .get("authorization")
+        .or(metadata.get("Authorization"));
+    if let Some(auth_header) = header {
         let auth_str = auth_header
             .to_str()
             .map_err(|_| Status::unauthenticated("Invalid token"))?;
