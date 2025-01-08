@@ -43,8 +43,10 @@ export async function DELETE(
   { params }: { params: { projectId: string } }
 ): Promise<Response> {
   const projectId = params.projectId;
+
   const session = await getServerSession(authOptions);
   const user = session!.user;
+
   return fetcher(`/projects/${projectId}`, {
     method: 'DELETE',
     headers: {

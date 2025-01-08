@@ -1,6 +1,7 @@
 'use client';
 
 import { Edit,Loader2 } from 'lucide-react';
+import { useRouter } from "next/navigation";
 import { useState } from 'react';
 
 import {
@@ -23,6 +24,7 @@ interface RenameProjectProps {}
 
 export default function RenameProject({}: RenameProjectProps) {
   const { projectId, projectName } = useProjectContext();
+  const router = useRouter();
 
   const [newProjectName, setNewProjectName] = useState<string>('');
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
@@ -47,7 +49,7 @@ export default function RenameProject({}: RenameProjectProps) {
         title: 'Project Renamed',
         description: `Project renamed successfully!.`,
       });
-      window.location.reload();
+      router.refresh();
     } else {
       toast({
         title: 'Error',
