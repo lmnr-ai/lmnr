@@ -21,7 +21,7 @@ use crate::{
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct UploadItem {
+struct PushItem {
     #[serde(default = "Uuid::new_v4")]
     id: Uuid,
     #[serde(default)]
@@ -36,15 +36,15 @@ struct UploadItem {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct UploadToQueueRequest {
-    items: Vec<UploadItem>,
+struct PushToQueueRequest {
+    items: Vec<PushItem>,
     queue_name: String,
 }
 
 #[post("/queues/push")]
 async fn push_to_queue(
     project_api_key: ProjectApiKey,
-    req: web::Json<UploadToQueueRequest>,
+    req: web::Json<PushToQueueRequest>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
