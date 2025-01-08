@@ -18,6 +18,7 @@ import { Label } from '../ui/label';
 import MonoWithCopy from "../ui/mono-with-copy";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { ScrollArea } from '../ui/scroll-area';
+import { Skeleton } from "../ui/skeleton";
 import { Switch } from '../ui/switch';
 import { Labels } from './labels';
 
@@ -34,7 +35,7 @@ export default function Queue({ queue }: QueueProps) {
     span: Span,
     count: number,
     position: number
-  } | null>(null);
+  }[] | null>(null);
 
   const [isRemoving, setIsRemoving] = useState(false);
   const [addedLabels, setAddedLabels] = useState<Array<{
@@ -53,6 +54,7 @@ export default function Queue({ queue }: QueueProps) {
       if (data.ok) {
         const json = await data.json();
         setData(json);
+        console.log(json);
       }
     });
   };
@@ -61,7 +63,7 @@ export default function Queue({ queue }: QueueProps) {
     setIsRemoving(true);
 
     // TODO: refactor when we have structured actions
-    let action = data?.queueData.action as { resultId: string, datasetId?: string };
+    let action = data?.[0]?.queueData.action as { resultId: string, datasetId?: string };
     if (datasetId) {
       action.datasetId = datasetId;
     }
@@ -69,8 +71,8 @@ export default function Queue({ queue }: QueueProps) {
     fetch(`/api/projects/${projectId}/queues/${queue.id}/remove`, {
       method: 'POST',
       body: JSON.stringify({
-        id: data?.queueData.id,
-        spanId: data?.span.spanId,
+        id: data?.[0]?.queueData.id,
+        spanId: data?.[0]?.span.spanId,
         action,
         addedLabels
       })
@@ -101,26 +103,26 @@ export default function Queue({ queue }: QueueProps) {
       <div className="flex-1 flex">
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel className="flex-1 flex" minSize={20} defaultSize={50}>
-            {data?.span ? (
+            {data?.[0]?.span && (
               <div className="flex h-full w-full">
                 <ScrollArea className="flex overflow-auto w-full mt-0">
                   <div className="flex flex-col max-h-0">
                     <div className="flex flex-col p-4 gap-4">
                       <div className="flex items-center space-x-2">
-                        <Label className="text-xs text-secondary-foreground font-mono">Span id</Label>
+                        <Label className="text-sm text-secondary-foreground font-mono">Span</Label>
                         <MonoWithCopy className="text-secondary-foreground">
-                          {data.span.spanId.replace(/^00000000-0000-0000-/g, '')}
+                          {data?.[0]?.span.spanId}
                         </MonoWithCopy>
                       </div>
                       <div className="w-full h-full">
                         <div className="pb-2 font-medium text-lg">Input</div>
-                        {isChatMessageList(data.span.input) ? (
-                          <ChatMessageListTab messages={data.span.input} />
+                        {isChatMessageList(data?.[0]?.span.input) ? (
+                          <ChatMessageListTab messages={data?.[0]?.span.input} />
                         ) : (
                           <Formatter
                             className="max-h-1/3"
                             collapsible
-                            value={JSON.stringify(data.span.input)}
+                            value={JSON.stringify(data?.[0]?.span.input)}
                             presetKey={`input-${queue.id}`}
                           />
                         )}
@@ -129,7 +131,7 @@ export default function Queue({ queue }: QueueProps) {
                         <div className="pb-2 font-medium text-lg">Output</div>
                         <Formatter
                           className="max-h-[600px]"
-                          value={JSON.stringify(data.span.output)}
+                          value={JSON.stringify(data?.[0]?.span.output)}
                           collapsible
                         />
                       </div>
@@ -137,31 +139,42 @@ export default function Queue({ queue }: QueueProps) {
                   </div>
                 </ScrollArea>
               </div>
-            ) : (
-              <div className="h-full flex items-center justify-center text-secondary-foreground">
-                No items in queue
+            )}
+            {
+              data && data.length === 0 && (
+                <div className="h-full p-4 flex w-full flex-col gap-2">
+                  <span className="text-secondary-foreground">No items in queue.</span>
+                </div>
+              )
+            }
+            {!data && (
+              <div className="h-full p-4 flex w-full flex-col gap-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
               </div>
             )}
+
           </ResizablePanel>
           <ResizableHandle withHandle className="z-50" />
           <ResizablePanel className="flex-1 flex" minSize={20} defaultSize={33}>
             <div className="w-full flex flex-col">
               <div className="flex-none p-4 py-2 border-b text-secondary-foreground flex justify-between items-center">
-                {data && <span>Item {data?.position} of {data?.count}</span>}
+                {data && <span>Item {data[0]?.position} of {data[0]?.count}</span>}
                 <div></div>
                 <div className="flex items-center space-x-2">
                   <Button
                     variant="outline"
-                    onClick={() => data?.queueData && next(data.queueData.createdAt, 'prev')}
-                    disabled={!data || data.position <= 1}
+                    onClick={() => data?.[0]?.queueData && next(data[0].queueData.createdAt, 'prev')}
+                    disabled={!data || data[0]?.position <= 1}
                   >
                     <ArrowDown size={16} className="mr-2" />
                     Prev
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => data?.queueData && next(data.queueData.createdAt, 'next')}
-                    disabled={!data || data.position >= (data.count || 0)}
+                    onClick={() => data?.[0]?.queueData && next(data[0].queueData.createdAt, 'next')}
+                    disabled={!data || data[0]?.position >= (data[0]?.count || 0)}
                   >
                     <ArrowUp size={16} className="mr-2" />
                     Next
@@ -243,7 +256,7 @@ export default function Queue({ queue }: QueueProps) {
           <ResizableHandle withHandle className="z-50" />
           <ResizablePanel className="w-1/3 p-4 border-l" minSize={10} defaultSize={17}>
             <Labels
-              span={data?.span}
+              span={data?.[0]?.span}
               onAddLabel={(value, labelClass) => {
                 const isDuplicateClass = addedLabels.some(
                   label => label.labelClass.id === labelClass.id
