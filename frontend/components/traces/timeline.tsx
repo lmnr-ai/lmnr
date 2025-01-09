@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getDuration } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
@@ -31,26 +31,25 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
   const [timeIntervals, setTimeIntervals] = useState<string[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
-  const traverse = (
-    span: Span,
-    childSpans: { [key: string]: Span[] },
-    orderedSpands: Span[]
-  ) => {
-    if (!span) {
-      return;
-    }
-    orderedSpands.push(span);
-
-    if (collapsedSpans.has(span.spanId)) {
-      return;
-    }
-
-    if (childSpans[span.spanId]) {
-      for (const child of childSpans[span.spanId]) {
-        traverse(child, childSpans, orderedSpands);
+  const traverse = useCallback(
+    (span: Span, childSpans: { [key: string]: Span[] }, orderedSpands: Span[]) => {
+      if (!span) {
+        return;
       }
-    }
-  };
+      orderedSpands.push(span);
+
+      if (collapsedSpans.has(span.spanId)) {
+        return;
+      }
+
+      if (childSpans[span.spanId]) {
+        for (const child of childSpans[span.spanId]) {
+          traverse(child, childSpans, orderedSpands);
+        }
+      }
+    },
+    [collapsedSpans]
+  );
 
   useEffect(() => {
     if (!ref.current || childSpans === null) {
