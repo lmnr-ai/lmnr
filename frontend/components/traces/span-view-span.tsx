@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
+
 import { isChatMessageList } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
-import { useEffect, useRef, useState } from 'react';
 
 import Formatter from '../ui/formatter';
 import { ScrollArea } from '../ui/scroll-area';
