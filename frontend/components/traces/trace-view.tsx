@@ -264,7 +264,9 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
               </div>
             </div>
             {selectedSpan && (
-              <div className="flex-grow flex flex-col">
+              <div
+                style={{ width: containerWidth - timelineWidth }}
+              >
                 <SpanView
                   key={selectedSpan.spanId}
                   spanId={selectedSpan.spanId}

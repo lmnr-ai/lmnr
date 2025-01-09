@@ -85,7 +85,7 @@ export default function Formatter({
     <div
       className={cn('w-full h-full flex flex-col border rounded', className)}
     >
-      <div className="flex w-full flex-none p-0">
+      <div className="flex w-full flex-none p-0 h-8">
         <div className={cn("flex justify-between items-center pl-2 pr-1 w-full border-b", isCollapsed ? 'border-b-0' : '')}>
           <div className="flex items-center gap-2">
             <Select
@@ -219,7 +219,7 @@ export default function Formatter({
         </div>
       </div>
       {(!collapsible || !isCollapsed) && (
-        <div className="overflow-hidden flex-1 flex bg-card">
+        <div className="flex-grow flex overflow-auto w-full">
           {mode === 'custom' ? (
             <CustomRenderer
               data={renderText(value)}

@@ -26,7 +26,7 @@ const myTheme = createTheme({
     fontSize: '11pt',
     background: 'transparent',
     lineHighlight: 'transparent',
-    gutterBackground: 'transparent',
+    gutterBackground: '#1D1D20',
     gutterBorder: 'transparent',
     gutterForeground: 'gray !important',
     selection: '#193860',
@@ -53,6 +53,20 @@ export default function CodeEditor({
       },
       '&': {
         fontSize: '10pt !important',
+      },
+      '&.cm-editor': {
+        flex: 1,
+        height: '100%',
+        width: '100%',
+        position: 'relative',
+      },
+      '&.cm-scroller': {
+        position: 'absolute !important',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        overflow: 'auto',
       }
     })
   ];
@@ -72,10 +86,10 @@ export default function CodeEditor({
   }
 
   return (
-    <div className={cn('w-full h-full flex flex-col p-2 bg-card text-foreground', background, className)}>
+    <div className={cn('w-full h-full bg-card text-foreground', background, className)}>
       <CodeMirror
         placeholder={placeholder}
-        className={cn('border-none bg-card', background)}
+        className={cn('flex h-full', background)}
         theme={myTheme}
         extensions={extensions}
         editable={editable}

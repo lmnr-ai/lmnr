@@ -1,5 +1,4 @@
 import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
-import { Resizable } from "re-resizable";
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
@@ -13,25 +12,21 @@ import { Button } from "./button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "./dialog";
 import { Input } from "./input";
 import { Label } from "./label";
-import { ScrollArea } from "./scroll-area";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "./select";
-
-interface RendererProps {
-  data: string,
-  permissions?: string,
-}
 
 interface Template {
   id: string;
@@ -141,6 +136,7 @@ function TemplateDialog({
       setHtmlContent('');
       setIsSaving(false);
     } catch (error) {
+      // TODO: Show error message
       console.error('Failed to save template:', error);
     }
   };
@@ -154,6 +150,9 @@ function TemplateDialog({
       >
         <DialogHeader className="flex-none border-b p-4">
           <DialogTitle>New render template</DialogTitle>
+          <DialogDescription>
+            Create a new render template to customize data visualization.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex gap-4 h-full p-4">
           <div className="w-1/2 h-full flex-none">
@@ -185,29 +184,24 @@ function TemplateDialog({
                 setTab(value as 'data' | 'editor');
               }}
             >
-              <TabsList>
+              <TabsList className="flex-none">
                 <TabsTrigger value="data">Data</TabsTrigger>
                 <TabsTrigger value="editor">Code</TabsTrigger>
               </TabsList>
-              <div className="flex-grow">
+              <div className="flex-grow flex h-0">
                 <TabsContent
                   value="editor"
                   forceMount={true}
                   hidden={tab !== 'editor'}
-                  className="w-full h-full"
+                  className="w-full h-full max-h-full"
                 >
-                  <ScrollArea className="h-full">
-                    <div className="max-h-0">
-                      <div className="flex flex-col">
-                        <CodeEditor
-                          value={htmlContent}
-                          onChange={setHtmlContent}
-                          language="html"
-                          className="h-full"
-                        />
-                      </div>
-                    </div>
-                  </ScrollArea>
+                  <CodeEditor
+                    value={htmlContent}
+                    onChange={setHtmlContent}
+                    language="html"
+                    className="h-full"
+                    lineWrapping={false}
+                  />
                 </TabsContent>
 
                 <TabsContent
@@ -216,18 +210,11 @@ function TemplateDialog({
                   hidden={tab !== 'data'}
                   className="w-full h-full"
                 >
-                  <ScrollArea className="h-full">
-                    <div className='max-h-0'>
-                      <div className="flex flex-col">
-                        <CodeEditor
-                          value={jsonData}
-                          onChange={setJsonData}
-                          language="html"
-                          lineWrapping={false}
-                        />
-                      </div>
-                    </div>
-                  </ScrollArea>
+                  <CodeEditor
+                    value={jsonData}
+                    onChange={setJsonData}
+                    language="json"
+                  />
                 </TabsContent>
               </div>
             </Tabs>
@@ -363,90 +350,93 @@ export default function CustomRenderer({
   };
 
   return (
-    <div className="w-full bg-background">
-      <div className="flex flex-col">
-        <div className="flex items-center gap-2 p-2">
+    <div className="flex flex-col bg-background w-full">
+      <div className="flex items-center gap-2 p-2">
+        <div className="min-w-[100px]">
           <Select
             key={selectedTemplate?.id} value={selectedTemplate?.id || undefined} onValueChange={handleTemplateSelect}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger>
               <SelectValue placeholder="Select template" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="create-new">
-                <div className="flex items-center gap-2">
-                  <PlusIcon className="w-4 h-4" />
-                  <div>Create new template</div>
-                </div>
-              </SelectItem>
-              {templates?.map((template: TemplateInfo) => (
-                <SelectItem key={template.id} value={template.id}>
-                  {template.name}
+              <SelectGroup>
+                <SelectItem value="create-new">
+                  <div className="flex items-center gap-2">
+                    <PlusIcon className="w-4 h-4" />
+                    <div>Create new template</div>
+                  </div>
                 </SelectItem>
-              ))}
+              </SelectGroup>
+              <SelectGroup>
+                {templates?.map((template: TemplateInfo) => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
-
-          {selectedTemplate && (
-            <>
-              <Button
-                variant="outline"
-                onClick={handleEditTemplate}
-                title="Edit template"
-              >
-                <PencilIcon className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setIsDeleteDialogOpen(true)}
-                title="Delete template"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </Button>
-
-              <ConfirmDialog
-                open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
-                title="Delete Template"
-                description={`Are you sure you want to delete "${selectedTemplate.name}"? This action cannot be undone.`}
-                confirmText="Delete"
-                cancelText="Cancel"
-                onConfirm={handleDeleteTemplate}
-              />
-            </>
-          )}
         </div>
-        <div className="flex flex-col gap-2">
-          <Resizable
-            defaultSize={{ width: '100%', height: '400px' }}
-            enable={{
-              top: false,
-              right: false,
-              bottom: true,
-              left: false,
-              topRight: false,
-              bottomRight: false,
-              bottomLeft: false,
-            }}
-          >
-            <iframe
-              ref={iFrameRef}
-              className="w-full h-full border-0"
-              sandbox={sandbox}
-              title="Custom Visualization"
+        {selectedTemplate && (
+          <>
+            <Button
+              variant="outline"
+              onClick={handleEditTemplate}
+              title="Edit template"
+            >
+              <PencilIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(true)}
+              title="Delete template"
+            >
+              <TrashIcon className="w-4 h-4" />
+            </Button>
+
+            <ConfirmDialog
+              open={isDeleteDialogOpen}
+              onOpenChange={setIsDeleteDialogOpen}
+              title="Delete Template"
+              description={`Are you sure you want to delete "${selectedTemplate.name}"? This action cannot be undone.`}
+              confirmText="Delete"
+              cancelText="Cancel"
+              onConfirm={handleDeleteTemplate}
             />
-          </Resizable>
-        </div>
-
-        <TemplateDialog
-          open={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          onSave={handleSaveTemplate}
-          defaultTemplate={templateDialogMode === 'edit' ? selectedTemplate : null}
-          defaultJsonData={data}
-          sandbox={sandbox}
-          projectId={projectId}
-        />
+          </>
+        )}
       </div>
+      <div className="flex-grow flex overflow-hidden rounded-b">
+        {/* <Resizable
+          defaultSize={{ width: '100%', height: '400px' }}
+          enable={{
+            top: false,
+            right: false,
+            bottom: true,
+            left: false,
+            topRight: false,
+            bottomRight: false,
+            bottomLeft: false,
+          }}
+        > */}
+        <iframe
+          ref={iFrameRef}
+          className="w-full min-h-[400px] h-full border-0"
+          sandbox={sandbox}
+          title="Custom Visualization"
+        />
+        {/* </Resizable> */}
+      </div>
+
+      <TemplateDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onSave={handleSaveTemplate}
+        defaultTemplate={templateDialogMode === 'edit' ? selectedTemplate : null}
+        defaultJsonData={data}
+        sandbox={sandbox}
+        projectId={projectId}
+      />
     </div>
   );
 }
@@ -470,7 +460,7 @@ const DEFAULT_HTML_TEMPLATE = `
     </div>
     
     <script>
-      // Handle incoming messages
+      // Handle data message
       window.addEventListener('message', (event) => {
         const data = event.data;
         document.getElementById('user-content').innerHTML = JSON.stringify(data);
