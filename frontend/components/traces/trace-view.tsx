@@ -162,11 +162,10 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
               variant={'outline'}
               onClick={() => {
                 setSelectedSpan(null);
-                searchParams.delete('spanId');
-                router.push(`${pathName}?${searchParams.toString()}`);
-                setTimelineWidth(
-                  container.current!.getBoundingClientRect().width
-                );
+                setTimeout(() => {
+                  searchParams.delete('spanId');
+                  router.push(`${pathName}?${searchParams.toString()}`);
+                }, 10);
               }}
             >
               Show timeline
