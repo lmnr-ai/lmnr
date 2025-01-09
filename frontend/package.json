@@ -79,7 +79,7 @@
     "next-mdx-remote": "^5.0.0",
     "next-themes": "^0.2.1",
     "postgres": "^3.4.5",
-    "posthog-js": "^1.202.2",
+    "posthog-js": "^1.205.0",
     "posthog-node": "^4.3.2",
     "re-resizable": "^6.10.3",
     "react": "^18.3.1",

@@ -293,7 +293,7 @@ fn main() -> anyhow::Result<()> {
                 };
 
                 let machine_manager: Arc<dyn MachineManager> =
-                    if is_feature_enabled(Feature::FullBuild) {
+                    if is_feature_enabled(Feature::MachineManager) {
                         let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
                             .expect("MACHINE_MANAGER_URL_GRPC must be set");
                         let machine_manager_client = Arc::new(
