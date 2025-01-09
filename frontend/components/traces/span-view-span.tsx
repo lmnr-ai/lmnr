@@ -51,7 +51,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
               <Formatter
                 className="max-h-[400px]"
                 collapsible
-                value={JSON.stringify(span.input) + "a".repeat(100) + "\n".repeat(100)}
+                value={JSON.stringify(span.input)}
                 presetKey={`input-${span.attributes['lmnr.span.path']}`}
               />
             )}
