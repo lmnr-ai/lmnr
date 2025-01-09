@@ -15,26 +15,28 @@ interface SpanViewSpanProps {
 
 export function SpanViewSpan({ span }: SpanViewSpanProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const [contentWidth, setContentWidth] = useState<number | undefined>();
+  const [contentWidth, setContentWidth] = useState<number>(0);
 
   useEffect(() => {
-    const updateWidth = () => {
-      if (scrollAreaRef.current) {
-        setContentWidth(scrollAreaRef.current.offsetWidth);
-      }
-    };
+    if (!scrollAreaRef.current) return;
 
-    updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
-  }, []);
+    const resizeObserver = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) {
+        setContentWidth(entry.contentRect.width);
+      }
+    });
+
+    resizeObserver.observe(scrollAreaRef.current);
+    return () => resizeObserver.disconnect();
+  }, [scrollAreaRef.current]);
 
   return (
     <ScrollArea ref={scrollAreaRef} className="w-full h-full mt-0" type="scroll">
       <div className="max-h-0">
         <div
-          className="flex flex-col gap-4 h-full p-4"
-          style={{ width: contentWidth ? `${contentWidth}px` : '100%' }}
+          className="flex flex-col gap-4 h-full p-4 w-full"
+          style={{ width: contentWidth }}
         >
           <div className="w-full">
             <SpanLabels span={span} />
@@ -49,7 +51,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
               <Formatter
                 className="max-h-[400px]"
                 collapsible
-                value={JSON.stringify(span.input)}
+                value={JSON.stringify(span.input) + "a".repeat(100) + "\n".repeat(100)}
                 presetKey={`input-${span.attributes['lmnr.span.path']}`}
               />
             )}
