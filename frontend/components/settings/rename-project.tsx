@@ -50,6 +50,7 @@ export default function RenameProject({}: RenameProjectProps) {
         description: `Project renamed successfully!.`,
       });
       router.refresh();
+      setIsRenameDialogOpen(false);
     } else {
       toast({
         title: 'Error',
