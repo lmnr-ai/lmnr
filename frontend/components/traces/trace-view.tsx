@@ -49,6 +49,9 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       : null
   );
 
+  // Add new state for collapsed spans
+  const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     if (!trace) {
       return;
@@ -134,7 +137,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         traceTreePanel.current!.getBoundingClientRect().width + 1
       );
     }
-  }, [containerWidth, selectedSpan, traceTreePanel.current]);
+  }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
@@ -234,6 +237,18 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                                     depth={1}
                                     selectedSpan={selectedSpan}
                                     containerWidth={timelineWidth}
+                                    collapsedSpans={collapsedSpans}
+                                    onToggleCollapse={(spanId) => {
+                                      setCollapsedSpans((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(spanId)) {
+                                          next.delete(spanId);
+                                        } else {
+                                          next.add(spanId);
+                                        }
+                                        return next;
+                                      });
+                                    }}
                                     onSpanSelect={(span) => {
                                       setSelectedSpan(span);
                                       setTimelineWidth(
@@ -253,7 +268,11 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                         </td>
                         {!selectedSpan && !searchParams.get('spanId') && (
                           <td className="flex flex-grow w-full p-0">
-                            <Timeline spans={spans} childSpans={childSpans} />
+                            <Timeline
+                              spans={spans}
+                              childSpans={childSpans}
+                              collapsedSpans={collapsedSpans}
+                            />
                           </td>
                         )}
                       </tr>

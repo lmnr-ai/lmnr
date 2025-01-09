@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getDurationString } from '@/lib/flow/utils';
@@ -18,6 +19,8 @@ interface SpanCardProps {
   depth: number;
   selectedSpan?: Span | null;
   onSpanSelect?: (span: Span) => void;
+  collapsedSpans: Set<string>;
+  onToggleCollapse?: (spanId: string) => void;
 }
 
 export function SpanCard({
@@ -27,7 +30,9 @@ export function SpanCard({
   onSpanSelect,
   containerWidth,
   depth,
-  selectedSpan
+  selectedSpan,
+  collapsedSpans,
+  onToggleCollapse
 }: SpanCardProps) {
   const [isSelected, setIsSelected] = useState(false);
   const [segmentHeight, setSegmentHeight] = useState(0);
@@ -35,11 +40,13 @@ export function SpanCard({
 
   const childrenSpans = childSpans[span.spanId];
 
+  const hasChildren = childrenSpans && childrenSpans.length > 0;
+
   useEffect(() => {
     if (ref.current) {
       setSegmentHeight(ref.current.getBoundingClientRect().y - parentY);
     }
-  }, [parentY]);
+  }, [parentY, collapsedSpans]);
 
   useEffect(() => {
     setIsSelected(selectedSpan?.spanId === span.spanId);
@@ -100,24 +107,43 @@ export function SpanCard({
               }}
             />
           )}
+          {hasChildren && (
+            <button
+              className="z-40 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse?.(span.spanId);
+              }}
+            >
+              {collapsedSpans.has(span.spanId) ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+          )}
         </div>
       </div>
-      <div className="flex flex-col">
-        {childrenSpans &&
-          childrenSpans.map((child, index) => (
-            <div className="pl-6 relative" key={index}>
-              <SpanCard
-                span={child}
-                childSpans={childSpans}
-                parentY={ref.current?.getBoundingClientRect().y || 0}
-                onSpanSelect={onSpanSelect}
-                containerWidth={containerWidth}
-                selectedSpan={selectedSpan}
-                depth={depth + 1}
-              />
-            </div>
-          ))}
-      </div>
+      {!collapsedSpans.has(span.spanId) && (
+        <div className="flex flex-col">
+          {childrenSpans &&
+            childrenSpans.map((child, index) => (
+              <div className="pl-6 relative" key={index}>
+                <SpanCard
+                  span={child}
+                  childSpans={childSpans}
+                  parentY={ref.current?.getBoundingClientRect().y || 0}
+                  onSpanSelect={onSpanSelect}
+                  containerWidth={containerWidth}
+                  selectedSpan={selectedSpan}
+                  collapsedSpans={collapsedSpans}
+                  onToggleCollapse={onToggleCollapse}
+                  depth={depth + 1}
+                />
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }

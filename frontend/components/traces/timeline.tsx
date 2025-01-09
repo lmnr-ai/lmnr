@@ -8,6 +8,7 @@ import { SPAN_TYPE_TO_COLOR } from '@/lib/traces/utils';
 interface TimelineProps {
   spans: Span[];
   childSpans: { [key: string]: Span[] };
+  collapsedSpans: Set<string>;
 }
 
 interface SegmentEvent {
@@ -25,7 +26,7 @@ interface Segment {
 
 const HEIGHT = 32;
 
-export default function Timeline({ spans, childSpans }: TimelineProps) {
+export default function Timeline({ spans, childSpans, collapsedSpans }: TimelineProps) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [timeIntervals, setTimeIntervals] = useState<string[]>([]);
   const ref = useRef<HTMLDivElement>(null);
@@ -38,8 +39,11 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
     if (!span) {
       return;
     }
-
     orderedSpands.push(span);
+
+    if (collapsedSpans.has(span.spanId)) {
+      return;
+    }
 
     if (childSpans[span.spanId]) {
       for (const child of childSpans[span.spanId]) {
@@ -142,7 +146,7 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
     }
 
     setSegments(segments);
-  }, [spans, childSpans]);
+  }, [spans, childSpans, collapsedSpans]);
 
   return (
     <div className="flex flex-col h-full w-full" ref={ref}>
