@@ -10,6 +10,8 @@ pub enum Feature {
     Storage,
     /// Build all containers. If false, only lite part is used: app-server, postgres, frontend
     FullBuild,
+    /// Machine manager to spin up and manage machines
+    MachineManager,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -27,5 +29,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 .expect("ENVIRONMENT must be set")
                 .as_str(),
         ),
+        Feature::MachineManager => env::var("MACHINE_MANAGER_URL_GRPC").is_ok(),
     }
 }
