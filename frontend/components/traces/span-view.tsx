@@ -17,7 +17,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { AddLabelPopover } from './add-label-popover';
 import AddToLabelingQueuePopover from './add-to-labeling-queue-popover';
 import ExportSpansDialog from './export-spans-dialog';
-import SpanEvents from './span-events';
 import { SpanViewSpan } from './span-view-span';
 import StatsShields from './stats-shields';
 
@@ -44,7 +43,7 @@ export function SpanView({ spanId }: SpanViewProps) {
 
   return (
     <>
-      <Tabs className="flex flex-col flex-grow" defaultValue="span">
+      <Tabs className="flex flex-col h-full w-full" defaultValue="span">
         <div className="border-b flex-none">
           <div className="flex flex-col">
             <div className="flex flex-none h-12 items-center px-4 space-x-2">
@@ -105,25 +104,23 @@ export function SpanView({ spanId }: SpanViewProps) {
           <TabsContent value="span" className="h-full w-full mt-0">
             <SpanViewSpan span={span} />
           </TabsContent>
-          <TabsContent value="attributes" className="flex-grow w-full mt-0">
-            <div className="h-full w-full">
-              <div className="p-4">
-                {span ? (
-                  <Formatter
-                    className="max-h-[600px]"
-                    value={JSON.stringify(span.attributes)}
-                    defaultMode="yaml"
-                  />
-                ) : (
-                  <Skeleton className="h-8" />
-                )}
-              </div>
-            </div>
+          <TabsContent value="attributes" className="h-full w-full mt-0">
+            {span ? (
+              <Formatter
+                className="border-none rounded-none"
+                value={JSON.stringify(span.attributes)}
+                defaultMode="yaml"
+              />
+            ) : (
+              <Skeleton className="h-8" />
+            )}
           </TabsContent>
           <TabsContent value="events" className="h-full w-full mt-0">
-            <div className="flex h-full w-full relative">
-              <SpanEvents span={span} />
-            </div>
+            <Formatter
+              className="h-full border-none rounded-none"
+              value={JSON.stringify(span.events)}
+              defaultMode="yaml"
+            />
           </TabsContent>
         </div>
       </Tabs>

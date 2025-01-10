@@ -13,6 +13,7 @@ import { AggregationFunction } from '@/lib/clickhouse/utils';
 import {
   cn,
   formatTimestamp,
+  formatTimestampFromSeconds,
   formatTimestampFromSecondsWithInterval,
   formatTimestampWithInterval,
 } from '@/lib/utils';
@@ -298,7 +299,9 @@ export function DefaultLineChart({
             <ChartTooltipContent
               labelKey={xAxisKey}
               labelFormatter={(_, p) =>
-                formatTimestamp(`${p[0].payload[xAxisKey]}Z`)
+                numericTimestamp
+                  ? formatTimestampFromSeconds(p[0].payload[xAxisKey])
+                  : formatTimestamp(`${p[0].payload[xAxisKey]}Z`)
               }
             />
           }

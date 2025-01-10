@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react';
+
 import { isChatMessageList } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
 
@@ -12,40 +14,63 @@ interface SpanViewSpanProps {
 }
 
 export function SpanViewSpan({ span }: SpanViewSpanProps) {
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [contentWidth, setContentWidth] = useState<number>(0);
+
+  useEffect(() => {
+    if (!scrollAreaRef.current) return;
+
+    const resizeObserver = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) {
+        setContentWidth(entry.contentRect.width);
+      }
+    });
+
+    resizeObserver.observe(scrollAreaRef.current);
+    return () => resizeObserver.disconnect();
+  }, [scrollAreaRef.current]);
+
   return (
-    <div className="flex h-full w-full">
-      <ScrollArea className="flex overflow-auto w-full mt-0">
-        <div className="flex flex-col max-h-0">
-          <div>
-            <div className="p-4 w-full h-full">
-              <SpanLabels span={span} />
-              <SpanDatasets spanId={span.spanId} />
-              <div className="pb-2 font-medium text-lg">Input</div>
-              {isChatMessageList(span.input) ? (
-                <ChatMessageListTab messages={span.input} />
-              ) : (
-                <Formatter
-                  className="max-h-1/3"
-                  collapsible
-                  value={JSON.stringify(span.input)}
-                />
-              )}
-            </div>
-            <div className="p-4 w-full h-full">
-              <div className="pb-2 font-medium text-lg">Output</div>
-              <Formatter
-                className="max-h-[600px]"
-                value={
-                  typeof span.output === 'string'
-                    ? span.output
-                    : JSON.stringify(span.output)
-                }
-                collapsible
+    <ScrollArea ref={scrollAreaRef} className="w-full h-full mt-0" type="scroll">
+      <div className="max-h-0">
+        <div
+          className="flex flex-col gap-4 h-full p-4 w-full"
+          style={{ width: contentWidth }}
+        >
+          <div className="w-full">
+            <SpanLabels span={span} />
+            <SpanDatasets spanId={span.spanId} />
+            <div className="pb-2 font-medium text-lg">Input</div>
+            {isChatMessageList(span.input) ? (
+              <ChatMessageListTab
+                messages={span.input}
+                presetKey={`input-${span.attributes['lmnr.span.path']}`}
               />
-            </div>
+            ) : (
+              <Formatter
+                className="max-h-[400px]"
+                collapsible
+                value={JSON.stringify(span.input)}
+                presetKey={`input-${span.attributes['lmnr.span.path']}`}
+              />
+            )}
+          </div>
+          <div className="">
+            <div className="pb-2 font-medium text-lg">Output</div>
+            <Formatter
+              className="max-h-[400px]"
+              value={
+                typeof span.output === 'string'
+                  ? span.output
+                  : JSON.stringify(span.output)
+              }
+              presetKey={`output-${span.attributes['lmnr.span.path']}`}
+              collapsible
+            />
           </div>
         </div>
-      </ScrollArea>
-    </div>
+      </div>
+    </ScrollArea>
   );
 }

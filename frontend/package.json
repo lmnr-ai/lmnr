@@ -16,6 +16,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.715.0",
     "@clickhouse/client": "^1.10.0",
+    "@codemirror/lang-html": "^6.4.9",
     "@codemirror/lang-json": "^6.0.1",
     "@codemirror/lang-python": "^6.1.6",
     "@codemirror/lang-yaml": "^6.1.2",
@@ -78,7 +79,7 @@
     "next-mdx-remote": "^5.0.0",
     "next-themes": "^0.2.1",
     "postgres": "^3.4.5",
-    "posthog-js": "^1.202.2",
+    "posthog-js": "^1.205.0",
     "posthog-node": "^4.3.2",
     "re-resizable": "^6.10.3",
     "react": "^18.3.1",
