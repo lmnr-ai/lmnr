@@ -10,6 +10,8 @@ pub enum Feature {
     Storage,
     /// Build all containers. If false, only lite part is used: app-server, postgres, frontend
     FullBuild,
+    /// Machine manager to spin up and manage machines
+    MachineManager,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -20,12 +22,13 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::Storage => {
             env::var("AWS_ACCESS_KEY_ID").is_ok()
                 && env::var("AWS_SECRET_ACCESS_KEY").is_ok()
-                && env::var("S3_IMGS_BUCKET").is_ok()
+                && env::var("S3_TRACE_PAYLOADS_BUCKET").is_ok()
         }
         Feature::FullBuild => ["FULL", "PRODUCTION"].contains(
             &env::var("ENVIRONMENT")
                 .expect("ENVIRONMENT must be set")
                 .as_str(),
         ),
+        Feature::MachineManager => env::var("MACHINE_MANAGER_URL_GRPC").is_ok(),
     }
 }

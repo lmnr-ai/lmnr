@@ -9,7 +9,6 @@ pub mod s3;
 #[async_trait]
 pub trait Storage: Sync + Send {
     async fn store(&self, data: Vec<u8>, key: &str) -> Result<String>;
-    async fn retrieve(&self, key: &str) -> Result<Vec<u8>>;
 }
 
 pub fn create_key(project_id: &Uuid, file_extension: &Option<String>) -> String {

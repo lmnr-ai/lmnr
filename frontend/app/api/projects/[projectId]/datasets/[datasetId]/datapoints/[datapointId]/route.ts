@@ -7,6 +7,26 @@ import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints } from '@/lib/db/migrations/schema';
 import { fetcher } from '@/lib/utils';
 
+export async function GET(
+  req: Request,
+  props: { params: Promise<{ projectId: string; datasetId: string; datapointId: string }> }
+) {
+  const params = await props.params;
+
+  const datapoint = await db.query.datasetDatapoints.findFirst({
+    where: and(
+      eq(datasetDatapoints.id, params.datapointId),
+      eq(datasetDatapoints.datasetId, params.datasetId)
+    )
+  });
+
+  if (!datapoint) {
+    return new Response('Datapoint not found', { status: 404 });
+  }
+
+  return new Response(JSON.stringify(datapoint), { status: 200 });
+}
+
 export async function POST(
   req: Request,
   props: { params: Promise<{ projectId: string; datasetId: string; datapointId: string }> }

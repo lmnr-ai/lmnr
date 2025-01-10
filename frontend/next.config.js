@@ -27,9 +27,16 @@ const nextConfig = {
   },
   serverExternalPackages: ["yjs"],
   webpack: (config, { isServer }) => {
+    config.resolve.alias['canvas'] = false;
     if (!isServer) {
       // Ensure that all imports of 'yjs' resolve to the same instance
       config.resolve.alias['yjs'] = path.resolve(__dirname, 'node_modules/yjs');
+    }
+
+    if (isServer) {
+      config.externals.push({
+        'canvas': 'commonjs canvas'
+      })
     }
     return config;
   },

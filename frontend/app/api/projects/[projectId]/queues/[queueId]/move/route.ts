@@ -61,14 +61,14 @@ export async function POST(
       .limit(1);
 
     if (nextItem.length === 0 || stats.length === 0) {
-      return Response.json(null);
+      return Response.json([]);
     }
 
-    return Response.json({
+    return Response.json([{
       ...nextItem[0],
       count: stats[0].count,
       position: stats[0].position
-    });
+    }]);
 
   } else if (direction === 'prev') {
     // return the previous item in the queue before the refDataId
@@ -107,14 +107,14 @@ export async function POST(
       .limit(1);
 
     if (prevItem.length === 0 || stats.length === 0) {
-      return Response.json(null);
+      return Response.json([]);
     }
 
-    return Response.json({
+    return Response.json([{
       ...prevItem[0],
       count: stats[0].count,
       position: stats[0].position
-    });
+    }]);
   }
 
   return Response.json({ error: 'Invalid direction' }, { status: 400 });

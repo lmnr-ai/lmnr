@@ -1,19 +1,23 @@
 import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
 import { isStringType } from '@/lib/utils';
 
+import DownloadButton from '../ui/download-button';
 import Formatter from '../ui/formatter';
+import PdfRenderer from '../ui/pdf-renderer';
 
 interface ContentPartTextProps {
   text: string;
+  presetKey?: string | null;
 }
 
-function ContentPartText({ text }: ContentPartTextProps) {
+function ContentPartText({ text, presetKey }: ContentPartTextProps) {
   return (
     <div className="w-full h-full">
       <Formatter
         collapsible
         value={text}
         className="rounded-none max-h-[50vh] border-none"
+        presetKey={presetKey}
       />
     </div>
   );
@@ -27,8 +31,19 @@ function ContentPartImage({ b64_data }: ContentPartImageProps) {
   return <img src={`data:image/png;base64,${b64_data}`} alt="span image" />;
 }
 
-function ContentPartImageUrl(url: string) {
-  return <img src={url} alt="span image" />;
+function ContentPartImageUrl({ url }: { url: string }) {
+  return <img src={`${url}?payloadType=image`} alt="span image" />;
+}
+
+function ContentPartDocumentUrl({ url }: { url: string }) {
+  return url.endsWith('.pdf')
+    ? <PdfRenderer url={url} className="w-full h-[50vh]" />
+    : <DownloadButton
+      uri={url}
+      filenameFallback={url}
+      supportedFormats={[]}
+      variant="outline"
+    />;
 }
 
 interface ContentPartsProps {
@@ -44,8 +59,12 @@ function ContentParts({ contentParts }: ContentPartsProps) {
             <ContentPartText text={contentPart.text} />
           ) : contentPart.type === 'image' ? (
             <ContentPartImage b64_data={contentPart.data} />
+          ) : contentPart.type === 'image_url' ? (
+            <ContentPartImageUrl url={contentPart.url} />
+          ) : contentPart.type === 'document_url' ? (
+            <ContentPartDocumentUrl url={contentPart.url} />
           ) : (
-            ContentPartImageUrl(contentPart.url)
+            <div>Unknown content part</div>
           )}
         </div>
       ))}
@@ -55,10 +74,12 @@ function ContentParts({ contentParts }: ContentPartsProps) {
 
 interface ChatMessageListTabProps {
   messages: ChatMessage[];
+  presetKey?: string | null;
 }
 
 export default function ChatMessageListTab({
-  messages
+  messages,
+  presetKey
 }: ChatMessageListTabProps) {
   return (
     <div className="w-full h-full flex flex-col space-y-4">
@@ -69,7 +90,10 @@ export default function ChatMessageListTab({
           </div>
           <div>
             {isStringType(message.content) ? (
-              <ContentPartText text={message.content} />
+              <ContentPartText
+                text={message.content}
+                presetKey={`${presetKey}-${index}`}
+              />
             ) : (
               <ContentParts contentParts={message.content} />
             )}

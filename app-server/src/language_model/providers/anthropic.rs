@@ -140,6 +140,19 @@ fn to_value(message: &ChatMessage) -> Result<Value> {
                             "data": image.data,
                         }
                     })),
+                    ChatMessageContentPart::Document(document) => json_parts.push(json!({
+                        "type": "document",
+                        "document": {
+                            "source": {
+                                "type": document.source.document_type,
+                                "media_type": document.source.media_type,
+                                "data": document.source.data,
+                            }
+                        }
+                    })),
+                    ChatMessageContentPart::DocumentUrl(_) => {
+                        return Err(anyhow::anyhow!("Document URL is Laminar's internal format"))
+                    }
                 }
             }
 

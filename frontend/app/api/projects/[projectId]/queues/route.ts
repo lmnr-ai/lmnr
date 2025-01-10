@@ -9,8 +9,6 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   const params = await props.params;
   const projectId = params.projectId;
 
-
-
   const body = await req.json();
   const { name } = body;
 

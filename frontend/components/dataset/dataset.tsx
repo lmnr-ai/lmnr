@@ -267,7 +267,7 @@ export default function Dataset({ dataset }: DatasetProps) {
             <div className="w-full h-full flex">
               <DatasetPanel
                 datasetId={dataset.id}
-                datapoint={selectedDatapoint}
+                datapointId={selectedDatapoint.id}
                 onClose={() => {
                   handleDatapointSelect(null);
                   mutate();

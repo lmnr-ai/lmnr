@@ -151,6 +151,9 @@ pub fn num_tokens_from_messages(model: &str, messages: &Vec<ChatMessage>) -> Res
                                 bpe.encode_with_special_tokens(&image_url.url).len() as u32;
                             num_tokens += 1; // end tag
                         }
+                        // Document is Anthropic specific as of this change
+                        ChatMessageContentPart::Document(_)
+                        | ChatMessageContentPart::DocumentUrl(_) => {}
                     }
                 }
             }
@@ -165,38 +168,42 @@ pub fn num_tokens_from_messages(model: &str, messages: &Vec<ChatMessage>) -> Res
 /// This functions is mainly needed to convert the images to correct format
 ///
 /// TODO: This must convert to special OpenAI structs and later serialized by Serde
-fn to_value(message: &ChatMessage) -> Value {
+fn to_value(message: &ChatMessage) -> Result<Value> {
     match &message.content {
-        ChatMessageContent::Text(text) => json!({
+        ChatMessageContent::Text(text) => Ok(json!({
             "role": message.role,
             "content": text,
-        }),
+        })),
         ChatMessageContent::ContentPartList(parts) => {
             let parts: Vec<Value> = parts
                 .into_iter()
                 .map(|part| match part {
-                    ChatMessageContentPart::Text(text) => json!({
+                    ChatMessageContentPart::Text(text) => Ok(json!({
                         "type": "text",
                         "text": text.text,
-                    }),
-                    ChatMessageContentPart::ImageUrl(image_url) => json!({
+                    })),
+                    ChatMessageContentPart::ImageUrl(image_url) => Ok(json!({
                         "type": "image_url",
                         "image_url": {
                             "url": image_url.url,
                         }
-                    }),
-                    ChatMessageContentPart::Image(image) => json!({
+                    })),
+                    ChatMessageContentPart::Image(image) => Ok(json!({
                         "type": "image_url",
                         "image_url": {
                             "url": format!("data:{};base64,{}", image.media_type, image.data),
                         }
-                    }),
+                    })),
+                    ChatMessageContentPart::Document(_)
+                    | ChatMessageContentPart::DocumentUrl(_) => {
+                        Err(anyhow::anyhow!("Document URL is Laminar's internal format"))
+                    }
                 })
-                .collect();
-            json!({
+                .collect::<Result<Vec<Value>>>()?;
+            Ok(json!({
                 "role": message.role,
                 "content": parts,
-            })
+            }))
         }
     }
 }
@@ -234,7 +241,10 @@ impl ExecuteChatCompletion for OpenAI {
         };
         let tx = if is_o1 { None } else { tx };
 
-        let json_messages: Vec<Value> = messages.iter().map(|message| to_value(message)).collect();
+        let json_messages: Vec<Value> = messages
+            .iter()
+            .map(|message| to_value(message))
+            .collect::<Result<Vec<Value>>>()?;
 
         let mut body = json!({
             "model": model,

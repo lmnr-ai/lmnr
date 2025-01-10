@@ -59,7 +59,7 @@ impl SpanAttributes {
     pub fn session_id(&self) -> Option<String> {
         match self
             .attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}session_id").as_str())
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id").as_str())
         {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -69,7 +69,7 @@ impl SpanAttributes {
     pub fn user_id(&self) -> Option<String> {
         match self
             .attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}user_id").as_str())
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.user_id").as_str())
         {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -78,7 +78,7 @@ impl SpanAttributes {
 
     pub fn trace_type(&self) -> Option<TraceType> {
         self.attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}trace_type").as_str())
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type").as_str())
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
@@ -131,7 +131,7 @@ impl SpanAttributes {
             if provider == "Langchain" {
                 let ls_provider = self
                     .attributes
-                    .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}ls_provider").as_str())
+                    .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.ls_provider").as_str())
                     .and_then(|s| serde_json::from_value(s.clone()).ok());
                 if let Some(ls_provider) = ls_provider {
                     ls_provider
@@ -375,6 +375,16 @@ impl Span {
                 );
             }
         }
+
+        // Vercel AI SDK wraps "raw" LLM spans in an additional `ai.generateText` span.
+        // Which is not really an LLM span, but it has the prompt in its attributes.
+        // Set the input to the prompt.
+        if let Some(serde_json::Value::String(s)) = attributes.get("ai.prompt") {
+            span.input = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
+        }
+
         // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
         // attributes over gen_ai/vercel/LiteLLM attributes.
         // Therefore this block is outside and after the LLM span type check.
@@ -453,7 +463,7 @@ impl Span {
         };
         let mut attributes = HashMap::new();
         attributes.insert(
-            format!("{ASSOCIATION_PROPERTIES_PREFIX}trace_type",),
+            format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type",),
             json!(trace_type),
         );
         attributes.insert(SPAN_PATH.to_string(), json!(path));
@@ -535,7 +545,7 @@ impl Span {
             .collect()
     }
 
-    pub async fn store_input_images<S: Storage + ?Sized>(
+    pub async fn store_input_media<S: Storage + ?Sized>(
         &mut self,
         project_id: &Uuid,
         storage: Arc<S>,
@@ -548,7 +558,7 @@ impl Span {
                     if let ChatMessageContent::ContentPartList(parts) = message.content {
                         let mut new_parts = Vec::new();
                         for part in parts {
-                            new_parts.push(part.store_image(project_id, storage.clone()).await?);
+                            new_parts.push(part.store_media(project_id, storage.clone()).await?);
                         }
                         message.content = ChatMessageContent::ContentPartList(new_parts);
                     }
@@ -654,11 +664,11 @@ fn input_chat_messages_from_prompt_content(
 
     let mut i = 0;
     while attributes
-        .get(format!("{}.{}.content", prefix, i).as_str())
+        .get(format!("{prefix}.{i}.content").as_str())
         .is_some()
     {
         let content = if let Some(serde_json::Value::String(s)) =
-            attributes.get(format!("{}.{}.content", prefix, i).as_str())
+            attributes.get(format!("{prefix}.{i}.content").as_str())
         {
             s.clone()
         } else {
@@ -666,7 +676,7 @@ fn input_chat_messages_from_prompt_content(
         };
 
         let role = if let Some(serde_json::Value::String(s)) =
-            attributes.get(format!("{}.{}.role", prefix, i).as_str())
+            attributes.get(format!("{prefix}.{i}.role").as_str())
         {
             s.clone()
         } else {
