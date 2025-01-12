@@ -4,7 +4,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db/drizzle";
 import { renderTemplates } from "@/lib/db/migrations/schema";
 
-export async function GET(request: Request, { params }: { params: { projectId: string, templateId: string } }) {
+export async function GET(
+  request: Request,
+  props: {
+    params: Promise<{ projectId: string, templateId: string }>
+  }) {
+  const params = await props.params;
   const { projectId, templateId } = params;
   const template = await db.query.renderTemplates.findFirst({
     where: and(
@@ -20,7 +25,11 @@ export async function GET(request: Request, { params }: { params: { projectId: s
   return NextResponse.json(template);
 }
 
-export async function POST(request: Request, { params }: { params: { projectId: string, templateId: string } }) {
+export async function POST(
+  request: Request,
+  props: { params: Promise<{ projectId: string, templateId: string }> }
+) {
+  const params = await props.params;
   const { projectId, templateId } = params;
   const body = await request.json();
 
@@ -38,7 +47,11 @@ export async function POST(request: Request, { params }: { params: { projectId: 
   return NextResponse.json(template[0]);
 }
 
-export async function DELETE(request: Request, { params }: { params: { projectId: string, templateId: string } }) {
+export async function DELETE(
+  request: Request,
+  props: { params: Promise<{ projectId: string, templateId: string }> }
+) {
+  const params = await props.params;
   const { projectId, templateId } = params;
   const template = await db.delete(renderTemplates)
     .where(and(

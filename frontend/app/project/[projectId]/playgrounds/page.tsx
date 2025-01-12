@@ -6,12 +6,6 @@ export const metadata: Metadata = {
   title: 'Playgrounds'
 };
 
-export default async function PlaygroundsPage({
-  params,
-  searchParams
-}: {
-  params: { projectId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-}) {
+export default async function PlaygroundsPage() {
   return <Playgrounds />;
 }

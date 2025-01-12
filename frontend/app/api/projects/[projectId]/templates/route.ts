@@ -5,16 +5,15 @@ import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: Request,
-  props: { params: Promise<{ projectId: string; traceId: string }> }
+  props: { params: Promise<{ projectId: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
-  const traceId = params.traceId;
 
   const session = await getServerSession(authOptions);
   const user = session!.user;
 
-  return fetcher(`/projects/${projectId}/traces/${traceId}`, {
+  return fetcher(`/projects/${projectId}/templates`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${user.apiKey}`

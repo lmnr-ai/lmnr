@@ -6,11 +6,12 @@ import { authOptions } from '@/lib/auth';
 import { UserSubscriptionInfo } from '@/lib/checkout/types';
 import { fetcherJSON } from '@/lib/utils';
 
-export default async function CheckoutPortalPage({
-  searchParams
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
+export default async function CheckoutPortalPage(
+  props: {
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const userSession = await getServerSession(authOptions);
   if (!userSession) {
     redirect('/sign-in?callbackUrl=/checkout/portal');

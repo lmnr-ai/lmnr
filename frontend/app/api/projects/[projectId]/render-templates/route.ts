@@ -6,8 +6,9 @@ import { renderTemplates } from '@/lib/db/migrations/schema';
 
 export async function GET(
   req: Request,
-  { params }: { params: { projectId: string } }
+  props: { params: Promise<{ projectId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const templates = await db.query.renderTemplates.findMany({
@@ -22,7 +23,11 @@ export async function GET(
 }
 
 
-export async function POST(req: Request, { params }: { params: { projectId: string } }) {
+export async function POST(
+  req: Request,
+  props: { params: Promise<{ projectId: string }> }
+) {
+  const params = await props.params;
   const projectId = params.projectId;
   const body = await req.json();
 

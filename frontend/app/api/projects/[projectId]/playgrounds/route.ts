@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { playgrounds } from '@/lib/db/migrations/schema';
 
-export async function GET(req: Request, { params }: { params: { projectId: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const result = await db.query.playgrounds.findMany({
@@ -13,7 +14,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
   return new Response(JSON.stringify(result));
 }
 
-export async function POST(req: Request, { params }: { params: { projectId: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
   const projectId = params.projectId;
   const body = await req.json();
 

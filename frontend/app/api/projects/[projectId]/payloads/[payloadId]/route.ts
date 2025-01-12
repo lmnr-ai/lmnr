@@ -13,8 +13,9 @@ const bucket = process.env.S3_TRACE_PAYLOADS_BUCKET ?? '';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string; payloadId: string } },
+  props: { params: Promise<{ projectId: string; payloadId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const { projectId, payloadId } = params;
   const payloadType = req.nextUrl.searchParams.get('payloadType');
   const getObjectRequest = new GetObjectCommand({

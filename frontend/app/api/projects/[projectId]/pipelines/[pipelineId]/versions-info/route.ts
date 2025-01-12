@@ -5,8 +5,9 @@ import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: Request,
-  { params }: { params: { projectId: string; pipelineId: string } }
+  props: { params: Promise<{ projectId: string; pipelineId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const pipelineId = params.pipelineId;
 

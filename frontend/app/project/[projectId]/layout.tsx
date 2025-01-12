@@ -15,13 +15,18 @@ import { Feature, isFeatureEnabled } from '@/lib/features/features';
 import { fetcherJSON } from '@/lib/utils';
 import { GetProjectResponse } from '@/lib/workspaces/types';
 
-export default async function ProjectIdLayout({
-  params,
-  children
-}: {
-  children: React.ReactNode;
-  params: { projectId: string };
-}) {
+export default async function ProjectIdLayout(
+  props: {
+    children: React.ReactNode;
+    params: Promise<{ projectId: string }>;
+  }
+) {
+  const params = await props.params;
+
+  const {
+    children
+  } = props;
+
   const projectId = params.projectId;
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -50,7 +55,7 @@ export default async function ProjectIdLayout({
   });
 
   // getting the cookies for the sidebar state
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar:state") ? cookieStore.get("sidebar:state")?.value === "true" : true;
 
   return (

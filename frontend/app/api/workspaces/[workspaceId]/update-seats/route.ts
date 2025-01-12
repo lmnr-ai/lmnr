@@ -8,10 +8,8 @@ import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
 
 const SEAT_PRICE_LOOKUP_KEY = 'additional_seat_2024_11';
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { workspaceId: string } }
-): Promise<Response> {
+export async function POST(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
+  const params = await props.params;
   if (!(await isCurrentUserMemberOfWorkspace(params.workspaceId))) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }

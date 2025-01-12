@@ -8,8 +8,9 @@ import { fetcher } from '@/lib/utils';
 
 export async function POST(
   req: Request,
-  { params }: { params: { projectId: string } }
+  props: { params: Promise<{ projectId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const { projectId } = params;
   const { name } = await req.json();
 
@@ -40,8 +41,9 @@ export async function POST(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { projectId: string } }
+  props: { params: Promise<{ projectId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const session = await getServerSession(authOptions);

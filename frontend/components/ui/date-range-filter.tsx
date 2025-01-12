@@ -55,7 +55,7 @@ function AbsoluteDateRangeFilter() {
       if (param != undefined) {
         urlFrom = new Date(searchParams.get('startDate') as string);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     let urlTo: Date | undefined = undefined;
     try {
@@ -63,7 +63,7 @@ function AbsoluteDateRangeFilter() {
       if (param != undefined) {
         urlTo = new Date(searchParams.get('endDate') as string);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     if (
       calendarDate === undefined ||
@@ -110,12 +110,13 @@ function AbsoluteDateRangeFilter() {
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
-            initialFocus
+            autoFocus
             mode="range"
             defaultMonth={calendarDate?.from}
             selected={calendarDate}
             onSelect={setCalendarDate}
             numberOfMonths={2}
+            pagedNavigation
           />
           <div className="flex p-2 space-x-1">
             <div className="flex p-1 flex-grow">
@@ -127,7 +128,7 @@ function AbsoluteDateRangeFilter() {
               <Input
                 type="time"
                 disabled={calendarDate?.from === undefined}
-                className="flex-shrink max-w-24"
+                className="flex-shrink max-w-28"
                 value={`${calendarDate?.from?.getHours().toString().padStart(2, '0') ?? '00'}:${calendarDate?.from?.getMinutes().toString().padStart(2, '0') ?? '00'}`}
                 onChange={(e) => {
                   const from = calendarDate?.from;
@@ -153,7 +154,7 @@ function AbsoluteDateRangeFilter() {
               <Input
                 type="time"
                 disabled={calendarDate?.to === undefined}
-                className="flex-shrink max-w-24"
+                className="flex-shrink max-w-28"
                 value={`${calendarDate?.to?.getHours().toString().padStart(2, '0') ?? '00'}:${calendarDate?.to?.getMinutes().toString().padStart(2, '0') ?? '00'}`}
                 onChange={(e) => {
                   const to = calendarDate?.to;
@@ -179,7 +180,7 @@ function AbsoluteDateRangeFilter() {
               }
               onClick={() => {
                 searchParams.delete('pastHours');
-                searchParams.set('pageNumber','0');
+                searchParams.set('pageNumber', '0');
                 searchParams.set(
                   'startDate',
                   calendarDate?.from?.toISOString() ?? ''
