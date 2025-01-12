@@ -6,10 +6,8 @@ import { evaluations } from '@/lib/db/migrations/schema';
 import { paginatedGet } from '@/lib/db/utils';
 import { Evaluation } from '@/lib/evaluation/types';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const groupId = req.nextUrl.searchParams.get('groupId');
   const filters: SQL[] = [eq(evaluations.projectId, projectId)];
@@ -26,10 +24,8 @@ export async function GET(
   return Response.json(result);
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function DELETE(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const { searchParams } = new URL(req.url);

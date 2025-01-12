@@ -5,8 +5,9 @@ import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: Request,
-  { params }: { params: { projectId: string; spanId: string } }
+  props: { params: Promise<{ projectId: string; spanId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const spanId = params.spanId;
 
@@ -24,8 +25,9 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  { params }: { params: { projectId: string; spanId: string } }
+  props: { params: Promise<{ projectId: string; spanId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const spanId = params.spanId;
   const session = await getServerSession(authOptions);

@@ -13,11 +13,12 @@ export const metadata: Metadata = {
   title: 'Dataset'
 };
 
-export default async function DatasetPage({
-  params
-}: {
-  params: { projectId: string; datasetId: string };
-}) {
+export default async function DatasetPage(
+  props: {
+    params: Promise<{ projectId: string; datasetId: string }>;
+  }
+) {
+  const params = await props.params;
   const projectId = params.projectId;
   const datasetId = params.datasetId;
   const session = await getServerSession(authOptions);

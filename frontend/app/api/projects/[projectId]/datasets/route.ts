@@ -5,10 +5,8 @@ import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints,datasets } from '@/lib/db/migrations/schema';
 import { paginatedGet } from '@/lib/db/utils';
 
-export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const body = await req.json();
   const { name } = body;
@@ -31,10 +29,8 @@ export async function POST(
   return new Response(JSON.stringify(dataset), { status: 200 });
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const pageNumber =
@@ -65,8 +61,9 @@ export async function GET(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { projectId: string; datasetId: string } }
+  props: { params: Promise<{ projectId: string; datasetId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const { searchParams } = new URL(req.url);

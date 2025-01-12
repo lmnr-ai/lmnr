@@ -10,8 +10,9 @@ import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string; datasetId: string } }
+  props: { params: Promise<{ projectId: string; datasetId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const datasetId = params.datasetId;
   const session = await getServerSession(authOptions);
@@ -39,8 +40,9 @@ const CreateDatapointsSchema = z.object({
 
 export async function POST(
   req: Request,
-  { params }: { params: { projectId: string; datasetId: string } }
+  props: { params: Promise<{ projectId: string; datasetId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const datasetId = params.datasetId;
 
@@ -116,8 +118,9 @@ export async function POST(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { projectId: string; datasetId: string } }
+  props: { params: Promise<{ projectId: string; datasetId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const datasetId = params.datasetId;
 

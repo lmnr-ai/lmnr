@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { ImperativePanelHandle } from 'react-resizable-panels';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PipelineVersion } from '@/lib/pipeline/types';
@@ -10,7 +9,6 @@ import PipelineOutputs from './pipeline-outputs';
 
 interface PipelineBottomPanelProps {
   pipelineVersion: PipelineVersion;
-  flowPanelRef: React.RefObject<ImperativePanelHandle>;
   onTraceHover?: (nodeId?: string) => void;
 }
 
@@ -27,17 +25,6 @@ export default function PipelineBottomPanel({
       onValueChange={(value) => setSelectedTab(value as 'runs' | 'history')}
     >
       <div className="flex flex-none border-b z-50 bg-background pl-4">
-        {/* <button
-          className="mx-2"
-          onClick={() => {
-            isOtherCollapsed
-              ? flowPanelRef.current?.expand()
-              : flowPanelRef.current?.collapse();
-            setOtherCollapsed(!isOtherCollapsed);
-          }}
-        >
-          {isOtherCollapsed ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-        </button> */}
         <TabsList className="border-none h-12">
           <TabsTrigger value="runs">Run outputs</TabsTrigger>
           {/* <TabsTrigger value="history">History</TabsTrigger> */}

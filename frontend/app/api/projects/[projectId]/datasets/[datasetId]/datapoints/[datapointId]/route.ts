@@ -9,10 +9,10 @@ import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: Request,
-  {
-    params
-  }: { params: { projectId: string; datasetId: string; datapointId: string } }
+  props: { params: Promise<{ projectId: string; datasetId: string; datapointId: string }> }
 ) {
+  const params = await props.params;
+
   const datapoint = await db.query.datasetDatapoints.findFirst({
     where: and(
       eq(datasetDatapoints.id, params.datapointId),
@@ -29,10 +29,9 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  {
-    params
-  }: { params: { projectId: string; datasetId: string; datapointId: string } }
+  props: { params: Promise<{ projectId: string; datasetId: string; datapointId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
 
   const datasetId = params.datasetId;
   const datapointId = params.datapointId;
