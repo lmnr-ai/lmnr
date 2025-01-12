@@ -1,20 +1,10 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { Loader2, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
+import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { DatasetInfo } from '@/lib/dataset/types';
 import { useToast } from '@/lib/hooks/use-toast';
@@ -63,12 +53,9 @@ export default function Datasets() {
 
   const pageCount = Math.ceil(totalCount / pageSize);
 
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   const handleDeleteDatasets = async (datasetIds: string[]) => {
-    setIsDeleting(true);
     try {
       const res = await fetch(
         `/api/projects/${projectId}/datasets?datasetIds=${datasetIds.join(',')}`,
@@ -93,8 +80,6 @@ export default function Datasets() {
         variant: 'destructive',
       });
     }
-    setIsDeleting(false);
-    setIsDeleteDialogOpen(false);
   };
 
   const columns: ColumnDef<DatasetInfo>[] = [
@@ -153,30 +138,11 @@ export default function Datasets() {
           totalItemsCount={totalCount}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
-              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost">
-                    <Trash2 size={12} />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Delete Datasets</DialogTitle>
-                    <DialogDescription>
-                      Are you sure you want to delete {selectedRowIds.length} dataset(s)? This action cannot be undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
-                      Cancel
-                    </Button>
-                    <Button onClick={() => handleDeleteDatasets(selectedRowIds)} disabled={isDeleting}>
-                      {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Delete
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <DeleteSelectedRows
+                selectedRowIds={selectedRowIds}
+                onDelete={handleDeleteDatasets}
+                entityName="Datasets"
+              />
             </div>
           )}
           emptyRow={

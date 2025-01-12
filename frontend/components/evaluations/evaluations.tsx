@@ -1,12 +1,12 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { Loader2, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePostHog } from 'posthog-js/react';
 import { useState } from 'react';
 import useSWR from 'swr';
 
+import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { useUserContext } from '@/contexts/user-context';
 import { AggregationFunction } from '@/lib/clickhouse/utils';
@@ -17,17 +17,7 @@ import { PaginatedResponse } from '@/lib/types';
 import { swrFetcher } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { Button } from '../ui/button';
 import { DataTable } from '../ui/datatable';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '../ui/dialog';
 import Header from '../ui/header';
 import Mono from '../ui/mono';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
@@ -82,12 +72,9 @@ export default function Evaluations() {
     }
   ];
 
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   const handleDeleteEvaluations = async (selectedRowIds: string[]) => {
-    setIsDeleting(true);
     try {
       const response = await fetch(
         `/api/projects/${projectId}/evaluations?evaluationIds=${selectedRowIds.join(',')}`,
@@ -116,8 +103,6 @@ export default function Evaluations() {
         variant: 'destructive',
       });
     }
-    setIsDeleting(false);
-    setIsDeleteDialogOpen(false);
   };
 
   return (
@@ -166,31 +151,11 @@ export default function Evaluations() {
                 manualPagination
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
-                    <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost">
-                          <Trash2 size={12} />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Delete Evaluations</DialogTitle>
-                          <DialogDescription>
-                            Are you sure you want to delete {selectedRowIds.length} evaluation(s)?
-                            This action cannot be undone.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
-                            Cancel
-                          </Button>
-                          <Button onClick={() => handleDeleteEvaluations(selectedRowIds)} disabled={isDeleting}>
-                            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Delete
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                    <DeleteSelectedRows
+                      selectedRowIds={selectedRowIds}
+                      onDelete={handleDeleteEvaluations}
+                      entityName="Evaluations"
+                    />
                   </div>
                 )}
               />

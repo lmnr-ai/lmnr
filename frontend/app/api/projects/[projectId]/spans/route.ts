@@ -128,3 +128,31 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   return new Response(JSON.stringify(spanData), { status: 200 });
 }
+
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { projectId: string, spanId: string } }
+): Promise<Response> {
+  const projectId = params.projectId;
+
+  const { searchParams } = new URL(req.url);
+  const spanId = searchParams.get('spanId')?.split(',');
+
+  if (!spanId) {
+    return new Response('At least one Span ID is required', { status: 400 });
+  }
+
+  try {
+    await db.delete(spans)
+      .where(
+        and(
+          inArray(spans.spanId, spanId),
+          eq(spans.projectId, projectId)
+        )
+      );
+    return new Response('Spans deleted successfully', { status: 200 });
+  } catch (error) {
+    return new Response('Error deleting spans', { status: 500 });
+  }
+}

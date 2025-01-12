@@ -7,7 +7,6 @@ import { useEffect, useState } from 'react';
 
 import { useUserContext } from '@/contexts/user-context';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
-import { useToast } from '@/lib/hooks/use-toast';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import SessionsTable from './sessions-table';
@@ -25,7 +24,6 @@ export default function Traces() {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
-  const { toast } = useToast();
   const { email } = useUserContext();
   const posthog = usePostHog();
   const selectedView = searchParams.get('view') ?? SelectedTab.TRACES;
@@ -51,24 +49,6 @@ export default function Traces() {
   const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(
     traceId != null
   );
-  const handleDeleteTrace = async (traceId: string, projectId: string) => {
-    try {
-      await fetch(`/api/projects/${projectId}/traces/${traceId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      setIsSidePanelOpen(false);
-      setTraceId(null);
-      window.location.reload();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Something went wrong. Please try again later.',
-      });
-    }
-  };
 
   useEffect(() => {
     setIsSidePanelOpen(traceId != null);
@@ -135,7 +115,6 @@ export default function Traces() {
                   setTraceId(null);
                 }}
                 traceId={traceId!}
-                onDelete={handleDeleteTrace}
               />
             </div>
           </Resizable>

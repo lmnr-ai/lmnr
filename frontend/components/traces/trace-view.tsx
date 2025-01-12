@@ -19,10 +19,9 @@ import Timeline from './timeline';
 interface TraceViewProps {
   traceId: string;
   onClose: () => void;
-  onDelete: (traceId: string, projectId: string) => void;
 }
 
-export default function TraceView({ traceId, onClose, onDelete}: TraceViewProps) {
+export default function TraceView({ traceId, onClose}: TraceViewProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const router = useRouter();
   const pathName = usePathname();
@@ -155,13 +154,6 @@ export default function TraceView({ traceId, onClose, onDelete}: TraceViewProps)
           <ChevronsRight />
         </Button>
         <div>Trace</div>
-        <Button
-          onClick={() => {
-            onDelete(traceId, projectId);
-          }}
-        >
-        Delete Trace
-        </Button>
         <MonoWithCopy className="text-secondary-foreground">{traceId}</MonoWithCopy>
         <div className="flex-grow" />
         <div>

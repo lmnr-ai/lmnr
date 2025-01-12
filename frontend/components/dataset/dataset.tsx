@@ -1,14 +1,13 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { Loader2, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Resizable } from 're-resizable';
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 
-import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/datatable';
+import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { Datapoint, Dataset as DatasetType } from '@/lib/dataset/types';
 import { useToast } from '@/lib/hooks/use-toast';
@@ -16,15 +15,6 @@ import { PaginatedResponse } from '@/lib/types';
 import { swrFetcher } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '../ui/dialog';
 import DownloadButton from '../ui/download-button';
 import Header from '../ui/header';
 import MonoWithCopy from '../ui/mono-with-copy';
@@ -44,8 +34,6 @@ export default function Dataset({ dataset }: DatasetProps) {
   const { projectId } = useProjectContext();
   const { toast } = useToast();
   const [datapoints, setDatapoints] = useState<Datapoint[] | undefined>(undefined);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Get datapointId from URL params
   const datapointId = searchParams.get('datapointId');
@@ -115,7 +103,6 @@ export default function Dataset({ dataset }: DatasetProps) {
   ];
 
   const handleDeleteDatapoints = async (datapointIds: string[]) => {
-    setIsDeleting(true);
     const response = await fetch(
       `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` +
       `?datapointIds=${datapointIds.join(',')}` +
@@ -143,9 +130,6 @@ export default function Dataset({ dataset }: DatasetProps) {
     if (selectedDatapoint && datapointIds.includes(selectedDatapoint.id)) {
       handleDatapointSelect(null);
     }
-
-    setIsDeleting(false);
-    setIsDeleteDialogOpen(false);
   };
 
   // Update URL when datapoint is selected
@@ -218,31 +202,11 @@ export default function Dataset({ dataset }: DatasetProps) {
           enableRowSelection
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
-              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost">
-                    <Trash2 size={12} />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Delete Datapoints</DialogTitle>
-                    <DialogDescription>
-                      Are you sure you want to delete
-                      {selectedRowIds.length} datapoint(s)? This action cannot be undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
-                      Cancel
-                    </Button>
-                    <Button onClick={() => handleDeleteDatapoints(selectedRowIds)} disabled={isDeleting}>
-                      {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Delete
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <DeleteSelectedRows
+                selectedRowIds={selectedRowIds}
+                onDelete={handleDeleteDatapoints}
+                entityName="Datapoints"
+              />
             </div>
           )}
         />
