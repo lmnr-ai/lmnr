@@ -25,6 +25,8 @@ struct SemanticSearchRequest {
     limit: Option<u32>,
     #[serde(default)]
     threshold: f32,
+    #[serde(default)]
+    metadata_filters: Vec<HashMap<String, String>>,
 }
 
 #[derive(Serialize)]
@@ -69,10 +71,26 @@ pub async fn semantic_search(
         return Ok(HttpResponse::NotFound().body("Dataset not found"));
     };
 
-    let payloads = vec![HashMap::from([(
-        "datasource_id".to_string(),
-        dataset_id.to_string(),
-    )])];
+    let payloads = params
+        .metadata_filters
+        .iter()
+        .map(|filter| {
+            let mut payload = filter
+                .iter()
+                .map(|(k, v)| (format!("data.{}", k), v.clone()))
+                .collect::<HashMap<String, String>>();
+            payload.insert("datasource_id".to_string(), dataset_id.to_string());
+            payload
+        })
+        .collect::<Vec<_>>();
+    let payloads = if payloads.is_empty() {
+        vec![HashMap::from([(
+            "datasource_id".to_string(),
+            dataset_id.to_string(),
+        )])]
+    } else {
+        payloads
+    };
 
     let query_res = semantic_search
         .query(
