@@ -1,12 +1,10 @@
 export const uploadFile = async (
   file: File,
   url: string,
-  isUnstructuredFile: boolean
 ) =>
   await new Promise<any>((resolve, reject) => {
     const data = new FormData();
     data.set('file', file);
-    data.set('isUnstructuredFile', isUnstructuredFile.toString());
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);

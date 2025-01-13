@@ -4,7 +4,7 @@ import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
 import { useToast } from '@/lib/hooks/use-toast';
-import { swrFetcher } from '@/lib/utils';
+import { isValidJsonObject, swrFetcher } from '@/lib/utils';
 
 import { Button } from '../ui/button';
 import Formatter from '../ui/formatter';
@@ -38,8 +38,8 @@ export default function DatasetPanel({
   const [newTarget, setNewTarget] = useState<Record<string, any> | null>(
     datapoint?.target
   );
-  const [newMetadata, setNewMetadata] = useState<Record<string, any> | null>(
-    datapoint?.metadata
+  const [newMetadata, setNewMetadata] = useState<Record<string, any>>(
+    datapoint?.metadata || {}
   );
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
@@ -180,7 +180,7 @@ export default function DatasetPanel({
                   }}
                 />
                 {!isValidJsonTarget && (
-                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                  <p className="text-sm text-red-500">Invalid JSON format</p>
                 )}
               </div>
               <div className="flex flex-col space-y-2">
@@ -190,8 +190,17 @@ export default function DatasetPanel({
                   value={JSON.stringify(newMetadata, null, 2)}
                   defaultMode="json"
                   editable
-                  onChange={(s) => {
+                  onChange={(s: string) => {
                     try {
+                      if (s === '') {
+                        setNewMetadata({});
+                        setIsValidJsonMetadata(true);
+                        return;
+                      }
+                      if (!isValidJsonObject(JSON.parse(s))) {
+                        setIsValidJsonMetadata(false);
+                        return;
+                      }
                       setNewMetadata(JSON.parse(s));
                       setIsValidJsonMetadata(true);
                     } catch (e) {
@@ -200,7 +209,7 @@ export default function DatasetPanel({
                   }}
                 />
                 {!isValidJsonMetadata && (
-                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                  <p className="text-sm text-red-500">Invalid JSON object. Metadata must be a JSON map.</p>
                 )}
               </div>
             </div>

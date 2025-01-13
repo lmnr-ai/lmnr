@@ -79,7 +79,7 @@ pub mod query_response {
         #[prost(float, tag = "1")]
         pub score: f32,
         #[prost(string, tag = "2")]
-        pub content: ::prost::alloc::string::String,
+        pub datapoint_id: ::prost::alloc::string::String,
         #[prost(string, tag = "3")]
         pub datasource_id: ::prost::alloc::string::String,
         #[prost(map = "string, string", tag = "4")]

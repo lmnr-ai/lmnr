@@ -8,26 +8,26 @@ use anyhow::Result;
 use csv;
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::{
-    db::{self, DB},
+    db::{self, datapoints::DBDatapoint, DB},
     pipeline::nodes::NodeInput,
     semantic_search::{
         semantic_search_grpc::index_request::Datapoint as VectorDBDatapoint,
         utils::merge_chat_messages,
     },
+    traces::utils::json_value_to_string,
 };
 
-#[derive(Serialize, FromRow, Clone, Debug)]
+#[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Datapoint {
     pub id: Uuid,
     pub dataset_id: Uuid,
     pub data: Value,
     pub target: Option<Value>,
-    pub metadata: Option<Value>,
+    pub metadata: HashMap<String, Value>,
 }
 
 impl Datapoint {
@@ -47,12 +47,16 @@ impl Datapoint {
                         .keys()
                         .all(|k| matches!(k.as_str(), "data" | "target" | "metadata" | "id"))
                 {
+                    let metadata = serde_json::from_value::<HashMap<String, Value>>(
+                        raw_obj.get("metadata").unwrap_or(&Value::Null).to_owned(),
+                    )
+                    .unwrap_or_default();
                     Some(Datapoint {
                         id,
                         dataset_id,
                         data: data.unwrap().to_owned(),
                         target: raw_obj.get("target").cloned(),
-                        metadata: raw_obj.get("metadata").cloned(),
+                        metadata,
                     })
                 } else {
                     // Otherwise, dump all the fields into the `data` field
@@ -61,7 +65,7 @@ impl Datapoint {
                         dataset_id,
                         data: raw.to_owned(),
                         target: None,
-                        metadata: None,
+                        metadata: HashMap::new(),
                     })
                 }
             }
@@ -71,7 +75,7 @@ impl Datapoint {
                 dataset_id,
                 data: x.to_owned(),
                 target: None,
-                metadata: None,
+                metadata: HashMap::new(),
             }),
         }
     }
@@ -84,35 +88,35 @@ impl Datapoint {
     pub fn into_vector_db_datapoint(&self, index_column: &String) -> VectorDBDatapoint {
         let data_map =
             serde_json::from_value::<HashMap<String, NodeInput>>(self.data.to_owned()).unwrap();
-        let data = data_map
+
+        let metadata_map = self
+            .metadata
             .iter()
-            .map(|(k, v)| (k.to_owned(), v.clone().into()))
+            .map(|(k, v)| (k.to_owned(), json_value_to_string(v.clone())))
             .collect::<HashMap<String, String>>();
 
         let content: String = match data_map.get(index_column).unwrap() {
             NodeInput::ChatMessageList(messages) => merge_chat_messages(messages),
-            _ => data.get(index_column).unwrap().clone(), // just use from already serialized data
+            _ => data_map.get(index_column).unwrap().clone().into(), // just use from already serialized data
         };
 
         VectorDBDatapoint {
             content,
             datasource_id: self.dataset_id.to_string(),
-            data,
+            data: metadata_map,
             id: self.id.to_string(),
         }
     }
 }
 
-impl From<VectorDBDatapoint> for Datapoint {
-    fn from(vectordb_datapoint: VectorDBDatapoint) -> Self {
-        let data = serde_json::to_value(vectordb_datapoint.data).unwrap();
-
+impl From<DBDatapoint> for Datapoint {
+    fn from(db_datapoint: DBDatapoint) -> Self {
         Datapoint {
-            id: Uuid::parse_str(&vectordb_datapoint.id).unwrap_or(Uuid::new_v4()),
-            dataset_id: Uuid::parse_str(&vectordb_datapoint.datasource_id).unwrap(),
-            data,
-            target: None,
-            metadata: None,
+            id: db_datapoint.id,
+            dataset_id: db_datapoint.dataset_id,
+            data: db_datapoint.data,
+            target: db_datapoint.target,
+            metadata: serde_json::from_value(db_datapoint.metadata).unwrap_or_default(),
         }
     }
 }
@@ -187,7 +191,8 @@ pub async fn insert_datapoints_from_file(
     }
 
     if let Some(data) = records {
-        Ok(db::datapoints::insert_raw_data(&db.pool, &dataset_id, &data).await?)
+        let datapoints = db::datapoints::insert_raw_data(&db.pool, &dataset_id, &data).await?;
+        Ok(datapoints.into_iter().map(|dp| dp.into()).collect())
     } else {
         Err(anyhow::anyhow!(
             "Attempting to process file as unstructured even though requested as structured"

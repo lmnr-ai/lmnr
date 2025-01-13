@@ -47,7 +47,6 @@ export default function DatasetUpload({
             uploadFile(
               file,
               `/api/projects/${projectId}/datasets/${datasetId}/file-upload`,
-              false
             )
               .then((_) => {
                 onSuccessfulUpload?.();

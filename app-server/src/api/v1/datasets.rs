@@ -29,8 +29,13 @@ async fn get_datapoints(
         return Ok(HttpResponse::NotFound().body(format!("dataset {} not found", &query.name)));
     };
 
-    let datapoints =
-        datapoints::get_full_datapoints(&db.pool, dataset.id, query.limit, query.offset).await?;
+    let datapoints = datapoints::get_full_datapoints(
+        &db.pool,
+        dataset.id,
+        Some(query.limit),
+        Some(query.offset),
+    )
+    .await?;
 
     let total_count = datapoints::count_datapoints(&db.pool, dataset.id).await?;
 

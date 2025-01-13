@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from '../ui/dialog';
+import { isValidJsonObject } from '@/lib/utils';
 
 const DEFAULT_DATA = '{\n  "data": {},\n  "target": {}\n}';
 
@@ -36,7 +37,12 @@ export default function ManualAddDatapointDialog({
   const isValidJson = useCallback(() => {
     try {
       const parsed = JSON.parse(data);
-      return parsed.data;
+      if (!parsed.data) {
+        return false;
+      }
+      if (parsed.metadata) {
+        isValidJsonObject(parsed.metadata);
+      }
     } catch (e) {
       return false;
     }
