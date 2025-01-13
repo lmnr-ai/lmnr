@@ -154,7 +154,7 @@ export default function Evaluations() {
                     <DeleteSelectedRows
                       selectedRowIds={selectedRowIds}
                       onDelete={handleDeleteEvaluations}
-                      entityName="Evaluations"
+                      entityName="evaluations"
                     />
                   </div>
                 )}

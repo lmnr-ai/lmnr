@@ -27,9 +27,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
 
 export async function DELETE(
-  req: Request,
-  { params }: { params: { projectId: string , traceId: string} }
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; traceId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const { searchParams } = new URL(req.url);

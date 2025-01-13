@@ -131,9 +131,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
 
 export async function DELETE(
-  req: Request,
-  { params }: { params: { projectId: string, spanId: string } }
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; spanId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const { searchParams } = new URL(req.url);
@@ -151,8 +152,11 @@ export async function DELETE(
           eq(spans.projectId, projectId)
         )
       );
+
     return new Response('Spans deleted successfully', { status: 200 });
   } catch (error) {
     return new Response('Error deleting spans', { status: 500 });
   }
 }
+
+

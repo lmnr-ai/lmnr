@@ -483,7 +483,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
           <DeleteSelectedRows
             selectedRowIds={selectedRowIds}
             onDelete={handleDeleteTraces}
-            entityName="Traces"
+            entityName="traces"
           />
         </div>
       )}

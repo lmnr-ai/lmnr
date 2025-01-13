@@ -417,7 +417,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
           <DeleteSelectedRows
             selectedRowIds={selectedRowIds}
             onDelete={handleDeleteSpans}
-            entityName="Spans"
+            entityName="spans"
           />
         </div>
       )}

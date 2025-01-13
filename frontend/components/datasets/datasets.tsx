@@ -141,7 +141,7 @@ export default function Datasets() {
               <DeleteSelectedRows
                 selectedRowIds={selectedRowIds}
                 onDelete={handleDeleteDatasets}
-                entityName="Datasets"
+                entityName="datasets"
               />
             </div>
           )}

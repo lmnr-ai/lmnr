@@ -205,7 +205,7 @@ export default function Dataset({ dataset }: DatasetProps) {
               <DeleteSelectedRows
                 selectedRowIds={selectedRowIds}
                 onDelete={handleDeleteDatapoints}
-                entityName="Datapoints"
+                entityName="datapoints"
               />
             </div>
           )}
