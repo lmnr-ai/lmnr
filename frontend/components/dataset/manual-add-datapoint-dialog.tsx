@@ -2,6 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { useProjectContext } from '@/contexts/project-context';
+import { isValidJsonObject } from '@/lib/utils';
 
 import { useToast } from '../../lib/hooks/use-toast';
 import { Button } from '../ui/button';
@@ -14,7 +15,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '../ui/dialog';
-import { isValidJsonObject } from '@/lib/utils';
 
 const DEFAULT_DATA = '{\n  "data": {},\n  "target": {}\n}';
 

@@ -115,7 +115,7 @@ pub async fn get_full_datapoints(
 
 pub async fn get_full_datapoints_by_ids(
     pool: &PgPool,
-    dataset_id: Uuid,
+    dataset_ids: Vec<Uuid>,
     ids: Vec<Uuid>,
 ) -> Result<Vec<DBDatapoint>> {
     let datapoints = sqlx::query_as::<_, DBDatapoint>(
@@ -127,9 +127,9 @@ pub async fn get_full_datapoints_by_ids(
             metadata,
             created_at
         FROM dataset_datapoints
-        WHERE dataset_id = $1 AND id = ANY($2)",
+        WHERE dataset_id = ANY($1) AND id = ANY($2)",
     )
-    .bind(dataset_id)
+    .bind(&dataset_ids)
     .bind(&ids)
     .fetch_all(pool)
     .await?;

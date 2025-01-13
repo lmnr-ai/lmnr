@@ -38,8 +38,6 @@ export async function POST(
 
   const body = await req.json();
 
-  console.log(body)
-
   // This schema allows any JSON value for data and target,
   // but for file upload we will need to dump everything into data,
   // unless the keys match "data", "target", or "metadata"

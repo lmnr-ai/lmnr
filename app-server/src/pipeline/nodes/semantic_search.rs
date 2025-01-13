@@ -75,6 +75,7 @@ impl RunnableNode for SemanticSearchNode {
         let points = query_datasources(
             &self.datasets,
             context.semantic_search.clone(),
+            context.db.clone(),
             query,
             collection_name.clone(),
             self.limit,

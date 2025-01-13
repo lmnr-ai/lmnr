@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::db::datapoints::DBDatapoint;
 use crate::db::project_api_keys::ProjectApiKey;
 use crate::db::{self, DB};
 use crate::features::{is_feature_enabled, Feature};
@@ -33,11 +34,18 @@ struct SemanticSearchResult {
     score: f32,
     data: HashMap<String, String>,
     content: String,
+    metadata: HashMap<String, String>,
 }
 
 #[derive(Serialize)]
 struct SemanticSearchResponse {
     results: Vec<SemanticSearchResult>,
+}
+
+struct SemanticSearchPoint {
+    datapoint_id: Uuid,
+    score: f32,
+    metadata: HashMap<String, String>,
 }
 
 #[post("/semantic-search")]
@@ -76,23 +84,36 @@ pub async fn semantic_search(
         )
         .await?;
 
-    let datapoint_ids = query_res
+    let points = query_res
         .results
         .iter()
-        // for some reason the id is stringified twice, i.e. `\"00000000-0000-0000-0000-000000000000\"`
-        .map(|result| Uuid::parse_str(serde_json::from_str(&result.datapoint_id).unwrap()).unwrap())
-        .collect();
+        .map(|result| SemanticSearchPoint {
+            datapoint_id: Uuid::parse_str(serde_json::from_str(&result.datapoint_id).unwrap())
+                .unwrap(),
+            score: result.score,
+            metadata: result.data.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    let datapoint_ids = points.iter().map(|p| p.datapoint_id).collect::<Vec<Uuid>>();
 
     let datapoints =
-        db::datapoints::get_full_datapoints_by_ids(&db.pool, dataset_id, datapoint_ids).await?;
+        db::datapoints::get_full_datapoints_by_ids(&db.pool, vec![dataset_id], datapoint_ids)
+            .await?;
+
+    let datapoint_ids_to_datapoint = datapoints
+        .iter()
+        .map(|datapoint: &DBDatapoint| (datapoint.id, datapoint))
+        .collect::<HashMap<Uuid, &DBDatapoint>>();
 
     let indexed_on = dataset.indexed_on;
 
-    let results = query_res
-        .results
+    let results = points
         .iter()
-        .zip(datapoints)
-        .map(|(vector_db_response_point, db_datapoint)| {
+        .map(|vector_db_response_point| {
+            let db_datapoint = datapoint_ids_to_datapoint
+                .get(&vector_db_response_point.datapoint_id)
+                .unwrap();
             let db_data =
                 serde_json::from_value::<HashMap<String, Value>>(db_datapoint.data.clone())
                     .unwrap_or(HashMap::from([(
@@ -116,6 +137,7 @@ pub async fn semantic_search(
                 score: vector_db_response_point.score,
                 data,
                 content,
+                metadata: vector_db_response_point.metadata.clone(),
             }
         })
         .collect();
