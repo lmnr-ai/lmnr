@@ -3,13 +3,17 @@ import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 
+import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { useUserContext } from '@/contexts/user-context';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import { useToast } from '@/lib/hooks/use-toast';
 import { Trace } from '@/lib/traces/types';
 import { PaginatedGetResponseWithProjectPresenceFlag } from '@/lib/types';
+import { swrFetcher } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Button } from '../ui/button';
@@ -42,6 +46,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
+  const { toast } = useToast();
   const pageNumber = searchParams.get('pageNumber')
     ? parseInt(searchParams.get('pageNumber')!)
     : 0;
@@ -116,6 +121,18 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     setAnyInProject(data.anyInProject);
   };
 
+  const { data, mutate } = useSWR< PaginatedGetResponseWithProjectPresenceFlag<Trace>>(
+    `/api/projects/${projectId}/traces?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+    swrFetcher
+  );
+
+  useEffect(() => {
+    if (data) {
+      setTraces(data.items);
+      setTotalCount(data.totalCount);
+    }
+  }, [data]);
+
   useEffect(() => {
     getTraces();
   }, [
@@ -128,6 +145,29 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     endDate,
     textSearchFilter
   ]);
+
+  const handleDeleteTraces = async (traceId: string[]) => {
+    const response = await fetch(
+      `/api/projects/${projectId}/traces?traceId=${traceId.join(',')}`,
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+
+    if (!response.ok) {
+      toast({
+        title: 'Failed to delete traces',
+        variant: 'destructive'
+      });
+    } else {
+      toast({
+        title: 'Traces deleted',
+        description: `Successfully deleted ${traceId.length} trace(s).`
+      });
+      mutate();
+    }
+  };
 
   const handleRowClick = (row: Trace) => {
     searchParams.set('traceId', row.id!);
@@ -438,6 +478,15 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       }}
       totalItemsCount={totalCount}
       enableRowSelection
+      selectionPanel={(selectedRowIds) => (
+        <div className="flex flex-col space-y-2">
+          <DeleteSelectedRows
+            selectedRowIds={selectedRowIds}
+            onDelete={handleDeleteTraces}
+            entityName="traces"
+          />
+        </div>
+      )}
     >
       <TextSearchFilter />
       <DataTableFilter

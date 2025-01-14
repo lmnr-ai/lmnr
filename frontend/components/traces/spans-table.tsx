@@ -3,10 +3,14 @@ import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 
+import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
+import { useToast } from '@/lib/hooks/use-toast';
 import { Span } from '@/lib/traces/types';
 import { PaginatedResponse } from '@/lib/types';
+import { swrFetcher } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Button } from '../ui/button';
@@ -39,6 +43,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
+  const { toast } = useToast();
   const pageNumber = searchParams.get('pageNumber')
     ? parseInt(searchParams.get('pageNumber')!)
     : 0;
@@ -104,6 +109,19 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     setSpans(data.items);
     setTotalCount(data.totalCount);
   };
+
+  const { data, mutate } = useSWR<PaginatedResponse<Span>>(
+    `/api/projects/${projectId}/spans?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+    swrFetcher
+  );
+
+  useEffect(() => {
+    if (data) {
+      setSpans(data.items);
+      setTotalCount(data.totalCount);
+    }
+  }, [data]);
+
   useEffect(() => {
     getSpans();
   }, [
@@ -116,6 +134,29 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     endDate,
     textSearchFilter
   ]);
+
+  const handleDeleteSpans = async (spanId: string[]) => {
+    const response = await fetch(
+      `/api/projects/${projectId}/spans?spanId=${spanId.join(',')}`,
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+
+    if (!response.ok) {
+      toast({
+        title: 'Failed to delete Span',
+        variant: 'destructive'
+      });
+    } else {
+      toast({
+        title: 'Span deleted',
+        description: `Successfully deleted ${spanId.length} Span(s).`
+      });
+      mutate();
+    }
+  };
 
   const handleRowClick = (row: Span) => {
     searchParams.set('traceId', row.traceId!);
@@ -371,6 +412,15 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       }}
       totalItemsCount={totalCount}
       enableRowSelection
+      selectionPanel={(selectedRowIds) => (
+        <div className="flex flex-col space-y-2">
+          <DeleteSelectedRows
+            selectedRowIds={selectedRowIds}
+            onDelete={handleDeleteSpans}
+            entityName="spans"
+          />
+        </div>
+      )}
     >
       <TextSearchFilter />
       <DataTableFilter

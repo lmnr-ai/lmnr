@@ -21,7 +21,7 @@ interface TraceViewProps {
   onClose: () => void;
 }
 
-export default function TraceView({ traceId, onClose }: TraceViewProps) {
+export default function TraceView({ traceId, onClose}: TraceViewProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const router = useRouter();
   const pathName = usePathname();
