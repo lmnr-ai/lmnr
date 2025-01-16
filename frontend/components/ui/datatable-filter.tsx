@@ -1,6 +1,6 @@
 import { ListFilter, Plus, X } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { DatatableFilter } from '@/lib/types';
 import { cn, getFilterFromUrlParams } from '@/lib/utils';
@@ -25,6 +25,8 @@ interface Filter {
 
 interface DataTableFilterProps {
   possibleFilters: Filter[];
+  activeFilters: DatatableFilter[];
+  updateFilters: (newFilters: DatatableFilter[]) => void;
   className?: string;
 }
 
@@ -42,17 +44,36 @@ const SELECT_OPERATORS = [
 
 export default function DataTableFilter({
   possibleFilters,
+  activeFilters,
+  updateFilters,
   className,
 }: DataTableFilterProps) {
   const router = useRouter();
   const pathName = usePathname();
-  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const searchParamsRaw = useSearchParams();
+  const searchParams = useMemo(() => new URLSearchParams(searchParamsRaw.toString()), [searchParamsRaw]);
   const queryParamFilters = searchParams.get('filter');
 
   const [filters, setFilters] = useState<DatatableFilter[]>(
     queryParamFilters ? (getFilterFromUrlParams(queryParamFilters) ?? []) : []
   );
   const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
+
+  const handleApplyFilters = () => {
+    searchParams.delete('filter');
+    searchParams.delete('pageNumber');
+    searchParams.append('pageNumber', '0');
+    searchParams.append('filter', toFilterUrlParam(filters));
+    setPopoverOpen(false);
+    router.push(`${pathName}?${searchParams.toString()}`);
+  };
+
+  useEffect(() => {
+    if (activeFilters.length > 0) {
+      setFilters(activeFilters);
+      handleApplyFilters();
+    }
+  }, [activeFilters,pathName, router, searchParams]);
 
   const isFilterFilled = (filter: DatatableFilter): boolean => filter.value.length > 0;
 
@@ -86,6 +107,7 @@ export default function DataTableFilter({
                       filters={filters}
                       setFilters={setFilters}
                       possibleFilters={possibleFilters}
+                      updateFilters={ updateFilters}
                     />
                   ))}
                 </tbody>
@@ -114,14 +136,7 @@ export default function DataTableFilter({
             <Button
               disabled={filters.some((filter) => !isFilterFilled(filter))}
               variant="secondary"
-              onClick={() => {
-                searchParams.delete('filter');
-                searchParams.delete('pageNumber');
-                searchParams.append('pageNumber', '0');
-                searchParams.append('filter', toFilterUrlParam(filters));
-                setPopoverOpen(false);
-                router.push(`${pathName}?${searchParams.toString()}`);
-              }}
+              onClick={handleApplyFilters}
               handleEnter
             >
               Apply
@@ -137,6 +152,7 @@ interface RowProps {
   i: number;
   filters: DatatableFilter[];
   setFilters: (filters: DatatableFilter[]) => void;
+  updateFilters: (newFilters: DatatableFilter[]) => void;
   possibleFilters: Filter[];
 }
 
@@ -144,13 +160,21 @@ function DataTableFilterRow({
   i,
   filters,
   setFilters,
-  possibleFilters
+  updateFilters,
+  possibleFilters,
 }: RowProps) {
   const filter = filters[i];
   const [selectedFilter, setSelectedFilter] = useState<Filter|null>(null);
   const operators = (filter: Filter | null) => (filter?.restrictOperators != null)
     ? SELECT_OPERATORS.filter(op => filter.restrictOperators!.includes(op.key))
     : SELECT_OPERATORS;
+
+  const handleRemoveFilter = (index: number) => {
+    const newFilters = [...filters];
+    newFilters.splice(index, 1);
+    setFilters(newFilters);
+    updateFilters(newFilters);
+  };
 
   return (
     <tr key={i} className="w-full">
@@ -215,11 +239,7 @@ function DataTableFilterRow({
         <Button
           className="p-0 px-1 text-secondary-foreground"
           variant={'ghost'}
-          onClick={() => {
-            const newFilters = [...filters];
-            newFilters.splice(i, 1);
-            setFilters(newFilters);
-          }}
+          onClick={() => handleRemoveFilter(i)}
         >
           <X size={16} />
         </Button>

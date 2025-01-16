@@ -9,8 +9,8 @@ import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Span } from '@/lib/traces/types';
-import { PaginatedResponse } from '@/lib/types';
-import { swrFetcher } from '@/lib/utils';
+import { DatatableFilter, PaginatedResponse } from '@/lib/types';
+import { getFilterFromUrlParams, swrFetcher } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Button } from '../ui/button';
@@ -60,6 +60,10 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   const pageCount = Math.ceil(totalCount / pageSize);
   const [spanId, setSpanId] = useState<string | null>(
     searchParams.get('spanId') ?? null
+  );
+
+  const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
+    filter ? (getFilterFromUrlParams(filter) ?? []) : []
   );
 
   const getSpans = async () => {
@@ -158,6 +162,26 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     }
   };
 
+  const handleAddFilter = (column: string, value: string) => {
+    const newFilter =  { column, operator: 'eq', value };
+    const existingFilterIndex = activeFilters.findIndex(
+      (filter) => filter.column === column && filter.value === value
+    );
+
+    if (existingFilterIndex !== -1) {
+      const updatedFilters = activeFilters.filter((_, index) => index !== existingFilterIndex);
+      setActiveFilters(updatedFilters);
+    } else {
+      const updatedFilters = [...activeFilters, newFilter];
+      setActiveFilters(updatedFilters);
+    }
+  };
+
+  const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
+    setActiveFilters(newFilters);
+  };
+
+
   const handleRowClick = (row: Span) => {
     searchParams.set('traceId', row.traceId!);
     searchParams.set('spanId', row.spanId);
@@ -186,13 +210,25 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       accessorKey: 'spanType',
       header: 'Type',
       id: 'span_type',
-      cell: (row) => <div className='flex space-x-2'>
-        <SpanTypeIcon spanType={row.getValue()} />
-        <div className='flex'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
-      </div>,
+      cell: (row) => (
+        <div
+          onClick={() =>handleAddFilter('span_type',row.getValue())}
+          className="cursor-pointer flex space-x-2 items-center"
+        >
+          <SpanTypeIcon className='z-10' spanType={row.getValue()} />
+          <div className='flex text-sm'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
+        </div>),
       size: 120
     },
     {
+      cell: (row) => (
+        <div
+          onClick={() =>handleAddFilter('name',row.getValue())}
+          className="cursor-pointer"
+        >
+          {row.getValue()}
+        </div>
+      ),
       accessorKey: 'name',
       header: 'Name',
       id: 'name',
@@ -434,7 +470,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     >
       <TextSearchFilter />
       <DataTableFilter
-        possibleFilters={filterColumns}
+        possibleFilters={filterColumns} activeFilters={activeFilters} updateFilters={handleUpdateFilters}
       />
       <DateRangeFilter />
       <Button
