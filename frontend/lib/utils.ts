@@ -445,3 +445,5 @@ export const isGroupByIntervalAvailable = (
 };
 
 export const toFixedIfFloat = (value: number) => value % 1 === 0 ? value : parseFloat(`${value}`)?.toFixed(3);
+
+export const isValidJsonObject = (value: any) => value !== null && typeof value === 'object' && !Array.isArray(value);

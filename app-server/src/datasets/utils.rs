@@ -7,9 +7,13 @@ use futures_util::StreamExt;
 
 use super::datapoints::Datapoint;
 
-pub async fn read_multipart_file(mut payload: Multipart) -> Result<(String, bool, Vec<u8>), Error> {
+pub struct ParsedFile {
+    pub filename: String,
+    pub bytes: Vec<u8>,
+}
+
+pub async fn read_multipart_file(mut payload: Multipart) -> Result<ParsedFile, Error> {
     let mut filename = String::new();
-    let mut is_unstructured_file = false;
     let mut bytes = Vec::new();
 
     while let Some(item) = payload.next().await {
@@ -28,19 +32,10 @@ pub async fn read_multipart_file(mut payload: Multipart) -> Result<(String, bool
                 let item = item?;
                 bytes.extend_from_slice(&item);
             }
-        } else if name == "isUnstructuredFile" {
-            let mut value = vec![];
-            while let Some(chunk) = field.next().await {
-                let data = chunk?;
-                value.extend_from_slice(&data);
-            }
-            let value = String::from_utf8(value).unwrap();
-
-            is_unstructured_file = value.parse::<bool>().unwrap();
         }
     }
 
-    Ok((filename, is_unstructured_file, bytes))
+    Ok(ParsedFile { filename, bytes })
 }
 
 pub async fn index_new_points(

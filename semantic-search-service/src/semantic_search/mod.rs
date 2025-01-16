@@ -84,7 +84,6 @@ impl SemanticSearch for SemanticSearchService {
             .zip(message.datapoints.into_iter())
             .map(|(embedding, datapoint)| {
                 let payload: Payload = json!({
-                    "content": datapoint.content,
                     "datasource_id": datapoint.datasource_id,
                     "data": datapoint.data,
                     "id": datapoint.id,
@@ -194,14 +193,16 @@ impl SemanticSearch for SemanticSearchService {
             .map(|point| {
                 let payload = point.payload.clone();
 
-                let content = payload.get("content").unwrap().to_string();
+                // Note: this is our UUID v4 set by app-server. Qdrant also has point id
+                // `ScoredPoint.id` but it's not used in the response.
+                let datapoint_id = payload.get("id").unwrap().to_string();
                 let datasource_id = payload.get("datasource_id").unwrap().to_string();
                 let data = serde_json::from_value(payload.get("data").unwrap().clone().into_json())
                     .unwrap();
 
                 QueryPoint {
                     score: point.score,
-                    content,
+                    datapoint_id,
                     datasource_id,
                     data,
                 }

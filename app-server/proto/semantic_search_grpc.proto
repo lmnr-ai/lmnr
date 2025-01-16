@@ -51,7 +51,7 @@ message QueryRequest {
 message QueryResponse {
     message QueryPoint {
         float score = 1;
-        string content = 2;
+        string datapoint_id = 2;
         string datasource_id = 3;
         map<string, string> data = 4;
     }
