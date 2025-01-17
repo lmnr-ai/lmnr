@@ -181,10 +181,11 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
         .await
         {
             log::error!(
-                "Failed to record span. span_id [{}], project_id [{}]: {:?}",
+                "Failed to record span. span_id [{}], project_id [{}]: {:?}, span: {:?}",
                 span.span_id,
                 rabbitmq_span_message.project_id,
-                e
+                e,
+                span
             );
         } else {
             // ack the message as soon as the span is recorded
