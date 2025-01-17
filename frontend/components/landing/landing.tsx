@@ -164,7 +164,7 @@ export default function Landing() {
   return (
     <>
       {showBanner && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 hidden md:block">
           <div className="flex items-center gap-4 bg-primary p-4 rounded-full shadow-lg border border-white/40">
             <span className="font-semibold text-white">Star us on GitHub</span>
             <GitHubButton href="https://github.com/lmnr-ai/lmnr" data-color-scheme="no-preference: light; light: light; dark: light;" data-size="large" data-show-count="true" aria-label="Star lmnr-ai/lmnr on GitHub">Star</GitHubButton>
@@ -194,7 +194,7 @@ export default function Landing() {
                 />
               </div>
               <div className="z-20 flex flex-col items-center gap-12 p-8">
-                <p className="text-6xl md:px-0 md:text-8xl md:leading-tight text-white font-medium animate-in fade-in duration-500">
+                <p className="text-4xl md:px-0 md:text-8xl md:leading-tight text-white font-medium animate-in fade-in duration-500">
                   How teams ship <br />
                   <span className="italic">reliable</span> AI products
                 </p>
@@ -222,7 +222,7 @@ export default function Landing() {
                   <Image
                     src={yc}
                     alt="backed by Y Combinator"
-                    className="w-28 md:w-60"
+                    className="w-40 md:w-60"
                   />
                 </div>
               </div>
@@ -231,27 +231,27 @@ export default function Landing() {
         </div>
         <div className="flex flex-col md:items-center md:w-[1200px] md:px-0">
           <div className="flex flex-col gap-4 px-8 md:px-0 md:py-8">
-            <p className="text-white text-center">Teams that ship better LLM products with Laminar</p>
-            <div className="flex justify-center items-center gap-12 flex-wrap">
+            <p className="text-white text-center text-sm md:text-base">Teams that ship better LLM products with Laminar</p>
+            <div className="flex justify-center items-center gap-12 flex-col md:flex-row">
               <Link href="https://clarum.ai" target="_blank">
                 <Image
                   src={clarum}
                   alt="Clarum"
-                  className="w-40"
+                  className="w-32 md:w-40"
                 />
               </Link>
               <Link href="https://getremo.ai" target="_blank">
                 <Image
                   src={remo}
                   alt="Remo"
-                  className="w-60"
+                  className="w-44 md:w-60"
                 />
               </Link>
               <Link href="https://saturnos.com" target="_blank">
                 <Image
                   src={saturn}
                   alt="Saturn"
-                  className="w-40"
+                  className="w-32 md:w-48"
                 />
               </Link>
             </div>
@@ -354,11 +354,9 @@ export default function Landing() {
                 <EvaluationsCard />
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
-              <div className="flex flex-col">
+            <div className="flex flex-col space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <DatasetCard />
-              </div>
-              <div className="md:col-span h-full">
                 <PromptChainsCard className="h-full" />
               </div>
             </div>
@@ -597,8 +595,8 @@ function TestimonialCard({ quote, author, role, company, logo }: {
 }) {
   return (
     <div className="bg-secondary/30 border rounded-lg p-6 flex flex-col justify-between h-full">
-      <p className="text-secondary-foreground text-lg">{quote}</p>
-      <div className="flex items-center gap-4 mt-6">
+      <p className="text-secondary-foreground text-sm md:text-base">{quote}</p>
+      <div className="flex items-center gap-4 mt-6 text-sm md:text-base">
         <Image
           src={logo}
           alt={company}
