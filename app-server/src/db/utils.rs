@@ -123,7 +123,7 @@ pub fn add_date_range_to_query(
 
 pub fn sanitize_string_for_postgres(input: &str) -> String {
     // Remove Unicode null characters and invalid UTF-8 sequences
-    let cleaned = input
+    input
         .chars()
         .filter(|&c| {
             // Keep newlines and tabs, remove other control chars
@@ -140,10 +140,7 @@ pub fn sanitize_string_for_postgres(input: &str) -> String {
             }
             true
         })
-        .collect::<String>();
-
-    // Escape any remaining problematic characters
-    cleaned.replace('\\', "\\\\")
+        .collect::<String>()
 }
 
 pub fn sanitize_value(v: Value) -> Value {
