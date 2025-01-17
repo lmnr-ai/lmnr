@@ -51,9 +51,14 @@ pub async fn create_project(
     }
 
     semantic_search
-        .create_collection(project.id.to_string())
+        .create_collection(project.id.to_string(), false)
         .await?;
     log::info!("Created new index collection for project: {}", project.id);
+
+    semantic_search
+        .create_collection(format!("spans-{}", project.id), true)
+        .await?;
+    log::info!("Created new spans collection for project: {}", project.id);
 
     Ok(project)
 }

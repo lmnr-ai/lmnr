@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -7,10 +7,7 @@ use uuid::Uuid;
 
 use crate::db::datapoints::DBDatapoint;
 use crate::semantic_search::SemanticSearch;
-use crate::{
-    datasets::Dataset, db::DB, pipeline::nodes::utils::render_template,
-    semantic_search::semantic_search_grpc::query_response::QueryPoint,
-};
+use crate::{datasets::Dataset, db::DB, pipeline::nodes::utils::render_template};
 
 use super::NodeInput;
 
@@ -37,10 +34,18 @@ pub(super) async fn query_datasources(
         .collect();
 
     let res = semantic_search
-        .query(&collection_name, query, limit, threshold, payloads)
+        .query(
+            &collection_name,
+            query,
+            limit,
+            threshold,
+            payloads,
+            None,
+            false,
+        )
         .await?;
 
-    let mut points = res
+    let points = res
         .results
         .iter()
         .map(|result| SemanticSearchPoint {

@@ -1,5 +1,6 @@
+use chrono::Utc;
 use log::error;
-use qdrant_client::qdrant::PointStruct;
+use qdrant_client::qdrant::{NamedVectors, PointStruct, SparseIndices, Vector};
 use qdrant_client::Payload;
 use serde_json::json;
 use simsimd::SpatialSimilarity;
@@ -33,7 +34,16 @@ impl Model {
         match model {
             0 => Model::GteBase,
             1 => Model::CohereMultilingual,
+            2 => Model::Bm25,
             _ => panic!("Unknown model"),
+        }
+    }
+
+    pub fn sparse(&self) -> bool {
+        match self {
+            Model::GteBase => false,
+            Model::CohereMultilingual => false,
+            Model::Bm25 => true,
         }
     }
 }
@@ -87,12 +97,42 @@ impl SemanticSearch for SemanticSearchService {
                     "datasource_id": datapoint.datasource_id,
                     "data": datapoint.data,
                     "id": datapoint.id,
+                    // qdrant allows seconds up to 10^-6 precision, so we could
+                    // just rely on `json!` format, but it is safer to be explicit
+                    "created_at": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true)
                 })
                 .try_into()
                 .unwrap();
 
-                let point_id = Uuid::new_v4().to_string();
-                PointStruct::new(point_id, embedding, payload)
+                let point_id = if message.collection_name.starts_with("spans-") {
+                    // Span ids are 8 byte-long, and thus far more likely to collide
+                    // so we generate a new uuid for them
+                    Uuid::new_v4().to_string()
+                } else {
+                    datapoint.id
+                };
+                if let Some(sparse_indices) = embedding.sparse_indices {
+                    let vectors = NamedVectors {
+                        vectors: HashMap::from([(
+                            "sparse".to_string(),
+                            Vector {
+                                data: embedding.vector,
+                                indices: Some(SparseIndices {
+                                    data: sparse_indices,
+                                }),
+                                vectors_count: None,
+                            },
+                        )]),
+                    };
+                    PointStruct::new(point_id, vectors, payload)
+                } else {
+                    let vector = Vector {
+                        data: embedding.vector,
+                        indices: None,
+                        vectors_count: None,
+                    };
+                    PointStruct::new(point_id, vector, payload)
+                }
             })
             .collect();
 
@@ -177,12 +217,13 @@ impl SemanticSearch for SemanticSearchService {
         let search_result = self
             .qdrant
             .search_points(
-                embedding.clone(),
+                embedding,
                 &message.collection_name,
                 &Model::from_int(message.model),
                 message.limit as u64,
                 message.threshold,
                 payloads,
+                message.date_ranges,
             )
             .await
             .unwrap();
@@ -291,7 +332,7 @@ impl SemanticSearch for SemanticSearchService {
                 .into_iter()
                 .map(
                     |embedding_values| generate_embeddings_response::Embeddings {
-                        values: embedding_values,
+                        values: embedding_values.vector.clone(),
                     },
                 )
                 .collect(),
@@ -333,8 +374,8 @@ impl SemanticSearch for SemanticSearchService {
         let mut scores = Vec::new();
 
         for i in 0..embeddings.len() / 2 {
-            let first = &embeddings[i * 2];
-            let second = &embeddings[i * 2 + 1];
+            let first = &embeddings[i * 2].vector;
+            let second = &embeddings[i * 2 + 1].vector;
 
             // Calculate the distance with underlying SIMD implementation in C
             let score = match f32::cosine(first, second) {

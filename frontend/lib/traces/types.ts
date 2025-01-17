@@ -160,3 +160,8 @@ export enum ExportableSpanColumns {
   Output = 'output',
   SpanType = 'spanType'
 }
+
+export type TraceSearchResponse = {
+  traceIds: string[];
+  spanIds: string[];
+};

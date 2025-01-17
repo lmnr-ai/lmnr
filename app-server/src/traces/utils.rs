@@ -130,7 +130,7 @@ pub async fn record_span_to_db(
     Ok(())
 }
 
-pub async fn record_labels_to_db(
+pub async fn record_labels_to_db_and_ch(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     span: &Span,

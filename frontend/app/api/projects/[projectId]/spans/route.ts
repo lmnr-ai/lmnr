@@ -5,7 +5,10 @@ import { db } from '@/lib/db/drizzle';
 import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
 import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
 import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
-import { Span } from '@/lib/traces/types';
+import { Span, TraceSearchResponse } from '@/lib/traces/types';
+import { authOptions } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
+import { fetcher } from '@/lib/utils';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -48,13 +51,28 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       );
     });
 
-  const textSearch = req.nextUrl.searchParams.get("search");
-  const textSearchFilters = textSearch ? [
-    or(
-      sql`input::text LIKE ${`%${textSearch}%`}::text`,
-      sql`output::text LIKE ${`%${textSearch}%`}::text`
-    )!
+  let searchSpanIds = null;
+  if (req.nextUrl.searchParams.get("search")) {
+    const session = await getServerSession(authOptions);
+    const user = session!.user;
+    const resp = await fetcher(
+      `/projects/${projectId}/traces/search?${req.nextUrl.searchParams.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.apiKey}`,
+        }
+      }
+    );
+    const response = await resp.json() as TraceSearchResponse;
+    searchSpanIds = response.spanIds;
+  }
+
+  const textSearchFilters = searchSpanIds ? [
+    inArray(sql`span_id`, searchSpanIds)
   ] : [];
+
 
   urlParamFilters = urlParamFilters
     // labels are handled separately above

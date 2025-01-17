@@ -122,6 +122,11 @@ struct UpdateDatapointRequest {
     indexed_on: String,
 }
 
+// TODO: potentially split this into two endpoints:
+// 1. update_datapoint_embeddings
+// 2. update_datapoint_metadata
+// In the second one, we don't need to delete the embeddings, we can just update the qdrant payload
+// https://api.qdrant.tech/api-reference/points/overwrite-payload
 #[post("datasets/{dataset_id}/datapoints/{datapoint_id}")]
 async fn update_datapoint_embeddings(
     path: web::Path<(Uuid, Uuid, Uuid)>,

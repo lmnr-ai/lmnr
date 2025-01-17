@@ -3,7 +3,6 @@ import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import useSWR from 'swr';
 
 import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
@@ -12,8 +11,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Trace } from '@/lib/traces/types';
-import { PaginatedGetResponseWithProjectPresenceFlag } from '@/lib/types';
-import { swrFetcher } from '@/lib/utils';
+import { PaginatedResponse } from '@/lib/types';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Button } from '../ui/button';
@@ -28,7 +26,6 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import TracesPagePlaceholder from './page-placeholder';
 import SpanTypeIcon from './span-type-icon';
 
 interface TracesTableProps {
@@ -61,7 +58,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const { projectId } = useProjectContext();
   const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
-  const [anyInProject, setAnyInProject] = useState<boolean>(true);
   const [canRefresh, setCanRefresh] = useState<boolean>(false);
   const pageCount = Math.ceil(totalCount / pageSize);
   const [traceId, setTraceId] = useState<string | null>(
@@ -114,24 +110,11 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       }
     });
 
-    const data = (await res.json()) as PaginatedGetResponseWithProjectPresenceFlag<Trace>;
+    const data = (await res.json()) as PaginatedResponse<Trace>;
 
     setTraces(data.items);
     setTotalCount(data.totalCount);
-    setAnyInProject(data.anyInProject);
   };
-
-  const { data, mutate } = useSWR< PaginatedGetResponseWithProjectPresenceFlag<Trace>>(
-    `/api/projects/${projectId}/traces?pageNumber=${pageNumber}&pageSize=${pageSize}`,
-    swrFetcher
-  );
-
-  useEffect(() => {
-    if (data) {
-      setTraces(data.items);
-      setTotalCount(data.totalCount);
-    }
-  }, [data]);
 
   useEffect(() => {
     getTraces();
@@ -165,7 +148,8 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         title: 'Traces deleted',
         description: `Successfully deleted ${traceId.length} trace(s).`
       });
-      mutate();
+      // mutate();
+      getTraces();
     }
   };
 
@@ -415,10 +399,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     };
   }, []);
 
-  if (traces != undefined && totalCount === 0 && !anyInProject) {
-    return <TracesPagePlaceholder />;
-  }
-
   const filters = [
     {
       name: 'ID',
@@ -428,13 +408,16 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       name: 'Latency',
       id: 'latency',
     },
+    // TODO: alias span_type and name to top_span_type and top_span_name in
+    // the DB query
     {
       name: 'Top level span',
-      id: 'top_span_type',
+      id: 'span_type',
+      restrictOperators: ['eq']
     },
     {
       name: 'Top span name',
-      id: 'top_span_name',
+      id: 'name',
     },
     {
       name: 'Input cost',

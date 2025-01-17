@@ -92,6 +92,7 @@ pub async fn semantic_search(
         payloads
     };
 
+    // TODO: expose setting date ranges from API
     let query_res = semantic_search
         .query(
             &project_id.to_string(),
@@ -99,6 +100,8 @@ pub async fn semantic_search(
             params.limit.unwrap_or(DEFAULT_LIMIT),
             params.threshold,
             payloads,
+            None,
+            false,
         )
         .await?;
 
