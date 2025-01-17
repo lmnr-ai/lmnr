@@ -8,11 +8,10 @@ import { useEffect, useState } from 'react';
 import amazon from '@/assets/landing/amazon.svg';
 import dataset from '@/assets/landing/dataset.png';
 import evals from '@/assets/landing/evals.png';
-import github from '@/assets/landing/github-mark-white.svg';
 import labels from '@/assets/landing/labels.png';
 import moa from '@/assets/landing/MoA.png';
-import noise from '@/assets/landing/noise.jpeg';
-import noise1 from '@/assets/landing/noise1.jpeg';
+import noise from '@/assets/landing/noise_resized.jpg';
+import noise1 from '@/assets/landing/noise1_resized.jpg';
 import onlineEvals from '@/assets/landing/online-evals.png';
 import palantir from '@/assets/landing/palantir.svg';
 import smallTrace from '@/assets/landing/small-trace.png';
@@ -23,6 +22,7 @@ import { Button } from '../ui/button';
 import CodeEditor from '../ui/code-editor';
 import CodeHighlighter from "../ui/code-highlighter";
 import Footer from './footer';
+import GitHubButton from 'react-github-btn';
 
 interface Section {
   id: string;
@@ -124,26 +124,23 @@ await withLabels({ label: 'value' }, (message: string) => {
 ];
 
 export default function Landing() {
-  const [stars, setStars] = useState<number | null>(null);
   const [selectedSection, setSelectedSection] = useState<Section>(sections[0]);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [showBanner, setShowBanner] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/stars', { cache: 'no-cache' })
-      .then(res => res.json())
-      .then(data => setStars(data.stars))
-      .catch(err => console.error('Failed to fetch GitHub stars:', err));
-  }, []);
-
-  // Reset timer when user manually selects section
   const handleSectionSelect = (section: Section) => {
     setSelectedSection(section);
     setAutoRotate(false);
-    // Reset auto-rotate after 20 seconds
     setTimeout(() => setAutoRotate(true), 20000);
   };
 
-  // Auto-rotate timer
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('githubBannerClosed');
+      setShowBanner(stored ? false : true);
+    }
+  }, []);
+
   useEffect(() => {
     if (!autoRotate) return;
 
@@ -158,41 +155,52 @@ export default function Landing() {
     return () => clearInterval(timer);
   }, [autoRotate]);
 
+  const closeBanner = () => {
+    setShowBanner(false);
+    localStorage.setItem('githubBannerClosed', 'true');
+  };
+
   return (
     <>
+      {showBanner && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-4 bg-primary p-4 rounded-full shadow-lg border border-white/40">
+            <span className="font-semibold text-white">Star us on GitHub</span>
+            <GitHubButton href="https://github.com/lmnr-ai/lmnr" data-color-scheme="no-preference: light; light: light; dark: light;" data-size="large" data-show-count="true" aria-label="Star lmnr-ai/lmnr on GitHub">Star</GitHubButton>
+
+            <button
+              onClick={closeBanner}
+              className="hover:bg-secondary rounded-full p-1"
+              aria-label="Close banner"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col z-30 items-center space-y-16 pt-28">
         <div className="flex flex-col md:w-[1200px] space-y-8">
           <div className="flex flex-col">
-            <div className="flex flex-col items-center pt-4 text-center relative">
-              <div className="inset-0 absolute z-10 md:rounded-lg overflow-hidden">
-                <Image src={noise} alt="" className="w-full h-full" priority />
+            <div className="flex flex-col items-center py-8 text-center relative">
+              <div className="inset-0 absolute z-10 overflow-hidden md:rounded-lg">
+                <Image
+                  src={noise}
+                  alt=""
+                  className="w-full h-full"
+                  priority
+                  quality={100}
+                />
               </div>
-              <div className="z-20 flex flex-col items-center space-y-10 p-8">
+              <div className="z-20 flex flex-col items-center gap-12 p-8">
                 <p className="text-6xl md:px-0 md:text-8xl md:leading-tight text-white font-medium animate-in fade-in duration-500">
-                  The AI engineering <br /> platform
+                  How teams ship <br />
+                  <span className="italic">reliable</span> AI products
                 </p>
                 <p className="text-[1.2rem] md:text-2xl md:w-[750px] font-medium text-white">
                   Laminar is an open-source platform
                   for engineering LLM products. Trace, evaluate, label, and analyze LLM apps.
                 </p>
-                <div className="flex w-full justify-center">
-                  <Link target="_blank" href="https://github.com/lmnr-ai/lmnr">
-                    <Button
-                      className="h-10 bg-white/10 border-white text-white hover:bg-white/20"
-                      variant="outline"
-                    >
-                      <Image
-                        src={github}
-                        alt="GitHub"
-                        width={20}
-                        height={20}
-                        className="mr-2"
-                      />
-                      Star us on GitHub {stars && `★ ${stars}`}
-                      <ArrowUpRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
-                </div>
                 <div className="flex space-x-4 items-center">
                   <Link href="/projects">
                     <Button className="w-40 h-12 text-base bg-white/90 text-black hover:bg-white/70">
@@ -229,23 +237,28 @@ export default function Landing() {
             </div>
           </div>
         </div>
+        <div className="flex flex-col md:items-center md:w-[1200px] md:px-0">
+          <div className="flex flex-col gap-4 px-8 md:px-0">
+            <p className="text-xl text-white/60 text-center">Trusted by teams at</p>
+            <div className="flex justify-center items-center gap-12 flex-wrap">
+              <Image
+                src={palantir}
+                alt="Palantir"
+                className="w-24 opacity-60 hover:opacity-100 transition-opacity"
+              />
+              <Image
+                src={amazon}
+                alt="Amazon"
+                className="w-28 opacity-60 hover:opacity-100 transition-opacity"
+              />
+              {/* Add more logos as needed */}
+            </div>
+          </div>
+        </div>
         <div className="flex flex-col md:items-center md:w-[1200px] md:px-0 md:py-16">
           <div className="flex flex-col gap-2 px-8 md:px-0">
-            <span
-              className="text-3xl md:text-6xl text-white font-medium"
-            >
-              Building with LLMs? <br />
-            </span>
-            <span className="text-xl md:text-2xl md:leading-relaxed font-medium">
-              Then, you might be <br />
-            </span>
-            <div className="md:text-2xl font-medium text-secondary-foreground flex flex-col gap-2 md:gap-4">
-              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Struggling to monitor LLM calls in production.</span>
-              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Don&apos;t know how last prompt change affected performance.</span>
-              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Lacking data for fine-tuning and prompt engineering.</span>
-            </div>
             <p className="text-3xl md:text-6xl text-white/90 font-medium md:leading-tighter pt-12 md:pt-24 pb-4">
-              Laminar is a single solution for <br />
+              Laminar is a single platform for <br />
               <span className="font-medium text-primary">tracing</span>, <span className="font-medium text-primary">evaluating</span>, and <span className="font-medium text-primary">labeling</span> <br />
               LLM products.
             </p>
@@ -258,7 +271,9 @@ export default function Landing() {
               <Image
                 src={noise1}
                 alt=""
-                className="w-full h-full object-cover"
+                className="w-full h-full"
+                priority
+                quality={100}
               />
             </div>
             <div className="z-20 text-white gap-8 grid grid-cols-1 md:grid-cols-2 p-4 md:p-0">
@@ -516,7 +531,7 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === 'typescript'
             ? 'bg-white text-black'
             : 'text-white font-medium'
-          }`}
+            }`}
         >
           TypeScript
         </button>
@@ -525,7 +540,7 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === 'python'
             ? 'bg-white text-black'
             : 'text-white font-medium'
-          }`}
+            }`}
         >
           Python
         </button>
