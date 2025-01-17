@@ -549,7 +549,7 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === 'typescript'
             ? 'bg-white text-black'
             : 'text-white font-medium'
-            }`}
+          }`}
         >
           TypeScript
         </button>
@@ -558,7 +558,7 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === 'python'
             ? 'bg-white text-black'
             : 'text-white font-medium'
-            }`}
+          }`}
         >
           Python
         </button>
