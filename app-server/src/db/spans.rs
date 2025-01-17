@@ -7,6 +7,8 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool, Postgres};
 use uuid::Uuid;
 
+use super::utils::sanitize_value;
+
 const PREVIEW_CHARACTERS: usize = 50;
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
@@ -55,7 +57,19 @@ pub struct Span {
 }
 
 pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
-    let input_preview = match &span.input {
+    let sanitized_span = span.clone();
+
+    let input = match sanitized_span.input {
+        Some(v) => Some(sanitize_value(v)),
+        None => None,
+    };
+
+    let output = match sanitized_span.output {
+        Some(v) => Some(sanitize_value(v)),
+        None => None,
+    };
+
+    let input_preview = match &input {
         &Some(Value::String(ref s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
         &Some(ref v) => Some(
             v.to_string()
@@ -65,7 +79,7 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
         ),
         &None => None,
     };
-    let output_preview = match &span.output {
+    let output_preview = match &output {
         &Some(Value::String(ref s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
         &Some(ref v) => Some(
             v.to_string()
