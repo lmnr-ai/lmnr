@@ -227,6 +227,9 @@ importers:
       react-email:
         specifier: ^3.0.6
         version: 3.0.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      react-github-btn:
+        specifier: ^1.4.0
+        version: 1.4.0(react@19.0.0)
       react-hot-toast:
         specifier: ^2.5.1
         version: 2.5.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -4019,6 +4022,9 @@ packages:
   get-tsconfig@4.8.1:
     resolution: {integrity: sha512-k9PN+cFBmaLWtVz29SkUoqU5O0slLuHJXt/2P+tMVFT+phsSGXGkp9t3rQIqdz0e+06EHNGs3oM6ZX1s2zHxRg==}
 
+  github-buttons@2.29.1:
+    resolution: {integrity: sha512-TV3YgAKda5hPz75n7QXmGCsSzgVya1vvmBieebg3EB5ScmashTZ0FldViG1aU2d4V5rcAGrtQ7k5uAaCo0A4PA==}
+
   github-from-package@0.0.0:
     resolution: {integrity: sha512-SyHy3T1v2NUXn29OsWdxmK6RwHD+vkj3v8en8AOBZ1wBQ/hCAQ5bAQTD02kW4W9tUp/3Qh6J8r9EvntiyCmOOw==}
 
@@ -5216,6 +5222,11 @@ packages:
     resolution: {integrity: sha512-taTvHORG2bCZCvUgVkRV0hTJJ5I40UKcmMuHzEhDOBNVh3/CCvIv4jRuD2EheSU1c4hFxxiUyanphb+qUQWeBw==}
     engines: {node: '>=18.0.0'}
     hasBin: true
+
+  react-github-btn@1.4.0:
+    resolution: {integrity: sha512-lV4FYClAfjWnBfv0iNlJUGhamDgIq6TayD0kPZED6VzHWdpcHmPfsYOZ/CFwLfPv4Zp+F4m8QKTj0oy2HjiGXg==}
+    peerDependencies:
+      react: '>=16.3.0'
 
   react-hot-toast@2.5.1:
     resolution: {integrity: sha512-54Gq1ZD1JbmAb4psp9bvFHjS7lje+8ubboUmvKZkCsQBLH6AOpZ9JemfRvIdHcfb9AZXRaFLrb3qUobGYDJhFQ==}
@@ -10364,6 +10375,8 @@ snapshots:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
+  github-buttons@2.29.1: {}
+
   github-from-package@0.0.0:
     optional: true
 
@@ -11913,6 +11926,11 @@ snapshots:
       - sass
       - supports-color
       - utf-8-validate
+
+  react-github-btn@1.4.0(react@19.0.0):
+    dependencies:
+      github-buttons: 2.29.1
+      react: 19.0.0
 
   react-hot-toast@2.5.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
     dependencies:
