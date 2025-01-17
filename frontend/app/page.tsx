@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
-import { Metadata } from 'next';
 
 import Landing from '@/components/landing/landing';
 import LandingHeader from '@/components/landing/landing-header';

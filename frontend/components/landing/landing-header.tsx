@@ -4,10 +4,10 @@ import { Menu, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import GitHubButton from 'react-github-btn';
 
 import logo from '@/assets/logo/logo.svg';
 import { cn } from '@/lib/utils';
-import GitHubButton from 'react-github-btn'
 
 import { Button } from '../ui/button';
 
