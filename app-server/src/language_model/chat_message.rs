@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -260,6 +261,28 @@ impl ChatMessageContentPart {
                         url,
                     },
                 ))
+            }
+            ChatMessageContentPart::ImageUrl(image_url) => {
+                // LangChain allows `image_url` to be a base64 encoded image
+                // This somewhat hacky solution is to check if the url is a base64 encoded image
+                // and if so, store the image and return the new url
+                // https://python.langchain.com/docs/how_to/multimodal_inputs/
+                // Discussion we've opened with OpenLLMetry:
+                // https://github.com/traceloop/openllmetry/issues/2516
+                let pattern = Regex::new(r"^data:image/[a-zA-z]+;base64,.*$").unwrap();
+                if pattern.is_match(&image_url.url) {
+                    println!("Caught LangChain base64 image url");
+                    let base64_data = image_url.url.split(',').last().unwrap();
+                    let data = crate::storage::base64_to_bytes(base64_data)?;
+                    let key = crate::storage::create_key(project_id, &None);
+                    let url = storage.store(data, &key).await?;
+                    Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                        url,
+                        detail: image_url.detail.clone(),
+                    }))
+                } else {
+                    Ok(self.clone())
+                }
             }
             _ => Ok(self.clone()),
         }
