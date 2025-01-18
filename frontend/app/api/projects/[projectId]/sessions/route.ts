@@ -1,15 +1,14 @@
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
-import { desc, and, eq, getTableColumns, inArray, isNotNull } from 'drizzle-orm';
-import { SessionPreview, TraceSearchResponse } from '@/lib/traces/types';
-import { sql } from 'drizzle-orm';
+import { db } from '@/lib/db/drizzle';
 import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
 import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
-import { db } from '@/lib/db/drizzle';
 import { getDateRangeFilters } from '@/lib/db/utils';
+import { TraceSearchResponse } from '@/lib/traces/types';
+import { fetcher } from '@/lib/utils';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -107,7 +106,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     ...metadataFilters,
     ...sqlFilters,
     ...textSearchFilters,
-  ]
+  ];
 
   const query = db
     .select({

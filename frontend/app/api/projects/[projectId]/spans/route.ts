@@ -1,13 +1,13 @@
-import { and, desc, eq, getTableColumns, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
+import { getServerSession } from 'next-auth';
 
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
 import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
 import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
 import { Span, TraceSearchResponse } from '@/lib/traces/types';
-import { authOptions } from '@/lib/auth';
-import { getServerSession } from 'next-auth';
 import { fetcher } from '@/lib/utils';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
