@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO', 'CODE']);
 export const labelType = pgEnum("label_type", ['BOOLEAN', 'CATEGORICAL']);
@@ -34,7 +34,7 @@ export const apiKeys = pgTable("api_keys", {
     foreignColumns: [users.id],
     name: "api_keys_user_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  enableInsertForAuthenticatedUsersOnly: pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "all", to: ["service_role"], using: sql`true`, withCheck: sql`true`  }),
+  enableInsertForAuthenticatedUsersOnly: pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "all", to: ["service_role"], using: sql`true`, withCheck: sql`true` }),
 }));
 
 export const labelClasses = pgTable("label_classes", {
@@ -43,7 +43,7 @@ export const labelClasses = pgTable("label_classes", {
   name: text().notNull(),
   projectId: uuid("project_id").notNull(),
   labelType: labelType("label_type").notNull(),
-  valueMap: jsonb("value_map").default([false,true]).notNull(),
+  valueMap: jsonb("value_map").default([false, true]).notNull(),
   description: text(),
   evaluatorRunnableGraph: jsonb("evaluator_runnable_graph"),
   pipelineVersionId: uuid("pipeline_version_id"),
@@ -296,7 +296,7 @@ export const users = pgTable("users", {
   email: text().notNull(),
 }, (table) => ({
   usersEmailKey: unique("users_email_key").on(table.email),
-  enableInsertForAuthenticatedUsersOnly: pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "insert", to: ["service_role"], withCheck: sql`true`  }),
+  enableInsertForAuthenticatedUsersOnly: pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "insert", to: ["service_role"], withCheck: sql`true` }),
 }));
 
 export const playgrounds = pgTable("playgrounds", {
@@ -304,7 +304,7 @@ export const playgrounds = pgTable("playgrounds", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   name: text().notNull(),
   projectId: uuid("project_id").notNull(),
-  promptMessages: jsonb("prompt_messages").default([{"role":"user","content":""}]).notNull(),
+  promptMessages: jsonb("prompt_messages").default([{ "role": "user", "content": "" }]).notNull(),
   modelId: text("model_id").default('').notNull(),
   outputSchema: text("output_schema"),
 }, (table) => ({
@@ -503,7 +503,7 @@ export const machines = pgTable("machines", {
     foreignColumns: [projects.id],
     name: "machines_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  machinesPkey: primaryKey({ columns: [table.id, table.projectId], name: "machines_pkey"}),
+  machinesPkey: primaryKey({ columns: [table.id, table.projectId], name: "machines_pkey" }),
 }));
 
 export const datapointToSpan = pgTable("datapoint_to_span", {
@@ -522,7 +522,7 @@ export const datapointToSpan = pgTable("datapoint_to_span", {
     foreignColumns: [spans.spanId, spans.projectId],
     name: "datapoint_to_span_span_id_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  datapointToSpanPkey: primaryKey({ columns: [table.datapointId, table.spanId, table.projectId], name: "datapoint_to_span_pkey"}),
+  datapointToSpanPkey: primaryKey({ columns: [table.datapointId, table.spanId, table.projectId], name: "datapoint_to_span_pkey" }),
 }));
 
 export const spans = pgTable("spans", {
@@ -558,6 +558,6 @@ export const spans = pgTable("spans", {
     foreignColumns: [projects.id],
     name: "spans_project_id_fkey"
   }).onUpdate("cascade"),
-  spansPkey: primaryKey({ columns: [table.spanId, table.projectId], name: "spans_pkey"}),
+  spansPkey: primaryKey({ columns: [table.spanId, table.projectId], name: "spans_pkey" }),
   uniqueSpanIdProjectId: unique("unique_span_id_project_id").on(table.spanId, table.projectId),
 }));
