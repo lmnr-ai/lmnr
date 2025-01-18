@@ -5,13 +5,6 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool, QueryBuilder};
 use uuid::Uuid;
 
-#[derive(sqlx::Type, Deserialize, Serialize, Debug, Clone, PartialEq)]
-#[sqlx(type_name = "label_type")]
-pub enum LabelType {
-    BOOLEAN,
-    CATEGORICAL,
-}
-
 #[derive(sqlx::Type, Serialize, Deserialize, Clone, PartialEq)]
 #[sqlx(type_name = "label_source")]
 pub enum LabelSource {
@@ -27,7 +20,6 @@ pub struct LabelClass {
     pub created_at: DateTime<Utc>,
     pub name: String,
     pub project_id: Uuid,
-    pub label_type: LabelType,
     pub value_map: Value, // HashMap<String, f64>
     pub description: Option<String>,
     pub evaluator_runnable_graph: Option<Value>,
@@ -59,7 +51,6 @@ pub struct SpanLabel {
     pub label_source: LabelSource,
     pub reasoning: Option<String>,
 
-    pub label_type: LabelType,
     pub class_name: String,
     pub value_map: Value, // Vec<Value>
     pub description: Option<String>,
@@ -90,7 +81,6 @@ pub async fn get_label_classes_by_project_id(
             created_at,
             name,
             project_id,
-            label_type,
             value_map,
             description,
             evaluator_runnable_graph
@@ -141,7 +131,6 @@ pub async fn update_label_class(
             created_at,
             name,
             project_id,
-            label_type,
             value_map,
             description,
             evaluator_runnable_graph",
@@ -237,7 +226,6 @@ pub async fn get_span_labels(pool: &PgPool, span_id: Uuid) -> Result<Vec<SpanLab
             labels.label_source,
             labels.reasoning,
             users.email as user_email,
-            label_classes.label_type,
             label_classes.value_map,
             label_classes.name as class_name,
             label_classes.description
