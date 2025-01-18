@@ -1,8 +1,7 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO', 'CODE']);
-export const labelType = pgEnum("label_type", ['BOOLEAN', 'CATEGORICAL']);
 export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION']);
 export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION']);
 export const workspaceRole = pgEnum("workspace_role", ['member', 'owner']);
@@ -14,46 +13,45 @@ export const renderTemplates = pgTable("render_templates", {
   projectId: uuid("project_id").defaultRandom().notNull(),
   code: text().notNull(),
   name: text().notNull(),
-}, (table) => ({
-  renderTemplatesProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "render_templates_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const apiKeys = pgTable("api_keys", {
   apiKey: text("api_key").primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   userId: uuid("user_id").notNull(),
   name: text().default('default').notNull(),
-}, (table) => ({
-  userIdIdx: index("api_keys_user_id_idx").using("btree", table.userId.asc().nullsLast()),
-  apiKeysUserIdFkey: foreignKey({
+}, (table) => [
+  index("api_keys_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+  foreignKey({
     columns: [table.userId],
     foreignColumns: [users.id],
     name: "api_keys_user_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  enableInsertForAuthenticatedUsersOnly: pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "all", to: ["service_role"], using: sql`true`, withCheck: sql`true` }),
-}));
+  pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "all", to: ["service_role"], using: sql`true`, withCheck: sql`true` }),
+]);
 
 export const labelClasses = pgTable("label_classes", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   name: text().notNull(),
   projectId: uuid("project_id").notNull(),
-  labelType: labelType("label_type").notNull(),
   valueMap: jsonb("value_map").default([false, true]).notNull(),
   description: text(),
   evaluatorRunnableGraph: jsonb("evaluator_runnable_graph"),
   pipelineVersionId: uuid("pipeline_version_id"),
-}, (table) => ({
-  labelClassesProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "label_classes_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const labelingQueueItems = pgTable("labeling_queue_items", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -61,13 +59,13 @@ export const labelingQueueItems = pgTable("labeling_queue_items", {
   queueId: uuid("queue_id").defaultRandom().notNull(),
   action: jsonb().notNull(),
   spanId: uuid("span_id").notNull(),
-}, (table) => ({
-  labellingQueueItemsQueueIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.queueId],
     foreignColumns: [labelingQueues.id],
     name: "labelling_queue_items_queue_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const events = pgTable("events", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -77,13 +75,13 @@ export const events = pgTable("events", {
   attributes: jsonb().default({}).notNull(),
   spanId: uuid("span_id").notNull(),
   projectId: uuid("project_id").notNull(),
-}, (table) => ({
-  eventsSpanIdProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.spanId, table.projectId],
     foreignColumns: [spans.spanId, spans.projectId],
     name: "events_span_id_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const labelClassesForPath = pgTable("label_classes_for_path", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -91,14 +89,14 @@ export const labelClassesForPath = pgTable("label_classes_for_path", {
   projectId: uuid("project_id").defaultRandom().notNull(),
   path: text().notNull(),
   labelClassId: uuid("label_class_id").notNull(),
-}, (table) => ({
-  autoevalLabelsProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "autoeval_labels_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  uniqueProjectIdPathLabelClass: unique("unique_project_id_path_label_class").on(table.projectId, table.path, table.labelClassId),
-}));
+  unique("unique_project_id_path_label_class").on(table.projectId, table.path, table.labelClassId),
+]);
 
 export const llmPrices = pgTable("llm_prices", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -132,28 +130,28 @@ export const evaluationScores = pgTable("evaluation_scores", {
   name: text().default('').notNull(),
   score: doublePrecision().notNull(),
   labelId: uuid("label_id"),
-}, (table) => ({
-  resultIdIdx: index("evaluation_scores_result_id_idx").using("hash", table.resultId.asc().nullsLast()),
-  evaluationScoresResultIdFkey: foreignKey({
+}, (table) => [
+  index("evaluation_scores_result_id_idx").using("hash", table.resultId.asc().nullsLast().op("uuid_ops")),
+  foreignKey({
     columns: [table.resultId],
     foreignColumns: [evaluationResults.id],
     name: "evaluation_scores_result_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  evaluationResultsNamesUnique: unique("evaluation_results_names_unique").on(table.resultId, table.name),
-}));
+  unique("evaluation_results_names_unique").on(table.resultId, table.name),
+]);
 
 export const labelingQueues = pgTable("labeling_queues", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   name: text().notNull(),
   projectId: uuid("project_id").notNull(),
-}, (table) => ({
-  labelingQueuesProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "labeling_queues_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const datasets = pgTable("datasets", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -161,13 +159,13 @@ export const datasets = pgTable("datasets", {
   name: text().notNull(),
   projectId: uuid("project_id").defaultRandom().notNull(),
   indexedOn: text("indexed_on"),
-}, (table) => ({
-  publicDatasetsProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "public_datasets_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const traces = pgTable("traces", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -187,53 +185,53 @@ export const traces = pgTable("traces", {
   outputTokenCount: bigint("output_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
   inputCost: doublePrecision("input_cost").default(sql`'0'`).notNull(),
   outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
-}, (table) => ({
-  traceMetadataGinIdx: index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast()),
-  idProjectIdStartTimeTimesNotNullIdx: index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast(), table.projectId.asc().nullsLast(), table.startTime.desc().nullsFirst()).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
-  projectIdIdx: index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast()),
-  projectIdTraceTypeStartTimeEndTimeIdx: index("traces_project_id_trace_type_start_time_end_time_idx").using("btree", table.projectId.asc().nullsLast(), table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()).where(sql`((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
-  sessionIdIdx: index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast()),
-  startTimeEndTimeIdx: index("traces_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
-  newTracesProjectIdFkey: foreignKey({
+}, (table) => [
+  index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast().op("jsonb_ops")),
+  index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast().op("timestamptz_ops"), table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.desc().nullsFirst().op("uuid_ops")).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
+  index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+  index("traces_project_id_trace_type_start_time_end_time_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")).where(sql`((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
+  index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("text_ops")),
+  index("traces_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")),
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "new_traces_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  selectByNextApiKey: pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_trace_id_accessible_for_api_key(api_key(), id)` }),
-}));
+  pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_trace_id_accessible_for_api_key(api_key(), id)` }),
+]);
 
 export const targetPipelineVersions = pgTable("target_pipeline_versions", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   pipelineId: uuid("pipeline_id").notNull(),
   pipelineVersionId: uuid("pipeline_version_id").notNull(),
-}, (table) => ({
-  targetPipelineVersionsPipelineIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.pipelineId],
     foreignColumns: [pipelines.id],
     name: "target_pipeline_versions_pipeline_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  targetPipelineVersionsPipelineVersionIdFkey: foreignKey({
+  foreignKey({
     columns: [table.pipelineVersionId],
     foreignColumns: [pipelineVersions.id],
     name: "target_pipeline_versions_pipeline_version_id_fkey"
   }),
-  uniquePipelineId: unique("unique_pipeline_id").on(table.pipelineId),
-}));
+  unique("unique_pipeline_id").on(table.pipelineId),
+]);
 
 export const projects = pgTable("projects", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   name: text().notNull(),
   workspaceId: uuid("workspace_id").notNull(),
-}, (table) => ({
-  workspaceIdIdx: index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast()),
-  projectsWorkspaceIdFkey: foreignKey({
+}, (table) => [
+  index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
+  foreignKey({
     columns: [table.workspaceId],
     foreignColumns: [workspaces.id],
     name: "projects_workspace_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const providerApiKeys = pgTable("provider_api_keys", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -242,13 +240,13 @@ export const providerApiKeys = pgTable("provider_api_keys", {
   projectId: uuid("project_id").defaultRandom().notNull(),
   nonceHex: text("nonce_hex").notNull(),
   value: text().notNull(),
-}, (table) => ({
-  providerApiKeysProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "provider_api_keys_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const workspaces = pgTable("workspaces", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -259,13 +257,13 @@ export const workspaces = pgTable("workspaces", {
   subscriptionId: text("subscription_id").default('').notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   additionalSeats: bigint("additional_seats", { mode: "number" }).default(sql`'0'`).notNull(),
-}, (table) => ({
-  workspacesTierIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.tierId],
     foreignColumns: [subscriptionTiers.id],
     name: "workspaces_tier_id_fkey"
   }).onUpdate("cascade"),
-}));
+]);
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -294,10 +292,10 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   name: text().notNull(),
   email: text().notNull(),
-}, (table) => ({
-  usersEmailKey: unique("users_email_key").on(table.email),
-  enableInsertForAuthenticatedUsersOnly: pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "insert", to: ["service_role"], withCheck: sql`true` }),
-}));
+}, (table) => [
+  unique("users_email_key").on(table.email),
+  pgPolicy("Enable insert for authenticated users only", { as: "permissive", for: "insert", to: ["service_role"], withCheck: sql`true` }),
+]);
 
 export const playgrounds = pgTable("playgrounds", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -307,27 +305,27 @@ export const playgrounds = pgTable("playgrounds", {
   promptMessages: jsonb("prompt_messages").default([{ "role": "user", "content": "" }]).notNull(),
   modelId: text("model_id").default('').notNull(),
   outputSchema: text("output_schema"),
-}, (table) => ({
-  playgroundsProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "playgrounds_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const userSubscriptionInfo = pgTable("user_subscription_info", {
   userId: uuid("user_id").defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   stripeCustomerId: text("stripe_customer_id").notNull(),
   activated: boolean().default(false).notNull(),
-}, (table) => ({
-  stripeCustomerIdIdx: index("user_subscription_info_stripe_customer_id_idx").using("btree", table.stripeCustomerId.asc().nullsLast()),
-  userSubscriptionInfoFkey: foreignKey({
+}, (table) => [
+  index("user_subscription_info_stripe_customer_id_idx").using("btree", table.stripeCustomerId.asc().nullsLast().op("text_ops")),
+  foreignKey({
     columns: [table.userId],
     foreignColumns: [users.id],
     name: "user_subscription_info_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const pipelines = pgTable("pipelines", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -336,16 +334,16 @@ export const pipelines = pgTable("pipelines", {
   name: text().notNull(),
   visibility: text().default('PRIVATE').notNull(),
   pythonRequirements: text("python_requirements").default('').notNull(),
-}, (table) => ({
-  nameProjectIdIdx: index("pipelines_name_project_id_idx").using("btree", table.name.asc().nullsLast(), table.projectId.asc().nullsLast()),
-  projectIdIdx: index("pipelines_project_id_idx").using("btree", table.projectId.asc().nullsLast()),
-  pipelinesProjectIdFkey: foreignKey({
+}, (table) => [
+  index("pipelines_name_project_id_idx").using("btree", table.name.asc().nullsLast().op("text_ops"), table.projectId.asc().nullsLast().op("uuid_ops")),
+  index("pipelines_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "pipelines_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  uniqueProjectIdPipelineName: unique("unique_project_id_pipeline_name").on(table.projectId, table.name),
-}));
+  unique("unique_project_id_pipeline_name").on(table.projectId, table.name),
+]);
 
 export const datasetDatapoints = pgTable("dataset_datapoints", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -357,13 +355,13 @@ export const datasetDatapoints = pgTable("dataset_datapoints", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexInBatch: bigint("index_in_batch", { mode: "number" }),
   metadata: jsonb(),
-}, (table) => ({
-  datasetDatapointsDatasetIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.datasetId],
     foreignColumns: [datasets.id],
     name: "dataset_datapoints_dataset_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const evaluationResults = pgTable("evaluation_results", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -375,15 +373,15 @@ export const evaluationResults = pgTable("evaluation_results", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexInBatch: bigint("index_in_batch", { mode: "number" }),
   traceId: uuid("trace_id").notNull(),
-}, (table) => ({
-  evaluationIdIdx: index("evaluation_results_evaluation_id_idx").using("btree", table.evaluationId.asc().nullsLast()),
-  evaluationResultsEvaluationIdFkey1: foreignKey({
+}, (table) => [
+  index("evaluation_results_evaluation_id_idx").using("btree", table.evaluationId.asc().nullsLast().op("uuid_ops")),
+  foreignKey({
     columns: [table.evaluationId],
     foreignColumns: [evaluations.id],
     name: "evaluation_results_evaluation_id_fkey1"
   }).onUpdate("cascade").onDelete("cascade"),
-  selectByNextApiKey: pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_evaluation_id_accessible_for_api_key(api_key(), evaluation_id)` }),
-}));
+  pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_evaluation_id_accessible_for_api_key(api_key(), evaluation_id)` }),
+]);
 
 export const evaluations = pgTable("evaluations", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -391,14 +389,14 @@ export const evaluations = pgTable("evaluations", {
   projectId: uuid("project_id").notNull(),
   name: text().notNull(),
   groupId: text("group_id").default('default').notNull(),
-}, (table) => ({
-  evaluationsProjectIdFkey1: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "evaluations_project_id_fkey1"
   }).onUpdate("cascade").onDelete("cascade"),
-  selectByNextApiKey: pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_evaluation_id_accessible_for_api_key(api_key(), id)` }),
-}));
+  pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_evaluation_id_accessible_for_api_key(api_key(), id)` }),
+]);
 
 export const labels = pgTable("labels", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -410,14 +408,14 @@ export const labels = pgTable("labels", {
   userId: uuid("user_id").defaultRandom(),
   labelSource: labelSource("label_source").default('MANUAL').notNull(),
   reasoning: text(),
-}, (table) => ({
-  traceTagsTypeIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.classId],
     foreignColumns: [labelClasses.id],
     name: "trace_tags_type_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  labelsSpanIdClassIdUserIdKey: unique("labels_span_id_class_id_user_id_key").on(table.classId, table.spanId, table.userId),
-}));
+  unique("labels_span_id_class_id_user_id_key").on(table.classId, table.spanId, table.userId),
+]);
 
 export const membersOfWorkspaces = pgTable("members_of_workspaces", {
   workspaceId: uuid("workspace_id").notNull(),
@@ -425,20 +423,20 @@ export const membersOfWorkspaces = pgTable("members_of_workspaces", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   id: uuid().defaultRandom().primaryKey().notNull(),
   memberRole: workspaceRole("member_role").default('owner').notNull(),
-}, (table) => ({
-  userIdIdx: index("members_of_workspaces_user_id_idx").using("btree", table.userId.asc().nullsLast()),
-  membersOfWorkspacesUserIdFkey: foreignKey({
+}, (table) => [
+  index("members_of_workspaces_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+  foreignKey({
     columns: [table.userId],
     foreignColumns: [users.id],
     name: "members_of_workspaces_user_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  publicMembersOfWorkspacesWorkspaceIdFkey: foreignKey({
+  foreignKey({
     columns: [table.workspaceId],
     foreignColumns: [workspaces.id],
     name: "public_members_of_workspaces_workspace_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  membersOfWorkspacesUserWorkspaceUnique: unique("members_of_workspaces_user_workspace_unique").on(table.workspaceId, table.userId),
-}));
+  unique("members_of_workspaces_user_workspace_unique").on(table.workspaceId, table.userId),
+]);
 
 export const pipelineVersions = pgTable("pipeline_versions", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -448,9 +446,9 @@ export const pipelineVersions = pgTable("pipeline_versions", {
   runnableGraph: jsonb("runnable_graph").notNull(),
   pipelineType: text("pipeline_type").notNull(),
   name: text().notNull(),
-}, (table) => ({
-  allActionsByNextApiKey: pgPolicy("all_actions_by_next_api_key", { as: "permissive", for: "all", to: ["anon", "authenticated"], using: sql`is_pipeline_id_accessible_for_api_key(api_key(), pipeline_id)` }),
-}));
+}, (table) => [
+  pgPolicy("all_actions_by_next_api_key", { as: "permissive", for: "all", to: ["anon", "authenticated"], using: sql`is_pipeline_id_accessible_for_api_key(api_key(), pipeline_id)` }),
+]);
 
 export const projectApiKeys = pgTable("project_api_keys", {
   value: text().default('').notNull(),
@@ -460,13 +458,13 @@ export const projectApiKeys = pgTable("project_api_keys", {
   shorthand: text().default('').notNull(),
   hash: text().default('').notNull(),
   id: uuid().defaultRandom().primaryKey().notNull(),
-}, (table) => ({
-  publicProjectApiKeysProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "public_project_api_keys_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-}));
+]);
 
 export const workspaceUsage = pgTable("workspace_usage", {
   workspaceId: uuid("workspace_id").defaultRandom().primaryKey().notNull(),
@@ -484,46 +482,46 @@ export const workspaceUsage = pgTable("workspace_usage", {
   prevEventCount: bigint("prev_event_count", { mode: "number" }).default(sql`'0'`).notNull(),
   resetTime: timestamp("reset_time", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   resetReason: text("reset_reason").default('signup').notNull(),
-}, (table) => ({
-  userUsageWorkspaceIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.workspaceId],
     foreignColumns: [workspaces.id],
     name: "user_usage_workspace_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  userUsageWorkspaceIdKey: unique("user_usage_workspace_id_key").on(table.workspaceId),
-}));
+  unique("user_usage_workspace_id_key").on(table.workspaceId),
+]);
 
 export const machines = pgTable("machines", {
   id: uuid().defaultRandom().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   projectId: uuid("project_id").notNull(),
-}, (table) => ({
-  machinesProjectIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "machines_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  machinesPkey: primaryKey({ columns: [table.id, table.projectId], name: "machines_pkey" }),
-}));
+  primaryKey({ columns: [table.id, table.projectId], name: "machines_pkey" }),
+]);
 
 export const datapointToSpan = pgTable("datapoint_to_span", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   datapointId: uuid("datapoint_id").notNull(),
   spanId: uuid("span_id").notNull(),
   projectId: uuid("project_id").notNull(),
-}, (table) => ({
-  datapointToSpanDatapointIdFkey: foreignKey({
+}, (table) => [
+  foreignKey({
     columns: [table.datapointId],
     foreignColumns: [datasetDatapoints.id],
     name: "datapoint_to_span_datapoint_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  datapointToSpanSpanIdProjectIdFkey: foreignKey({
+  foreignKey({
     columns: [table.spanId, table.projectId],
     foreignColumns: [spans.spanId, spans.projectId],
     name: "datapoint_to_span_span_id_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  datapointToSpanPkey: primaryKey({ columns: [table.datapointId, table.spanId, table.projectId], name: "datapoint_to_span_pkey" }),
-}));
+  primaryKey({ columns: [table.datapointId, table.spanId, table.projectId], name: "datapoint_to_span_pkey" }),
+]);
 
 export const spans = pgTable("spans", {
   spanId: uuid("span_id").notNull(),
@@ -540,24 +538,24 @@ export const spans = pgTable("spans", {
   inputPreview: text("input_preview"),
   outputPreview: text("output_preview"),
   projectId: uuid("project_id").notNull(),
-}, (table) => ({
-  spanPathIdx: index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
-  projectIdIdx: index("spans_project_id_idx").using("hash", table.projectId.asc().nullsLast()),
-  projectIdTraceIdStartTimeIdx: index("spans_project_id_trace_id_start_time_idx").using("btree", table.projectId.asc().nullsLast(), table.traceId.asc().nullsLast(), table.startTime.asc().nullsLast()),
-  rootProjectIdStartTimeEndTimeTraceIdIdx: index("spans_root_project_id_start_time_end_time_trace_id_idx").using("btree", table.projectId.asc().nullsLast(), table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast(), table.traceId.asc().nullsLast()).where(sql`(parent_span_id IS NULL)`),
-  startTimeEndTimeIdx: index("spans_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast(), table.endTime.asc().nullsLast()),
-  traceIdIdx: index("spans_trace_id_idx").using("btree", table.traceId.asc().nullsLast()),
-  traceIdStartTimeIdx: index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast(), table.startTime.asc().nullsLast()),
-  newSpansTraceIdFkey: foreignKey({
+}, (table) => [
+  index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
+  index("spans_project_id_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
+  index("spans_project_id_trace_id_start_time_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.traceId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops")),
+  index("spans_root_project_id_start_time_end_time_trace_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops"), table.traceId.asc().nullsLast().op("uuid_ops")).where(sql`(parent_span_id IS NULL)`),
+  index("spans_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")),
+  index("spans_trace_id_idx").using("btree", table.traceId.asc().nullsLast().op("uuid_ops")),
+  index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("uuid_ops")),
+  foreignKey({
     columns: [table.traceId],
     foreignColumns: [traces.id],
     name: "new_spans_trace_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  spansProjectIdFkey: foreignKey({
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "spans_project_id_fkey"
-  }).onUpdate("cascade"),
-  spansPkey: primaryKey({ columns: [table.spanId, table.projectId], name: "spans_pkey" }),
-  uniqueSpanIdProjectId: unique("unique_span_id_project_id").on(table.spanId, table.projectId),
-}));
+  }).onUpdate("cascade").onDelete("cascade"),
+  primaryKey({ columns: [table.spanId, table.projectId], name: "spans_pkey" }),
+  unique("unique_span_id_project_id").on(table.spanId, table.projectId),
+]);

@@ -31,7 +31,6 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
     id: '',
     name: '',
     projectId: projectId,
-    labelType: 'CATEGORICAL',
     createdAt: '',
     valueMap: {
       "False": 0,
