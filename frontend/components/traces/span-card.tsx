@@ -44,7 +44,7 @@ export function SpanCard({
 
   useEffect(() => {
     if (ref.current) {
-      setSegmentHeight(ref.current.getBoundingClientRect().y - parentY);
+      setSegmentHeight(Math.max(0, ref.current.getBoundingClientRect().y - parentY));
     }
   }, [parentY, collapsedSpans]);
 
@@ -109,7 +109,7 @@ export function SpanCard({
           )}
           {hasChildren && (
             <button
-              className="z-40 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
+              className="z-30 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleCollapse?.(span.spanId);
