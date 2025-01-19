@@ -2,9 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::result::Result;
 
 use lmnr_baml::BamlContext;
-use nodes::input::InputNode;
-use nodes::output::OutputNode;
-use nodes::Handle;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -67,79 +64,6 @@ pub struct InvalidSchemasError {
 }
 
 impl Graph {
-    pub fn try_from_node(node: &mut Node) -> anyhow::Result<Self> {
-        if &node.node_type() == "Input" || &node.node_type() == "Output" {
-            return Err(anyhow::anyhow!(
-                "Input and Output nodes are not allowed in a singleton graph"
-            ));
-        }
-        let mut nodes = HashMap::new();
-        let mut pred = HashMap::new();
-        let (inputs, outputs, inputs_mappings) = match node {
-            Node::LLM(llm_node) => (
-                llm_node.inputs.clone(),
-                llm_node.outputs.clone(),
-                &mut llm_node.inputs_mappings,
-            ),
-            Node::Code(code_node) => (
-                code_node.inputs.clone(),
-                code_node.outputs.clone(),
-                &mut code_node.inputs_mappings,
-            ),
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "Only LLM and Code nodes are supported in a singleton graph"
-                ))
-            }
-        };
-        let mut input_ids = Vec::new();
-        inputs.iter().for_each(|handle| {
-            let input_node_output_handle = Handle {
-                id: Uuid::new_v4(),
-                name: Some(handle.name.clone().unwrap()),
-                handle_type: handle.handle_type.clone(),
-                is_cyclic: false,
-            };
-            let input_node = Node::Input(InputNode {
-                id: Uuid::new_v4(),
-                name: handle.name.clone().unwrap(),
-                input: None,
-                input_type: handle.handle_type.clone(),
-                outputs: vec![input_node_output_handle.clone()],
-            });
-            input_ids.push(input_node.id());
-            nodes.insert(input_node.name().clone(), input_node);
-            inputs_mappings.insert(handle.id, input_node_output_handle.id);
-        });
-        pred.insert(node.id(), input_ids);
-        nodes.insert(node.name(), node.clone());
-
-        outputs.iter().for_each(|handle| {
-            let output_node_input_handle = Handle {
-                id: Uuid::new_v4(),
-                name: Some(handle.name.clone().unwrap()),
-                handle_type: handle.handle_type.clone(),
-                is_cyclic: false,
-            };
-            let output_node = Node::Output(OutputNode {
-                id: Uuid::new_v4(),
-                name: handle.name.clone().unwrap(),
-                inputs: vec![output_node_input_handle.clone()],
-                inputs_mappings: HashMap::from([(output_node_input_handle.id, handle.id)]),
-            });
-            pred.insert(output_node.id(), vec![node.id()]);
-            nodes.insert(output_node.name().clone(), output_node);
-        });
-
-        Ok(Self {
-            nodes,
-            pred,
-            env: HashMap::new(),
-            metadata: HashMap::new(),
-            run_type: RunType::AutoLabel,
-        })
-    }
-
     pub fn setup(
         &mut self,
         inputs: &HashMap<String, NodeInput>,

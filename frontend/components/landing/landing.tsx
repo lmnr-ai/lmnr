@@ -4,17 +4,18 @@ import { ArrowUpRight, X } from 'lucide-react';
 import Image, { StaticImageData } from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import GitHubButton from 'react-github-btn';
 
-import amazon from '@/assets/landing/amazon.svg';
+import clarum from '@/assets/landing/companies/clarum.png';
+import remo from '@/assets/landing/companies/remo.avif';
+import saturn from '@/assets/landing/companies/saturn.png';
 import dataset from '@/assets/landing/dataset.png';
 import evals from '@/assets/landing/evals.png';
-import github from '@/assets/landing/github-mark-white.svg';
 import labels from '@/assets/landing/labels.png';
 import moa from '@/assets/landing/MoA.png';
-import noise from '@/assets/landing/noise.jpeg';
-import noise1 from '@/assets/landing/noise1.jpeg';
+import noise from '@/assets/landing/noise_resized.jpg';
+import noise1 from '@/assets/landing/noise1_resized.jpg';
 import onlineEvals from '@/assets/landing/online-evals.png';
-import palantir from '@/assets/landing/palantir.svg';
 import smallTrace from '@/assets/landing/small-trace.png';
 import traces from '@/assets/landing/traces.png';
 import yc from '@/assets/landing/yc.svg';
@@ -97,7 +98,7 @@ evaluate({
     id: 'labels',
     title: 'Label',
     description: `With Laminar, you can label LLM outputs to identify successes and failures.
-    Build datasets for fine-tuning and few-shot examples. Use human labels as evaluation scores.`,
+    Build datasets for evaluations, fine-tuning and few-shot examples. You can also use human labels as evaluation scores.`,
     image: labels,
     docsLink: 'https://docs.lmnr.ai/labels/introduction',
     pythonCodeExample: `from lmnr import Laminar
@@ -124,26 +125,23 @@ await withLabels({ label: 'value' }, (message: string) => {
 ];
 
 export default function Landing() {
-  const [stars, setStars] = useState<number | null>(null);
   const [selectedSection, setSelectedSection] = useState<Section>(sections[0]);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [showBanner, setShowBanner] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/stars', { cache: 'no-cache' })
-      .then(res => res.json())
-      .then(data => setStars(data.stars))
-      .catch(err => console.error('Failed to fetch GitHub stars:', err));
-  }, []);
-
-  // Reset timer when user manually selects section
   const handleSectionSelect = (section: Section) => {
     setSelectedSection(section);
     setAutoRotate(false);
-    // Reset auto-rotate after 20 seconds
     setTimeout(() => setAutoRotate(true), 20000);
   };
 
-  // Auto-rotate timer
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('githubBannerClosed');
+      setShowBanner(stored ? false : true);
+    }
+  }, []);
+
   useEffect(() => {
     if (!autoRotate) return;
 
@@ -158,41 +156,52 @@ export default function Landing() {
     return () => clearInterval(timer);
   }, [autoRotate]);
 
+  const closeBanner = () => {
+    setShowBanner(false);
+    localStorage.setItem('githubBannerClosed', 'true');
+  };
+
   return (
     <>
+      {showBanner && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 hidden md:block">
+          <div className="flex items-center gap-4 bg-primary p-4 rounded-full shadow-lg border border-white/40">
+            <span className="font-semibold text-white">Star us on GitHub</span>
+            <GitHubButton href="https://github.com/lmnr-ai/lmnr" data-color-scheme="no-preference: light; light: light; dark: light;" data-size="large" data-show-count="true" aria-label="Star lmnr-ai/lmnr on GitHub">Star</GitHubButton>
+
+            <button
+              onClick={closeBanner}
+              className="hover:bg-secondary rounded-full p-1"
+              aria-label="Close banner"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col z-30 items-center space-y-16 pt-28">
         <div className="flex flex-col md:w-[1200px] space-y-8">
           <div className="flex flex-col">
-            <div className="flex flex-col items-center pt-4 text-center relative">
-              <div className="inset-0 absolute z-10 md:rounded-lg overflow-hidden">
-                <Image src={noise} alt="" className="w-full h-full" priority />
+            <div className="flex flex-col items-center py-8 text-center relative">
+              <div className="inset-0 absolute z-10 overflow-hidden md:rounded-lg">
+                <Image
+                  src={noise}
+                  alt=""
+                  className="w-full h-full"
+                  priority
+                  quality={100}
+                />
               </div>
-              <div className="z-20 flex flex-col items-center space-y-10 p-8">
-                <p className="text-6xl md:px-0 md:text-8xl md:leading-tight text-white font-medium animate-in fade-in duration-500">
-                  The AI engineering <br /> platform
+              <div className="z-20 flex flex-col items-center gap-12 p-8">
+                <p className="text-4xl md:px-0 md:text-8xl md:leading-tight text-white font-medium animate-in fade-in duration-500">
+                  How teams ship <br />
+                  <span className="italic">reliable</span> AI products
                 </p>
-                <p className="text-[1.2rem] md:text-2xl md:w-[750px] font-medium text-white">
-                  Laminar is an open-source platform
-                  for engineering LLM products. Trace, evaluate, label, and analyze LLM apps.
+                <p className="md:text-3xl font-medium md:w-[650px] text-white/90">
+                  Laminar is a unified open-source platform
+                  for tracing, evaluating, and labeling LLM products.
                 </p>
-                <div className="flex w-full justify-center">
-                  <Link target="_blank" href="https://github.com/lmnr-ai/lmnr">
-                    <Button
-                      className="h-10 bg-white/10 border-white text-white hover:bg-white/20"
-                      variant="outline"
-                    >
-                      <Image
-                        src={github}
-                        alt="GitHub"
-                        width={20}
-                        height={20}
-                        className="mr-2"
-                      />
-                      Star us on GitHub {stars && `★ ${stars}`}
-                      <ArrowUpRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
-                </div>
                 <div className="flex space-x-4 items-center">
                   <Link href="/projects">
                     <Button className="w-40 h-12 text-base bg-white/90 text-black hover:bg-white/70">
@@ -208,47 +217,69 @@ export default function Landing() {
                     </Button>
                   </Link>
                 </div>
-                <div className="flex justify-center items-center text-sm space-x-8">
+                <div className="flex justify-center items-center gap-4 flex-col">
+                  <span className="text-sm text-white">Backed by</span>
                   <Image
                     src={yc}
                     alt="backed by Y Combinator"
-                    className="w-28 md:w-36"
-                  />
-                  <Image
-                    src={palantir}
-                    alt="Palantir"
-                    className="w-20 md:w-24"
-                  />
-                  <Image
-                    src={amazon}
-                    alt="Amazon"
-                    className="w-16 md:w-24 mt-3"
+                    className="w-40 md:w-60"
                   />
                 </div>
               </div>
             </div>
           </div>
         </div>
-        <div className="flex flex-col md:items-center md:w-[1200px] md:px-0 md:py-16">
-          <div className="flex flex-col gap-2 px-8 md:px-0">
-            <span
-              className="text-3xl md:text-6xl text-white font-medium"
-            >
-              Building with LLMs? <br />
-            </span>
-            <span className="text-xl md:text-2xl md:leading-relaxed font-medium">
-              Then, you might be <br />
-            </span>
-            <div className="md:text-2xl font-medium text-secondary-foreground flex flex-col gap-2 md:gap-4">
-              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Struggling to monitor LLM calls in production.</span>
-              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Don&apos;t know how last prompt change affected performance.</span>
-              <span className="flex items-center"><X className="w-6 h-6 mr-2" /> Lacking data for fine-tuning and prompt engineering.</span>
+        <div className="flex flex-col md:items-center md:w-[1200px] md:px-0">
+          <div className="flex flex-col gap-4 px-8 md:px-0 md:py-8">
+            <p className="text-white text-center text-sm md:text-base">Teams that ship better LLM products with Laminar</p>
+            <div className="flex justify-center items-center gap-12 flex-col md:flex-row">
+              <Link href="https://clarum.ai" target="_blank">
+                <Image
+                  src={clarum}
+                  alt="Clarum"
+                  className="w-32 md:w-40"
+                />
+              </Link>
+              <Link href="https://getremo.ai" target="_blank">
+                <Image
+                  src={remo}
+                  alt="Remo"
+                  className="w-44 md:w-60"
+                />
+              </Link>
+              <Link href="https://saturnos.com" target="_blank">
+                <Image
+                  src={saturn}
+                  alt="Saturn"
+                  className="w-32 md:w-48"
+                />
+              </Link>
             </div>
-            <p className="text-3xl md:text-6xl text-white/90 font-medium md:leading-tighter pt-12 md:pt-24 pb-4">
-              Laminar is a single solution for <br />
-              <span className="font-medium text-primary">tracing</span>, <span className="font-medium text-primary">evaluating</span>, and <span className="font-medium text-primary">labeling</span> <br />
-              LLM products.
-            </p>
+          </div>
+        </div>
+        <div className="flex flex-col md:items-center md:w-[1200px] md:px-0">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-8 md:px-0">
+            <TestimonialCard
+              quote={`I can attest to it being the only reliable and performant LLM monitoring platform I${"'"}ve tried. Founding team is great to talk to and super responsive.`}
+              author="Tommy He"
+              role="CTO"
+              company="Clarum"
+              logo={clarum}
+            />
+            <TestimonialCard
+              quote={`Laminar's evals help us maintain high accuracy while moving fast, and their team is incredibly responsive. We now use them for every LLM based feature we build.`}
+              author="Hashim Rehman"
+              role="CTO"
+              company="Remo"
+              logo={remo}
+            />
+            <TestimonialCard
+              quote={`Laminar's tracing is genuinely great. So much better than the others I${"'"}ve tried.`}
+              author="Michael Ettlinger"
+              role="CTO"
+              company="Saturn"
+              logo={saturn}
+            />
           </div>
         </div>
 
@@ -258,7 +289,9 @@ export default function Landing() {
               <Image
                 src={noise1}
                 alt=""
-                className="w-full h-full object-cover"
+                className="w-full h-full"
+                priority
+                quality={100}
               />
             </div>
             <div className="z-20 text-white gap-8 grid grid-cols-1 md:grid-cols-2 p-4 md:p-0">
@@ -321,17 +354,16 @@ export default function Landing() {
                 <EvaluationsCard />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex flex-col">
+            <div className="flex flex-col space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <DatasetCard />
-              </div>
-              <div className="md:col-span-2 h-full">
                 <PromptChainsCard className="h-full" />
               </div>
             </div>
             <SelfHostCard />
           </div>
         </div>
+
         <Footer />
       </div>
     </>
@@ -348,10 +380,11 @@ function TracingCard() {
         className="flex flex-col h-full relative z-10"
       >
         <div className="p-6 flex-grow space-y-2">
-          <h1 className="text-2xl font-medium group-hover:text-white transition-colors duration-200">LLM observability that just works</h1>
+          <h1 className="text-2xl font-medium group-hover:text-white transition-colors duration-200">Effortless Observability</h1>
           <p className="text-secondary-foreground/80 group-hover:text-white transition-colors duration-200">
             Add 2 lines of code to trace all LLM calls and traces.
             Traces are sent in the background via gRPC with minimal performance and latency overhead.
+
           </p>
           <div className="flex">
             <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
@@ -382,9 +415,9 @@ function DatasetCard() {
         className="flex flex-col h-full relative z-10"
       >
         <div className="p-6 flex-grow space-y-2">
-          <h3 className="text-2xl font-medium group-hover:text-white transition-colors duration-200">Datasets</h3>
+          <h3 className="text-2xl font-medium group-hover:text-white transition-colors duration-200">Dynamic few-shot examples to improve prompts</h3>
           <p className="text-secondary-foreground/80 group-hover:text-white transition-colors duration-200">
-            You can build datasets from your traces, and use them in evaluations, fine-tuning and prompt engineering.
+            Build datasets from traces for evaluations, fine-tuning and prompt engineering. Enhance prompts by retrieving semantically similar examples from indexed datasets.
           </p>
           <div className="flex">
             <div className="flex items-center rounded-lg p-1 px-2 text-sm border border-white/20">
@@ -548,6 +581,31 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
             copyable={false}
           />
         )}
+      </div>
+    </div>
+  );
+}
+
+function TestimonialCard({ quote, author, role, company, logo }: {
+  quote: string;
+  author: string;
+  role: string;
+  company: string;
+  logo: StaticImageData;
+}) {
+  return (
+    <div className="bg-secondary/30 border rounded-lg p-6 flex flex-col justify-between h-full">
+      <p className="text-secondary-foreground text-sm md:text-base">{quote}</p>
+      <div className="flex items-center gap-4 mt-6 text-sm md:text-base">
+        <Image
+          src={logo}
+          alt={company}
+          className="w-12 h-12 object-contain"
+        />
+        <div>
+          <p className="text-white font-medium">{author}</p>
+          <p className="text-white/60 text-sm">{role}, {company}</p>
+        </div>
       </div>
     </div>
   );

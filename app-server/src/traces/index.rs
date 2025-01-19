@@ -14,12 +14,11 @@ use crate::{
     semantic_search::{semantic_search_grpc::index_request::Datapoint, SemanticSearch},
 };
 
-use super::{span_attributes::SPAN_PATH, utils::json_value_to_string};
+use super::span_attributes::SPAN_PATH;
 
-const THRESHOLD: f32 = 0.0;
-const LIMIT: u32 = 3;
 const CHARACTER_SPLITTER_CHUNK_SIZE: u32 = 512;
-const CHARACTER_SPLITTER_STRIDE: u32 = 256;
+// Since this indexing is for sparse vectors, we can use a smaller stride
+const CHARACTER_SPLITTER_STRIDE: u32 = 32;
 const DATASOURCE_ID: &str = "spans";
 
 /// internal enum to choose which span field to index
@@ -55,50 +54,10 @@ pub async fn index_span(
     points.extend(output_points);
 
     semantic_search
-        .index(points, collection_name.to_owned())
+        .index(points, collection_name.to_owned(), true)
         .await?;
 
     Ok(())
-}
-
-pub async fn find_similar_span_ids(
-    span: &Span,
-    semantic_search: Arc<dyn SemanticSearch>,
-    collection_name: &String,
-) -> anyhow::Result<Vec<Uuid>> {
-    let Some(indexable_content) = get_indexable_content(span, IndexField::Input) else {
-        return Ok(Vec::new());
-    };
-
-    let mut payloads = vec![HashMap::from([
-        ("datasource_id".to_string(), DATASOURCE_ID.to_string()),
-        ("data.type".to_string(), "input".to_string()),
-    ])];
-
-    if let Some(path) = span.attributes.get(SPAN_PATH) {
-        payloads.push(HashMap::from([(
-            "data.path".to_string(),
-            json_value_to_string(path.clone()),
-        )]));
-    }
-
-    let response = semantic_search
-        .query(
-            collection_name,
-            indexable_content,
-            LIMIT,
-            THRESHOLD,
-            payloads,
-        )
-        .await?;
-
-    let similar_points = response
-        .results
-        .iter()
-        .map(|result| Uuid::parse_str(&result.data["span_id"]).unwrap())
-        .collect::<Vec<_>>();
-
-    Ok(similar_points)
 }
 
 fn chunk(chunker_runner: Arc<ChunkerRunner>, content: Option<String>) -> Result<Vec<String>> {

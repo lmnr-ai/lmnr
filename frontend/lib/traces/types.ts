@@ -4,11 +4,6 @@ import { GraphMessagePreview } from '../pipeline/types';
 
 export type TraceMessages = { [key: string]: GraphMessagePreview };
 
-export enum LabelType {
-  CATEGORICAL = 'CATEGORICAL',
-  BOOLEAN = 'BOOLEAN'
-}
-
 export enum LabelSource {
   AUTO = 'AUTO',
   MANUAL = 'MANUAL'
@@ -160,3 +155,8 @@ export enum ExportableSpanColumns {
   Output = 'output',
   SpanType = 'spanType'
 }
+
+export type TraceSearchResponse = {
+  traceIds: string[];
+  spanIds: string[];
+};

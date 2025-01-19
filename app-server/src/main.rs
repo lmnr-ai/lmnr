@@ -359,7 +359,6 @@ fn main() -> anyhow::Result<()> {
 
                     let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
                         language_model_runner.clone(),
-                        chunker_runner.clone(),
                         semantic_search.clone(),
                         rabbitmq_connection.clone(),
                         code_executor.clone(),
@@ -521,16 +520,12 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::datasets::delete_dataset)
                                         .service(routes::datasets::upload_datapoint_file)
                                         .service(routes::datasets::create_datapoint_embeddings)
-                                        .service(routes::datasets::get_datapoints)
                                         .service(routes::datasets::update_datapoint_embeddings)
                                         .service(routes::datasets::delete_datapoint_embeddings)
                                         .service(routes::datasets::delete_all_datapoints)
                                         .service(routes::datasets::index_dataset)
-                                        .service(routes::traces::get_traces)
-                                        .service(routes::traces::get_single_trace)
-                                        .service(routes::traces::get_single_span)
-                                        .service(routes::traces::get_sessions)
-                                        .service(routes::labels::get_label_types)
+                                        .service(routes::traces::search_traces)
+                                        .service(routes::labels::get_label_classes)
                                         .service(routes::labels::get_span_labels)
                                         .service(routes::labels::update_span_label)
                                         .service(routes::labels::delete_span_label)

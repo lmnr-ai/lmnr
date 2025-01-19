@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use actix_multipart::Multipart;
-use actix_web::{delete, get, post, web, HttpResponse};
+use actix_web::{delete, post, web, HttpResponse};
 use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
@@ -9,14 +9,13 @@ use uuid::Uuid;
 use crate::{
     datasets::{
         datapoints::{self, Datapoint},
-        utils::{index_new_points, read_multipart_file},
+        utils::{index_new_points, read_multipart_file, ParsedFile},
     },
-    db::{self, datapoints::DatapointView, datasets, DB},
-    routes::{PaginatedGetQueryParams, PaginatedResponse, ResponseResult},
+    db::{self, datasets, DB},
+    routes::ResponseResult,
     semantic_search::SemanticSearch,
 };
 
-const DEFAULT_PAGE_SIZE: usize = 50;
 const BATCH_SIZE: usize = 50;
 
 #[delete("datasets/{dataset_id}")]
@@ -55,21 +54,13 @@ async fn upload_datapoint_file(
     let (project_id, dataset_id) = path.into_inner();
     let db = db.into_inner();
 
-    let (filename, is_unstructured_file, bytes) = read_multipart_file(payload).await?;
+    let ParsedFile { filename, bytes } = read_multipart_file(payload).await?;
 
     let Some(dataset) = db::datasets::get_dataset(&db.pool, project_id, dataset_id).await? else {
         return Ok(HttpResponse::NotFound().body("Dataset not found"));
     };
 
-    let mut indexed_on = dataset.indexed_on.clone();
-    if indexed_on.is_none() && is_unstructured_file {
-        // For user convenience, we will automatically index by content, if the dataset is empty and the file is unstructured
-        let total_entries = db::datapoints::count_datapoints(&db.pool, dataset_id).await?;
-        if total_entries == 0 {
-            indexed_on = Some("content".to_string());
-            db::datasets::update_index_column(&db.pool, dataset_id, indexed_on.clone()).await?;
-        }
-    }
+    let indexed_on = dataset.indexed_on.clone();
 
     let datapoints =
         datapoints::insert_datapoints_from_file(&bytes, &filename, dataset_id, db.clone()).await?;
@@ -126,10 +117,15 @@ async fn create_datapoint_embeddings(
 struct UpdateDatapointRequest {
     data: Value,
     target: Option<Value>,
-    metadata: Option<Value>,
+    metadata: HashMap<String, Value>,
     indexed_on: String,
 }
 
+// TODO: potentially split this into two endpoints:
+// 1. update_datapoint_embeddings
+// 2. update_datapoint_metadata
+// In the second one, we don't need to delete the embeddings, we can just update the qdrant payload
+// https://api.qdrant.tech/api-reference/points/overwrite-payload
 #[post("datasets/{dataset_id}/datapoints/{datapoint_id}")]
 async fn update_datapoint_embeddings(
     path: web::Path<(Uuid, Uuid, Uuid)>,
@@ -223,28 +219,6 @@ async fn delete_all_datapoints(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[get("datasets/{dataset_id}/datapoints")]
-async fn get_datapoints(
-    db: web::Data<DB>,
-    path: web::Path<(Uuid, Uuid)>,
-    query_params: web::Query<PaginatedGetQueryParams>,
-) -> ResponseResult {
-    let (_project_id, dataset_id) = path.into_inner();
-    let limit = query_params.page_size.unwrap_or(DEFAULT_PAGE_SIZE) as i64;
-    let offset = limit * (query_params.page_number) as i64;
-    let datapoints =
-        db::datapoints::get_datapoint_previews(&db.pool, dataset_id, limit, offset).await?;
-    let total_entries = db::datapoints::count_datapoints(&db.pool, dataset_id).await?;
-
-    let response = PaginatedResponse::<DatapointView> {
-        items: datapoints,
-        total_count: total_entries,
-        any_in_project: true,
-    };
-
-    Ok(HttpResponse::Ok().json(response))
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct IndexDatasetRequest {
@@ -268,7 +242,7 @@ async fn index_dataset(
         return Ok(HttpResponse::Ok().json(dataset));
     }
 
-    let datapoints = db::datapoints::get_all_datapoints(&db.pool, dataset_id).await?;
+    let datapoints = db::datapoints::get_full_datapoints(&db.pool, dataset_id, None, None).await?;
 
     // First, delete old embeddings
     if dataset.indexed_on.is_some() {
@@ -286,7 +260,10 @@ async fn index_dataset(
         // Then, index all embeddings
         if index_column.is_some() {
             index_new_points(
-                batch.to_vec(),
+                batch
+                    .iter()
+                    .map(|dp| dp.to_owned().into())
+                    .collect::<Vec<_>>(),
                 semantic_search.as_ref().clone(),
                 project_id.to_string(),
                 index_column.clone(),

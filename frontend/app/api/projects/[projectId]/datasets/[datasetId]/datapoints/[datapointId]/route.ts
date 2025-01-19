@@ -44,7 +44,7 @@ export async function POST(
   const schema = z.object({
     data: z.any(),
     target: z.any().nullable(),
-    metadata: z.any().nullable(),
+    metadata: z.record(z.string(), z.any()),
     indexedOn: z.string().nullable()
   });
 

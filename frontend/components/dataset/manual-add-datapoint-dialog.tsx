@@ -2,6 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { useProjectContext } from '@/contexts/project-context';
+import { isValidJsonObject } from '@/lib/utils';
 
 import { useToast } from '../../lib/hooks/use-toast';
 import { Button } from '../ui/button';
@@ -36,7 +37,12 @@ export default function ManualAddDatapointDialog({
   const isValidJson = useCallback(() => {
     try {
       const parsed = JSON.parse(data);
-      return parsed.data;
+      if (!parsed.data) {
+        return false;
+      }
+      if (parsed.metadata) {
+        isValidJsonObject(parsed.metadata);
+      }
     } catch (e) {
       return false;
     }

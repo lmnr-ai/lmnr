@@ -1,10 +1,13 @@
 syntax = "proto3";
 package semantic_search_grpc;
 
+import "google/protobuf/timestamp.proto";
+
 // When new model is added, don't forget to modify delete_collections function accordingly
 enum Model {
     GTE_BASE = 0;
     COHERE_MULTILINGUAL = 1;
+    BM25 = 2;
 }
 
 message IndexRequest {
@@ -35,6 +38,16 @@ message DeleteEmbeddingsResponse {
     string status = 1;
 }
 
+message DateRange {
+    string key = 1;
+    google.protobuf.Timestamp gte = 2;
+    google.protobuf.Timestamp lte = 3;
+}
+
+message DateRanges {
+    repeated DateRange date_ranges = 1;
+}
+
 message RequestPayload {
     map<string, string> payload = 1;
 }
@@ -46,12 +59,13 @@ message QueryRequest {
     repeated RequestPayload payloads = 4;
     string collection_name = 5;
     Model model = 6;
+    optional DateRanges date_ranges = 7;
 }
 
 message QueryResponse {
     message QueryPoint {
         float score = 1;
-        string content = 2;
+        string datapoint_id = 2;
         string datasource_id = 3;
         map<string, string> data = 4;
     }

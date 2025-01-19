@@ -1,11 +1,13 @@
-import { and, eq, inArray } from 'drizzle-orm';
-import { NextRequest } from 'next/server';
+import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 
 import { authOptions } from '@/lib/auth';
+import { Datapoint } from '@/lib/dataset/types';
 import { db } from '@/lib/db/drizzle';
 import { datapointToSpan, datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
+import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
 import { fetcher } from '@/lib/utils';
 
 export async function GET(
@@ -13,20 +15,33 @@ export async function GET(
   props: { params: Promise<{ projectId: string; datasetId: string }> }
 ): Promise<Response> {
   const params = await props.params;
-  const projectId = params.projectId;
   const datasetId = params.datasetId;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+  const pastHours = req.nextUrl.searchParams.get("pastHours");
+  const startTime = req.nextUrl.searchParams.get("startDate");
+  const endTime = req.nextUrl.searchParams.get("endDate");
+  const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
+  const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
+  const baseFilters = [eq(datasetDatapoints.datasetId, datasetId)];
+  // don't query input and output, only query previews
+  const { data, target, ...rest } = getTableColumns(datasetDatapoints);
+  const customColumns = {
+    data: sql<string>`SUBSTRING(data::text, 0, 100)`.as("data"),
+    target: sql<string>`SUBSTRING(target::text, 0, 100)`.as("target"),
+  };
 
-  return await fetcher(
-    `/projects/${projectId}/datasets/${datasetId}/datapoints?${req.nextUrl.searchParams.toString()}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${user.apiKey}`
-      }
-    }
-  );
+  const datapointsData = await paginatedGet<any, Datapoint>({
+    table: datasetDatapoints,
+    pageNumber,
+    pageSize,
+    filters: [...baseFilters, ...getDateRangeFilters(startTime, endTime, pastHours)],
+    orderBy: desc(datasetDatapoints.createdAt),
+    columns: {
+      ...rest,
+      ...customColumns,
+    },
+  });
+
+  return NextResponse.json(datapointsData);
 }
 
 const CreateDatapointsSchema = z.object({

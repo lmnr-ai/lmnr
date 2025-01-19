@@ -2,35 +2,35 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::{prelude::FromRow, PgPool};
+use sqlx::{prelude::FromRow, PgPool, QueryBuilder};
 use uuid::Uuid;
 
 use crate::datasets::datapoints::Datapoint;
 
-#[derive(FromRow, Serialize)]
+#[derive(FromRow, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct DatapointView {
-    id: Uuid,
-    created_at: DateTime<Utc>,
-    dataset_id: Uuid,
-    data: String,
-    target: Option<String>,
-    metadata: Option<Value>,
+pub struct DBDatapoint {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub dataset_id: Uuid,
+    pub data: Value,
+    pub target: Option<Value>,
+    pub metadata: Value,
 }
 
 pub async fn insert_datapoints(
     pool: &PgPool,
     dataset_id: &Uuid,
     datapoints: Vec<Datapoint>,
-) -> Result<Vec<Datapoint>> {
+) -> Result<Vec<DBDatapoint>> {
     let size = datapoints.len();
-    let datapoints = sqlx::query_as::<_, Datapoint>(
+    let datapoints = sqlx::query_as::<_, DBDatapoint>(
         "INSERT INTO dataset_datapoints 
             (dataset_id, id, data, target, metadata, index_in_batch)
         SELECT $1 as dataset_id, id, data, target, metadata, index_in_batch
         FROM UNNEST($2::uuid[], $3::jsonb[], $4::jsonb[], $5::jsonb[], $6::int8[])
         AS tmp_table(id, data, target, metadata, index_in_batch)
-        RETURNING id, dataset_id, data, target, metadata",
+        RETURNING id, created_at, dataset_id, data, target, metadata",
     )
     .bind(dataset_id)
     .bind(&datapoints.iter().map(|dp| dp.id).collect::<Vec<_>>())
@@ -49,7 +49,7 @@ pub async fn insert_datapoints(
     .bind(
         &datapoints
             .into_iter()
-            .map(|dp| dp.metadata)
+            .map(|dp| serde_json::to_value(&dp.metadata).unwrap())
             .collect::<Vec<_>>(),
     )
     .bind(&Vec::from_iter(0..size as i64))
@@ -63,7 +63,7 @@ pub async fn insert_raw_data(
     pool: &PgPool,
     dataset_id: &Uuid,
     data: &Vec<Value>,
-) -> Result<Vec<Datapoint>> {
+) -> Result<Vec<DBDatapoint>> {
     let valid_datapoints = data
         .iter()
         .filter_map(|value| Datapoint::try_from_raw_value(dataset_id.to_owned(), value))
@@ -72,29 +72,13 @@ pub async fn insert_raw_data(
     insert_datapoints(pool, dataset_id, valid_datapoints).await
 }
 
-pub async fn get_all_datapoints(pool: &PgPool, dataset_id: Uuid) -> Result<Vec<Datapoint>> {
-    let datapoints = sqlx::query_as::<_, Datapoint>(
-        "SELECT id, dataset_id, data, target, metadata
-        FROM dataset_datapoints
-        WHERE dataset_id = $1
-        ORDER BY
-            created_at DESC,
-            index_in_batch ASC NULLS FIRST",
-    )
-    .bind(dataset_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(datapoints)
-}
-
 pub async fn get_full_datapoints(
     pool: &PgPool,
     dataset_id: Uuid,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<Datapoint>> {
-    let datapoints = sqlx::query_as::<_, Datapoint>(
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<Vec<DBDatapoint>> {
+    let mut query = QueryBuilder::new(
         "SELECT
             id,
             dataset_id,
@@ -103,47 +87,39 @@ pub async fn get_full_datapoints(
             metadata,
             created_at
         FROM dataset_datapoints
-        WHERE dataset_id = $1
-        ORDER BY
-            created_at ASC,
-            index_in_batch ASC NULLS FIRST
-        LIMIT $2
-        OFFSET $3",
-    )
-    .bind(dataset_id)
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(pool)
-    .await?;
+        WHERE dataset_id = ",
+    );
+    query.push_bind(dataset_id);
+    if let Some(limit) = limit {
+        query.push_bind(limit);
+    }
+    if let Some(offset) = offset {
+        query.push_bind(offset);
+    }
+
+    let datapoints = query.build_query_as().fetch_all(pool).await?;
 
     Ok(datapoints)
 }
 
-pub async fn get_datapoint_previews(
+pub async fn get_full_datapoints_by_ids(
     pool: &PgPool,
-    dataset_id: Uuid,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<DatapointView>> {
-    let datapoints = sqlx::query_as::<_, DatapointView>(
+    dataset_ids: Vec<Uuid>,
+    ids: Vec<Uuid>,
+) -> Result<Vec<DBDatapoint>> {
+    let datapoints = sqlx::query_as::<_, DBDatapoint>(
         "SELECT
             id,
             dataset_id,
-            SUBSTRING(data::text, 0, 100) as data,
-            SUBSTRING(target::text, 0, 100) as target,
+            data,
+            target,
             metadata,
             created_at
         FROM dataset_datapoints
-        WHERE dataset_id = $1
-        ORDER BY
-            created_at DESC,
-            index_in_batch ASC NULLS FIRST
-        LIMIT $2
-        OFFSET $3",
+        WHERE dataset_id = ANY($1) AND id = ANY($2)",
     )
-    .bind(dataset_id)
-    .bind(limit)
-    .bind(offset)
+    .bind(&dataset_ids)
+    .bind(&ids)
     .fetch_all(pool)
     .await?;
 

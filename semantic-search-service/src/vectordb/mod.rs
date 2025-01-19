@@ -1,16 +1,22 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use chrono::Utc;
+use prost_types::Timestamp;
 use qdrant_client::{
     qdrant::{
         vectors_config::Config, Condition, CreateCollection, CreateFieldIndexCollectionBuilder,
-        DeletePointsBuilder, Distance, FieldType, Filter, HnswConfigDiff, PointStruct,
-        SearchPoints, SearchResponse, UpsertPointsBuilder, VectorParams, VectorsConfig,
+        DatetimeRange, DeletePointsBuilder, Distance, FieldType, Filter, HnswConfigDiff,
+        PointStruct, SearchPoints, SearchResponse, SparseIndices, SparseVectorConfig,
+        SparseVectorParams, UpsertPointsBuilder, VectorParams, VectorsConfig,
     },
     Qdrant,
 };
 
-use crate::semantic_search::semantic_search_grpc::Model;
+use crate::{
+    embeddings::Embedding,
+    semantic_search::semantic_search_grpc::{DateRanges, Model},
+};
 
 pub struct QdrantClient {
     client: Qdrant,
@@ -21,6 +27,7 @@ impl Model {
         match self {
             Model::GteBase => 768,
             Model::CohereMultilingual => 1024,
+            Model::Bm25 => 1024,
         }
     }
 
@@ -28,6 +35,7 @@ impl Model {
         match self {
             Model::GteBase => 0,
             Model::CohereMultilingual => 1,
+            Model::Bm25 => 2,
         }
     }
 }
@@ -95,12 +103,13 @@ impl QdrantClient {
     /// Searches points for a given vector, where any of the payloads fully match
     pub async fn search_points(
         &self,
-        vector: Vec<f32>,
+        embedding: &Embedding,
         collection_name: &str,
         model: &Model,
         limit: u64,
         threshold: f32,
         payloads: Vec<HashMap<String, String>>,
+        date_ranges: Option<DateRanges>,
     ) -> Result<SearchResponse> {
         let collection_id = collection_id(collection_name, model);
 
@@ -117,13 +126,59 @@ impl QdrantClient {
             })
             .collect();
 
+        let date_range_filter: Option<Condition> = date_ranges.map(|date_ranges| {
+            let date_range_conditions: Vec<Condition> = date_ranges
+                .date_ranges
+                .iter()
+                .map(|date_range| {
+                    let condition = Condition::datetime_range(
+                        date_range.key.clone(),
+                        DatetimeRange {
+                            gte: Some(Timestamp {
+                                seconds: date_range.gte.unwrap().seconds,
+                                nanos: date_range.gte.unwrap().nanos,
+                            }),
+                            lte: Some(Timestamp {
+                                seconds: date_range
+                                    .lte
+                                    .map_or(Utc::now().timestamp(), |lte| lte.seconds),
+                                nanos: date_range.lte.map_or(0, |lte| lte.nanos),
+                            }),
+                            ..Default::default()
+                        },
+                    );
+                    condition
+                })
+                .collect();
+            Filter::any(date_range_conditions).into()
+        });
+
+        let filter = if let Some(date_range_filter) = date_range_filter {
+            Filter::all(vec![
+                Filter::any(payload_conditions).into(),
+                date_range_filter,
+            ])
+        } else {
+            Filter::any(payload_conditions)
+        };
+
         let search_points = SearchPoints {
             collection_name: collection_id,
-            vector,
-            filter: Some(Filter::any(payload_conditions)),
+            vector: embedding.vector.clone(),
+            filter: Some(filter),
             limit: limit as u64,
             with_payload: Some(true.into()),
             score_threshold: Some(threshold),
+            vector_name: embedding
+                .sparse_indices
+                .as_ref()
+                .map(|_| "sparse".to_string()),
+            sparse_indices: embedding
+                .sparse_indices
+                .as_ref()
+                .map(|sparse_indices| SparseIndices {
+                    data: sparse_indices.clone(),
+                }),
             ..Default::default()
         };
 
@@ -136,6 +191,14 @@ impl QdrantClient {
         let dim = model.dimensions();
 
         let collection_id = collection_id(collection_name, model);
+
+        let sparse_vectors_config = if model.sparse() {
+            Some(SparseVectorConfig {
+                map: HashMap::from([("sparse".to_string(), SparseVectorParams::default())]),
+            })
+        } else {
+            None
+        };
 
         self.client
             .create_collection(CreateCollection {
@@ -152,6 +215,7 @@ impl QdrantClient {
                     payload_m: Some(16),
                     ..Default::default()
                 }),
+                sparse_vectors_config,
                 ..Default::default()
             })
             .await?;
@@ -171,11 +235,10 @@ impl QdrantClient {
     }
 
     pub async fn delete_collections(&self, collection_name: &str) -> Result<()> {
-        let id = collection_id(collection_name, &Model::GteBase);
-        self.client.delete_collection(id.clone()).await?;
-
-        let id = collection_id(collection_name, &Model::CohereMultilingual);
-        self.client.delete_collection(id.clone()).await?;
+        for model in [&Model::GteBase, &Model::CohereMultilingual, &Model::Bm25] {
+            let id = collection_id(collection_name, &model);
+            self.client.delete_collection(id.clone()).await?;
+        }
 
         Ok(())
     }

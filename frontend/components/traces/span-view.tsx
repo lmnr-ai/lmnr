@@ -8,6 +8,7 @@ import {
 import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
+import { Event } from '@/lib/events/types';
 import { Span, SpanType } from '@/lib/traces/types';
 import { swrFetcher } from '@/lib/utils';
 
@@ -26,10 +27,18 @@ interface SpanViewProps {
 
 export function SpanView({ spanId }: SpanViewProps) {
   const { projectId } = useProjectContext();
-  const { data: span }: { data: Span } = useSWR(
+  const { data: span } = useSWR<Span>(
     `/api/projects/${projectId}/spans/${spanId}`,
     swrFetcher
   );
+  const { data: events } = useSWR<Event[]>(
+    `/api/projects/${projectId}/spans/${spanId}/events`,
+    swrFetcher
+  );
+  const cleanedEvents = events?.map((event) => {
+    const { spanId, projectId, ...rest } = event;
+    return rest;
+  });
 
   if (!span) {
     return (
@@ -118,7 +127,7 @@ export function SpanView({ spanId }: SpanViewProps) {
           <TabsContent value="events" className="h-full w-full mt-0">
             <Formatter
               className="h-full border-none rounded-none"
-              value={JSON.stringify(span.events)}
+              value={JSON.stringify(cleanedEvents)}
               defaultMode="yaml"
             />
           </TabsContent>

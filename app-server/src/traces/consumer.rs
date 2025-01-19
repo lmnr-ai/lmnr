@@ -20,7 +20,8 @@ use crate::{
     traces::{
         evaluators::run_evaluator,
         events::record_events,
-        utils::{record_labels_to_db, record_span_to_db},
+        index::index_span,
+        utils::{record_labels_to_db_and_ch, record_span_to_db},
     },
 };
 
@@ -54,10 +55,10 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    _semantic_search: Arc<dyn SemanticSearch>,
+    semantic_search: Arc<dyn SemanticSearch>,
     rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
-    _chunker_runner: Arc<chunk::runner::ChunkerRunner>,
+    chunker_runner: Arc<chunk::runner::ChunkerRunner>,
     storage: Arc<T>,
 ) {
     if !is_feature_enabled(Feature::FullBuild) {
@@ -181,10 +182,11 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
         .await
         {
             log::error!(
-                "Failed to record span. span_id [{}], project_id [{}]: {:?}",
+                "Failed to record span. span_id [{}], project_id [{}]: {:?}, span: {:?}",
                 span.span_id,
                 rabbitmq_span_message.project_id,
-                e
+                e,
+                span
             );
         } else {
             // ack the message as soon as the span is recorded
@@ -194,13 +196,24 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
                 .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
         }
 
+        if let Err(e) = index_span(
+            &span,
+            semantic_search.clone(),
+            &format!("spans-{}", rabbitmq_span_message.project_id),
+            chunker_runner.clone(),
+        )
+        .await
+        {
+            log::error!("Failed to index span: {:?}", e);
+        }
+
         if let Err(e) =
             record_events(db.clone(), clickhouse.clone(), rabbitmq_span_message.events).await
         {
             log::error!("Failed to record events: {:?}", e);
         }
 
-        if let Err(e) = record_labels_to_db(
+        if let Err(e) = record_labels_to_db_and_ch(
             db.clone(),
             clickhouse.clone(),
             &span,

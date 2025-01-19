@@ -24,10 +24,7 @@ use serde::Serialize;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
-use crate::{
-    chunk::runner::ChunkerRunner, language_model::LanguageModelRunner,
-    semantic_search::SemanticSearch,
-};
+use crate::{language_model::LanguageModelRunner, semantic_search::SemanticSearch};
 
 use super::{
     context::Context,
@@ -101,7 +98,6 @@ impl Serialize for PipelineRunnerError {
 #[derive(Clone)]
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
-    chunker_runner: Arc<ChunkerRunner>,
     semantic_search: Arc<dyn SemanticSearch>,
     rabbitmq_connection: Option<Arc<Connection>>,
     code_executor: Arc<dyn CodeExecutor>,
@@ -112,7 +108,6 @@ pub struct PipelineRunner {
 impl PipelineRunner {
     pub fn new(
         language_model: Arc<LanguageModelRunner>,
-        chunker_runner: Arc<ChunkerRunner>,
         semantic_search: Arc<dyn SemanticSearch>,
         rabbitmq_connection: Option<Arc<Connection>>,
         code_executor: Arc<dyn CodeExecutor>,
@@ -121,7 +116,6 @@ impl PipelineRunner {
     ) -> Self {
         Self {
             language_model,
-            chunker_runner,
             semantic_search,
             rabbitmq_connection,
             code_executor,
@@ -146,7 +140,6 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
-            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
@@ -191,7 +184,6 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
-            chunker_runner: self.chunker_runner.clone(),
             semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),

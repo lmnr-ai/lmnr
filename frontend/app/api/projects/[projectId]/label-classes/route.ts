@@ -9,8 +9,6 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
   const params = await props.params;
   const projectId = params.projectId;
 
-
-
   const res = await db
     .select()
     .from(labelClasses)
@@ -24,15 +22,12 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   const params = await props.params;
   const projectId = params.projectId;
 
-
-
   const body = await req.json();
 
   const res = await db.insert(labelClasses).values({
     projectId: projectId,
     name: body.name,
     description: body.description,
-    labelType: body.labelType,
     evaluatorRunnableGraph: body.evaluatorRunnableGraph,
     valueMap: body.valueMap
   }).returning();

@@ -2,7 +2,7 @@ import { ArrowLeft, HelpCircle, Loader2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { useProjectContext } from '@/contexts/project-context';
-import { LabelClass, LabelType, Span } from '@/lib/traces/types';
+import { LabelClass, Span } from '@/lib/traces/types';
 
 import { EvaluatorEditorDialog } from '../evaluator/evaluator-editor-dialog';
 import { Button } from '../ui/button';
@@ -24,9 +24,6 @@ interface AddLabelProps {
 
 export function AddLabel({ span, onClose }: AddLabelProps) {
   const { projectId } = useProjectContext();
-  const [selectedType, setSelectedType] = useState<LabelType>(
-    LabelType.BOOLEAN
-  );
   const [isSaving, setIsSaving] = useState(false);
   const [showEvaluator, setShowEvaluator] = useState(false);
 
@@ -35,7 +32,6 @@ export function AddLabel({ span, onClose }: AddLabelProps) {
     name: '',
     projectId: projectId,
     createdAt: '',
-    labelType: LabelType.CATEGORICAL,
     valueMap: {
       "False": 0,
       "True": 1

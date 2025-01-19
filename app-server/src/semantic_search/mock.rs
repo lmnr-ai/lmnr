@@ -5,7 +5,7 @@ use async_trait::async_trait;
 
 use super::semantic_search_grpc::{
     index_request::Datapoint, CalculateSimilarityScoresResponse, CreateCollectionResponse,
-    DeleteCollectionsResponse, DeleteEmbeddingsResponse, IndexResponse, QueryResponse,
+    DateRanges, DeleteCollectionsResponse, DeleteEmbeddingsResponse, IndexResponse, QueryResponse,
 };
 
 use super::SemanticSearch;
@@ -22,6 +22,8 @@ impl SemanticSearch for MockSemanticSearch {
         _: u32,
         _: f32,
         _: Vec<HashMap<String, String>>,
+        _: Option<DateRanges>,
+        _: bool,
     ) -> Result<QueryResponse> {
         Ok(QueryResponse::default())
     }
@@ -34,11 +36,11 @@ impl SemanticSearch for MockSemanticSearch {
         Ok(DeleteEmbeddingsResponse::default())
     }
 
-    async fn index(&self, _: Vec<Datapoint>, _: String) -> Result<IndexResponse> {
+    async fn index(&self, _: Vec<Datapoint>, _: String, _: bool) -> Result<IndexResponse> {
         Ok(IndexResponse::default())
     }
 
-    async fn create_collection(&self, _: String) -> Result<CreateCollectionResponse> {
+    async fn create_collection(&self, _: String, _: bool) -> Result<CreateCollectionResponse> {
         Ok(CreateCollectionResponse::default())
     }
 
