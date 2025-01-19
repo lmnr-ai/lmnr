@@ -32,7 +32,10 @@ function ContentPartImage({ b64_data }: ContentPartImageProps) {
 }
 
 function ContentPartImageUrl({ url }: { url: string }) {
-  return <img src={`${url}?payloadType=image`} alt="span image" />;
+  // if url is a relative path, add ?payloadType=image to the end of the url
+  // because it implies that we stored the image in S3
+  if (url.startsWith('/')) url += '?payloadType=image';
+  return <img src={url} alt="span image" />;
 }
 
 function ContentPartDocumentUrl({ url }: { url: string }) {
