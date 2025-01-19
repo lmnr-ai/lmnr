@@ -99,8 +99,6 @@
     "react-textarea-autosize": "^8.5.7",
     "reactflow": "^11.11.4",
     "recharts": "^2.15.0",
-    "remark-gfm": "^4.0.0",
-    "remark-math": "^6.0.0",
     "resend": "^4.0.1",
     "sharp": "^0.33.5",
     "stripe": "^16.12.0",
@@ -146,5 +144,6 @@
     "singleQuote": true,
     "tabWidth": 2,
     "trailingComma": "none"
-  }
+  },
+  "packageManager": "pnpm@9.15.3+sha512.1f79bc245a66eb0b07c5d4d83131240774642caaa86ef7d0434ab47c0d16f66b04e21e0c086eb61e62c77efc4d7f7ec071afad3796af64892fae66509173893a"
 }
