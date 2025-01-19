@@ -1,7 +1,6 @@
 import { ChevronRightIcon } from 'lucide-react';
 import Link from 'next/link';
 
-import { Card } from '@/components/ui/card';
 import { Project } from '@/lib/workspaces/types';
 
 interface ProjectCardProps {

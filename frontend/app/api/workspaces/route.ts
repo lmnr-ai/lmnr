@@ -48,7 +48,7 @@ export async function GET(req: NextRequest): Promise<Response> {
           workspaceId: projects.workspaceId,
         })
         .from(projects)
-        .where(eq(projects.workspaceId, workspace.id))
+        .where(eq(projects.workspaceId, workspace.id));
 
       return {
         ...workspace,
