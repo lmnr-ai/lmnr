@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::traces::attributes::TraceAttributes;
@@ -115,46 +115,4 @@ pub async fn update_trace_attributes(
     .execute(pool)
     .await?;
     Ok(())
-}
-
-pub async fn get_single_trace(pool: &PgPool, id: Uuid) -> Result<Trace> {
-    let trace = sqlx::query_as::<_, Trace>(
-        "SELECT
-            id,
-            start_time,
-            end_time,
-            session_id,
-            metadata,
-            project_id,
-            input_token_count,
-            output_token_count,
-            total_token_count,
-            input_cost,
-            output_cost,
-            cost
-        FROM traces
-        WHERE id = $1
-        AND start_time IS NOT NULL AND end_time IS NOT NULL",
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(trace)
-}
-
-#[derive(Serialize, FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct Session {
-    pub id: String,
-    pub input_token_count: i64,
-    pub output_token_count: i64,
-    pub total_token_count: i64,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
-    pub duration: f64,
-    pub input_cost: f64,
-    pub output_cost: f64,
-    pub cost: f64,
-    pub trace_count: i64,
 }

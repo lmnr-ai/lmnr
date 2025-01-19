@@ -41,27 +41,6 @@ impl Event {
     }
 }
 
-pub async fn get_events_for_span(pool: &PgPool, span_id: Uuid) -> Result<Vec<Event>> {
-    let events = sqlx::query_as::<_, Event>(
-        "SELECT
-            e.id,
-            e.created_at,
-            e.span_id,
-            e.project_id,
-            e.timestamp,
-            e.name,
-            e.attributes
-        FROM events e
-        WHERE span_id = $1
-        ORDER BY e.timestamp ASC",
-    )
-    .bind(span_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(events)
-}
-
 pub async fn insert_events(pool: &PgPool, events: &Vec<Event>) -> Result<()> {
     let span_ids = events.iter().map(|e| e.span_id).collect::<Vec<Uuid>>();
     let project_ids = events.iter().map(|e| e.project_id).collect::<Vec<Uuid>>();

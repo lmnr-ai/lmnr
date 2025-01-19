@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use actix_multipart::Multipart;
-use actix_web::{delete, get, post, web, HttpResponse};
+use actix_web::{delete, post, web, HttpResponse};
 use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
@@ -11,12 +11,11 @@ use crate::{
         datapoints::{self, Datapoint},
         utils::{index_new_points, read_multipart_file, ParsedFile},
     },
-    db::{self, datapoints::DatapointView, datasets, DB},
-    routes::{PaginatedGetQueryParams, PaginatedResponse, ResponseResult},
+    db::{self, datasets, DB},
+    routes::ResponseResult,
     semantic_search::SemanticSearch,
 };
 
-const DEFAULT_PAGE_SIZE: usize = 50;
 const BATCH_SIZE: usize = 50;
 
 #[delete("datasets/{dataset_id}")]
@@ -218,28 +217,6 @@ async fn delete_all_datapoints(
         .await?;
 
     Ok(HttpResponse::Ok().finish())
-}
-
-#[get("datasets/{dataset_id}/datapoints")]
-async fn get_datapoints(
-    db: web::Data<DB>,
-    path: web::Path<(Uuid, Uuid)>,
-    query_params: web::Query<PaginatedGetQueryParams>,
-) -> ResponseResult {
-    let (_project_id, dataset_id) = path.into_inner();
-    let limit = query_params.page_size.unwrap_or(DEFAULT_PAGE_SIZE) as i64;
-    let offset = limit * (query_params.page_number) as i64;
-    let datapoints =
-        db::datapoints::get_datapoint_previews(&db.pool, dataset_id, limit, offset).await?;
-    let total_entries = db::datapoints::count_datapoints(&db.pool, dataset_id).await?;
-
-    let response = PaginatedResponse::<DatapointView> {
-        items: datapoints,
-        total_count: total_entries,
-        any_in_project: true,
-    };
-
-    Ok(HttpResponse::Ok().json(response))
 }
 
 #[derive(Deserialize)]

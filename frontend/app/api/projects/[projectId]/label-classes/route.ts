@@ -9,8 +9,6 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
   const params = await props.params;
   const projectId = params.projectId;
 
-
-
   const res = await db
     .select()
     .from(labelClasses)
