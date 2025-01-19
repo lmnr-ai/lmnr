@@ -45,7 +45,7 @@ pub async fn search_traces(
     let params = query_params.into_inner();
     let search_query = params.search;
     let date_range = params.date_range;
-    let query_res = semantic_search
+    let Ok(query_res) = semantic_search
         .query(
             &format!("spans-{project_id}"),
             search_query,
@@ -57,7 +57,14 @@ pub async fn search_traces(
                 .map(|range| DateRanges::from_name_and_db_range("created_at", range)),
             true,
         )
-        .await?;
+        .await
+    else {
+        // Most likely, no collection yet (for older projects).
+        return Ok(HttpResponse::Ok().json(TraceSearchResponse {
+            trace_ids: HashSet::new(),
+            span_ids: HashSet::new(),
+        }));
+    };
 
     let mut trace_ids = HashSet::new();
     let mut span_ids = HashSet::new();
