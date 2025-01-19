@@ -49,7 +49,6 @@ export async function GET(req: NextRequest): Promise<Response> {
         })
         .from(projects)
         .where(eq(projects.workspaceId, workspace.id))
-        .groupBy(projects.id);
 
       return {
         ...workspace,
