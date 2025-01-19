@@ -23,6 +23,28 @@ services:
       timeout: 5s
       retries: 5
 
+  clickhouse:
+    build:
+      context: ./clickhouse
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+    volumes:
+      - type: volume
+        source: clickhouse-data
+        target: /var/lib/clickhouse/
+      - type: volume
+        source: clickhouse-logs
+        target: /var/log/clickhouse-server/
+    cap_add:
+      - SYS_NICE
+      - NET_ADMIN
+      - IPC_LOCK
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
   frontend:
     image: ghcr.io/lmnr-ai/frontend
     pull_policy: always
@@ -39,7 +61,7 @@ services:
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: some_secret
       NEXT_PUBLIC_URL: http://localhost:3000
-      ENVIRONMENT: LITE # this disables runtime dependency on clickhouse
+      ENVIRONMENT: LITE
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server
@@ -50,12 +72,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      clickhouse:
+        condition: service_started
     environment:
       PORT: 8000
       GRPC_PORT: 8001
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
-      ENVIRONMENT: LITE # this disables runtime dependency on clickhouse, rabbitmq, semantic search, and python executor
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq, semantic search, and python executor
 
 volumes:
   postgres-data:
+  clickhouse-data:
+  clickhouse-logs:

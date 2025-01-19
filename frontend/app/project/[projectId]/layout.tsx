@@ -16,10 +16,10 @@ import { fetcherJSON } from '@/lib/utils';
 import { GetProjectResponse } from '@/lib/workspaces/types';
 
 export default async function ProjectIdLayout(
-  props: {
-    children: React.ReactNode;
-    params: Promise<{ projectId: string }>;
-  }
+    props: {
+      children: React.ReactNode;
+      params: Promise<{ projectId: string }>;
+    }
 ) {
   const params = await props.params;
 
@@ -45,9 +45,9 @@ export default async function ProjectIdLayout(
   const project = projectResponse as GetProjectResponse;
 
   const showBanner =
-    isFeatureEnabled(Feature.WORKSPACE) &&
-    project.isFreeTier &&
-    project.spansThisMonth >= 0.8 * project.spansLimit;
+      isFeatureEnabled(Feature.WORKSPACE) &&
+      project.isFreeTier &&
+      project.spansThisMonth >= 0.8 * project.spansLimit;
 
   const posthog = PostHogClient();
   posthog.identify({
@@ -59,34 +59,33 @@ export default async function ProjectIdLayout(
   const defaultOpen = cookieStore.get("sidebar:state") ? cookieStore.get("sidebar:state")?.value === "true" : true;
 
   return (
-    <UserContextProvider
-      email={user.email!}
-      username={user.name!}
-      imageUrl={user.image!}
-      supabaseAccessToken={session.supabaseAccessToken}
-    >
-      <ProjectContextProvider projectId={project.id} projectName={project.name}>
-        <div className="flex flex-row max-w-full max-h-screen">
-          <SidebarProvider defaultOpen={defaultOpen}>
-            <div className="z-50 h-screen">
-              <ProjectNavbar
-                projectId={projectId}
-                fullBuild={isFeatureEnabled(Feature.FULL_BUILD)}
-              />
-            </div>
-            <div className="flex flex-col flex-grow h-screen max-w-full min-h-screen overflow-y-auto">
-              {showBanner && (
-                <ProjectUsageBanner
-                  workspaceId={project.workspaceId}
-                  spansThisMonth={project.spansThisMonth}
-                  spansLimit={project.spansLimit}
+      <UserContextProvider
+          email={user.email!}
+          username={user.name!}
+          imageUrl={user.image!}
+          supabaseAccessToken={session.supabaseAccessToken}
+      >
+        <ProjectContextProvider projectId={project.id} projectName={project.name}>
+          <div className="flex flex-row max-w-full max-h-screen">
+            <SidebarProvider defaultOpen={defaultOpen}>
+              <div className="z-50 h-screen">
+                <ProjectNavbar
+                    projectId={projectId}
                 />
-              )}
-              <div className="z-10 flex flex-col flex-grow ">{children}</div>
-            </div>
-          </SidebarProvider>
-        </div>
-      </ProjectContextProvider>
-    </UserContextProvider>
+              </div>
+              <div className="flex flex-col flex-grow h-screen max-w-full min-h-screen overflow-y-auto">
+                {showBanner && (
+                    <ProjectUsageBanner
+                        workspaceId={project.workspaceId}
+                        spansThisMonth={project.spansThisMonth}
+                        spansLimit={project.spansLimit}
+                    />
+                )}
+                <div className="z-10 flex flex-col flex-grow ">{children}</div>
+              </div>
+            </SidebarProvider>
+          </div>
+        </ProjectContextProvider>
+      </UserContextProvider>
   );
 }

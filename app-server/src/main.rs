@@ -168,7 +168,7 @@ fn main() -> anyhow::Result<()> {
 
     let interrupt_senders = Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
-    let clickhouse = if is_feature_enabled(Feature::FullBuild) {
+    let clickhouse = {
         let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
         let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
         let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
@@ -186,10 +186,6 @@ fn main() -> anyhow::Result<()> {
             log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
         }
         client
-    } else {
-        // This client does not connect to ClickHouse, and the feature flag must be checked before using it
-        // TODO: wrap this in a dyn trait object
-        clickhouse::Client::default()
     };
 
     let mut rabbitmq_connection = None;
