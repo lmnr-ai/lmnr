@@ -4,11 +4,6 @@ import { GraphMessagePreview } from '../pipeline/types';
 
 export type TraceMessages = { [key: string]: GraphMessagePreview };
 
-export enum LabelType {
-  CATEGORICAL = 'CATEGORICAL',
-  BOOLEAN = 'BOOLEAN'
-}
-
 export enum LabelSource {
   AUTO = 'AUTO',
   MANUAL = 'MANUAL'

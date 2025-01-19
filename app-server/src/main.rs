@@ -528,7 +528,7 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::traces::search_traces)
                                         .service(routes::traces::get_single_trace)
                                         .service(routes::traces::get_single_span)
-                                        .service(routes::labels::get_label_types)
+                                        .service(routes::labels::get_label_classes)
                                         .service(routes::labels::get_span_labels)
                                         .service(routes::labels::update_span_label)
                                         .service(routes::labels::delete_span_label)

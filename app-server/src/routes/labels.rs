@@ -10,7 +10,7 @@ use crate::db::{self, labels::LabelSource, user::User, DB};
 use super::ResponseResult;
 
 #[get("label-classes")]
-pub async fn get_label_types(path: web::Path<Uuid>, db: web::Data<DB>) -> ResponseResult {
+pub async fn get_label_classes(path: web::Path<Uuid>, db: web::Data<DB>) -> ResponseResult {
     let project_id = path.into_inner();
     let label_classes =
         db::labels::get_label_classes_by_project_id(&db.pool, project_id, None).await?;

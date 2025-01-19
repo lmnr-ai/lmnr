@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use rand::distributions::{Alphanumeric, DistString};
-use serde_json::json;
+use serde_json::{json, Value};
 use sqlx::{Postgres, QueryBuilder};
 use uuid::Uuid;
 
@@ -119,4 +119,39 @@ pub fn add_date_range_to_query(
     };
 
     Ok(())
+}
+
+pub fn sanitize_string_for_postgres(input: &str) -> String {
+    // Remove Unicode null characters and invalid UTF-8 sequences
+    input
+        .chars()
+        .filter(|&c| {
+            // Keep newlines and tabs, remove other control chars
+            if c == '\n' || c == '\t' {
+                return true;
+            }
+            // Remove Unicode null characters
+            if c == '\0' || c == '\u{0000}' || c == '\u{FFFE}' || c == '\u{FFFF}' {
+                return false;
+            }
+            // Remove other control characters
+            if c.is_control() {
+                return false;
+            }
+            true
+        })
+        .collect::<String>()
+}
+
+pub fn sanitize_value(v: Value) -> Value {
+    match v {
+        Value::String(s) => Value::String(sanitize_string_for_postgres(&s)),
+        Value::Array(arr) => Value::Array(arr.into_iter().map(sanitize_value).collect()),
+        Value::Object(obj) => Value::Object(
+            obj.into_iter()
+                .map(|(k, v)| (sanitize_string_for_postgres(&k), sanitize_value(v)))
+                .collect(),
+        ),
+        _ => v.clone(),
+    }
 }

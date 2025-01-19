@@ -13,10 +13,12 @@ import { PHProvider } from './providers';
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.lmnr.ai'),
   title: 'Laminar',
+  keywords: ['laminar', 'evals', 'label', 'analyze', 'ai', 'eval', 'llm ops', 'observability', 'openai', 'llm', 'llm observability'],
   openGraph: {
     type: 'website',
     title: 'Laminar',
     description: 'The AI engineering platform',
+    siteName: 'Laminar',
     images: {
       url: '/opengraph-image.png',
       alt: 'Laminar'
