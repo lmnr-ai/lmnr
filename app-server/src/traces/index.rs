@@ -1,7 +1,6 @@
 //! This module indexes spans in a vector database for further semantic search.
 
 use anyhow::Result;
-use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
@@ -82,8 +81,8 @@ fn create_datapoint(span: &Span, content: String, field_type: &str) -> Datapoint
     data.insert("trace_id".to_string(), span.trace_id.to_string());
     data.insert("span_id".to_string(), span.span_id.to_string());
     data.insert("type".to_string(), field_type.to_string());
-    if let Some(Value::String(path)) = span.attributes.get(SPAN_PATH) {
-        data.insert("path".to_string(), path.to_owned());
+    if let Some(v) = span.attributes.get(SPAN_PATH) {
+        data.insert("path".to_string(), v.to_string());
     };
 
     Datapoint {
