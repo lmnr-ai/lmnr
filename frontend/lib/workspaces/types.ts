@@ -2,6 +2,8 @@ export type Project = {
   id: string;
   name: string;
   workspaceId: string;
+  numSpans: number;
+  numEvaluations: number;
 };
 
 export interface WorkspaceUser {
