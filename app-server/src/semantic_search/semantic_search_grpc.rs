@@ -45,6 +45,20 @@ pub struct DeleteEmbeddingsResponse {
     pub status: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DateRange {
+    #[prost(string, tag = "1")]
+    pub key: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub gte: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag = "3")]
+    pub lte: ::core::option::Option<::prost_types::Timestamp>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DateRanges {
+    #[prost(message, repeated, tag = "1")]
+    pub date_ranges: ::prost::alloc::vec::Vec<DateRange>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RequestPayload {
     #[prost(map = "string, string", tag = "1")]
     pub payload: ::std::collections::HashMap<
@@ -66,6 +80,8 @@ pub struct QueryRequest {
     pub collection_name: ::prost::alloc::string::String,
     #[prost(enumeration = "Model", tag = "6")]
     pub model: i32,
+    #[prost(message, optional, tag = "7")]
+    pub date_ranges: ::core::option::Option<DateRanges>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryResponse {
@@ -161,6 +177,7 @@ pub struct DeleteCollectionsResponse {
 pub enum Model {
     GteBase = 0,
     CohereMultilingual = 1,
+    Bm25 = 2,
 }
 impl Model {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -171,6 +188,7 @@ impl Model {
         match self {
             Self::GteBase => "GTE_BASE",
             Self::CohereMultilingual => "COHERE_MULTILINGUAL",
+            Self::Bm25 => "BM25",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -178,6 +196,7 @@ impl Model {
         match value {
             "GTE_BASE" => Some(Self::GteBase),
             "COHERE_MULTILINGUAL" => Some(Self::CohereMultilingual),
+            "BM25" => Some(Self::Bm25),
             _ => None,
         }
     }

@@ -8,7 +8,7 @@ use super::semantic_search_grpc::{
     calculate_similarity_scores_request::ComparedContents, index_request::Datapoint,
     semantic_search_client::SemanticSearchClient, CalculateSimilarityScoresRequest,
     CalculateSimilarityScoresResponse, CreateCollectionRequest, CreateCollectionResponse,
-    DeleteCollectionsRequest, DeleteCollectionsResponse, DeleteEmbeddingsRequest,
+    DateRanges, DeleteCollectionsRequest, DeleteCollectionsResponse, DeleteEmbeddingsRequest,
     DeleteEmbeddingsResponse, IndexRequest, IndexResponse, Model, QueryRequest, QueryResponse,
     RequestPayload,
 };
@@ -35,6 +35,8 @@ impl SemanticSearch for SemanticSearchImpl {
         limit: u32,
         threshold: f32,
         payloads: Vec<HashMap<String, String>>,
+        date_ranges: Option<DateRanges>,
+        sparse: bool,
     ) -> Result<QueryResponse> {
         let mut client = self.client.as_ref().clone();
 
@@ -42,13 +44,19 @@ impl SemanticSearch for SemanticSearchImpl {
             .into_iter()
             .map(|payload| RequestPayload { payload })
             .collect();
+        let model = if sparse {
+            Model::Bm25
+        } else {
+            Model::CohereMultilingual
+        };
         let request = Request::new(QueryRequest {
             query,
             limit,
             threshold,
             collection_name: collection_name.to_string(),
-            model: Model::CohereMultilingual.into(),
+            model: model.into(),
             payloads: req_payloads,
+            date_ranges,
         });
         let response = client.query(request).await?;
 
@@ -80,11 +88,17 @@ impl SemanticSearch for SemanticSearchImpl {
         &self,
         datapoints: Vec<Datapoint>,
         collection_name: String,
+        sparse: bool,
     ) -> Result<IndexResponse> {
         let mut client = self.client.as_ref().clone();
+        let model = if sparse {
+            Model::Bm25
+        } else {
+            Model::CohereMultilingual
+        };
         let request = Request::new(IndexRequest {
             datapoints,
-            model: Model::CohereMultilingual.into(),
+            model: model.into(),
             collection_name,
         });
         let response = client.index(request).await?;
@@ -92,11 +106,20 @@ impl SemanticSearch for SemanticSearchImpl {
         Ok(response.into_inner())
     }
 
-    async fn create_collection(&self, collection_name: String) -> Result<CreateCollectionResponse> {
+    async fn create_collection(
+        &self,
+        collection_name: String,
+        sparse: bool,
+    ) -> Result<CreateCollectionResponse> {
         let mut client = self.client.as_ref().clone();
+        let model = if sparse {
+            Model::Bm25
+        } else {
+            Model::CohereMultilingual
+        };
         let request = Request::new(CreateCollectionRequest {
             collection_name,
-            model: Model::CohereMultilingual.into(),
+            model: model.into(),
         });
 
         let response = client.create_collection(request).await?;
