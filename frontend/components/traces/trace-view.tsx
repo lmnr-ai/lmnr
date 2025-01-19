@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
-import { Span } from '@/lib/traces/types';
+import { Span, TraceWithSpans } from '@/lib/traces/types';
 import { cn, swrFetcher } from '@/lib/utils';
 
 import { Button } from '../ui/button';
@@ -21,7 +21,7 @@ interface TraceViewProps {
   onClose: () => void;
 }
 
-export default function TraceView({ traceId, onClose}: TraceViewProps) {
+export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const router = useRouter();
   const pathName = usePathname();
@@ -33,7 +33,7 @@ export default function TraceView({ traceId, onClose}: TraceViewProps) {
   const [timelineWidth, setTimelineWidth] = useState(0);
   const { projectId } = useProjectContext();
 
-  const { data: trace, isLoading } = useSWR(
+  const { data: trace, isLoading } = useSWR<TraceWithSpans>(
     `/api/projects/${projectId}/traces/${traceId}`,
     swrFetcher
   );

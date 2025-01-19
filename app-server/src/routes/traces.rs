@@ -9,14 +9,7 @@ use crate::semantic_search::semantic_search_grpc::DateRanges;
 use crate::semantic_search::SemanticSearch;
 use crate::{
     ch::{self, modifiers::GroupByInterval, Aggregation},
-    db::{
-        self,
-        events::Event,
-        modifiers::{DateRange, RelativeDateInterval},
-        spans::Span,
-        trace::Trace,
-        DB,
-    },
+    db::modifiers::{DateRange, RelativeDateInterval},
 };
 use actix_web::{get, post, web, HttpResponse};
 use chrono::{DateTime, Utc};
@@ -79,62 +72,6 @@ pub async fn search_traces(
     };
 
     Ok(HttpResponse::Ok().json(response))
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TraceWithSpanPreviews {
-    #[serde(flatten)]
-    trace: Trace,
-    spans: Vec<Span>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GetTraceParams {
-    #[serde(default)]
-    search: Option<String>,
-}
-
-#[get("traces/{trace_id}")]
-pub async fn get_single_trace(
-    params: web::Path<(Uuid, Uuid)>,
-    db: web::Data<DB>,
-    query_params: web::Query<GetTraceParams>,
-) -> ResponseResult {
-    let (project_id, trace_id) = params.into_inner();
-    let search = query_params.search.clone();
-
-    let trace = db::trace::get_single_trace(&db.pool, trace_id).await?;
-
-    let span_previews = db::spans::get_trace_spans(&db.pool, trace_id, project_id, search).await?;
-
-    let trace_with_spans = TraceWithSpanPreviews {
-        trace,
-        spans: span_previews,
-    };
-
-    Ok(HttpResponse::Ok().json(trace_with_spans))
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SpanWithEvents {
-    #[serde(flatten)]
-    span: Span,
-    events: Vec<Event>,
-}
-
-#[get("spans/{span_id}")]
-pub async fn get_single_span(params: web::Path<(Uuid, Uuid)>, db: web::Data<DB>) -> ResponseResult {
-    let (project_id, span_id) = params.into_inner();
-
-    let span = db::spans::get_span(&db.pool, span_id, project_id).await?;
-    let events = db::events::get_events_for_span(&db.pool, span_id).await?;
-
-    let span_with_events = SpanWithEvents { span, events };
-
-    Ok(HttpResponse::Ok().json(span_with_events))
 }
 
 #[derive(Deserialize)]
