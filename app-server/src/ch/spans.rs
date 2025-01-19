@@ -89,7 +89,9 @@ impl CHSpan {
             trace_id: span.trace_id,
             provider: usage.provider_name.unwrap_or(String::from("<null>")),
             user_id: span_attributes.user_id().unwrap_or(String::from("<null>")),
-            path: span_attributes.path().unwrap_or(String::from("<null>")),
+            path: span_attributes
+                .flat_path()
+                .unwrap_or(String::from("<null>")),
         }
     }
 }

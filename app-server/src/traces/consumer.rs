@@ -244,7 +244,7 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
         let registered_label_classes = match get_registered_label_classes_for_path(
             &db.pool,
             rabbitmq_span_message.project_id,
-            &span.get_attributes().path().unwrap_or_default(),
+            &span.get_attributes().flat_path().unwrap_or_default(),
         )
         .await
         {
