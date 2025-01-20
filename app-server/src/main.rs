@@ -186,8 +186,6 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    // let clickhouse = client;
-
     let mut rabbitmq_connection = None;
     runtime_handle.block_on(async {
         if is_feature_enabled(Feature::FullBuild) {
