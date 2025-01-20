@@ -74,7 +74,7 @@ export async function GET(
       topSpanName: topLevelSpans.name,
       topSpanType: topLevelSpans.spanType,
       latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
-    }).from(traces).innerJoin(
+    }).from(traces).leftJoin(
       topLevelSpans,
       eq(traces.id, topLevelSpans.traceId)
     ).where(

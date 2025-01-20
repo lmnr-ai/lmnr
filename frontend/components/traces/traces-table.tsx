@@ -27,6 +27,7 @@ import {
 import SpanTypeIcon from './span-type-icon';
 
 interface TracesTableProps {
+  isSupabaseEnabled: boolean;
   onRowClick?: (rowId: string) => void;
 }
 const toFilterUrlParam = (filters: DatatableFilter[]): string =>
@@ -39,7 +40,7 @@ const renderCost = (val: any) => {
   return `$${parseFloat(val).toFixed(5) || val}`;
 };
 
-export default function TracesTable({ onRowClick }: TracesTableProps) {
+export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTableProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
@@ -118,6 +119,69 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
 
     setTraces(data.items);
     setTotalCount(data.totalCount);
+  };
+
+  // TODO: figure out if we need to re-query the DB for the new trace
+  // by id in order to get the top span info.
+  //
+  // This is only possible for the cases where we allow to explicitly set
+  // the trace id in the instrumentation, resulting in multiple parent spans,
+  // i.e. the first top level span may be present and recorded, while the
+  // trace is still running.
+  // https://docs.lmnr.ai/tracing/manual-instrumentation#setting-trace-id-manually
+  //
+  // In pure OpenTelemetry, the trace ends as soon
+  // as the top span ends, so by that time we have the top span info.
+
+  // If we do decide to re-query, then instead of `dbTraceRowToTrace` and
+  // `updateRealtimeTraces` we can just call `getTraces` directly.
+  const dbTraceRowToTrace = (row: Record<string, any>): Trace => ({
+    startTime: row.start_time,
+    endTime: row.end_time,
+    id: row.id,
+    sessionId: row.session_id,
+    inputTokenCount: row.input_token_count,
+    outputTokenCount: row.output_token_count,
+    totalTokenCount: row.total_token_count,
+    inputCost: row.input_cost,
+    outputCost: row.output_cost,
+    hasBrowserSession: row.has_browser_session,
+    cost: row.cost,
+    metadata: row.metadata,
+    topSpanInputPreview: null,
+    topSpanOutputPreview: null,
+    topSpanName: null,
+    topSpanType: null,
+    topSpanPath: null,
+  });
+
+  const updateRealtimeTraces = (eventType: 'INSERT' | 'UPDATE',
+    old: Record<string, any>,
+    newObj: Record<string, any>
+  ) => {
+    console.log('updateRealtimeTraces', eventType, old, newObj);
+    if (eventType === 'INSERT') {
+      const insertIndex = traces?.findIndex(trace => trace.startTime <= newObj.start_time);
+      if (insertIndex !== -1 && insertIndex !== undefined) {
+        const newTraces = traces ? [...traces] : [];
+        newTraces.splice(insertIndex, 0, dbTraceRowToTrace(newObj));
+        if (newTraces.length > pageSize) {
+          newTraces.slice(0, pageSize);
+        }
+        setTraces(newTraces);
+
+        // This is also not exactly reliable, because old traces may be
+        // out of range by that time.
+        setTotalCount(totalCount + 1);
+      }
+    } else if (eventType === 'UPDATE') {
+      const updateIndex = traces?.findIndex(trace => trace.id === newObj.id || trace.id === old.id);
+      if (updateIndex !== -1 && updateIndex !== undefined) {
+        const newTraces = traces ? [...traces] : [];
+        newTraces[updateIndex] = dbTraceRowToTrace(newObj);
+        setTraces(newTraces);
+      }
+    }
   };
 
   useEffect(() => {
@@ -395,6 +459,9 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         (payload) => {
           if (payload.eventType === 'INSERT') {
             setCanRefresh(isCurrentTimestampIncluded);
+            if (isCurrentTimestampIncluded) {
+              updateRealtimeTraces('INSERT', payload.old, payload.new);
+            }
           }
         }
       )
@@ -409,6 +476,9 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         (payload) => {
           if (payload.eventType === 'UPDATE') {
             setCanRefresh(isCurrentTimestampIncluded);
+            if (isCurrentTimestampIncluded) {
+              updateRealtimeTraces('UPDATE', payload.old, payload.new);
+            }
           }
         }
       )
