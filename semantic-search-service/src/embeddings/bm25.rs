@@ -5,10 +5,7 @@ use indexmap::IndexMap;
 
 use super::{Embed, Embedding};
 
-// This has to be tuned together with CHARACTER_SPLITTER_CHUNK_SIZE
-// or any other chunking method. At the time of writing this,
-// chunk size is 512 characters, which is approximately 150 words.
-const DOCUMENT_LENGTH_TOKENS: f32 = 150.0;
+const DOCUMENT_LENGTH_TOKENS: f32 = 1024.0;
 
 pub struct Bm25 {
     embedder: Embedder,
