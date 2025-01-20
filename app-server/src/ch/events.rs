@@ -30,9 +30,6 @@ impl CHEvent {
 }
 
 pub async fn insert_events(clickhouse: clickhouse::Client, events: Vec<CHEvent>) -> Result<()> {
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(());
-    }
     if events.is_empty() {
         return Ok(());
     }

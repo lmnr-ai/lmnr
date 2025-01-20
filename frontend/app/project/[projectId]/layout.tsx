@@ -16,7 +16,7 @@ import { fetcherJSON } from '@/lib/utils';
 import { GetProjectResponse } from '@/lib/workspaces/types';
 
 export default async function ProjectIdLayout(
-    props: {
+  props: {
       children: React.ReactNode;
       params: Promise<{ projectId: string }>;
     }
@@ -59,33 +59,33 @@ export default async function ProjectIdLayout(
   const defaultOpen = cookieStore.get("sidebar:state") ? cookieStore.get("sidebar:state")?.value === "true" : true;
 
   return (
-      <UserContextProvider
-          email={user.email!}
-          username={user.name!}
-          imageUrl={user.image!}
-          supabaseAccessToken={session.supabaseAccessToken}
-      >
-        <ProjectContextProvider projectId={project.id} projectName={project.name}>
-          <div className="flex flex-row max-w-full max-h-screen">
-            <SidebarProvider defaultOpen={defaultOpen}>
-              <div className="z-50 h-screen">
-                <ProjectNavbar
-                    projectId={projectId}
+    <UserContextProvider
+      email={user.email!}
+      username={user.name!}
+      imageUrl={user.image!}
+      supabaseAccessToken={session.supabaseAccessToken}
+    >
+      <ProjectContextProvider projectId={project.id} projectName={project.name}>
+        <div className="flex flex-row max-w-full max-h-screen">
+          <SidebarProvider defaultOpen={defaultOpen}>
+            <div className="z-50 h-screen">
+              <ProjectNavbar
+                projectId={projectId}
+              />
+            </div>
+            <div className="flex flex-col flex-grow h-screen max-w-full min-h-screen overflow-y-auto">
+              {showBanner && (
+                <ProjectUsageBanner
+                  workspaceId={project.workspaceId}
+                  spansThisMonth={project.spansThisMonth}
+                  spansLimit={project.spansLimit}
                 />
-              </div>
-              <div className="flex flex-col flex-grow h-screen max-w-full min-h-screen overflow-y-auto">
-                {showBanner && (
-                    <ProjectUsageBanner
-                        workspaceId={project.workspaceId}
-                        spansThisMonth={project.spansThisMonth}
-                        spansLimit={project.spansLimit}
-                    />
-                )}
-                <div className="z-10 flex flex-col flex-grow ">{children}</div>
-              </div>
-            </SidebarProvider>
-          </div>
-        </ProjectContextProvider>
-      </UserContextProvider>
+              )}
+              <div className="z-10 flex flex-col flex-grow ">{children}</div>
+            </div>
+          </SidebarProvider>
+        </div>
+      </ProjectContextProvider>
+    </UserContextProvider>
   );
 }

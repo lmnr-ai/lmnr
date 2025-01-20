@@ -4,12 +4,8 @@ use clickhouse::Row;
 use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::{
-    evaluations::utils::EvaluationDatapointResult,
-    features::{is_feature_enabled, Feature},
-};
-
 use super::utils::chrono_to_nanoseconds;
+use crate::evaluations::utils::EvaluationDatapointResult;
 
 fn serialize_timestamp<S>(timestamp: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -75,10 +71,6 @@ pub async fn insert_evaluation_scores(
     evaluation_scores: Vec<EvaluationScore>,
 ) -> Result<()> {
     if evaluation_scores.is_empty() {
-        return Ok(());
-    }
-
-    if !is_feature_enabled(Feature::FullBuild) {
         return Ok(());
     }
 
@@ -284,9 +276,6 @@ pub async fn delete_evaluation_score(
     result_id: Uuid,
     label_id: Uuid,
 ) -> Result<()> {
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(());
-    }
     // Note, this does not immediately physically delete the data.
     // https://clickhouse.com/docs/en/sql-reference/statements/delete
     clickhouse

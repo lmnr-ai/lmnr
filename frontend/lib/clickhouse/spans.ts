@@ -1,6 +1,4 @@
 import { ClickHouseClient } from "@clickhouse/client";
-
-import { Feature, isFeatureEnabled } from "../features/features";
 import { GroupByInterval, truncateTimeMap } from "./modifiers";
 import {
   addTimeRangeToQuery,
@@ -72,9 +70,6 @@ export const getSpanMetricsOverTime = async (
   groupBy: SpanMetricGroupBy,
   aggregation: AggregationFunction,
 ): Promise<MetricTimeValue<SpanMetricType>[]> => {
-  if (!isFeatureEnabled(Feature.FULL_BUILD)) {
-    return [];
-  }
 
   const chRoundTime = truncateTimeMap[groupByInterval];
 
@@ -135,10 +130,6 @@ export const getSpanMetricsSummary = async (
   groupBy: SpanMetricGroupBy,
   aggregation: AggregationFunction,
 ): Promise<SpanMetricSummary[]> => {
-  if (!isFeatureEnabled(Feature.FULL_BUILD)) {
-    return [];
-  }
-
   const baseQuery = `
   SELECT
       ${groupBy},
