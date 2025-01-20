@@ -14,13 +14,17 @@ import SpansTable from './spans-table';
 import TraceView from './trace-view';
 import TracesTable from './traces-table';
 
+interface TracesProps {
+  isSupabaseEnabled: boolean;
+}
+
 enum SelectedTab {
   TRACES = 'traces',
   SESSIONS = 'sessions',
   SPANS = 'spans'
 }
 
-export default function Traces() {
+export default function Traces({ isSupabaseEnabled }: TracesProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
@@ -77,7 +81,7 @@ export default function Traces() {
           </div>
           <div className="flex-grow flex">
             <TabsContent value="traces" className="w-full">
-              <TracesTable onRowClick={setTraceId} />
+              <TracesTable onRowClick={setTraceId} isSupabaseEnabled={isSupabaseEnabled} />
             </TabsContent>
             <TabsContent value="sessions" className="w-full">
               <SessionsTable onRowClick={setTraceId} />
