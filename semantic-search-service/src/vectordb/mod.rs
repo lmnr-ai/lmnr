@@ -212,6 +212,9 @@ impl QdrantClient {
             None
         };
 
+        // TODO: set on_disk to be configurable based on user tier, OR
+        // keep a separate "warm" collection for the first N 15 minutes and
+        // manage it
         self.client
             .create_collection(CreateCollection {
                 collection_name: collection_id.clone(),
@@ -219,12 +222,14 @@ impl QdrantClient {
                     config: Some(Config::Params(VectorParams {
                         size: dim,
                         distance: Distance::Cosine.into(),
+                        on_disk: Some(true),
                         ..Default::default()
                     })),
                 }),
                 hnsw_config: Some(HnswConfigDiff {
                     m: Some(0),
                     payload_m: Some(16),
+                    on_disk: Some(true),
                     ..Default::default()
                 }),
                 sparse_vectors_config,
