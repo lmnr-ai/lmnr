@@ -7,8 +7,8 @@ use qdrant_client::{
     qdrant::{
         vectors_config::Config, Condition, CreateCollection, CreateFieldIndexCollectionBuilder,
         DatetimeRange, DeletePointsBuilder, Distance, FieldType, Filter, HnswConfigDiff,
-        PointStruct, SearchPoints, SearchResponse, SparseIndices, SparseVectorConfig,
-        SparseVectorParams, UpsertPointsBuilder, VectorParams, VectorsConfig,
+        PointStruct, SearchPoints, SearchResponse, SparseIndexConfig, SparseIndices,
+        SparseVectorConfig, SparseVectorParams, UpsertPointsBuilder, VectorParams, VectorsConfig,
     },
     Qdrant,
 };
@@ -21,6 +21,8 @@ use crate::{
 pub struct QdrantClient {
     client: Qdrant,
 }
+
+const SPARSE_INDEX_FULL_SCAN_THRESHOLD: u64 = 500;
 
 impl Model {
     fn dimensions(&self) -> u64 {
@@ -194,12 +196,25 @@ impl QdrantClient {
 
         let sparse_vectors_config = if model.sparse() {
             Some(SparseVectorConfig {
-                map: HashMap::from([("sparse".to_string(), SparseVectorParams::default())]),
+                map: HashMap::from([(
+                    "sparse".to_string(),
+                    SparseVectorParams {
+                        index: Some(SparseIndexConfig {
+                            on_disk: Some(true),
+                            full_scan_threshold: Some(SPARSE_INDEX_FULL_SCAN_THRESHOLD),
+                            ..Default::default()
+                        }),
+                        modifier: Some(0),
+                    },
+                )]),
             })
         } else {
             None
         };
 
+        // TODO: set on_disk to be configurable based on user tier, OR
+        // keep a separate "warm" collection for the first N 15 minutes and
+        // manage it
         self.client
             .create_collection(CreateCollection {
                 collection_name: collection_id.clone(),
@@ -207,12 +222,14 @@ impl QdrantClient {
                     config: Some(Config::Params(VectorParams {
                         size: dim,
                         distance: Distance::Cosine.into(),
+                        on_disk: Some(true),
                         ..Default::default()
                     })),
                 }),
                 hnsw_config: Some(HnswConfigDiff {
                     m: Some(0),
                     payload_m: Some(16),
+                    on_disk: Some(true),
                     ..Default::default()
                 }),
                 sparse_vectors_config,
