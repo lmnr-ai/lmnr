@@ -168,25 +168,25 @@ fn main() -> anyhow::Result<()> {
 
     let interrupt_senders = Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
-    let clickhouse = {
-        let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-        let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-        let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-        // https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts -> Create client which will wait for async inserts
-        // For now, we're not waiting for inserts to finish, but later need to add queue and batch on client-side
-        let mut client = clickhouse::Client::default()
-            .with_url(clickhouse_url)
-            .with_user(clickhouse_user)
-            .with_database("default")
-            .with_option("async_insert", "1")
-            .with_option("wait_for_async_insert", "0");
-        if let Ok(clickhouse_password) = clickhouse_password {
-            client = client.with_password(clickhouse_password);
-        } else {
+    let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+    let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+    let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+    let mut client = clickhouse::Client::default()
+        .with_url(clickhouse_url)
+        .with_user(clickhouse_user)
+        .with_database("default")
+        .with_option("async_insert", "1")
+        .with_option("wait_for_async_insert", "0");
+
+    let clickhouse = match clickhouse_password {
+        Ok(password) => client.with_password(password),
+        _ => {
             log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+            client
         }
-        client
     };
+
+    // let clickhouse = client;
 
     let mut rabbitmq_connection = None;
     runtime_handle.block_on(async {
