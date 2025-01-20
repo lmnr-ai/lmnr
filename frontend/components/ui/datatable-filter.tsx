@@ -71,9 +71,8 @@ export default function DataTableFilter({
   useEffect(() => {
     if (activeFilters.length > 0) {
       setFilters(activeFilters);
-      handleApplyFilters();
     }
-  }, [activeFilters,pathName, router, searchParams]);
+  }, [activeFilters]);
 
   const isFilterFilled = (filter: DatatableFilter): boolean => filter.value.length > 0;
 

@@ -27,6 +27,8 @@ type SessionRow = {
 interface SessionsTableProps {
   onRowClick?: (rowId: string) => void;
 }
+const toFilterUrlParam = (filters: DatatableFilter[]): string =>
+  JSON.stringify(filters);
 
 export default function SessionsTable({ onRowClick }: SessionsTableProps) {
   const { projectId } = useProjectContext();
@@ -124,19 +126,32 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
   ]);
 
   const handleAddFilter = (column: string, value: string) => {
-    const newFilter =  { column, operator: 'eq', value };
+    const newFilter = { column, operator: 'eq', value };
     const existingFilterIndex = activeFilters.findIndex(
       (filter) => filter.column === column && filter.value === value
     );
 
-    if (existingFilterIndex !== -1) {
-      const updatedFilters = activeFilters.filter((_, index) => index !== existingFilterIndex);
-      setActiveFilters(updatedFilters);
+    let updatedFilters;
+    if (existingFilterIndex === -1) {
+
+      updatedFilters = [...activeFilters, newFilter];
     } else {
-      const updatedFilters = [...activeFilters, newFilter];
-      setActiveFilters(updatedFilters);
+
+      updatedFilters = [...activeFilters];
     }
+
+    setActiveFilters(updatedFilters);
+    updateUrlWithFilters(updatedFilters);
   };
+
+  const updateUrlWithFilters = (filters: DatatableFilter[]) => {
+    searchParams.delete('filter');
+    searchParams.delete('pageNumber');
+    searchParams.append('pageNumber', '0');
+    searchParams.append('filter', toFilterUrlParam(filters));
+    router.push(`${pathName}?${searchParams.toString()}`);
+  };
+
 
   const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
     setActiveFilters(newFilters);
@@ -169,8 +184,11 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       id: 'id',
       cell: (row) => (
         <div
-          onClick={() => handleAddFilter('id', row.getValue())}
-          className="cursor-pointer"
+          onClick={(event) => {
+            event.stopPropagation();
+            handleAddFilter('id', row.getValue());
+          }}
+          className="cursor-pointer underline underline-offset-2 decoration-dotted text-primary hover:decoration-solid"
         >
           {/* <Mono className='text-xs'>{row.getValue()}</Mono> */}
         </div>
