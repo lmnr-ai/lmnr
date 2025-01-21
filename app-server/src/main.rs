@@ -545,28 +545,26 @@ fn main() -> anyhow::Result<()> {
 
     let grpc_server_handle = thread::Builder::new()
         .name("grpc".to_string())
-        .spawn({
-            move || {
-                runtime_handle.block_on(async {
-                    let process_traces_service = ProcessTracesService::new(
-                        db.clone(),
-                        cache.clone(),
-                        rabbitmq_connection_grpc.clone(),
-                        clickhouse_for_grpc,
-                    );
+        .spawn(move || {
+            runtime_handle.block_on(async {
+                let process_traces_service = ProcessTracesService::new(
+                    db.clone(),
+                    cache.clone(),
+                    rabbitmq_connection_grpc.clone(),
+                    clickhouse_for_grpc,
+                );
 
-                    Server::builder()
-                        .add_service(
-                            TraceServiceServer::new(process_traces_service)
-                                .max_decoding_message_size(GRPC_PAYLOAD_DECODING_LIMIT),
-                        )
-                        .serve_with_shutdown(grpc_address, async {
-                            wait_stop_signal("gRPC service").await;
-                        })
-                        .await
-                        .map_err(tonic_error_to_io_error)
-                })
-            }
+                Server::builder()
+                    .add_service(
+                        TraceServiceServer::new(process_traces_service)
+                            .max_decoding_message_size(GRPC_PAYLOAD_DECODING_LIMIT),
+                    )
+                    .serve_with_shutdown(grpc_address, async {
+                        wait_stop_signal("gRPC service").await;
+                    })
+                    .await
+                    .map_err(tonic_error_to_io_error)
+            })
         })
         .unwrap();
     handles.push(grpc_server_handle);
