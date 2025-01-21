@@ -7,7 +7,7 @@ import { db } from '@/lib/db/drizzle';
 import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
 import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
 import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
-import { Span, TraceSearchResponse } from '@/lib/traces/types';
+import {Span, TraceSearchResponse} from '@/lib/traces/types';
 import { fetcher } from '@/lib/utils';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -101,6 +101,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
         const uppercased = filter.value.toUpperCase().trim();
         filter.value = (uppercased === 'SPAN') ? "'DEFAULT'" : `'${uppercased}'`;
         filter.castType = "span_type";
+      } else if (filter.column === 'model') {
+        filter.column = "COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')";
       }
       return filter;
     });
@@ -141,6 +143,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       ...columns,
       latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
       path: sql<string>`attributes ->> 'lmnr.span.path'`.as("path"),
+      model: sql<string>`COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')`.as('model')
     }
   });
 

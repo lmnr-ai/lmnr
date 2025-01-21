@@ -346,6 +346,12 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
           </Tooltip>
         </TooltipProvider>,
       size: 100
+    },
+    {
+      cell: (row) => <Mono>{row.getValue()}</Mono>,
+      header: 'Model',
+      accessorKey: 'model',
+      id: 'model'
     }
   ];
 
@@ -387,7 +393,12 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       id: 'labels',
       name: 'Labels',
       restrictOperators: ['eq'],
+    },
+    {
+      id: 'model',
+      name: 'Model',
     }
+
   ];
 
   return (
