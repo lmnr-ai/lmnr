@@ -4,10 +4,7 @@ use clickhouse::Row;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
-    db::utils::validate_sql_string,
-    features::{is_feature_enabled, Feature},
-};
+use crate::db::utils::validate_sql_string;
 
 use super::modifiers::GroupByInterval;
 
