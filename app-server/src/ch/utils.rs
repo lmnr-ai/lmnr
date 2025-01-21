@@ -101,13 +101,6 @@ async fn get_time_bounds(
         return Err(anyhow::anyhow!("Invalid column name: {}", column_name));
     }
 
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(TimeBounds {
-            min_time: chrono_to_nanoseconds(Utc::now() - chrono::Duration::days(1)),
-            max_time: chrono_to_nanoseconds(Utc::now()),
-        });
-    }
-
     let query_string = format!(
         "SELECT
             MIN({column_name}) AS min_time,

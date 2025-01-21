@@ -11,7 +11,7 @@ services:
   postgres:
     image: postgres:16
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:

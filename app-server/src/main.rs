@@ -171,7 +171,7 @@ fn main() -> anyhow::Result<()> {
     let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
     let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
     let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-    let mut client = clickhouse::Client::default()
+    let client = clickhouse::Client::default()
         .with_url(clickhouse_url)
         .with_user(clickhouse_user)
         .with_database("default")
