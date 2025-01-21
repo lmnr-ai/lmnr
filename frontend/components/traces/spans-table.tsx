@@ -348,7 +348,6 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       size: 100
     },
     {
-      cell: (row) => <Mono>{row.getValue()}</Mono>,
       header: 'Model',
       accessorKey: 'model',
       id: 'model'

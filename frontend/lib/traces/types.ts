@@ -65,6 +65,7 @@ export type Span = {
   events: Event[];
   labels: SpanLabel[];
   path: string;
+  model?: string;
 };
 
 export type TraceWithSpans = {
