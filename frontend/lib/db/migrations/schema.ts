@@ -160,6 +160,7 @@ export const datasets = pgTable("datasets", {
   projectId: uuid("project_id").defaultRandom().notNull(),
   indexedOn: text("indexed_on"),
 }, (table) => [
+  index("datasets_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
   foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
