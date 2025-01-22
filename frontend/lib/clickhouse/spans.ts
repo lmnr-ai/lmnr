@@ -1,4 +1,5 @@
 import { ClickHouseClient } from "@clickhouse/client";
+
 import { GroupByInterval, truncateTimeMap } from "./modifiers";
 import {
   addTimeRangeToQuery,
