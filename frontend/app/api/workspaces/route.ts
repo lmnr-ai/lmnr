@@ -1,10 +1,17 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import {count, desc, eq, sql} from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { apiKeys, membersOfWorkspaces, projects, subscriptionTiers, workspaces } from '@/lib/db/migrations/schema';
+import {
+  apiKeys,
+  datasets,
+  membersOfWorkspaces,
+  projects, spans,
+  subscriptionTiers,
+  workspaces
+} from '@/lib/db/migrations/schema';
 import { fetcher } from '@/lib/utils';
 
 export async function GET(req: NextRequest): Promise<Response> {
@@ -46,9 +53,14 @@ export async function GET(req: NextRequest): Promise<Response> {
           id: projects.id,
           name: projects.name,
           workspaceId: projects.workspaceId,
+          datasetsCount: count(datasets.id),
+          spansCount: count(spans.spanId)
         })
         .from(projects)
-        .where(eq(projects.workspaceId, workspace.id));
+        .leftJoin(datasets, eq(projects.id, datasets.projectId))
+        .leftJoin(spans, eq(projects.id, spans.projectId))
+        .where(eq(projects.workspaceId, workspace.id))
+        .groupBy(projects.id, projects.workspaceId);
 
       return {
         ...workspace,
