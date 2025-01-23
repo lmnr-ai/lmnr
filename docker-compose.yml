@@ -45,19 +45,19 @@ services:
     image: ghcr.io/lmnr-ai/frontend
     pull_policy: always
     ports:
-      - "3000:3000"
+      - "5667:5667"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      PORT: 3000
+      PORT: 5667
       BACKEND_URL: http://app-server:8000
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
-      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_URL: http://localhost:5667
       NEXTAUTH_SECRET: some_secret
-      NEXT_PUBLIC_URL: http://localhost:3000
-      ENVIRONMENT: LITE
+      NEXT_PUBLIC_URL: http://localhost:5667
+      ENVIRONMENT: LITE # this disables runtime dependency on clickhouse
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server
