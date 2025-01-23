@@ -215,10 +215,10 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       id: 'top_span_type',
       cell: (row) => (
         <div
-        onClick={(event) => {
-          event.stopPropagation();
-          handleAddFilter('span_type', row.getValue());
-        }}
+          onClick={(event) => {
+            event.stopPropagation();
+            handleAddFilter('span_type', row.getValue());
+          }}
           className="cursor-pointer flex space-x-2 items-center hover:underline"
         >
           <SpanTypeIcon className='z-10' spanType={row.getValue()} />
