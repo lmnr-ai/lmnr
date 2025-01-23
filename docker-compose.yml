@@ -9,8 +9,6 @@ name: lmnr
 services:
   postgres:
     image: postgres:16
-#    ports:
-#      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
@@ -27,8 +25,6 @@ services:
     build:
       context: ./clickhouse
     container_name: clickhouse
-#    ports:
-#      - "8123:8123"
     volumes:
       - type: volume
         source: clickhouse-data
@@ -66,9 +62,6 @@ services:
   app-server:
     image: ghcr.io/lmnr-ai/app-server
     pull_policy: always
-#    ports:
-#      - "8000:8000"
-#      - "8001:8001"
     depends_on:
       postgres:
         condition: service_healthy
