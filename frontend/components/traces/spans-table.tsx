@@ -231,7 +231,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
             event.stopPropagation();
             handleAddFilter('span_type', row.getValue());
           }}
-          className="cursor-pointer flex space-x-2 items-center underline underline-offset-2 decoration-dotted text-primary hover:decoration-solid"
+          className="cursor-pointer flex space-x-2 items-center hover:underline"
         >
           <SpanTypeIcon className='z-10' spanType={row.getValue()} />
           <div className='flex text-sm'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
@@ -245,7 +245,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
             event.stopPropagation();
             handleAddFilter('name', row.getValue());
           }}
-          className="cursor-pointer underline underline-offset-2 decoration-dotted text-primary hover:decoration-solid"
+          className="cursor-pointer hover:underline"
         >
           {row.getValue()}
         </div>

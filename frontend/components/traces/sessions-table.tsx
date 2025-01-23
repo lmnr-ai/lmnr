@@ -188,7 +188,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
             event.stopPropagation();
             handleAddFilter('id', row.getValue());
           }}
-          className="cursor-pointer underline underline-offset-2 decoration-dotted text-primary hover:decoration-solid"
+          className="cursor-pointer hover:underline"
         >
           {/* <Mono className='text-xs'>{row.getValue()}</Mono> */}
         </div>

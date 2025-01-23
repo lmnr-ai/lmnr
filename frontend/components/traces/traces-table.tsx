@@ -215,8 +215,11 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       id: 'top_span_type',
       cell: (row) => (
         <div
-          onClick={() =>handleAddFilter('top_span_type',row.getValue())}
-          className="cursor-pointer flex space-x-2 items-center underline underline-offset-2 decoration-dotted text-primary hover:decoration-solid"
+        onClick={(event) => {
+          event.stopPropagation();
+          handleAddFilter('span_type', row.getValue());
+        }}
+          className="cursor-pointer flex space-x-2 items-center hover:underline"
         >
           <SpanTypeIcon className='z-10' spanType={row.getValue()} />
           <div className='flex text-sm'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
@@ -228,9 +231,9 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         <div
           onClick={(event) => {
             event.stopPropagation();
-            handleAddFilter('top_span_name', row.getValue());
+            handleAddFilter('name', row.getValue());
           }}
-          className="cursor-pointer underline underline-offset-2 decoration-dotted text-primary hover:decoration-solid"
+          className="cursor-pointer hover:underline"
         >
           {row.getValue()}
         </div>
