@@ -57,9 +57,6 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
     clickhouse: clickhouse::Client,
     storage: Arc<T>,
 ) {
-    if !is_feature_enabled(Feature::FullBuild) {
-        return;
-    }
     // Safe to unwrap because we checked is_feature_enabled above
     let channel = rabbitmq_connection.unwrap().create_channel().await.unwrap();
 

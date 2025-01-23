@@ -7,18 +7,13 @@ name: lmnr
 services:
   qdrant:
     image: qdrant/qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
     volumes:
       - type: volume
         source: qdrant-data
         target: /data
-    
+
   rabbitmq:
     image: rabbitmq
-    ports:
-      - "5672:5672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -32,8 +27,6 @@ services:
     build:
       context: ./clickhouse
     container_name: clickhouse
-    ports:
-      - "8123:8123"
     volumes:
       - type: volume
         source: clickhouse-data
@@ -52,8 +45,6 @@ services:
 
   semantic-search-service:
     image: ghcr.io/lmnr-ai/semantic-search-service
-    ports:
-      - "8080:8080"
     depends_on:
       - qdrant
     environment:
@@ -65,14 +56,10 @@ services:
 
   python-executor:
     image: ghcr.io/lmnr-ai/python-executor
-    ports:
-      - "8811:8811"
     pull_policy: always
 
   postgres:
     image: postgres:16
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
@@ -80,16 +67,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      test: [ "CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}" ]
       interval: 2s
       timeout: 5s
       retries: 5
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server
-    ports:
-      - "8000:8000"
-      - "8001:8001"
     depends_on:
       semantic-search-service:
         condition: service_started

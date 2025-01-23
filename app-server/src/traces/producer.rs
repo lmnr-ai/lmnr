@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
+    ch::{self, spans::CHSpan},
     db::{events::Event, spans::Span, DB},
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
@@ -25,6 +26,7 @@ pub async fn push_spans_to_queue(
     project_id: Uuid,
     rabbitmq_connection: Option<Arc<Connection>>,
     db: Arc<DB>,
+    clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
 ) -> Result<ExportTraceServiceResponse> {
     if !is_feature_enabled(Feature::FullBuild) {
@@ -49,6 +51,20 @@ pub async fn push_spans_to_queue(
                     {
                         log::error!(
                             "Failed to record span. span_id [{}], project_id [{}]: {:?}",
+                            span.span_id,
+                            project_id,
+                            e
+                        );
+                    }
+
+                    let ch_span = CHSpan::from_db_span(&span, span_usage, project_id);
+
+                    let insert_span_res =
+                        ch::spans::insert_span(clickhouse.clone(), &ch_span).await;
+
+                    if let Err(e) = insert_span_res {
+                        log::error!(
+                            "Failed to insert span into Clickhouse. span_id [{}], project_id [{}]: {:?}",
                             span.span_id,
                             project_id,
                             e

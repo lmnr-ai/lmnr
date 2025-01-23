@@ -29,10 +29,12 @@ pub async fn process_traces(
     project_api_key: ProjectApiKey,
     rabbitmq_connection: web::Data<Option<Arc<Connection>>>,
     db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
     cache: web::Data<crate::cache::Cache>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let cache = cache.into_inner();
+    let clickhouse = clickhouse.into_inner().as_ref().clone();
     let request = ExportTraceServiceRequest::decode(body).map_err(|e| {
         anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
     })?;
@@ -57,6 +59,7 @@ pub async fn process_traces(
         project_api_key.project_id,
         rabbitmq_connection,
         db,
+        clickhouse,
         cache,
     )
     .await?;
