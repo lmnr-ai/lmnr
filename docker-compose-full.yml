@@ -114,7 +114,7 @@ services:
   frontend:
     image: ghcr.io/lmnr-ai/frontend
     ports:
-      - "3000:3000"
+      - "5667:5667"
     pull_policy: always
     depends_on:
       postgres:
@@ -122,13 +122,13 @@ services:
       clickhouse:
         condition: service_started
     environment:
-      - PORT=3000
+      - PORT=5667
       - BACKEND_URL=http://app-server:8000
       - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_URL=http://localhost:5667
       - NEXTAUTH_SECRET=some_secret
-      - NEXT_PUBLIC_URL=http://localhost:3000
+      - NEXT_PUBLIC_URL=http://localhost:5667
       - ENVIRONMENT=FULL
       - CLICKHOUSE_URL=http://clickhouse:8123
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
