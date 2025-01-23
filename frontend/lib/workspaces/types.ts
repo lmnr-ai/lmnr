@@ -2,8 +2,6 @@ export type Project = {
   id: string;
   name: string;
   workspaceId: string;
-  datasetsCount: number;
-  spansCount: number;
 };
 
 export interface WorkspaceUser {
@@ -43,3 +41,9 @@ export type GetProjectResponse = {
   eventsLimit: number;
   isFreeTier: boolean;
 };
+
+export interface ProjectStats {
+  datasetsCount: number;
+  spansCount: number;
+  evaluationsCount: number;
+}

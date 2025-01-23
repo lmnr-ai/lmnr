@@ -1,6 +1,6 @@
-import { ClickHouseClient } from "@clickhouse/client";
+import { ClickHouseClient } from '@clickhouse/client';
 
-import { GroupByInterval, truncateTimeMap } from "./modifiers";
+import { GroupByInterval, truncateTimeMap } from './modifiers';
 import {
   addTimeRangeToQuery,
   AggregationFunction,
@@ -9,13 +9,13 @@ import {
   groupByTimeAbsoluteStatement,
   groupByTimeRelativeStatement,
   TimeRange
-} from "./utils";
+} from './utils';
 
 export enum SpanMetricGroupBy {
   Model = 'model',
   Provider = 'provider',
   Path = 'path',
-  Name = 'name',
+  Name = 'name'
 }
 export enum SpanType {
   DEFAULT = 0,
@@ -23,9 +23,8 @@ export enum SpanType {
   PIPELINE = 2,
   EXECUTOR = 3,
   EVALUATOR = 4,
-  EVALUATION = 5,
+  EVALUATION = 5
 }
-
 
 export enum SpanMetric {
   Count = 'count',
@@ -35,7 +34,7 @@ export enum SpanMetric {
   Latency = 'latency',
   InputTokens = 'input_tokens',
   OutputTokens = 'output_tokens',
-  TotalTokens = 'total_tokens',
+  TotalTokens = 'total_tokens'
 }
 
 export type MetricTimeValue<T> = {
@@ -46,11 +45,14 @@ export type MetricTimeValue<T> = {
 export type SpanMetricType = {
   [key: string]: number;
   timestamp: number; // unix timestamp in seconds
-}
+};
 
 const NULL_VALUE = '<null>';
 
-const getMetricColumn = (metric: SpanMetric, aggregation: AggregationFunction) => {
+const getMetricColumn = (
+  metric: SpanMetric,
+  aggregation: AggregationFunction
+) => {
   if (metric === SpanMetric.Count) {
     // other aggregations don't make sense for count
     return 'COUNT(span_id)';
@@ -69,9 +71,8 @@ export const getSpanMetricsOverTime = async (
   groupByInterval: GroupByInterval,
   timeRange: TimeRange,
   groupBy: SpanMetricGroupBy,
-  aggregation: AggregationFunction,
+  aggregation: AggregationFunction
 ): Promise<MetricTimeValue<SpanMetricType>[]> => {
-
   const chRoundTime = truncateTimeMap[groupByInterval];
 
   const baseQuery = `WITH base AS (
@@ -92,13 +93,32 @@ export const getSpanMetricsOverTime = async (
 
   if ('pastHours' in timeRange) {
     if (timeRange.pastHours !== 'all') {
-      groupByStatement = groupByTimeRelativeStatement(timeRange.pastHours, groupByInterval, groupBy);
+      groupByStatement = groupByTimeRelativeStatement(
+        timeRange.pastHours,
+        groupByInterval,
+        groupBy
+      );
     } else {
-      const bounds = await getTimeBounds(clickhouseClient, projectId, 'spans', 'start_time');
-      groupByStatement = groupByTimeAbsoluteStatement(bounds[0], bounds[1], groupByInterval, groupBy);
+      const bounds = await getTimeBounds(
+        clickhouseClient,
+        projectId,
+        'spans',
+        'start_time'
+      );
+      groupByStatement = groupByTimeAbsoluteStatement(
+        bounds[0],
+        bounds[1],
+        groupByInterval,
+        groupBy
+      );
     }
   } else {
-    groupByStatement = groupByTimeAbsoluteStatement(timeRange.start, timeRange.end, groupByInterval, groupBy);
+    groupByStatement = groupByTimeAbsoluteStatement(
+      timeRange.start,
+      timeRange.end,
+      groupByInterval,
+      groupBy
+    );
   }
 
   const finalQuery = `${query} ${groupByStatement})
@@ -113,8 +133,8 @@ export const getSpanMetricsOverTime = async (
     query_params: {
       projectId,
       nullValue: NULL_VALUE,
-      types: [SpanType.DEFAULT, SpanType.LLM],
-    },
+      types: [SpanType.DEFAULT, SpanType.LLM]
+    }
   });
   return await result.json();
 };
@@ -129,7 +149,7 @@ export const getSpanMetricsSummary = async (
   metric: SpanMetric,
   timeRange: TimeRange,
   groupBy: SpanMetricGroupBy,
-  aggregation: AggregationFunction,
+  aggregation: AggregationFunction
 ): Promise<SpanMetricSummary[]> => {
   const baseQuery = `
   SELECT
@@ -151,7 +171,31 @@ export const getSpanMetricsSummary = async (
       projectId,
       nullValue: NULL_VALUE,
       types: [SpanType.DEFAULT, SpanType.LLM]
-    },
+    }
   });
+  return await result.json();
+};
+
+export const getSpansCountInProjects = async (
+  clickhouseClient: ClickHouseClient,
+  projectIds: string[]
+): Promise<{ id: string; count: number }[]> => {
+  const query = `
+    SELECT
+      project_id as id,
+      count(*) as count
+    FROM spans
+    WHERE project_id IN {projectIds:Array(UUID)}
+    GROUP BY project_id
+  `;
+
+  const result = await clickhouseClient.query({
+    query,
+    format: 'JSONEachRow',
+    query_params: {
+      projectIds
+    }
+  });
+
   return await result.json();
 };
