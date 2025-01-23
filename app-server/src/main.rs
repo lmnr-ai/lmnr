@@ -168,28 +168,22 @@ fn main() -> anyhow::Result<()> {
 
     let interrupt_senders = Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
-    let clickhouse = if is_feature_enabled(Feature::FullBuild) {
-        let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-        let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-        let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-        // https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts -> Create client which will wait for async inserts
-        // For now, we're not waiting for inserts to finish, but later need to add queue and batch on client-side
-        let mut client = clickhouse::Client::default()
-            .with_url(clickhouse_url)
-            .with_user(clickhouse_user)
-            .with_database("default")
-            .with_option("async_insert", "1")
-            .with_option("wait_for_async_insert", "0");
-        if let Ok(clickhouse_password) = clickhouse_password {
-            client = client.with_password(clickhouse_password);
-        } else {
+    let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+    let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+    let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+    let client = clickhouse::Client::default()
+        .with_url(clickhouse_url)
+        .with_user(clickhouse_user)
+        .with_database("default")
+        .with_option("async_insert", "1")
+        .with_option("wait_for_async_insert", "0");
+
+    let clickhouse = match clickhouse_password {
+        Ok(password) => client.with_password(password),
+        _ => {
             log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+            client
         }
-        client
-    } else {
-        // This client does not connect to ClickHouse, and the feature flag must be checked before using it
-        // TODO: wrap this in a dyn trait object
-        clickhouse::Client::default()
     };
 
     let mut rabbitmq_connection = None;
@@ -253,6 +247,7 @@ fn main() -> anyhow::Result<()> {
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
+    let clickhouse_for_grpc = clickhouse.clone();
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
         .spawn(move || {
@@ -555,6 +550,7 @@ fn main() -> anyhow::Result<()> {
                     db.clone(),
                     cache.clone(),
                     rabbitmq_connection_grpc.clone(),
+                    clickhouse_for_grpc,
                 );
 
                 Server::builder()

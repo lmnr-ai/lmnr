@@ -17,9 +17,9 @@ import { GetProjectResponse } from '@/lib/workspaces/types';
 
 export default async function ProjectIdLayout(
   props: {
-    children: React.ReactNode;
-    params: Promise<{ projectId: string }>;
-  }
+      children: React.ReactNode;
+      params: Promise<{ projectId: string }>;
+    }
 ) {
   const params = await props.params;
 
@@ -45,9 +45,9 @@ export default async function ProjectIdLayout(
   const project = projectResponse as GetProjectResponse;
 
   const showBanner =
-    isFeatureEnabled(Feature.WORKSPACE) &&
-    project.isFreeTier &&
-    project.spansThisMonth >= 0.8 * project.spansLimit;
+      isFeatureEnabled(Feature.WORKSPACE) &&
+      project.isFreeTier &&
+      project.spansThisMonth >= 0.8 * project.spansLimit;
 
   const posthog = PostHogClient();
   posthog.identify({
@@ -71,7 +71,6 @@ export default async function ProjectIdLayout(
             <div className="z-50 h-screen">
               <ProjectNavbar
                 projectId={projectId}
-                fullBuild={isFeatureEnabled(Feature.FULL_BUILD)}
               />
             </div>
             <div className="flex flex-col flex-grow h-screen max-w-full min-h-screen overflow-y-auto">
