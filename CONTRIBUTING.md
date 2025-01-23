@@ -23,14 +23,14 @@ We do this to avoid legal issues and disputes, and to stay compliant with releva
 
 Don't get overwhelmed by the number of docker-compose files. Here's a quick overview:
 
-- `docker-compose.yml` is the simplest one that spins up frontend, app-server, and postgres. Good for quickstarts.
+- `docker-compose.yml` is the simplest one that spins up frontend, app-server, clickhouse, and postgres. Good for quickstarts.
 - `docker-compose-full.yml` is the one you want to use for running the full stack locally. This is the best 
 for self-hosting.
 - `docker-compose-local-dev-full.yml` full file for local development. To be used when you make changes
   to the backend. It will only run the dependency services (postgres, qdrant, clickhouse, rabbitmq).
   You will need to run `cargo r`, `pnpm run dev`, and `python server.py` manually.
 - `docker-compose-local-dev.yml` is the one you want to use for local development. It will only
-  run postgres and app-server. Good for frontend changes.
+  run postgres, clickhouse, and app-server. Good for frontend changes.
 - `docker-compose-local-build.yml` will build the services from the source and run them in production mode. This is good for self-hosting with your own changes,
 or for testing the changes after developing on your own and before opening a PR.
 
@@ -38,7 +38,7 @@ or for testing the changes after developing on your own and before opening a PR.
 |---------|-------------------|------------------------|------------------------------|----------------------------|------------------------------|
 | postgres | ✅ | ✅ | ✅ | ✅ | ✅ |
 | qdrant | ❌ | ✅ | ✅ | ❌ | ✅ |
-| clickhouse | ❌ | ✅ | ✅ | ❌ | ✅ |
+| clickhouse | ✅ | ✅ | ✅ | ✅ | ✅ |
 | rabbitmq | ❌ | ✅ | ✅ | ❌ | ✅ |
 | app-server | ℹ️ | ✅ | 💻 | ℹ️ | 🔧 | 
 | frontend | ℹ️ | ✅ | 💻 | 💻 | 🔧 |

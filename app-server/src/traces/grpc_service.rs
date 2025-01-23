@@ -20,6 +20,7 @@ pub struct ProcessTracesService {
     db: Arc<DB>,
     cache: Arc<Cache>,
     rabbitmq_connection: Option<Arc<Connection>>,
+    clickhouse: clickhouse::Client,
 }
 
 impl ProcessTracesService {
@@ -27,11 +28,13 @@ impl ProcessTracesService {
         db: Arc<DB>,
         cache: Arc<Cache>,
         rabbitmq_connection: Option<Arc<Connection>>,
+        clickhouse: clickhouse::Client,
     ) -> Self {
         Self {
             db,
             cache,
             rabbitmq_connection,
+            clickhouse,
         }
     }
 }
@@ -71,6 +74,7 @@ impl TraceService for ProcessTracesService {
             project_id,
             self.rabbitmq_connection.clone(),
             self.db.clone(),
+            self.clickhouse.clone(),
             self.cache.clone(),
         )
         .await

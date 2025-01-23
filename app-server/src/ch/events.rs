@@ -3,7 +3,7 @@ use clickhouse::Row;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{db::events::Event, features::is_feature_enabled, Feature};
+use crate::db::events::Event;
 
 use super::utils::chrono_to_nanoseconds;
 
@@ -30,9 +30,6 @@ impl CHEvent {
 }
 
 pub async fn insert_events(clickhouse: clickhouse::Client, events: Vec<CHEvent>) -> Result<()> {
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(());
-    }
     if events.is_empty() {
         return Ok(());
     }

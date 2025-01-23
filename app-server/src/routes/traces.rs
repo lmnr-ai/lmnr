@@ -3,8 +3,6 @@ use std::sync::Arc;
 
 use super::{GetMetricsQueryParams, ResponseResult};
 use crate::ch::utils::get_bounds;
-use crate::ch::MetricTimeValue;
-use crate::features::{is_feature_enabled, Feature};
 use crate::semantic_search::semantic_search_grpc::DateRanges;
 use crate::semantic_search::SemanticSearch;
 use crate::{
@@ -121,10 +119,6 @@ pub async fn get_traces_metrics(
             .unwrap_or(DateRange::Relative(RelativeDateInterval {
                 past_hours: "all".to_string(),
             }));
-
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(HttpResponse::Ok().json(Vec::<MetricTimeValue<f64>>::new()));
-    }
 
     match defaulted_range {
         DateRange::Relative(interval) => {
