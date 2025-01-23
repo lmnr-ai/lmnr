@@ -1,6 +1,7 @@
 use chrono::Utc;
 use log::error;
-use qdrant_client::qdrant::{NamedVectors, PointStruct, SparseIndices, Vector};
+use qdrant_client::qdrant::{vector::Vector as InnerVector, NamedVectors, PointStruct, Vector};
+use qdrant_client::qdrant::{DenseVector, SparseVector};
 use qdrant_client::Payload;
 use serde_json::json;
 use simsimd::SpatialSimilarity;
@@ -111,25 +112,26 @@ impl SemanticSearch for SemanticSearchService {
                 } else {
                     datapoint.id
                 };
-                if let Some(sparse_indices) = embedding.sparse_indices {
+                if let Some(indices) = embedding.sparse_indices {
                     let vectors = NamedVectors {
                         vectors: HashMap::from([(
                             "sparse".to_string(),
                             Vector {
-                                data: embedding.vector,
-                                indices: Some(SparseIndices {
-                                    data: sparse_indices,
-                                }),
-                                vectors_count: None,
+                                vector: Some(InnerVector::Sparse(SparseVector {
+                                    values: embedding.vector,
+                                    indices,
+                                })),
+                                ..Default::default()
                             },
                         )]),
                     };
                     PointStruct::new(point_id, vectors, payload)
                 } else {
                     let vector = Vector {
-                        data: embedding.vector,
-                        indices: None,
-                        vectors_count: None,
+                        vector: Some(InnerVector::Dense(DenseVector {
+                            data: embedding.vector,
+                        })),
+                        ..Default::default()
                     };
                     PointStruct::new(point_id, vector, payload)
                 }

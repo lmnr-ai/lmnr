@@ -230,7 +230,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                               {topLevelSpans.map((span, index) => (
                                 <div key={index} className="pl-6 relative">
                                   <SpanCard
-                                    parentY={0}
+                                    parentY={traceTreePanel.current?.getBoundingClientRect().y || 0}
                                     span={span}
                                     childSpans={childSpans}
                                     depth={1}

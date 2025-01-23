@@ -371,7 +371,6 @@ fn main() -> anyhow::Result<()> {
                                 semantic_search.clone(),
                                 rabbitmq_connection.clone(),
                                 clickhouse.clone(),
-                                chunker_runner.clone(),
                                 storage.clone(),
                             ));
                         }

@@ -11,7 +11,6 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     ch::{self, spans::CHSpan},
-    chunk,
     db::{labels::get_registered_label_classes_for_path, spans::Span, stats, DB},
     features::{is_feature_enabled, Feature},
     pipeline::runner::PipelineRunner,
@@ -32,7 +31,6 @@ pub async fn process_queue_spans<T: Storage + ?Sized>(
     semantic_search: Arc<dyn SemanticSearch>,
     rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
-    chunker_runner: Arc<chunk::runner::ChunkerRunner>,
     storage: Arc<T>,
 ) {
     loop {
@@ -43,7 +41,6 @@ pub async fn process_queue_spans<T: Storage + ?Sized>(
             semantic_search.clone(),
             rabbitmq_connection.clone(),
             clickhouse.clone(),
-            chunker_runner.clone(),
             storage.clone(),
         )
         .await;
@@ -58,7 +55,6 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
     semantic_search: Arc<dyn SemanticSearch>,
     rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
-    chunker_runner: Arc<chunk::runner::ChunkerRunner>,
     storage: Arc<T>,
 ) {
     // Safe to unwrap because we checked is_feature_enabled above
@@ -197,7 +193,6 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
             &span,
             semantic_search.clone(),
             &format!("spans-{}", rabbitmq_span_message.project_id),
-            chunker_runner.clone(),
         )
         .await
         {
@@ -241,7 +236,7 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
         let registered_label_classes = match get_registered_label_classes_for_path(
             &db.pool,
             rabbitmq_span_message.project_id,
-            &span.get_attributes().path().unwrap_or_default(),
+            &span.get_attributes().flat_path().unwrap_or_default(),
         )
         .await
         {

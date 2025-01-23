@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, Copy, Maximize, Minimize } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import YAML from 'yaml';
 
 import { cn } from '@/lib/utils';
@@ -39,6 +39,7 @@ export default function Formatter({
   presetKey = null
 }: OutputFormatterProps) {
 
+  const [renderedValue, setRenderedValue] = useState(value);
   const [mode, setMode] = useState(() => {
     if (presetKey) {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
@@ -56,11 +57,17 @@ export default function Formatter({
     }
   };
 
+  useEffect(() => {
+    console.log(`value: ${value}, mode: ${mode}`);
+    console.log(`renderedValue: ${renderText(value)}`);
+    setRenderedValue(renderText(value));
+  }, [value, mode]);
+
   const renderText = (value: string) => {
-    // if mode is YAML try to parse it as YAML
+
     if (mode === 'yaml') {
       try {
-        const yamlFormatted = YAML.stringify(JSON.parse(value));
+        const yamlFormatted = YAML.stringify(YAML.parse(value));
         return yamlFormatted;
       } catch (e) {
         return value;
@@ -133,7 +140,7 @@ export default function Formatter({
           <div className="flex items-center gap-1">
             <CopyToClipboardButton
               className='h-7 w-7'
-              text={renderText(value)}
+              text={renderedValue}
             >
               <Copy className="h-3.5 w-3.5" />
             </CopyToClipboardButton>
@@ -173,7 +180,7 @@ export default function Formatter({
                   <div className="flex items-center gap-1">
                     <CopyToClipboardButton
                       className='h-7 w-7'
-                      text={renderText(value)}
+                      text={renderedValue}
                     >
                       <Copy className="h-3.5 w-3.5" />
                     </CopyToClipboardButton>
@@ -222,12 +229,12 @@ export default function Formatter({
         <div className="flex-grow flex overflow-auto w-full">
           {mode === 'custom' ? (
             <CustomRenderer
-              data={renderText(value)}
+              data={renderedValue}
               presetKey={presetKey}
             />
           ) : (
             <CodeEditor
-              value={renderText(value)}
+              value={renderedValue}
               editable={editable}
               language={mode}
               onChange={(v) => {

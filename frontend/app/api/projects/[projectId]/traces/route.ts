@@ -92,6 +92,7 @@ export async function GET(
     ).where(
       and(
         eq(traces.projectId, projectId),
+        eq(traces.traceType, 'DEFAULT'),
         isNotNull(traces.startTime),
         isNotNull(traces.endTime),
         ...getDateRangeFilters(startTime, endTime, pastHours)
