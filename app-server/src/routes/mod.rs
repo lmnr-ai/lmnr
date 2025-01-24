@@ -1,5 +1,6 @@
 pub mod api_keys;
 pub mod auth;
+pub mod browser_sessions;
 pub mod datasets;
 pub mod error;
 pub mod evaluations;

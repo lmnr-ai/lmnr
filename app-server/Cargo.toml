@@ -69,6 +69,7 @@ sodiumoxide = "0.2.7"
 actix-ws = "0.3.0"
 tokio-tungstenite = "*"
 prost-types = "0.13.4"
+zstd = "0.13.2"
 
 
 [build-dependencies]

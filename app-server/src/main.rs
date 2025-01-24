@@ -424,7 +424,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::queues::push_to_queue)
                                 .service(api::v1::machine_manager::start_machine)
                                 .service(api::v1::machine_manager::terminate_machine)
-                                .service(api::v1::machine_manager::execute_computer_action),
+                                .service(api::v1::machine_manager::execute_computer_action)
+                                .service(routes::browser_sessions::create_session_event),
                         )
                         // Scopes with generic auth
                         .service(
