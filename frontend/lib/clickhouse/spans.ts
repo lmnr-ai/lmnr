@@ -176,24 +176,22 @@ export const getSpanMetricsSummary = async (
   return await result.json();
 };
 
-export const getSpansCountInProjects = async (
+export const getSpansCountInProject = async (
   clickhouseClient: ClickHouseClient,
-  projectIds: string[]
-): Promise<{ id: string; count: number }[]> => {
+  projectId: string
+): Promise<{ count: number }[]> => {
   const query = `
     SELECT
-      project_id as id,
       count(*) as count
     FROM spans
-    WHERE project_id IN {projectIds:Array(UUID)}
-    GROUP BY project_id
+    WHERE project_id = {projectId: UUID}
   `;
 
   const result = await clickhouseClient.query({
     query,
     format: 'JSONEachRow',
     query_params: {
-      projectIds
+      projectId
     }
   });
 

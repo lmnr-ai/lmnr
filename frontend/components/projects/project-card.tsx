@@ -1,20 +1,21 @@
 import { ChevronRightIcon } from 'lucide-react';
 import Link from 'next/link';
+import useSWR from 'swr';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { swrFetcher } from '@/lib/utils';
 import { Project, ProjectStats } from '@/lib/workspaces/types';
 
 interface ProjectCardProps {
   project: Project;
-  isLoading: boolean;
-  stats?: ProjectStats;
 }
 
-export default function ProjectCard({
-  project,
-  stats = { datasetsCount: 0, evaluationsCount: 0, spansCount: 0 },
-  isLoading
-}: ProjectCardProps) {
+export default function ProjectCard({ project }: ProjectCardProps) {
+  const { data, isLoading } = useSWR<ProjectStats>(
+    `/api/projects/${project.id}/stats`,
+    swrFetcher
+  );
+
   return (
     <Link href={`/project/${project.id}/traces`} key={project.id}>
       <div className="hover:bg-secondary w-96 h-44 rounded-md bg-secondary/40 transition-all duration-100">
@@ -46,15 +47,15 @@ export default function ProjectCard({
               <>
                 <div className="flex flex-col gap-1">
                   <p className="text-sm">Spans</p>
-                  <p className="font-mono text-xl">{stats?.spansCount}</p>
+                  <p className="font-mono text-xl">{data?.spansCount}</p>
                 </div>
                 <div className="flex flex-col gap-1">
                   <p className="text-sm">Evaluations</p>
-                  <p className="font-mono text-xl">{stats?.evaluationsCount}</p>
+                  <p className="font-mono text-xl">{data?.evaluationsCount}</p>
                 </div>
                 <div className="flex flex-col gap-1">
                   <p className="text-sm">Datasets</p>
-                  <p className="font-mono text-xl">{stats?.datasetsCount}</p>
+                  <p className="font-mono text-xl">{data?.datasetsCount}</p>
                 </div>
               </>
             )}
