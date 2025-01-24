@@ -14,14 +14,19 @@ const SessionPlayer = ({ events }: SessionPlayerProps) => {
   const playerRef = useRef<any>(null);
 
   useEffect(() => {
+    // If there's no container or events are empty, do nothing.
     if (!events?.length || !containerRef.current) return;
+
+    // If we already created a playerRef, do nothing.
+    if (playerRef.current) return;
 
     const processedEvents = events.map(event => {
       if (event.data && typeof event.data === 'string') {
+
         return {
-          ...event,
+          data: JSON.parse(event.data),
           timestamp: new Date(event.timestamp).getTime(),
-          data: JSON.parse(event.data)
+          type: parseInt(event.event_type)
         };
       }
       return event;
@@ -31,16 +36,9 @@ const SessionPlayer = ({ events }: SessionPlayerProps) => {
       target: containerRef.current,
       props: {
         events: processedEvents,
-        width: 1024,
-        height: 576,
       },
     });
 
-    return () => {
-      if (playerRef.current) {
-        playerRef.current.destroy();
-      }
-    };
   }, [events]);
 
   return (

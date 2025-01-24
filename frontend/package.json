@@ -101,7 +101,7 @@
     "reactflow": "^11.11.4",
     "recharts": "^2.15.0",
     "resend": "^4.0.1",
-    "rrweb": "2.0.0-alpha.4",
+    "rrweb": "2.0.0-alpha.18",
     "rrweb-player": "1.0.0-alpha.4",
     "sharp": "^0.33.5",
     "stripe": "^16.12.0",
