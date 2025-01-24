@@ -391,6 +391,7 @@ export const evaluations = pgTable("evaluations", {
   name: text().notNull(),
   groupId: text("group_id").default('default').notNull(),
 }, (table) => [
+  index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
   foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],

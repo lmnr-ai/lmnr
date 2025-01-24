@@ -6,8 +6,8 @@ import { Project, ProjectStats } from '@/lib/workspaces/types';
 
 interface ProjectCardProps {
   project: Project;
-  stats?: ProjectStats;
   isLoading: boolean;
+  stats?: ProjectStats;
 }
 
 export default function ProjectCard({

@@ -1,4 +1,4 @@
-import { desc, eq, sql} from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 
