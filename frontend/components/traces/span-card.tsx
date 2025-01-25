@@ -18,8 +18,9 @@ interface SpanCardProps {
   containerWidth: number;
   depth: number;
   selectedSpan?: Span | null;
-  onSpanSelect?: (span: Span) => void;
   collapsedSpans: Set<string>;
+  traceStartTime: string;
+  onSpanSelect?: (span: Span) => void;
   onToggleCollapse?: (spanId: string) => void;
 }
 
@@ -32,7 +33,8 @@ export function SpanCard({
   depth,
   selectedSpan,
   collapsedSpans,
-  onToggleCollapse
+  onToggleCollapse,
+  traceStartTime
 }: SpanCardProps) {
   const [isSelected, setIsSelected] = useState(false);
   const [segmentHeight, setSegmentHeight] = useState(0);
@@ -80,7 +82,7 @@ export function SpanCard({
             containerHeight={SQUARE_SIZE}
             size={SQUARE_ICON_SIZE}
           />
-          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[200px]">
+          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]">
             {span.name}
           </div>
           <Label className="text-secondary-foreground">
@@ -122,6 +124,10 @@ export function SpanCard({
               )}
             </button>
           )}
+          <div className="flex-grow" />
+          <div className="text-xs font-mono text-muted-foreground">
+            {getDurationString(traceStartTime, span.startTime)}
+          </div>
         </div>
       </div>
       {!collapsedSpans.has(span.spanId) && (
@@ -130,6 +136,7 @@ export function SpanCard({
             childrenSpans.map((child, index) => (
               <div className="pl-6 relative" key={index}>
                 <SpanCard
+                  traceStartTime={traceStartTime}
                   span={child}
                   childSpans={childSpans}
                   parentY={ref.current?.getBoundingClientRect().y || 0}

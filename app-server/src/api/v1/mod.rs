@@ -1,3 +1,4 @@
+pub mod browser_sessions;
 pub mod datasets;
 pub mod evaluations;
 pub mod machine_manager;

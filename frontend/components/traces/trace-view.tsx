@@ -15,6 +15,7 @@ import { SpanCard } from './span-card';
 import { SpanView } from './span-view';
 import StatsShields from './stats-shields';
 import Timeline from './timeline';
+import BrowserSession from '../browser-session/browser-session';
 
 interface TraceViewProps {
   traceId: string;
@@ -31,6 +32,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const [containerWidth, setContainerWidth] = useState(0);
   // here timelineWidth refers to the width of the trace tree panel and waterfall timeline
   const [timelineWidth, setTimelineWidth] = useState(0);
+  const [traceTreePanelWidth, setTraceTreePanelWidth] = useState(0);
   const { projectId } = useProjectContext();
 
   const { data: trace, isLoading } = useSWR<TraceWithSpans>(
@@ -128,13 +130,15 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       return;
     }
 
+    setTraceTreePanelWidth(traceTreePanel.current!.getBoundingClientRect().width);
+
     // if no span is selected, timeline should take full width
     if (!selectedSpan) {
       setTimelineWidth(containerWidth);
     } else {
       // if a span is selected, waterfall is hidden, so timeline should take the width of the trace tree panel
       setTimelineWidth(
-        traceTreePanel.current!.getBoundingClientRect().width + 1
+        traceTreePanelWidth + 1
       );
     }
   }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
@@ -230,6 +234,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                               {topLevelSpans.map((span, index) => (
                                 <div key={index} className="pl-6 relative">
                                   <SpanCard
+                                    traceStartTime={trace.startTime}
                                     parentY={traceTreePanel.current?.getBoundingClientRect().y || 0}
                                     span={span}
                                     childSpans={childSpans}
@@ -267,11 +272,20 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                         </td>
                         {!selectedSpan && !searchParams.get('spanId') && (
                           <td className="flex flex-grow w-full p-0">
-                            <Timeline
+                            {/* <Timeline
                               spans={spans}
                               childSpans={childSpans}
                               collapsedSpans={collapsedSpans}
-                            />
+                            /> */}
+                            <div className="absolute top-0 z-50 bg-red-500"
+                              style={{
+                                width: containerWidth - traceTreePanelWidth + 1,
+                                left: traceTreePanelWidth,
+                                height: containerHeight - 64
+                              }}
+                            >
+                              <BrowserSession traceId={traceId} />
+                            </div>
                           </td>
                         )}
                       </tr>

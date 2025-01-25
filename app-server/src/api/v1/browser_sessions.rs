@@ -2,7 +2,7 @@ use actix_web::{post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::routes::ResponseResult;
+use crate::{db::project_api_keys::ProjectApiKey, routes::types::ResponseResult};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RRWebEvent {
@@ -25,6 +25,7 @@ struct EventBatch {
 async fn create_session_event(
     clickhouse: web::Data<clickhouse::Client>,
     batch: web::Json<EventBatch>,
+    project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     for event in &batch.events {
         clickhouse
@@ -32,8 +33,8 @@ async fn create_session_event(
                 "
                 INSERT INTO browser_session_events (
                     event_id, session_id, trace_id, window_id, timestamp,
-                    event_type, data
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    event_type, data, project_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(Uuid::new_v4())
             .bind(batch.session_id)
@@ -42,6 +43,7 @@ async fn create_session_event(
             .bind(event.timestamp)
             .bind(event.event_type)
             .bind(event.data.to_string())
+            .bind(project_api_key.project_id)
             .execute()
             .await?;
     }
