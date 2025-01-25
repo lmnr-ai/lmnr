@@ -11,11 +11,11 @@ import { Button } from '../ui/button';
 import MonoWithCopy from '../ui/mono-with-copy';
 import { ScrollArea, ScrollBar } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
+import BrowserSession from './browser-session';
 import { SpanCard } from './span-card';
 import { SpanView } from './span-view';
 import StatsShields from './stats-shields';
 import Timeline from './timeline';
-import BrowserSession from '../browser-session/browser-session';
 
 interface TraceViewProps {
   traceId: string;
@@ -50,6 +50,8 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       ) || null
       : null
   );
+
+  const [activeSpans, setActiveSpans] = useState<string[]>([]);
 
   // Add new state for collapsed spans
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
@@ -186,7 +188,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           </div>
         )}
         {trace && (
-          <div className="flex h-full w-full" ref={container}>
+          <div className="flex h-full w-full relative" ref={container}>
             <div
               className="flex-none"
               style={{
@@ -234,6 +236,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                               {topLevelSpans.map((span, index) => (
                                 <div key={index} className="pl-6 relative">
                                   <SpanCard
+                                    activeSpans={activeSpans}
                                     traceStartTime={trace.startTime}
                                     parentY={traceTreePanel.current?.getBoundingClientRect().y || 0}
                                     span={span}
@@ -271,21 +274,12 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                           </div>
                         </td>
                         {!selectedSpan && !searchParams.get('spanId') && (
-                          <td className="flex flex-grow w-full p-0">
-                            {/* <Timeline
+                          <td className="flex flex-grow w-full p-0 relative">
+                            <Timeline
                               spans={spans}
                               childSpans={childSpans}
                               collapsedSpans={collapsedSpans}
-                            /> */}
-                            <div className="absolute top-0 z-50 bg-red-500"
-                              style={{
-                                width: containerWidth - traceTreePanelWidth + 1,
-                                left: traceTreePanelWidth,
-                                height: containerHeight - 64
-                              }}
-                            >
-                              <BrowserSession traceId={traceId} />
-                            </div>
+                            />
                           </td>
                         )}
                       </tr>
@@ -294,6 +288,34 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
               </div>
+            </div>
+            <div className="absolute top-0 z-50 bg-background"
+              style={{
+                width: containerWidth - traceTreePanelWidth - 2,
+                left: traceTreePanelWidth + 1,
+                height: containerHeight
+              }}
+            >
+              <BrowserSession
+                traceId={traceId}
+                width={containerWidth - traceTreePanelWidth - 2}
+                height={containerHeight}
+                onTimelineChange={(time) => {
+                  const activeSpans = spans.filter(
+                    (span: Span) => {
+                      const traceStartTime = new Date(trace.startTime).getTime();
+                      const spanStartTime = new Date(span.startTime).getTime();
+                      const spanEndTime = new Date(span.endTime).getTime();
+
+                      const startTime = spanStartTime - traceStartTime;
+                      const endTime = spanEndTime - traceStartTime;
+                      return startTime <= time && endTime >= time && span.parentSpanId !== null;
+                    }
+                  );
+
+                  setActiveSpans(activeSpans.map((span) => span.spanId));
+                }}
+              />
             </div>
             {selectedSpan && (
               <div
@@ -308,6 +330,6 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 }

@@ -58,8 +58,6 @@ export default function Formatter({
   };
 
   useEffect(() => {
-    console.log(`value: ${value}, mode: ${mode}`);
-    console.log(`renderedValue: ${renderText(value)}`);
     setRenderedValue(renderText(value));
   }, [value, mode]);
 

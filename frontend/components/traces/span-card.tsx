@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
+import { cn } from '@/lib/utils';
 
 import { Label } from '../ui/label';
 import SpanTypeIcon from './span-type-icon';
@@ -13,6 +14,7 @@ const SQUARE_ICON_SIZE = 16;
 
 interface SpanCardProps {
   span: Span;
+  activeSpans: string[];
   parentY: number;
   childSpans: { [key: string]: Span[] };
   containerWidth: number;
@@ -34,7 +36,8 @@ export function SpanCard({
   selectedSpan,
   collapsedSpans,
   onToggleCollapse,
-  traceStartTime
+  traceStartTime,
+  activeSpans
 }: SpanCardProps) {
   const [isSelected, setIsSelected] = useState(false);
   const [segmentHeight, setSegmentHeight] = useState(0);
@@ -53,6 +56,12 @@ export function SpanCard({
   useEffect(() => {
     setIsSelected(selectedSpan?.spanId === span.spanId);
   }, [selectedSpan]);
+
+  useEffect(() => {
+    if (activeSpans.includes(span.spanId) && ref.current) {
+      ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeSpans, span.spanId]);
 
   return (
     <div className="text-md flex w-full flex-col" ref={ref}>
@@ -125,7 +134,12 @@ export function SpanCard({
             </button>
           )}
           <div className="flex-grow" />
-          <div className="text-xs font-mono text-muted-foreground">
+          <div
+            className={cn(
+              'text-xs font-mono text-muted-foreground p-1',
+              activeSpans.includes(span.spanId) && 'bg-primary/80 text-white rounded'
+            )}
+          >
             {getDurationString(traceStartTime, span.startTime)}
           </div>
         </div>
@@ -136,6 +150,7 @@ export function SpanCard({
             childrenSpans.map((child, index) => (
               <div className="pl-6 relative" key={index}>
                 <SpanCard
+                  activeSpans={activeSpans}
                   traceStartTime={traceStartTime}
                   span={child}
                   childSpans={childSpans}
