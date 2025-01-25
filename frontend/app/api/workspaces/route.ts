@@ -4,7 +4,13 @@ import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { apiKeys, membersOfWorkspaces, projects, subscriptionTiers, workspaces } from '@/lib/db/migrations/schema';
+import {
+  apiKeys,
+  membersOfWorkspaces,
+  projects,
+  subscriptionTiers,
+  workspaces
+} from '@/lib/db/migrations/schema';
 import { fetcher } from '@/lib/utils';
 
 export async function GET(req: NextRequest): Promise<Response> {
