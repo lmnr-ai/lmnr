@@ -8,7 +8,8 @@ import { useEffect, useState } from 'react';
 import { useProjectContext } from '@/contexts/project-context';
 import { getDurationString } from '@/lib/flow/utils';
 import { SessionPreview, Trace } from '@/lib/traces/types';
-import { PaginatedResponse } from '@/lib/types';
+import { DatatableFilter, PaginatedResponse } from '@/lib/types';
+import { getFilterFromUrlParams } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Button } from '../ui/button';
@@ -26,6 +27,8 @@ type SessionRow = {
 interface SessionsTableProps {
   onRowClick?: (rowId: string) => void;
 }
+const toFilterUrlParam = (filters: DatatableFilter[]): string =>
+  JSON.stringify(filters);
 
 export default function SessionsTable({ onRowClick }: SessionsTableProps) {
   const { projectId } = useProjectContext();
@@ -49,6 +52,11 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
   const endDate = searchParams.get('endDate');
   const pastHours = searchParams.get('pastHours');
   const textSearchFilter = searchParams.get('search');
+
+  const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
+    filter ? (getFilterFromUrlParams(filter) ?? []) : []
+  );
+
 
   const getSessions = async () => {
     setSessions(undefined);
@@ -117,6 +125,38 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     textSearchFilter
   ]);
 
+  const handleAddFilter = (column: string, value: string) => {
+    const newFilter = { column, operator: 'eq', value };
+    const existingFilterIndex = activeFilters.findIndex(
+      (filter) => filter.column === column && filter.value === value
+    );
+
+    let updatedFilters;
+    if (existingFilterIndex === -1) {
+
+      updatedFilters = [...activeFilters, newFilter];
+    } else {
+
+      updatedFilters = [...activeFilters];
+    }
+
+    setActiveFilters(updatedFilters);
+    updateUrlWithFilters(updatedFilters);
+  };
+
+  const updateUrlWithFilters = (filters: DatatableFilter[]) => {
+    searchParams.delete('filter');
+    searchParams.delete('pageNumber');
+    searchParams.append('pageNumber', '0');
+    searchParams.append('filter', toFilterUrlParam(filters));
+    router.push(`${pathName}?${searchParams.toString()}`);
+  };
+
+
+  const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
+    setActiveFilters(newFilters);
+  };
+
   const columns: ColumnDef<SessionRow, any>[] = [
     {
       header: 'Type',
@@ -141,7 +181,18 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     {
       accessorFn: (row) => (row.data.id === null ? '-' : row.data.id),
       header: 'ID',
-      id: 'id'
+      id: 'id',
+      cell: (row) => (
+        <div
+          onClick={(event) => {
+            event.stopPropagation();
+            handleAddFilter('id', row.getValue());
+          }}
+          className="cursor-pointer hover:underline"
+        >
+          {/* <Mono className='text-xs'>{row.getValue()}</Mono> */}
+        </div>
+      ),
     },
     {
       accessorFn: (row) => row.data.startTime,
@@ -326,7 +377,9 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       enableRowSelection
     >
       <TextSearchFilter />
-      <DataTableFilter possibleFilters={filterColumns} />
+      <DataTableFilter possibleFilters={filterColumns}
+        activeFilters={activeFilters}
+        updateFilters={handleUpdateFilters}/>
       <DateRangeFilter />
       <Button
         onClick={() => {
