@@ -1,4 +1,4 @@
-import { ChevronsRight } from 'lucide-react';
+import { ChartNoAxesGantt, ChevronsRight, Disc } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
@@ -27,13 +27,16 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const router = useRouter();
   const pathName = usePathname();
   const container = useRef<HTMLDivElement>(null);
-  const traceTreePanel = useRef<HTMLDivElement>(null);
+  // containerHeight refers to the height of the trace view container
   const [containerHeight, setContainerHeight] = useState(0);
+  // containerWidth refers to the width of the trace view container
   const [containerWidth, setContainerWidth] = useState(0);
-  // here timelineWidth refers to the width of the trace tree panel and waterfall timeline
+  const traceTreePanel = useRef<HTMLDivElement>(null);
+  // here timelineWidth refers to the width of the trace tree panel AND waterfall timeline
   const [timelineWidth, setTimelineWidth] = useState(0);
   const [traceTreePanelWidth, setTraceTreePanelWidth] = useState(0);
   const { projectId } = useProjectContext();
+  const [showBrowserSession, setShowBrowserSession] = useState(false);
 
   const { data: trace, isLoading } = useSWR<TraceWithSpans>(
     `/api/projects/${projectId}/traces/${traceId}`,
@@ -142,6 +145,10 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       setTimelineWidth(
         traceTreePanelWidth + 1
       );
+
+      if (trace?.hasBrowserSession) {
+        setShowBrowserSession(false);
+      }
     }
   }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
 
@@ -159,14 +166,33 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         >
           <ChevronsRight />
         </Button>
-        <div>Trace</div>
-        <MonoWithCopy className="text-secondary-foreground">{traceId}</MonoWithCopy>
+        <div className="flex items-center">
+          <div>Trace</div>
+          <MonoWithCopy className="text-secondary-foreground">{traceId}</MonoWithCopy>
+        </div>
         <div className="flex-grow" />
-        <div>
-          {selectedSpan && (
+        <div className="flex items-center space-x-2">
+          {(selectedSpan || showBrowserSession) && (
             <Button
-              variant={'outline'}
+              variant={'secondary'}
               onClick={() => {
+                setSelectedSpan(null);
+                setShowBrowserSession(false);
+                setTimeout(() => {
+                  searchParams.delete('spanId');
+                  router.push(`${pathName}?${searchParams.toString()}`);
+                }, 10);
+              }}
+            >
+              <ChartNoAxesGantt size={16} className="mr-2" />
+              Show timeline
+            </Button>
+          )}
+          {(trace?.hasBrowserSession && !showBrowserSession) && (
+            <Button
+              variant={'secondary'}
+              onClick={() => {
+                setShowBrowserSession(true);
                 setSelectedSpan(null);
                 setTimeout(() => {
                   searchParams.delete('spanId');
@@ -174,7 +200,8 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                 }, 10);
               }}
             >
-              Show timeline
+              <Disc size={16} className="mr-2" />
+              Show browser session
             </Button>
           )}
         </div>
@@ -273,7 +300,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                             </div>
                           </div>
                         </td>
-                        {!selectedSpan && !searchParams.get('spanId') && (
+                        {!selectedSpan && (
                           <td className="flex flex-grow w-full p-0 relative">
                             <Timeline
                               spans={spans}
@@ -293,10 +320,12 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
               style={{
                 width: containerWidth - traceTreePanelWidth - 2,
                 left: traceTreePanelWidth + 1,
-                height: containerHeight
+                height: containerHeight,
+                display: showBrowserSession ? 'block' : 'none'
               }}
             >
               <BrowserSession
+                hasBrowserSession={trace.hasBrowserSession}
                 traceId={traceId}
                 width={containerWidth - traceTreePanelWidth - 2}
                 height={containerHeight}

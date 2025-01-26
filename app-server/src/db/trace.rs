@@ -116,3 +116,16 @@ pub async fn update_trace_attributes(
     .await?;
     Ok(())
 }
+
+pub async fn update_trace_has_browser_session(
+    pool: &PgPool,
+    project_id: &Uuid,
+    trace_id: &Uuid,
+) -> Result<()> {
+    sqlx::query("UPDATE traces SET has_browser_session = true WHERE id = $1 AND project_id = $2")
+        .bind(trace_id)
+        .bind(project_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}

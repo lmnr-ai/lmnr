@@ -9,6 +9,7 @@ import rrwebPlayer from 'rrweb-player';
 import { useProjectContext } from '@/contexts/project-context';
 
 interface SessionPlayerProps {
+  hasBrowserSession: boolean | null;
   traceId: string;
   width: number;
   height: number;
@@ -21,7 +22,7 @@ interface Event {
   type: number;
 }
 
-const SessionPlayer = ({ traceId, width, height, onTimelineChange }: SessionPlayerProps) => {
+const SessionPlayer = ({ hasBrowserSession, traceId, width, height, onTimelineChange }: SessionPlayerProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -57,8 +58,10 @@ const SessionPlayer = ({ traceId, width, height, onTimelineChange }: SessionPlay
   };
 
   useEffect(() => {
-    getEvents();
-  }, []);
+    if (hasBrowserSession) {
+      getEvents();
+    }
+  }, [hasBrowserSession]);
 
   useEffect(() => {
     if (!events?.length || !containerRef.current) return;
@@ -143,10 +146,10 @@ const SessionPlayer = ({ traceId, width, height, onTimelineChange }: SessionPlay
         }
       `}</style>
       <div className="relative w-full h-full">
-        <div className="flex flex-row items-center justify-center gap-2 px-2 h-12 border-b">
+        <div className="flex flex-row items-center justify-center gap-2 px-4 h-12 border-b">
           <button
             onClick={handlePlayPause}
-            className="text-white px-2 py-1 rounded"
+            className="text-white py-1 rounded"
           >
             {isPlaying ? <PauseIcon /> : <PlayIcon />}
           </button>

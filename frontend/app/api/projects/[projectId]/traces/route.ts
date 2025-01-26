@@ -76,6 +76,7 @@ export async function GET(
       inputTokenCount: traces.inputTokenCount,
       outputTokenCount: traces.outputTokenCount,
       totalTokenCount: traces.totalTokenCount,
+      hasBrowserSession: traces.hasBrowserSession,
       inputCost: traces.inputCost,
       outputCost: traces.outputCost,
       cost: traces.cost,

@@ -99,6 +99,13 @@
       "when": 1737211580713,
       "tag": "0013_living_polaris",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1737923539176,
+      "tag": "0014_supreme_bucky",
+      "breakpoints": true
     }
   ]
 }

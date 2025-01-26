@@ -136,7 +136,7 @@ export function SpanCard({
           <div className="flex-grow" />
           <div
             className={cn(
-              'text-xs font-mono text-muted-foreground p-1',
+              'text-xs font-mono text-muted-foreground px-1 py-0.5',
               activeSpans.includes(span.spanId) && 'bg-primary/80 text-white rounded'
             )}
           >

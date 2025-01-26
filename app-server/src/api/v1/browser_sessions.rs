@@ -2,7 +2,10 @@ use actix_web::{options, post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{db::project_api_keys::ProjectApiKey, routes::types::ResponseResult};
+use crate::{
+    db::{self, project_api_keys::ProjectApiKey, DB},
+    routes::types::ResponseResult,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RRWebEvent {
@@ -38,9 +41,18 @@ async fn options_handler() -> ResponseResult {
 #[post("events")]
 async fn create_session_event(
     clickhouse: web::Data<clickhouse::Client>,
+    db: web::Data<DB>,
     batch: web::Json<EventBatch>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
+    // update has_browser_session field in the traces table
+    db::trace::update_trace_has_browser_session(
+        &db.pool,
+        &project_api_key.project_id,
+        &batch.trace_id,
+    )
+    .await?;
+
     for event in &batch.events {
         clickhouse
             .query(
