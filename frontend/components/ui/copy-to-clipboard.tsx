@@ -1,6 +1,7 @@
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { Button } from "./button";
+import { cn } from "@/lib/utils";
 
 interface CopyToClipboardButtonProps {
   text: string;
@@ -20,7 +21,7 @@ export default function CopyToClipboardButton({
     <Button
       variant="ghost"
       size="icon"
-      className={className}
+      className={cn("p-0 m-0 h-4", className)}
       onClick={() => {
         navigator.clipboard.writeText(text);
         toast({

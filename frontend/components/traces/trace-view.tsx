@@ -166,9 +166,9 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         >
           <ChevronsRight />
         </Button>
-        <div className="flex items-center">
+        <div className="flex items-center space-x-2">
           <div>Trace</div>
-          <MonoWithCopy className="text-secondary-foreground">{traceId}</MonoWithCopy>
+          <MonoWithCopy className="text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
         </div>
         <div className="flex-grow" />
         <div className="flex items-center space-x-2">
