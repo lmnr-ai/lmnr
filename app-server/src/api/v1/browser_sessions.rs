@@ -1,4 +1,4 @@
-use actix_web::{post, web, HttpResponse};
+use actix_web::{options, post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -21,7 +21,21 @@ struct EventBatch {
     window_id: Option<String>,
 }
 
-#[post("browser-sessions/events")]
+#[options("events")]
+async fn options_handler() -> ResponseResult {
+    // TODO: use cors middleware from actix_cors crate
+    Ok(HttpResponse::Ok()
+        .insert_header(("Access-Control-Allow-Origin", "*"))
+        .insert_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+        .insert_header((
+            "Access-Control-Allow-Headers",
+            "Authorization, Content-Type",
+        ))
+        .insert_header(("Access-Control-Max-Age", "86400"))
+        .finish())
+}
+
+#[post("events")]
 async fn create_session_event(
     clickhouse: web::Data<clickhouse::Client>,
     batch: web::Json<EventBatch>,
