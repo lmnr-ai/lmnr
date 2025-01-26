@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import React from 'react';
+import React from "react";
 
-import ProjectCard from '@/components/projects/project-card';
-import { cn } from '@/lib/utils';
-import { WorkspaceWithProjects } from '@/lib/workspaces/types';
+import ProjectCard from "@/components/projects/project-card";
+import { cn } from "@/lib/utils";
+import { WorkspaceWithProjects } from "@/lib/workspaces/types";
 
 interface ProjectsListProps {
   workspaces: WorkspaceWithProjects[];
@@ -18,9 +18,8 @@ const WorkspacesList = ({ workspaces }: ProjectsListProps) => (
           <span className="">{workspace.name}</span>
           <div
             className={cn(
-              'text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20',
-              workspace.tierName === 'Pro' &&
-                'border-primary bg-primary/10 text-primary'
+              "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
+              workspace.tierName === "Pro" && "border-primary bg-primary/10 text-primary"
             )}
           >
             {workspace.tierName}

@@ -13,8 +13,8 @@ export interface WorkspaceUser {
 }
 
 export enum WorkspaceTier {
-  FREE = 'Free',
-  PRO = 'Pro'
+  FREE = "Free",
+  PRO = "Pro",
 }
 
 export interface Workspace {

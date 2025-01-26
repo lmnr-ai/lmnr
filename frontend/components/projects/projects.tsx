@@ -1,25 +1,22 @@
-'use client';
+"use client";
 
-import React from 'react';
-import useSWR from 'swr';
+import React from "react";
+import useSWR from "swr";
 
-import WorkspacesList from '@/components/projects/workspaces-list';
-import { swrFetcher } from '@/lib/utils';
-import { WorkspaceWithProjects } from '@/lib/workspaces/types';
+import WorkspacesList from "@/components/projects/workspaces-list";
+import { swrFetcher } from "@/lib/utils";
+import { WorkspaceWithProjects } from "@/lib/workspaces/types";
 
-import { Skeleton } from '../ui/skeleton';
-import ProjectCreateDialog from './project-create-dialog';
-import WorkspaceCreateDialog from './workspace-create-dialog';
+import { Skeleton } from "../ui/skeleton";
+import ProjectCreateDialog from "./project-create-dialog";
+import WorkspaceCreateDialog from "./workspace-create-dialog";
 
 interface ProjectsProps {
   isWorkspaceEnabled: boolean;
 }
 
 export default function Projects({ isWorkspaceEnabled }: ProjectsProps) {
-  const { data, mutate, isLoading } = useSWR<WorkspaceWithProjects[]>(
-    '/api/workspaces',
-    swrFetcher
-  );
+  const { data, mutate, isLoading } = useSWR<WorkspaceWithProjects[]>("/api/workspaces", swrFetcher);
 
   return (
     <>
@@ -30,13 +27,8 @@ export default function Projects({ isWorkspaceEnabled }: ProjectsProps) {
               <Skeleton className="w-36 h-6 items-center" />
             ) : (
               <>
-                <ProjectCreateDialog
-                  onProjectCreate={mutate}
-                  workspaces={data}
-                />
-                {isWorkspaceEnabled && (
-                  <WorkspaceCreateDialog onWorkspaceCreate={mutate} />
-                )}
+                <ProjectCreateDialog onProjectCreate={mutate} workspaces={data} />
+                {isWorkspaceEnabled && <WorkspaceCreateDialog onWorkspaceCreate={mutate} />}
               </>
             )}
           </div>
