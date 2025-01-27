@@ -11,7 +11,7 @@ import { Button } from '../ui/button';
 import MonoWithCopy from '../ui/mono-with-copy';
 import { ScrollArea, ScrollBar } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
-import BrowserSession from './browser-session';
+import BrowserSession, { SessionPlayerHandle } from './browser-session';
 import { SpanCard } from './span-card';
 import { SpanView } from './span-view';
 import StatsShields from './stats-shields';
@@ -37,7 +37,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const [traceTreePanelWidth, setTraceTreePanelWidth] = useState(0);
   const { projectId } = useProjectContext();
   const [showBrowserSession, setShowBrowserSession] = useState(false);
-
+  const browserSessionRef = useRef<SessionPlayerHandle>(null);
   const { data: trace, isLoading } = useSWR<TraceWithSpans>(
     `/api/projects/${projectId}/traces/${traceId}`,
     swrFetcher
@@ -98,6 +98,10 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           ) || null
           : null
       );
+    }
+
+    if (trace.hasBrowserSession) {
+      setShowBrowserSession(true);
     }
   }, [trace]);
 
@@ -249,7 +253,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                             ref={traceTreePanel}
                           >
                             <StatsShields
-                              className="px-2 pt-1 h-12 flex-none sticky top-0 bg-background z-40 border-b"
+                              className="px-2 pt-1 h-12 flex-none sticky top-0 bg-background z-50 border-b"
                               startTime={trace.startTime}
                               endTime={trace.endTime}
                               totalTokenCount={trace.totalTokenCount}
@@ -259,7 +263,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                               outputCost={trace.outputCost}
                               cost={trace.cost}
                             />
-                            <div className="flex flex-col px-2 pt-1">
+                            <div className="flex flex-col pt-1">
                               {topLevelSpans.map((span, index) => (
                                 <div key={index} className="pl-6 relative">
                                   <SpanCard
@@ -294,6 +298,10 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                                         `${pathName}?${searchParams.toString()}`
                                       );
                                     }}
+                                    onSelectTime={(time) => {
+                                      console.log("time", time);
+                                      browserSessionRef.current?.goto(time);
+                                    }}
                                   />
                                 </div>
                               ))}
@@ -325,6 +333,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
               }}
             >
               <BrowserSession
+                ref={browserSessionRef}
                 hasBrowserSession={trace.hasBrowserSession}
                 traceId={traceId}
                 width={containerWidth - traceTreePanelWidth - 2}

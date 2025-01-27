@@ -45,14 +45,14 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
             {isChatMessageList(span.input) ? (
               <ChatMessageListTab
                 messages={span.input}
-                presetKey={`input-${span.attributes['lmnr.span.path']}`}
+                presetKey={`input-${span.attributes['lmnr.span.path'].join('.')}`}
               />
             ) : (
               <Formatter
                 className="max-h-[400px]"
                 collapsible
                 value={JSON.stringify(span.input)}
-                presetKey={`input-${span.attributes['lmnr.span.path']}`}
+                presetKey={`input-${span.attributes['lmnr.span.path'].join('.')}`}
               />
             )}
           </div>
@@ -65,7 +65,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
                   ? span.output
                   : JSON.stringify(span.output)
               }
-              presetKey={`output-${span.attributes['lmnr.span.path']}`}
+              presetKey={`output-${span.attributes['lmnr.span.path'].join('.')}`}
               collapsible
             />
           </div>

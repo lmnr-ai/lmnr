@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
-import { getDurationString } from '@/lib/flow/utils';
+import { getDuration, getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +24,7 @@ interface SpanCardProps {
   traceStartTime: string;
   onSpanSelect?: (span: Span) => void;
   onToggleCollapse?: (spanId: string) => void;
+  onSelectTime?: (time: number) => void;
 }
 
 export function SpanCard({
@@ -37,7 +38,8 @@ export function SpanCard({
   collapsedSpans,
   onToggleCollapse,
   traceStartTime,
-  activeSpans
+  activeSpans,
+  onSelectTime
 }: SpanCardProps) {
   const [isSelected, setIsSelected] = useState(false);
   const [segmentHeight, setSegmentHeight] = useState(0);
@@ -110,7 +112,7 @@ export function SpanCard({
           />
           {isSelected && (
             <div
-              className="absolute top-0 w-full bg-primary/20 border-l-2 border-l-primary"
+              className="absolute top-0 w-full bg-primary/25 border-l-2 border-l-primary"
               style={{
                 width: containerWidth,
                 height: ROW_HEIGHT,
@@ -135,12 +137,22 @@ export function SpanCard({
           )}
           <div className="flex-grow" />
           <div
-            className={cn(
-              'text-xs font-mono text-muted-foreground px-1 py-0.5',
-              activeSpans.includes(span.spanId) && 'bg-primary/80 text-white rounded'
-            )}
+            className="flex items-center z-40"
+            style={{
+              height: ROW_HEIGHT
+            }}
+            onClick={() => {
+              onSelectTime?.(getDuration(traceStartTime, span.startTime) / 1000);
+            }}
           >
-            {getDurationString(traceStartTime, span.startTime)}
+            <div
+              className={cn(
+                'flex items-center text-xs font-mono text-muted-foreground p-1 cursor-pointer rounded-l-full px-2',
+                activeSpans.includes(span.spanId) ? 'bg-primary/80 text-white' : 'hover:bg-muted'
+              )}
+            >
+              {getDurationString(traceStartTime, span.startTime)}
+            </div>
           </div>
         </div>
       </div>
@@ -160,6 +172,7 @@ export function SpanCard({
                   selectedSpan={selectedSpan}
                   collapsedSpans={collapsedSpans}
                   onToggleCollapse={onToggleCollapse}
+                  onSelectTime={onSelectTime}
                   depth={depth + 1}
                 />
               </div>
