@@ -9,12 +9,10 @@ import { GitHubSignInButton } from '@/components/sign-in/github-signin';
 import { GoogleSignInButton } from '@/components/sign-in/google-signin';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
-export default async function SignInPage(
-  props: {
-    params: Promise<{}>;
-    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
-  }
-) {
+export default async function SignInPage(props: {
+  params: Promise<{}>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const searchParams = await props.searchParams;
   const session = await getServerSession();
   let callbackUrl = searchParams?.callbackUrl ?? '/onboarding';
@@ -27,7 +25,6 @@ export default async function SignInPage(
   }
   return (
     <div className="flex h-full items-center justify-center">
-
       <div className="flex flex-col items-center relative">
         <div className="inset-0 absolute z-10 md:rounded-lg overflow-hidden">
           <Image src={noise} alt="" className="w-full h-full" priority />
@@ -46,12 +43,10 @@ export default async function SignInPage(
               callbackUrl={callbackUrl}
             />
           )}
-          {isFeatureEnabled(Feature.GITHUB_AUTH) && (
-            <GitHubSignInButton
-              className="text-[16px] py-6 px-4 pr-8"
-              callbackUrl={callbackUrl}
-            />
-          )}
+          <GitHubSignInButton
+            className="text-[16px] py-6 px-4 pr-8"
+            callbackUrl={callbackUrl}
+          />
           {!isFeatureEnabled(Feature.EMAIL_AUTH) && (
             <div className="mt-16 text-sm text-secondary-foreground">
               By continuing you agree to our{' '}

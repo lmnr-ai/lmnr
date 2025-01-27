@@ -8,20 +8,13 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 
 interface EmailSignInProps {
-  showIcon?: boolean;
-  text?: string;
   callbackUrl: string;
-  className?: string;
 }
 
-const validateEmailAddress = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const validateEmailAddress = (email: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-export function EmailSignInButton({
-  text = 'Sign in',
-  callbackUrl,
-  className,
-  ...props
-}: EmailSignInProps) {
+export function EmailSignInButton({ callbackUrl }: EmailSignInProps) {
   const [email, setEmail] = useState('');
 
   return (
@@ -36,17 +29,20 @@ export function EmailSignInButton({
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
-      {!validateEmailAddress(email) && email
-        && <Label className="text-sm text-white"> Please enter a valid email address </Label>
-      }
+      {!validateEmailAddress(email) && email && (
+        <Label className="text-sm text-white">
+          {' '}
+          Please enter a valid email address{' '}
+        </Label>
+      )}
       <Button
         disabled={!email || !validateEmailAddress(email)}
         className="p-4"
         variant={'light'}
         onClick={() => {
           signIn('email', {
-            callbackUrl: callbackUrl,
-            email: email,
+            callbackUrl,
+            email,
             name: email
           });
         }}
