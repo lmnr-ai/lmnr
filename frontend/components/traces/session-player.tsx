@@ -124,7 +124,11 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (playerRef.current) {
         const time = parseFloat(e.target.value);
-        playerRef.current.goto(time * 1000);
+        try {
+          playerRef.current.goto(time * 1000);
+        } catch (e) {
+          console.error(e);
+        }
       }
     };
 
@@ -169,6 +173,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               type="range"
               className="flex-grow"
               min="0"
+              step="0.1"
               max={totalDuration}
               value={currentTime}
               onChange={handleTimelineChange}

@@ -71,7 +71,6 @@ CREATE TABLE default.browser_session_events
     `event_id` UUID,
     `trace_id` UUID,
     `session_id` UUID,
-    `window_id` String,
     `timestamp` DateTime64(3),
     `event_type` UInt8,
     `data` String CODEC(ZSTD(3)),

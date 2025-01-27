@@ -21,7 +21,6 @@ struct EventBatch {
     events: Vec<RRWebEvent>,
     session_id: Uuid,
     trace_id: Uuid,
-    window_id: Option<String>,
 }
 
 #[options("events")]
@@ -45,6 +44,11 @@ async fn create_session_event(
     batch: web::Json<EventBatch>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
+    // Skip if there are no events
+    if batch.events.is_empty() {
+        return Ok(HttpResponse::Ok().finish());
+    }
+
     // update has_browser_session field in the traces table
     db::trace::update_trace_has_browser_session(
         &db.pool,
@@ -53,26 +57,41 @@ async fn create_session_event(
     )
     .await?;
 
-    for event in &batch.events {
-        clickhouse
-            .query(
-                "
-                INSERT INTO browser_session_events (
-                    event_id, session_id, trace_id, window_id, timestamp,
-                    event_type, data, project_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            )
-            .bind(Uuid::new_v4())
-            .bind(batch.session_id)
-            .bind(batch.trace_id)
-            .bind(batch.window_id.clone().unwrap_or_default())
-            .bind(event.timestamp)
-            .bind(event.event_type)
-            .bind(event.data.to_string())
-            .bind(project_api_key.project_id)
-            .execute()
-            .await?;
+    // Prepare batch data
+    let mut query = String::from(
+        "
+        INSERT INTO browser_session_events (
+            event_id, session_id, trace_id, timestamp,
+            event_type, data, project_id
+        ) VALUES ",
+    );
+
+    let mut values = Vec::new();
+
+    for (i, event) in batch.events.iter().enumerate() {
+        if i > 0 {
+            query.push_str(", ");
+        }
+        query.push_str("(?, ?, ?, ?, ?, ?, ?)");
+
+        // Add each value individually
+        values.extend_from_slice(&[
+            Uuid::new_v4().to_string(),
+            batch.session_id.to_string(),
+            batch.trace_id.to_string(),
+            event.timestamp.to_string(),
+            event.event_type.to_string(),
+            event.data.to_string(),
+            project_api_key.project_id.to_string(),
+        ]);
     }
+
+    // Execute batch insert with individual bindings
+    let mut query_with_bindings = clickhouse.query(&query);
+    for value in values {
+        query_with_bindings = query_with_bindings.bind(value);
+    }
+    query_with_bindings.execute().await?;
 
     Ok(HttpResponse::Ok().finish())
 }
