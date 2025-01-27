@@ -11,7 +11,7 @@ import { Button } from '../ui/button';
 import MonoWithCopy from '../ui/mono-with-copy';
 import { ScrollArea, ScrollBar } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
-import BrowserSession, { SessionPlayerHandle } from './browser-session';
+import SessionPlayer, { SessionPlayerHandle } from './session-player';
 import { SpanCard } from './span-card';
 import { SpanView } from './span-view';
 import StatsShields from './stats-shields';
@@ -332,7 +332,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                 display: showBrowserSession ? 'block' : 'none'
               }}
             >
-              <BrowserSession
+              <SessionPlayer
                 ref={browserSessionRef}
                 hasBrowserSession={trace.hasBrowserSession}
                 traceId={traceId}

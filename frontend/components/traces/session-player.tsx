@@ -3,7 +3,7 @@
 import 'rrweb-player/dist/style.css';
 
 import { PauseIcon, PlayIcon } from '@radix-ui/react-icons';
-import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import rrwebPlayer from 'rrweb-player';
 
 import { useProjectContext } from '@/contexts/project-context';
@@ -183,5 +183,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     );
   }
 );
+
+SessionPlayer.displayName = 'SessionPlayer';
 
 export default SessionPlayer;

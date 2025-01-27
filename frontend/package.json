@@ -21,6 +21,7 @@
     "@codemirror/lang-python": "^6.1.6",
     "@codemirror/lang-yaml": "^6.1.2",
     "@codemirror/language": "^6.10.8",
+    "@codemirror/state": "^6.5.1",
     "@codemirror/view": "^6.36.2",
     "@headlessui/react": "^2.2.0",
     "@lezer/highlight": "^1.2.1",

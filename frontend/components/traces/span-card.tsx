@@ -104,7 +104,7 @@ export function SpanCard({
             style={{
               width: containerWidth,
               height: ROW_HEIGHT,
-              left: -depth * 24 - 16
+              left: -depth * 24 - 8
             }}
             onClick={() => {
               onSpanSelect?.(span);
@@ -116,7 +116,7 @@ export function SpanCard({
               style={{
                 width: containerWidth,
                 height: ROW_HEIGHT,
-                left: -depth * 24 - 16
+                left: -depth * 24 - 8
               }}
             />
           )}
