@@ -8,6 +8,8 @@ import rrwebPlayer from 'rrweb-player';
 
 import { useProjectContext } from '@/contexts/project-context';
 
+import { Skeleton } from '../ui/skeleton';
+
 interface SessionPlayerProps {
   hasBrowserSession: boolean | null;
   traceId: string;
@@ -224,7 +226,14 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               {formatTime(currentTime)} / {formatTime(totalDuration)}
             </span>
           </div>
-          <div ref={containerRef} className="w-full h-full bg-background" />
+          {events.length === 0 && (
+            <div className="flex flex-col h-full gap-2 p-4 justify-center items-center">
+              <Skeleton className="w-full h-[50%]" />
+            </div>
+          )}
+          {events.length > 0 && (
+            <div ref={containerRef} className="w-full h-full bg-background" />
+          )}
         </div>
       </>
     );

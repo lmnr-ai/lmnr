@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { getDuration, getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
-import { cn } from '@/lib/utils';
+import { cn, formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
 import { Label } from '../ui/label';
 import SpanTypeIcon from './span-type-icon';
@@ -151,7 +151,7 @@ export function SpanCard({
                 activeSpans.includes(span.spanId) ? 'bg-primary/80 text-white' : 'hover:bg-muted'
               )}
             >
-              {getDurationString(traceStartTime, span.startTime)}
+              {formatSecondsToMinutesAndSeconds(getDuration(traceStartTime, span.startTime) / 1000)}
             </div>
           </div>
         </div>
