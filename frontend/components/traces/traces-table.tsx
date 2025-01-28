@@ -11,7 +11,8 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Trace } from '@/lib/traces/types';
-import { PaginatedResponse } from '@/lib/types';
+import { DatatableFilter, PaginatedResponse} from '@/lib/types';
+import { getFilterFromUrlParams } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Button } from '../ui/button';
@@ -31,6 +32,8 @@ import SpanTypeIcon from './span-type-icon';
 interface TracesTableProps {
   onRowClick?: (rowId: string) => void;
 }
+const toFilterUrlParam = (filters: DatatableFilter[]): string =>
+  JSON.stringify(filters);
 
 const renderCost = (val: any) => {
   if (val == null) {
@@ -62,6 +65,10 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const pageCount = Math.ceil(totalCount / pageSize);
   const [traceId, setTraceId] = useState<string | null>(
     searchParams.get('traceId') ?? null
+  );
+
+  const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
+    filter ? (getFilterFromUrlParams(filter) ?? []) : []
   );
 
   const isCurrentTimestampIncluded =
@@ -153,6 +160,37 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     }
   };
 
+  const handleAddFilter = (column: string, value: string) => {
+    const newFilter = { column, operator: 'eq', value };
+    const existingFilterIndex = activeFilters.findIndex(
+      (filter) => filter.column === column && filter.value === value
+    );
+
+    let updatedFilters;
+    if (existingFilterIndex === -1) {
+
+      updatedFilters = [...activeFilters, newFilter];
+    } else {
+
+      updatedFilters = [...activeFilters];
+    }
+
+    setActiveFilters(updatedFilters);
+    updateUrlWithFilters(updatedFilters);
+  };
+
+  const updateUrlWithFilters = (filters: DatatableFilter[]) => {
+    searchParams.delete('filter');
+    searchParams.delete('pageNumber');
+    searchParams.append('pageNumber', '0');
+    searchParams.append('filter', toFilterUrlParam(filters));
+    router.push(`${pathName}?${searchParams.toString()}`);
+  };
+
+  const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
+    setActiveFilters(newFilters);
+  };
+
   const handleRowClick = (row: Trace) => {
     searchParams.set('traceId', row.id!);
     searchParams.delete('spanId');
@@ -175,13 +213,31 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       accessorKey: 'topSpanType',
       header: 'Top level span',
       id: 'top_span_type',
-      cell: (row) => <div className='flex space-x-2 items-center'>
-        <SpanTypeIcon className='z-10' spanType={row.getValue()} />
-        <div className='flex text-sm'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
-      </div>,
+      cell: (row) => (
+        <div
+          onClick={(event) => {
+            event.stopPropagation();
+            handleAddFilter('span_type', row.getValue());
+          }}
+          className="cursor-pointer flex space-x-2 items-center hover:underline"
+        >
+          <SpanTypeIcon className='z-10' spanType={row.getValue()} />
+          <div className='flex text-sm'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
+        </div>),
       size: 120
     },
     {
+      cell: (row) => (
+        <div
+          onClick={(event) => {
+            event.stopPropagation();
+            handleAddFilter('name', row.getValue());
+          }}
+          className="cursor-pointer hover:underline"
+        >
+          {row.getValue()}
+        </div>
+      ),
       accessorKey: 'topSpanName',
       header: 'Top span name',
       id: 'top_span_name'
@@ -473,7 +529,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     >
       <TextSearchFilter />
       <DataTableFilter
-        possibleFilters={filters}
+        possibleFilters={filters} activeFilters={activeFilters} updateFilters={handleUpdateFilters}
       />
       <DateRangeFilter />
       <Button

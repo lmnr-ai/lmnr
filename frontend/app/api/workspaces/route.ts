@@ -1,23 +1,24 @@
-import { desc, eq, sql } from 'drizzle-orm';
-import { NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { desc, eq, sql } from "drizzle-orm";
+import { NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
 
-import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db/drizzle';
-import { apiKeys, membersOfWorkspaces, projects, subscriptionTiers, workspaces } from '@/lib/db/migrations/schema';
-import { fetcher } from '@/lib/utils';
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db/drizzle";
+import { apiKeys, membersOfWorkspaces, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { fetcher } from "@/lib/utils";
 
 export async function GET(req: NextRequest): Promise<Response> {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json" },
     });
   }
 
   const apiKey = session.user.apiKey;
+
   const userId = await db
     .select({ id: apiKeys.userId })
     .from(apiKeys)
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   );
 
   return new Response(JSON.stringify(workspacesWithProjects), {
-    headers: { 'Content-Type': 'application/json' }
+    headers: { "Content-Type": "application/json" },
   });
 }
 
@@ -68,12 +69,12 @@ export async function POST(req: Request): Promise<Response> {
 
   const body = await req.json();
   const res = await fetcher(`/workspaces`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${user.apiKey}`,
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 
   return new Response(res.body);

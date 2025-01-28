@@ -1,6 +1,6 @@
 {
-  "id": "d341229c-8ea2-41ef-9f96-d78a51f419a2",
-  "prevId": "0626f5f2-4d31-4404-a20e-22ea51002637",
+  "id": "09e36cee-8ef1-4fe9-8c56-237e4d069edb",
+  "prevId": "3f5b6513-a4c6-4805-9906-a7dbc44067b0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -214,7 +214,8 @@
           "name": "metadata",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": "'{}'::jsonb"
         }
       },
       "indexes": {},
@@ -553,7 +554,24 @@
           "default": "'default'"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "evaluations_project_id_hash_idx": {
+          "name": "evaluations_project_id_hash_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hash",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "evaluations_project_id_fkey1": {
           "name": "evaluations_project_id_fkey1",
@@ -2427,6 +2445,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'0'"
+        },
+        "has_browser_session": {
+          "name": "has_browser_session",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {

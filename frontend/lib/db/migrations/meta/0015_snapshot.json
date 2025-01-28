@@ -1,6 +1,6 @@
 {
-  "id": "d341229c-8ea2-41ef-9f96-d78a51f419a2",
-  "prevId": "0626f5f2-4d31-4404-a20e-22ea51002637",
+  "id": "3f5b6513-a4c6-4805-9906-a7dbc44067b0",
+  "prevId": "d341229c-8ea2-41ef-9f96-d78a51f419a2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -553,7 +553,24 @@
           "default": "'default'"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "evaluations_project_id_hash_idx": {
+          "name": "evaluations_project_id_hash_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hash",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "evaluations_project_id_fkey1": {
           "name": "evaluations_project_id_fkey1",
