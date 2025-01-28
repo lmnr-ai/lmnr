@@ -2,10 +2,7 @@ use actix_web::{options, post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    db::{self, project_api_keys::ProjectApiKey, DB},
-    routes::types::ResponseResult,
-};
+use crate::{db::project_api_keys::ProjectApiKey, routes::types::ResponseResult};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RRWebEvent {
@@ -40,7 +37,6 @@ async fn options_handler() -> ResponseResult {
 #[post("events")]
 async fn create_session_event(
     clickhouse: web::Data<clickhouse::Client>,
-    db: web::Data<DB>,
     batch: web::Json<EventBatch>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
@@ -48,14 +44,6 @@ async fn create_session_event(
     if batch.events.is_empty() {
         return Ok(HttpResponse::Ok().finish());
     }
-
-    // update has_browser_session field in the traces table
-    db::trace::update_trace_has_browser_session(
-        &db.pool,
-        &project_api_key.project_id,
-        &batch.trace_id,
-    )
-    .await?;
 
     // Prepare batch data
     let mut query = String::from(
