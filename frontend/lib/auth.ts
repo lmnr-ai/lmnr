@@ -4,7 +4,8 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import GithubProvider from 'next-auth/providers/github';
 import GoogleProvider from 'next-auth/providers/google';
 
-import allowedEmails from '../allowed-emails.json';
+import { getEmailsConfig } from '@/lib/server-utils';
+
 import { sendWelcomeEmail } from './emails/utils';
 import { Feature, isFeatureEnabled } from './features/features';
 import { fetcher } from './utils';
@@ -34,14 +35,14 @@ declare module 'next-auth/jwt' {
 const getProviders = () => {
   let providers = [];
 
-  // if (isFeatureEnabled(Feature.GITHUB_AUTH)) {
-  providers.push(
-    GithubProvider({
-      clientId: process.env.AUTH_GITHUB_ID!,
-      clientSecret: process.env.AUTH_GITHUB_SECRET!
-    })
-  );
-  // }
+  if (isFeatureEnabled(Feature.GITHUB_AUTH)) {
+    providers.push(
+      GithubProvider({
+        clientId: process.env.AUTH_GITHUB_ID!,
+        clientSecret: process.env.AUTH_GITHUB_SECRET!
+      })
+    );
+  }
 
   if (isFeatureEnabled(Feature.GOOGLE_AUTH)) {
     providers.push(
@@ -93,10 +94,11 @@ export const authOptions: NextAuthOptions = {
   debug: true,
   callbacks: {
     async signIn({ user, account }) {
-      return !(
-        account?.provider === 'github' &&
-        !(allowedEmails.emails as string[]).includes(user.email || '')
-      );
+      const list = await getEmailsConfig();
+      if (account?.provider === 'github' && user?.email && !!list) {
+        return list.includes(user.email);
+      }
+      return true;
     },
     async jwt({ token, profile, trigger }) {
       if (trigger === 'signIn') {

@@ -81,8 +81,13 @@ export function formatDate(input: string | number | Date): string {
 
 export const formatUTCDate = (date: string) => {
   const timeZoneOffset = new Date().getTimezoneOffset();
-  return new Date(new Date(date).getTime() + timeZoneOffset * 60000)
-    .toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(
+    new Date(date).getTime() + timeZoneOffset * 60000
+  ).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
 };
 
 // E.g. 2024-09-04T20:18:58.330355+00:00 -> 13:18:58.330
@@ -429,8 +434,8 @@ export const isGroupByIntervalAvailable = (
     ? parseInt(pastHours) * 60
     : startDate && endDate
       ? Math.floor(
-        (new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000
-      )
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000
+        )
       : 0;
   if (interval === 'minute') {
     return minutes <= 12 * 60;
@@ -444,6 +449,8 @@ export const isGroupByIntervalAvailable = (
   return false;
 };
 
-export const toFixedIfFloat = (value: number) => value % 1 === 0 ? value : parseFloat(`${value}`)?.toFixed(3);
+export const toFixedIfFloat = (value: number) =>
+  value % 1 === 0 ? value : parseFloat(`${value}`)?.toFixed(3);
 
-export const isValidJsonObject = (value: any) => value !== null && typeof value === 'object' && !Array.isArray(value);
+export const isValidJsonObject = (value: any) =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);

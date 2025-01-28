@@ -32,10 +32,7 @@ export default async function SignInPage(props: {
         <div className="z-20 flex flex-col items-center p-16 px-8">
           <Image alt="" src={logo} width={220} className="my-16" />
           {isFeatureEnabled(Feature.EMAIL_AUTH) && (
-            <EmailSignInButton
-              className="text-[16px] py-6 px-4 pr-8 mb-4"
-              callbackUrl={callbackUrl}
-            />
+            <EmailSignInButton callbackUrl={callbackUrl} />
           )}
           {isFeatureEnabled(Feature.GOOGLE_AUTH) && (
             <GoogleSignInButton
@@ -43,10 +40,12 @@ export default async function SignInPage(props: {
               callbackUrl={callbackUrl}
             />
           )}
-          <GitHubSignInButton
-            className="text-[16px] py-6 px-4 pr-8"
-            callbackUrl={callbackUrl}
-          />
+          {isFeatureEnabled(Feature.GITHUB_AUTH) && (
+            <GitHubSignInButton
+              className="text-[16px] py-6 px-4 pr-8"
+              callbackUrl={callbackUrl}
+            />
+          )}
           {!isFeatureEnabled(Feature.EMAIL_AUTH) && (
             <div className="mt-16 text-sm text-secondary-foreground">
               By continuing you agree to our{' '}

@@ -7,7 +7,7 @@ export const enum Feature {
   SUPABASE = 'SUPABASE',
   POSTHOG = 'POSTHOG',
   LOCAL_DB = 'LOCAL_DB',
-  FULL_BUILD = 'FULL_BUILD',
+  FULL_BUILD = 'FULL_BUILD'
 }
 
 // right now all managed-version features are disabled in local environment
@@ -18,6 +18,10 @@ export const isFeatureEnabled = (feature: Feature) => {
 
   if (feature === Feature.LOCAL_DB) {
     return process.env.ENVIRONMENT === 'PRODUCTION' ? false : true;
+  }
+
+  if (feature === Feature.GITHUB_AUTH) {
+    return !!process.env.AUTH_GITHUB_ID && !!process.env.AUTH_GITHUB_SECRET;
   }
 
   if (feature === Feature.FULL_BUILD) {
