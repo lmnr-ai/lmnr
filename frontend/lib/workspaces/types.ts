@@ -2,8 +2,6 @@ export type Project = {
   id: string;
   name: string;
   workspaceId: string;
-  numSpans: number;
-  numEvaluations: number;
 };
 
 export interface WorkspaceUser {
@@ -15,8 +13,8 @@ export interface WorkspaceUser {
 }
 
 export enum WorkspaceTier {
-  FREE = 'Free',
-  PRO = 'Pro'
+  FREE = "Free",
+  PRO = "Pro",
 }
 
 export interface Workspace {
@@ -43,3 +41,9 @@ export type GetProjectResponse = {
   eventsLimit: number;
   isFreeTier: boolean;
 };
+
+export interface ProjectStats {
+  datasetsCount: number;
+  spansCount: number;
+  evaluationsCount: number;
+}

@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { signIn } from 'next-auth/react';
-import * as React from 'react';
-import { useState } from 'react';
+import { signIn } from "next-auth/react";
+import * as React from "react";
+import { useState } from "react";
 
-import { Button, type ButtonProps } from '@/components/ui/button';
-import { IconGitHub, IconSpinner } from '@/components/ui/icons';
+import { Button, type ButtonProps } from "@/components/ui/button";
+import { IconGitHub, IconSpinner } from "@/components/ui/icons";
 
 interface GitHubSignInButtonProps extends ButtonProps {
   showGithubIcon?: boolean;
@@ -14,7 +14,7 @@ interface GitHubSignInButtonProps extends ButtonProps {
 }
 
 export function GitHubSignInButton({
-  text = 'Continue with GitHub',
+  text = "Continue with GitHub",
   callbackUrl,
   showGithubIcon = true,
   className,
@@ -25,7 +25,7 @@ export function GitHubSignInButton({
   const handleSignIn = async () => {
     try {
       setIsLoading(true);
-      await signIn('github', { callbackUrl });
+      await signIn("github", { callbackUrl });
     } catch (error) {
       console.error(error);
     } finally {
@@ -35,20 +35,8 @@ export function GitHubSignInButton({
 
   return (
     <>
-      <Button
-        variant={'light'}
-        onClick={handleSignIn}
-        disabled={isLoading}
-        className={className}
-        {...props}
-      >
-        <div className="h-5 w-5">
-          {isLoading ? (
-            <IconSpinner className="animate-spin" />
-          ) : (
-            <IconGitHub />
-          )}
-        </div>
+      <Button variant={"light"} onClick={handleSignIn} disabled={isLoading} className={className} {...props}>
+        <div className="h-5 w-5">{isLoading ? <IconSpinner className="animate-spin" /> : <IconGitHub />}</div>
         <div className="ml-4">{text}</div>
       </Button>
     </>
