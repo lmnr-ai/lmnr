@@ -1,4 +1,4 @@
-import { ClickHouseClient } from "@clickhouse/client";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 
 import { chStepMap, GroupByInterval, intervalMap, truncateTimeMap } from "./modifiers";
 
@@ -21,22 +21,31 @@ type AbsoluteTimeRange = {
 };
 
 type RelativeTimeRange = {
-  pastHours: number | 'all';
+  pastHours: number | "all";
 };
 
-export type AggregationFunction = 'AVG' | 'SUM' | 'MIN' | 'MAX' | 'MEDIAN' | 'p90' | 'p95' | 'p99';
+export type AggregationFunction = "AVG" | "SUM" | "MIN" | "MAX" | "MEDIAN" | "p90" | "p95" | "p99";
 
 export const aggregationFunctionToCh = (f: AggregationFunction) => {
   switch (f) {
-    case 'AVG': return 'avg';
-    case 'SUM': return 'sum';
-    case 'MIN': return 'min';
-    case 'MAX': return 'max';
-    case 'MEDIAN': return 'median';
-    case 'p90': return 'quantileExact(0.90)';
-    case 'p95': return 'quantileExact(0.95)';
-    case 'p99': return 'quantileExact(0.99)';
-    default: throw new Error(`Invalid aggregation function: ${f}`);
+    case "AVG":
+      return "avg";
+    case "SUM":
+      return "sum";
+    case "MIN":
+      return "min";
+    case "MAX":
+      return "max";
+    case "MEDIAN":
+      return "median";
+    case "p90":
+      return "quantileExact(0.90)";
+    case "p95":
+      return "quantileExact(0.95)";
+    case "p99":
+      return "quantileExact(0.99)";
+    default:
+      throw new Error(`Invalid aggregation function: ${f}`);
   }
 };
 
@@ -45,43 +54,43 @@ export type TimeRange = AbsoluteTimeRange | RelativeTimeRange;
 export const getTimeRange = (
   pastHours: string | undefined,
   startDate: string | undefined,
-  endDate: string | undefined,
+  endDate: string | undefined
 ): TimeRange => {
   if (pastHours) {
-    if (pastHours === 'all') {
-      return { pastHours: 'all' };
+    if (pastHours === "all") {
+      return { pastHours: "all" };
     }
     return { pastHours: parseInt(pastHours) };
   }
   if (startDate && endDate) {
     return { start: new Date(startDate), end: new Date(endDate) };
   }
-  throw new Error('Invalid time range');
+  throw new Error("Invalid time range");
 };
 
 export const addTimeRangeToQuery = (query: string, timeRange: TimeRange, column: string): string => {
   if (!validateSqlString(column)) {
     throw new Error(`Invalid column name: ${column}`);
   }
-  if ('start' in timeRange && 'end' in timeRange) {
+  if ("start" in timeRange && "end" in timeRange) {
     return `${query}
       AND ${column} >= ${dateToNanoseconds(timeRange.start)}
       AND ${column} <= ${dateToNanoseconds(timeRange.end)}`;
   }
-  if ('pastHours' in timeRange) {
-    if (timeRange.pastHours === 'all') {
+  if ("pastHours" in timeRange) {
+    if (timeRange.pastHours === "all") {
       return query;
     }
     return `${query} AND ${column} >= now() - INTERVAL ${timeRange.pastHours} HOUR`;
   }
-  throw new Error('Invalid time range');
+  throw new Error("Invalid time range");
 };
 
 export const groupByTimeAbsoluteStatement = (
   start: Date,
   end: Date,
   groupByInterval: GroupByInterval,
-  column: string,
+  column: string
 ): string => {
   const chRoundTime = truncateTimeMap[groupByInterval];
   const chInterval = intervalMap[groupByInterval];
@@ -102,7 +111,7 @@ STEP ${chStep}`;
 export const groupByTimeRelativeStatement = (
   pastHours: number,
   groupByInterval: GroupByInterval,
-  column: string,
+  column: string
 ): string => {
   if (!validateSqlString(column)) {
     throw new Error(`Invalid column name: ${column}`);
@@ -121,12 +130,7 @@ TO ${chRoundTime}(now() + INTERVAL ${chInterval})
 STEP ${chStep}`;
 };
 
-export const getTimeBounds = async (
-  client: ClickHouseClient,
-  projectId: string,
-  table: string,
-  column: string,
-): Promise<[Date, Date]> => {
+export const getTimeBounds = async (projectId: string, table: string, column: string): Promise<[Date, Date]> => {
   if (!validateSqlString(table)) {
     throw new Error(`Invalid table name: ${table}`);
   }
@@ -139,16 +143,13 @@ export const getTimeBounds = async (
     MAX(${column}) AS maxTime
   FROM ${table}
   WHERE project_id = {projectId: UUID}`;
-  const result = await client.query({
+  const result = await clickhouseClient.query({
     query,
-    format: 'JSONEachRow',
+    format: "JSONEachRow",
     query_params: { projectId },
   });
 
   const rows = (await result.json()) as { minTime: number; maxTime: number }[];
 
-  return [
-    new Date(rows[0].minTime),
-    new Date(rows[0].maxTime),
-  ];
+  return [new Date(rows[0].minTime), new Date(rows[0].maxTime)];
 };
