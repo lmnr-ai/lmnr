@@ -15,11 +15,20 @@ export default function TracesPagePlaceholder() {
   const { projectId } = useProjectContext();
   const [tabValue, setTabValue] = useState('typescript');
 
-  const pythonInitialization = `from lmnr import Laminar as L
-L.initialize(project_api_key="<YOUR_PROJECT_API_KEY>")`;
+  const pythonInitialization = `from lmnr import Laminar
+Laminar.initialize(project_api_key="<YOUR_PROJECT_API_KEY>")`;
 
-  const typescriptInitialization = `import { Laminar as L } from '@lmnr-ai/lmnr';
-L.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
+  const typescriptInitialization = `import { Laminar } from '@lmnr-ai/lmnr';
+Laminar.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
+`;
+  const typescriptInitializationWithOpenAI = `import { Laminar } from '@lmnr-ai/lmnr';
+import { OpenAI } from 'openai';
+Laminar.initialize({
+  projectApiKey: "<YOUR_PROJECT_API_KEY>",
+  instruments: {
+    openAI: OpenAI,
+  },
+});
 `;
 
   return (
@@ -86,6 +95,33 @@ L.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
                   code={pythonInitialization}
                   language="python"
                 />
+                <Accordion
+                  type='single'
+                  className='w-full'
+                  collapsible
+                >
+                  <AccordionItem value="python-additional">
+                    <AccordionTrigger className='w-full px-2 my-2 bg-amber-500/10 border-amber-500/30 border rounded-md'>
+                      <div className='flex justify-between space-x-2 cursor-pointer w-full'>
+                        <div className='flex'>If you are not seeing auto-instrumentations in Python</div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className='flex flex-col space-y-2'>
+                        <h3 className="text-muted-foreground">
+                          Most likely reason is that you have installed `lmnr` package without
+                          specifying extras. Make sure to use `lmnr[all]` in your requirements.txt
+                          of pyproject.toml file.
+                        </h3>
+                        <CodeHighlighter
+                          className="text-xs bg-background p-4 rounded-md border"
+                          code={PYTHON_INSTALL}
+                          language="bash"
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </TabsContent>
               <TabsContent value="typescript">
                 <CodeHighlighter
@@ -98,32 +134,22 @@ L.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
                   className='w-full'
                   collapsible
                 >
-                  <AccordionItem value="next-js-additional">
+                  <AccordionItem value="js-additional">
                     <AccordionTrigger className='w-full px-2 my-2 bg-amber-500/10 border-amber-500/30 border rounded-md'>
                       <div className='flex justify-between space-x-2 cursor-pointer w-full'>
-                        <div className='flex'>If you are using Next.js</div>
+                        <div className='flex'>If you are not seeing auto-instrumentations in JS</div>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className='flex flex-col space-y-2'>
                         <h3 className="text-muted-foreground">
-                          In some JavaScript setups, including Next.js, it is required to initialize
-                          Laminar before importing LLM libraries. For example
+                          In some JavaScript setups, it is required to specify the instruments
+                          when initializing Laminar. For example
                         </h3>
                         <CodeHighlighter
                           className="text-xs bg-background p-4 rounded-md border"
-                          code={typescriptInitialization + 'import { OpenAI } from "openai";'}
+                          code={typescriptInitializationWithOpenAI}
                           language="typescript"
-                        />
-                        <h3 className="text-muted-foreground">
-                          We enable OpenTelemetry, and Next.js instruments all network calls.
-                          This may result in excessive tracing.
-                          Disable Next.js instrumentation by setting the environment variable.
-                        </h3>
-                        <CodeHighlighter
-                          className="text-xs bg-background p-4 rounded-md border"
-                          code={'export NEXT_OTEL_FETCH_DISABLED=1'}
-                          language="bash"
                         />
                       </div>
                     </AccordionContent>

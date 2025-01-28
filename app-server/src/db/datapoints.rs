@@ -91,9 +91,11 @@ pub async fn get_full_datapoints(
     );
     query.push_bind(dataset_id);
     if let Some(limit) = limit {
+        query.push(" LIMIT ");
         query.push_bind(limit);
     }
     if let Some(offset) = offset {
+        query.push(" OFFSET ");
         query.push_bind(offset);
     }
 
