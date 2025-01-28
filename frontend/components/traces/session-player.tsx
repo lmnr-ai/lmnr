@@ -81,6 +81,22 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           height,
           showController: false,
           showErrors: false,
+          mouseTail: false, // Disable default mouse tail
+          // // Remove the custom mouse properties as they're not valid options
+          // plugins: [{
+          //   name: 'mouse',
+          //   options: {
+          //     cursor: true,
+          //     clickElement: true,
+          //     tail: {
+          //       duration: 800,
+          //       style: 'red',
+          //       lineCap: 'round',
+          //       lineWidth: 3,
+          //       radius: 4
+          //     }
+          //   }
+          // }]
         }
       });
 
@@ -160,6 +176,32 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             color: white !important;
             text-color: white !important;
           }
+
+          /* Using the provided cursor SVG with white outline */
+          .replayer-mouse {
+            width: 30px !important;
+            height: 42px !important;
+            background-image: url("data:image/svg+xml,%3Csvg width='15' height='21' viewBox='0 0 15 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.21818 14.9087L5.05222 14.9637L4.92773 15.0865L0.75 19.2069V1.84143L13.2192 14.6096H6.24066H6.11948L6.00446 14.6477L5.21818 14.9087Z' fill='black' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") !important;
+            background-size: contain !important;
+            background-repeat: no-repeat !important;
+            background-color: transparent !important;
+            margin-left: -1px !important;
+            margin-top: -1px !important;
+            transition: all 0.2s ease-in-out !important;
+          }
+
+          @keyframes bounce {
+            0%, 100% {
+              transform: scale(1);
+            }
+            50% {
+              transform: scale(1.4);
+            }
+          }
+
+          .replayer-mouse.active {
+            animation: bounce 0.3s ease-in-out !important;
+          }
         `}</style>
         <div className="relative w-full h-full">
           <div className="flex flex-row items-center justify-center gap-2 px-4 h-12 border-b">
@@ -167,7 +209,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               onClick={handlePlayPause}
               className="text-white py-1 rounded"
             >
-              {isPlaying ? <PauseIcon /> : <PlayIcon />}
+              {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
             </button>
             <input
               type="range"
