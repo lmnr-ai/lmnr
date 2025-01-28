@@ -15,12 +15,12 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   labelClassesForPaths: many(labelClassesForPath),
   labelingQueues: many(labelingQueues),
   datasets: many(datasets),
-  traces: many(traces),
   workspace: one(workspaces, {
     fields: [projects.workspaceId],
     references: [workspaces.id]
   }),
   providerApiKeys: many(providerApiKeys),
+  traces: many(traces),
   playgrounds: many(playgrounds),
   pipelines: many(pipelines),
   evaluations: many(evaluations),
@@ -115,14 +115,6 @@ export const datasetsRelations = relations(datasets, ({one, many}) => ({
   datasetDatapoints: many(datasetDatapoints),
 }));
 
-export const tracesRelations = relations(traces, ({one, many}) => ({
-  project: one(projects, {
-    fields: [traces.projectId],
-    references: [projects.id]
-  }),
-  spans: many(spans),
-}));
-
 export const targetPipelineVersionsRelations = relations(targetPipelineVersions, ({one}) => ({
   pipeline: one(pipelines, {
     fields: [targetPipelineVersions.pipelineId],
@@ -165,6 +157,14 @@ export const providerApiKeysRelations = relations(providerApiKeys, ({one}) => ({
 
 export const subscriptionTiersRelations = relations(subscriptionTiers, ({many}) => ({
   workspaces: many(workspaces),
+}));
+
+export const tracesRelations = relations(traces, ({one, many}) => ({
+  project: one(projects, {
+    fields: [traces.projectId],
+    references: [projects.id]
+  }),
+  spans: many(spans),
 }));
 
 export const playgroundsRelations = relations(playgrounds, ({one}) => ({

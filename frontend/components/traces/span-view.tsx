@@ -13,6 +13,7 @@ import { Span, SpanType } from '@/lib/traces/types';
 import { swrFetcher } from '@/lib/utils';
 
 import Formatter from '../ui/formatter';
+import MonoWithCopy from '../ui/mono-with-copy';
 import { Skeleton } from '../ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { AddLabelPopover } from './add-label-popover';
@@ -54,47 +55,49 @@ export function SpanView({ spanId }: SpanViewProps) {
     <>
       <Tabs className="flex flex-col h-full w-full" defaultValue="span">
         <div className="border-b flex-none">
-          <div className="flex flex-col">
-            <div className="flex flex-none h-12 items-center px-4 space-x-2">
-              <div className="p-1.5 px-2 text-xs text-secondary-foreground rounded bg-secondary">
-                {span.spanType === SpanType.DEFAULT && <Braces size={16} />}
-                {span.spanType === SpanType.LLM && (
-                  <MessageCircleMore size={16} />
-                )}
-                {span.spanType === SpanType.EXECUTOR && <Activity size={16} />}
-                {span.spanType === SpanType.EVALUATOR && (
-                  <ArrowRight size={16} />
-                )}
-                {span.spanType === SpanType.EVALUATION && <Gauge size={16} />}
+          <div className="flex flex-col px-4 pt-2 gap-2">
+            <div className='flex flex-col gap-2'>
+              <div className="flex flex-none items-center space-x-2">
+                <div className="p-1.5 px-2 text-xs text-secondary-foreground rounded bg-secondary">
+                  {span.spanType === SpanType.DEFAULT && <Braces size={16} />}
+                  {span.spanType === SpanType.LLM && (
+                    <MessageCircleMore size={16} />
+                  )}
+                  {span.spanType === SpanType.EXECUTOR && <Activity size={16} />}
+                  {span.spanType === SpanType.EVALUATOR && (
+                    <ArrowRight size={16} />
+                  )}
+                  {span.spanType === SpanType.EVALUATION && <Gauge size={16} />}
+                </div>
+                <div className="flex-grow text-xl items-center font-medium truncate max-w-[400px]">
+                  {span.name}
+                </div>
               </div>
-              <div className="flex-grow text-xl items-center font-medium truncate max-w-[400px]">
-                {span.name}
-              </div>
-              <div className="flex-grow" />
-              <div className="flex flex-col py-1 space-y-2">
-                <StatsShields
-                  startTime={span.startTime}
-                  endTime={span.endTime}
-                  totalTokenCount={
-                    (span.attributes['gen_ai.usage.input_tokens'] ?? 0) +
-                    (span.attributes['gen_ai.usage.output_tokens'] ?? 0)
-                  }
-                  inputTokenCount={
-                    span.attributes['gen_ai.usage.input_tokens'] ?? 0
-                  }
-                  outputTokenCount={
-                    span.attributes['gen_ai.usage.output_tokens'] ?? 0
-                  }
-                  inputCost={span.attributes['gen_ai.usage.input_cost'] ?? 0}
-                  outputCost={span.attributes['gen_ai.usage.output_cost'] ?? 0}
-                  cost={span.attributes['gen_ai.usage.cost'] ?? 0}
-                />
-              </div>
+              <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
             </div>
-            <div className="flex-none flex flex-row space-x-2 px-4">
+            <div className="flex-none flex flex-row space-x-2">
               <AddToLabelingQueuePopover span={span} />
               <ExportSpansDialog span={span} />
               <AddLabelPopover span={span} />
+            </div>
+            <div className="flex flex-col py-1 space-y-2">
+              <StatsShields
+                startTime={span.startTime}
+                endTime={span.endTime}
+                totalTokenCount={
+                  (span.attributes['gen_ai.usage.input_tokens'] ?? 0) +
+                  (span.attributes['gen_ai.usage.output_tokens'] ?? 0)
+                }
+                inputTokenCount={
+                  span.attributes['gen_ai.usage.input_tokens'] ?? 0
+                }
+                outputTokenCount={
+                  span.attributes['gen_ai.usage.output_tokens'] ?? 0
+                }
+                inputCost={span.attributes['gen_ai.usage.input_cost'] ?? 0}
+                outputCost={span.attributes['gen_ai.usage.output_cost'] ?? 0}
+                cost={span.attributes['gen_ai.usage.cost'] ?? 0}
+              />
             </div>
           </div>
           <TabsList className="border-none text-sm px-4">

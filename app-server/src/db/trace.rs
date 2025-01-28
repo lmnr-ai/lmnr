@@ -66,7 +66,8 @@ pub async fn update_trace_attributes(
             end_time,
             session_id,
             trace_type,
-            metadata
+            metadata,
+            has_browser_session
         )
         VALUES (
             $1,
@@ -81,7 +82,8 @@ pub async fn update_trace_attributes(
             $10,
             $11,
             COALESCE($12, 'DEFAULT'::trace_type),
-            $13
+            $13,
+            $14
         )
         ON CONFLICT(id) DO
         UPDATE
@@ -96,7 +98,8 @@ pub async fn update_trace_attributes(
             end_time = CASE WHEN traces.end_time IS NULL OR traces.end_time < $10 THEN $10 ELSE traces.end_time END,
             session_id = CASE WHEN traces.session_id IS NULL THEN $11 ELSE traces.session_id END,
             trace_type = CASE WHEN $12 IS NULL THEN traces.trace_type ELSE COALESCE($12, 'DEFAULT'::trace_type) END,
-            metadata = COALESCE($13, traces.metadata)
+            metadata = COALESCE($13, traces.metadata),
+            has_browser_session = COALESCE($14, traces.has_browser_session)
         "
     )
     .bind(attributes.id)
@@ -112,6 +115,7 @@ pub async fn update_trace_attributes(
     .bind(&attributes.session_id)
     .bind(&attributes.trace_type)
     .bind(&serde_json::to_value(&attributes.metadata).unwrap())
+    .bind(attributes.has_browser_session)
     .execute(pool)
     .await?;
     Ok(())

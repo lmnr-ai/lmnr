@@ -410,6 +410,15 @@ fn main() -> anyhow::Result<()> {
                         )
                         .service(api::v1::machine_manager::vnc_stream) // vnc stream does not need auth
                         .service(
+                            web::scope("/v1/browser-sessions")
+                                .service(api::v1::browser_sessions::options_handler)
+                                .service(
+                                    web::scope("")
+                                        .wrap(project_auth.clone())
+                                        .service(api::v1::browser_sessions::create_session_event),
+                                ),
+                        )
+                        .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
                                 .app_data(PayloadConfig::new(HTTP_PAYLOAD_LIMIT))
@@ -424,7 +433,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::queues::push_to_queue)
                                 .service(api::v1::machine_manager::start_machine)
                                 .service(api::v1::machine_manager::terminate_machine)
-                                .service(api::v1::machine_manager::execute_computer_action),
+                                .service(api::v1::machine_manager::execute_computer_action)
+                                .service(api::v1::browser_sessions::create_session_event),
                         )
                         // Scopes with generic auth
                         .service(

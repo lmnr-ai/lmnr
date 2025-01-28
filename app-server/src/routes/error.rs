@@ -183,3 +183,21 @@ impl ResponseError for Error {
         }
     }
 }
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
+    }
+}
+
+impl From<clickhouse::error::Error> for Error {
+    fn from(err: clickhouse::error::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
+    }
+}

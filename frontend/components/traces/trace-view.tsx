@@ -1,4 +1,4 @@
-import { ChevronsRight } from 'lucide-react';
+import { ChartNoAxesGantt, ChevronsRight, Disc } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
@@ -11,6 +11,7 @@ import { Button } from '../ui/button';
 import MonoWithCopy from '../ui/mono-with-copy';
 import { ScrollArea, ScrollBar } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
+import SessionPlayer, { SessionPlayerHandle } from './session-player';
 import { SpanCard } from './span-card';
 import { SpanView } from './span-view';
 import StatsShields from './stats-shields';
@@ -26,13 +27,17 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const router = useRouter();
   const pathName = usePathname();
   const container = useRef<HTMLDivElement>(null);
-  const traceTreePanel = useRef<HTMLDivElement>(null);
+  // containerHeight refers to the height of the trace view container
   const [containerHeight, setContainerHeight] = useState(0);
+  // containerWidth refers to the width of the trace view container
   const [containerWidth, setContainerWidth] = useState(0);
-  // here timelineWidth refers to the width of the trace tree panel and waterfall timeline
+  const traceTreePanel = useRef<HTMLDivElement>(null);
+  // here timelineWidth refers to the width of the trace tree panel AND waterfall timeline
   const [timelineWidth, setTimelineWidth] = useState(0);
+  const [traceTreePanelWidth, setTraceTreePanelWidth] = useState(0);
   const { projectId } = useProjectContext();
-
+  const [showBrowserSession, setShowBrowserSession] = useState(false);
+  const browserSessionRef = useRef<SessionPlayerHandle>(null);
   const { data: trace, isLoading } = useSWR<TraceWithSpans>(
     `/api/projects/${projectId}/traces/${traceId}`,
     swrFetcher
@@ -48,6 +53,8 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       ) || null
       : null
   );
+
+  const [activeSpans, setActiveSpans] = useState<string[]>([]);
 
   // Add new state for collapsed spans
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
@@ -92,6 +99,10 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           : null
       );
     }
+
+    if (trace.hasBrowserSession) {
+      setShowBrowserSession(true);
+    }
   }, [trace]);
 
   useEffect(() => {
@@ -128,14 +139,20 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       return;
     }
 
+    setTraceTreePanelWidth(traceTreePanel.current!.getBoundingClientRect().width);
+
     // if no span is selected, timeline should take full width
     if (!selectedSpan) {
       setTimelineWidth(containerWidth);
     } else {
       // if a span is selected, waterfall is hidden, so timeline should take the width of the trace tree panel
       setTimelineWidth(
-        traceTreePanel.current!.getBoundingClientRect().width + 1
+        traceTreePanelWidth + 1
       );
+
+      if (trace?.hasBrowserSession) {
+        setShowBrowserSession(false);
+      }
     }
   }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
 
@@ -153,14 +170,33 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         >
           <ChevronsRight />
         </Button>
-        <div>Trace</div>
-        <MonoWithCopy className="text-secondary-foreground">{traceId}</MonoWithCopy>
+        <div className="flex items-center space-x-2">
+          <div>Trace</div>
+          <MonoWithCopy className="text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
+        </div>
         <div className="flex-grow" />
-        <div>
-          {selectedSpan && (
+        <div className="flex items-center space-x-2">
+          {(selectedSpan || showBrowserSession) && (
             <Button
-              variant={'outline'}
+              variant={'secondary'}
               onClick={() => {
+                setSelectedSpan(null);
+                setShowBrowserSession(false);
+                setTimeout(() => {
+                  searchParams.delete('spanId');
+                  router.push(`${pathName}?${searchParams.toString()}`);
+                }, 10);
+              }}
+            >
+              <ChartNoAxesGantt size={16} className="mr-2" />
+              Show timeline
+            </Button>
+          )}
+          {(trace?.hasBrowserSession && !showBrowserSession) && (
+            <Button
+              variant={'secondary'}
+              onClick={() => {
+                setShowBrowserSession(true);
                 setSelectedSpan(null);
                 setTimeout(() => {
                   searchParams.delete('spanId');
@@ -168,7 +204,8 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                 }, 10);
               }}
             >
-              Show timeline
+              <Disc size={16} className="mr-2" />
+              Show browser session
             </Button>
           )}
         </div>
@@ -182,7 +219,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           </div>
         )}
         {trace && (
-          <div className="flex h-full w-full" ref={container}>
+          <div className="flex h-full w-full relative" ref={container}>
             <div
               className="flex-none"
               style={{
@@ -216,7 +253,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                             ref={traceTreePanel}
                           >
                             <StatsShields
-                              className="px-2 pt-1 h-12 flex-none sticky top-0 bg-background z-40 border-b"
+                              className="px-2 pt-1 h-12 flex-none sticky top-0 bg-background z-50 border-b"
                               startTime={trace.startTime}
                               endTime={trace.endTime}
                               totalTokenCount={trace.totalTokenCount}
@@ -226,10 +263,12 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                               outputCost={trace.outputCost}
                               cost={trace.cost}
                             />
-                            <div className="flex flex-col px-2 pt-1">
+                            <div className="flex flex-col pt-1">
                               {topLevelSpans.map((span, index) => (
                                 <div key={index} className="pl-6 relative">
                                   <SpanCard
+                                    activeSpans={activeSpans}
+                                    traceStartTime={trace.startTime}
                                     parentY={traceTreePanel.current?.getBoundingClientRect().y || 0}
                                     span={span}
                                     childSpans={childSpans}
@@ -259,14 +298,18 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                                         `${pathName}?${searchParams.toString()}`
                                       );
                                     }}
+                                    onSelectTime={(time) => {
+                                      console.log("time", time);
+                                      browserSessionRef.current?.goto(time);
+                                    }}
                                   />
                                 </div>
                               ))}
                             </div>
                           </div>
                         </td>
-                        {!selectedSpan && !searchParams.get('spanId') && (
-                          <td className="flex flex-grow w-full p-0">
+                        {!selectedSpan && (
+                          <td className="flex flex-grow w-full p-0 relative">
                             <Timeline
                               spans={spans}
                               childSpans={childSpans}
@@ -281,6 +324,37 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                 </ScrollArea>
               </div>
             </div>
+            <div className="absolute top-0 z-50 bg-background"
+              style={{
+                width: containerWidth - traceTreePanelWidth - 2,
+                left: traceTreePanelWidth + 1,
+                height: containerHeight,
+                display: showBrowserSession ? 'block' : 'none'
+              }}
+            >
+              <SessionPlayer
+                ref={browserSessionRef}
+                hasBrowserSession={trace.hasBrowserSession}
+                traceId={traceId}
+                width={containerWidth - traceTreePanelWidth - 2}
+                height={containerHeight}
+                onTimelineChange={(time) => {
+                  const activeSpans = spans.filter(
+                    (span: Span) => {
+                      const traceStartTime = new Date(trace.startTime).getTime();
+                      const spanStartTime = new Date(span.startTime).getTime();
+                      const spanEndTime = new Date(span.endTime).getTime();
+
+                      const startTime = spanStartTime - traceStartTime;
+                      const endTime = spanEndTime - traceStartTime;
+                      return startTime <= time && endTime >= time && span.parentSpanId !== null;
+                    }
+                  );
+
+                  setActiveSpans(activeSpans.map((span) => span.spanId));
+                }}
+              />
+            </div>
             {selectedSpan && (
               <div
                 style={{ width: containerWidth - timelineWidth }}
@@ -294,6 +368,6 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 }
