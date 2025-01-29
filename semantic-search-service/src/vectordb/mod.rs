@@ -10,7 +10,7 @@ use qdrant_client::{
         PointStruct, SearchPoints, SearchResponse, SparseIndexConfig, SparseIndices,
         SparseVectorConfig, SparseVectorParams, UpsertPointsBuilder, VectorParams, VectorsConfig,
     },
-    Qdrant,
+    Qdrant, QdrantError,
 };
 
 use crate::{
@@ -91,13 +91,24 @@ impl QdrantClient {
 
         let points_filter = Filter::any(payload_conditions);
 
-        self.client
+        match self
+            .client
             .delete_points(
                 DeletePointsBuilder::new(collection_id)
                     .points(points_filter)
                     .build(),
             )
-            .await?;
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(QdrantError::ResponseError { status })
+                // collection does not exist, so we can just return
+                if status.code() == tonic::Code::NotFound =>
+            {
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }?;
 
         Ok(())
     }

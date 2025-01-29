@@ -34,12 +34,12 @@ export default function DatasetPanel({
     swrFetcher
   );
   // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
-  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint?.data);
+  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint?.data ?? null);
   const [newTarget, setNewTarget] = useState<Record<string, any> | null>(
-    datapoint?.target
+    datapoint?.target ?? null
   );
   const [newMetadata, setNewMetadata] = useState<Record<string, any>>(
-    datapoint?.metadata || {}
+    datapoint?.metadata ?? {}
   );
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
