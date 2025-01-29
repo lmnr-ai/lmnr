@@ -34,12 +34,12 @@ export default function DatasetPanel({
     swrFetcher
   );
   // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
-  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint?.data);
+  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint?.data ?? null);
   const [newTarget, setNewTarget] = useState<Record<string, any> | null>(
-    datapoint?.target
+    datapoint?.target ?? null
   );
   const [newMetadata, setNewMetadata] = useState<Record<string, any>>(
-    datapoint?.metadata || {}
+    datapoint?.metadata ?? {}
   );
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
@@ -102,6 +102,8 @@ export default function DatasetPanel({
     setNewTarget(datapoint.target);
     setNewMetadata(datapoint.metadata);
   }, [datapoint]);
+
+  console.log(newTarget);
 
   return isLoading ? (<div className='p-4 space-y-2 h-full w-full'>
     <Skeleton className="h-8" />
