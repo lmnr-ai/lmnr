@@ -103,8 +103,6 @@ export default function DatasetPanel({
     setNewMetadata(datapoint.metadata);
   }, [datapoint]);
 
-  console.log(newTarget);
-
   return isLoading ? (<div className='p-4 space-y-2 h-full w-full'>
     <Skeleton className="h-8" />
     <Skeleton className="h-8" />
