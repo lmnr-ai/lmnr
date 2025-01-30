@@ -10,17 +10,14 @@ use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY}
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    ch::{self, spans::CHSpan},
-    db::{labels::get_registered_label_classes_for_path, spans::Span, stats, DB},
+    db::{spans::Span, DB},
     features::{is_feature_enabled, Feature},
     pipeline::runner::PipelineRunner,
     semantic_search::SemanticSearch,
     storage::Storage,
     traces::{
-        evaluators::run_evaluator,
-        events::record_events,
         index::index_span,
-        utils::{record_labels_to_db_and_ch, record_span_to_db},
+        processor::{process_label_classes, process_spans_and_events},
     },
 };
 
@@ -100,24 +97,6 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
             continue;
         };
 
-        let mut span: Span = rabbitmq_span_message.span;
-
-        let events_count = rabbitmq_span_message.events.len();
-
-        if let Err(e) = stats::add_spans_and_events_to_project_usage_stats(
-            &db.pool,
-            &rabbitmq_span_message.project_id,
-            1,
-            events_count as i64,
-        )
-        .await
-        {
-            log::error!(
-                "Failed to add spans and events to project usage stats: {:?}",
-                e
-            );
-        }
-
         if is_feature_enabled(Feature::UsageLimit) {
             match super::limits::update_workspace_limit_exceeded_by_project_id(
                 db.clone(),
@@ -145,12 +124,7 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
             }
         }
 
-        let span_usage = super::utils::get_llm_usage_for_span(
-            &mut span.get_attributes(),
-            db.clone(),
-            cache.clone(),
-        )
-        .await;
+        let mut span: Span = rabbitmq_span_message.span;
 
         if is_feature_enabled(Feature::Storage) {
             if let Err(e) = span
@@ -166,30 +140,6 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
             }
         }
 
-        if let Err(e) = record_span_to_db(
-            db.clone(),
-            &span_usage,
-            &rabbitmq_span_message.project_id,
-            &mut span,
-        )
-        .await
-        {
-            log::error!(
-                "Failed to record span. span_id [{}], project_id [{}]: {:?}, span: {:?}",
-                span.span_id,
-                rabbitmq_span_message.project_id,
-                e,
-                span
-            );
-            continue;
-        } else {
-            // ack the message as soon as the span is recorded
-            let _ = delivery
-                .ack(BasicAckOptions::default())
-                .await
-                .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
-        }
-
         if let Err(e) = index_span(
             &span,
             semantic_search.clone(),
@@ -200,73 +150,27 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
             log::error!("Failed to index span: {:?}", e);
         }
 
-        if let Err(e) =
-            record_events(db.clone(), clickhouse.clone(), rabbitmq_span_message.events).await
-        {
-            log::error!("Failed to record events: {:?}", e);
-        }
+        let events = rabbitmq_span_message.events;
 
-        if let Err(e) = record_labels_to_db_and_ch(
+        process_spans_and_events(
+            &mut span,
+            events,
+            &rabbitmq_span_message.project_id,
             db.clone(),
             clickhouse.clone(),
+            cache.clone(),
+            Some(delivery),
+        )
+        .await;
+
+        process_label_classes(
             &span,
             &rabbitmq_span_message.project_id,
+            db.clone(),
+            clickhouse.clone(),
+            pipeline_runner.clone(),
         )
-        .await
-        {
-            log::error!(
-                "Failed to record labels to DB. span_id [{}], project_id [{}]: {:?}",
-                span.span_id,
-                rabbitmq_span_message.project_id,
-                e
-            );
-        }
-
-        let ch_span = CHSpan::from_db_span(&span, span_usage, rabbitmq_span_message.project_id);
-        // TODO: Queue batches and send them every 1-2 seconds
-        let insert_span_res = ch::spans::insert_span(clickhouse.clone(), &ch_span).await;
-        if let Err(e) = insert_span_res {
-            log::error!(
-                "Failed to insert span into Clickhouse. span_id [{}], project_id [{}]: {:?}",
-                span.span_id,
-                rabbitmq_span_message.project_id,
-                e
-            );
-        }
-
-        let registered_label_classes = match get_registered_label_classes_for_path(
-            &db.pool,
-            rabbitmq_span_message.project_id,
-            &span.get_attributes().flat_path().unwrap_or_default(),
-        )
-        .await
-        {
-            Ok(classes) => classes,
-            Err(e) => {
-                log::error!(
-                    "Failed to get registered label classes. project_id [{}]: {:?}",
-                    rabbitmq_span_message.project_id,
-                    e
-                );
-                Vec::new() // Return an empty vector if there's an error
-            }
-        };
-
-        for registered_label_class in registered_label_classes {
-            match run_evaluator(
-                pipeline_runner.clone(),
-                rabbitmq_span_message.project_id,
-                registered_label_class.label_class_id,
-                &span,
-                db.clone(),
-                clickhouse.clone(),
-            )
-            .await
-            {
-                Ok(_) => (),
-                Err(e) => log::error!("Failed to run evaluator: {:?}", e),
-            }
-        }
+        .await;
     }
 
     log::warn!("RabbitMQ closed connection. Shutting down span listener");
