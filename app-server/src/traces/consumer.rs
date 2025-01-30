@@ -181,6 +181,7 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
                 e,
                 span
             );
+            continue;
         } else {
             // ack the message as soon as the span is recorded
             let _ = delivery
