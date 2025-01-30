@@ -1,11 +1,11 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import * as React from "react";
 import { useState } from "react";
 
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { IconGitHub, IconSpinner } from "@/components/ui/icons";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface GitHubSignInButtonProps extends ButtonProps {
   showGithubIcon?: boolean;
@@ -21,13 +21,17 @@ export function GitHubSignInButton({
   ...props
 }: GitHubSignInButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
-
+  const { toast } = useToast();
   const handleSignIn = async () => {
     try {
       setIsLoading(true);
       await signIn("github", { callbackUrl });
     } catch (error) {
-      console.error(error);
+      toast({
+        title: "Error",
+        description: "Failed to sign in with GitHub. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
