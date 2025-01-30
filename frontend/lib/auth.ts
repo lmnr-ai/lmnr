@@ -91,7 +91,6 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
-  debug: true,
   callbacks: {
     async signIn({ user, account }) {
       const list = await getEmailsConfig();
