@@ -11,12 +11,12 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ projectI
 
   const spansResult = await getSpansCountInProject(projectId);
 
-  const [datasetResult = { count: 0 }] = await db
+  const [datasetsResult = { count: 0 }] = await db
     .select({ count: count(datasets.id) })
     .from(datasets)
     .where(eq(datasets.projectId, projectId));
 
-  const [evalResults = { count: 0 }] = await db
+  const [evalsResult = { count: 0 }] = await db
     .select({
       count: count(evaluations.id),
     })
@@ -25,8 +25,8 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ projectI
 
   return new Response(
     JSON.stringify({
-      datasetsCount: datasetResult.count,
-      evaluationsCount: evalResults.count,
+      datasetsCount: datasetsResult.count,
+      evaluationsCount: evalsResult.count,
       spansCount: spansResult?.[0]?.count,
     }),
     {
