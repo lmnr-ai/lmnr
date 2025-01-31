@@ -541,6 +541,8 @@ export const spans = pgTable("spans", {
   inputPreview: text("input_preview"),
   outputPreview: text("output_preview"),
   projectId: uuid("project_id").notNull(),
+  inputUrl: text("input_url"),
+  outputUrl: text("output_url"),
 }, (table) => [
   index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
   index("spans_project_id_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),

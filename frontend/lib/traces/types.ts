@@ -66,6 +66,8 @@ export type Span = {
   labels: SpanLabel[];
   path: string;
   model?: string;
+  inputUrl: string | null;
+  outputUrl: string | null;
 };
 
 export type TraceWithSpans = {

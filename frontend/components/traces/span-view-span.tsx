@@ -51,7 +51,8 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
               <Formatter
                 className="max-h-[400px]"
                 collapsible
-                value={JSON.stringify(span.input)}
+                // TODO: allow downloading the input from the inputUrl
+                value={JSON.stringify(span.inputUrl ?? span.input)}
                 presetKey={`input-${span.attributes['lmnr.span.path'].join('.')}`}
               />
             )}
@@ -61,9 +62,11 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
             <Formatter
               className="max-h-[400px]"
               value={
-                typeof span.output === 'string'
+                // TODO: allow downloading the output from the outputUrl
+                span.outputUrl ??
+                (typeof span.output === 'string'
                   ? span.output
-                  : JSON.stringify(span.output)
+                  : JSON.stringify(span.output))
               }
               presetKey={`output-${span.attributes['lmnr.span.path'].join('.')}`}
               collapsible

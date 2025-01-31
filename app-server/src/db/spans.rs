@@ -54,6 +54,8 @@ pub struct Span {
     pub end_time: DateTime<Utc>,
     pub events: Option<Value>,
     pub labels: Option<Value>,
+    pub input_url: Option<String>,
+    pub output_url: Option<String>,
 }
 
 pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
