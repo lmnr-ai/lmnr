@@ -70,16 +70,27 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       });
       try {
         const events = await res.json();
+        let lastTimestamp = 0;
         const processedEvents = events.map((event: any) => {
           if (event.data && typeof event.data === 'string') {
+            let t = new Date(event.timestamp).getTime();
+            if (t == lastTimestamp) {
+              console.log('duplicate timestamp', event.timestamp);
+              lastTimestamp = t;
+              return null;
+            }
+
+            lastTimestamp = t;
             return {
               data: JSON.parse(event.data),
-              timestamp: new Date(event.timestamp).getTime(),
+              timestamp: t,
               type: parseInt(event.event_type)
             };
           }
           return event;
-        });
+        })
+          .filter((e: any) => e !== null);
+
         setEvents(processedEvents);
       } catch (e) {
         console.error(e);
@@ -115,16 +126,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         const duration = (events[events.length - 1].timestamp - events[0].timestamp) / 1000;
         setTotalDuration(duration);
 
-
-        // playerRef.current.addEventListener('ui-update-player-state', (event: any) => {
-        //   console.log('ui-update-player-state', event);
-        //   if (event.payload === 'playing') {
-        //     setIsPlaying(true);
-        //   } else if (event.payload === 'paused') {
-        //     setIsPlaying(false);
-        //   }
-        // });
-
         playerRef.current.addEventListener('ui-update-current-time', (event: any) => {
           setCurrentTime(event.payload / 1000);
           onTimelineChange(event.payload);
@@ -153,18 +154,17 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
     const handlePlayPause = () => {
       if (playerRef.current) {
-        cleanupDanglingNodes();
-        // try {
-        if (isPlaying) {
-          setIsPlaying(false);
-          playerRef.current.pause();
-        } else {
-          setIsPlaying(true);
-          playerRef.current.play();
+        try {
+          if (isPlaying) {
+            setIsPlaying(false);
+            playerRef.current.pause();
+          } else {
+            setIsPlaying(true);
+            playerRef.current.play();
+          }
+        } catch (e) {
+          console.error('Error in play/pause:', e);
         }
-        // } catch (e) {
-        //   console.error('Error in play/pause:', e);
-        // }
       }
     };
 
@@ -188,32 +188,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         }
       }
     }), []);
-
-    const cleanupDanglingNodes = () => {
-      // Get the root element where rrweb renders
-      const rootElement = playerRef.current?.wrapper;
-      if (!rootElement) return;
-
-      // Find and cleanup any dangling nodes
-      const cleanup = (element: any) => {
-        const childNodes = Array.from(element.childNodes);
-        childNodes.forEach((node: any) => {
-          try {
-            if (node.parentNode !== element) {
-              // Node reference is stale, remove it safely
-              element.removeChild(node);
-            } else {
-              cleanup(node);
-            }
-          } catch (error) {
-            // Ignore removal errors for nodes that might have already been removed
-            console.debug('Cleanup skipped for node:', node);
-          }
-        });
-      };
-
-      cleanup(rootElement);
-    }
 
     return (
       <>
@@ -276,7 +250,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             </button>
             <input
               type="range"
-              className="flex-grow"
+              className="flex-grow cursor-pointer"
               min="0"
               step="0.1"
               max={totalDuration}

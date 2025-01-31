@@ -78,8 +78,8 @@ mod storage;
 mod traces;
 
 const DEFAULT_CACHE_SIZE: u64 = 100; // entries
-const HTTP_PAYLOAD_LIMIT: usize = 100 * 1024 * 1024; // 100MB
-const GRPC_PAYLOAD_DECODING_LIMIT: usize = 100 * 1024 * 1024; // 100MB
+const HTTP_PAYLOAD_LIMIT: usize = 5 * 1024 * 1024; // 5MB
+const GRPC_PAYLOAD_DECODING_LIMIT: usize = 10 * 1024 * 1024; // 10MB
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -361,9 +361,14 @@ fn main() -> anyhow::Result<()> {
                         cache_for_http.clone(),
                     ));
 
-                    // start 8 threads per core to process spans from RabbitMQ
+                    let num_workers_per_thread = env::var("NUM_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("8"))
+                        .parse::<u8>()
+                        .unwrap_or(8);
+
+                    // start num_workers_per_thread threads per core to process spans from RabbitMQ
                     if is_feature_enabled(Feature::FullBuild) {
-                        for _ in 0..8 {
+                        for _ in 0..num_workers_per_thread {
                             tokio::spawn(process_queue_spans(
                                 pipeline_runner.clone(),
                                 db_for_http.clone(),
@@ -379,6 +384,8 @@ fn main() -> anyhow::Result<()> {
                     App::new()
                         .wrap(Logger::default())
                         .wrap(NormalizePath::trim())
+                        .app_data(JsonConfig::default().limit(HTTP_PAYLOAD_LIMIT))
+                        .app_data(PayloadConfig::new(HTTP_PAYLOAD_LIMIT))
                         .app_data(web::Data::from(cache_for_http.clone()))
                         .app_data(web::Data::from(db_for_http.clone()))
                         .app_data(web::Data::new(pipeline_runner.clone()))
@@ -421,8 +428,6 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
-                                .app_data(PayloadConfig::new(HTTP_PAYLOAD_LIMIT))
-                                .app_data(JsonConfig::default().limit(HTTP_PAYLOAD_LIMIT))
                                 .service(api::v1::pipelines::run_pipeline_graph)
                                 .service(api::v1::pipelines::ping_healthcheck)
                                 .service(api::v1::traces::process_traces)
