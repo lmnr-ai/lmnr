@@ -1,4 +1,4 @@
-import { count, eq, or } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { getSpansCountInProject } from "@/lib/clickhouse/spans";
@@ -11,19 +11,22 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ projectI
 
   const spansResult = await getSpansCountInProject(projectId);
 
-  const [result = { datasetsCount: 0, evaluationsCount: 0 }] = await db
-    .select({
-      datasetsCount: count(datasets.id),
-      evaluationsCount: count(evaluations.id),
-    })
+  const [datasetResult = { count: 0 }] = await db
+    .select({ count: count(datasets.id) })
     .from(datasets)
-    .fullJoin(evaluations, eq(evaluations.projectId, datasets.projectId))
-    .where(or(eq(datasets.projectId, projectId), eq(evaluations.projectId, projectId)));
+    .where(eq(datasets.projectId, projectId));
+
+  const [evalResults = { count: 0 }] = await db
+    .select({
+      count: count(evaluations.id),
+    })
+    .from(evaluations)
+    .where(eq(evaluations.projectId, projectId));
 
   return new Response(
     JSON.stringify({
-      datasetsCount: result.datasetsCount,
-      evaluationsCount: result.evaluationsCount,
+      datasetsCount: datasetResult.count,
+      evaluationsCount: evalResults.count,
       spansCount: spansResult?.[0]?.count,
     }),
     {
