@@ -3,12 +3,13 @@
 import 'rrweb-player/dist/style.css';
 
 import { PauseIcon, PlayIcon } from '@radix-ui/react-icons';
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
 import rrwebPlayer from 'rrweb-player';
 
 import { useProjectContext } from '@/contexts/project-context';
 
 import { Skeleton } from '../ui/skeleton';
+import { formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
 interface SessionPlayerProps {
   hasBrowserSession: boolean | null;
@@ -36,7 +37,29 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [totalDuration, setTotalDuration] = useState(0);
+    const [speed, setSpeed] = useState(1);
     const { projectId } = useProjectContext();
+
+    // Add debounce timer ref
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Create debounced goto function
+    const debouncedGoto = useCallback((time: number) => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        if (playerRef.current) {
+          try {
+            playerRef.current.pause();
+            playerRef.current.goto(time * 1000);
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }, 100); // 10ms debounce delay
+    }, []);
 
     const getEvents = async () => {
       const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
@@ -70,46 +93,45 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     }, [hasBrowserSession]);
 
     useEffect(() => {
-      if (!events?.length || !containerRef.current) return;
-      if (playerRef.current) return;
+      if (!events?.length || !containerRef.current || playerRef.current) return;
 
-      playerRef.current = new rrwebPlayer({
-        target: containerRef.current,
-        props: {
-          autoPlay: false,
-          skipInactive: false,
-          events,
-          width,
-          height,
-          showController: false,
-          showErrors: false,
-          mouseTail: false, // Disable default mouse tail
-          // // Remove the custom mouse properties as they're not valid options
-          // plugins: [{
-          //   name: 'mouse',
-          //   options: {
-          //     cursor: true,
-          //     clickElement: true,
-          //     tail: {
-          //       duration: 800,
-          //       style: 'red',
-          //       lineCap: 'round',
-          //       lineWidth: 3,
-          //       radius: 4
-          //     }
-          //   }
-          // }]
-        }
-      });
+      try {
+        playerRef.current = new rrwebPlayer({
+          target: containerRef.current,
+          props: {
+            autoPlay: false,
+            skipInactive: false,
+            events,
+            width,
+            height,
+            showController: false,
+            showErrors: false,
+            mouseTail: false,
+            speed
+          }
+        });
 
-      // Set total duration and add player listeners
-      const duration = (events[events.length - 1].timestamp - events[0].timestamp) / 1000;
-      setTotalDuration(duration);
+        // Set total duration and add player listeners
+        const duration = (events[events.length - 1].timestamp - events[0].timestamp) / 1000;
+        setTotalDuration(duration);
 
-      playerRef.current.addEventListener('ui-update-current-time', (event: any) => {
-        setCurrentTime(event.payload / 1000);
-        onTimelineChange(event.payload);
-      });
+
+        // playerRef.current.addEventListener('ui-update-player-state', (event: any) => {
+        //   console.log('ui-update-player-state', event);
+        //   if (event.payload === 'playing') {
+        //     setIsPlaying(true);
+        //   } else if (event.payload === 'paused') {
+        //     setIsPlaying(false);
+        //   }
+        // });
+
+        playerRef.current.addEventListener('ui-update-current-time', (event: any) => {
+          setCurrentTime(event.payload / 1000);
+          onTimelineChange(event.payload);
+        });
+      } catch (e) {
+        console.error('Error initializing player:', e);
+      }
     }, [events, width, height]);
 
     useEffect(() => {
@@ -117,48 +139,81 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         playerRef.current.$set({
           width,
           height,
+          speed,
         });
         playerRef.current.triggerResize();
       }
     }, [width, height]);
 
-    const formatTime = (seconds: number) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
+    useEffect(() => {
+      if (playerRef.current) {
+        playerRef.current.setSpeed(speed);
+      }
+    }, [speed]);
 
     const handlePlayPause = () => {
       if (playerRef.current) {
+        cleanupDanglingNodes();
+        // try {
         if (isPlaying) {
+          setIsPlaying(false);
           playerRef.current.pause();
         } else {
+          setIsPlaying(true);
           playerRef.current.play();
         }
-        setIsPlaying((playing) => !playing);
+        // } catch (e) {
+        //   console.error('Error in play/pause:', e);
+        // }
       }
     };
 
     const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (playerRef.current) {
-        const time = parseFloat(e.target.value);
-        try {
-          playerRef.current.goto(time * 1000);
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      const time = parseFloat(e.target.value);
+      setCurrentTime(time); // Update UI immediately
+      debouncedGoto(time); // Debounce the actual goto call
+    };
+
+    const toggleSpeed = () => {
+      setSpeed((currentSpeed) => (currentSpeed === 1 ? 2 : 1));
     };
 
     // Expose imperative methods to parent
     useImperativeHandle(ref, () => ({
       goto: (time: number) => {
         if (playerRef.current) {
-          playerRef.current.goto(time * 1000);
+          playerRef.current.pause();
+          playerRef.current.goto(time * 1000, isPlaying);
           setCurrentTime(time);
         }
       }
     }), []);
+
+    const cleanupDanglingNodes = () => {
+      // Get the root element where rrweb renders
+      const rootElement = playerRef.current?.wrapper;
+      if (!rootElement) return;
+
+      // Find and cleanup any dangling nodes
+      const cleanup = (element: any) => {
+        const childNodes = Array.from(element.childNodes);
+        childNodes.forEach((node: any) => {
+          try {
+            if (node.parentNode !== element) {
+              // Node reference is stale, remove it safely
+              element.removeChild(node);
+            } else {
+              cleanup(node);
+            }
+          } catch (error) {
+            // Ignore removal errors for nodes that might have already been removed
+            console.debug('Cleanup skipped for node:', node);
+          }
+        });
+      };
+
+      cleanup(rootElement);
+    }
 
     return (
       <>
@@ -213,6 +268,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             >
               {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
             </button>
+            <button
+              onClick={toggleSpeed}
+              className="text-white py-1 px-2 rounded text-sm"
+            >
+              {speed}x
+            </button>
             <input
               type="range"
               className="flex-grow"
@@ -222,8 +283,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               value={currentTime}
               onChange={handleTimelineChange}
             />
-            <span className="time-display">
-              {formatTime(currentTime)} / {formatTime(totalDuration)}
+            <span className="font-mono">
+              {formatSecondsToMinutesAndSeconds(currentTime)}/{formatSecondsToMinutesAndSeconds(totalDuration)}
             </span>
           </div>
           {events.length === 0 && (
