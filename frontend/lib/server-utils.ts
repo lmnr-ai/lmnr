@@ -4,19 +4,18 @@ import path from "path";
 const allowedEmailsFileName = "allowed-emails.json";
 
 export const getEmailsConfig = async (): Promise<string[] | false> => {
-  const filePath = path.join(process.cwd(), allowedEmailsFileName);
+  try {
+    const filePath = path.join(process.cwd(), allowedEmailsFileName);
 
-  if (!fs.existsSync(filePath)) {
-    return false;
-  }
+    if (!fs.existsSync(filePath)) {
+      return false;
+    }
 
-  const fileContent = fs.readFileSync(filePath, "utf-8");
+    const fileContent = await fs.promises.readFile(filePath, "utf-8");
+    const jsonData = JSON.parse(fileContent) as { emails?: string[] };
 
-  const jsonData = JSON.parse(fileContent) as { emails?: string[] };
-
-  if (!jsonData?.emails) {
+    return jsonData?.emails ?? [];
+  } catch (e) {
     throw new Error(`Invalid file format for ${allowedEmailsFileName}`);
   }
-
-  return jsonData.emails;
 };
