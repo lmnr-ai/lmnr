@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InitEvalRequest {
     pub name: Option<String>,
     pub group_name: Option<String>,
@@ -44,6 +45,7 @@ pub async fn init_eval(
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SaveEvalDatapointsRequest {
     pub group_name: Option<String>,
     pub points: Vec<EvaluationDatapointResult>,
@@ -62,7 +64,7 @@ pub async fn save_eval_datapoints(
     let project_id = project_api_key.project_id;
     let points = req.points;
     let db = db.into_inner();
-    let group_id = req.group_name.unwrap_or("default".to_string());
+    let group_name = req.group_name.unwrap_or("default".to_string());
     let clickhouse = clickhouse.into_inner().as_ref().clone();
 
     save_evaluation_scores(
@@ -71,7 +73,7 @@ pub async fn save_eval_datapoints(
         points,
         eval_id,
         project_id,
-        &group_id,
+        &group_name,
     )
     .await?;
 

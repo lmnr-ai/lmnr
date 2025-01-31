@@ -18,7 +18,7 @@ pub async fn save_evaluation_scores(
     points: Vec<EvaluationDatapointResult>,
     evaluation_id: Uuid,
     project_id: Uuid,
-    group_id: &String,
+    group_name: &String,
 ) -> Result<()> {
     let columns = get_columns_from_points(&points);
     let ids = points.iter().map(|_| Uuid::new_v4()).collect::<Vec<_>>();
@@ -52,7 +52,7 @@ pub async fn save_evaluation_scores(
         &points,
         &ids,
         project_id,
-        group_id.clone(),
+        group_name.clone(),
         evaluation_id,
         Utc::now(),
     );

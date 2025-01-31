@@ -1,5 +1,4 @@
 use actix_web::{options, post, web, HttpResponse};
-use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -52,8 +51,7 @@ async fn create_session_event(
         INSERT INTO browser_session_events (
             event_id, session_id, trace_id, timestamp,
             event_type, data, project_id
-        ) 
-        SETTINGS async_insert = 1, wait_for_async_insert = 0
+        )
         VALUES ",
     );
 
