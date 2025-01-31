@@ -61,10 +61,8 @@ pub struct DateRanges {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RequestPayload {
     #[prost(map = "string, string", tag = "1")]
-    pub payload: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub payload:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryRequest {
@@ -128,9 +126,7 @@ pub mod generate_embeddings_response {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CalculateSimilarityScoresRequest {
     #[prost(message, repeated, tag = "1")]
-    pub contents: ::prost::alloc::vec::Vec<
-        calculate_similarity_scores_request::ComparedContents,
-    >,
+    pub contents: ::prost::alloc::vec::Vec<calculate_similarity_scores_request::ComparedContents>,
     #[prost(enumeration = "Model", tag = "2")]
     pub model: i32,
 }
@@ -208,10 +204,10 @@ pub mod semantic_search_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct SemanticSearchClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -255,9 +251,8 @@ pub mod semantic_search_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             SemanticSearchClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -297,51 +292,37 @@ pub mod semantic_search_client {
             &mut self,
             request: impl tonic::IntoRequest<super::IndexRequest>,
         ) -> std::result::Result<tonic::Response<super::IndexResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/semantic_search_grpc.SemanticSearch/Index",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/semantic_search_grpc.SemanticSearch/Index");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("semantic_search_grpc.SemanticSearch", "Index"));
+            req.extensions_mut().insert(GrpcMethod::new(
+                "semantic_search_grpc.SemanticSearch",
+                "Index",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Deletes the embeddings
         pub async fn delete_embeddings(
             &mut self,
             request: impl tonic::IntoRequest<super::DeleteEmbeddingsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::DeleteEmbeddingsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::DeleteEmbeddingsResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/semantic_search_grpc.SemanticSearch/DeleteEmbeddings",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "semantic_search_grpc.SemanticSearch",
-                        "DeleteEmbeddings",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "semantic_search_grpc.SemanticSearch",
+                "DeleteEmbeddings",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Queries the index for similar text.
@@ -349,111 +330,77 @@ pub mod semantic_search_client {
             &mut self,
             request: impl tonic::IntoRequest<super::QueryRequest>,
         ) -> std::result::Result<tonic::Response<super::QueryResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/semantic_search_grpc.SemanticSearch/Query",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/semantic_search_grpc.SemanticSearch/Query");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("semantic_search_grpc.SemanticSearch", "Query"));
+            req.extensions_mut().insert(GrpcMethod::new(
+                "semantic_search_grpc.SemanticSearch",
+                "Query",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Creates a new collection.
         pub async fn create_collection(
             &mut self,
             request: impl tonic::IntoRequest<super::CreateCollectionRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::CreateCollectionResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::CreateCollectionResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/semantic_search_grpc.SemanticSearch/CreateCollection",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "semantic_search_grpc.SemanticSearch",
-                        "CreateCollection",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "semantic_search_grpc.SemanticSearch",
+                "CreateCollection",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Delete collection.
         pub async fn delete_collections(
             &mut self,
             request: impl tonic::IntoRequest<super::DeleteCollectionsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::DeleteCollectionsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::DeleteCollectionsResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/semantic_search_grpc.SemanticSearch/DeleteCollections",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "semantic_search_grpc.SemanticSearch",
-                        "DeleteCollections",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "semantic_search_grpc.SemanticSearch",
+                "DeleteCollections",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Generates embeddings for provided texts
         pub async fn generate_embeddings(
             &mut self,
             request: impl tonic::IntoRequest<super::GenerateEmbeddingsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GenerateEmbeddingsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::GenerateEmbeddingsResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/semantic_search_grpc.SemanticSearch/GenerateEmbeddings",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "semantic_search_grpc.SemanticSearch",
-                        "GenerateEmbeddings",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "semantic_search_grpc.SemanticSearch",
+                "GenerateEmbeddings",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Calculate similarity score for pairs of texts
@@ -464,26 +411,18 @@ pub mod semantic_search_client {
             tonic::Response<super::CalculateSimilarityScoresResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/semantic_search_grpc.SemanticSearch/CalculateSimilarityScores",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "semantic_search_grpc.SemanticSearch",
-                        "CalculateSimilarityScores",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "semantic_search_grpc.SemanticSearch",
+                "CalculateSimilarityScores",
+            ));
             self.inner.unary(req, path, codec).await
         }
     }
