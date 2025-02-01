@@ -28,6 +28,8 @@ import { DataTablePagination } from './datatable-pagination';
 import { Label } from './label';
 import { ScrollArea, ScrollBar } from './scroll-area';
 import { Skeleton } from './skeleton';
+import { Favorite } from '@/components/ui/favorite';
+
 const DEFAULT_PAGE_SIZE = 50;
 
 interface DataTableProps<TData> {
@@ -113,6 +115,14 @@ export function DataTable<TData>({
     setRowSelection({});
   }, [data]);
 
+  const addFavorite = () => {
+    console.log('Added favorite - placeholder');
+  };
+
+  const removeFavorite = () => {
+    console.log('Removed favorite - placeholder');
+  };
+
   if (enableRowSelection) {
     columns.unshift({
       id: '__row_selection',
@@ -127,7 +137,7 @@ export function DataTable<TData>({
               onSelectAllAcrossPages?.(false);
             }
           }}
-          onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
+          onChange={table.getToggleAllRowsSelectedHandler()}
           onClick={(e) => {
             e.stopPropagation();
             table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
@@ -151,7 +161,31 @@ export function DataTable<TData>({
             row.toggleSelected(!row.getIsSelected());
           }}
         />
-      )
+      ),
+    });
+    columns.splice(1, 0, {
+      id: '__favorite',
+      enableResizing: false,
+      header: ({ table }) => (
+        <Favorite
+          isSelected={allRowsAcrossAllPagesSelected}
+          isHeader={true}
+          onToggleFavorite={() => {}}
+        />
+      ),
+      size: 40,
+      cell: ({ row }) => (
+        <Favorite
+          isSelected={row.getIsSelected()}
+          onToggleFavorite={() => {
+            if (!row.getIsSelected()) {
+              addFavorite();
+            } else {
+              removeFavorite();
+            }
+          }}
+        />
+      ),
     });
   }
 
