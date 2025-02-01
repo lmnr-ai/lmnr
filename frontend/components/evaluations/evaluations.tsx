@@ -1,42 +1,41 @@
-'use client';
+"use client";
 
-import { ColumnDef } from '@tanstack/react-table';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { usePostHog } from 'posthog-js/react';
-import { useState } from 'react';
-import useSWR from 'swr';
+import { ColumnDef } from "@tanstack/react-table";
+import { useRouter, useSearchParams } from "next/navigation";
+import { usePostHog } from "posthog-js/react";
+import { useState } from "react";
+import useSWR from "swr";
 
-import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
-import { useProjectContext } from '@/contexts/project-context';
-import { useUserContext } from '@/contexts/user-context';
-import { AggregationFunction } from '@/lib/clickhouse/utils';
-import { Evaluation } from '@/lib/evaluation/types';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
-import { useToast } from '@/lib/hooks/use-toast';
-import { PaginatedResponse } from '@/lib/types';
-import { swrFetcher } from '@/lib/utils';
+import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import { useProjectContext } from "@/contexts/project-context";
+import { useUserContext } from "@/contexts/user-context";
+import { AggregationFunction } from "@/lib/clickhouse/utils";
+import { Evaluation } from "@/lib/evaluation/types";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { useToast } from "@/lib/hooks/use-toast";
+import { PaginatedResponse } from "@/lib/types";
+import { swrFetcher } from "@/lib/utils";
 
-import ClientTimestampFormatter from '../client-timestamp-formatter';
-import { DataTable } from '../ui/datatable';
-import Header from '../ui/header';
-import Mono from '../ui/mono';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import EvaluationsGroupsBar from './evaluations-groups-bar';
-import ProgressionChart from './progression-chart';
-
+import ClientTimestampFormatter from "../client-timestamp-formatter";
+import { DataTable } from "../ui/datatable";
+import Header from "../ui/header";
+import Mono from "../ui/mono";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import EvaluationsGroupsBar from "./evaluations-groups-bar";
+import ProgressionChart from "./progression-chart";
 
 export default function Evaluations() {
   const { projectId } = useProjectContext();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data, mutate } = useSWR<PaginatedResponse<Evaluation>>(
-    `/api/projects/${projectId}/evaluations?groupId=${searchParams.get('groupId')}`,
+    `/api/projects/${projectId}/evaluations?groupId=${searchParams.get("groupId")}`,
     swrFetcher
   );
   const evaluations = data?.items;
 
-  const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>('AVG');
+  const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>("AVG");
 
   const posthog = usePostHog();
   const { email } = useUserContext();
@@ -45,62 +44,56 @@ export default function Evaluations() {
     posthog.identify(email);
   }
 
-
   const columns: ColumnDef<Evaluation>[] = [
     {
-      accessorKey: 'groupId',
-      header: 'Group id',
-      size: 120
+      accessorKey: "groupId",
+      header: "Group id",
+      size: 120,
     },
     {
-      accessorKey: 'id',
+      accessorKey: "id",
       cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-      header: 'ID',
-      size: 300
+      header: "ID",
+      size: 300,
     },
     {
-      accessorKey: 'name',
-      header: 'Name',
-      size: 300
+      accessorKey: "name",
+      header: "Name",
+      size: 300,
     },
     {
-      header: 'Created at',
-      accessorKey: 'createdAt',
-      cell: (row) => (
-        <ClientTimestampFormatter timestamp={String(row.getValue())} />
-      )
-    }
+      header: "Created at",
+      accessorKey: "createdAt",
+      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    },
   ];
 
   const { toast } = useToast();
 
   const handleDeleteEvaluations = async (selectedRowIds: string[]) => {
     try {
-      const response = await fetch(
-        `/api/projects/${projectId}/evaluations?evaluationIds=${selectedRowIds.join(',')}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+      const response = await fetch(`/api/projects/${projectId}/evaluations?evaluationIds=${selectedRowIds.join(",")}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
       if (response.ok) {
         mutate();
 
         toast({
-          title: 'Evaluations deleted',
+          title: "Evaluations deleted",
           description: `Successfully deleted ${selectedRowIds.length} evaluation(s).`,
         });
       } else {
-        throw new Error('Failed to delete evaluations');
+        throw new Error("Failed to delete evaluations");
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'Failed to delete evaluations. Please try again.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to delete evaluations. Please try again.",
+        variant: "destructive",
       });
     }
   };
@@ -144,7 +137,7 @@ export default function Evaluations() {
                 columns={columns}
                 data={evaluations}
                 onRowClick={(row) => {
-                  router.push(`/project/${projectId}/evaluations/${row.original.id}`);
+                  router.push(`/projects/${projectId}/evaluations/${row.original.id}`);
                 }}
                 getRowId={(row: Evaluation) => row.id}
                 paginated

@@ -1,27 +1,20 @@
-'use client';
+"use client";
 
-import { Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useProjectContext } from '@/contexts/project-context';
-import { DisplayableGraph } from '@/lib/flow/types';
-import { cn, getLocalDevSessions, getLocalEnvVars } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useProjectContext } from "@/contexts/project-context";
+import { DisplayableGraph } from "@/lib/flow/types";
+import { cn, getLocalDevSessions, getLocalEnvVars } from "@/lib/utils";
 
-import DatasetSelect from '../ui/dataset-select';
-import PipelineSelect from '../ui/pipeline-select';
-import { Switch } from '../ui/switch';
+import DatasetSelect from "../ui/dataset-select";
+import PipelineSelect from "../ui/pipeline-select";
+import { Switch } from "../ui/switch";
 
 export default function CreateEvaluationDialog() {
   const { projectId } = useProjectContext();
@@ -32,52 +25,40 @@ export default function CreateEvaluationDialog() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const [name, setName] = useState<string>('');
+  const [name, setName] = useState<string>("");
   const [datasetId, setDatasetId] = useState<string | null>(null);
-  const [evaluatorPipelineVersionId, setEvaluatorPipelineVersionId] = useState<
-    string | null
-  >(null);
-  const [evaluatorPipelineId, setEvaluatorPipelineId] = useState<string | null>(
-    null
-  );
-  const [evaluatorPipelineGraph, setEvaluatorPipelineGraph] =
-    useState<DisplayableGraph | null>(null);
+  const [evaluatorPipelineVersionId, setEvaluatorPipelineVersionId] = useState<string | null>(null);
+  const [evaluatorPipelineId, setEvaluatorPipelineId] = useState<string | null>(null);
+  const [evaluatorPipelineGraph, setEvaluatorPipelineGraph] = useState<DisplayableGraph | null>(null);
 
   const [enableExecutorPipeline, setEnableExecutorPipeline] = useState(true);
-  const [executorPipelineVersionId, setExecutorPipelineVersionId] = useState<
-    string | null
-  >(null);
-  const [executorPipelineId, setExecutorPipelineId] = useState<string | null>(
-    null
-  );
-  const [executorPipelineGraph, setExecutorPipelineGraph] =
-    useState<DisplayableGraph | null>(null);
+  const [executorPipelineVersionId, setExecutorPipelineVersionId] = useState<string | null>(null);
+  const [executorPipelineId, setExecutorPipelineId] = useState<string | null>(null);
+  const [executorPipelineGraph, setExecutorPipelineGraph] = useState<DisplayableGraph | null>(null);
 
   const createNewEvaluation = async () => {
     setIsLoading(true);
 
     const res = await fetch(`/api/projects/${projectId}/evaluations/`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({
         name,
         datasetId,
-        executorPipelineVersionId: enableExecutorPipeline
-          ? executorPipelineVersionId
-          : null,
+        executorPipelineVersionId: enableExecutorPipeline ? executorPipelineVersionId : null,
         evaluatorPipelineVersionId,
         env,
-        devSessionIds
-      })
+        devSessionIds,
+      }),
     });
     const json = await res.json();
-    setName('');
+    setName("");
     setDatasetId(null);
     setEvaluatorPipelineVersionId(null);
     setExecutorPipelineVersionId(null);
     setEnableExecutorPipeline(true);
     setIsLoading(false);
     setIsDialogOpen(false);
-    router.push(`/project/${projectId}/evaluations/${json.id}`);
+    router.push(`/projects/${projectId}/evaluations/${json.id}`);
   };
 
   const isEvaluationComplete = (): boolean => {
@@ -85,10 +66,7 @@ export default function CreateEvaluationDialog() {
       ? executorPipelineId != null && executorPipelineVersionId != null
       : true;
     return (
-      isExecutorPipelineComplete &&
-      name.trim().length > 0 &&
-      datasetId != null &&
-      evaluatorPipelineVersionId != null
+      isExecutorPipelineComplete && name.trim().length > 0 && datasetId != null && evaluatorPipelineVersionId != null
     );
   };
 
@@ -115,34 +93,23 @@ export default function CreateEvaluationDialog() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <Label>Name</Label>
-            <Input
-              autoFocus
-              placeholder="Name"
-              onChange={(e) => setName(e.target.value)}
-            />
+            <Input autoFocus placeholder="Name" onChange={(e) => setName(e.target.value)} />
             <div className="flex items-center w-full justify-between">
               <Label>Executor Pipeline</Label>
-              <Switch
-                checked={enableExecutorPipeline}
-                onCheckedChange={setEnableExecutorPipeline}
-              />
+              <Switch checked={enableExecutorPipeline} onCheckedChange={setEnableExecutorPipeline} />
             </div>
             {enableExecutorPipeline && (
               <div className="flex flex-col space-y-2">
                 <PipelineSelect
                   onPipelineVersionChange={(pipelineVersion) => {
                     setExecutorPipelineVersionId(pipelineVersion?.id ?? null);
-                    setExecutorPipelineGraph(
-                      pipelineVersion?.displayableGraph ?? null
-                    );
+                    setExecutorPipelineGraph(pipelineVersion?.displayableGraph ?? null);
                   }}
                   onPipelineChange={(pipeline) => {
                     setExecutorPipelineId(pipeline.id ?? null);
                   }}
                   defaultPipelineId={executorPipelineId ?? undefined}
-                  defaultPipelineVersionId={
-                    executorPipelineVersionId ?? undefined
-                  }
+                  defaultPipelineVersionId={executorPipelineVersionId ?? undefined}
                   hideWorkshopVersions
                 />
                 {/* {executorInputNames != null && (
@@ -167,9 +134,7 @@ export default function CreateEvaluationDialog() {
             <PipelineSelect
               onPipelineVersionChange={(pipelineVersion) => {
                 setEvaluatorPipelineVersionId(pipelineVersion?.id ?? null);
-                setEvaluatorPipelineGraph(
-                  pipelineVersion?.displayableGraph ?? null
-                );
+                setEvaluatorPipelineGraph(pipelineVersion?.displayableGraph ?? null);
               }}
               onPipelineChange={(pipeline) => {
                 if (pipeline.id !== evaluatorPipelineId) {
@@ -189,22 +154,11 @@ export default function CreateEvaluationDialog() {
               </div>
             )} */}
             <Label>Dataset</Label>
-            <DatasetSelect
-              onDatasetChange={(dataset) => setDatasetId(dataset.id)}
-            />
+            <DatasetSelect onDatasetChange={(dataset) => setDatasetId(dataset.id)} />
           </div>
           <DialogFooter>
-            <Button
-              onClick={createNewEvaluation}
-              disabled={!isEvaluationComplete() || isLoading}
-            >
-              <Loader2
-                className={cn(
-                  'mr-2 hidden',
-                  isLoading ? 'animate-spin block' : ''
-                )}
-                size={16}
-              />
+            <Button onClick={createNewEvaluation} disabled={!isEvaluationComplete() || isLoading}>
+              <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
               Create
             </Button>
           </DialogFooter>

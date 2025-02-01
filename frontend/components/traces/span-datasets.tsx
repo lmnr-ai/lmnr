@@ -1,14 +1,14 @@
-import { ArrowUpRight } from 'lucide-react';
-import Link from 'next/link';
-import { useEffect } from 'react';
-import useSWR from 'swr';
+import { ArrowUpRight } from "lucide-react";
+import Link from "next/link";
+import { useEffect } from "react";
+import useSWR from "swr";
 
-import { useProjectContext } from '@/contexts/project-context';
-import { eventEmitter } from '@/lib/event-emitter';
-import { cn, swrFetcher } from '@/lib/utils';
+import { useProjectContext } from "@/contexts/project-context";
+import { eventEmitter } from "@/lib/event-emitter";
+import { cn, swrFetcher } from "@/lib/utils";
 
-import { Skeleton } from '../ui/skeleton';
-import { Table, TableBody, TableCell, TableRow } from '../ui/table';
+import { Skeleton } from "../ui/skeleton";
+import { Table, TableBody, TableCell, TableRow } from "../ui/table";
 
 interface SpanDatasetsProps {
   spanId: string;
@@ -32,10 +32,10 @@ export default function SpanDatasets({ spanId }: SpanDatasetsProps) {
     const handleDatapointAdded = () => {
       mutate();
     };
-    eventEmitter.on('mutateSpanDatapoints', handleDatapointAdded);
+    eventEmitter.on("mutateSpanDatapoints", handleDatapointAdded);
 
     return () => {
-      eventEmitter.off('mutateSpanDatapoints', handleDatapointAdded);
+      eventEmitter.off("mutateSpanDatapoints", handleDatapointAdded);
     };
   }, [mutate]);
 
@@ -53,10 +53,7 @@ export default function SpanDatasets({ spanId }: SpanDatasetsProps) {
               {data?.map((dataset: SpanDataset, index: number) => (
                 <TableRow
                   key={dataset.datasetId}
-                  className={cn(
-                    'text-sm',
-                    index === data.length - 1 ? 'border-b-0' : ''
-                  )}
+                  className={cn("text-sm", index === data.length - 1 ? "border-b-0" : "")}
                 >
                   <TableCell>
                     <div className="flex">
@@ -67,7 +64,10 @@ export default function SpanDatasets({ spanId }: SpanDatasetsProps) {
                   </TableCell>
                   <TableCell className="font-mono text-secondary-foreground">{dataset.datapointId}</TableCell>
                   <TableCell>
-                    <Link href={`/project/${projectId}/datasets/${dataset.datasetId}?datapointId=${dataset.datapointId}`} target="_blank">
+                    <Link
+                      href={`/projects/${projectId}/datasets/${dataset.datasetId}?datapointId=${dataset.datapointId}`}
+                      target="_blank"
+                    >
                       <ArrowUpRight className="text-secondary-foreground" size={16} />
                     </Link>
                   </TableCell>
@@ -76,9 +76,7 @@ export default function SpanDatasets({ spanId }: SpanDatasetsProps) {
             </TableBody>
           </Table>
         ) : (
-          <div className="p-2 text-secondary-foreground text-sm">
-            No datasets
-          </div>
+          <div className="p-2 text-secondary-foreground text-sm">No datasets</div>
         )}
       </div>
     </div>

@@ -1,35 +1,31 @@
-'use client';
-import { ColumnDef } from '@tanstack/react-table';
-import { ArrowRight } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Resizable } from 're-resizable';
-import { useEffect, useState } from 'react';
+"use client";
+import { ColumnDef } from "@tanstack/react-table";
+import { ArrowRight } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Resizable } from "re-resizable";
+import { useEffect, useState } from "react";
 
-import { useProjectContext } from '@/contexts/project-context';
+import { useProjectContext } from "@/contexts/project-context";
 import {
-  Evaluation as EvaluationType, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo
-} from '@/lib/evaluation/types';
-import { mergeOriginalWithComparedDatapoints } from '@/lib/evaluation/utils';
-import { useToast } from '@/lib/hooks/use-toast';
+  Evaluation as EvaluationType,
+  EvaluationDatapointPreviewWithCompared,
+  EvaluationResultsInfo,
+} from "@/lib/evaluation/types";
+import { mergeOriginalWithComparedDatapoints } from "@/lib/evaluation/utils";
+import { useToast } from "@/lib/hooks/use-toast";
 
-import TraceView from '../traces/trace-view';
-import { Button } from '../ui/button';
-import { DataTable } from '../ui/datatable';
-import DownloadButton from '../ui/download-button';
-import Header from '../ui/header';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '../ui/select';
-import Chart from './chart';
-import CompareChart from './compare-chart';
-import ScoreCard from './score-card';
+import TraceView from "../traces/trace-view";
+import { Button } from "../ui/button";
+import { DataTable } from "../ui/datatable";
+import DownloadButton from "../ui/download-button";
+import Header from "../ui/header";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import Chart from "./chart";
+import CompareChart from "./compare-chart";
+import ScoreCard from "./score-card";
 
 const URL_QUERY_PARAMS = {
-  COMPARE_EVAL_ID: 'comparedEvaluationId'
+  COMPARE_EVAL_ID: "comparedEvaluationId",
 };
 
 interface EvaluationProps {
@@ -37,10 +33,7 @@ interface EvaluationProps {
   evaluations: EvaluationType[];
 }
 
-export default function Evaluation({
-  evaluationInfo,
-  evaluations
-}: EvaluationProps) {
+export default function Evaluation({ evaluationInfo, evaluations }: EvaluationProps) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
@@ -50,18 +43,14 @@ export default function Evaluation({
 
   const evaluation = evaluationInfo.evaluation;
 
-  const [comparedEvaluation, setComparedEvaluation] =
-    useState<EvaluationType | null>(null);
+  const [comparedEvaluation, setComparedEvaluation] = useState<EvaluationType | null>(null);
 
   useEffect(() => {
-    const comparedEvaluationId = searchParams.get(
-      URL_QUERY_PARAMS.COMPARE_EVAL_ID
-    );
+    const comparedEvaluationId = searchParams.get(URL_QUERY_PARAMS.COMPARE_EVAL_ID);
     handleComparedEvaluationChange(comparedEvaluationId ?? null);
   }, []);
 
-  let defaultResults =
-    evaluationInfo.results as EvaluationDatapointPreviewWithCompared[];
+  let defaultResults = evaluationInfo.results as EvaluationDatapointPreviewWithCompared[];
   const [results, setResults] = useState(defaultResults);
 
   let scoreColumns = new Set<string>();
@@ -72,12 +61,9 @@ export default function Evaluation({
   }
 
   // TODO: get datapoints paginated.
-  const [selectedDatapoint, setSelectedDatapoint] =
-    useState<EvaluationDatapointPreviewWithCompared | null>(
-      defaultResults.find(
-        (result) => result.id === searchParams.get('datapointId')
-      ) ?? null
-    );
+  const [selectedDatapoint, setSelectedDatapoint] = useState<EvaluationDatapointPreviewWithCompared | null>(
+    defaultResults.find((result) => result.id === searchParams.get("datapointId")) ?? null
+  );
 
   // Selected score name must usually not be undefined, as we expect
   // to have at least one score, it's done just to not throw error if there are no scores
@@ -89,23 +75,22 @@ export default function Evaluation({
   let defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
     {
       accessorFn: (row) => JSON.stringify(row.data),
-      header: 'Data'
+      header: "Data",
     },
     {
-      accessorFn: (row) => (row.target ? JSON.stringify(row.target) : '-'),
-      header: 'Target'
+      accessorFn: (row) => (row.target ? JSON.stringify(row.target) : "-"),
+      header: "Target",
     },
     {
-      accessorFn: (row) =>
-        row.executorOutput ? JSON.stringify(row.executorOutput) : '-',
-      header: 'Output'
-    }
+      accessorFn: (row) => (row.executorOutput ? JSON.stringify(row.executorOutput) : "-"),
+      header: "Output",
+    },
   ];
   defaultColumns = defaultColumns.concat(
     Array.from(scoreColumns).map((scoreColumn) => ({
       header: scoreColumn,
-      accessorFn: (row) => row.scores?.[scoreColumn] ?? '-',
-      size: 150
+      accessorFn: (row) => row.scores?.[scoreColumn] ?? "-",
+      size: 150,
     }))
   );
 
@@ -113,16 +98,14 @@ export default function Evaluation({
 
   const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
     setSelectedDatapoint(row);
-    searchParams.set('datapointId', row.id);
+    searchParams.set("datapointId", row.id);
 
     router.push(`${pathName}?${searchParams.toString()}`);
   };
 
-  const handleComparedEvaluationChange = (
-    comparedEvaluationId: string | null
-  ) => {
+  const handleComparedEvaluationChange = (comparedEvaluationId: string | null) => {
     if (comparedEvaluationId === undefined) {
-      console.warn('comparedEvaluationId is undefined');
+      console.warn("comparedEvaluationId is undefined");
       return;
     }
 
@@ -140,38 +123,29 @@ export default function Evaluation({
       .then((comparedEvaluation) => {
         setComparedEvaluation(comparedEvaluation.evaluation);
         // evaluationInfo.results are always fixed, but the compared results (comparedEvaluation.results) change
-        setResults(
-          mergeOriginalWithComparedDatapoints(
-            evaluationInfo.results,
-            comparedEvaluation.results
-          )
-        );
-        let columnsWithCompared: ColumnDef<EvaluationDatapointPreviewWithCompared>[] =
-          [
-            {
-              accessorFn: (row) => JSON.stringify(row.data),
-              header: 'Data'
-            },
-            {
-              accessorFn: (row) =>
-                row.target ? JSON.stringify(row.target) : '-',
-              header: 'Target'
-            }
-          ];
+        setResults(mergeOriginalWithComparedDatapoints(evaluationInfo.results, comparedEvaluation.results));
+        let columnsWithCompared: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
+          {
+            accessorFn: (row) => JSON.stringify(row.data),
+            header: "Data",
+          },
+          {
+            accessorFn: (row) => (row.target ? JSON.stringify(row.target) : "-"),
+            header: "Target",
+          },
+        ];
         columnsWithCompared = columnsWithCompared.concat(
           Array.from(scoreColumns).map((scoreColumn) => ({
             header: scoreColumn,
             cell: (row) => (
               <div className="flex flex-row items-center space-x-2">
-                <div className="text-green-300">
-                  {row.row.original.comparedScores?.[scoreColumn] ?? '-'}
-                </div>
+                <div className="text-green-300">{row.row.original.comparedScores?.[scoreColumn] ?? "-"}</div>
                 <ArrowRight className="font-bold" size={12} />
-                <div className={comparedEvaluation && 'text-blue-300'}>
-                  {row.row.original.scores?.[scoreColumn] ?? '-'}
+                <div className={comparedEvaluation && "text-blue-300"}>
+                  {row.row.original.scores?.[scoreColumn] ?? "-"}
                 </div>
               </div>
-            )
+            ),
           }))
         );
         setColumns(columnsWithCompared);
@@ -186,11 +160,7 @@ export default function Evaluation({
       <div className="flex-none flex space-x-2 h-12 px-4 items-center border-b justify-start">
         <div>
           <Select
-            key={
-              comparedEvaluation
-                ? comparedEvaluation.id
-                : 'empty-compared-evaluation'
-            }
+            key={comparedEvaluation ? comparedEvaluation.id : "empty-compared-evaluation"}
             value={comparedEvaluation?.id ?? undefined}
             onValueChange={handleComparedEvaluationChange}
           >
@@ -219,7 +189,7 @@ export default function Evaluation({
             key={evaluation.id}
             value={evaluation.id}
             onValueChange={(evaluationId: string) => {
-              router.push(`/project/${projectId}/evaluations/${evaluationId}?${searchParams.toString()}`);
+              router.push(`/projects/${projectId}/evaluations/${evaluationId}?${searchParams.toString()}`);
             }}
           >
             <SelectTrigger className="flex flex-none font-medium max-w-40 text-secondary-foreground h-7">
@@ -227,11 +197,7 @@ export default function Evaluation({
             </SelectTrigger>
             <SelectContent>
               {evaluations
-                .filter(
-                  (item) =>
-                    comparedEvaluation === null ||
-                    item.id != comparedEvaluation.id
-                )
+                .filter((item) => comparedEvaluation === null || item.id != comparedEvaluation.id)
                 .map((item) => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.name}
@@ -244,7 +210,7 @@ export default function Evaluation({
           {!!comparedEvaluation && (
             <Button
               className="h-6"
-              variant={'secondary'}
+              variant={"secondary"}
               onClick={() => {
                 handleComparedEvaluationChange(null);
               }}
@@ -255,10 +221,7 @@ export default function Evaluation({
         </div>
         <div>
           {comparedEvaluation !== null && (
-            <Select
-              value={selectedScoreName}
-              onValueChange={setSelectedScoreName}
-            >
+            <Select value={selectedScoreName} onValueChange={setSelectedScoreName}>
               <SelectTrigger className="flex flex-none font-medium max-w-40 text-secondary-foreground h-7">
                 <SelectValue placeholder="select score" />
               </SelectTrigger>
@@ -277,7 +240,7 @@ export default function Evaluation({
             <DownloadButton
               uri={`/api/projects/${projectId}/evaluations/${evaluation.id}/download`}
               filenameFallback={`evaluation-results-${evaluation.id}`}
-              supportedFormats={['csv', 'json']}
+              supportedFormats={["csv", "json"]}
             />
           )}
         </div>
@@ -297,10 +260,7 @@ export default function Evaluation({
                     scoreName={selectedScoreName}
                   />
                 ) : (
-                  <Chart
-                    evaluationId={evaluation.id}
-                    allScoreNames={Array.from(scoreColumns)}
-                  />
+                  <Chart evaluationId={evaluation.id} allScoreNames={Array.from(scoreColumns)} />
                 )}
               </div>
             </div>
@@ -329,17 +289,17 @@ export default function Evaluation({
               topRight: false,
               bottomRight: false,
               bottomLeft: false,
-              topLeft: false
+              topLeft: false,
             }}
             defaultSize={{
-              width: 1000
+              width: 1000,
             }}
           >
             <div className="w-full h-full flex">
               <TraceView
                 onClose={() => {
-                  searchParams.delete('datapointId');
-                  searchParams.delete('spanId');
+                  searchParams.delete("datapointId");
+                  searchParams.delete("spanId");
                   setSelectedDatapoint(null);
                   router.push(`${pathName}?${searchParams.toString()}`);
                 }}

@@ -7,7 +7,6 @@ export default withAuth({
       const projectId = projectIdMatch ? projectIdMatch[1] : null;
 
       try {
-
         const apiKey = token?.apiKey;
 
         if (!apiKey) {
@@ -15,14 +14,14 @@ export default withAuth({
         }
 
         const res = await fetch(`${process.env.NEXTAUTH_URL}/api/auth`, {
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify({
             projectId,
-            apiKey
+            apiKey,
           }),
           headers: {
-            'Authorization': `Bearer ${process.env.SHARED_SECRET_TOKEN}`,
-          }
+            Authorization: `Bearer ${process.env.SHARED_SECRET_TOKEN}`,
+          },
         });
 
         if (!res.ok) {
@@ -31,25 +30,22 @@ export default withAuth({
 
         const data = await res.json();
 
-        if (data.message !== 'Authorized') {
+        if (data.message !== "Authorized") {
           return false;
         }
 
         return true;
       } catch (error) {
-        console.log('error', error);
+        console.log("error", error);
         return false;
       }
     },
   },
   pages: {
-    signIn: '/not-found',
+    signIn: "/not-found",
   },
 });
 
 export const config = {
-  matcher: [
-    '/api/projects/:path+',
-    '/project/:path+',
-  ],
+  matcher: ["/api/projects/:path+", "/projects/:path+"],
 };

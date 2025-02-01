@@ -1,26 +1,16 @@
-import { Check, ChevronsUpDown } from 'lucide-react';
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import useSWR from 'swr';
+import { Check, ChevronsUpDown } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import useSWR from "swr";
 
-import { Button } from '@/components/ui/button';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem
-} from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useProjectContext } from '@/contexts/project-context';
-import { LANGUAGE_MODELS, LanguageModel } from '@/lib/pipeline/types';
-import { ProviderApiKey } from '@/lib/settings/types';
-import { cn, swrFetcher } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useProjectContext } from "@/contexts/project-context";
+import { LANGUAGE_MODELS, LanguageModel } from "@/lib/pipeline/types";
+import { ProviderApiKey } from "@/lib/settings/types";
+import { cn, swrFetcher } from "@/lib/utils";
 
 interface ModelSelectProps {
   modelId: string;
@@ -28,15 +18,9 @@ interface ModelSelectProps {
   onModelChange: (model: LanguageModel) => void;
 }
 
-export default function LanguageModelSelect({
-  modelId,
-  disabled,
-  onModelChange
-}: ModelSelectProps) {
+export default function LanguageModelSelect({ modelId, disabled, onModelChange }: ModelSelectProps) {
   const [selectedModelId, setSelectedModelId] = useState(modelId);
-  const [model, setModel] = useState<LanguageModel | undefined>(
-    LANGUAGE_MODELS.find((model) => model.id === modelId)
-  );
+  const [model, setModel] = useState<LanguageModel | undefined>(LANGUAGE_MODELS.find((model) => model.id === modelId));
   const [open, setOpen] = useState(false);
 
   const { projectId } = useProjectContext();
@@ -49,15 +33,15 @@ export default function LanguageModelSelect({
     setModel(LANGUAGE_MODELS.find((model) => model.id === modelId));
   }, [modelId]);
 
-  const isProviderKeySet = (provider: string) => providerApiKeys
-    ?.some(key => key.name.toLowerCase().includes(provider.toLowerCase()));
+  const isProviderKeySet = (provider: string) =>
+    providerApiKeys?.some((key) => key.name.toLowerCase().includes(provider.toLowerCase()));
 
   return (
     <>
       <Popover open={open} onOpenChange={setOpen} modal>
         <PopoverTrigger asChild disabled={disabled}>
           <Button variant="outline" className="justify-between">
-            {model?.name ?? ''}
+            {model?.name ?? ""}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -73,19 +57,12 @@ export default function LanguageModelSelect({
                     value={model.id}
                     onSelect={(value) => {
                       setSelectedModelId(value);
-                      const newModel = LANGUAGE_MODELS.find(
-                        (model) => model.id === value
-                      )!;
+                      const newModel = LANGUAGE_MODELS.find((model) => model.id === value)!;
                       onModelChange(newModel);
                       setOpen(false);
                     }}
                   >
-                    <Check
-                      className={cn(
-                        'mr-2 h-4 w-4',
-                        selectedModelId === model.id ? 'opacity-100' : 'opacity-0'
-                      )}
-                    />
+                    <Check className={cn("mr-2 h-4 w-4", selectedModelId === model.id ? "opacity-100" : "opacity-0")} />
                     {model.name}
                   </CommandItem>
                 ))}
@@ -94,9 +71,13 @@ export default function LanguageModelSelect({
           </Command>
         </PopoverContent>
       </Popover>
-      {model && !isProviderKeySet(model.id.split(':')[0]) && (
+      {model && !isProviderKeySet(model.id.split(":")[0]) && (
         <div className="mt-2 text-destructive text-sm">
-          API key for {model.id.split(':')[0]} is not set. Please set it in the <Link href={`/project/${projectId}/settings`} className="underline">settings</Link>.
+          API key for {model.id.split(":")[0]} is not set. Please set it in the{" "}
+          <Link href={`/projects/${projectId}/settings`} className="underline">
+            settings
+          </Link>
+          .
         </div>
       )}
     </>

@@ -1,25 +1,18 @@
-import { Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useProjectContext } from '@/contexts/project-context';
-import { cn } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useProjectContext } from "@/contexts/project-context";
+import { cn } from "@/lib/utils";
 
 interface CreateDatasetDialogProps {}
 
 export default function CreateDatasetDialog({}: CreateDatasetDialogProps) {
-  const [newDatasetName, setNewDatasetName] = useState<string>('');
+  const [newDatasetName, setNewDatasetName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -31,16 +24,16 @@ export default function CreateDatasetDialog({}: CreateDatasetDialogProps) {
 
     const dataset = {
       name: newDatasetName,
-      projectId: projectId
+      projectId: projectId,
     };
 
     const res = await fetch(`/api/projects/${projectId}/datasets`, {
-      method: 'POST',
-      body: JSON.stringify(dataset)
+      method: "POST",
+      body: JSON.stringify(dataset),
     });
 
     if (res.status !== 200) {
-      console.error('Failed to create the dataset', await res.text());
+      console.error("Failed to create the dataset", await res.text());
       setIsLoading(false);
       return;
     }
@@ -50,7 +43,7 @@ export default function CreateDatasetDialog({}: CreateDatasetDialogProps) {
     setIsDialogOpen(false);
     setIsLoading(false);
 
-    router.push(`/project/${projectId}/datasets/${json.id}`);
+    router.push(`/projects/${projectId}/datasets/${json.id}`);
   };
 
   return (
@@ -59,7 +52,7 @@ export default function CreateDatasetDialog({}: CreateDatasetDialogProps) {
         open={isDialogOpen}
         onOpenChange={(open) => {
           setIsDialogOpen(open);
-          setNewDatasetName('');
+          setNewDatasetName("");
         }}
       >
         <DialogTrigger asChild>
@@ -71,25 +64,11 @@ export default function CreateDatasetDialog({}: CreateDatasetDialogProps) {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <Label>Name</Label>
-            <Input
-              autoFocus
-              placeholder="Name"
-              onChange={(e) => setNewDatasetName(e.target.value)}
-            />
+            <Input autoFocus placeholder="Name" onChange={(e) => setNewDatasetName(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button
-              onClick={createNewDataset}
-              disabled={!newDatasetName || isLoading}
-              handleEnter
-            >
-              <Loader2
-                className={cn(
-                  'mr-2 hidden',
-                  isLoading ? 'animate-spin block' : ''
-                )}
-                size={16}
-              />
+            <Button onClick={createNewDataset} disabled={!newDatasetName || isLoading} handleEnter>
+              <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
               Create
             </Button>
           </DialogFooter>

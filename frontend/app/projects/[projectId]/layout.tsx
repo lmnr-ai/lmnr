@@ -1,57 +1,51 @@
-import '@/app/globals.css';
+import "@/app/globals.css";
 
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth';
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
 
-import PostHogClient from '@/app/posthog';
-import ProjectNavbar from '@/components/project/project-navbar';
-import ProjectUsageBanner from '@/components/project/usage-banner';
-import { SidebarProvider } from '@/components/ui/sidebar';
-import { ProjectContextProvider } from '@/contexts/project-context';
-import { UserContextProvider } from '@/contexts/user-context';
-import { authOptions } from '@/lib/auth';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
-import { fetcherJSON } from '@/lib/utils';
-import { GetProjectResponse } from '@/lib/workspaces/types';
+import PostHogClient from "@/app/posthog";
+import ProjectNavbar from "@/components/projects/project-navbar";
+import ProjectUsageBanner from "@/components/projects/usage-banner";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { ProjectContextProvider } from "@/contexts/project-context";
+import { UserContextProvider } from "@/contexts/user-context";
+import { authOptions } from "@/lib/auth";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { fetcherJSON } from "@/lib/utils";
+import { GetProjectResponse } from "@/lib/workspaces/types";
 
-export default async function ProjectIdLayout(
-  props: {
-      children: React.ReactNode;
-      params: Promise<{ projectId: string }>;
-    }
-) {
+export default async function ProjectIdLayout(props: {
+  children: React.ReactNode;
+  params: Promise<{ projectId: string }>;
+}) {
   const params = await props.params;
 
-  const {
-    children
-  } = props;
+  const { children } = props;
 
   const projectId = params.projectId;
   const session = await getServerSession(authOptions);
   if (!session) {
-    redirect('/sign-in');
+    redirect("/sign-in");
   }
   const user = session.user;
 
   const projectResponse = await fetcherJSON(`/projects/${projectId}`, {
-    method: 'GET',
+    method: "GET",
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    }
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${user.apiKey}`,
+    },
   });
 
   const project = projectResponse as GetProjectResponse;
 
   const showBanner =
-      isFeatureEnabled(Feature.WORKSPACE) &&
-      project.isFreeTier &&
-      project.spansThisMonth >= 0.8 * project.spansLimit;
+    isFeatureEnabled(Feature.WORKSPACE) && project.isFreeTier && project.spansThisMonth >= 0.8 * project.spansLimit;
 
   const posthog = PostHogClient();
   posthog.identify({
-    distinctId: user.email ?? ''
+    distinctId: user.email ?? "",
   });
 
   // getting the cookies for the sidebar state
@@ -69,9 +63,7 @@ export default async function ProjectIdLayout(
         <div className="flex flex-row max-w-full max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>
             <div className="z-50 h-screen">
-              <ProjectNavbar
-                projectId={projectId}
-              />
+              <ProjectNavbar projectId={projectId} />
             </div>
             <div className="flex flex-col flex-grow h-screen max-w-full min-h-screen overflow-y-auto">
               {showBanner && (
