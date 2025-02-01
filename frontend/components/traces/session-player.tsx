@@ -3,13 +3,13 @@
 import 'rrweb-player/dist/style.css';
 
 import { PauseIcon, PlayIcon } from '@radix-ui/react-icons';
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
+import React, { forwardRef, useCallback,useEffect, useImperativeHandle, useRef, useState } from 'react';
 import rrwebPlayer from 'rrweb-player';
 
 import { useProjectContext } from '@/contexts/project-context';
+import { formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
 import { Skeleton } from '../ui/skeleton';
-import { formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
 interface SessionPlayerProps {
   hasBrowserSession: boolean | null;
