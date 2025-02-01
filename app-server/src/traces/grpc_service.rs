@@ -10,6 +10,7 @@ use crate::{
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
+    pipeline::runner::PipelineRunner,
 };
 use lapin::Connection;
 use tonic::{Request, Response, Status};
@@ -21,6 +22,7 @@ pub struct ProcessTracesService {
     cache: Arc<Cache>,
     rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
+    pipeline_runner: Arc<PipelineRunner>,
 }
 
 impl ProcessTracesService {
@@ -29,12 +31,14 @@ impl ProcessTracesService {
         cache: Arc<Cache>,
         rabbitmq_connection: Option<Arc<Connection>>,
         clickhouse: clickhouse::Client,
+        pipeline_runner: Arc<PipelineRunner>,
     ) -> Self {
         Self {
             db,
             cache,
             rabbitmq_connection,
             clickhouse,
+            pipeline_runner,
         }
     }
 }
@@ -76,6 +80,7 @@ impl TraceService for ProcessTracesService {
             self.db.clone(),
             self.clickhouse.clone(),
             self.cache.clone(),
+            self.pipeline_runner.clone(),
         )
         .await
         .map_err(|e| {
