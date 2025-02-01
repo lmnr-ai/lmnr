@@ -3,19 +3,17 @@
 import 'rrweb-player/dist/style.css';
 
 import { PauseIcon, PlayIcon } from '@radix-ui/react-icons';
-import React, { forwardRef, useCallback,useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import rrwebPlayer from 'rrweb-player';
 
 import { useProjectContext } from '@/contexts/project-context';
 import { formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
-import { Skeleton } from '../ui/skeleton';
 
 interface SessionPlayerProps {
   hasBrowserSession: boolean | null;
   traceId: string;
-  width: number;
-  height: number;
   onTimelineChange: (time: number) => void;
 }
 
@@ -30,15 +28,33 @@ export interface SessionPlayerHandle {
 }
 
 const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
-  ({ hasBrowserSession, traceId, width, height, onTimelineChange }, ref) => {
+  ({ hasBrowserSession, traceId, onTimelineChange }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const playerContainerRef = useRef<HTMLDivElement | null>(null);
     const playerRef = useRef<any>(null);
     const [events, setEvents] = useState<Event[]>([]);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [totalDuration, setTotalDuration] = useState(0);
     const [speed, setSpeed] = useState(1);
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const { projectId } = useProjectContext();
+
+    // Add resize observer effect
+    useEffect(() => {
+      if (!containerRef.current) return;
+
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect;
+          setDimensions({ width, height: height - 48 }); // Subtract header height (48px)
+        }
+      });
+
+      resizeObserver.observe(containerRef.current);
+
+      return () => resizeObserver.disconnect();
+    }, []);
 
     // Add debounce timer ref
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -52,13 +68,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       debounceTimerRef.current = setTimeout(() => {
         if (playerRef.current) {
           try {
-            playerRef.current.pause();
-            playerRef.current.goto(time * 1000);
+            playerRef.current.goto(time * 1000, isPlaying);
           } catch (e) {
             console.error(e);
           }
         }
-      }, 100); // 10ms debounce delay
+      }, 50); // 50ms debounce delay
     }, []);
 
     const getEvents = async () => {
@@ -70,26 +85,16 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       });
       try {
         const events = await res.json();
-        let lastTimestamp = 0;
         const processedEvents = events.map((event: any) => {
           if (event.data && typeof event.data === 'string') {
-            let t = new Date(event.timestamp).getTime();
-            if (t == lastTimestamp) {
-              console.log('duplicate timestamp', event.timestamp);
-              lastTimestamp = t;
-              return null;
-            }
-
-            lastTimestamp = t;
             return {
               data: JSON.parse(event.data),
-              timestamp: t,
+              timestamp: new Date(event.timestamp).getTime(),
               type: parseInt(event.event_type)
             };
           }
           return event;
-        })
-          .filter((e: any) => e !== null);
+        });
 
         setEvents(processedEvents);
       } catch (e) {
@@ -104,20 +109,19 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     }, [hasBrowserSession]);
 
     useEffect(() => {
-      if (!events?.length || !containerRef.current || playerRef.current) return;
+      if (!events?.length || !playerContainerRef.current || playerRef.current) return;
 
       try {
         playerRef.current = new rrwebPlayer({
-          target: containerRef.current,
+          target: playerContainerRef.current,
           props: {
             autoPlay: false,
             skipInactive: false,
             events,
-            width,
-            height,
             showController: false,
-            showErrors: false,
             mouseTail: false,
+            width: dimensions.width,
+            height: dimensions.height,
             speed
           }
         });
@@ -126,6 +130,14 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         const duration = (events[events.length - 1].timestamp - events[0].timestamp) / 1000;
         setTotalDuration(duration);
 
+        playerRef.current.addEventListener('ui-update-player-state', (event: any) => {
+          if (event.payload === 'playing') {
+            setIsPlaying(true);
+          } else if (event.payload === 'paused') {
+            setIsPlaying(false);
+          }
+        });
+
         playerRef.current.addEventListener('ui-update-current-time', (event: any) => {
           setCurrentTime(event.payload / 1000);
           onTimelineChange(event.payload);
@@ -133,18 +145,18 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       } catch (e) {
         console.error('Error initializing player:', e);
       }
-    }, [events, width, height]);
+    }, [events]);
 
     useEffect(() => {
       if (playerRef.current) {
         playerRef.current.$set({
-          width,
-          height,
+          width: dimensions.width,
+          height: dimensions.height,
           speed,
         });
         playerRef.current.triggerResize();
       }
-    }, [width, height]);
+    }, [dimensions.width, dimensions.height]);
 
     useEffect(() => {
       if (playerRef.current) {
@@ -234,7 +246,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             animation: bounce 0.3s ease-in-out !important;
           }
         `}</style>
-        <div className="relative w-full h-full">
+        <div className="relative w-full h-full" ref={containerRef}>
           <div className="flex flex-row items-center justify-center gap-2 px-4 h-12 border-b">
             <button
               onClick={handlePlayPause}
@@ -262,12 +274,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             </span>
           </div>
           {events.length === 0 && (
-            <div className="flex flex-col h-full gap-2 p-4 justify-center items-center">
-              <Skeleton className="w-full h-[50%]" />
+            <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
+              <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
             </div>
           )}
           {events.length > 0 && (
-            <div ref={containerRef} className="w-full h-full bg-background" />
+            <div ref={playerContainerRef} />
           )}
         </div>
       </>

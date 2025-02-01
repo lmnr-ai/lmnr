@@ -1,4 +1,5 @@
 'use client';
+import { createClient } from '@supabase/supabase-js';
 import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -6,6 +7,8 @@ import { Resizable } from 're-resizable';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
 import {
   Evaluation as EvaluationType, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo
 } from '@/lib/evaluation/types';
@@ -27,9 +30,6 @@ import {
 import Chart from './chart';
 import CompareChart from './compare-chart';
 import ScoreCard from './score-card';
-import { useUserContext } from '@/contexts/user-context';
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId'
@@ -74,7 +74,7 @@ export default function Evaluation({
     }
     setScoreColumns(newScoreColumns);
     setSelectedScoreName(newScoreColumns.size > 0 ? Array.from(newScoreColumns)[0] : undefined);
-  }
+  };
 
   useEffect(() => {
     const comparedEvaluationId = searchParams.get(

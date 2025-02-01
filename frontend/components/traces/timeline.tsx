@@ -9,6 +9,7 @@ interface TimelineProps {
   spans: Span[];
   childSpans: { [key: string]: Span[] };
   collapsedSpans: Set<string>;
+  browserSessionTime: number | null;
 }
 
 interface SegmentEvent {
@@ -26,17 +27,23 @@ interface Segment {
 
 const HEIGHT = 32;
 
-export default function Timeline({ spans, childSpans, collapsedSpans }: TimelineProps) {
+export default function Timeline({
+  spans,
+  childSpans,
+  collapsedSpans,
+  browserSessionTime
+}: TimelineProps) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [timeIntervals, setTimeIntervals] = useState<string[]>([]);
+  const [maxTime, setMaxTime] = useState<number>(0);
   const ref = useRef<HTMLDivElement>(null);
 
   const traverse = useCallback(
-    (span: Span, childSpans: { [key: string]: Span[] }, orderedSpands: Span[]) => {
+    (span: Span, childSpans: { [key: string]: Span[] }, orderedSpans: Span[]) => {
       if (!span) {
         return;
       }
-      orderedSpands.push(span);
+      orderedSpans.push(span);
 
       if (collapsedSpans.has(span.spanId)) {
         return;
@@ -44,7 +51,7 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
 
       if (childSpans[span.spanId]) {
         for (const child of childSpans[span.spanId]) {
-          traverse(child, childSpans, orderedSpands);
+          traverse(child, childSpans, orderedSpans);
         }
       }
     },
@@ -97,6 +104,8 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
       return;
     }
 
+    setMaxTime(endTime.getTime() - startTime.getTime());
+
     const totalDuration = endTime.getTime() - startTime.getTime();
 
     const upperInterval = Math.ceil(totalDuration / 1000);
@@ -148,7 +157,14 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
   }, [spans, childSpans, collapsedSpans]);
 
   return (
-    <div className="flex flex-col h-full w-full" ref={ref}>
+    <div className="flex flex-col h-full w-full relative" ref={ref}>
+      {browserSessionTime && (
+        <div className="absolute top-0 left-32 w-[1px] h-full bg-primary z-50"
+          style={{
+            left: (browserSessionTime / maxTime) * 100 + '%'
+          }}
+        />
+      )}
       <div className="bg-background flex text-xs w-full border-b z-40 sticky top-0 h-12 px-4">
         {timeIntervals.map((interval, index) => (
           <div

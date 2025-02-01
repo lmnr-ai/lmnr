@@ -9,7 +9,7 @@ import {
   evaluations, evaluationScores
 } from '@/lib/db/migrations/schema';
 import { EvaluationResultsInfo } from '@/lib/evaluation/types';
-import { isFeatureEnabled, Feature } from '@/lib/features/features';
+import { Feature,isFeatureEnabled } from '@/lib/features/features';
 
 
 export const metadata: Metadata = {
