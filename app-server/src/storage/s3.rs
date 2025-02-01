@@ -25,6 +25,9 @@ impl S3Storage {
 #[async_trait::async_trait]
 impl super::Storage for S3Storage {
     async fn store(&self, data: Vec<u8>, key: &str) -> Result<String> {
+        // TODO: check the performance of this, and, if needed,
+        // try either multi-part upload or tokio::spawn the upload
+        // and just return the url
         self.client
             .put_object()
             .bucket(&self.bucket)

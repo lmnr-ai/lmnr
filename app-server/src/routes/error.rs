@@ -77,8 +77,11 @@ Set the target version for the pipeline in the pipeline builder."),
                 let mut short_message = message.clone();
                 let value: String = short_message.value.clone().into();
                 if value.len() > 100 {
-                    short_message.value =
-                        format!("{}... [TRUNCATED FOR BREVITY]", &value[..100]).into();
+                    short_message.value = format!(
+                        "{}... [TRUNCATED FOR BREVITY]",
+                        &value.chars().take(100).collect::<String>()
+                    )
+                    .into();
                 }
                 (node, short_message)
             })
