@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
@@ -46,7 +46,7 @@ const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_sess
 //
 // We use 7/2 as an estimate of the number of characters per token.
 // And 128K is a common input size for LLM calls.
-const PAYLOAD_SIZE_THRESHOLD: usize = (7 / 2) * 128_000; // approx 448KB
+const DEFAULT_PAYLOAD_SIZE_THRESHOLD: usize = (7 / 2) * 128_000; // approx 448KB
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -585,6 +585,10 @@ impl Span {
         project_id: &Uuid,
         storage: Arc<S>,
     ) -> Result<()> {
+        let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(DEFAULT_PAYLOAD_SIZE_THRESHOLD);
         if let Some(input) = self.input.clone() {
             let span_input = serde_json::from_value::<Vec<ChatMessage>>(input);
             if let Ok(span_input) = span_input {
@@ -605,7 +609,7 @@ impl Span {
             // but we don't need to be exact here.
             } else {
                 let input_str = serde_json::to_string(&self.input).unwrap_or_default();
-                if input_str.len() > PAYLOAD_SIZE_THRESHOLD {
+                if input_str.len() > payload_size_threshold {
                     let key = crate::storage::create_key(project_id, &None);
                     let mut data = Vec::new();
                     serde_json::to_writer(&mut data, &self.input)?;
@@ -619,7 +623,7 @@ impl Span {
         }
         if let Some(output) = self.output.clone() {
             let output_str = serde_json::to_string(&output).unwrap_or_default();
-            if output_str.len() > PAYLOAD_SIZE_THRESHOLD {
+            if output_str.len() > payload_size_threshold {
                 let key = crate::storage::create_key(project_id, &None);
                 let mut data = Vec::new();
                 serde_json::to_writer(&mut data, &output)?;

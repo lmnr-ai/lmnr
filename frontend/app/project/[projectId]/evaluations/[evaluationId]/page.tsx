@@ -9,6 +9,7 @@ import {
   evaluations, evaluationScores
 } from '@/lib/db/migrations/schema';
 import { EvaluationResultsInfo } from '@/lib/evaluation/types';
+import { isFeatureEnabled, Feature } from '@/lib/features/features';
 
 
 export const metadata: Metadata = {
@@ -37,6 +38,7 @@ export default async function EvaluationPage(
     <Evaluation
       evaluationInfo={evaluationInfo}
       evaluations={evaluationsByGroupId}
+      isSupabaseEnabled={isFeatureEnabled(Feature.SUPABASE)}
     />
   );
 }
@@ -75,7 +77,8 @@ async function getEvaluationInfo(
       target: sql<string>`SUBSTRING(${evaluationResults.target}::text, 0, 100)`.as('target'),
       executorOutput: evaluationResults.executorOutput,
       scores: subQueryScoreCte.cteScores,
-      traceId: evaluationResults.traceId
+      traceId: evaluationResults.traceId,
+      index: evaluationResults.index
     })
     .from(evaluationResults)
     .leftJoin(
@@ -84,8 +87,8 @@ async function getEvaluationInfo(
     )
     .where(eq(evaluationResults.evaluationId, evaluationId))
     .orderBy(
-      asc(evaluationResults.createdAt),
-      asc(evaluationResults.indexInBatch)
+      asc(evaluationResults.index),
+      asc(evaluationResults.createdAt)
     );
 
   const [evaluation, results] = await Promise.all([
@@ -94,7 +97,7 @@ async function getEvaluationInfo(
   ]);
 
   if (!evaluation) {
-    redirect('/404');
+    redirect('/not-found');
   }
 
   const result = {

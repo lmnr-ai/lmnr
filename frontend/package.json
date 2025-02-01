@@ -103,7 +103,7 @@
     "recharts": "^2.15.0",
     "resend": "^4.0.1",
     "rrweb": "2.0.0-alpha.18",
-    "rrweb-player": "1.0.0-alpha.4",
+    "rrweb-player": "2.0.0-alpha.18",
     "sharp": "^0.33.5",
     "stripe": "^16.12.0",
     "swr": "^2.3.0",

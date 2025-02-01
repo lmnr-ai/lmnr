@@ -44,6 +44,7 @@ export async function GET(
       target: sql<string>`SUBSTRING(${evaluationResults.target}::text, 0, 100)`.as('target'),
       executorOutput: evaluationResults.executorOutput,
       scores: subQueryScoreCte.cteScores,
+      index: evaluationResults.index
     })
     .from(evaluationResults)
     .leftJoin(
@@ -52,8 +53,8 @@ export async function GET(
     )
     .where(eq(evaluationResults.evaluationId, evaluationId))
     .orderBy(
-      asc(evaluationResults.createdAt),
-      asc(evaluationResults.indexInBatch)
+      asc(evaluationResults.index),
+      asc(evaluationResults.createdAt)
     );
 
   const [evaluation, results] = await Promise.all([

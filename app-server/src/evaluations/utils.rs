@@ -27,6 +27,8 @@ pub struct EvaluationDatapointResult {
     pub human_evaluators: Vec<HumanEvaluator>,
     #[serde(default)]
     pub executor_span_id: Uuid,
+    #[serde(default)]
+    pub index: i32,
 }
 
 pub struct DatapointColumns {
@@ -35,6 +37,7 @@ pub struct DatapointColumns {
     pub executor_outputs: Vec<Option<Value>>,
     pub trace_ids: Vec<Uuid>,
     pub scores: Vec<HashMap<String, f64>>,
+    pub indices: Vec<i32>,
 }
 
 pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> DatapointColumns {
@@ -63,12 +66,15 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
         .map(|point| point.trace_id)
         .collect::<Vec<_>>();
 
+    let indices = points.iter().map(|point| point.index).collect::<Vec<_>>();
+
     DatapointColumns {
         datas,
         targets,
         executor_outputs,
         trace_ids,
         scores,
+        indices,
     }
 }
 
