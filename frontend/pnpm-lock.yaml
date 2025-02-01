@@ -276,8 +276,8 @@ importers:
         specifier: 2.0.0-alpha.18
         version: 2.0.0-alpha.18
       rrweb-player:
-        specifier: 1.0.0-alpha.4
-        version: 1.0.0-alpha.4
+        specifier: 2.0.0-alpha.18
+        version: 2.0.0-alpha.18
       sharp:
         specifier: ^0.33.5
         version: 0.33.5
@@ -2296,6 +2296,12 @@ packages:
     peerDependencies:
       react: '>=17'
       react-dom: '>=17'
+
+  '@rrweb/packer@2.0.0-alpha.18':
+    resolution: {integrity: sha512-rEXltE/gnflEv/NatVNPIp4/6EtVlPLSwzIbd4WPSMtQGvwZe5OfAAk/Y88HkbAwb1nHfdA3PtFGn2Epik4inQ==}
+
+  '@rrweb/replay@2.0.0-alpha.18':
+    resolution: {integrity: sha512-EGCdydiQHCEbh1j+EF7OupwRHD1/EnAYYF4ENBz4CReoH+jGsLKu0LT2962CWPnQttMvpxwzhmD5gFGf63Gm0g==}
 
   '@rrweb/types@2.0.0-alpha.18':
     resolution: {integrity: sha512-iMH3amHthJZ9x3gGmBPmdfim7wLGygC2GciIkw2A6SO8giSn8PHYtRT8OKNH4V+k3SZ6RSnYHcTQxBA7pSWZ3Q==}
@@ -5415,8 +5421,8 @@ packages:
   rrdom@2.0.0-alpha.18:
     resolution: {integrity: sha512-fSFzFFxbqAViITyYVA4Z0o5G6p1nEqEr/N8vdgSKie9Rn0FJxDSNJgjV0yiCIzcDs0QR+hpvgFhpbdZ6JIr5Nw==}
 
-  rrweb-player@1.0.0-alpha.4:
-    resolution: {integrity: sha512-Wlmn9GZ5Fdqa37vd3TzsYdLl/JWEvXNUrLCrYpnOwEgmY409HwVIvvA5aIo7k582LoKgdRCsB87N+f0oWAR0Kg==}
+  rrweb-player@2.0.0-alpha.18:
+    resolution: {integrity: sha512-v31QgtjR9Ei3JnyvaN/2THj6a/i+dG49LzHiUtHcfTIFi7ecVExmMq+QDctVxUsuwdPPTtEcslpQh2tbVbi/ow==}
 
   rrweb-snapshot@2.0.0-alpha.18:
     resolution: {integrity: sha512-hBHZL/NfgQX6wO1D9mpwqFu1NJPpim+moIcKhFEjVTZVRUfCln+LOugRc4teVTCISYHN8Cw5e2iNTWCSm+SkoA==}
@@ -8251,6 +8257,16 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
       - immer
+
+  '@rrweb/packer@2.0.0-alpha.18':
+    dependencies:
+      '@rrweb/types': 2.0.0-alpha.18
+      fflate: 0.4.8
+
+  '@rrweb/replay@2.0.0-alpha.18':
+    dependencies:
+      '@rrweb/types': 2.0.0-alpha.18
+      rrweb: 2.0.0-alpha.18
 
   '@rrweb/types@2.0.0-alpha.18': {}
 
@@ -12081,10 +12097,11 @@ snapshots:
     dependencies:
       rrweb-snapshot: 2.0.0-alpha.18
 
-  rrweb-player@1.0.0-alpha.4:
+  rrweb-player@2.0.0-alpha.18:
     dependencies:
+      '@rrweb/packer': 2.0.0-alpha.18
+      '@rrweb/replay': 2.0.0-alpha.18
       '@tsconfig/svelte': 1.0.13
-      rrweb: 2.0.0-alpha.18
 
   rrweb-snapshot@2.0.0-alpha.18:
     dependencies:
