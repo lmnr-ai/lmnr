@@ -17,6 +17,8 @@ export enum SpanMetricGroupBy {
   Path = "path",
   Name = "name",
 }
+
+// Don't change, must remain consistent with BE
 export enum SpanType {
   DEFAULT = 0,
   LLM = 1,
