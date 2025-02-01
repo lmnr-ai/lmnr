@@ -81,7 +81,6 @@ pub async fn set_evaluation_results(
     trace_ids: &Vec<Uuid>,
     indices: &Vec<i32>,
 ) -> Result<()> {
-    dbg!(&indices);
     let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
         r"INSERT INTO evaluation_results (
             id,

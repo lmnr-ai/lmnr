@@ -3,7 +3,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Resizable } from 're-resizable';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useProjectContext } from '@/contexts/project-context';
 import {
@@ -27,6 +27,9 @@ import {
 import Chart from './chart';
 import CompareChart from './compare-chart';
 import ScoreCard from './score-card';
+import { useUserContext } from '@/contexts/user-context';
+import { createClient } from '@supabase/supabase-js';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
 
 const URL_QUERY_PARAMS = {
   COMPARE_EVAL_ID: 'comparedEvaluationId'
@@ -35,41 +38,53 @@ const URL_QUERY_PARAMS = {
 interface EvaluationProps {
   evaluationInfo: EvaluationResultsInfo;
   evaluations: EvaluationType[];
+  isSupabaseEnabled: boolean;
 }
 
 export default function Evaluation({
   evaluationInfo,
-  evaluations
+  evaluations,
+  isSupabaseEnabled
 }: EvaluationProps) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const { toast } = useToast();
-
   const { projectId } = useProjectContext();
-
   const evaluation = evaluationInfo.evaluation;
-
   const [comparedEvaluation, setComparedEvaluation] =
     useState<EvaluationType | null>(null);
+  const defaultResults =
+    evaluationInfo.results as EvaluationDatapointPreviewWithCompared[];
+  const [results, setResults] = useState(defaultResults);
+  // Selected score name must usually not be undefined, as we expect
+  // to have at least one score, it's done just to not throw error if there are no scores
+
+  const [scoreColumns, setScoreColumns] = useState<Set<string>>(new Set());
+  const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(
+    scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined
+  );
+
+  const updateScoreColumns = (rows: EvaluationDatapointPreviewWithCompared[]) => {
+    let newScoreColumns = new Set<string>(scoreColumns);
+    for (const row of rows) {
+      for (const key of Object.keys(row.scores ?? {})) {
+        newScoreColumns.add(key);
+      }
+    }
+    setScoreColumns(newScoreColumns);
+    setSelectedScoreName(newScoreColumns.size > 0 ? Array.from(newScoreColumns)[0] : undefined);
+  }
 
   useEffect(() => {
     const comparedEvaluationId = searchParams.get(
       URL_QUERY_PARAMS.COMPARE_EVAL_ID
     );
-    handleComparedEvaluationChange(comparedEvaluationId ?? null);
-  }, []);
-
-  let defaultResults =
-    evaluationInfo.results as EvaluationDatapointPreviewWithCompared[];
-  const [results, setResults] = useState(defaultResults);
-
-  let scoreColumns = new Set<string>();
-  for (const row of defaultResults) {
-    for (const key of Object.keys(row.scores ?? {})) {
-      scoreColumns.add(key);
+    if (comparedEvaluationId) {
+      handleComparedEvaluationChange(comparedEvaluationId);
     }
-  }
+    updateScoreColumns(defaultResults);
+  }, []);
 
   // TODO: get datapoints paginated.
   const [selectedDatapoint, setSelectedDatapoint] =
@@ -78,12 +93,6 @@ export default function Evaluation({
         (result) => result.id === searchParams.get('datapointId')
       ) ?? null
     );
-
-  // Selected score name must usually not be undefined, as we expect
-  // to have at least one score, it's done just to not throw error if there are no scores
-  const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(
-    scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined
-  );
 
   // Columns used when there is no compared evaluation
   let defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
@@ -108,6 +117,76 @@ export default function Evaluation({
       size: 150
     }))
   );
+
+  const { supabaseAccessToken } = useUserContext();
+
+  const supabase = useMemo(() => {
+    if (!isSupabaseEnabled || !supabaseAccessToken) {
+      return null;
+    }
+
+    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${supabaseAccessToken}`
+        }
+      }
+    });
+  }, [isSupabaseEnabled, supabaseAccessToken]);
+
+  if (supabase) {
+    supabase.realtime.setAuth(supabaseAccessToken);
+  }
+
+  const insertResult = (newRow: { [key: string]: any }) => {
+    const newResult = {
+      id: newRow.id,
+      createdAt: newRow.created_at,
+      index: newRow.index,
+      evaluationId: newRow.evaluation_id,
+      data: newRow.data,
+      target: newRow.target,
+      executorOutput: newRow.executor_output,
+      scores: newRow.scores,
+      traceId: newRow.trace_id,
+    } as EvaluationDatapointPreviewWithCompared;
+    const insertBefore = results.findIndex((result) => result.index > newResult.index);
+    if (insertBefore === -1) {
+      const newResults = [...results, newResult];
+      setResults(newResults);
+    } else {
+      const newResults = [...results.slice(0, insertBefore), newResult, ...results.slice(insertBefore)];
+      setResults(newResults);
+    }
+    updateScoreColumns([newResult]);
+    setColumns(defaultColumns);
+  };
+
+
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    supabase.channel('table-db-changes').unsubscribe();
+
+    supabase
+      .channel('table-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'evaluation_results',
+          filter: `evaluation_id=eq.${evaluation.id}`
+        },
+        (payload) => {
+          // FIXME: updates on this break the existing order of the results
+          // insertResult(payload.new);
+        }
+      )
+      .subscribe();
+  }, [supabase]);
 
   const [columns, setColumns] = useState(defaultColumns);
 
