@@ -12,9 +12,9 @@ export async function GET(
   const projectId = params.projectId;
   const spanId = params.spanId;
 
-  const rows = await db.query.spans.findFirst({
+  const span = await db.query.spans.findFirst({
     where: and(eq(spans.spanId, spanId), eq(spans.projectId, projectId)),
   });
 
-  return NextResponse.json(rows);
+  return NextResponse.json(span);
 }

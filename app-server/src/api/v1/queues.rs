@@ -107,6 +107,9 @@ async fn push_to_queue(
             output: request_item.output,
             events: None,
             labels: None,
+            // TODO: store the input and output in storage if they are too large
+            input_url: None,
+            output_url: None,
         };
 
         let span_usage = crate::traces::utils::get_llm_usage_for_span(
