@@ -375,6 +375,7 @@ export const evaluationResults = pgTable("evaluation_results", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexInBatch: bigint("index_in_batch", { mode: "number" }),
   traceId: uuid("trace_id").notNull(),
+  index: integer().default(0).notNull(),
 }, (table) => [
   index("evaluation_results_evaluation_id_idx").using("btree", table.evaluationId.asc().nullsLast().op("uuid_ops")),
   foreignKey({

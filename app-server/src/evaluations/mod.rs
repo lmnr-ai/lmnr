@@ -41,6 +41,7 @@ pub async fn save_evaluation_scores(
             &columns.targets,
             &columns.executor_outputs,
             &columns.trace_ids,
+            &columns.indices,
         )
         .await
     });

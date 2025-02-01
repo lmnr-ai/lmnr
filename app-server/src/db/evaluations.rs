@@ -79,7 +79,9 @@ pub async fn set_evaluation_results(
     targets: &Vec<Value>,
     executor_outputs: &Vec<Option<Value>>,
     trace_ids: &Vec<Uuid>,
+    indices: &Vec<i32>,
 ) -> Result<()> {
+    dbg!(&indices);
     let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
         r"INSERT INTO evaluation_results (
             id,
@@ -88,7 +90,7 @@ pub async fn set_evaluation_results(
             target,
             executor_output,
             trace_id,
-            index_in_batch
+            index
         )
         SELECT
             id,
@@ -97,10 +99,10 @@ pub async fn set_evaluation_results(
             target,
             executor_output,
             trace_id,
-            index_in_batch
+            index
         FROM
         UNNEST ($1::uuid[], $2::jsonb[], $3::jsonb[], $4::jsonb[], $5::uuid[], $6::int8[])
-        AS tmp_table(id, data, target, executor_output, trace_id, index_in_batch)
+        AS tmp_table(id, data, target, executor_output, trace_id, index)
         RETURNING id, created_at, evaluation_id, trace_id
         ",
     )
@@ -109,7 +111,7 @@ pub async fn set_evaluation_results(
     .bind(targets)
     .bind(executor_outputs)
     .bind(trace_ids)
-    .bind(&Vec::from_iter(0..ids.len() as i64))
+    .bind(indices)
     .bind(evaluation_id)
     .fetch_all(pool)
     .await?;

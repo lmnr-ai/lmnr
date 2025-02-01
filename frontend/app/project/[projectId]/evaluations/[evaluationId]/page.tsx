@@ -84,8 +84,8 @@ async function getEvaluationInfo(
     )
     .where(eq(evaluationResults.evaluationId, evaluationId))
     .orderBy(
-      asc(evaluationResults.createdAt),
-      asc(evaluationResults.indexInBatch)
+      asc(evaluationResults.index),
+      asc(evaluationResults.createdAt)
     );
 
   const [evaluation, results] = await Promise.all([
