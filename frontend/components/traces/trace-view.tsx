@@ -346,15 +346,13 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                 traceId={traceId}
                 onTimelineChange={(time) => {
                   setBrowserSessionTime(time);
+
                   const activeSpans = spans.filter(
                     (span: Span) => {
-                      const traceStartTime = new Date(trace.startTime).getTime();
                       const spanStartTime = new Date(span.startTime).getTime();
                       const spanEndTime = new Date(span.endTime).getTime();
 
-                      const startTime = spanStartTime - traceStartTime;
-                      const endTime = spanEndTime - traceStartTime;
-                      return startTime <= time && endTime >= time && span.parentSpanId !== null;
+                      return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
                     }
                   );
 

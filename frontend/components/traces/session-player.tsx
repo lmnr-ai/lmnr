@@ -28,7 +28,11 @@ export interface SessionPlayerHandle {
 }
 
 const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
-  ({ hasBrowserSession, traceId, onTimelineChange }, ref) => {
+  ({
+    hasBrowserSession,
+    traceId,
+    onTimelineChange
+  }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const playerContainerRef = useRef<HTMLDivElement | null>(null);
     const playerRef = useRef<any>(null);
@@ -38,6 +42,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [totalDuration, setTotalDuration] = useState(0);
     const [speed, setSpeed] = useState(1);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    const [startTime, setStartTime] = useState(0);
     const { projectId } = useProjectContext();
 
     // Add resize observer effect
@@ -125,6 +130,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             speed
           }
         });
+        const startTime = events[0].timestamp;
+        setStartTime(startTime);
 
         // Set total duration and add player listeners
         const duration = (events[events.length - 1].timestamp - events[0].timestamp) / 1000;
@@ -140,7 +147,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
         playerRef.current.addEventListener('ui-update-current-time', (event: any) => {
           setCurrentTime(event.payload / 1000);
-          onTimelineChange(event.payload);
+          onTimelineChange(startTime + event.payload);
         });
       } catch (e) {
         console.error('Error initializing player:', e);

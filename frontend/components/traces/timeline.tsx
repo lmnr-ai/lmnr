@@ -35,7 +35,9 @@ export default function Timeline({
 }: TimelineProps) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [timeIntervals, setTimeIntervals] = useState<string[]>([]);
-  const [maxTime, setMaxTime] = useState<number>(0);
+  const [startTime, setStartTime] = useState<number>(0);
+  const [endTime, setEndTime] = useState<number>(0);
+
   const ref = useRef<HTMLDivElement>(null);
 
   const traverse = useCallback(
@@ -104,7 +106,8 @@ export default function Timeline({
       return;
     }
 
-    setMaxTime(endTime.getTime() - startTime.getTime());
+    setStartTime(startTime.getTime());
+    setEndTime(endTime.getTime());
 
     const totalDuration = endTime.getTime() - startTime.getTime();
 
@@ -120,22 +123,22 @@ export default function Timeline({
     const segments: Segment[] = [];
 
     for (const span of orderedSpans) {
-      const duration = getDuration(span.startTime, span.endTime) / 1000;
+      const spanDuration = getDuration(span.startTime, span.endTime);
 
-      const width = (duration / upperInterval) * 100;
-      const left =
-        (getDuration(startTime.toISOString(), span.startTime) /
-          1000 /
-          upperInterval) *
-        100;
+      const width = (spanDuration / totalDuration) * 100;
+
+      const left = (new Date(span.startTime).getTime() - startTime.getTime()) / totalDuration * 100;
+
+      console.log("spanDuration", spanDuration, "span offset", left, span.startTime, new Date(span.startTime).getTime());
 
       const segmentEvents = [] as SegmentEvent[];
+
       for (const event of span.events) {
         const eventLeft =
           ((new Date(event.timestamp).getTime() -
             new Date(span.startTime).getTime()) /
             1000 /
-            duration) *
+            spanDuration) *
           100;
 
         segmentEvents.push({
@@ -158,13 +161,6 @@ export default function Timeline({
 
   return (
     <div className="flex flex-col h-full w-full relative" ref={ref}>
-      {browserSessionTime && (
-        <div className="absolute top-0 left-32 w-[1px] h-full bg-primary z-50"
-          style={{
-            left: (browserSessionTime / maxTime) * 100 + '%'
-          }}
-        />
-      )}
       <div className="bg-background flex text-xs w-full border-b z-40 sticky top-0 h-12 px-4">
         {timeIntervals.map((interval, index) => (
           <div
@@ -178,7 +174,14 @@ export default function Timeline({
         <div className="border-r" />
       </div>
       <div className="px-4">
-        <div className="flex flex-col space-y-1 w-full pt-[6px] relative">
+        <div className="flex flex-col space-y-1 w-full pt-[2px] relative">
+          {browserSessionTime && (
+            <div className="absolute -top-32 h-full bg-primary z-50 w-[1px]"
+              style={{
+                left: ((browserSessionTime - startTime) / (endTime - startTime)) * 100 + '%'
+              }}
+            />
+          )}
           {segments.map((segment, index) => (
             <div
               key={index}
