@@ -384,6 +384,13 @@ impl Span {
 
                 if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
                     span.output = Some(serde_json::Value::String(s.clone()));
+                } else if let Some(serde_json::Value::String(s)) =
+                    attributes.get("ai.response.object")
+                {
+                    span.output = Some(
+                        serde_json::from_str::<Value>(s)
+                            .unwrap_or(serde_json::Value::String(s.clone())),
+                    );
                 }
             } else if attributes
                 .get("SpanAttributes.LLM_PROMPTS.0.content")
@@ -414,6 +421,10 @@ impl Span {
             );
         }
         if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
+            span.output = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
+        } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
             span.output = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
