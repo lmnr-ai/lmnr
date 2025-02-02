@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
-import { getDurationString } from '@/lib/flow/utils';
+import { getDuration, getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
+import { cn, formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
 import { Label } from '../ui/label';
 import SpanTypeIcon from './span-type-icon';
@@ -13,14 +14,17 @@ const SQUARE_ICON_SIZE = 16;
 
 interface SpanCardProps {
   span: Span;
+  activeSpans: string[];
   parentY: number;
   childSpans: { [key: string]: Span[] };
   containerWidth: number;
   depth: number;
   selectedSpan?: Span | null;
-  onSpanSelect?: (span: Span) => void;
   collapsedSpans: Set<string>;
+  traceStartTime: string;
+  onSpanSelect?: (span: Span) => void;
   onToggleCollapse?: (spanId: string) => void;
+  onSelectTime?: (time: number) => void;
 }
 
 export function SpanCard({
@@ -32,7 +36,10 @@ export function SpanCard({
   depth,
   selectedSpan,
   collapsedSpans,
-  onToggleCollapse
+  onToggleCollapse,
+  traceStartTime,
+  activeSpans,
+  onSelectTime
 }: SpanCardProps) {
   const [isSelected, setIsSelected] = useState(false);
   const [segmentHeight, setSegmentHeight] = useState(0);
@@ -80,7 +87,7 @@ export function SpanCard({
             containerHeight={SQUARE_SIZE}
             size={SQUARE_ICON_SIZE}
           />
-          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[200px]">
+          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]">
             {span.name}
           </div>
           <Label className="text-secondary-foreground">
@@ -91,7 +98,7 @@ export function SpanCard({
             style={{
               width: containerWidth,
               height: ROW_HEIGHT,
-              left: -depth * 24 - 16
+              left: -depth * 24 - 8
             }}
             onClick={() => {
               onSpanSelect?.(span);
@@ -99,11 +106,11 @@ export function SpanCard({
           />
           {isSelected && (
             <div
-              className="absolute top-0 w-full bg-primary/20 border-l-2 border-l-primary"
+              className="absolute top-0 w-full bg-primary/25 border-l-2 border-l-primary"
               style={{
                 width: containerWidth,
                 height: ROW_HEIGHT,
-                left: -depth * 24 - 16
+                left: -depth * 24 - 8
               }}
             />
           )}
@@ -122,6 +129,25 @@ export function SpanCard({
               )}
             </button>
           )}
+          <div className="flex-grow" />
+          <div
+            className="flex items-center z-40"
+            style={{
+              height: ROW_HEIGHT
+            }}
+            onClick={() => {
+              onSelectTime?.(getDuration(traceStartTime, span.startTime) / 1000);
+            }}
+          >
+            <div
+              className={cn(
+                'flex items-center text-xs font-mono text-muted-foreground p-1 cursor-pointer rounded-l-full px-2',
+                activeSpans.includes(span.spanId) ? 'bg-primary/80 text-white' : 'hover:bg-muted'
+              )}
+            >
+              {formatSecondsToMinutesAndSeconds(getDuration(traceStartTime, span.startTime) / 1000)}
+            </div>
+          </div>
         </div>
       </div>
       {!collapsedSpans.has(span.spanId) && (
@@ -130,6 +156,8 @@ export function SpanCard({
             childrenSpans.map((child, index) => (
               <div className="pl-6 relative" key={index}>
                 <SpanCard
+                  activeSpans={activeSpans}
+                  traceStartTime={traceStartTime}
                   span={child}
                   childSpans={childSpans}
                   parentY={ref.current?.getBoundingClientRect().y || 0}
@@ -138,6 +166,7 @@ export function SpanCard({
                   selectedSpan={selectedSpan}
                   collapsedSpans={collapsedSpans}
                   onToggleCollapse={onToggleCollapse}
+                  onSelectTime={onSelectTime}
                   depth={depth + 1}
                 />
               </div>

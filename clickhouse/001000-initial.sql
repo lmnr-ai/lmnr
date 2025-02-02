@@ -64,4 +64,19 @@ CREATE TABLE default.labels
 ENGINE MergeTree
 PRIMARY KEY (project_id, class_id, span_id)
 ORDER BY (project_id, class_id, span_id, created_at, id)
-SETTINGS index_granularity = 8192
+SETTINGS index_granularity = 8192;
+
+CREATE TABLE default.browser_session_events
+(
+    `event_id` UUID,
+    `trace_id` UUID,
+    `session_id` UUID,
+    `timestamp` DateTime64(3),
+    `event_type` UInt8,
+    `data` String CODEC(ZSTD(3)),
+    `project_id` UUID
+)
+ENGINE = MergeTree
+PARTITION BY (toYYYYMM(timestamp), project_id)
+ORDER BY (session_id, timestamp)
+SETTINGS index_granularity = 8192;

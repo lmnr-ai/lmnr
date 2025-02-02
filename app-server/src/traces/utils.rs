@@ -100,6 +100,9 @@ pub async fn record_span_to_db(
     trace_attributes.update_session_id(span_attributes.session_id());
     trace_attributes.update_trace_type(span_attributes.trace_type());
     trace_attributes.set_metadata(span_attributes.metadata());
+    if let Some(has_browser_session) = span_attributes.has_browser_session() {
+        trace_attributes.set_has_browser_session(has_browser_session);
+    }
 
     if span.span_type == SpanType::LLM {
         trace_attributes.add_input_cost(span_usage.input_cost);

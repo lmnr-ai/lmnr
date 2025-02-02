@@ -37,12 +37,13 @@ export default function ManualAddDatapointDialog({
   const isValidJson = useCallback(() => {
     try {
       const parsed = JSON.parse(data);
-      if (!parsed.data) {
+      if (parsed.data === undefined) {
         return false;
       }
-      if (parsed.metadata) {
-        isValidJsonObject(parsed.metadata);
+      if (parsed.metadata !== undefined && !isValidJsonObject(parsed.metadata)) {
+        return false;
       }
+      return true;
     } catch (e) {
       return false;
     }
@@ -109,11 +110,11 @@ export default function ManualAddDatapointDialog({
         </DialogHeader>
         <span>{'Fill in datapoint in JSON format.'}</span>
         <div className="border rounded-md max-h-[300px] overflow-y-auto">
-          <CodeEditor value={data} onChange={setData} language="json" />
+          <CodeEditor value={data} onChange={setData} language="json" editable />
         </div>
         {!isValidJson() && (
           <div className="text-red-500">
-            Please enter a valid JSON map that has a {'"'}data{'"'} key
+            Please enter a valid JSON map that has a {'"'}data{'"'} key.
           </div>
         )}
         <DialogFooter className="mt-4">

@@ -66,6 +66,8 @@ export type Span = {
   labels: SpanLabel[];
   path: string;
   model?: string;
+  inputUrl: string | null;
+  outputUrl: string | null;
 };
 
 export type TraceWithSpans = {
@@ -79,6 +81,7 @@ export type TraceWithSpans = {
   outputCost: number | null;
   cost: number | null;
   metadata: Record<string, string> | null;
+  hasBrowserSession: boolean | null;
   projectId: string;
   spans: Span[];
 };
@@ -100,6 +103,7 @@ export type Trace = {
   topSpanName: string | null;
   topSpanType: SpanType | null;
   topSpanPath: string | null;
+  hasBrowserSession: boolean | null;
   // events: TraceEvent[];
 };
 

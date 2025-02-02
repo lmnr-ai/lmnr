@@ -36,10 +36,12 @@ const myTheme = createTheme({
   styles: githubDarkStyle,
 });
 
+const MAX_LINE_WRAPPING_LENGTH = 1000000;
+
 export default function CodeEditor({
   value,
   language = 'text',
-  editable = true,
+  editable = false,
   onChange,
   className,
   placeholder,
@@ -71,7 +73,7 @@ export default function CodeEditor({
     })
   ];
 
-  if (lineWrapping) {
+  if (lineWrapping && value.length < MAX_LINE_WRAPPING_LENGTH) {
     extensions.push(EditorView.lineWrapping);
   }
 

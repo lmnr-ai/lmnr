@@ -168,39 +168,6 @@ export const datasets = pgTable("datasets", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
-export const traces = pgTable("traces", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  sessionId: text("session_id"),
-  metadata: jsonb(),
-  projectId: uuid("project_id").notNull(),
-  endTime: timestamp("end_time", { withTimezone: true, mode: 'string' }),
-  startTime: timestamp("start_time", { withTimezone: true, mode: 'string' }),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  totalTokenCount: bigint("total_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
-  cost: doublePrecision().default(sql`'0'`).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  traceType: traceType("trace_type").default('DEFAULT').notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  inputTokenCount: bigint("input_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  outputTokenCount: bigint("output_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
-  inputCost: doublePrecision("input_cost").default(sql`'0'`).notNull(),
-  outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
-}, (table) => [
-  index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast().op("jsonb_ops")),
-  index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast().op("timestamptz_ops"), table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.desc().nullsFirst().op("uuid_ops")).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
-  index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
-  index("traces_project_id_trace_type_start_time_end_time_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")).where(sql`((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
-  index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("text_ops")),
-  index("traces_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")),
-  foreignKey({
-    columns: [table.projectId],
-    foreignColumns: [projects.id],
-    name: "new_traces_project_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-  pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_trace_id_accessible_for_api_key(api_key(), id)` }),
-]);
-
 export const targetPipelineVersions = pgTable("target_pipeline_versions", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -288,6 +255,40 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   extraEventPrice: doublePrecision("extra_event_price").default(sql`'0'`).notNull(),
 });
 
+export const traces = pgTable("traces", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  sessionId: text("session_id"),
+  metadata: jsonb(),
+  projectId: uuid("project_id").notNull(),
+  endTime: timestamp("end_time", { withTimezone: true, mode: 'string' }),
+  startTime: timestamp("start_time", { withTimezone: true, mode: 'string' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  totalTokenCount: bigint("total_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  cost: doublePrecision().default(sql`'0'`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  traceType: traceType("trace_type").default('DEFAULT').notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  inputTokenCount: bigint("input_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  outputTokenCount: bigint("output_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  inputCost: doublePrecision("input_cost").default(sql`'0'`).notNull(),
+  outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
+  hasBrowserSession: boolean("has_browser_session"),
+}, (table) => [
+  index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast().op("jsonb_ops")),
+  index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast().op("timestamptz_ops"), table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.desc().nullsFirst().op("uuid_ops")).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
+  index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+  index("traces_project_id_trace_type_start_time_end_time_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")).where(sql`((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
+  index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("text_ops")),
+  index("traces_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")),
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "new_traces_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+  pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_trace_id_accessible_for_api_key(api_key(), id)` }),
+]);
+
 export const users = pgTable("users", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -355,7 +356,7 @@ export const datasetDatapoints = pgTable("dataset_datapoints", {
   target: jsonb().default({}),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexInBatch: bigint("index_in_batch", { mode: "number" }),
-  metadata: jsonb(),
+  metadata: jsonb().default({}),
 }, (table) => [
   foreignKey({
     columns: [table.datasetId],
@@ -374,6 +375,7 @@ export const evaluationResults = pgTable("evaluation_results", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexInBatch: bigint("index_in_batch", { mode: "number" }),
   traceId: uuid("trace_id").notNull(),
+  index: integer().default(0).notNull(),
 }, (table) => [
   index("evaluation_results_evaluation_id_idx").using("btree", table.evaluationId.asc().nullsLast().op("uuid_ops")),
   foreignKey({
@@ -540,6 +542,8 @@ export const spans = pgTable("spans", {
   inputPreview: text("input_preview"),
   outputPreview: text("output_preview"),
   projectId: uuid("project_id").notNull(),
+  inputUrl: text("input_url"),
+  outputUrl: text("output_url"),
 }, (table) => [
   index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
   index("spans_project_id_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),

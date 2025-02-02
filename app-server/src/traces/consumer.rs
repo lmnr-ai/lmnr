@@ -154,7 +154,7 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
 
         if is_feature_enabled(Feature::Storage) {
             if let Err(e) = span
-                .store_input_media(&rabbitmq_span_message.project_id, storage.clone())
+                .store_payloads(&rabbitmq_span_message.project_id, storage.clone())
                 .await
             {
                 log::error!(

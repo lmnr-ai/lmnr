@@ -1,8 +1,7 @@
 'use client';
-import { createClient } from '@supabase/supabase-js';
 import { ChevronsRight, PlayIcon, StopCircle } from 'lucide-react';
 import { usePostHog } from 'posthog-js/react';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { ImperativePanelHandle } from 'react-resizable-panels';
 import { v4 as uuidv4 } from 'uuid';
 import * as Y from 'yjs';
@@ -15,7 +14,6 @@ import {
 import { FlowContextProvider } from '@/contexts/pipeline-version-context';
 import { ProjectContext } from '@/contexts/project-context';
 import { useUserContext } from '@/contexts/user-context';
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
 import { Feature, isFeatureEnabled } from '@/lib/features/features';
 import { Graph } from '@/lib/flow/graph';
 import useStore from '@/lib/flow/store';
@@ -130,25 +128,7 @@ export default function Pipeline({ pipeline, isSupabaseEnabled }: PipelineProps)
     }
   }, []);
 
-  const { supabaseAccessToken, username, imageUrl } = useUserContext();
-
-  const supabase = useMemo(() => {
-    if (!isSupabaseEnabled || !supabaseAccessToken) {
-      return null;
-    }
-
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${supabaseAccessToken}`
-        }
-      }
-    });
-  }, []);
-
-  if (supabase) {
-    supabase.realtime.setAuth(supabaseAccessToken);
-  }
+  const { supabaseClient: supabase, username, imageUrl } = useUserContext();
 
   useEffect(() => {
     if (!supabase) {

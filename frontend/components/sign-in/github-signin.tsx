@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { signIn } from 'next-auth/react';
-import * as React from 'react';
+import { signIn } from "next-auth/react";
+import { useState } from "react";
 
-import { Button, type ButtonProps } from '@/components/ui/button';
-import { IconGitHub, IconSpinner } from '@/components/ui/icons';
-import { cn } from '@/lib/utils';
+import { Button, type ButtonProps } from "@/components/ui/button";
+import { IconGitHub, IconSpinner } from "@/components/ui/icons";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface GitHubSignInButtonProps extends ButtonProps {
   showGithubIcon?: boolean;
@@ -14,32 +14,35 @@ interface GitHubSignInButtonProps extends ButtonProps {
 }
 
 export function GitHubSignInButton({
-  text = 'Continue with GitHub',
+  text = "Continue with GitHub",
   callbackUrl,
   showGithubIcon = true,
   className,
   ...props
 }: GitHubSignInButtonProps) {
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const handleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      await signIn("github", { callbackUrl });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign in with GitHub. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <Button
-      variant={'light'}
-      onClick={() => {
-        setIsLoading(true);
-        signIn('github', { callbackUrl: callbackUrl });
-      }}
-      disabled={isLoading}
-      className={cn(className)}
-      {...props}
-    >
-      <div className="h-5 w-5">
-        {isLoading ? (
-          <IconSpinner className="animate-spin" />
-        ) : showGithubIcon ? (
-          <IconGitHub className="" />
-        ) : null}
-      </div>
-      <div className="ml-4">{text}</div>
-    </Button>
+    <>
+      <Button variant={"light"} onClick={handleSignIn} disabled={isLoading} className={className} {...props}>
+        <div className="h-5 w-5">{isLoading ? <IconSpinner className="animate-spin" /> : <IconGitHub />}</div>
+        <div className="ml-4">{text}</div>
+      </Button>
+    </>
   );
 }

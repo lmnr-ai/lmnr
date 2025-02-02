@@ -77,8 +77,11 @@ Set the target version for the pipeline in the pipeline builder."),
                 let mut short_message = message.clone();
                 let value: String = short_message.value.clone().into();
                 if value.len() > 100 {
-                    short_message.value =
-                        format!("{}... [TRUNCATED FOR BREVITY]", &value[..100]).into();
+                    short_message.value = format!(
+                        "{}... [TRUNCATED FOR BREVITY]",
+                        &value.chars().take(100).collect::<String>()
+                    )
+                    .into();
                 }
                 (node, short_message)
             })
@@ -181,5 +184,23 @@ impl ResponseError for Error {
             })),
             _ => HttpResponse::build(self.status_code()).finish(),
         }
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
+    }
+}
+
+impl From<clickhouse::error::Error> for Error {
+    fn from(err: clickhouse::error::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
     }
 }
