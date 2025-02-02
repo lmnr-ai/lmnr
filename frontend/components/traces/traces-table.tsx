@@ -145,9 +145,9 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
     totalTokenCount: row.total_token_count,
     inputCost: row.input_cost,
     outputCost: row.output_cost,
-    hasBrowserSession: row.has_browser_session,
     cost: row.cost,
     metadata: row.metadata,
+    hasBrowserSession: row.has_browser_session,
     topSpanInputPreview: null,
     topSpanOutputPreview: null,
     topSpanName: null,
@@ -159,7 +159,6 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
     old: Record<string, any>,
     newObj: Record<string, any>
   ) => {
-    console.log('updateRealtimeTraces', eventType, old, newObj);
     if (eventType === 'INSERT') {
       const insertIndex = traces?.findIndex(trace => trace.startTime <= newObj.start_time);
       if (insertIndex !== -1 && insertIndex !== undefined) {
@@ -216,7 +215,6 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
         title: 'Traces deleted',
         description: `Successfully deleted ${traceId.length} trace(s).`
       });
-      // mutate();
       getTraces();
     }
   };
