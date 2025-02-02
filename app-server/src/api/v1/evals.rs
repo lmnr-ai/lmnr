@@ -29,7 +29,7 @@ pub async fn init_eval(
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let req = req.into_inner();
-    let group_name = req.group_name.unwrap_or_else(|| "default".to_string());
+    let group_name = req.group_name.unwrap_or("default".to_string());
     let project_id = project_api_key.project_id;
 
     let name = if let Some(name) = req.name {
