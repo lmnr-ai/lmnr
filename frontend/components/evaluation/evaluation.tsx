@@ -4,13 +4,15 @@ import { ArrowRight } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Resizable } from 're-resizable';
 import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
 import {
   Evaluation as EvaluationType, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo
 } from '@/lib/evaluation/types';
 import { mergeOriginalWithComparedDatapoints } from '@/lib/evaluation/utils';
-import { useToast } from '@/lib/hooks/use-toast';
+import { swrFetcher } from '@/lib/utils';
 
 import TraceView from '../traces/trace-view';
 import { Button } from '../ui/button';
@@ -33,57 +35,63 @@ const URL_QUERY_PARAMS = {
 };
 
 interface EvaluationProps {
-  evaluationInfo: EvaluationResultsInfo;
   evaluations: EvaluationType[];
+  evaluationId: string;
+  evaluationName: string;
 }
 
 export default function Evaluation({
-  evaluationInfo,
-  evaluations
+  evaluations,
+  evaluationId,
+  evaluationName
 }: EvaluationProps) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
-  const { toast } = useToast();
-
   const { projectId } = useProjectContext();
-
-  const evaluation = evaluationInfo.evaluation;
-
+  const { data: evaluationInfo, mutate } = useSWR<EvaluationResultsInfo>(
+    `/api/projects/${projectId}/evaluations/${evaluationId}`,
+    swrFetcher
+  );
+  const evaluation = evaluationInfo?.evaluation;
   const [comparedEvaluation, setComparedEvaluation] =
     useState<EvaluationType | null>(null);
+  let results = evaluationInfo?.results ?? [];
+  // Selected score name must usually not be undefined, as we expect
+  // to have at least one score, it's done just to not throw error if there are no scores
+  const [scoreColumns, setScoreColumns] = useState<Set<string>>(new Set());
+  const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(
+    scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined
+  );
+
+  const updateScoreColumns = (rows: EvaluationDatapointPreviewWithCompared[]) => {
+    let newScoreColumns = new Set<string>(scoreColumns);
+    for (const row of rows) {
+      for (const key of Object.keys(row.scores ?? {})) {
+        newScoreColumns.add(key);
+      }
+    }
+    setScoreColumns(newScoreColumns);
+    setSelectedScoreName(newScoreColumns.size > 0 ? Array.from(newScoreColumns)[0] : undefined);
+  };
 
   useEffect(() => {
     const comparedEvaluationId = searchParams.get(
       URL_QUERY_PARAMS.COMPARE_EVAL_ID
     );
-    handleComparedEvaluationChange(comparedEvaluationId ?? null);
-  }, []);
-
-  let defaultResults =
-    evaluationInfo.results as EvaluationDatapointPreviewWithCompared[];
-  const [results, setResults] = useState(defaultResults);
-
-  let scoreColumns = new Set<string>();
-  for (const row of defaultResults) {
-    for (const key of Object.keys(row.scores ?? {})) {
-      scoreColumns.add(key);
+    if (comparedEvaluationId) {
+      handleComparedEvaluationChange(comparedEvaluationId);
     }
-  }
+    updateScoreColumns(results);
+  }, []);
 
   // TODO: get datapoints paginated.
   const [selectedDatapoint, setSelectedDatapoint] =
     useState<EvaluationDatapointPreviewWithCompared | null>(
-      defaultResults.find(
+      results.find(
         (result) => result.id === searchParams.get('datapointId')
       ) ?? null
     );
-
-  // Selected score name must usually not be undefined, as we expect
-  // to have at least one score, it's done just to not throw error if there are no scores
-  const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(
-    scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined
-  );
 
   // Columns used when there is no compared evaluation
   let defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
@@ -109,6 +117,35 @@ export default function Evaluation({
     }))
   );
 
+  const { supabaseClient: supabase } = useUserContext();
+
+
+  useEffect(() => {
+    if (!supabase || !evaluation) {
+      return;
+    }
+
+    supabase.channel('table-db-changes').unsubscribe();
+
+    supabase
+      .channel('table-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'evaluation_results',
+          filter: `evaluation_id=eq.${evaluation.id}`
+        },
+        async (_) => {
+          // for v0 we just re-fetch the whole evaluation.
+          // TODO: fix the insert logic so the state is not out of sync.
+          await mutate();
+        }
+      )
+      .subscribe();
+  }, [supabase]);
+
   const [columns, setColumns] = useState(defaultColumns);
 
   const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
@@ -128,7 +165,6 @@ export default function Evaluation({
 
     if (comparedEvaluationId === null) {
       setComparedEvaluation(null);
-      setResults(evaluationInfo.results);
       setColumns(defaultColumns);
       searchParams.delete(URL_QUERY_PARAMS.COMPARE_EVAL_ID);
       router.push(`${pathName}?${searchParams.toString()}`);
@@ -140,11 +176,9 @@ export default function Evaluation({
       .then((comparedEvaluation) => {
         setComparedEvaluation(comparedEvaluation.evaluation);
         // evaluationInfo.results are always fixed, but the compared results (comparedEvaluation.results) change
-        setResults(
-          mergeOriginalWithComparedDatapoints(
-            evaluationInfo.results,
-            comparedEvaluation.results
-          )
+        results = mergeOriginalWithComparedDatapoints(
+          results,
+          comparedEvaluation.results
         );
         let columnsWithCompared: ColumnDef<EvaluationDatapointPreviewWithCompared>[] =
           [
@@ -182,7 +216,7 @@ export default function Evaluation({
 
   return (
     <div className="h-full flex flex-col relative">
-      <Header path={`evaluations/${evaluation.name}`} />
+      <Header path={`evaluations/${evaluationName}`} />
       <div className="flex-none flex space-x-2 h-12 px-4 items-center border-b justify-start">
         <div>
           <Select
@@ -202,7 +236,7 @@ export default function Evaluation({
             </SelectTrigger>
             <SelectContent>
               {evaluations
-                .filter((item) => item.id != evaluation.id)
+                .filter((item) => item.id != evaluationId)
                 .map((item) => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.name}
@@ -216,8 +250,8 @@ export default function Evaluation({
         </div>
         <div>
           <Select
-            key={evaluation.id}
-            value={evaluation.id}
+            key={evaluationId}
+            value={evaluationId}
             onValueChange={(evaluationId: string) => {
               router.push(`/project/${projectId}/evaluations/${evaluationId}?${searchParams.toString()}`);
             }}
@@ -275,8 +309,8 @@ export default function Evaluation({
         <div>
           {comparedEvaluation === null && (
             <DownloadButton
-              uri={`/api/projects/${projectId}/evaluations/${evaluation.id}/download`}
-              filenameFallback={`evaluation-results-${evaluation.id}`}
+              uri={`/api/projects/${projectId}/evaluations/${evaluationId}/download`}
+              filenameFallback={`evaluation-results-${evaluationId}`}
               supportedFormats={['csv', 'json']}
             />
           )}
@@ -292,13 +326,13 @@ export default function Evaluation({
               <div className="flex-grow">
                 {comparedEvaluation !== null ? (
                   <CompareChart
-                    evaluationId={evaluation.id}
+                    evaluationId={evaluationId}
                     comparedEvaluationId={comparedEvaluation?.id}
                     scoreName={selectedScoreName}
                   />
                 ) : (
                   <Chart
-                    evaluationId={evaluation.id}
+                    evaluationId={evaluationId}
                     allScoreNames={Array.from(scoreColumns)}
                   />
                 )}

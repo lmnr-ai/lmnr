@@ -28,6 +28,7 @@ export type EvaluationDatapointPreview = {
   target: any;
   executorOutput: any;
   traceId: string;
+  index: number;
 };
 
 export type EvaluationDatapointPreviewWithCompared = {

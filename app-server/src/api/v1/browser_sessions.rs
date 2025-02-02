@@ -51,7 +51,8 @@ async fn create_session_event(
         INSERT INTO browser_session_events (
             event_id, session_id, trace_id, timestamp,
             event_type, data, project_id
-        ) VALUES ",
+        )
+        VALUES ",
     );
 
     let mut values = Vec::new();
