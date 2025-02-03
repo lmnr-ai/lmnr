@@ -1,21 +1,23 @@
-import jwt from 'jsonwebtoken';
-import type { DefaultSession, NextAuthOptions, User } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import GithubProvider from 'next-auth/providers/github';
-import GoogleProvider from 'next-auth/providers/google';
+import jwt from "jsonwebtoken";
+import type { DefaultSession, NextAuthOptions, User } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import GithubProvider from "next-auth/providers/github";
+import GoogleProvider from "next-auth/providers/google";
 
-import { sendWelcomeEmail } from './emails/utils';
-import { Feature, isFeatureEnabled } from './features/features';
-import { fetcher } from './utils';
+import { getEmailsConfig } from "@/lib/server-utils";
 
-declare module 'next-auth' {
+import { sendWelcomeEmail } from "./emails/utils";
+import { Feature, isFeatureEnabled } from "./features/features";
+import { fetcher } from "./utils";
+
+declare module "next-auth" {
   interface Session {
     supabaseAccessToken: string;
     user: {
       id: string;
       apiKey: string;
       isNewUserCreated: boolean;
-    } & DefaultSession['user'];
+    } & DefaultSession["user"];
   }
 
   interface Profile {
@@ -23,7 +25,7 @@ declare module 'next-auth' {
   }
 }
 
-declare module 'next-auth/jwt' {
+declare module "next-auth/jwt" {
   interface JWT {
     apiKey: string;
     isNewUserCreated: boolean;
@@ -37,7 +39,7 @@ const getProviders = () => {
     providers.push(
       GithubProvider({
         clientId: process.env.AUTH_GITHUB_ID!,
-        clientSecret: process.env.AUTH_GITHUB_SECRET!
+        clientSecret: process.env.AUTH_GITHUB_SECRET!,
       })
     );
   }
@@ -46,7 +48,7 @@ const getProviders = () => {
     providers.push(
       GoogleProvider({
         clientId: process.env.AUTH_GOOGLE_ID!,
-        clientSecret: process.env.AUTH_GOOGLE_SECRET!
+        clientSecret: process.env.AUTH_GOOGLE_SECRET!,
       })
     );
   }
@@ -56,15 +58,15 @@ const getProviders = () => {
   if (isFeatureEnabled(Feature.EMAIL_AUTH)) {
     providers.push(
       CredentialsProvider({
-        id: 'email',
-        name: 'Email',
+        id: "email",
+        name: "Email",
         credentials: {
           email: {
-            label: 'Email',
-            type: 'email',
-            placeholder: 'username@example.com'
+            label: "Email",
+            type: "email",
+            placeholder: "username@example.com",
           },
-          name: { label: 'Name', type: 'text', placeholder: 'username' }
+          name: { label: "Name", type: "text", placeholder: "username" },
         },
         async authorize(credentials, req) {
           if (!credentials?.email) {
@@ -73,10 +75,10 @@ const getProviders = () => {
           const user = {
             id: credentials.email,
             name: credentials.name,
-            email: credentials.email
+            email: credentials.email,
           } as User;
           return user;
-        }
+        },
       })
     );
   }
@@ -87,11 +89,18 @@ const getProviders = () => {
 export const authOptions: NextAuthOptions = {
   providers: getProviders(),
   session: {
-    strategy: 'jwt'
+    strategy: "jwt",
   },
   callbacks: {
+    async signIn({ user, account }) {
+      const list = await getEmailsConfig();
+      if (account?.provider === "github" && user?.email && !!list) {
+        return list.includes(user.email);
+      }
+      return true;
+    },
     async jwt({ token, profile, trigger }) {
-      if (trigger === 'signIn') {
+      if (trigger === "signIn") {
         // token always contains name, email and picture keys
         // name and email should always be provided, picture is optional
 
@@ -100,21 +109,21 @@ export const authOptions: NextAuthOptions = {
         const email = token.email;
         const picture = token.picture ?? null;
 
-        const res = await fetcher('/auth/signin', {
-          method: 'POST',
+        const res = await fetcher("/auth/signin", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + process.env.SHARED_SECRET_TOKEN
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + process.env.SHARED_SECRET_TOKEN,
           },
           body: JSON.stringify({
             name,
             email,
-            picture
-          })
+            picture,
+          }),
         });
 
         if (!res.ok) {
-          const err = new Error('HTTP status code: ' + res.status);
+          const err = new Error("HTTP status code: " + res.status);
           console.error(err);
           throw err;
         }
@@ -143,20 +152,20 @@ export const authOptions: NextAuthOptions = {
         const signingSecret = process.env.SUPABASE_JWT_SECRET;
         if (signingSecret) {
           const payload = {
-            aud: 'authenticated',
+            aud: "authenticated",
             exp: Math.floor(new Date(session.expires).getTime() / 1000),
             sub: token.apiKey,
             email: session.user.email,
-            role: 'authenticated'
+            role: "authenticated",
           };
           session.supabaseAccessToken = jwt.sign(payload, signingSecret);
         }
       }
 
       return session;
-    }
+    },
   },
   pages: {
-    signIn: '/sign-in' // overrides the next-auth default signin page https://authjs.dev/guides/basics/pages
-  }
+    signIn: "/sign-in", // overrides the next-auth default signin page https://authjs.dev/guides/basics/pages
+  },
 };

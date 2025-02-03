@@ -73,6 +73,9 @@ services:
     container_name: python-executor
 
   app-server:
+    ports:
+      - "8000:8000"
+      - "8001:8001"
     build:
       context: ./app-server
       args:

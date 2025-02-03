@@ -78,8 +78,8 @@ mod storage;
 mod traces;
 
 const DEFAULT_CACHE_SIZE: u64 = 100; // entries
-const HTTP_PAYLOAD_LIMIT: usize = 100 * 1024 * 1024; // 100MB
-const GRPC_PAYLOAD_DECODING_LIMIT: usize = 100 * 1024 * 1024; // 100MB
+const HTTP_PAYLOAD_LIMIT: usize = 5 * 1024 * 1024; // 5MB
+const GRPC_PAYLOAD_DECODING_LIMIT: usize = 10 * 1024 * 1024; // 10MB
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -369,7 +369,7 @@ fn main() -> anyhow::Result<()> {
 
                     // start 8 threads per core to process spans from RabbitMQ
                     if is_feature_enabled(Feature::FullBuild) {
-                        for _ in 0..8 {
+                        for _ in 0..num_workers_per_thread {
                             tokio::spawn(process_queue_spans(
                                 pipeline_runner.clone(),
                                 db_for_http.clone(),
@@ -385,6 +385,8 @@ fn main() -> anyhow::Result<()> {
                     App::new()
                         .wrap(Logger::default())
                         .wrap(NormalizePath::trim())
+                        .app_data(JsonConfig::default().limit(HTTP_PAYLOAD_LIMIT))
+                        .app_data(PayloadConfig::new(HTTP_PAYLOAD_LIMIT))
                         .app_data(web::Data::from(cache_for_http.clone()))
                         .app_data(web::Data::from(db_for_http.clone()))
                         .app_data(web::Data::new(pipeline_runner.clone()))
@@ -416,10 +418,17 @@ fn main() -> anyhow::Result<()> {
                         )
                         .service(api::v1::machine_manager::vnc_stream) // vnc stream does not need auth
                         .service(
+                            web::scope("/v1/browser-sessions")
+                                .service(api::v1::browser_sessions::options_handler)
+                                .service(
+                                    web::scope("")
+                                        .wrap(project_auth.clone())
+                                        .service(api::v1::browser_sessions::create_session_event),
+                                ),
+                        )
+                        .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
-                                .app_data(PayloadConfig::new(HTTP_PAYLOAD_LIMIT))
-                                .app_data(JsonConfig::default().limit(HTTP_PAYLOAD_LIMIT))
                                 .service(api::v1::pipelines::run_pipeline_graph)
                                 .service(api::v1::pipelines::ping_healthcheck)
                                 .service(api::v1::traces::process_traces)
@@ -430,7 +439,10 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::queues::push_to_queue)
                                 .service(api::v1::machine_manager::start_machine)
                                 .service(api::v1::machine_manager::terminate_machine)
-                                .service(api::v1::machine_manager::execute_computer_action),
+                                .service(api::v1::machine_manager::execute_computer_action)
+                                .service(api::v1::browser_sessions::create_session_event)
+                                .service(api::v1::evals::init_eval)
+                                .service(api::v1::evals::save_eval_datapoints),
                         )
                         // Scopes with generic auth
                         .service(

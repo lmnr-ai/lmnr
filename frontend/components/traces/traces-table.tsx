@@ -1,17 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
 import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { useUserContext } from '@/contexts/user-context';
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Trace } from '@/lib/traces/types';
-import { DatatableFilter, PaginatedResponse} from '@/lib/types';
+import { DatatableFilter, PaginatedResponse } from '@/lib/types';
 import { getFilterFromUrlParams } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
@@ -219,28 +216,14 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
             event.stopPropagation();
             handleAddFilter('span_type', row.getValue());
           }}
-          className="cursor-pointer flex space-x-2 items-center hover:underline"
+          className="cursor-pointer flex gap-2 items-center hover:bg-secondary"
         >
-          <SpanTypeIcon className='z-10' spanType={row.getValue()} />
-          <div className='flex text-sm'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
+          <div className=''>
+            <SpanTypeIcon className='z-10' spanType={row.getValue()} />
+          </div>
+          <div className='flex text-sm text-ellipsis overflow-hidden whitespace-nowrap'>{row.row.original.topSpanName}</div>
         </div>),
-      size: 120
-    },
-    {
-      cell: (row) => (
-        <div
-          onClick={(event) => {
-            event.stopPropagation();
-            handleAddFilter('name', row.getValue());
-          }}
-          className="cursor-pointer hover:underline"
-        >
-          {row.getValue()}
-        </div>
-      ),
-      accessorKey: 'topSpanName',
-      header: 'Top span name',
-      id: 'top_span_name'
+      size: 150
     },
     {
       cell: (row) => row.getValue(),
@@ -389,25 +372,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     },
   ];
 
-  const { supabaseAccessToken } = useUserContext();
-
-  const supabase = useMemo(() => {
-    if (!isFeatureEnabled(Feature.SUPABASE) || !supabaseAccessToken) {
-      return null;
-    }
-
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${supabaseAccessToken}`
-        }
-      }
-    });
-  }, []);
-
-  if (supabase) {
-    supabase.realtime.setAuth(supabaseAccessToken);
-  }
+  const { supabaseClient: supabase } = useUserContext();
 
   useEffect(() => {
     if (!supabase) {

@@ -16,14 +16,14 @@ export default function MonoWithCopy({
   copySize
 }: MonoWithCopyProps) {
   return (
-    <div className="flex items-center group space-x-2">
+    <div className="flex items-center group">
       <Mono className={className}>{children}</Mono>
       <CopyToClipboard
         // this is intentional, so that this fails if the children is not a string
         text={children as string}
-        className="hidden group-hover:block max-h-4"
+        className="opacity-0 group-hover:opacity-100 transition-all duration-150"
       >
-        <Copy size={copySize ?? 16} />
+        <Copy size={copySize ?? 14} />
       </CopyToClipboard>
     </div>
   );

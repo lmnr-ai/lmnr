@@ -52,7 +52,7 @@ export default function Header({ path, children, className, showSidebarTrigger =
       </div>
       <div className="flex pr-4 space-x-2">
         <Button variant='outline'>
-          <a href="https://cal.com/skull8888888/30min" target="_blank">
+          <a href="https://cal.com/robert-lmnr/demo" target="_blank">
             Book a demo
           </a>
         </Button>

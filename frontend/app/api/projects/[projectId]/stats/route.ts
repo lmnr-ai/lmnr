@@ -1,4 +1,4 @@
-import { count, eq, or } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { getSpansCountInProject } from "@/lib/clickhouse/spans";
@@ -9,22 +9,28 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ projectI
   const params = await props.params;
   const projectId = params.projectId;
 
-  const spansResult = await getSpansCountInProject(projectId);
+  const spansQuery = getSpansCountInProject(projectId);
 
-  const [result = { datasetsCount: 0, evaluationsCount: 0 }] = await db
-    .select({
-      datasetsCount: count(datasets.id),
-      evaluationsCount: count(evaluations.id),
-    })
+  const datasetsQuery = db
+    .select({ count: count(datasets.id) })
     .from(datasets)
-    .fullJoin(evaluations, eq(evaluations.projectId, datasets.projectId))
-    .where(or(eq(datasets.projectId, projectId), eq(evaluations.projectId, projectId)));
+    .where(eq(datasets.projectId, projectId));
+
+  const evalsQuery = db
+    .select({
+      count: count(evaluations.id),
+    })
+    .from(evaluations)
+    .where(eq(evaluations.projectId, projectId));
+
+  const [[spansResult = { count: 0 }], [datasetsResult = { count: 0 }], [evalsResult = { count: 0 }]] =
+    await Promise.all([spansQuery, datasetsQuery, evalsQuery]);
 
   return new Response(
     JSON.stringify({
-      datasetsCount: result.datasetsCount,
-      evaluationsCount: result.evaluationsCount,
-      spansCount: spansResult?.[0]?.count,
+      datasetsCount: datasetsResult.count,
+      evaluationsCount: evalsResult.count,
+      spansCount: spansResult.count,
     }),
     {
       headers: { "Content-Type": "application/json" },

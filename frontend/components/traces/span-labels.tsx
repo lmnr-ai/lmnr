@@ -46,7 +46,7 @@ export default function SpanLabels({ span }: SpanLabelsProps) {
     const params = (searchParams.get('datapointId') && span.attributes['lmnr.span.type'] === 'EXECUTOR')
       ? `?datapointId=${searchParams.get('datapointId')}`
       : '';
-    console.log(params);
+
     const response = await fetch(
       `/api/projects/${projectId}/spans/${span.spanId}/labels/${labelId}` + params,
       {

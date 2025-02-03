@@ -21,6 +21,7 @@ pub struct TraceAttributes {
     pub session_id: Option<String>,
     pub trace_type: Option<TraceType>,
     pub metadata: Option<HashMap<String, String>>,
+    pub has_browser_session: Option<bool>,
 }
 
 impl TraceAttributes {
@@ -76,5 +77,9 @@ impl TraceAttributes {
 
     pub fn set_metadata(&mut self, metadata: Option<HashMap<String, String>>) {
         self.metadata = metadata;
+    }
+
+    pub fn set_has_browser_session(&mut self, has_browser_session: bool) {
+        self.has_browser_session = Some(has_browser_session);
     }
 }

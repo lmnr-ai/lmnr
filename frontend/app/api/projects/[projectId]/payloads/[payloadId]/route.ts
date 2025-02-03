@@ -29,6 +29,8 @@ export async function GET(
   // that the media-type is application/pdf
   if (payloadType === 'image') {
     return new Response(bytes);
+  } else if (payloadType === 'raw') {
+    return new Response(bytes);
   } else if (payloadId.endsWith('.pdf')) {
     headers.set('Content-Type', 'application/pdf');
   } else {

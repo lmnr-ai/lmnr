@@ -66,6 +66,7 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq, semantic search, and python executor
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
 
 volumes:
   postgres-data:

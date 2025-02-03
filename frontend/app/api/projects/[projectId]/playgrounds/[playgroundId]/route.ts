@@ -20,7 +20,6 @@ export async function POST(
   const parsed = updatePlaygroundSchema.safeParse(body);
 
   if (!parsed.success) {
-    console.log(parsed.error.errors);
     return new Response(JSON.stringify({ error: parsed.error.errors }), {
       status: 400
     });
