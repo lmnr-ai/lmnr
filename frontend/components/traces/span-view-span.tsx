@@ -16,6 +16,8 @@ interface SpanViewSpanProps {
 export function SpanViewSpan({ span }: SpanViewSpanProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [contentWidth, setContentWidth] = useState<number>(0);
+  const [spanInput, setSpanInput] = useState(span.input);
+  const [spanOutput, setSpanOutput] = useState(span.output);
 
   useEffect(() => {
     if (!scrollAreaRef.current) return;
@@ -31,6 +33,28 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
     return () => resizeObserver.disconnect();
   }, [scrollAreaRef.current]);
 
+  if (span.inputUrl) {
+    const url = span.inputUrl.startsWith('/')
+      ? `${span.inputUrl}?payloadType=raw`
+      : span.inputUrl;
+    fetch(url).then(response => {
+      response.json().then(j => {
+        setSpanInput(j);
+      });
+    });
+  }
+
+  if (span.outputUrl) {
+    const url = span.outputUrl.startsWith('/')
+      ? `${span.outputUrl}?payloadType=raw`
+      : span.outputUrl;
+    fetch(url).then(response => {
+      response.json().then(j => {
+        setSpanOutput(j);
+      });
+    });
+  }
+
   return (
     <ScrollArea ref={scrollAreaRef} className="w-full h-full mt-0" type="scroll">
       <div className="max-h-0">
@@ -42,16 +66,20 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
             <SpanLabels span={span} />
             <SpanDatasets spanId={span.spanId} />
             <div className="pb-2 font-medium text-lg">Input</div>
-            {isChatMessageList(span.input) ? (
+            {isChatMessageList(spanInput) ? (
               <ChatMessageListTab
-                messages={span.input}
+                messages={spanInput}
                 presetKey={`input-${span.attributes['lmnr.span.path'].join('.')}`}
               />
             ) : (
               <Formatter
                 className="max-h-[400px]"
                 collapsible
-                value={JSON.stringify(span.input)}
+                value={
+                  typeof spanInput === 'string'
+                    ? spanInput
+                    : JSON.stringify(spanInput)
+                }
                 presetKey={`input-${span.attributes['lmnr.span.path'].join('.')}`}
               />
             )}
@@ -61,9 +89,9 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
             <Formatter
               className="max-h-[400px]"
               value={
-                typeof span.output === 'string'
-                  ? span.output
-                  : JSON.stringify(span.output)
+                typeof spanOutput === 'string'
+                  ? spanOutput
+                  : JSON.stringify(spanOutput)
               }
               presetKey={`output-${span.attributes['lmnr.span.path'].join('.')}`}
               collapsible

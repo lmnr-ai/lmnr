@@ -1,14 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
 import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { useUserContext } from '@/contexts/user-context';
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/const';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Trace } from '@/lib/traces/types';
 import { DatatableFilter, PaginatedResponse } from '@/lib/types';
@@ -375,25 +372,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     },
   ];
 
-  const { supabaseAccessToken } = useUserContext();
-
-  const supabase = useMemo(() => {
-    if (!isFeatureEnabled(Feature.SUPABASE) || !supabaseAccessToken) {
-      return null;
-    }
-
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${supabaseAccessToken}`
-        }
-      }
-    });
-  }, []);
-
-  if (supabase) {
-    supabase.realtime.setAuth(supabaseAccessToken);
-  }
+  const { supabaseClient: supabase } = useUserContext();
 
   useEffect(() => {
     if (!supabase) {

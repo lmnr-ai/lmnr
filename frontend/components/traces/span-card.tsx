@@ -59,12 +59,6 @@ export function SpanCard({
     setIsSelected(selectedSpan?.spanId === span.spanId);
   }, [selectedSpan]);
 
-  useEffect(() => {
-    if (activeSpans.includes(span.spanId) && ref.current) {
-      ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [activeSpans, span.spanId]);
-
   return (
     <div className="text-md flex w-full flex-col" ref={ref}>
       <div

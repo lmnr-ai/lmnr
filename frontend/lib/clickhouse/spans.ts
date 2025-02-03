@@ -17,6 +17,8 @@ export enum SpanMetricGroupBy {
   Path = "path",
   Name = "name",
 }
+
+// Don't change, must remain consistent with BE
 export enum SpanType {
   DEFAULT = 0,
   LLM = 1,
@@ -152,12 +154,15 @@ export const getSpanMetricsSummary = async (
   return await result.json();
 };
 
-export const getSpansCountInProject = async (projectId: string): Promise<{ count: number }[]> => {
+export const getSpansCountInProject = async (
+  projectId: string,
+  types: SpanType[] = [SpanType.DEFAULT]
+): Promise<{ count: number }[]> => {
   const query = `
     SELECT
       count(*) as count
     FROM spans
-    WHERE project_id = {projectId: UUID}
+    WHERE project_id = {projectId: UUID} AND span_type in {types: Array(UInt8)}
   `;
 
   const result = await clickhouseClient.query({
@@ -165,6 +170,7 @@ export const getSpansCountInProject = async (projectId: string): Promise<{ count
     format: "JSONEachRow",
     query_params: {
       projectId,
+      types,
     },
   });
 

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
@@ -40,6 +40,13 @@ const OUTPUT_ATTRIBUTE_NAME: &str = "lmnr.span.output";
 const OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME: &str = "lmnr.internal.override_parent_span";
 const TRACING_LEVEL_ATTRIBUTE_NAME: &str = "lmnr.internal.tracing_level";
 const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_session";
+
+// Minimal number of tokens in the input or output to store the payload
+// in storage instead of database.
+//
+// We use 7/2 as an estimate of the number of characters per token.
+// And 128K is a common input size for LLM calls.
+const DEFAULT_PAYLOAD_SIZE_THRESHOLD: usize = (7 / 2) * 128_000; // approx 448KB
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -377,6 +384,13 @@ impl Span {
 
                 if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
                     span.output = Some(serde_json::Value::String(s.clone()));
+                } else if let Some(serde_json::Value::String(s)) =
+                    attributes.get("ai.response.object")
+                {
+                    span.output = Some(
+                        serde_json::from_str::<Value>(s)
+                            .unwrap_or(serde_json::Value::String(s.clone())),
+                    );
                 }
             } else if attributes
                 .get("SpanAttributes.LLM_PROMPTS.0.content")
@@ -400,9 +414,18 @@ impl Span {
 
         // Vercel AI SDK wraps "raw" LLM spans in an additional `ai.generateText` span.
         // Which is not really an LLM span, but it has the prompt in its attributes.
-        // Set the input to the prompt.
+        // Set the input to the prompt and the output to the response.
         if let Some(serde_json::Value::String(s)) = attributes.get("ai.prompt") {
             span.input = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
+        }
+        if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
+            span.output = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
+        } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
+            span.output = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
         }
@@ -503,6 +526,8 @@ impl Span {
             span_type: SpanType::PIPELINE,
             events: None,
             labels: None,
+            input_url: None,
+            output_url: None,
         }
     }
 
@@ -563,17 +588,23 @@ impl Span {
                     },
                     events: None,
                     labels: None,
+                    input_url: None,
+                    output_url: None,
                 };
                 Some(span)
             })
             .collect()
     }
 
-    pub async fn store_input_media<S: Storage + ?Sized>(
+    pub async fn store_payloads<S: Storage + ?Sized>(
         &mut self,
         project_id: &Uuid,
         storage: Arc<S>,
     ) -> Result<()> {
+        let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(DEFAULT_PAYLOAD_SIZE_THRESHOLD);
         if let Some(input) = self.input.clone() {
             let span_input = serde_json::from_value::<Vec<ChatMessage>>(input);
             if let Ok(span_input) = span_input {
@@ -589,6 +620,34 @@ impl Span {
                     new_messages.push(message);
                 }
                 self.input = Some(serde_json::to_value(new_messages).unwrap());
+            // We cannot parse the input as a Vec<ChatMessage>, but we check if
+            // it's still large. Obviously serializing to JSON affects the size,
+            // but we don't need to be exact here.
+            } else {
+                let input_str = serde_json::to_string(&self.input).unwrap_or_default();
+                if input_str.len() > payload_size_threshold {
+                    let key = crate::storage::create_key(project_id, &None);
+                    let mut data = Vec::new();
+                    serde_json::to_writer(&mut data, &self.input)?;
+                    let url = storage.store(data, &key).await?;
+                    self.input_url = Some(url);
+                    self.input = Some(serde_json::Value::String(
+                        input_str.chars().take(100).collect(),
+                    ));
+                }
+            }
+        }
+        if let Some(output) = self.output.clone() {
+            let output_str = serde_json::to_string(&output).unwrap_or_default();
+            if output_str.len() > payload_size_threshold {
+                let key = crate::storage::create_key(project_id, &None);
+                let mut data = Vec::new();
+                serde_json::to_writer(&mut data, &output)?;
+                let url = storage.store(data, &key).await?;
+                self.output_url = Some(url);
+                self.output = Some(serde_json::Value::String(
+                    output_str.chars().take(100).collect(),
+                ));
             }
         }
         Ok(())

@@ -3,6 +3,7 @@ import "@/app/globals.css";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
+import { ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
 import ProjectNavbar from "@/components/projects/project-navbar";
@@ -15,10 +16,7 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { fetcherJSON } from "@/lib/utils";
 import { GetProjectResponse } from "@/lib/workspaces/types";
 
-export default async function ProjectIdLayout(props: {
-  children: React.ReactNode;
-  params: Promise<{ projectId: string }>;
-}) {
+export default async function ProjectIdLayout(props: { children: ReactNode; params: Promise<{ projectId: string }> }) {
   const params = await props.params;
 
   const { children } = props;

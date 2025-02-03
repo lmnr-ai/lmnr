@@ -9,6 +9,7 @@ interface TimelineProps {
   spans: Span[];
   childSpans: { [key: string]: Span[] };
   collapsedSpans: Set<string>;
+  browserSessionTime: number | null;
 }
 
 interface SegmentEvent {
@@ -26,17 +27,25 @@ interface Segment {
 
 const HEIGHT = 32;
 
-export default function Timeline({ spans, childSpans, collapsedSpans }: TimelineProps) {
+export default function Timeline({
+  spans,
+  childSpans,
+  collapsedSpans,
+  browserSessionTime
+}: TimelineProps) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [timeIntervals, setTimeIntervals] = useState<string[]>([]);
+  const [startTime, setStartTime] = useState<number>(0);
+  const [timelineWidthInMilliseconds, setTimelineWidthInMilliseconds] = useState<number>(0);
+
   const ref = useRef<HTMLDivElement>(null);
 
   const traverse = useCallback(
-    (span: Span, childSpans: { [key: string]: Span[] }, orderedSpands: Span[]) => {
+    (span: Span, childSpans: { [key: string]: Span[] }, orderedSpans: Span[]) => {
       if (!span) {
         return;
       }
-      orderedSpands.push(span);
+      orderedSpans.push(span);
 
       if (collapsedSpans.has(span.spanId)) {
         return;
@@ -44,7 +53,7 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
 
       if (childSpans[span.spanId]) {
         for (const child of childSpans[span.spanId]) {
-          traverse(child, childSpans, orderedSpands);
+          traverse(child, childSpans, orderedSpans);
         }
       }
     },
@@ -52,7 +61,7 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
   );
 
   useEffect(() => {
-    if (!ref.current || childSpans === null) {
+    if (!ref.current || childSpans === null || spans.length === 0) {
       return;
     }
 
@@ -63,44 +72,23 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
     }
 
     const orderedSpans: Span[] = [];
-    const topLevelSpans = spans.filter((span) => span.parentSpanId === null);
+    const topLevelSpans = spans
+      .filter((span) => span.parentSpanId === null)
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
     for (const span of topLevelSpans) {
       traverse(span, childSpans, orderedSpans);
     }
 
-    let startTime = null;
-    let endTime = null;
+    let startTime = new Date(orderedSpans[0].startTime).getTime();
+    let endTime = new Date(orderedSpans[orderedSpans.length - 1].endTime).getTime();
 
-    for (const span of spans) {
-      const spanStartTime = new Date(span.startTime);
-      const spanEndTime = new Date(span.endTime);
+    setStartTime(startTime);
 
-      if (!startTime) {
-        startTime = spanStartTime;
-      }
+    const totalDuration = endTime - startTime;
 
-      if (!endTime) {
-        endTime = spanEndTime;
-      }
-
-      if (spanStartTime < startTime) {
-        startTime = spanStartTime;
-      }
-
-      if (spanEndTime > endTime) {
-        endTime = spanEndTime;
-      }
-    }
-
-    if (!startTime || !endTime) {
-      return;
-    }
-
-    const totalDuration = endTime.getTime() - startTime.getTime();
-
-    const upperInterval = Math.ceil(totalDuration / 1000);
-    const unit = upperInterval / 10;
+    const upperIntervalInSeconds = Math.ceil(totalDuration / 1000);
+    const unit = upperIntervalInSeconds / 10;
 
     const timeIntervals = [];
     for (let i = 0; i < 10; i++) {
@@ -108,25 +96,25 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
     }
     setTimeIntervals(timeIntervals);
 
+    const upperIntervalInMilliseconds = upperIntervalInSeconds * 1000;
+    setTimelineWidthInMilliseconds(upperIntervalInMilliseconds);
+
     const segments: Segment[] = [];
 
     for (const span of orderedSpans) {
-      const duration = getDuration(span.startTime, span.endTime) / 1000;
+      const spanDuration = getDuration(span.startTime, span.endTime);
 
-      const width = (duration / upperInterval) * 100;
-      const left =
-        (getDuration(startTime.toISOString(), span.startTime) /
-          1000 /
-          upperInterval) *
-        100;
+      const width = (spanDuration / upperIntervalInMilliseconds) * 100;
+
+      const left = (new Date(span.startTime).getTime() - startTime) / upperIntervalInMilliseconds * 100;
 
       const segmentEvents = [] as SegmentEvent[];
+
       for (const event of span.events) {
         const eventLeft =
           ((new Date(event.timestamp).getTime() -
             new Date(span.startTime).getTime()) /
-            1000 /
-            duration) *
+            upperIntervalInMilliseconds) *
           100;
 
         segmentEvents.push({
@@ -148,7 +136,7 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
   }, [spans, childSpans, collapsedSpans]);
 
   return (
-    <div className="flex flex-col h-full w-full" ref={ref}>
+    <div className="flex flex-col h-full w-full relative" ref={ref}>
       <div className="bg-background flex text-xs w-full border-b z-40 sticky top-0 h-12 px-4">
         {timeIntervals.map((interval, index) => (
           <div
@@ -194,6 +182,13 @@ export default function Timeline({ spans, childSpans, collapsedSpans }: Timeline
               </div>
             </div>
           ))}
+          {browserSessionTime && (
+            <div className="absolute -top-32 h-[calc(100%+142px)] bg-primary z-50 w-[1px]"
+              style={{
+                left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + '%'
+              }}
+            />
+          )}
         </div>
       </div>
     </div>
