@@ -35,8 +35,6 @@ pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
 pub const OBSERVATIONS_EXCHANGE: &str = "observations_exchange";
 pub const OBSERVATIONS_ROUTING_KEY: &str = "observations_routing_key";
 
-
-
 pub async fn process_spans_and_events(
     span: &mut Span,
     events: Vec<Event>,

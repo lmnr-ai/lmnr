@@ -367,6 +367,11 @@ fn main() -> anyhow::Result<()> {
                     let shared_secret_auth =
                         HttpAuthentication::bearer(auth::shared_secret_validator);
 
+                    let num_workers_per_thread = env::var("NUM_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("8"))
+                        .parse::<u8>()
+                        .unwrap_or(8);
+
                     // start 8 threads per core to process spans from RabbitMQ
                     if is_feature_enabled(Feature::FullBuild) {
                         for _ in 0..num_workers_per_thread {
