@@ -95,6 +95,7 @@ services:
       - CODE_EXECUTOR_URL=http://python-executor:8811
       - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
       - ENVIRONMENT=FULL
+      - AEAD_SECRET_KEY=${AEAD_SECRET_KEY}
   frontend:
     image: ghcr.io/lmnr-ai/frontend
     ports:
