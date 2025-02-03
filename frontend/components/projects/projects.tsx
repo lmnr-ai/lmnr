@@ -1,23 +1,21 @@
 "use client";
 
 import React from "react";
-import useSWR from "swr";
 
 import WorkspacesList from "@/components/projects/workspaces-list";
-import { swrFetcher } from "@/lib/utils";
-import { WorkspaceWithProjects } from "@/lib/workspaces/types";
+import { useWorkspaceContext } from "@/contexts/workspace-context";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import { Skeleton } from "../ui/skeleton";
 import ProjectCreateDialog from "./project-create-dialog";
 import WorkspaceCreateDialog from "./workspace-create-dialog";
 
-interface ProjectsProps {
-  isWorkspaceEnabled: boolean;
-}
+export default function Projects() {
+  const {
+    result: { data, mutate, isLoading },
+  } = useWorkspaceContext();
 
-export default function Projects({ isWorkspaceEnabled }: ProjectsProps) {
-  const { data, mutate, isLoading } = useSWR<WorkspaceWithProjects[]>("/api/workspaces", swrFetcher);
-
+  const isWorkspaceEnabled = isFeatureEnabled(Feature.WORKSPACE);
   return (
     <>
       <div className="h-full p-4 w-full flex-grow">
