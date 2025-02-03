@@ -74,6 +74,9 @@ services:
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server
+    ports:
+      - "8000:8000"
+      - "8001:8001"
     depends_on:
       semantic-search-service:
         condition: service_started

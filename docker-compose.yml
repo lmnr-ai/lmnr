@@ -62,6 +62,9 @@ services:
   app-server:
     image: ghcr.io/lmnr-ai/app-server
     pull_policy: always
+    ports:
+      - "8000:8000"
+      - "8001:8001"
     depends_on:
       postgres:
         condition: service_healthy
