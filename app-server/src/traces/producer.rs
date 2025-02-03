@@ -10,9 +10,7 @@ use uuid::Uuid;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    db::{
-        events::Event, spans::Span, DB,
-    },
+    db::{events::Event, spans::Span, DB},
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
@@ -21,8 +19,8 @@ use crate::{
 };
 
 use super::{
-    processor::{process_label_classes, process_spans_and_events},
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY,
+    process_label_classes, process_spans_and_events, OBSERVATIONS_EXCHANGE,
+    OBSERVATIONS_ROUTING_KEY,
 };
 
 // TODO: Implement partial_success
@@ -61,7 +59,7 @@ pub async fn push_spans_to_queue(
                         None,
                     )
                     .await;
-            
+
                     process_label_classes(
                         &span,
                         &project_id,

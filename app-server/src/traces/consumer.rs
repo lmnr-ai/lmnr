@@ -6,7 +6,10 @@ use std::sync::Arc;
 use futures::StreamExt;
 use lapin::{options::BasicConsumeOptions, options::*, types::FieldTable, Connection};
 
-use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY};
+use super::{
+    process_label_classes, process_spans_and_events, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
+    OBSERVATIONS_ROUTING_KEY,
+};
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
@@ -15,10 +18,7 @@ use crate::{
     pipeline::runner::PipelineRunner,
     semantic_search::SemanticSearch,
     storage::Storage,
-    traces::{
-        index::index_span,
-        processor::{process_label_classes, process_spans_and_events},
-    },
+    traces::index::index_span,
 };
 
 pub async fn process_queue_spans<T: Storage + ?Sized>(
