@@ -384,6 +384,13 @@ impl Span {
 
                 if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
                     span.output = Some(serde_json::Value::String(s.clone()));
+                } else if let Some(serde_json::Value::String(s)) =
+                    attributes.get("ai.response.object")
+                {
+                    span.output = Some(
+                        serde_json::from_str::<Value>(s)
+                            .unwrap_or(serde_json::Value::String(s.clone())),
+                    );
                 }
             } else if attributes
                 .get("SpanAttributes.LLM_PROMPTS.0.content")
@@ -407,9 +414,18 @@ impl Span {
 
         // Vercel AI SDK wraps "raw" LLM spans in an additional `ai.generateText` span.
         // Which is not really an LLM span, but it has the prompt in its attributes.
-        // Set the input to the prompt.
+        // Set the input to the prompt and the output to the response.
         if let Some(serde_json::Value::String(s)) = attributes.get("ai.prompt") {
             span.input = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
+        }
+        if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
+            span.output = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
+        } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
+            span.output = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
         }

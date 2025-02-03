@@ -44,7 +44,8 @@ export async function GET(
       target: sql<string>`SUBSTRING(${evaluationResults.target}::text, 0, 100)`.as('target'),
       executorOutput: evaluationResults.executorOutput,
       scores: subQueryScoreCte.cteScores,
-      index: evaluationResults.index
+      index: evaluationResults.index,
+      traceId: evaluationResults.traceId
     })
     .from(evaluationResults)
     .leftJoin(

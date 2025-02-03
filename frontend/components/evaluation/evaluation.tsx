@@ -49,52 +49,21 @@ export default function Evaluation({
   const pathName = usePathname();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const { projectId } = useProjectContext();
-  const { data: evaluationInfo, mutate } = useSWR<EvaluationResultsInfo>(
+  const { data: evaluationInfo, mutate, isLoading } = useSWR<EvaluationResultsInfo>(
     `/api/projects/${projectId}/evaluations/${evaluationId}`,
     swrFetcher
   );
   const evaluation = evaluationInfo?.evaluation;
   const [comparedEvaluation, setComparedEvaluation] =
     useState<EvaluationType | null>(null);
-  let results = evaluationInfo?.results ?? [];
   // Selected score name must usually not be undefined, as we expect
   // to have at least one score, it's done just to not throw error if there are no scores
-  const [scoreColumns, setScoreColumns] = useState<Set<string>>(new Set());
+  const [scoreNames, setScoreNames] = useState<Set<string>>(new Set());
   const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(
-    scoreColumns.size > 0 ? Array.from(scoreColumns)[0] : undefined
+    scoreNames.size > 0 ? Array.from(scoreNames)[0] : undefined
   );
-
-  const updateScoreColumns = (rows: EvaluationDatapointPreviewWithCompared[]) => {
-    let newScoreColumns = new Set<string>(scoreColumns);
-    for (const row of rows) {
-      for (const key of Object.keys(row.scores ?? {})) {
-        newScoreColumns.add(key);
-      }
-    }
-    setScoreColumns(newScoreColumns);
-    setSelectedScoreName(newScoreColumns.size > 0 ? Array.from(newScoreColumns)[0] : undefined);
-  };
-
-  useEffect(() => {
-    const comparedEvaluationId = searchParams.get(
-      URL_QUERY_PARAMS.COMPARE_EVAL_ID
-    );
-    if (comparedEvaluationId) {
-      handleComparedEvaluationChange(comparedEvaluationId);
-    }
-    updateScoreColumns(results);
-  }, []);
-
-  // TODO: get datapoints paginated.
-  const [selectedDatapoint, setSelectedDatapoint] =
-    useState<EvaluationDatapointPreviewWithCompared | null>(
-      results.find(
-        (result) => result.id === searchParams.get('datapointId')
-      ) ?? null
-    );
-
   // Columns used when there is no compared evaluation
-  let defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
+  const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
     {
       accessorFn: (row) => JSON.stringify(row.data),
       header: 'Data'
@@ -109,16 +78,52 @@ export default function Evaluation({
       header: 'Output'
     }
   ];
-  defaultColumns = defaultColumns.concat(
-    Array.from(scoreColumns).map((scoreColumn) => ({
-      header: scoreColumn,
-      accessorFn: (row) => row.scores?.[scoreColumn] ?? '-',
-      size: 150
-    }))
-  );
+  const [columns, setColumns] = useState(defaultColumns);
+
+  const updateScoreColumns = (rows: EvaluationDatapointPreviewWithCompared[]) => {
+    let newScoreNames = new Set<string>(scoreNames);
+    for (const row of rows) {
+      for (const key of Object.keys(row.scores ?? {})) {
+        newScoreNames.add(key);
+      }
+    }
+    setScoreNames(newScoreNames);
+    setSelectedScoreName(newScoreNames.size > 0 ? Array.from(newScoreNames)[0] : undefined);
+    const newColumns = [...defaultColumns].concat(
+      Array.from(newScoreNames).map((scoreName: string) => ({
+        header: scoreName,
+        accessorFn: (row) => row.scores?.[scoreName] ?? '-',
+        size: 150
+      }))
+    );
+    setColumns(newColumns);
+  };
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+    updateScoreColumns(evaluationInfo?.results ?? []);
+  }, [evaluationInfo, isLoading]);
+
+  useEffect(() => {
+    const comparedEvaluationId = searchParams.get(
+      URL_QUERY_PARAMS.COMPARE_EVAL_ID
+    );
+    if (comparedEvaluationId) {
+      handleComparedEvaluationChange(comparedEvaluationId);
+    }
+  }, []);
+
+  // TODO: get datapoints paginated.
+  const [selectedDatapoint, setSelectedDatapoint] =
+    useState<EvaluationDatapointPreviewWithCompared | null>(
+      evaluationInfo?.results.find(
+        (result) => result.id === searchParams.get('datapointId')
+      ) ?? null
+    );
 
   const { supabaseClient: supabase } = useUserContext();
-
 
   useEffect(() => {
     if (!supabase || !evaluation) {
@@ -145,8 +150,6 @@ export default function Evaluation({
       )
       .subscribe();
   }, [supabase]);
-
-  const [columns, setColumns] = useState(defaultColumns);
 
   const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
     setSelectedDatapoint(row);
@@ -176,8 +179,8 @@ export default function Evaluation({
       .then((comparedEvaluation) => {
         setComparedEvaluation(comparedEvaluation.evaluation);
         // evaluationInfo.results are always fixed, but the compared results (comparedEvaluation.results) change
-        results = mergeOriginalWithComparedDatapoints(
-          results,
+        const results = mergeOriginalWithComparedDatapoints(
+          evaluationInfo?.results ?? [],
           comparedEvaluation.results
         );
         let columnsWithCompared: ColumnDef<EvaluationDatapointPreviewWithCompared>[] =
@@ -193,7 +196,7 @@ export default function Evaluation({
             }
           ];
         columnsWithCompared = columnsWithCompared.concat(
-          Array.from(scoreColumns).map((scoreColumn) => ({
+          Array.from(scoreNames).map((scoreColumn) => ({
             header: scoreColumn,
             cell: (row) => (
               <div className="flex flex-row items-center space-x-2">
@@ -297,7 +300,7 @@ export default function Evaluation({
                 <SelectValue placeholder="select score" />
               </SelectTrigger>
               <SelectContent>
-                {Array.from(scoreColumns).map((scoreName) => (
+                {Array.from(scoreNames).map((scoreName) => (
                   <SelectItem key={scoreName} value={scoreName}>
                     {scoreName}
                   </SelectItem>
@@ -333,7 +336,7 @@ export default function Evaluation({
                 ) : (
                   <Chart
                     evaluationId={evaluationId}
-                    allScoreNames={Array.from(scoreColumns)}
+                    allScoreNames={Array.from(scoreNames)}
                   />
                 )}
               </div>
@@ -343,7 +346,7 @@ export default function Evaluation({
             <DataTable
               className=""
               columns={columns}
-              data={results}
+              data={evaluationInfo?.results ?? []}
               getRowId={(row) => row.id}
               focusedRowId={selectedDatapoint?.id}
               paginated
