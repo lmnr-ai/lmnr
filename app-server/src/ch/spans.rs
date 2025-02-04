@@ -29,6 +29,7 @@ impl Into<u8> for SpanType {
             SpanType::EXECUTOR => 3,
             SpanType::EVALUATOR => 4,
             SpanType::EVALUATION => 5,
+            SpanType::TOOL => 6,
         }
     }
 }
