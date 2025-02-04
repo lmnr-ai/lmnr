@@ -80,6 +80,10 @@ export default function Timeline({
       traverse(span, childSpans, orderedSpans);
     }
 
+    if (orderedSpans.length === 0) {
+      return;
+    }
+
     let startTime = new Date(orderedSpans[0].startTime).getTime();
     let endTime = new Date(orderedSpans[orderedSpans.length - 1].endTime).getTime();
 
