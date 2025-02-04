@@ -10,13 +10,13 @@ import { Project, WorkspaceWithProjects } from "@/lib/workspaces/types";
 type WorkspaceContextType = {
   workspace?: WorkspaceWithProjects;
   project?: Project;
-  result: SWRResponse<WorkspaceWithProjects[]>;
+  workspacesResponse: SWRResponse<WorkspaceWithProjects[]>;
 };
 
 export const WorkspaceContext = createContext<WorkspaceContextType>({
   workspace: undefined,
   project: undefined,
-  result: {
+  workspacesResponse: {
     data: undefined,
     isLoading: false,
     isValidating: false,
@@ -29,20 +29,20 @@ export const useWorkspaceContext = () => useContext(WorkspaceContext);
 
 export const WorkspaceContextProvider = ({ children }: PropsWithChildren) => {
   const params = useParams();
-  const result = useSWR<WorkspaceWithProjects[]>("/api/workspaces", swrFetcher);
+  const workspacesResponse = useSWR<WorkspaceWithProjects[]>("/api/workspaces", swrFetcher);
 
   const value = useMemo<WorkspaceContextType>(() => {
-    const allProjects = result.data?.flatMap((workspace) => workspace.projects) ?? [];
+    const allProjects = workspacesResponse.data?.flatMap((workspace) => workspace.projects) ?? [];
     const project = allProjects.find((project) => project.id === params?.projectId);
 
-    const workspace = result.data?.find((workspace) => workspace.id === project?.workspaceId);
+    const workspace = workspacesResponse.data?.find((workspace) => workspace.id === project?.workspaceId);
 
     return {
       workspace,
       project,
-      result,
+      workspacesResponse,
     };
-  }, [params?.projectId, result]);
+  }, [params?.projectId, workspacesResponse]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 };

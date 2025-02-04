@@ -12,7 +12,7 @@ import WorkspaceCreateDialog from "./workspace-create-dialog";
 
 export default function Projects() {
   const {
-    result: { data, mutate, isLoading },
+    workspacesResponse: { data, mutate, isLoading },
   } = useWorkspaceContext();
 
   const isWorkspaceEnabled = isFeatureEnabled(Feature.WORKSPACE);
