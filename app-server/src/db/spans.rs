@@ -91,6 +91,7 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
         ),
         &None => None,
     };
+
     sqlx::query(
         "INSERT INTO spans
             (span_id,
