@@ -44,6 +44,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [startTime, setStartTime] = useState(0);
     const { projectId } = useProjectContext();
+    const workerRef = useRef<Worker | null>(null);
 
     // Add resize observer effect
     useEffect(() => {
@@ -64,22 +65,36 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     // Add debounce timer ref
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Create debounced goto function
+    // Initialize worker
+    useEffect(() => {
+      workerRef.current = new Worker(new URL('@/lib/workers/player-worker.ts', import.meta.url));
+
+      workerRef.current.onmessage = (e) => {
+        const { result, isPlaying } = e.data;
+        if (playerRef.current) {
+          try {
+            playerRef.current.goto(result, isPlaying);
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      };
+
+      return () => {
+        workerRef.current?.terminate();
+      };
+    }, []);
+
+    // Update the debouncedGoto function
     const debouncedGoto = useCallback((time: number) => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
 
       debounceTimerRef.current = setTimeout(() => {
-        if (playerRef.current) {
-          try {
-            playerRef.current.goto(time * 1000, isPlaying);
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      }, 50); // 50ms debounce delay
-    }, []);
+        workerRef.current?.postMessage({ time, isPlaying });
+      }, 50);
+    }, [isPlaying]);
 
     const getEvents = async () => {
       const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
@@ -109,12 +124,17 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
     useEffect(() => {
       if (hasBrowserSession) {
+        setEvents([]);
+        setIsPlaying(false);
+        setCurrentTime(0);
+        setTotalDuration(0);
+        setSpeed(1);
         getEvents();
       }
-    }, [hasBrowserSession]);
+    }, [hasBrowserSession, traceId]);
 
     useEffect(() => {
-      if (!events?.length || !playerContainerRef.current || playerRef.current) return;
+      if (!events?.length || !playerContainerRef.current) return;
 
       try {
         playerRef.current = new rrwebPlayer({
@@ -197,16 +217,15 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       setSpeed((currentSpeed) => (currentSpeed === 1 ? 2 : 1));
     };
 
-    // Expose imperative methods to parent
+    // Update the imperative handle
     useImperativeHandle(ref, () => ({
       goto: (time: number) => {
         if (playerRef.current) {
-          playerRef.current.pause();
-          playerRef.current.goto(time * 1000, isPlaying);
           setCurrentTime(time);
+          workerRef.current?.postMessage({ time, isPlaying });
         }
       }
-    }), []);
+    }), [isPlaying]);
 
     return (
       <>

@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use regex::Regex;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -116,6 +117,18 @@ pub async fn record_span_to_db(
     }
 
     span_attributes.extend_span_path(&span.name);
+    span_attributes.ids_path().map(|path| {
+        // set the parent to the second last id in the path
+        if path.len() > 1 {
+            let parent_id = path
+                .get(path.len() - 2)
+                .and_then(|id| Uuid::parse_str(id).ok());
+            if let Some(parent_id) = parent_id {
+                span.parent_span_id = Some(parent_id);
+            }
+        }
+    });
+    span_attributes.update_path();
     span.set_attributes(&span_attributes);
 
     let update_attrs_res =
@@ -177,4 +190,9 @@ pub async fn record_labels_to_db_and_ch(
     }
 
     Ok(())
+}
+
+pub fn skip_span_name(name: &str) -> bool {
+    let re = Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap();
+    re.is_match(name)
 }

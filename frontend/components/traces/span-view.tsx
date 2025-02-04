@@ -1,15 +1,10 @@
-import {
-  Activity,
-  ArrowRight,
-  Braces,
-  Gauge,
-  MessageCircleMore,
-} from 'lucide-react';
+
+
 import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
 import { Event } from '@/lib/events/types';
-import { Span, SpanType } from '@/lib/traces/types';
+import { Span } from '@/lib/traces/types';
 import { swrFetcher } from '@/lib/utils';
 
 import Formatter from '../ui/formatter';
@@ -19,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { AddLabelPopover } from './add-label-popover';
 import AddToLabelingQueuePopover from './add-to-labeling-queue-popover';
 import ExportSpansDialog from './export-spans-dialog';
+import SpanTypeIcon from './span-type-icon';
 import { SpanViewSpan } from './span-view-span';
 import StatsShields from './stats-shields';
 
@@ -55,20 +51,10 @@ export function SpanView({ spanId }: SpanViewProps) {
     <>
       <Tabs className="flex flex-col h-full w-full" defaultValue="span">
         <div className="border-b flex-none">
-          <div className="flex flex-col px-4 pt-2 gap-2">
-            <div className='flex flex-col gap-2'>
+          <div className="flex flex-col px-4 pt-2 gap-1">
+            <div className='flex flex-col gap-1'>
               <div className="flex flex-none items-center space-x-2">
-                <div className="p-1.5 px-2 text-xs text-secondary-foreground rounded bg-secondary">
-                  {span.spanType === SpanType.DEFAULT && <Braces size={16} />}
-                  {span.spanType === SpanType.LLM && (
-                    <MessageCircleMore size={16} />
-                  )}
-                  {span.spanType === SpanType.EXECUTOR && <Activity size={16} />}
-                  {span.spanType === SpanType.EVALUATOR && (
-                    <ArrowRight size={16} />
-                  )}
-                  {span.spanType === SpanType.EVALUATION && <Gauge size={16} />}
-                </div>
+                <SpanTypeIcon spanType={span.spanType} />
                 <div className="flex-grow text-xl items-center font-medium truncate max-w-[400px]">
                   {span.name}
                 </div>

@@ -27,9 +27,9 @@ use super::{
         ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST,
         GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS,
         GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST,
-        GEN_AI_TOTAL_TOKENS, LLM_NODE_RENDERED_PROMPT, SPAN_PATH, SPAN_TYPE,
+        GEN_AI_TOTAL_TOKENS, LLM_NODE_RENDERED_PROMPT, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
     },
-    utils::json_value_to_string,
+    utils::{json_value_to_string, skip_span_name},
 };
 
 const INPUT_ATTRIBUTE_NAME: &str = "lmnr.span.input";
@@ -174,6 +174,15 @@ impl SpanAttributes {
     }
 
     pub fn path(&self) -> Option<Vec<String>> {
+        let raw_path = self.raw_path();
+        raw_path.map(|path| {
+            path.into_iter()
+                .filter(|name| !skip_span_name(name))
+                .collect()
+        })
+    }
+
+    fn raw_path(&self) -> Option<Vec<String>> {
         match self.attributes.get(SPAN_PATH) {
             Some(Value::Array(arr)) => Some(
                 arr.iter()
@@ -187,6 +196,36 @@ impl SpanAttributes {
 
     pub fn flat_path(&self) -> Option<String> {
         self.path().map(|path| path.join("."))
+    }
+
+    pub fn ids_path(&self) -> Option<Vec<String>> {
+        let attributes_ids_path = match self.attributes.get(SPAN_IDS_PATH) {
+            Some(Value::Array(arr)) => Some(
+                arr.iter()
+                    .map(|v| json_value_to_string(v.clone()))
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        };
+
+        attributes_ids_path.map(|ids_path| {
+            let path = self.raw_path();
+            if let Some(path) = path {
+                ids_path
+                    .into_iter()
+                    .zip(path.into_iter())
+                    .filter_map(|(id, name)| {
+                        if skip_span_name(&name) {
+                            None
+                        } else {
+                            Some(id)
+                        }
+                    })
+                    .collect()
+            } else {
+                ids_path
+            }
+        })
     }
 
     pub fn set_usage(&mut self, usage: &SpanUsage) {
@@ -238,6 +277,29 @@ impl SpanAttributes {
                 Value::Array(vec![serde_json::Value::String(span_name.to_string())]),
             );
         }
+    }
+
+    pub fn update_path(&mut self) {
+        self.attributes.insert(
+            SPAN_PATH.to_string(),
+            Value::Array(
+                self.path()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(serde_json::Value::String)
+                    .collect(),
+            ),
+        );
+        self.attributes.insert(
+            SPAN_IDS_PATH.to_string(),
+            Value::Array(
+                self.ids_path()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(serde_json::Value::String)
+                    .collect(),
+            ),
+        );
     }
 
     pub fn labels(&self) -> HashMap<String, Value> {
@@ -309,6 +371,7 @@ impl Span {
 
     pub fn should_save(&self) -> bool {
         self.get_attributes().tracing_level() != Some(TracingLevel::Off)
+            && !skip_span_name(&self.name)
     }
 
     /// Create a span from an OpenTelemetry span.

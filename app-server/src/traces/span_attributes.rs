@@ -28,4 +28,5 @@ pub const GEN_AI_OUTPUT_COST: &str = "gen_ai.usage.output_cost";
 pub const ASSOCIATION_PROPERTIES_PREFIX: &str = "lmnr.association.properties";
 pub const SPAN_TYPE: &str = "lmnr.span.type";
 pub const SPAN_PATH: &str = "lmnr.span.path";
+pub const SPAN_IDS_PATH: &str = "lmnr.span.ids_path";
 pub const LLM_NODE_RENDERED_PROMPT: &str = "lmnr.span.prompt";
