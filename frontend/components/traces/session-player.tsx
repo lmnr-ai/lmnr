@@ -124,12 +124,17 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
     useEffect(() => {
       if (hasBrowserSession) {
+        setEvents([]);
+        setIsPlaying(false);
+        setCurrentTime(0);
+        setTotalDuration(0);
+        setSpeed(1);
         getEvents();
       }
-    }, [hasBrowserSession]);
+    }, [hasBrowserSession, traceId]);
 
     useEffect(() => {
-      if (!events?.length || !playerContainerRef.current || playerRef.current) return;
+      if (!events?.length || !playerContainerRef.current) return;
 
       try {
         playerRef.current = new rrwebPlayer({
