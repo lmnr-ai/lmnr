@@ -5,7 +5,6 @@ import { getDuration, getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
 import { cn, formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
-import { Label } from '../ui/label';
 import SpanTypeIcon from './span-type-icon';
 
 const ROW_HEIGHT = 36;

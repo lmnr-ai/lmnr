@@ -1,15 +1,10 @@
-import {
-  Activity,
-  ArrowRight,
-  Braces,
-  Gauge,
-  MessageCircleMore,
-} from 'lucide-react';
+
+
 import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
 import { Event } from '@/lib/events/types';
-import { Span, SpanType } from '@/lib/traces/types';
+import { Span } from '@/lib/traces/types';
 import { swrFetcher } from '@/lib/utils';
 
 import Formatter from '../ui/formatter';
@@ -19,9 +14,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { AddLabelPopover } from './add-label-popover';
 import AddToLabelingQueuePopover from './add-to-labeling-queue-popover';
 import ExportSpansDialog from './export-spans-dialog';
+import SpanTypeIcon from './span-type-icon';
 import { SpanViewSpan } from './span-view-span';
 import StatsShields from './stats-shields';
-import SpanTypeIcon from './span-type-icon';
 
 interface SpanViewProps {
   spanId: string;

@@ -5,4 +5,4 @@ self.onmessage = (e) => {
   // This is just to offload the calculation
   const result = time * 1000;
   self.postMessage({ result, isPlaying });
-}; 
+};
