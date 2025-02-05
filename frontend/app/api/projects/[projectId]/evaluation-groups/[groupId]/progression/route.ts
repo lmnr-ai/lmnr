@@ -6,6 +6,8 @@ import { AggregationFunction, TimeRange } from "@/lib/clickhouse/utils";
 export const GET = async (request: NextRequest, props: { params: Promise<{ projectId: string; groupId: string }> }) => {
   const params = await props.params;
   const { projectId, groupId } = params;
+
+  const ids = request.nextUrl.searchParams.getAll("id");
   let timeRange: TimeRange;
   if (request.nextUrl.searchParams.get("pastHours")) {
     const pastHours = parseInt(request.nextUrl.searchParams.get("pastHours") ?? "0");
@@ -20,7 +22,7 @@ export const GET = async (request: NextRequest, props: { params: Promise<{ proje
 
   const aggregationFunction = (request.nextUrl.searchParams.get("aggregate") ?? "AVG") as AggregationFunction;
 
-  const progression = await getEvaluationTimeProgression(projectId, groupId, timeRange, aggregationFunction);
+  const progression = await getEvaluationTimeProgression(projectId, groupId, timeRange, aggregationFunction, ids);
 
   return NextResponse.json(progression);
 };

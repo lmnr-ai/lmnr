@@ -1,13 +1,14 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 
+import ProgressionChart from "@/components/evaluations/progression-chart";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
-import { useProjectContext } from "@/contexts/project-context";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
 import { Evaluation } from "@/lib/evaluation/types";
@@ -23,7 +24,6 @@ import Mono from "../ui/mono";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import EvaluationsGroupsBar from "./evaluations-groups-bar";
-import ProgressionChart from "./progression-chart";
 
 const columns: ColumnDef<Evaluation>[] = [
   {
@@ -61,30 +61,50 @@ enum AggregationOptions {
 }
 
 export default function Evaluations() {
-  const { projectId } = useProjectContext();
+  const params = useParams();
   const pathName = usePathname();
-  const router = useRouter();
+  const { push } = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const posthog = usePostHog();
   const { email } = useUserContext();
 
-  const { data, mutate } = useSWR<PaginatedResponse<Evaluation>>(
-    `/api/projects/${projectId}/evaluations?groupId=${searchParams.get("groupId")}`,
+  const page = useMemo<{ number: number; size: number }>(() => {
+    const size = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 25;
+    return {
+      number: searchParams.get("pageNumber") ? Number(searchParams.get("pageNumber")) : 0,
+      size,
+    };
+  }, [searchParams]);
+
+  const { data, mutate, isLoading } = useSWR<PaginatedResponse<Evaluation>>(
+    `/api/projects/${params?.projectId}/evaluations?groupId=${searchParams.get("groupId")}&pageNumber=${page.number}&pageSize=${page.size}`,
     swrFetcher
   );
-  const evaluations = data?.items;
 
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>("AVG");
 
+  const handlePageChange = useCallback(
+    (pageNumber: number, pageSize: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("pageNumber", pageNumber.toString());
+      params.set("pageSize", pageSize.toString());
+      push(`${pathName}?${params}`);
+    },
+    [pathName, push, searchParams]
+  );
+
   const handleDeleteEvaluations = async (selectedRowIds: string[]) => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/evaluations?evaluationIds=${selectedRowIds.join(",")}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await fetch(
+        `/api/projects/${params?.projectId}/evaluations?evaluationIds=${selectedRowIds.join(",")}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (response.ok) {
         await mutate();
@@ -109,74 +129,75 @@ export default function Evaluations() {
     posthog.identify(email);
   }
 
-  const page = useMemo<{ number: number; size: number; count: number }>(() => {
-    const size = searchParams.get("pageSize") ? parseInt(String(searchParams.get("pageSize"))) : 25;
-    return {
-      number: searchParams.get("pageNumber") ? parseInt(String(searchParams.get("pageNumber"))) : 0,
-      size,
-      count: Math.ceil(Number(data?.totalCount || 0) / size),
-    };
-  }, [data?.totalCount, searchParams]);
-
   return (
     <div className="flex flex-col h-full">
       <Header path="evaluations" />
-      <div className="flex h-full w-full">
+      <div className="flex size-full">
         <EvaluationsGroupsBar />
-        <div className="flex flex-col h-full flex-grow space-y-4">
-          <div className="flex justify-start items-center flex-none p-2 space-x-4 w-full">
-            <div>
-              <Select
-                value={aggregationFunction}
-                onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Aggregate" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(AggregationOptions) as (keyof typeof AggregationOptions)[]).map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {AggregationOptions[option]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <div className="flex flex-col h-full flex-1 space-y-4">
+          <div className="flex flex-col gap-2 p-2">
+            <div className="flex gap-2 text-secondary-foreground">
+              Group: <div className="text-primary-foreground">{searchParams.get("groupId")}</div>
             </div>
+            <Select
+              value={aggregationFunction}
+              onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
+            >
+              <SelectTrigger className="w-fit">
+                <SelectValue placeholder="Aggregate" />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(AggregationOptions) as (keyof typeof AggregationOptions)[]).map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {AggregationOptions[option]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <ResizablePanelGroup direction="vertical">
-            <ResizablePanel className="flex-none px-2" minSize={15} defaultSize={20}>
-              <ProgressionChart className="h-full flex-none px-2" aggregationFunction={aggregationFunction} />
+            <ResizablePanel className="px-2 flex-grow" minSize={15} defaultSize={20}>
+              <ProgressionChart
+                evaluations={(data?.items || []).map(({ id, name }) => ({ id, name }))}
+                className="h-full px-2"
+                aggregationFunction={aggregationFunction}
+              />
             </ResizablePanel>
             <ResizableHandle className="z-50" />
-            <ResizablePanel className="flex-grow" minSize={30}>
-              <DataTable
-                enableRowSelection={true}
-                columns={columns}
-                data={evaluations}
-                onRowClick={(row) => router.push(`/project/${projectId}/evaluations/${row.original.id}`)}
-                defaultPageNumber={page.number}
-                defaultPageSize={page.size}
-                pageCount={page.count}
-                totalItemsCount={data?.totalCount}
-                onPageChange={(pageNumber, pageSize) => {
-                  const params = new URLSearchParams(searchParams.toString());
-                  params.set("pageNumber", pageNumber.toString());
-                  params.set("pageSize", pageSize.toString());
-                  router.push(`${pathName}?${params}`);
-                }}
-                getRowId={(row: Evaluation) => row.id}
-                paginated
-                pageSizeOptions={[10, 25]}
-                selectionPanel={(selectedRowIds) => (
-                  <div className="flex flex-col space-y-2">
-                    <DeleteSelectedRows
-                      selectedRowIds={selectedRowIds}
-                      onDelete={handleDeleteEvaluations}
-                      entityName="evaluations"
-                    />
-                  </div>
-                )}
-              />
+            <ResizablePanel className="flex-grow" minSize={30} defaultSize={30}>
+              {isLoading ? (
+                <div className="flex flex-col h-full p-2 gap-2">
+                  <Skeleton className="w-full h-8" />
+                  <Skeleton className="w-full h-8" />
+                  <Skeleton className="w-full h-8" />
+                  <Skeleton className="w-full h-8" />
+                </div>
+              ) : (
+                <DataTable
+                  enableRowSelection
+                  columns={columns}
+                  data={data?.items}
+                  onRowClick={(row) => push(`/project/${params?.projectId}/evaluations/${row.original.id}`)}
+                  defaultPageNumber={page.number}
+                  defaultPageSize={page.size}
+                  pageCount={Math.ceil(Number(data?.totalCount || 0) / page.size)}
+                  totalItemsCount={Number(data?.totalCount || 0)}
+                  onPageChange={handlePageChange}
+                  getRowId={(row: Evaluation) => row.id}
+                  paginated
+                  manualPagination
+                  pageSizeOptions={[10, 25]}
+                  selectionPanel={(selectedRowIds) => (
+                    <div className="flex flex-col space-y-2">
+                      <DeleteSelectedRows
+                        selectedRowIds={selectedRowIds}
+                        onDelete={handleDeleteEvaluations}
+                        entityName="evaluations"
+                      />
+                    </div>
+                  )}
+                />
+              )}
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>

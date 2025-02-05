@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-table";
 import { X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { Dispatch, PropsWithChildren, SetStateAction, useEffect, useState } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -56,10 +56,52 @@ interface DataTableProps<TData> {
   // we cannot fetch all rowIds on the client side, so we need to know when the user selects all rows across all pages
   // and manage that externally
   onSelectAllAcrossPages?: (selectAll: boolean) => void;
-  children?: React.ReactNode;
   selectionPanel?: (selectedRowIds: string[]) => React.ReactNode;
   pageSizeOptions?: number[];
 }
+
+const checkboxColumn = <TData,>(
+  setAllRowsAcrossAllPagesSelected: Dispatch<SetStateAction<boolean>>,
+  onSelectAllAcrossPages: DataTableProps<TData>["onSelectAllAcrossPages"]
+): ColumnDef<TData> => ({
+    id: "__row_selection",
+    enableResizing: false,
+    header: ({ table }) => (
+      <Checkbox
+        className="border border-secondary"
+        checked={table.getIsAllRowsSelected()}
+        onCheckedChange={(checked) => {
+          if (!checked) {
+            setAllRowsAcrossAllPagesSelected?.(false);
+            onSelectAllAcrossPages?.(false);
+          }
+        }}
+        onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
+        onClick={(e) => {
+          e.stopPropagation();
+          table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
+        }}
+      />
+    ),
+    size: 24,
+    cell: ({ row }) => (
+      <Checkbox
+        className={cn("border border-secondary mt-1")}
+        checked={row.getIsSelected()}
+        onCheckedChange={(checked) => {
+          if (!checked) {
+            setAllRowsAcrossAllPagesSelected?.(false);
+            onSelectAllAcrossPages?.(false);
+          }
+        }}
+        onChange={row.getToggleSelectedHandler()}
+        onClick={(e) => {
+          e.stopPropagation();
+          row.toggleSelected(!row.getIsSelected());
+        }}
+      />
+    ),
+  });
 
 export function DataTable<TData>({
   columns,
@@ -82,7 +124,7 @@ export function DataTable<TData>({
   children,
   selectionPanel,
   pageSizeOptions = [10, 20, 50, 100, 200, 500],
-}: DataTableProps<TData>) {
+}: PropsWithChildren<DataTableProps<TData>>) {
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = useState(false);
   const [expandedRows, setExpandedRows] = useState<ExpandedState>({});
@@ -108,51 +150,13 @@ export function DataTable<TData>({
     setRowSelection({});
   }, [data]);
 
-  if (enableRowSelection) {
-    columns.unshift({
-      id: "__row_selection",
-      enableResizing: false,
-      header: ({ table }) => (
-        <Checkbox
-          className="border border-secondary"
-          checked={table.getIsAllRowsSelected()}
-          onCheckedChange={(checked) => {
-            if (!checked) {
-              setAllRowsAcrossAllPagesSelected(false);
-              onSelectAllAcrossPages?.(false);
-            }
-          }}
-          onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
-          onClick={(e) => {
-            e.stopPropagation();
-            table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
-          }}
-        />
-      ),
-      size: 24,
-      cell: ({ row }) => (
-        <Checkbox
-          className={cn("border border-secondary mt-1")}
-          checked={row.getIsSelected()}
-          onCheckedChange={(checked) => {
-            if (!checked) {
-              setAllRowsAcrossAllPagesSelected(false);
-              onSelectAllAcrossPages?.(false);
-            }
-          }}
-          onChange={row.getToggleSelectedHandler()}
-          onClick={(e) => {
-            e.stopPropagation();
-            row.toggleSelected(!row.getIsSelected());
-          }}
-        />
-      ),
-    });
-  }
+  const selectionColumns = enableRowSelection
+    ? [checkboxColumn<TData>(setAllRowsAcrossAllPagesSelected, onSelectAllAcrossPages)]
+    : [];
 
-  const table = useReactTable({
+  const table = useReactTable<TData>({
     data: data ?? [],
-    columns,
+    columns: [...selectionColumns, ...columns],
     columnResizeMode: "onChange",
     columnResizeDirection: "ltr",
     getSubRows: (row: TData) => (row as any).subRows,

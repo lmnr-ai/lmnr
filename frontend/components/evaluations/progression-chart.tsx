@@ -15,66 +15,71 @@ import { Skeleton } from "../ui/skeleton";
 interface ProgressionChartProps {
   className?: string;
   aggregationFunction: AggregationFunction;
+  evaluations: { id: string; name: string }[];
 }
 
-export default function ProgressionChart({ className, aggregationFunction }: ProgressionChartProps) {
-  const [showScores, setShowScores] = useState<string[]>([]);
-  const [keys, setKeys] = useState<Set<string>>(new Set());
-  const searchParams = new URLSearchParams(useSearchParams().toString());
+export default function ProgressionChart({ className, aggregationFunction, evaluations }: ProgressionChartProps) {
+  const [scores, setScores] = useState<string[]>([]);
+  const searchParams = useSearchParams();
   const groupId = searchParams.get("groupId");
   const params = useParams();
 
-  const { data, error, isLoading } = useSWR<EvaluationTimeProgression[]>(
-    `/api/projects/${params?.projectId}/evaluation-groups/${groupId}/progression?aggregate=${aggregationFunction}`,
+  const evaluationsSearchParams = useMemo(
+    () => new URLSearchParams([...evaluations.map(({ id }) => ["id", id]), ["aggregate", aggregationFunction]]),
+    [evaluations, aggregationFunction]
+  );
+
+  const { data, isLoading } = useSWR<EvaluationTimeProgression[]>(
+    `/api/projects/${params?.projectId}/evaluation-groups/${groupId}/progression?${evaluationsSearchParams}`,
     swrFetcher
   );
 
+  const keys = useMemo(() => new Set(data?.flatMap(({ names }) => names) ?? []), [data]);
+
   useEffect(() => {
-    const newKeys = new Set(data?.flatMap(({ names }) => names) ?? []);
+    setScores(Array.from(keys));
+  }, [keys]);
 
-    setKeys(newKeys);
-
-    if (showScores.length === 0) {
-      setShowScores(Array.from(newKeys));
-    }
-  }, [data]);
-
-  const convertedScores = useMemo(
-    () =>
+  const convertedScores = useMemo(() => {
+    const map = evaluations.reduce((acc, curr) => ({ ...acc, [curr["id"]]: curr.name }), {});
+    return (
       data?.map(({ timestamp, evaluationId, names, values }) => ({
         timestamp,
         evaluationId,
+        name: map?.[evaluationId] || "-",
         ...Object.fromEntries(names.map((name, index) => [name, values[index]])),
-      })) ?? [],
-    [data]
-  );
+      })) ?? []
+    );
+  }, [data, evaluations]);
 
-  const chartConfig = Object.fromEntries(
-    Array.from(keys).map((key, index) => [
-      key,
-      {
-        color: `hsl(var(--chart-${(index % 5) + 1}))`,
-        label: key,
-      },
-    ])
-  ) satisfies ChartConfig;
+  const chartConfig = useMemo<ChartConfig>(
+    () =>
+      Object.fromEntries(
+        Array.from(keys).map((key, index) => [
+          key,
+          {
+            color: `hsl(var(--chart-${(index % 5) + 1}))`,
+            label: key,
+          },
+        ])
+      ),
+    [keys]
+  );
 
   const horizontalPadding = Math.max(10 - (data?.length ?? 0), 0) * 50;
 
   const handleClick = useCallback((key: string) => {
-    setShowScores((prevScores) =>
+    setScores((prevScores) =>
       prevScores.includes(key) ? prevScores.filter((score) => score !== key) : [...prevScores, key]
     );
   }, []);
 
   return (
-    <div className={cn("w-full h-full", className)}>
-      <ChartContainer config={chartConfig as ChartConfig} className={cn("h-5/6", "w-full")}>
-        {!data && isLoading ? (
-          <div className="h-full w-full">
-            <Skeleton className="h-full w-full" />
-          </div>
-        ) : (
+    <div className={cn("", className)}>
+      {!data && isLoading ? (
+        <Skeleton className="size-full" />
+      ) : (
+        <ChartContainer config={chartConfig} className="h-5/6 w-full">
           <LineChart margin={{ top: 10, right: 10, bottom: 5, left: -12 }} accessibilityLayer data={convertedScores}>
             <CartesianGrid vertical={false} />
             <XAxis
@@ -82,7 +87,6 @@ export default function ProgressionChart({ className, aggregationFunction }: Pro
               dataKey="timestamp"
               tickLine={false}
               axisLine={false}
-              // tickFormatter={(value: number) => formatTimestamp(`${value}Z`)}
               tick={false}
               height={8}
               padding={{ left: horizontalPadding, right: horizontalPadding }}
@@ -91,11 +95,19 @@ export default function ProgressionChart({ className, aggregationFunction }: Pro
             <ChartTooltip
               cursor={false}
               content={
-                <ChartTooltipContent className="min-w-60" labelFormatter={(value) => formatTimestamp(`${value}Z`)} />
+                <ChartTooltipContent
+                  className="min-w-60"
+                  labelFormatter={(value, payload) => (
+                    <>
+                      <p>{formatTimestamp(`${value}Z`)}</p>
+                      <p>{payload?.[0]?.payload?.name}</p>
+                    </>
+                  )}
+                />
               }
             />
             {Array.from(keys)
-              .filter((key) => showScores.includes(key))
+              .filter((key) => scores.includes(key))
               .map((key) => (
                 <Line
                   dot={{
@@ -110,18 +122,18 @@ export default function ProgressionChart({ className, aggregationFunction }: Pro
                 />
               ))}
           </LineChart>
-        )}
-      </ChartContainer>
-      <div className="flex flex-row justify-center w-full space-x-2 items-center">
+        </ChartContainer>
+      )}
+      <div className="flex flex-row justify-center w-full my-2 space-x-2 items-center">
         {Array.from(keys).map((key) => (
           <div
             key={key}
             className="flex items-center text-sm cursor-pointer decoration-dashed text-muted-foreground"
             style={
-              showScores.includes(key)
+              scores.includes(key)
                 ? {
-                    color: chartConfig[key].color,
-                  }
+                  color: chartConfig[key].color,
+                }
                 : {}
             }
             onClick={() => handleClick(key)}
