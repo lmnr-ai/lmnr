@@ -80,3 +80,14 @@ ENGINE = MergeTree
 PARTITION BY (toYYYYMM(timestamp), project_id)
 ORDER BY (session_id, timestamp)
 SETTINGS index_granularity = 8192;
+
+
+ALTER TABLE spans
+    ADD COLUMN input String CODEC(ZSTD(3)),
+    ADD COLUMN output String CODEC(ZSTD(3)),
+    -- Improved index configuration
+    ADD INDEX input_idx input TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4,
+    ADD INDEX output_idx output TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4,
+    -- Add materialized columns for case-insensitive search
+    ADD COLUMN input_lower String MATERIALIZED lower(input) CODEC(ZSTD(3)),
+    ADD COLUMN output_lower String MATERIALIZED lower(output) CODEC(ZSTD(3));

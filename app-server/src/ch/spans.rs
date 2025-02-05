@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -60,11 +61,23 @@ pub struct CHSpan {
     pub user_id: String,
     // Default value is <null>  backwards compatibility or if path attribute is not present
     pub path: String,
+    pub input: String,
+    pub output: String,
 }
 
 impl CHSpan {
     pub fn from_db_span(span: &Span, usage: SpanUsage, project_id: Uuid) -> Self {
         let span_attributes = span.get_attributes();
+
+        let span_input = span
+            .input
+            .clone()
+            .unwrap_or(Value::String(String::from("")));
+
+        let span_output = span
+            .output
+            .clone()
+            .unwrap_or(Value::String(String::from("")));
 
         CHSpan {
             span_id: span.span_id,
@@ -92,6 +105,8 @@ impl CHSpan {
             path: span_attributes
                 .flat_path()
                 .unwrap_or(String::from("<null>")),
+            input: span_input.to_string(),
+            output: span_output.to_string(),
         }
     }
 }
