@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { isChatMessageList } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
@@ -6,8 +6,6 @@ import { Span } from '@/lib/traces/types';
 import Formatter from '../ui/formatter';
 import { ScrollArea } from '../ui/scroll-area';
 import ChatMessageListTab from './chat-message-list-tab';
-import SpanDatasets from './span-datasets';
-import SpanLabels from './span-labels';
 
 interface SpanViewSpanProps {
   span: Span;

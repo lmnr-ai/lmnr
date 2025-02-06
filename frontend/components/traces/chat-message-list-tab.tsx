@@ -1,11 +1,11 @@
+import React from 'react';
+
 import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
 import { isStringType } from '@/lib/utils';
 
 import DownloadButton from '../ui/download-button';
 import Formatter from '../ui/formatter';
 import PdfRenderer from '../ui/pdf-renderer';
-
-import React from 'react';
 
 interface ContentPartTextProps {
   text: string;

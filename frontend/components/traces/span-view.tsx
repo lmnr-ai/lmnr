@@ -17,7 +17,6 @@ import ExportSpansDialog from './export-spans-dialog';
 import SpanTypeIcon from './span-type-icon';
 import { SpanViewSpan } from './span-view-span';
 import StatsShields from './stats-shields';
-import CodeEditor from '../ui/code-editor';
 
 interface SpanViewProps {
   spanId: string;

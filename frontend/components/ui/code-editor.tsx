@@ -6,8 +6,8 @@ import { EditorView } from '@codemirror/view';
 import { githubDarkStyle } from '@uiw/codemirror-theme-github';
 import { createTheme } from '@uiw/codemirror-themes';
 import CodeMirror from '@uiw/react-codemirror';
-import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { debounce } from 'lodash';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInView } from 'react-intersection-observer';
 
 import { cn } from '@/lib/utils';
@@ -149,12 +149,12 @@ export default function CodeEditor({
   // Memoize className
   const containerClassName = useMemo(() =>
     cn('w-full h-full bg-card text-foreground', background, className),
-    [background, className]
+  [background, className]
   );
 
   const editorClassName = useMemo(() =>
     cn('flex h-full', background),
-    [background]
+  [background]
   );
 
   // Render a placeholder when not in view
