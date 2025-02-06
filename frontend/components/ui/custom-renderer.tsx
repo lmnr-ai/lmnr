@@ -407,18 +407,6 @@ export default function CustomRenderer({
         )}
       </div>
       <div className="flex-grow flex overflow-hidden rounded-b">
-        {/* <Resizable
-          defaultSize={{ width: '100%', height: '400px' }}
-          enable={{
-            top: false,
-            right: false,
-            bottom: true,
-            left: false,
-            topRight: false,
-            bottomRight: false,
-            bottomLeft: false,
-          }}
-        > */}
         <iframe
           ref={iFrameRef}
           className="w-full min-h-[400px] h-full border-0"

@@ -17,6 +17,7 @@ import ExportSpansDialog from './export-spans-dialog';
 import SpanTypeIcon from './span-type-icon';
 import { SpanViewSpan } from './span-view-span';
 import StatsShields from './stats-shields';
+import CodeEditor from '../ui/code-editor';
 
 interface SpanViewProps {
   spanId: string;
@@ -98,7 +99,7 @@ export function SpanView({ spanId }: SpanViewProps) {
             </TabsTrigger>
           </TabsList>
         </div>
-        <div className="flex-grow flex">
+        <div className="flex-grow flex h-0">
           <TabsContent value="span" className="h-full w-full mt-0">
             <SpanViewSpan span={span} />
           </TabsContent>
