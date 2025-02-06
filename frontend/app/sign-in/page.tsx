@@ -2,7 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import noise from "@/assets/landing/noise.jpeg";
+import noise from "@/assets/landing/noise_resized.jpg";
 import logo from "@/assets/logo/logo.svg";
 import { EmailSignInButton } from "@/components/sign-in/email-signin";
 import { GitHubSignInButton } from "@/components/sign-in/github-signin";
@@ -27,7 +27,7 @@ export default async function SignInPage(props: {
     <div className="flex h-full items-center justify-center">
       <div className="flex flex-col items-center relative">
         <div className="inset-0 absolute z-10 md:rounded-lg overflow-hidden">
-          <Image src={noise} alt="" className="w-full h-full" priority />
+          <Image src={noise} alt="" className="w-full h-full" priority quality={100} />
         </div>
         <div className="z-20 flex flex-col items-center p-16 px-8">
           <Image alt="" src={logo} width={220} className="my-16" />

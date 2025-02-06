@@ -1,3 +1,5 @@
+import React from 'react';
+
 import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
 import { isStringType } from '@/lib/utils';
 
@@ -12,11 +14,11 @@ interface ContentPartTextProps {
 
 function ContentPartText({ text, presetKey }: ContentPartTextProps) {
   return (
-    <div className="w-full h-full">
+    <div className="w-full">
       <Formatter
         collapsible
         value={text}
-        className="rounded-none max-h-[50vh] border-none"
+        className="rounded-none max-h-[400px] border-none overflow-auto"
         presetKey={presetKey}
       />
     </div>
@@ -84,14 +86,21 @@ export default function ChatMessageListTab({
   messages,
   presetKey
 }: ChatMessageListTabProps) {
+  // Memoize messages to prevent unnecessary re-renders
+  const memoizedMessages = React.useMemo(() => messages, [messages]);
+
   return (
-    <div className="w-full h-full flex flex-col space-y-4">
-      {messages.map((message, index) => (
-        <div key={index} className="flex flex-col border rounded">
+    <div className="w-full overflow-auto flex flex-col space-y-4">
+      {memoizedMessages.map((message, index) => (
+        <div
+          key={`message-${index}`}
+          className="flex flex-col border rounded"
+          style={{ contain: 'content' }}
+        >
           <div className="font-medium text-sm text-secondary-foreground border-b p-2">
             {message.role.toUpperCase()}
           </div>
-          <div>
+          <div style={{ contain: 'content' }}>
             {isStringType(message.content) ? (
               <ContentPartText
                 text={message.content}

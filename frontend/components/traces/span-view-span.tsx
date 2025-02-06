@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { isChatMessageList } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
@@ -6,32 +6,14 @@ import { Span } from '@/lib/traces/types';
 import Formatter from '../ui/formatter';
 import { ScrollArea } from '../ui/scroll-area';
 import ChatMessageListTab from './chat-message-list-tab';
-import SpanDatasets from './span-datasets';
-import SpanLabels from './span-labels';
 
 interface SpanViewSpanProps {
   span: Span;
 }
 
 export function SpanViewSpan({ span }: SpanViewSpanProps) {
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const [contentWidth, setContentWidth] = useState<number>(0);
   const [spanInput, setSpanInput] = useState(span.input);
   const [spanOutput, setSpanOutput] = useState(span.output);
-
-  useEffect(() => {
-    if (!scrollAreaRef.current) return;
-
-    const resizeObserver = new ResizeObserver(entries => {
-      const entry = entries[0];
-      if (entry) {
-        setContentWidth(entry.contentRect.width);
-      }
-    });
-
-    resizeObserver.observe(scrollAreaRef.current);
-    return () => resizeObserver.disconnect();
-  }, [scrollAreaRef.current]);
 
   if (span.inputUrl) {
     const url = span.inputUrl.startsWith('/')
@@ -56,15 +38,14 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
   }
 
   return (
-    <ScrollArea ref={scrollAreaRef} className="w-full h-full mt-0" type="scroll">
+    <ScrollArea className="w-full h-full mt-0">
       <div className="max-h-0">
         <div
           className="flex flex-col gap-4 h-full p-4 w-full"
-          style={{ width: contentWidth }}
         >
           <div className="w-full">
-            <SpanLabels span={span} />
-            <SpanDatasets spanId={span.spanId} />
+            {/* <SpanLabels span={span} />
+            <SpanDatasets spanId={span.spanId} /> */}
             <div className="pb-2 font-medium text-lg">Input</div>
             {isChatMessageList(spanInput) ? (
               <ChatMessageListTab
