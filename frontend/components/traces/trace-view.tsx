@@ -304,6 +304,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                             {!selectedSpan && (
                               <td className="flex flex-grow w-full p-0 relative">
                                 <Timeline
+                                  containerHeight={containerHeight}
                                   spans={spans}
                                   childSpans={childSpans}
                                   collapsedSpans={collapsedSpans}
