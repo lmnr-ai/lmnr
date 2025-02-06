@@ -27,7 +27,7 @@ export default async function SignInPage(props: {
     <div className="flex h-full items-center justify-center">
       <div className="flex flex-col items-center relative">
         <div className="inset-0 absolute z-10 md:rounded-lg overflow-hidden">
-          <Image src={noise} alt="" className="w-full h-full" priority />
+          <Image src={noise} alt="" className="w-full h-full" priority quality={100} />
         </div>
         <div className="z-20 flex flex-col items-center p-16 px-8">
           <Image alt="" src={logo} width={220} className="my-16" />
