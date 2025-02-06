@@ -8,7 +8,7 @@ env_logger = "0.10.0"
 actix-web = "4"
 anyhow = "1"
 futures-util = "0.3.28"
-tonic = "0.12.3"
+tonic = { version = "0.12.3", features = ["gzip"] }
 
 # workaround [AFIT](https://rust-lang.github.io/rfcs/3185-static-async-fn-in-trait.html)
 # while [the feature](https://github.com/rust-lang/rust/pull/115822#issuecomment-1718261458) 

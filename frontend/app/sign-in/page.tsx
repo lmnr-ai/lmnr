@@ -2,7 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import noise from "@/assets/landing/noise.jpeg";
+import noise from "@/assets/landing/noise_resized.jpg";
 import logo from "@/assets/logo/logo.svg";
 import { EmailSignInButton } from "@/components/sign-in/email-signin";
 import { GitHubSignInButton } from "@/components/sign-in/github-signin";

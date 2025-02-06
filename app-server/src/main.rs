@@ -580,6 +580,8 @@ fn main() -> anyhow::Result<()> {
                 Server::builder()
                     .add_service(
                         TraceServiceServer::new(process_traces_service)
+                            .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
+                            .send_compressed(tonic::codec::CompressionEncoding::Gzip)
                             .max_decoding_message_size(GRPC_PAYLOAD_DECODING_LIMIT),
                     )
                     .serve_with_shutdown(grpc_address, async {
