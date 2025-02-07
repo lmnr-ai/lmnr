@@ -41,12 +41,12 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
   }, [keys]);
 
   const convertedScores = useMemo(() => {
-    const map = evaluations.reduce((acc, curr) => ({ ...acc, [curr["id"]]: curr.name }), {});
+    const map: Record<string, string> = evaluations.reduce((acc, curr) => ({ ...acc, [curr.id]: curr.name }), {});
     return (
       data?.map(({ timestamp, evaluationId, names, values }) => ({
         timestamp,
         evaluationId,
-        name: map?.[evaluationId] || "-",
+        name: map[evaluationId] || "-",
         ...Object.fromEntries(names.map((name, index) => [name, values[index]])),
       })) ?? []
     );

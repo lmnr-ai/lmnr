@@ -135,9 +135,9 @@ export default function Evaluations() {
       <div className="flex size-full">
         <EvaluationsGroupsBar />
         <div className="flex flex-col h-full flex-1 space-y-4">
-          <div className="flex flex-col gap-2 p-2">
+          <div className="flex gap-4 p-4 items-center">
             <div className="flex gap-2 text-secondary-foreground">
-              Group: <div className="text-primary-foreground">{searchParams.get("groupId")}</div>
+              <div className="text-primary-foreground text-xl font-medium">{searchParams.get("groupId")}</div>
             </div>
             <Select
               value={aggregationFunction}
