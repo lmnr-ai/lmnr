@@ -8,7 +8,6 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     db::{self, user::User},
-    semantic_search::SemanticSearch,
 };
 
 #[derive(Deserialize, Serialize, FromRow, Clone)]
@@ -22,7 +21,6 @@ pub struct Project {
 pub async fn create_project(
     pool: &PgPool,
     cache: Arc<Cache>,
-    semantic_search: Arc<dyn SemanticSearch>,
     user_id: &Uuid,
     name: &str,
     workspace_id: Uuid,

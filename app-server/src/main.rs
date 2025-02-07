@@ -379,7 +379,6 @@ fn main() -> anyhow::Result<()> {
                                 pipeline_runner.clone(),
                                 db_for_http.clone(),
                                 cache_for_http.clone(),
-                                semantic_search.clone(),
                                 rabbitmq_connection.clone(),
                                 clickhouse.clone(),
                                 storage.clone(),

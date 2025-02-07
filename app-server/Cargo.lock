@@ -482,7 +482,6 @@ dependencies = [
  "moka",
  "num_cpus",
  "prost",
- "prost-types",
  "rand",
  "rayon",
  "regex",
@@ -492,7 +491,6 @@ dependencies = [
  "serde",
  "serde-jsonlines",
  "serde_json",
- "serde_repr",
  "sha3",
  "sodiumoxide",
  "sqlx",
@@ -4982,17 +4980,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ce1fc6db65a611022b23a0dec6975d63fb80a302cb3388835ff02c097258d50"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "serde_repr"
-version = "0.1.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c64451ba24fc7a6a2d60fc75dd9c83c90903b19028d4eff35e88fc1e86564e9"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

@@ -1,22 +1,17 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use chrono::Utc;
-use prost_types::Timestamp;
 use qdrant_client::{
     qdrant::{
         vectors_config::Config, Condition, CreateCollection, CreateFieldIndexCollectionBuilder,
-        DatetimeRange, DeletePointsBuilder, Distance, FieldType, Filter, HnswConfigDiff,
-        PointStruct, SearchPoints, SearchResponse, SparseIndexConfig, SparseIndices,
-        SparseVectorConfig, SparseVectorParams, UpsertPointsBuilder, VectorParams, VectorsConfig,
+        DeletePointsBuilder, Distance, FieldType, Filter, HnswConfigDiff, PointStruct,
+        SearchPoints, SearchResponse, SparseIndexConfig, SparseVectorConfig, SparseVectorParams,
+        UpsertPointsBuilder, VectorParams, VectorsConfig,
     },
     Qdrant, QdrantError,
 };
 
-use crate::{
-    embeddings::Embedding,
-    semantic_search::semantic_search_grpc::{DateRanges, Model},
-};
+use crate::{embeddings::Embedding, semantic_search::semantic_search_grpc::Model};
 
 pub struct QdrantClient {
     client: Qdrant,
@@ -122,7 +117,6 @@ impl QdrantClient {
         limit: u64,
         threshold: f32,
         payloads: Vec<HashMap<String, String>>,
-        date_ranges: Option<DateRanges>,
     ) -> Result<SearchResponse> {
         let collection_id = collection_id(collection_name, model);
 
@@ -139,41 +133,7 @@ impl QdrantClient {
             })
             .collect();
 
-        let date_range_filter: Option<Condition> = date_ranges.map(|date_ranges| {
-            let date_range_conditions: Vec<Condition> = date_ranges
-                .date_ranges
-                .iter()
-                .map(|date_range| {
-                    let condition = Condition::datetime_range(
-                        date_range.key.clone(),
-                        DatetimeRange {
-                            gte: Some(Timestamp {
-                                seconds: date_range.gte.unwrap().seconds,
-                                nanos: date_range.gte.unwrap().nanos,
-                            }),
-                            lte: Some(Timestamp {
-                                seconds: date_range
-                                    .lte
-                                    .map_or(Utc::now().timestamp(), |lte| lte.seconds),
-                                nanos: date_range.lte.map_or(0, |lte| lte.nanos),
-                            }),
-                            ..Default::default()
-                        },
-                    );
-                    condition
-                })
-                .collect();
-            Filter::any(date_range_conditions).into()
-        });
-
-        let filter = if let Some(date_range_filter) = date_range_filter {
-            Filter::all(vec![
-                Filter::any(payload_conditions).into(),
-                date_range_filter,
-            ])
-        } else {
-            Filter::any(payload_conditions)
-        };
+        let filter = Filter::any(payload_conditions);
 
         let search_points = SearchPoints {
             collection_name: collection_id,
@@ -182,16 +142,6 @@ impl QdrantClient {
             limit: limit as u64,
             with_payload: Some(true.into()),
             score_threshold: Some(threshold),
-            vector_name: embedding
-                .sparse_indices
-                .as_ref()
-                .map(|_| "sparse".to_string()),
-            sparse_indices: embedding
-                .sparse_indices
-                .as_ref()
-                .map(|sparse_indices| SparseIndices {
-                    data: sparse_indices.clone(),
-                }),
             ..Default::default()
         };
 
