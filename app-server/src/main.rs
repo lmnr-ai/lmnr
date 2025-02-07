@@ -379,7 +379,6 @@ fn main() -> anyhow::Result<()> {
                                 pipeline_runner.clone(),
                                 db_for_http.clone(),
                                 cache_for_http.clone(),
-                                semantic_search.clone(),
                                 rabbitmq_connection.clone(),
                                 clickhouse.clone(),
                                 storage.clone(),
@@ -541,7 +540,6 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::datasets::delete_datapoint_embeddings)
                                         .service(routes::datasets::delete_all_datapoints)
                                         .service(routes::datasets::index_dataset)
-                                        .service(routes::traces::search_traces)
                                         .service(routes::labels::get_label_classes)
                                         .service(routes::labels::get_span_labels)
                                         .service(routes::labels::update_span_label)

@@ -16,16 +16,13 @@ use crate::{
     db::{spans::Span, DB},
     features::{is_feature_enabled, Feature},
     pipeline::runner::PipelineRunner,
-    semantic_search::SemanticSearch,
     storage::Storage,
-    traces::index::index_span,
 };
 
 pub async fn process_queue_spans<T: Storage + ?Sized>(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    semantic_search: Arc<dyn SemanticSearch>,
     rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
     storage: Arc<T>,
@@ -35,7 +32,6 @@ pub async fn process_queue_spans<T: Storage + ?Sized>(
             pipeline_runner.clone(),
             db.clone(),
             cache.clone(),
-            semantic_search.clone(),
             rabbitmq_connection.clone(),
             clickhouse.clone(),
             storage.clone(),
@@ -49,7 +45,6 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    semantic_search: Arc<dyn SemanticSearch>,
     rabbitmq_connection: Option<Arc<Connection>>,
     clickhouse: clickhouse::Client,
     storage: Arc<T>,
@@ -138,16 +133,6 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
                     e
                 );
             }
-        }
-
-        if let Err(e) = index_span(
-            &span,
-            semantic_search.clone(),
-            &format!("spans-{}", rabbitmq_span_message.project_id),
-        )
-        .await
-        {
-            log::error!("Failed to index span: {:?}", e);
         }
 
         let events = rabbitmq_span_message.events;

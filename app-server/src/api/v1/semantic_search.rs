@@ -100,8 +100,6 @@ pub async fn semantic_search(
             params.limit.unwrap_or(DEFAULT_LIMIT),
             params.threshold,
             payloads,
-            None,
-            false,
         )
         .await?;
 

@@ -77,10 +77,7 @@ impl Embed for Cohere {
 
         let results = join_all(tasks).await;
         for res in results {
-            embeddings.extend(res??.iter().map(|v| Embedding {
-                vector: v.to_vec(),
-                sparse_indices: None,
-            }));
+            embeddings.extend(res??.iter().map(|v| Embedding { vector: v.to_vec() }));
         }
 
         Ok(embeddings)

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use actix_web::{get, post, web, HttpResponse};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -16,7 +14,6 @@ use crate::{
     features::{is_feature_enabled, Feature},
     projects,
     routes::ResponseResult,
-    semantic_search::SemanticSearch,
 };
 
 #[get("")]
@@ -52,7 +49,6 @@ async fn create_workspace(
     user: User,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
     req: web::Json<CreateWorkspaceRequest>,
 ) -> ResponseResult {
     let req = req.into_inner();
@@ -60,7 +56,6 @@ async fn create_workspace(
     let project_name = req.project_name;
 
     let cache = cache.into_inner();
-    let semantic_search = semantic_search.into_inner().as_ref().clone();
 
     let workspace = db::workspace::create_new_workspace(&db.pool, Uuid::new_v4(), name).await?;
     log::info!(
@@ -77,7 +72,6 @@ async fn create_workspace(
         let project = projects::create_project(
             &db.pool,
             cache.clone(),
-            semantic_search.clone(),
             &user.id,
             &project_name,
             workspace.id,

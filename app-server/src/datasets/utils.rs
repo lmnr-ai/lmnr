@@ -57,7 +57,7 @@ pub async fn index_new_points(
 
         if !vector_db_datapoints.is_empty() {
             semantic_search
-                .index(vector_db_datapoints, collection_name, false)
+                .index(vector_db_datapoints, collection_name)
                 .await?;
         }
     }
