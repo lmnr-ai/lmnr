@@ -1,14 +1,12 @@
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
 
-import { authOptions } from '@/lib/auth';
+import { searchSpans } from '@/lib/clickhouse/spans';
+import { getTimeRange } from '@/lib/clickhouse/utils';
 import { db } from '@/lib/db/drizzle';
 import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
 import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
 import { getDateRangeFilters } from '@/lib/db/utils';
-import { TraceSearchResponse } from '@/lib/traces/types';
-import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: NextRequest,
@@ -24,20 +22,9 @@ export async function GET(
 
   let searchTraceIds = null;
   if (req.nextUrl.searchParams.get("search")) {
-    const session = await getServerSession(authOptions);
-    const user = session!.user;
-    const resp = await fetcher(
-      `/projects/${projectId}/traces/search?${req.nextUrl.searchParams.toString()}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.apiKey}`,
-        }
-      }
-    );
-    const response = await resp.json() as TraceSearchResponse;
-    searchTraceIds = response.traceIds;
+    const timeRange = getTimeRange(pastHours ?? undefined, startTime ?? undefined, endTime ?? undefined);
+    const searchResult = await searchSpans(projectId, req.nextUrl.searchParams.get("search") ?? "", timeRange);
+    searchTraceIds = Array.from(searchResult.traceIds);
   }
 
   let urlParamFilters: FilterDef[] = [];

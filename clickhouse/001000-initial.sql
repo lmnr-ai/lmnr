@@ -89,5 +89,5 @@ SETTINGS index_granularity = 8192;
 
 ALTER TABLE default.spans
     -- Improved index configuration
-    ADD INDEX input_idx input TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4,
-    ADD INDEX output_idx output TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4,
+    ADD INDEX input_case_insensitive_idx input_lower TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4,
+    ADD INDEX output_case_insensitive_idx output_lower TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4;

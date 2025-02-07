@@ -1,14 +1,13 @@
 import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
 
-import { authOptions } from '@/lib/auth';
+import { searchSpans } from '@/lib/clickhouse/spans';
+import { getTimeRange } from '@/lib/clickhouse/utils';
 import { db } from '@/lib/db/drizzle';
 import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
 import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
 import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
-import {Span, TraceSearchResponse} from '@/lib/traces/types';
-import { fetcher } from '@/lib/utils';
+import { Span } from '@/lib/traces/types';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -53,20 +52,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   let searchSpanIds = null;
   if (req.nextUrl.searchParams.get("search")) {
-    const session = await getServerSession(authOptions);
-    const user = session!.user;
-    const resp = await fetcher(
-      `/projects/${projectId}/traces/search?${req.nextUrl.searchParams.toString()}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.apiKey}`,
-        }
-      }
-    );
-    const response = await resp.json() as TraceSearchResponse;
-    searchSpanIds = response.spanIds;
+    const timeRange = getTimeRange(pastHours ?? undefined, startTime ?? undefined, endTime ?? undefined);
+    const searchResult = await searchSpans(projectId, req.nextUrl.searchParams.get("search") ?? "", timeRange);
+    searchSpanIds = Array.from(searchResult.spanIds);
   }
 
   const textSearchFilters = searchSpanIds ? [

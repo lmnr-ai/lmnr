@@ -541,7 +541,6 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::datasets::delete_datapoint_embeddings)
                                         .service(routes::datasets::delete_all_datapoints)
                                         .service(routes::datasets::index_dataset)
-                                        .service(routes::traces::search_traces)
                                         .service(routes::labels::get_label_classes)
                                         .service(routes::labels::get_span_labels)
                                         .service(routes::labels::update_span_label)

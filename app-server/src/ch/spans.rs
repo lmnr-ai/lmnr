@@ -35,7 +35,7 @@ impl Into<u8> for SpanType {
     }
 }
 
-#[derive(Row, Serialize, Deserialize)]
+#[derive(Row, Serialize, Deserialize, Debug)]
 pub struct CHSpan {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
@@ -109,30 +109,6 @@ impl CHSpan {
             output: json_value_to_string(span_output),
         }
     }
-}
-
-pub async fn search_spans(
-    clickhouse: clickhouse::Client,
-    project_id: Uuid,
-    query: &str,
-) -> Result<Vec<CHSpan>> {
-    let query_string = "SELECT *
-        FROM spans
-        WHERE
-            project_id = ? 
-            AND 
-            (input_lower LIKE '%?%'
-            OR output_lower LIKE '%?%')";
-
-    let rows = clickhouse
-        .query(query_string)
-        .bind(project_id)
-        .bind(query.to_lowercase())
-        .bind(query.to_lowercase())
-        .fetch_all::<CHSpan>()
-        .await?;
-
-    Ok(rows)
 }
 
 pub async fn insert_span(clickhouse: clickhouse::Client, span: &CHSpan) -> Result<()> {
