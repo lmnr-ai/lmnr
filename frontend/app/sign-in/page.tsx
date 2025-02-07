@@ -8,6 +8,7 @@ import { EmailSignInButton } from "@/components/sign-in/email-signin";
 import { GitHubSignInButton } from "@/components/sign-in/github-signin";
 import { GoogleSignInButton } from "@/components/sign-in/google-signin";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { cn } from "@/lib/utils";
 
 export default async function SignInPage(props: {
   params: Promise<{}>;
@@ -33,10 +34,15 @@ export default async function SignInPage(props: {
           <Image alt="" src={logo} width={220} className="my-16" />
           {isFeatureEnabled(Feature.EMAIL_AUTH) && <EmailSignInButton callbackUrl={callbackUrl} />}
           {isFeatureEnabled(Feature.GOOGLE_AUTH) && (
-            <GoogleSignInButton className="text-[16px] py-6 px-4 pr-8 mb-4" callbackUrl={callbackUrl} />
+            <GoogleSignInButton className="text-[16px] py-6 px-4 pr-8 mt-4" callbackUrl={callbackUrl} />
           )}
           {isFeatureEnabled(Feature.GITHUB_AUTH) && (
-            <GitHubSignInButton className="text-[16px] py-6 px-4 pr-8" callbackUrl={callbackUrl} />
+            <GitHubSignInButton
+              className={cn("text-[16px] py-6 px-4 pr-8 mt-4", {
+                "w-full": isFeatureEnabled(Feature.EMAIL_AUTH),
+              })}
+              callbackUrl={callbackUrl}
+            />
           )}
           {!isFeatureEnabled(Feature.EMAIL_AUTH) && (
             <div className="mt-16 text-sm text-secondary-foreground">
