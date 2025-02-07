@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     db::spans::{Span, SpanType},
-    traces::spans::SpanUsage,
+    traces::{spans::SpanUsage, utils::json_value_to_string},
 };
 
 use super::{
@@ -105,10 +105,34 @@ impl CHSpan {
             path: span_attributes
                 .flat_path()
                 .unwrap_or(String::from("<null>")),
-            input: span_input.to_string(),
-            output: span_output.to_string(),
+            input: json_value_to_string(span_input),
+            output: json_value_to_string(span_output),
         }
     }
+}
+
+pub async fn search_spans(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    query: &str,
+) -> Result<Vec<CHSpan>> {
+    let query_string = "SELECT *
+        FROM spans
+        WHERE
+            project_id = ? 
+            AND 
+            (input_lower LIKE '%?%'
+            OR output_lower LIKE '%?%')";
+
+    let rows = clickhouse
+        .query(query_string)
+        .bind(project_id)
+        .bind(query.to_lowercase())
+        .bind(query.to_lowercase())
+        .fetch_all::<CHSpan>()
+        .await?;
+
+    Ok(rows)
 }
 
 pub async fn insert_span(clickhouse: clickhouse::Client, span: &CHSpan) -> Result<()> {

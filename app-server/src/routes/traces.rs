@@ -36,39 +36,21 @@ struct TraceSearchResponse {
 pub async fn search_traces(
     path: web::Path<Uuid>,
     query_params: web::Query<TraceSearchQueryParams>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let project_id = path.into_inner();
     let limit = query_params.limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
     let params = query_params.into_inner();
     let search_query = params.search;
     let date_range = params.date_range;
-    let Ok(query_res) = semantic_search
-        .query(
-            &format!("spans-{project_id}"),
-            search_query,
-            limit as u32,
-            0.0,
-            vec![],
-            date_range
-                .clone()
-                .map(|range| DateRanges::from_name_and_db_range("created_at", range)),
-            true,
-        )
-        .await
-    else {
-        // Most likely, no collection yet (for older projects).
-        return Ok(HttpResponse::Ok().json(TraceSearchResponse {
-            trace_ids: HashSet::new(),
-            span_ids: HashSet::new(),
-        }));
-    };
+    let clickhouse = clickhouse.into_inner().as_ref().clone();
+    let spans = ch::spans::search_spans(clickhouse, project_id, &search_query).await?;
 
     let mut trace_ids = HashSet::new();
     let mut span_ids = HashSet::new();
-    query_res.results.iter().for_each(|point| {
-        trace_ids.insert(Uuid::parse_str(point.data.get("trace_id").unwrap()).unwrap());
-        span_ids.insert(Uuid::parse_str(point.data.get("span_id").unwrap()).unwrap());
+    spans.iter().for_each(|span| {
+        trace_ids.insert(span.trace_id);
+        span_ids.insert(span.span_id);
     });
 
     let response = TraceSearchResponse {
