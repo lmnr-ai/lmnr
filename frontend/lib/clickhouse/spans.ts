@@ -178,10 +178,12 @@ export const getSpansCountInProject = async (
   return await result.json();
 };
 
+const DEFAULT_LIMIT: number = 200;
+
 export const searchSpans = async (
   projectId: string,
   searchQuery: string,
-  timeRange: TimeRange
+  timeRange: TimeRange,
 ): Promise<{
   spanIds: Set<string>;
   traceIds: Set<string>;
@@ -199,7 +201,7 @@ export const searchSpans = async (
   const query = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
 
   const response = await clickhouseClient.query({
-    query,
+    query: `${query} LIMIT ${DEFAULT_LIMIT}`,
     format: "JSONEachRow",
     query_params: {
       projectId,
