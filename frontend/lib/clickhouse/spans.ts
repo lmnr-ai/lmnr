@@ -193,9 +193,9 @@ export const searchSpans = async (
     WHERE 
       project_id = {projectId: UUID}
       AND (
-        input LIKE {query: String} 
+        input_lower LIKE {query: String} 
         OR
-        output LIKE {query: String}
+        output_lower LIKE {query: String}
       )`;
 
   const query = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
