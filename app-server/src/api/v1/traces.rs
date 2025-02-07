@@ -10,6 +10,7 @@ use crate::{
     db::{events::Event, project_api_keys::ProjectApiKey, spans::Span, DB},
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
+    pipeline::runner::PipelineRunner,
     routes::types::ResponseResult,
     traces::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue},
 };
@@ -31,6 +32,7 @@ pub async fn process_traces(
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
     cache: web::Data<crate::cache::Cache>,
+    pipeline_runner: web::Data<PipelineRunner>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let cache = cache.into_inner();
@@ -39,6 +41,8 @@ pub async fn process_traces(
         anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
     })?;
     let rabbitmq_connection = rabbitmq_connection.as_ref().clone();
+
+    let pipeline_runner = pipeline_runner.into_inner();
 
     if is_feature_enabled(Feature::UsageLimit) {
         let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
@@ -61,6 +65,7 @@ pub async fn process_traces(
         db,
         clickhouse,
         cache,
+        pipeline_runner,
     )
     .await?;
     if response.partial_success.is_some() {

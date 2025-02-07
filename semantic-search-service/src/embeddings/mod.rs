@@ -1,8 +1,6 @@
-mod bm25;
 mod cohere;
 mod endpoint;
 
-pub use bm25::*;
 pub use cohere::*;
 pub use endpoint::*;
 
@@ -13,13 +11,11 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 pub struct Embedding {
     pub vector: Vec<f32>,
-    pub sparse_indices: Option<Vec<u32>>,
 }
 
 #[enum_dispatch(Embed)]
 pub enum EmbeddingModel {
     Cohere(Cohere),
-    Bm25(Bm25),
 }
 
 #[enum_dispatch]

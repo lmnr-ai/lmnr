@@ -79,7 +79,7 @@ mod traces;
 
 const DEFAULT_CACHE_SIZE: u64 = 100; // entries
 const HTTP_PAYLOAD_LIMIT: usize = 5 * 1024 * 1024; // 5MB
-const GRPC_PAYLOAD_DECODING_LIMIT: usize = 10 * 1024 * 1024; // 10MB
+const GRPC_PAYLOAD_DECODING_LIMIT: usize = 50 * 1024 * 1024; // 50MB
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -248,45 +248,103 @@ fn main() -> anyhow::Result<()> {
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
     let clickhouse_for_grpc = clickhouse.clone();
+
+    let (semantic_search, pipeline_runner, language_model_runner) =
+        runtime_handle.block_on(async {
+            let semantic_search: Arc<dyn SemanticSearch> = if is_feature_enabled(Feature::FullBuild)
+            {
+                let semantic_search_url =
+                    env::var("SEMANTIC_SEARCH_URL").expect("SEMANTIC_SEARCH_URL must be set");
+
+                let semantic_search_client = Arc::new(
+                    SemanticSearchClient::connect(semantic_search_url)
+                        .await
+                        .unwrap(),
+                );
+                Arc::new(
+                    semantic_search::semantic_search_impl::SemanticSearchImpl::new(
+                        semantic_search_client,
+                    ),
+                )
+            } else {
+                Arc::new(semantic_search::mock::MockSemanticSearch {})
+            };
+
+            let code_executor: Arc<dyn CodeExecutor> = if is_feature_enabled(Feature::FullBuild) {
+                let code_executor_url =
+                    env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
+                let code_executor_client = Arc::new(
+                    CodeExecutorClient::connect(code_executor_url)
+                        .await
+                        .unwrap(),
+                );
+                Arc::new(code_executor::code_executor_impl::CodeExecutorImpl::new(
+                    code_executor_client,
+                ))
+            } else {
+                Arc::new(code_executor::mock::MockCodeExecutor {})
+            };
+
+            let client = reqwest::Client::new();
+            let anthropic = language_model::Anthropic::new(client.clone());
+            let openai = language_model::OpenAI::new(client.clone());
+            let openai_azure = language_model::OpenAIAzure::new(client.clone());
+            let gemini = language_model::Gemini::new(client.clone());
+            let groq = language_model::Groq::new(client.clone());
+            let mistral = language_model::Mistral::new(client.clone());
+
+            let mut language_models: HashMap<LanguageModelProviderName, LanguageModelProvider> =
+                HashMap::new();
+            language_models.insert(
+                LanguageModelProviderName::Anthropic,
+                LanguageModelProvider::Anthropic(anthropic),
+            );
+            language_models.insert(
+                LanguageModelProviderName::OpenAI,
+                LanguageModelProvider::OpenAI(openai),
+            );
+            language_models.insert(
+                LanguageModelProviderName::OpenAIAzure,
+                LanguageModelProvider::OpenAIAzure(openai_azure),
+            );
+            language_models.insert(
+                LanguageModelProviderName::Gemini,
+                LanguageModelProvider::Gemini(gemini),
+            );
+            language_models.insert(
+                LanguageModelProviderName::Groq,
+                LanguageModelProvider::Groq(groq),
+            );
+            language_models.insert(
+                LanguageModelProviderName::Mistral,
+                LanguageModelProvider::Mistral(mistral),
+            );
+            language_models.insert(
+                LanguageModelProviderName::Bedrock,
+                LanguageModelProvider::Bedrock(language_model::AnthropicBedrock::new(
+                    aws_sdk_bedrockruntime::Client::new(&aws_sdk_config),
+                )),
+            );
+            let language_model_runner =
+                Arc::new(language_model::LanguageModelRunner::new(language_models));
+
+            let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
+                language_model_runner.clone(),
+                semantic_search.clone(),
+                rabbitmq_connection.clone(),
+                code_executor.clone(),
+                db_for_http.clone(),
+                cache_for_http.clone(),
+            ));
+
+            (semantic_search, pipeline_runner, language_model_runner)
+        });
+
+    let pipeline_runner_for_grpc = pipeline_runner.clone();
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
         .spawn(move || {
             runtime_handle_for_http.block_on(async {
-                let semantic_search: Arc<dyn SemanticSearch> =
-                    if is_feature_enabled(Feature::FullBuild) {
-                        let semantic_search_url = env::var("SEMANTIC_SEARCH_URL")
-                            .expect("SEMANTIC_SEARCH_URL must be set");
-
-                        let semantic_search_client = Arc::new(
-                            SemanticSearchClient::connect(semantic_search_url)
-                                .await
-                                .unwrap(),
-                        );
-                        Arc::new(
-                            semantic_search::semantic_search_impl::SemanticSearchImpl::new(
-                                semantic_search_client,
-                            ),
-                        )
-                    } else {
-                        Arc::new(semantic_search::mock::MockSemanticSearch {})
-                    };
-
-                let code_executor: Arc<dyn CodeExecutor> = if is_feature_enabled(Feature::FullBuild)
-                {
-                    let code_executor_url =
-                        env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
-                    let code_executor_client = Arc::new(
-                        CodeExecutorClient::connect(code_executor_url)
-                            .await
-                            .unwrap(),
-                    );
-                    Arc::new(code_executor::code_executor_impl::CodeExecutorImpl::new(
-                        code_executor_client,
-                    ))
-                } else {
-                    Arc::new(code_executor::mock::MockCodeExecutor {})
-                };
-
                 let machine_manager: Arc<dyn MachineManager> =
                     if is_feature_enabled(Feature::MachineManager) {
                         let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
@@ -301,49 +359,6 @@ fn main() -> anyhow::Result<()> {
                         Arc::new(machine_manager::MockMachineManager {})
                     };
 
-                let client = reqwest::Client::new();
-                let anthropic = language_model::Anthropic::new(client.clone());
-                let openai = language_model::OpenAI::new(client.clone());
-                let openai_azure = language_model::OpenAIAzure::new(client.clone());
-                let gemini = language_model::Gemini::new(client.clone());
-                let groq = language_model::Groq::new(client.clone());
-                let mistral = language_model::Mistral::new(client.clone());
-
-                let mut language_models: HashMap<LanguageModelProviderName, LanguageModelProvider> =
-                    HashMap::new();
-                language_models.insert(
-                    LanguageModelProviderName::Anthropic,
-                    LanguageModelProvider::Anthropic(anthropic),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::OpenAI,
-                    LanguageModelProvider::OpenAI(openai),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::OpenAIAzure,
-                    LanguageModelProvider::OpenAIAzure(openai_azure),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::Gemini,
-                    LanguageModelProvider::Gemini(gemini),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::Groq,
-                    LanguageModelProvider::Groq(groq),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::Mistral,
-                    LanguageModelProvider::Mistral(mistral),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::Bedrock,
-                    LanguageModelProvider::Bedrock(language_model::AnthropicBedrock::new(
-                        aws_sdk_bedrockruntime::Client::new(&aws_sdk_config),
-                    )),
-                );
-                let language_model_runner =
-                    Arc::new(language_model::LanguageModelRunner::new(language_models));
-
                 let name_generator = Arc::new(NameGenerator::new());
 
                 HttpServer::new(move || {
@@ -352,28 +367,18 @@ fn main() -> anyhow::Result<()> {
                     let shared_secret_auth =
                         HttpAuthentication::bearer(auth::shared_secret_validator);
 
-                    let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
-                        language_model_runner.clone(),
-                        semantic_search.clone(),
-                        rabbitmq_connection.clone(),
-                        code_executor.clone(),
-                        db_for_http.clone(),
-                        cache_for_http.clone(),
-                    ));
-
                     let num_workers_per_thread = env::var("NUM_WORKERS_PER_THREAD")
                         .unwrap_or(String::from("8"))
                         .parse::<u8>()
                         .unwrap_or(8);
 
-                    // start num_workers_per_thread threads per core to process spans from RabbitMQ
+                    // start 8 threads per core to process spans from RabbitMQ
                     if is_feature_enabled(Feature::FullBuild) {
                         for _ in 0..num_workers_per_thread {
                             tokio::spawn(process_queue_spans(
                                 pipeline_runner.clone(),
                                 db_for_http.clone(),
                                 cache_for_http.clone(),
-                                semantic_search.clone(),
                                 rabbitmq_connection.clone(),
                                 clickhouse.clone(),
                                 storage.clone(),
@@ -535,7 +540,6 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::datasets::delete_datapoint_embeddings)
                                         .service(routes::datasets::delete_all_datapoints)
                                         .service(routes::datasets::index_dataset)
-                                        .service(routes::traces::search_traces)
                                         .service(routes::labels::get_label_classes)
                                         .service(routes::labels::get_span_labels)
                                         .service(routes::labels::update_span_label)
@@ -568,11 +572,14 @@ fn main() -> anyhow::Result<()> {
                     cache.clone(),
                     rabbitmq_connection_grpc.clone(),
                     clickhouse_for_grpc,
+                    pipeline_runner_for_grpc,
                 );
 
                 Server::builder()
                     .add_service(
                         TraceServiceServer::new(process_traces_service)
+                            .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
+                            .send_compressed(tonic::codec::CompressionEncoding::Gzip)
                             .max_decoding_message_size(GRPC_PAYLOAD_DECODING_LIMIT),
                     )
                     .serve_with_shutdown(grpc_address, async {

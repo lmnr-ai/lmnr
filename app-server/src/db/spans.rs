@@ -21,6 +21,7 @@ pub enum SpanType {
     EXECUTOR,
     EVALUATOR,
     EVALUATION,
+    TOOL,
 }
 
 impl FromStr for SpanType {
@@ -34,6 +35,7 @@ impl FromStr for SpanType {
             "EXECUTOR" => Ok(SpanType::EXECUTOR),
             "EVALUATOR" => Ok(SpanType::EVALUATOR),
             "EVALUATION" => Ok(SpanType::EVALUATION),
+            "TOOL" => Ok(SpanType::TOOL),
             _ => Err(anyhow::anyhow!("Invalid span type: {}", s)),
         }
     }
@@ -89,6 +91,7 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
         ),
         &None => None,
     };
+
     sqlx::query(
         "INSERT INTO spans
             (span_id,

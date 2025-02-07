@@ -10,15 +10,18 @@ use uuid::Uuid;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    ch::{self, spans::CHSpan},
     db::{events::Event, spans::Span, DB},
     features::{is_feature_enabled, Feature},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
+    pipeline::runner::PipelineRunner,
 };
 
-use super::{utils::record_span_to_db, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
+use super::{
+    process_label_classes, process_spans_and_events, OBSERVATIONS_EXCHANGE,
+    OBSERVATIONS_ROUTING_KEY,
+};
 
 // TODO: Implement partial_success
 pub async fn push_spans_to_queue(
@@ -28,6 +31,7 @@ pub async fn push_spans_to_queue(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
+    pipeline_runner: Arc<PipelineRunner>,
 ) -> Result<ExportTraceServiceResponse> {
     if !is_feature_enabled(Feature::FullBuild) {
         for resource_span in request.resource_spans {
@@ -39,37 +43,31 @@ pub async fn push_spans_to_queue(
                         continue;
                     }
 
-                    let span_usage = super::utils::get_llm_usage_for_span(
-                        &mut span.get_attributes(),
+                    let events = otel_span
+                        .events
+                        .into_iter()
+                        .map(|event| Event::from_otel(event, span.span_id, project_id))
+                        .collect::<Vec<Event>>();
+
+                    process_spans_and_events(
+                        &mut span,
+                        events,
+                        &project_id,
                         db.clone(),
+                        clickhouse.clone(),
                         cache.clone(),
+                        None,
                     )
                     .await;
 
-                    if let Err(e) =
-                        record_span_to_db(db.clone(), &span_usage, &project_id, &mut span).await
-                    {
-                        log::error!(
-                            "Failed to record span. span_id [{}], project_id [{}]: {:?}",
-                            span.span_id,
-                            project_id,
-                            e
-                        );
-                    }
-
-                    let ch_span = CHSpan::from_db_span(&span, span_usage, project_id);
-
-                    let insert_span_res =
-                        ch::spans::insert_span(clickhouse.clone(), &ch_span).await;
-
-                    if let Err(e) = insert_span_res {
-                        log::error!(
-                            "Failed to insert span into Clickhouse. span_id [{}], project_id [{}]: {:?}",
-                            span.span_id,
-                            project_id,
-                            e
-                        );
-                    }
+                    process_label_classes(
+                        &span,
+                        &project_id,
+                        db.clone(),
+                        clickhouse.clone(),
+                        pipeline_runner.clone(),
+                    )
+                    .await;
                 }
             }
         }

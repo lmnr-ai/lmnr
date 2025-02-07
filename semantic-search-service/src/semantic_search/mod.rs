@@ -1,14 +1,13 @@
 use chrono::Utc;
 use log::error;
-use qdrant_client::qdrant::{vector::Vector as InnerVector, NamedVectors, PointStruct, Vector};
-use qdrant_client::qdrant::{DenseVector, SparseVector};
+use qdrant_client::qdrant::DenseVector;
+use qdrant_client::qdrant::{vector::Vector as InnerVector, PointStruct, Vector};
 use qdrant_client::Payload;
 use serde_json::json;
 use simsimd::SpatialSimilarity;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
-use uuid::Uuid;
 
 use crate::embeddings::{Embed, Embedding, EmbeddingModel};
 use crate::vectordb::QdrantClient;
@@ -105,36 +104,13 @@ impl SemanticSearch for SemanticSearchService {
                 .try_into()
                 .unwrap();
 
-                let point_id = if message.collection_name.starts_with("spans-") {
-                    // Span ids are 8 byte-long, and thus far more likely to collide
-                    // so we generate a new uuid for them
-                    Uuid::new_v4().to_string()
-                } else {
-                    datapoint.id
+                let vector = Vector {
+                    vector: Some(InnerVector::Dense(DenseVector {
+                        data: embedding.vector,
+                    })),
+                    ..Default::default()
                 };
-                if let Some(indices) = embedding.sparse_indices {
-                    let vectors = NamedVectors {
-                        vectors: HashMap::from([(
-                            "sparse".to_string(),
-                            Vector {
-                                vector: Some(InnerVector::Sparse(SparseVector {
-                                    values: embedding.vector,
-                                    indices,
-                                })),
-                                ..Default::default()
-                            },
-                        )]),
-                    };
-                    PointStruct::new(point_id, vectors, payload)
-                } else {
-                    let vector = Vector {
-                        vector: Some(InnerVector::Dense(DenseVector {
-                            data: embedding.vector,
-                        })),
-                        ..Default::default()
-                    };
-                    PointStruct::new(point_id, vector, payload)
-                }
+                PointStruct::new(datapoint.id, vector, payload)
             })
             .collect();
 
@@ -225,7 +201,6 @@ impl SemanticSearch for SemanticSearchService {
                 message.limit as u64,
                 message.threshold,
                 payloads,
-                message.date_ranges,
             )
             .await
             .unwrap();

@@ -34,15 +34,7 @@ pub(super) async fn query_datasources(
         .collect();
 
     let res = semantic_search
-        .query(
-            &collection_name,
-            query,
-            limit,
-            threshold,
-            payloads,
-            None,
-            false,
-        )
+        .query(&collection_name, query, limit, threshold, payloads)
         .await?;
 
     let points = res

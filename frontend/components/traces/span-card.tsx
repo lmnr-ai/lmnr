@@ -5,7 +5,6 @@ import { getDuration, getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
 import { cn, formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
-import { Label } from '../ui/label';
 import SpanTypeIcon from './span-type-icon';
 
 const ROW_HEIGHT = 36;
@@ -90,9 +89,9 @@ export function SpanCard({
           <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]">
             {span.name}
           </div>
-          <Label className="text-secondary-foreground">
+          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
             {getDurationString(span.startTime, span.endTime)}
-          </Label>
+          </div>
           <div
             className="z-30 top-[-px]  hover:bg-red-100/10 absolute transition-all"
             style={{

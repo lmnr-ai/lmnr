@@ -1,17 +1,27 @@
 
-import { and, asc, eq, sql } from 'drizzle-orm';
-import { NextResponse } from 'next/server';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { NextRequest,NextResponse } from 'next/server';
 
+import { searchSpans } from '@/lib/clickhouse/spans';
+import { TimeRange } from '@/lib/clickhouse/utils';
 import { db } from '@/lib/db/drizzle';
 import { events, labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
 
 export async function GET(
-  req: Request,
+  req: NextRequest,
   props: { params: Promise<{ projectId: string; traceId: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
   const traceId = params.traceId;
+  const searchQuery = req.nextUrl.searchParams.get("search");
+
+  let searchSpanIds = null;
+  if (searchQuery) {
+    const timeRange = { pastHours: 'all' } as TimeRange;
+    const searchResult = await searchSpans(projectId, searchQuery, timeRange);
+    searchSpanIds = Array.from(searchResult.spanIds);
+  }
 
   const traceQuery = db.query.traces.findFirst({
     where: and(eq(traces.id, traceId), eq(traces.projectId, projectId)),
@@ -71,7 +81,13 @@ export async function GET(
     .from(spans)
     .leftJoin(spanEventsQuery, eq(spans.spanId, spanEventsQuery.spanId))
     .leftJoin(spanLabelsQuery, eq(spans.spanId, spanLabelsQuery.spanId))
-    .where(and(eq(spans.traceId, traceId), eq(spans.projectId, projectId)))
+    .where(
+      and(
+        eq(spans.traceId, traceId),
+        eq(spans.projectId, projectId),
+        ...(searchSpanIds ? [inArray(spans.spanId, searchSpanIds)] : [])
+      )
+    )
     .orderBy(asc(spans.startTime));
 
   const [trace, spanItems] = await Promise.all([traceQuery, spansQuery]);

@@ -134,6 +134,13 @@
       "when": 1738392109008,
       "tag": "0018_vengeful_violations",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1738666574983,
+      "tag": "0019_hesitant_shatterstar",
+      "breakpoints": true
     }
   ]
 }
