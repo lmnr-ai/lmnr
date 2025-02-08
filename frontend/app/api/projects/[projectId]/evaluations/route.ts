@@ -1,8 +1,8 @@
-import { and, desc, eq, inArray, SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, SQL, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { db } from "@/lib/db/drizzle";
-import { evaluations } from "@/lib/db/migrations/schema";
+import { evaluationResults, evaluations } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
 import { Evaluation } from "@/lib/evaluation/types";
 
@@ -17,8 +17,18 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     filters.push(eq(evaluations.groupId, groupId));
   }
 
+  const columns = getTableColumns(evaluations);
+
   const result = await paginatedGet<any, Evaluation>({
     table: evaluations,
+    columns: {
+      ...columns,
+      dataPointsCount: sql<number>`COALESCE((
+        SELECT COUNT(*)
+        FROM ${evaluationResults} dp
+        WHERE dp.evaluation_id = evaluations.id
+      ), 0)::int`.as("dataPointsCount"),
+    },
     filters,
     pageSize,
     pageNumber,

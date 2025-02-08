@@ -27,11 +27,6 @@ import EvaluationsGroupsBar from "./evaluations-groups-bar";
 
 const columns: ColumnDef<Evaluation>[] = [
   {
-    accessorKey: "groupId",
-    header: "Group id",
-    size: 120,
-  },
-  {
     accessorKey: "id",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     header: "ID",
@@ -41,6 +36,10 @@ const columns: ColumnDef<Evaluation>[] = [
     accessorKey: "name",
     header: "Name",
     size: 300,
+  },
+  {
+    accessorKey: "dataPointsCount",
+    header: "Datapoints",
   },
   {
     header: "Created at",
@@ -77,7 +76,7 @@ export default function Evaluations() {
     };
   }, [searchParams]);
 
-  const { data, mutate, isLoading } = useSWR<PaginatedResponse<Evaluation>>(
+  const { data, mutate, isLoading } = useSWR<PaginatedResponse<Evaluation & { dataPointsCount: 0 }>>(
     `/api/projects/${params?.projectId}/evaluations?groupId=${searchParams.get("groupId")}&pageNumber=${page.number}&pageSize=${page.size}`,
     swrFetcher
   );
@@ -135,9 +134,9 @@ export default function Evaluations() {
       <div className="flex size-full">
         <EvaluationsGroupsBar />
         <div className="flex flex-col h-full flex-1 space-y-4">
-          <div className="flex flex-col gap-2 p-2">
+          <div className="flex gap-4 p-4 items-center">
             <div className="flex gap-2 text-secondary-foreground">
-              Group: <div className="text-primary-foreground">{searchParams.get("groupId")}</div>
+              <div className="text-primary-foreground text-xl font-medium">{searchParams.get("groupId")}</div>
             </div>
             <Select
               value={aggregationFunction}
@@ -156,18 +155,17 @@ export default function Evaluations() {
             </Select>
           </div>
           <ResizablePanelGroup direction="vertical">
-            <ResizablePanel className="px-2 flex-grow" minSize={15} defaultSize={20}>
+            <ResizablePanel className="px-2 flex-grow" minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={(data?.items || []).map(({ id, name }) => ({ id, name }))}
-                className="h-full px-2"
+                className="h-full px-2 py-4"
                 aggregationFunction={aggregationFunction}
               />
             </ResizablePanel>
             <ResizableHandle className="z-50" />
-            <ResizablePanel className="flex-grow" minSize={30} defaultSize={30}>
+            <ResizablePanel className="flex-grow" minSize={40} defaultSize={40}>
               {isLoading ? (
-                <div className="flex flex-col h-full p-2 gap-2">
-                  <Skeleton className="w-full h-8" />
+                <div className="flex flex-col h-full p-4 gap-2">
                   <Skeleton className="w-full h-8" />
                   <Skeleton className="w-full h-8" />
                   <Skeleton className="w-full h-8" />
