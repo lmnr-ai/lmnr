@@ -6,7 +6,7 @@ import useSWR from "swr";
 
 import { AggregationFunction } from "@/lib/clickhouse/utils";
 import { EvaluationTimeProgression } from "@/lib/evaluation/types";
-import { cn, formatTimestamp, swrFetcher } from "@/lib/utils";
+import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
 import { Label } from "../ui/label";
@@ -75,74 +75,76 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
   }, []);
 
   return (
-    <div className={cn("", className)}>
+    <div className={className}>
       {!data && isLoading ? (
         <Skeleton className="size-full" />
       ) : (
-        <ChartContainer config={chartConfig} className="h-5/6 w-full">
-          <LineChart margin={{ top: 10, right: 10, bottom: 5, left: -12 }} accessibilityLayer data={convertedScores}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              type="category"
-              dataKey="timestamp"
-              tickLine={false}
-              axisLine={false}
-              tick={false}
-              height={8}
-              padding={{ left: horizontalPadding, right: horizontalPadding }}
-            />
-            <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={5} />
-            <ChartTooltip
-              cursor={false}
-              content={
-                <ChartTooltipContent
-                  className="min-w-60"
-                  labelFormatter={(value, payload) => (
-                    <>
-                      <p>{formatTimestamp(`${value}Z`)}</p>
-                      <p>{payload?.[0]?.payload?.name}</p>
-                    </>
-                  )}
-                />
-              }
-            />
-            {Array.from(keys)
-              .filter((key) => scores.includes(key))
-              .map((key) => (
-                <Line
-                  dot={{
-                    stroke: chartConfig[key].color,
-                    strokeWidth: 4,
-                    r: 2,
-                  }}
-                  dataKey={key}
-                  stroke={chartConfig[key].color}
-                  key={key}
-                  isAnimationActive={false}
-                />
-              ))}
-          </LineChart>
-        </ChartContainer>
-      )}
-      <div className="flex flex-row justify-center w-full my-2 space-x-2 items-center">
-        {Array.from(keys).map((key) => (
-          <div
-            key={key}
-            className="flex items-center text-sm cursor-pointer decoration-dashed text-muted-foreground"
-            style={
-              scores.includes(key)
-                ? {
-                  color: chartConfig[key].color,
+        <>
+          <ChartContainer config={chartConfig} className="h-5/6 w-full">
+            <LineChart margin={{ top: 10, right: 10, bottom: 5, left: -12 }} accessibilityLayer data={convertedScores}>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                type="category"
+                dataKey="timestamp"
+                tickLine={false}
+                axisLine={false}
+                tick={false}
+                height={8}
+                padding={{ left: horizontalPadding, right: horizontalPadding }}
+              />
+              <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={5} />
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    className="min-w-60"
+                    labelFormatter={(value, payload) => (
+                      <>
+                        <p className="text-secondary-foreground">{formatTimestamp(`${value}Z`)}</p>
+                        <p>{payload?.[0]?.payload?.name}</p>
+                      </>
+                    )}
+                  />
                 }
-                : {}
-            }
-            onClick={() => handleClick(key)}
-          >
-            <Minus className="h-4 w-4 mt-1" />
-            <Label className="cursor-pointer">{key}</Label>
+              />
+              {Array.from(keys)
+                .filter((key) => scores.includes(key))
+                .map((key) => (
+                  <Line
+                    dot={{
+                      stroke: chartConfig[key].color,
+                      strokeWidth: 4,
+                      r: 2,
+                    }}
+                    dataKey={key}
+                    stroke={chartConfig[key].color}
+                    key={key}
+                    isAnimationActive={false}
+                  />
+                ))}
+            </LineChart>
+          </ChartContainer>
+          <div className="flex flex-row justify-center w-full mt-2 space-x-2 items-center">
+            {Array.from(keys).map((key) => (
+              <div
+                key={key}
+                className="flex items-center text-sm cursor-pointer decoration-dashed text-muted-foreground"
+                style={
+                  scores.includes(key)
+                    ? {
+                      color: chartConfig[key].color,
+                    }
+                    : {}
+                }
+                onClick={() => handleClick(key)}
+              >
+                <Minus className="h-4 w-4 mt-1" />
+                <Label className="cursor-pointer">{key}</Label>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }
