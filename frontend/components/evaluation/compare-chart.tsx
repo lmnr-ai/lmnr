@@ -1,17 +1,10 @@
-import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts';
-import useSWR from 'swr';
+import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
+import useSWR from "swr";
 
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent
-} from '@/components/ui/chart';
-import { useProjectContext } from '@/contexts/project-context';
-import { BucketRow } from '@/lib/types';
-import { cn, swrFetcher } from '@/lib/utils';
-
-import { Skeleton } from '../ui/skeleton';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { useProjectContext } from "@/contexts/project-context";
+import { BucketRow } from "@/lib/types";
+import { swrFetcher } from "@/lib/utils";
 
 const getTransformedData = (data: BucketRow[]) =>
   data.map((row: BucketRow, index: number) => ({
@@ -21,7 +14,11 @@ const getTransformedData = (data: BucketRow[]) =>
   }));
 
 function renderTick(tickProps: any) {
-  const { x, y, payload: { value, offset } } = tickProps;
+  const {
+    x,
+    y,
+    payload: { value, offset },
+  } = tickProps;
   const VERTICAL_TICK_OFFSET = 8;
   const VERTICAL_TICK_LENGTH = 4;
   const FONT_SIZE = 8;
@@ -67,61 +64,38 @@ interface CompareChatProps {
   className?: string;
 }
 
+const chartConfig = {
+  ["index"]: {
+    color: "hsl(var(--chart-1))",
+  },
+};
+
 export default function CompareChart({ evaluationId, comparedEvaluationId, scoreName, className }: CompareChatProps) {
   const { projectId } = useProjectContext();
 
-  const { data, isLoading, error } = useSWR(
+  const { data } = useSWR<BucketRow[]>(
     `/api/projects/${projectId}/evaluation-score-distribution?` +
-    `evaluationIds=${evaluationId},${comparedEvaluationId}&scoreName=${scoreName}`,
+      `evaluationIds=${evaluationId},${comparedEvaluationId}&scoreName=${scoreName}`,
     swrFetcher
   );
 
-  const chartConfig = {
-    ['index']: {
-      color: 'hsl(var(--chart-1))'
-    }
-  } satisfies ChartConfig;
-
   return (
-    <div className={cn('', className)}>
-      <div className="">
-        <ChartContainer config={chartConfig} className="max-h-48 w-full">
-          {isLoading || !data || error ? (
-            <Skeleton className="h-full w-full" />
-          ) : (
-            <BarChart
-              accessibilityLayer
-              data={getTransformedData(data)}
-              barSize={'4%'}
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="index"
-                tickLine={false}
-                axisLine={true}
-                padding={{ left: 0, right: 0 }}
-                tick={renderTick as any}
-              />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent hideLabel />}
-              />
-              <Bar
-                dataKey="comparedHeight"
-                fill="hsl(var(--chart-2))"
-                radius={4}
-                name="Compared"
-              />
-              <Bar
-                dataKey="height"
-                fill="hsl(var(--chart-1))"
-                radius={4}
-                name="Current"
-              />
-            </BarChart>
-          )}
-        </ChartContainer>
-      </div>
+    <div className={className}>
+      <ChartContainer config={chartConfig} className="max-h-48 w-full">
+        <BarChart accessibilityLayer data={getTransformedData(data || [])} barSize={"4%"}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="index"
+            tickLine={false}
+            axisLine={true}
+            padding={{ left: 0, right: 0 }}
+            tick={renderTick as any}
+          />
+          <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+          <Bar dataKey="comparedHeight" fill="hsl(var(--chart-2))" radius={4} name="Compared" />
+          <Bar dataKey="height" fill="hsl(var(--chart-1))" radius={4} name="Current" />
+        </BarChart>
+      </ChartContainer>
     </div>
   );
 }

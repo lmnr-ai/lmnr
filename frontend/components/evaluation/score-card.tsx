@@ -1,118 +1,68 @@
-import { ArrowRight } from 'lucide-react';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import useSWR from 'swr';
+import { ArrowRight } from "lucide-react";
+import { useParams, useSearchParams } from "next/navigation";
+import useSWR from "swr";
 
-import { useProjectContext } from '@/contexts/project-context';
-import { swrFetcher } from '@/lib/utils';
+import { useProjectContext } from "@/contexts/project-context";
+import { cn, swrFetcher } from "@/lib/utils";
 
-import { Skeleton } from '../ui/skeleton';
-
-const URL_QUERY_PARAMS = {
-  COMPARE_EVAL_ID: 'comparedEvaluationId'
-};
-
-const getEvaluationIdFromPathname = (pathName: string) => {
-  if (pathName.endsWith('/')) {
-    pathName = pathName.slice(0, -1);
-  }
-  const pathParts = pathName.split('/');
-  return pathParts[pathParts.length - 1];
-};
+import { Skeleton } from "../ui/skeleton";
 
 interface ScoreCardProps {
   scoreName: string;
 }
 
 export default function ScoreCard({ scoreName }: ScoreCardProps) {
-  const pathName = usePathname();
-  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const searchParams = useSearchParams();
+  const params = useParams();
+  const targetId = searchParams.get("targetId");
   const { projectId } = useProjectContext();
 
-  const [evaluationId, setEvaluationId] = useState(
-    getEvaluationIdFromPathname(pathName)
-  );
-  const [comparedEvaluationId, setComparedEvaluationId] = useState(
-    searchParams.get(URL_QUERY_PARAMS.COMPARE_EVAL_ID)
-  );
-
-  const { data, isLoading, error } = useSWR(
-    `/api/projects/${projectId}/evaluation-score-stats?evaluationId=${evaluationId}&scoreName=${scoreName}`,
+  const { data, isLoading } = useSWR<{ averageValue?: number }>(
+    `/api/projects/${projectId}/evaluation-score-stats?evaluationId=${params?.evaluationId}&scoreName=${scoreName}`,
     swrFetcher
   );
-  const {
-    data: comparedData,
-    isLoading: isComparedLoading,
-    error: isComparedError
-  } = useSWR(
-    comparedEvaluationId
-      ? `/api/projects/${projectId}/evaluation-score-stats?evaluationId=${comparedEvaluationId}&scoreName=${scoreName}`
+
+  const { data: comparedData, isLoading: isComparedLoading } = useSWR<{ averageValue?: number }>(
+    targetId
+      ? `/api/projects/${projectId}/evaluation-score-stats?evaluationId=${targetId}&scoreName=${scoreName}`
       : null,
     swrFetcher
   );
 
-  useEffect(() => {
-    setEvaluationId(getEvaluationIdFromPathname(pathName));
-  }, [pathName]);
+  const average = data?.averageValue;
+  const comparedAverage = comparedData?.averageValue;
 
-  useEffect(() => {
-    setComparedEvaluationId(searchParams.get(URL_QUERY_PARAMS.COMPARE_EVAL_ID));
-  }, [searchParams]);
+  const getPercentageChange = (average: number, comparedAverage: number) =>
+    (((average - comparedAverage) / comparedAverage) * 100).toFixed(2);
 
   return (
     <div className="rounded-lg shadow-md h-full">
-      {isLoading || !data || error ? (
+      {isLoading || isComparedLoading ? (
         <Skeleton className="h-full w-full" />
       ) : (
-        <div>
+        <>
           <h2 className="text-xl font-semibold mb-4">{scoreName}</h2>
           <div className="flex flex-col">
             <div className="text-sm text-gray-500">Average</div>
-            <div className="flex flex-row">
-              {!isComparedLoading &&
-                comparedData &&
-                !isComparedError &&
-                comparedData.averageValue != null && (
-                <div className="flex flex-row items-center">
-                  <div className="text-5xl font-bold mr-2">
-                    {comparedData.averageValue?.toFixed(2)}
-                  </div>
-                  <ArrowRight className="text-5xl font-bold mr-2" size={24} />
-                </div>
-              )}
-              <div className="text-5xl font-bold">
-                {data.averageValue?.toFixed(2)}
-              </div>
+            <div className="flex flex-row items-center">
+              {comparedAverage && <div className="text-5xl font-bold mr-2">{comparedAverage.toFixed(2)}</div>}
+              {comparedAverage && average && <ArrowRight className="min-w-6 text-5xl font-bold mr-2" size={24} />}
+              {average && <div className="text-5xl font-bold">{average.toFixed(2)}</div>}
             </div>
-            {!isComparedLoading &&
-              comparedData &&
-              !isComparedError &&
-              comparedData.averageValue != null && (
+            {comparedAverage && average && (
               <div
-                className={`text-md font-medium ${data.averageValue >= comparedData.averageValue ? 'text-green-400' : 'text-red-400'}`}
+                className={cn("text-md font-medium", {
+                  "text-green-400": average >= comparedAverage,
+                  "text-red-400": average < comparedAverage,
+                })}
               >
-                <span className="mx-1">
-                  {data.averageValue >= comparedData.averageValue ? '▲' : '▼'}
-                </span>
-                {Math.abs(
-                  data.averageValue - comparedData.averageValue
-                ).toFixed(2)}
-                {comparedData.averageValue !== 0 && (
-                  <span>
-                    {' '}
-                      (
-                    {(
-                      ((data.averageValue - comparedData.averageValue) /
-                          comparedData.averageValue) *
-                        100
-                    ).toFixed(2)}
-                      %)
-                  </span>
-                )}
+                <span className="mx-1">{average >= comparedAverage ? "▲" : "▼"}</span>
+                {Math.abs(average - comparedAverage).toFixed(2)}
+                {comparedData.averageValue !== 0 && <span> ({getPercentageChange(average, comparedAverage)}%)</span>}
               </div>
             )}
           </div>
-        </div>
+        </>
       )}
     </div>
   );

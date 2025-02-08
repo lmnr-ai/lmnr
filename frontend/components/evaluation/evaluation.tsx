@@ -1,38 +1,30 @@
-'use client';
-import { ColumnDef } from '@tanstack/react-table';
-import { ArrowRight } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Resizable } from 're-resizable';
-import { useEffect, useState } from 'react';
-import useSWR from 'swr';
+"use client";
+import { ColumnDef } from "@tanstack/react-table";
+import { ArrowRight } from "lucide-react";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Resizable } from "re-resizable";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 
-import { useProjectContext } from '@/contexts/project-context';
-import { useUserContext } from '@/contexts/user-context';
+import Chart from "@/components/evaluation/chart";
+import CompareChart from "@/components/evaluation/compare-chart";
+import DatatableSorts from "@/components/ui/datatable-sorts";
+import { useUserContext } from "@/contexts/user-context";
 import {
-  Evaluation as EvaluationType, EvaluationDatapointPreviewWithCompared, EvaluationResultsInfo
-} from '@/lib/evaluation/types';
-import { mergeOriginalWithComparedDatapoints } from '@/lib/evaluation/utils';
-import { swrFetcher } from '@/lib/utils';
+  Evaluation as EvaluationType,
+  EvaluationDatapointPreviewWithCompared,
+  EvaluationResultsInfo,
+} from "@/lib/evaluation/types";
+import { getDurationString } from "@/lib/flow/utils";
+import { swrFetcher } from "@/lib/utils";
 
-import TraceView from '../traces/trace-view';
-import { Button } from '../ui/button';
-import { DataTable } from '../ui/datatable';
-import DownloadButton from '../ui/download-button';
-import Header from '../ui/header';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '../ui/select';
-import Chart from './chart';
-import CompareChart from './compare-chart';
-import ScoreCard from './score-card';
-
-const URL_QUERY_PARAMS = {
-  COMPARE_EVAL_ID: 'comparedEvaluationId'
-};
+import TraceView from "../traces/trace-view";
+import { Button } from "../ui/button";
+import { DataTable } from "../ui/datatable";
+import DownloadButton from "../ui/download-button";
+import Header from "../ui/header";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import ScoreCard from "./score-card";
 
 interface EvaluationProps {
   evaluations: EvaluationType[];
@@ -40,88 +32,130 @@ interface EvaluationProps {
   evaluationName: string;
 }
 
-export default function Evaluation({
-  evaluations,
-  evaluationId,
-  evaluationName
-}: EvaluationProps) {
-  const router = useRouter();
+const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
+  {
+    accessorFn: (row) => row.index,
+    header: "Index",
+  },
+  {
+    accessorFn: (row) => JSON.stringify(row.data),
+    header: "Data",
+  },
+  {
+    accessorFn: (row) => (row.target ? JSON.stringify(row.target) : "-"),
+    header: "Target",
+  },
+];
+
+const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
+  {
+    accessorFn: (row) => (row.executorOutput ? JSON.stringify(row.executorOutput) : "-"),
+    header: "Output",
+  },
+  {
+    accessorFn: (row) => getDurationString(row.startTime, row.endTime),
+    header: "Duration",
+  },
+  {
+    accessorFn: (row) =>
+      new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumSignificantDigits: 5 }).format(
+        row.inputCost + row.outputCost
+      ),
+    header: "Cost",
+  },
+];
+
+const getScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapointPreviewWithCompared>[] =>
+  scores.map((name) => ({
+    header: name,
+    cell: (row) => (
+      <div className="flex flex-row items-center space-x-2">
+        <div className="text-green-300">{row.row.original.comparedScores?.[name] ?? "-"}</div>
+        <ArrowRight className="font-bold" size={12} />
+        <div className="text-blue-300">{row.row.original.scores?.[name] ?? "-"}</div>
+      </div>
+    ),
+  }));
+
+export default function Evaluation({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
+  const { push } = useRouter();
   const pathName = usePathname();
-  const searchParams = new URLSearchParams(useSearchParams().toString());
-  const { projectId } = useProjectContext();
-  const { data: evaluationInfo, mutate, isLoading } = useSWR<EvaluationResultsInfo>(
-    `/api/projects/${projectId}/evaluations/${evaluationId}`,
+  const searchParams = useSearchParams();
+  const params = useParams();
+  const datapointId = searchParams.get("datapointId");
+  const targetId = searchParams.get("targetId");
+  const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(
+    `/api/projects/${params?.projectId}/evaluations/${evaluationId}?${new URLSearchParams(searchParams.getAll("sort").map((param) => ["sort", param]))}`,
     swrFetcher
   );
-  const evaluation = evaluationInfo?.evaluation;
-  const [comparedEvaluation, setComparedEvaluation] =
-    useState<EvaluationType | null>(null);
-  // Selected score name must usually not be undefined, as we expect
-  // to have at least one score, it's done just to not throw error if there are no scores
-  const [scoreNames, setScoreNames] = useState<Set<string>>(new Set());
-  const [selectedScoreName, setSelectedScoreName] = useState<string | undefined>(
-    scoreNames.size > 0 ? Array.from(scoreNames)[0] : undefined
-  );
-  // Columns used when there is no compared evaluation
-  const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
-    {
-      accessorFn: (row) => JSON.stringify(row.data),
-      header: 'Data'
-    },
-    {
-      accessorFn: (row) => (row.target ? JSON.stringify(row.target) : '-'),
-      header: 'Target'
-    },
-    {
-      accessorFn: (row) =>
-        row.executorOutput ? JSON.stringify(row.executorOutput) : '-',
-      header: 'Output'
-    }
-  ];
-  const [columns, setColumns] = useState(defaultColumns);
 
-  const updateScoreColumns = (rows: EvaluationDatapointPreviewWithCompared[]) => {
-    let newScoreNames = new Set<string>(scoreNames);
-    for (const row of rows) {
-      for (const key of Object.keys(row.scores ?? {})) {
-        newScoreNames.add(key);
-      }
+  const { data: targetData } = useSWR<EvaluationResultsInfo>(
+    () =>
+      targetId
+        ? `/api/projects/${params?.projectId}/evaluations/${targetId}?${new URLSearchParams(searchParams.getAll("sort").map((param) => ["sort", param]))}`
+        : null,
+    swrFetcher
+  );
+
+  const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
+  const evaluation = data?.evaluation;
+
+  const onClose = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("datapointId");
+    params.delete("spanId");
+    push(`${pathName}?${params}`);
+  }, [searchParams, pathName, push]);
+
+  const scores = useMemo(
+    () => [...new Set(data?.results.flatMap((row) => Object.keys(row.scores ?? {})) || [])],
+    [data?.results]
+  );
+
+  const columns = useMemo(() => {
+    if (targetId) {
+      return [...defaultColumns, ...getScoreColumns(scores)];
     }
-    setScoreNames(newScoreNames);
-    setSelectedScoreName(newScoreNames.size > 0 ? Array.from(newScoreNames)[0] : undefined);
-    const newColumns = [...defaultColumns].concat(
-      Array.from(newScoreNames).map((scoreName: string) => ({
-        header: scoreName,
-        accessorFn: (row) => row.scores?.[scoreName] ?? '-',
-        size: 150
-      }))
-    );
-    setColumns(newColumns);
+    return [...defaultColumns, ...complementaryColumns];
+  }, [scores, targetId]);
+
+  const tableData = useMemo(() => {
+    if (targetId) {
+      return (data?.results || []).map((original, index) => {
+        const compared = targetData?.results[index];
+
+        return {
+          ...original,
+          comparedId: compared?.id,
+          comparedEvaluationId: compared?.evaluationId,
+          comparedScores: compared?.scores,
+        };
+      });
+    }
+    return data?.results || [];
+  }, [data?.results, targetData?.results, targetId]);
+
+  const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("datapointId", row.id);
+    push(`${pathName}?${params}`);
+  };
+
+  const handleChange = (value?: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (value) {
+      params.set("targetId", value);
+    } else {
+      params.delete("targetId");
+    }
+    push(`${pathName}?${params}`);
   };
 
   useEffect(() => {
-    if (isLoading) {
-      return;
+    if (scores?.length > 0) {
+      setSelectedScore(scores[0]);
     }
-    updateScoreColumns(evaluationInfo?.results ?? []);
-  }, [evaluationInfo, isLoading]);
-
-  useEffect(() => {
-    const comparedEvaluationId = searchParams.get(
-      URL_QUERY_PARAMS.COMPARE_EVAL_ID
-    );
-    if (comparedEvaluationId) {
-      handleComparedEvaluationChange(comparedEvaluationId);
-    }
-  }, []);
-
-  // TODO: get datapoints paginated.
-  const [selectedDatapoint, setSelectedDatapoint] =
-    useState<EvaluationDatapointPreviewWithCompared | null>(
-      evaluationInfo?.results.find(
-        (result) => result.id === searchParams.get('datapointId')
-      ) ?? null
-    );
+  }, [scores]);
 
   const { supabaseClient: supabase } = useUserContext();
 
@@ -130,17 +164,17 @@ export default function Evaluation({
       return;
     }
 
-    supabase.channel('table-db-changes').unsubscribe();
+    supabase.channel("table-db-changes").unsubscribe();
 
     supabase
-      .channel('table-db-changes')
+      .channel("table-db-changes")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'evaluation_results',
-          filter: `evaluation_id=eq.${evaluation.id}`
+          event: "INSERT",
+          schema: "public",
+          table: "evaluation_results",
+          filter: `evaluation_id=eq.${evaluation.id}`,
         },
         async (_) => {
           // for v0 we just re-fetch the whole evaluation.
@@ -151,89 +185,15 @@ export default function Evaluation({
       .subscribe();
   }, [supabase]);
 
-  const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
-    setSelectedDatapoint(row);
-    searchParams.set('datapointId', row.id);
-
-    router.push(`${pathName}?${searchParams.toString()}`);
-  };
-
-  const handleComparedEvaluationChange = (
-    comparedEvaluationId: string | null
-  ) => {
-    if (comparedEvaluationId === undefined) {
-      console.warn('comparedEvaluationId is undefined');
-      return;
-    }
-
-    if (comparedEvaluationId === null) {
-      setComparedEvaluation(null);
-      setColumns(defaultColumns);
-      searchParams.delete(URL_QUERY_PARAMS.COMPARE_EVAL_ID);
-      router.push(`${pathName}?${searchParams.toString()}`);
-      return;
-    }
-
-    fetch(`/api/projects/${projectId}/evaluations/${comparedEvaluationId}`)
-      .then((res) => res.json())
-      .then((comparedEvaluation) => {
-        setComparedEvaluation(comparedEvaluation.evaluation);
-        // evaluationInfo.results are always fixed, but the compared results (comparedEvaluation.results) change
-        const results = mergeOriginalWithComparedDatapoints(
-          evaluationInfo?.results ?? [],
-          comparedEvaluation.results
-        );
-        let columnsWithCompared: ColumnDef<EvaluationDatapointPreviewWithCompared>[] =
-          [
-            {
-              accessorFn: (row) => JSON.stringify(row.data),
-              header: 'Data'
-            },
-            {
-              accessorFn: (row) =>
-                row.target ? JSON.stringify(row.target) : '-',
-              header: 'Target'
-            }
-          ];
-        columnsWithCompared = columnsWithCompared.concat(
-          Array.from(scoreNames).map((scoreColumn) => ({
-            header: scoreColumn,
-            cell: (row) => (
-              <div className="flex flex-row items-center space-x-2">
-                <div className="text-green-300">
-                  {row.row.original.comparedScores?.[scoreColumn] ?? '-'}
-                </div>
-                <ArrowRight className="font-bold" size={12} />
-                <div className={comparedEvaluation && 'text-blue-300'}>
-                  {row.row.original.scores?.[scoreColumn] ?? '-'}
-                </div>
-              </div>
-            )
-          }))
-        );
-        setColumns(columnsWithCompared);
-      });
-    searchParams.set(URL_QUERY_PARAMS.COMPARE_EVAL_ID, comparedEvaluationId);
-    router.push(`${pathName}?${searchParams.toString()}`);
-  };
-
   return (
     <div className="h-full flex flex-col relative">
       <Header path={`evaluations/${evaluationName}`} />
       <div className="flex-none flex space-x-2 h-12 px-4 items-center border-b justify-start">
         <div>
-          <Select
-            key={
-              comparedEvaluation
-                ? comparedEvaluation.id
-                : 'empty-compared-evaluation'
-            }
-            value={comparedEvaluation?.id ?? undefined}
-            onValueChange={handleComparedEvaluationChange}
-          >
+          <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
             <SelectTrigger
               disabled={evaluations.length <= 1}
-              className="flex flex-none font-medium max-w-60 text-secondary-foreground h-7"
+              className="flex font-medium w-40 text-secondary-foreground"
             >
               <SelectValue placeholder="Select compared evaluation" />
             </SelectTrigger>
@@ -255,20 +215,16 @@ export default function Evaluation({
           <Select
             key={evaluationId}
             value={evaluationId}
-            onValueChange={(evaluationId: string) => {
-              router.push(`/project/${projectId}/evaluations/${evaluationId}?${searchParams.toString()}`);
+            onValueChange={(value) => {
+              push(`/project/${params?.projectId}/evaluations/${value}?${searchParams}`);
             }}
           >
-            <SelectTrigger className="flex flex-none font-medium max-w-40 text-secondary-foreground h-7">
+            <SelectTrigger className="flex font-medium w-40 text-secondary-foreground">
               <SelectValue placeholder="select evaluation" />
             </SelectTrigger>
             <SelectContent>
               {evaluations
-                .filter(
-                  (item) =>
-                    comparedEvaluation === null ||
-                    item.id != comparedEvaluation.id
-                )
+                .filter((item) => item.id != targetId)
                 .map((item) => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.name}
@@ -278,110 +234,76 @@ export default function Evaluation({
           </Select>
         </div>
         <div>
-          {!!comparedEvaluation && (
-            <Button
-              className="h-6"
-              variant={'secondary'}
-              onClick={() => {
-                handleComparedEvaluationChange(null);
-              }}
-            >
+          {targetId && (
+            <Button className="h-6" variant={"secondary"} onClick={() => handleChange(undefined)}>
               Reset
             </Button>
           )}
         </div>
-        <div>
-          {comparedEvaluation !== null && (
-            <Select
-              value={selectedScoreName}
-              onValueChange={setSelectedScoreName}
-            >
-              <SelectTrigger className="flex flex-none font-medium max-w-40 text-secondary-foreground h-7">
-                <SelectValue placeholder="select score" />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from(scoreNames).map((scoreName) => (
-                  <SelectItem key={scoreName} value={scoreName}>
-                    {scoreName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-        <div>
-          {comparedEvaluation === null && (
-            <DownloadButton
-              uri={`/api/projects/${projectId}/evaluations/${evaluationId}/download`}
-              filenameFallback={`evaluation-results-${evaluationId}`}
-              supportedFormats={['csv', 'json']}
-            />
-          )}
-        </div>
+        {targetId && (
+          <Select value={selectedScore} onValueChange={setSelectedScore}>
+            <SelectTrigger className="w-fit font-medium max-w-40 text-secondary-foreground h-7">
+              <SelectValue placeholder="select score" />
+            </SelectTrigger>
+            <SelectContent>
+              {scores.map((score) => (
+                <SelectItem key={score} value={score}>
+                  {score}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {!targetId && (
+          <DownloadButton
+            uri={`/api/projects/${params?.projectId}/evaluations/${evaluationId}/download`}
+            filenameFallback={`evaluation-results-${evaluationId}`}
+            supportedFormats={["csv", "json"]}
+          />
+        )}
       </div>
       <div className="flex flex-grow flex-col">
         <div className="flex flex-col flex-grow">
-          {selectedScoreName && (
+          {selectedScore && !isLoading && (
             <div className="flex flex-row space-x-4 p-4 mr-4">
               <div className="flex-none w-72">
-                <ScoreCard scoreName={selectedScoreName} />
+                <ScoreCard scoreName={selectedScore} />
               </div>
               <div className="flex-grow">
-                {comparedEvaluation !== null ? (
-                  <CompareChart
-                    evaluationId={evaluationId}
-                    comparedEvaluationId={comparedEvaluation?.id}
-                    scoreName={selectedScoreName}
-                  />
+                {targetId ? (
+                  <CompareChart evaluationId={evaluationId} comparedEvaluationId={targetId} scoreName={selectedScore} />
                 ) : (
-                  <Chart
-                    evaluationId={evaluationId}
-                    allScoreNames={Array.from(scoreNames)}
-                  />
+                  <Chart evaluationId={evaluationId} scores={scores} />
                 )}
               </div>
             </div>
           )}
           <div className="flex-grow">
             <DataTable
-              className=""
               columns={columns}
-              data={evaluationInfo?.results ?? []}
+              data={tableData}
               getRowId={(row) => row.id}
-              focusedRowId={selectedDatapoint?.id}
+              focusedRowId={searchParams?.get("datapointId")}
               paginated
               onRowClick={(row) => handleRowClick(row.original)}
-            />
+            >
+              <DatatableSorts columns={["index"]} />
+            </DataTable>
           </div>
         </div>
       </div>
-      {selectedDatapoint && (
+      {datapointId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
             enable={{
-              top: false,
-              right: false,
-              bottom: false,
               left: true,
-              topRight: false,
-              bottomRight: false,
-              bottomLeft: false,
-              topLeft: false
             }}
             defaultSize={{
-              width: 1000
+              width: 1000,
             }}
           >
             <div className="w-full h-full flex">
-              <TraceView
-                onClose={() => {
-                  searchParams.delete('datapointId');
-                  searchParams.delete('spanId');
-                  setSelectedDatapoint(null);
-                  router.push(`${pathName}?${searchParams.toString()}`);
-                }}
-                traceId={selectedDatapoint?.traceId}
-              />
+              <TraceView onClose={onClose} traceId={datapointId} />
             </div>
           </Resizable>
         </div>

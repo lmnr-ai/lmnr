@@ -1,23 +1,16 @@
-import { useEffect, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent
-} from '@/components/ui/chart';
-import { useProjectContext } from '@/contexts/project-context';
-import { BucketRow } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { BucketRow } from "@/lib/types";
 
-import { Label } from '../ui/label';
-import { Skeleton } from '../ui/skeleton';
+import { Label } from "../ui/label";
 
-const getTransformedData = (
-  data: {[scoreName: string]: BucketRow[]}
-): {index: number, [scoreName: string]: number}[] => {
-  const res: {[index: number]: {[scoreName: string]: number}} = {};
+const getTransformedData = (data: {
+  [scoreName: string]: BucketRow[];
+}): { index: number; [scoreName: string]: number }[] => {
+  const res: { [index: number]: { [scoreName: string]: number } } = {};
   for (const [scoreName, rows] of Object.entries(data)) {
     rows.forEach((row, index) => {
       res[index] = {
@@ -33,7 +26,11 @@ const getTransformedData = (
 };
 
 function renderTick(tickProps: any) {
-  const { x, y, payload: { value, offset } } = tickProps;
+  const {
+    x,
+    y,
+    payload: { value, offset },
+  } = tickProps;
   const VERTICAL_TICK_OFFSET = 8;
   const VERTICAL_TICK_LENGTH = 4;
   const FONT_SIZE = 8;
@@ -74,103 +71,84 @@ function renderTick(tickProps: any) {
 
 interface ChartProps {
   evaluationId: string;
-  allScoreNames: string[];
+  scores: string[];
   className?: string;
 }
 
-export default function Chart({ evaluationId, allScoreNames, className }: ChartProps) {
-  const { projectId } = useProjectContext();
-  const [data, setData] = useState<{[scoreName: string]: BucketRow[]}>({});
-  const [showScores, setShowScores] = useState<string[]>(allScoreNames);
+export default function Chart({ evaluationId, scores, className }: ChartProps) {
+  const params = useParams();
+  const [data, setData] = useState<{ [score: string]: BucketRow[] }>({});
+  const [showScores, setShowScores] = useState<string[]>(scores);
 
   useEffect(() => {
-    allScoreNames.forEach((scoreName) => {
-      fetch(`/api/projects/${projectId}/evaluation-score-distribution?` +
-          `evaluationIds=${evaluationId}&scoreName=${scoreName}`)
+    scores.forEach((scoreName) => {
+      fetch(
+        `/api/projects/${params?.projectId}/evaluation-score-distribution?` +
+          `evaluationIds=${evaluationId}&scoreName=${scoreName}`
+      )
         .then((res) => res.json())
-        .then((data) => setData((prev) => ({...prev, [scoreName]: data})));
+        .then((data) => setData((prev) => ({ ...prev, [scoreName]: data })));
     });
-  }, [evaluationId, allScoreNames]);
+  }, [evaluationId, scores, params?.projectId]);
 
-  const chartConfig = Object.fromEntries(allScoreNames.map((scoreName, index) => ([
-    scoreName, {
-      color: `hsl(var(--chart-${index % 5 + 1}))`,
-      label: scoreName,
-    }
-  ]))) satisfies ChartConfig;
-
-  // console.log(getTransformedData(data));
+  const chartConfig = useMemo<ChartConfig>(
+    () =>
+      Object.fromEntries(
+        scores.map((scoreName, index) => [
+          scoreName,
+          {
+            color: `hsl(var(--chart-${(index % 5) + 1}))`,
+            label: scoreName,
+          },
+        ])
+      ),
+    [scores]
+  );
 
   return (
-    <div className={cn('', className)}>
-      <div className="">
-        <ChartContainer config={chartConfig} className="max-h-48 w-full">
-          {Object.keys(data).length === 0 ? (
-            <Skeleton className="h-full w-full" />
-          ) : (
-            <BarChart
-              accessibilityLayer
-              data={getTransformedData(data)}
-              barSize={'4%'}
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="index"
-                tickLine={false}
-                axisLine={true}
-                padding={{ left: 0, right: 0 }}
-                tick={renderTick as any}
-              />
-
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                tickCount={3}
-              />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent hideLabel />}
-              />
-              {showScores.map((scoreName) => (
-                <Bar
-                  key={scoreName}
-                  dataKey={scoreName}
-                  fill={chartConfig[scoreName].color}
-                  radius={4}
-                  name={scoreName}
-                />
-              ))}
-            </BarChart>
-          )}
-        </ChartContainer>
-        <div className="flex flex-row justify-center w-full space-x-4 items-center">
-          {Array.from(allScoreNames).map((scoreName) => (
-            <div
-              key={scoreName}
-              className={
-                "flex items-center text-sm cursor-pointer " +
-                "decoration-dashed text-muted-foreground"
-              }
-              style={showScores.includes(scoreName) ? {
-                color: chartConfig[scoreName].color,
-              } : {}}
-              onClick={() => {
-                let newShowScores = new Set(showScores);
-                if (newShowScores.has(scoreName)) {
-                  newShowScores.delete(scoreName);
-                } else {
-                  newShowScores.add(scoreName);
-                }
-                setShowScores(Array.from(newShowScores));
-              }}
-            >
-              <Label className="cursor-pointer">
-                {scoreName}
-              </Label>
-            </div>
+    <div className={className}>
+      <ChartContainer config={chartConfig} className="max-h-48 w-full">
+        <BarChart accessibilityLayer data={getTransformedData(data)} barSize={"4%"}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="index"
+            tickLine={false}
+            axisLine={true}
+            padding={{ left: 0, right: 0 }}
+            tick={renderTick as any}
+          />
+          <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} />
+          <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+          {showScores.map((scoreName) => (
+            <Bar key={scoreName} dataKey={scoreName} fill={chartConfig[scoreName].color} radius={4} name={scoreName} />
           ))}
-        </div>
+        </BarChart>
+      </ChartContainer>
+      <div className="flex flex-row justify-center w-full space-x-4 items-center">
+        {scores.map((score) => (
+          <div
+            key={score}
+            className={"flex items-center text-sm cursor-pointer " + "decoration-dashed text-muted-foreground"}
+            style={
+              showScores.includes(score)
+                ? {
+                    color: chartConfig[score].color,
+                  }
+                : {}
+            }
+            onClick={() => {
+              let newShowScores = new Set(showScores);
+              if (newShowScores.has(score)) {
+                newShowScores.delete(score);
+              } else {
+                newShowScores.add(score);
+              }
+              setShowScores(Array.from(newShowScores));
+            }}
+          >
+            <Label className="cursor-pointer">{score}</Label>
+          </div>
+        ))}
       </div>
     </div>
   );
