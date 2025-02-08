@@ -10,16 +10,12 @@ use crate::{
         DB,
     },
     engine::{engine::EngineOutput, Engine},
-    features::{is_feature_enabled, Feature},
+    mq::MessageQueue,
     routes::pipelines::GraphInterruptMessage,
-    traces::{
-        utils::{get_llm_usage_for_span, record_span_to_db},
-        OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY,
-    },
+    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
 };
 use anyhow::Result;
 use itertools::Itertools;
-use lapin::{options::BasicPublishOptions, BasicProperties, Connection};
 use serde::Serialize;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
@@ -99,7 +95,7 @@ impl Serialize for PipelineRunnerError {
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
     semantic_search: Arc<dyn SemanticSearch>,
-    rabbitmq_connection: Option<Arc<Connection>>,
+    queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
     code_executor: Arc<dyn CodeExecutor>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -109,7 +105,7 @@ impl PipelineRunner {
     pub fn new(
         language_model: Arc<LanguageModelRunner>,
         semantic_search: Arc<dyn SemanticSearch>,
-        rabbitmq_connection: Option<Arc<Connection>>,
+        queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
         code_executor: Arc<dyn CodeExecutor>,
         db: Arc<DB>,
         cache: Arc<Cache>,
@@ -117,7 +113,7 @@ impl PipelineRunner {
         Self {
             language_model,
             semantic_search,
-            rabbitmq_connection,
+            queue,
             code_executor,
             db,
             cache,
@@ -232,7 +228,7 @@ impl PipelineRunner {
             _ => return Ok(()), // nothing to record
         };
         let run_stats = RunTraceStats::from_messages(&engine_output.messages);
-        let mut parent_span = Span::create_parent_span_in_run_trace(
+        let parent_span = Span::create_parent_span_in_run_trace(
             current_trace_and_span,
             &run_stats,
             pipeline_version_name,
@@ -252,66 +248,28 @@ impl PipelineRunner {
             events: vec![],
         };
 
-        if is_feature_enabled(Feature::FullBuild) {
-            // Safe to unwrap because we checked is_feature_enabled
-            let channel = self
-                .rabbitmq_connection
-                .as_ref()
-                .unwrap()
-                .create_channel()
-                .await?;
-            let payload = serde_json::to_string(&parent_span_mq_message)?;
-            let payload = payload.as_bytes();
-            channel
-                .basic_publish(
-                    OBSERVATIONS_EXCHANGE,
-                    OBSERVATIONS_ROUTING_KEY,
-                    BasicPublishOptions::default(),
-                    payload,
-                    BasicProperties::default(),
-                )
-                .await?
-                .await?;
-
-            for message_span in message_spans {
-                let message_mq_message = RabbitMqSpanMessage {
-                    project_id: *project_id,
-                    span: message_span,
-                    events: vec![],
-                };
-
-                let payload = serde_json::to_string(&message_mq_message)?;
-                let payload = payload.as_bytes();
-                channel
-                    .basic_publish(
-                        OBSERVATIONS_EXCHANGE,
-                        OBSERVATIONS_ROUTING_KEY,
-                        BasicPublishOptions::default(),
-                        payload,
-                        BasicProperties::default(),
-                    )
-                    .await?
-                    .await?;
-            }
-        } else {
-            let span_usage = get_llm_usage_for_span(
-                &mut parent_span.get_attributes(),
-                self.db.clone(),
-                self.cache.clone(),
+        self.queue
+            .publish(
+                &parent_span_mq_message,
+                Some(OBSERVATIONS_EXCHANGE),
+                Some(OBSERVATIONS_ROUTING_KEY),
             )
-            .await;
-            record_span_to_db(self.db.clone(), &span_usage, project_id, &mut parent_span).await?;
+            .await?;
 
-            for mut message_span in message_spans {
-                let span_usage = get_llm_usage_for_span(
-                    &mut message_span.get_attributes(),
-                    self.db.clone(),
-                    self.cache.clone(),
+        for message_span in message_spans {
+            let message_span_mq_message = RabbitMqSpanMessage {
+                project_id: *project_id,
+                span: message_span.clone(),
+                events: vec![],
+            };
+
+            self.queue
+                .publish(
+                    &message_span_mq_message,
+                    Some(OBSERVATIONS_EXCHANGE),
+                    Some(OBSERVATIONS_ROUTING_KEY),
                 )
-                .await;
-                record_span_to_db(self.db.clone(), &span_usage, project_id, &mut message_span)
-                    .await?;
-            }
+                .await?;
         }
 
         Ok(())

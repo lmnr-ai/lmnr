@@ -21,7 +21,7 @@ use storage::{mock::MockStorage, Storage};
 use tonic::transport::Server;
 use traces::{
     consumer::process_queue_spans, grpc_service::ProcessTracesService,
-    limits::WorkspaceLimitsExceeded, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
+    limits::WorkspaceLimitsExceeded,
 };
 
 use cache::{cache::CacheTrait, Cache};
@@ -30,11 +30,6 @@ use chunk::{
     runner::{Chunker, ChunkerRunner, ChunkerType},
 };
 use language_model::{costs::LLMPriceEntry, LanguageModelProvider, LanguageModelProviderName};
-use lapin::{
-    options::{ExchangeDeclareOptions, QueueDeclareOptions},
-    types::FieldTable,
-    Connection, ConnectionProperties,
-};
 use moka::future::Cache as MokaCache;
 use routes::pipelines::GraphInterruptMessage;
 use semantic_search::{
@@ -66,6 +61,7 @@ mod features;
 mod labels;
 mod language_model;
 mod machine_manager;
+mod mq;
 mod names;
 mod opentelemetry;
 mod pipeline;
@@ -186,40 +182,14 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    let mut rabbitmq_connection = None;
-    runtime_handle.block_on(async {
+    let spans_message_queue: Arc<dyn mq::MessageQueue<api::v1::traces::RabbitMqSpanMessage>> =
         if is_feature_enabled(Feature::FullBuild) {
             let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-            let connection = Arc::new(
-                Connection::connect(&rabbitmq_url, ConnectionProperties::default())
-                    .await
-                    .unwrap(),
-            );
-
-            // declare the exchange
-            let channel = connection.create_channel().await.unwrap();
-            channel
-                .exchange_declare(
-                    OBSERVATIONS_EXCHANGE,
-                    lapin::ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    OBSERVATIONS_QUEUE,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-            rabbitmq_connection = Some(connection);
-        }
-    });
-    let rabbitmq_connection_grpc = rabbitmq_connection.clone();
+            runtime_handle
+                .block_on(async { Arc::new(mq::rabbit::RabbitMQ::create(&rabbitmq_url).await) })
+        } else {
+            Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
+        };
 
     let mut aws_sdk_config = None;
     runtime_handle.block_on(async {
@@ -247,7 +217,7 @@ fn main() -> anyhow::Result<()> {
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
-    let clickhouse_for_grpc = clickhouse.clone();
+    let mq_for_grpc = spans_message_queue.clone();
 
     let (semantic_search, pipeline_runner, language_model_runner) =
         runtime_handle.block_on(async {
@@ -331,7 +301,7 @@ fn main() -> anyhow::Result<()> {
             let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
                 language_model_runner.clone(),
                 semantic_search.clone(),
-                rabbitmq_connection.clone(),
+                spans_message_queue.clone(),
                 code_executor.clone(),
                 db_for_http.clone(),
                 cache_for_http.clone(),
@@ -340,7 +310,6 @@ fn main() -> anyhow::Result<()> {
             (semantic_search, pipeline_runner, language_model_runner)
         });
 
-    let pipeline_runner_for_grpc = pipeline_runner.clone();
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
         .spawn(move || {
@@ -372,18 +341,15 @@ fn main() -> anyhow::Result<()> {
                         .parse::<u8>()
                         .unwrap_or(8);
 
-                    // start 8 threads per core to process spans from RabbitMQ
-                    if is_feature_enabled(Feature::FullBuild) {
-                        for _ in 0..num_workers_per_thread {
-                            tokio::spawn(process_queue_spans(
-                                pipeline_runner.clone(),
-                                db_for_http.clone(),
-                                cache_for_http.clone(),
-                                rabbitmq_connection.clone(),
-                                clickhouse.clone(),
-                                storage.clone(),
-                            ));
-                        }
+                    for _ in 0..num_workers_per_thread {
+                        tokio::spawn(process_queue_spans(
+                            pipeline_runner.clone(),
+                            db_for_http.clone(),
+                            cache_for_http.clone(),
+                            spans_message_queue.clone(),
+                            clickhouse.clone(),
+                            storage.clone(),
+                        ));
                     }
 
                     App::new()
@@ -397,7 +363,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(semantic_search.clone()))
                         .app_data(web::Data::new(interrupt_senders.clone()))
                         .app_data(web::Data::new(language_model_runner.clone()))
-                        .app_data(web::Data::new(rabbitmq_connection.clone()))
+                        .app_data(web::Data::new(spans_message_queue.clone()))
                         .app_data(web::Data::new(clickhouse.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
                         .app_data(web::Data::new(semantic_search.clone()))
@@ -567,13 +533,8 @@ fn main() -> anyhow::Result<()> {
         .name("grpc".to_string())
         .spawn(move || {
             runtime_handle.block_on(async {
-                let process_traces_service = ProcessTracesService::new(
-                    db.clone(),
-                    cache.clone(),
-                    rabbitmq_connection_grpc.clone(),
-                    clickhouse_for_grpc,
-                    pipeline_runner_for_grpc,
-                );
+                let process_traces_service =
+                    ProcessTracesService::new(db.clone(), cache.clone(), mq_for_grpc.clone());
 
                 Server::builder()
                     .add_service(

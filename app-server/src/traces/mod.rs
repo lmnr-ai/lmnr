@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use lapin::{message::Delivery, options::BasicAckOptions};
 use uuid::Uuid;
 
 use crate::{
@@ -10,6 +9,7 @@ use crate::{
         events::Event, labels::get_registered_label_classes_for_path, spans::Span,
         stats::add_spans_and_events_to_project_usage_stats, DB,
     },
+    mq::MQDelivery,
     pipeline::runner::PipelineRunner,
     traces::{
         evaluators::run_evaluator,
@@ -34,26 +34,23 @@ pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
 pub const OBSERVATIONS_EXCHANGE: &str = "observations_exchange";
 pub const OBSERVATIONS_ROUTING_KEY: &str = "observations_routing_key";
 
-pub async fn process_spans_and_events(
+pub async fn process_spans_and_events<T>(
     span: &mut Span,
     events: Vec<Event>,
     project_id: &Uuid,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    delivery: Option<Delivery>,
+    delivery: Box<dyn MQDelivery<T>>,
 ) {
     let span_usage =
         get_llm_usage_for_span(&mut span.get_attributes(), db.clone(), cache.clone()).await;
 
     match record_span_to_db(db.clone(), &span_usage, &project_id, span).await {
         Ok(_) => {
-            if let Some(delivery) = delivery {
-                let _ = delivery
-                    .ack(BasicAckOptions::default())
-                    .await
-                    .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
-            }
+            let _ = delivery.ack().await.map_err(|e| {
+                log::error!("Failed to ack MQ delivery: {:?}", e);
+            });
         }
         Err(e) => {
             log::error!(

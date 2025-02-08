@@ -1,16 +1,13 @@
-use std::sync::Arc;
-
 use actix_web::{post, web, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use lapin::Connection;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     db::{events::Event, project_api_keys::ProjectApiKey, spans::Span, DB},
     features::{is_feature_enabled, Feature},
+    mq::MessageQueue,
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
-    pipeline::runner::PipelineRunner,
     routes::types::ResponseResult,
     traces::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue},
 };
@@ -28,21 +25,16 @@ pub async fn process_traces(
     req: HttpRequest,
     body: Bytes,
     project_api_key: ProjectApiKey,
-    rabbitmq_connection: web::Data<Option<Arc<Connection>>>,
-    db: web::Data<DB>,
-    clickhouse: web::Data<clickhouse::Client>,
     cache: web::Data<crate::cache::Cache>,
-    pipeline_runner: web::Data<PipelineRunner>,
+    spans_message_queue: web::Data<dyn MessageQueue<RabbitMqSpanMessage>>,
+    db: web::Data<DB>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let cache = cache.into_inner();
-    let clickhouse = clickhouse.into_inner().as_ref().clone();
     let request = ExportTraceServiceRequest::decode(body).map_err(|e| {
         anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
     })?;
-    let rabbitmq_connection = rabbitmq_connection.as_ref().clone();
-
-    let pipeline_runner = pipeline_runner.into_inner();
+    let spans_message_queue = spans_message_queue.into_inner();
 
     if is_feature_enabled(Feature::UsageLimit) {
         let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
@@ -58,16 +50,8 @@ pub async fn process_traces(
         }
     }
 
-    let response = push_spans_to_queue(
-        request,
-        project_api_key.project_id,
-        rabbitmq_connection,
-        db,
-        clickhouse,
-        cache,
-        pipeline_runner,
-    )
-    .await?;
+    let response =
+        push_spans_to_queue(request, project_api_key.project_id, spans_message_queue).await?;
     if response.partial_success.is_some() {
         return Err(anyhow::anyhow!("There has been an error during trace processing.").into());
     }
