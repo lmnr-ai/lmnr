@@ -2,7 +2,6 @@ import { ArrowRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 
-import { useProjectContext } from "@/contexts/project-context";
 import { cn, swrFetcher } from "@/lib/utils";
 
 import { Skeleton } from "../ui/skeleton";
@@ -15,16 +14,15 @@ export default function ScoreCard({ scoreName }: ScoreCardProps) {
   const searchParams = useSearchParams();
   const params = useParams();
   const targetId = searchParams.get("targetId");
-  const { projectId } = useProjectContext();
 
   const { data, isLoading } = useSWR<{ averageValue?: number }>(
-    `/api/projects/${projectId}/evaluation-score-stats?evaluationId=${params?.evaluationId}&scoreName=${scoreName}`,
+    `/api/projects/${params?.projectId}/evaluation-score-stats?evaluationId=${params?.evaluationId}&scoreName=${scoreName}`,
     swrFetcher
   );
 
   const { data: comparedData, isLoading: isComparedLoading } = useSWR<{ averageValue?: number }>(
     targetId
-      ? `/api/projects/${projectId}/evaluation-score-stats?evaluationId=${targetId}&scoreName=${scoreName}`
+      ? `/api/projects/${params?.projectId}/evaluation-score-stats?evaluationId=${targetId}&scoreName=${scoreName}`
       : null,
     swrFetcher
   );

@@ -2,6 +2,7 @@ import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import useSWR from "swr";
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectContext } from "@/contexts/project-context";
 import { BucketRow } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
@@ -73,7 +74,7 @@ const chartConfig = {
 export default function CompareChart({ evaluationId, comparedEvaluationId, scoreName, className }: CompareChatProps) {
   const { projectId } = useProjectContext();
 
-  const { data } = useSWR<BucketRow[]>(
+  const { data, isLoading } = useSWR<BucketRow[]>(
     `/api/projects/${projectId}/evaluation-score-distribution?` +
       `evaluationIds=${evaluationId},${comparedEvaluationId}&scoreName=${scoreName}`,
     swrFetcher
@@ -81,21 +82,25 @@ export default function CompareChart({ evaluationId, comparedEvaluationId, score
 
   return (
     <div className={className}>
-      <ChartContainer config={chartConfig} className="max-h-48 w-full">
-        <BarChart accessibilityLayer data={getTransformedData(data || [])} barSize={"4%"}>
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="index"
-            tickLine={false}
-            axisLine={true}
-            padding={{ left: 0, right: 0 }}
-            tick={renderTick as any}
-          />
-          <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-          <Bar dataKey="comparedHeight" fill="hsl(var(--chart-2))" radius={4} name="Compared" />
-          <Bar dataKey="height" fill="hsl(var(--chart-1))" radius={4} name="Current" />
-        </BarChart>
-      </ChartContainer>
+      {isLoading ? (
+        <Skeleton className="h-48 w-full" />
+      ) : (
+        <ChartContainer config={chartConfig} className="max-h-48 w-full">
+          <BarChart accessibilityLayer data={getTransformedData(data || [])} barSize={"4%"}>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="index"
+              tickLine={false}
+              axisLine={true}
+              padding={{ left: 0, right: 0 }}
+              tick={renderTick as any}
+            />
+            <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+            <Bar dataKey="comparedHeight" fill="hsl(var(--chart-2))" radius={4} name="Compared" />
+            <Bar dataKey="height" fill="hsl(var(--chart-1))" radius={4} name="Current" />
+          </BarChart>
+        </ChartContainer>
+      )}
     </div>
   );
 }

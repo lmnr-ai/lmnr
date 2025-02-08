@@ -8,7 +8,9 @@ import useSWR from "swr";
 
 import Chart from "@/components/evaluation/chart";
 import CompareChart from "@/components/evaluation/compare-chart";
+import ScoreCard from "@/components/evaluation/score-card";
 import DatatableSorts from "@/components/ui/datatable-sorts";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import {
   Evaluation as EvaluationType,
@@ -24,7 +26,6 @@ import { DataTable } from "../ui/datatable";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import ScoreCard from "./score-card";
 
 interface EvaluationProps {
   evaluations: EvaluationType[];
@@ -264,20 +265,32 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
       </div>
       <div className="flex flex-grow flex-col">
         <div className="flex flex-col flex-grow">
-          {selectedScore && !isLoading && (
-            <div className="flex flex-row space-x-4 p-4 mr-4">
-              <div className="flex-none w-72">
-                <ScoreCard scoreName={selectedScore} />
-              </div>
-              <div className="flex-grow">
-                {targetId ? (
-                  <CompareChart evaluationId={evaluationId} comparedEvaluationId={targetId} scoreName={selectedScore} />
-                ) : (
-                  <Chart evaluationId={evaluationId} scores={scores} />
-                )}
-              </div>
-            </div>
-          )}
+          <div className="flex flex-row space-x-4 p-4 mr-4">
+            {isLoading || !selectedScore ? (
+              <>
+                <Skeleton className="w-72 h-48" />
+                <Skeleton className="w-full h-48" />
+              </>
+            ) : (
+              <>
+                <div className="flex-none w-72">
+                  <ScoreCard scoreName={selectedScore} />
+                </div>
+                <div className="flex-grow">
+                  {targetId ? (
+                    <CompareChart
+                      evaluationId={evaluationId}
+                      comparedEvaluationId={targetId}
+                      scoreName={selectedScore}
+                    />
+                  ) : (
+                    <Chart className="h-full" evaluationId={evaluationId} scores={scores} />
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="flex-grow">
             <DataTable
               columns={columns}
