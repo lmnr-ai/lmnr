@@ -59,8 +59,8 @@ where
                 queue
                     .publish(
                         &rabbitmq_span_message,
-                        Some(OBSERVATIONS_EXCHANGE),
-                        Some(OBSERVATIONS_ROUTING_KEY),
+                        OBSERVATIONS_EXCHANGE,
+                        OBSERVATIONS_ROUTING_KEY,
                     )
                     .await?;
             }

@@ -10,6 +10,11 @@ use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient
 use dashmap::DashMap;
 use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
 use features::{is_feature_enabled, Feature};
+use lapin::{
+    options::{ExchangeDeclareOptions, QueueDeclareOptions},
+    types::FieldTable,
+    Connection, ConnectionProperties, ExchangeKind,
+};
 use machine_manager::{
     machine_manager_service_client::MachineManagerServiceClient, MachineManager, MachineManagerImpl,
 };
@@ -21,7 +26,7 @@ use storage::{mock::MockStorage, Storage};
 use tonic::transport::Server;
 use traces::{
     consumer::process_queue_spans, grpc_service::ProcessTracesService,
-    limits::WorkspaceLimitsExceeded,
+    limits::WorkspaceLimitsExceeded, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
 };
 
 use cache::{cache::CacheTrait, Cache};
@@ -162,8 +167,36 @@ fn main() -> anyhow::Result<()> {
     let spans_message_queue: Arc<dyn mq::MessageQueue<api::v1::traces::RabbitMqSpanMessage>> =
         if is_feature_enabled(Feature::FullBuild) {
             let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-            runtime_handle
-                .block_on(async { Arc::new(mq::rabbit::RabbitMQ::create(&rabbitmq_url).await) })
+            runtime_handle.block_on(async {
+                let connection =
+                    Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+                        .await
+                        .unwrap();
+
+                // declare the exchange
+                let channel = connection.create_channel().await.unwrap();
+
+                channel
+                    .exchange_declare(
+                        OBSERVATIONS_EXCHANGE,
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_declare(
+                        OBSERVATIONS_QUEUE,
+                        QueueDeclareOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                Arc::new(mq::rabbit::RabbitMQ::new(Arc::new(connection)))
+            })
         } else {
             Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
         };

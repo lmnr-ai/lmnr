@@ -56,9 +56,9 @@ async fn inner_process_queue_spans<S, Q>(
     // Safe to unwrap because we checked is_feature_enabled above
     let mut receiver = queue
         .get_receiver(
-            Some(OBSERVATIONS_QUEUE),
-            Some(OBSERVATIONS_EXCHANGE),
-            Some(OBSERVATIONS_ROUTING_KEY),
+            OBSERVATIONS_QUEUE,
+            OBSERVATIONS_EXCHANGE,
+            OBSERVATIONS_ROUTING_KEY,
         )
         .await
         .unwrap();

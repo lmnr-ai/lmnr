@@ -251,8 +251,8 @@ impl PipelineRunner {
         self.queue
             .publish(
                 &parent_span_mq_message,
-                Some(OBSERVATIONS_EXCHANGE),
-                Some(OBSERVATIONS_ROUTING_KEY),
+                OBSERVATIONS_EXCHANGE,
+                OBSERVATIONS_ROUTING_KEY,
             )
             .await?;
 
@@ -266,8 +266,8 @@ impl PipelineRunner {
             self.queue
                 .publish(
                     &message_span_mq_message,
-                    Some(OBSERVATIONS_EXCHANGE),
-                    Some(OBSERVATIONS_ROUTING_KEY),
+                    OBSERVATIONS_EXCHANGE,
+                    OBSERVATIONS_ROUTING_KEY,
                 )
                 .await?;
         }

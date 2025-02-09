@@ -24,17 +24,12 @@ pub trait MessageQueue<T>: Send + Sync
 where
     T: for<'de> Deserialize<'de> + Serialize + Clone + Send + Sync + 'static,
 {
-    async fn publish(
-        &self,
-        message: &T,
-        exchange: Option<&str>,
-        routing_key: Option<&str>,
-    ) -> anyhow::Result<()>;
+    async fn publish(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()>;
 
     async fn get_receiver(
         &self,
-        queue_name: Option<&str>,
-        exchange: Option<&str>,
-        routing_key: Option<&str>,
+        queue_name: &str,
+        exchange: &str,
+        routing_key: &str,
     ) -> anyhow::Result<Box<dyn MQReceiver<T>>>;
 }

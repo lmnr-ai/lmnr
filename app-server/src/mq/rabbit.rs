@@ -2,18 +2,14 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use lapin::{
     message::Delivery,
-    options::{
-        BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, ExchangeDeclareOptions,
-        QueueBindOptions, QueueDeclareOptions,
-    },
+    options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
     types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties, Consumer, ExchangeKind,
+    BasicProperties, Connection, Consumer,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::{MQDelivery, MQReceiver, MessageQueue};
-use crate::traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY};
 
 pub struct RabbitMQ {
     connection: Arc<Connection>,
@@ -77,36 +73,8 @@ where
 }
 
 impl RabbitMQ {
-    pub async fn create(url: &str) -> Self {
-        let connection = Connection::connect(url, ConnectionProperties::default())
-            .await
-            .unwrap();
-
-        // declare the exchange
-        let channel = connection.create_channel().await.unwrap();
-
-        channel
-            .exchange_declare(
-                OBSERVATIONS_EXCHANGE,
-                ExchangeKind::Fanout,
-                ExchangeDeclareOptions::default(),
-                FieldTable::default(),
-            )
-            .await
-            .unwrap();
-
-        channel
-            .queue_declare(
-                OBSERVATIONS_QUEUE,
-                QueueDeclareOptions::default(),
-                FieldTable::default(),
-            )
-            .await
-            .unwrap();
-
-        Self {
-            connection: Arc::new(connection),
-        }
+    pub fn new(connection: Arc<Connection>) -> Self {
+        Self { connection }
     }
 }
 
@@ -115,12 +83,7 @@ impl<T> MessageQueue<T> for RabbitMQ
 where
     T: for<'de> Deserialize<'de> + Serialize + Clone + Send + Sync + 'static,
 {
-    async fn publish(
-        &self,
-        message: &T,
-        exchange: Option<&str>,
-        routing_key: Option<&str>,
-    ) -> anyhow::Result<()> {
+    async fn publish(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()> {
         let payload = serde_json::to_string(message)?;
         let payload = payload.as_bytes();
 
@@ -128,8 +91,8 @@ where
 
         channel
             .basic_publish(
-                exchange.unwrap_or(OBSERVATIONS_EXCHANGE),
-                routing_key.unwrap_or(OBSERVATIONS_ROUTING_KEY),
+                exchange,
+                routing_key,
                 BasicPublishOptions::default(),
                 payload,
                 BasicProperties::default(),
@@ -142,9 +105,9 @@ where
 
     async fn get_receiver(
         &self,
-        queue_name: Option<&str>,
-        exchange: Option<&str>,
-        routing_key: Option<&str>,
+        queue_name: &str,
+        exchange: &str,
+        routing_key: &str,
     ) -> anyhow::Result<Box<dyn MQReceiver<T>>>
     where
         T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
@@ -153,9 +116,9 @@ where
 
         channel
             .queue_bind(
-                queue_name.unwrap_or(OBSERVATIONS_QUEUE),
-                exchange.unwrap_or(OBSERVATIONS_EXCHANGE),
-                routing_key.unwrap_or(OBSERVATIONS_ROUTING_KEY),
+                queue_name,
+                exchange,
+                routing_key,
                 QueueBindOptions::default(),
                 FieldTable::default(),
             )
@@ -163,8 +126,8 @@ where
 
         let consumer = channel
             .basic_consume(
-                queue_name.unwrap_or(OBSERVATIONS_QUEUE),
-                routing_key.unwrap_or(OBSERVATIONS_ROUTING_KEY),
+                queue_name,
+                routing_key,
                 BasicConsumeOptions::default(),
                 FieldTable::default(),
             )

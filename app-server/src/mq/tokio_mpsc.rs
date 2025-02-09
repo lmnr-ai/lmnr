@@ -3,7 +3,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::{MQDelivery, MQReceiver, MessageQueue};
-use crate::traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -81,14 +80,7 @@ impl<T> MessageQueue<T> for TokioMpscQueue
 where
     T: for<'de> Deserialize<'de> + Serialize + Clone + Send + Sync + 'static,
 {
-    async fn publish(
-        &self,
-        message: &T,
-        exchange: Option<&str>,
-        routing_key: Option<&str>,
-    ) -> anyhow::Result<()> {
-        let exchange = exchange.unwrap_or(OBSERVATIONS_EXCHANGE);
-        let routing_key = routing_key.unwrap_or(OBSERVATIONS_ROUTING_KEY);
+    async fn publish(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()> {
         let key = self.key(exchange, routing_key);
 
         let Some(senders) = self.senders.get(&key) else {
@@ -125,12 +117,10 @@ where
 
     async fn get_receiver(
         &self,
-        _queue_name: Option<&str>,
-        exchange: Option<&str>,
-        routing_key: Option<&str>,
+        _queue_name: &str,
+        exchange: &str,
+        routing_key: &str,
     ) -> anyhow::Result<Box<dyn MQReceiver<T>>> {
-        let exchange = exchange.unwrap_or(OBSERVATIONS_EXCHANGE);
-        let routing_key = routing_key.unwrap_or(OBSERVATIONS_ROUTING_KEY);
         let key = self.key(exchange, routing_key);
 
         let (sender, receiver) = mpsc::channel(100);
