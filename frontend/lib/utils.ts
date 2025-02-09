@@ -400,10 +400,22 @@ export const isGroupByIntervalAvailable = (
 
 export const toFixedIfFloat = (value: number) => (value % 1 === 0 ? value : parseFloat(`${value}`)?.toFixed(3));
 
-export const isValidJsonObject = (value: any): boolean => value !== null && typeof value === "object" && !Array.isArray(value);
+export const isValidJsonObject = (value: any): boolean =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
 export const formatSecondsToMinutesAndSeconds = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
+
+export const pluralize = (count: number, singular: string, plural: string) => {
+  const pluralRules = new Intl.PluralRules("en-US");
+  const grammaticalNumber = pluralRules.select(count);
+  switch (grammaticalNumber) {
+    case "one":
+      return singular;
+    default:
+      return plural;
+  }
 };

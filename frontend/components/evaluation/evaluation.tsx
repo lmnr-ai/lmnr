@@ -9,7 +9,6 @@ import useSWR from "swr";
 import Chart from "@/components/evaluation/chart";
 import CompareChart from "@/components/evaluation/compare-chart";
 import ScoreCard from "@/components/evaluation/score-card";
-import DatatableSorts from "@/components/ui/datatable-sorts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import {
@@ -299,9 +298,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
               focusedRowId={searchParams?.get("datapointId")}
               paginated
               onRowClick={(row) => handleRowClick(row.original)}
-            >
-              <DatatableSorts columns={["index"]} />
-            </DataTable>
+            />
           </div>
         </div>
       </div>

@@ -1,26 +1,16 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations, evaluationScores, traces } from "@/lib/db/migrations/schema";
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   props: { params: Promise<{ projectId: string; evaluationId: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;
-
-  const defaultOrderBy = asc(evaluationResults.createdAt);
-
-  const paramsOrderBy = req.nextUrl.searchParams.get("sort")?.split(":");
-
-  const orderBy = paramsOrderBy
-    ? paramsOrderBy[1] === "asc"
-      ? asc(evaluationResults.index)
-      : desc(evaluationResults.index)
-    : defaultOrderBy;
 
   const getEvaluation = db.query.evaluations.findFirst({
     where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
@@ -57,7 +47,7 @@ export async function GET(
     .leftJoin(traces, eq(evaluationResults.traceId, traces.id))
     .leftJoin(subQueryScoreCte, eq(evaluationResults.id, subQueryScoreCte.resultId))
     .where(eq(evaluationResults.evaluationId, evaluationId))
-    .orderBy(orderBy);
+    .orderBy(asc(evaluationResults.index), asc(evaluationResults.createdAt));
 
   const [evaluation, results] = await Promise.all([getEvaluation, getEvaluationResults]);
 

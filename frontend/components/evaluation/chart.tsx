@@ -149,8 +149,8 @@ export default function Chart({ evaluationId, scores, className, isLoading = fal
                 style={
                   showScores.includes(score)
                     ? {
-                        color: chartConfig[score].color,
-                      }
+                      color: chartConfig[score].color,
+                    }
                     : {}
                 }
                 onClick={() => {

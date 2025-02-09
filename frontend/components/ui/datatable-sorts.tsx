@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
+import { cn, pluralize } from "@/lib/utils";
 
 interface DataTableSortsProps {
   columns: string[];
@@ -18,17 +18,6 @@ interface FilterField {
   field: string;
   asc: boolean;
 }
-
-const pluralize = (count: number, singular: string, plural: string) => {
-  const pluralRules = new Intl.PluralRules("en-US");
-  const grammaticalNumber = pluralRules.select(count);
-  switch (grammaticalNumber) {
-    case "one":
-      return singular;
-    default:
-      return plural;
-  }
-};
 
 const DataTableSorts = ({ columns }: DataTableSortsProps) => {
   const router = useRouter();
@@ -88,7 +77,7 @@ const DataTableSorts = ({ columns }: DataTableSortsProps) => {
             : "Sort"}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="z-30 p-0 w-[400px]" side="bottom" align="start">
+      <PopoverContent className="z-30 p-0 w-fit" side="bottom" align="start">
         <div className={cn("flex flex-col gap-1 py-2 px-3", { "gap-2": fields?.length > 0 })}>
           {fields?.length > 0 ? (
             fields.map((field) => (
@@ -96,7 +85,7 @@ const DataTableSorts = ({ columns }: DataTableSortsProps) => {
                 <AlignJustify size={20} className="text-secondary-foreground mr-2" />
                 <span className="flex grow gap-1 text-secondary-foreground">
                   sort by
-                  <span className="text-primary-foreground">{field.field}</span>
+                  <span className="text-primary-foreground truncate">{field.field}</span>
                 </span>
 
                 <div className="flex gap-1 items-center">
@@ -116,7 +105,7 @@ const DataTableSorts = ({ columns }: DataTableSortsProps) => {
           )}
         </div>
         <Separator />
-        <div className="flex justify-between items-center py-2 px-3">
+        <div className="flex justify-between items-center gap-2 py-2 px-3">
           {filteredFields?.length > 0 ? (
             <Select
               value=""
