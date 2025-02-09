@@ -92,5 +92,9 @@ async fn inner_process_browser_events(
         if let Err(e) = query_with_bindings.execute().await {
             log::error!("Failed to insert browser events: {:?}", e);
         }
+
+        if let Err(e) = delivery.ack().await {
+            log::error!("Failed to ack message: {:?}", e);
+        }
     }
 }
