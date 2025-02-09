@@ -9,7 +9,7 @@ use lapin::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::{MQDelivery, MQReceiver, MessageQueue};
+use super::{MessageQueue, MessageQueueDelivery, MessageQueueReceiver};
 
 pub struct RabbitMQ {
     connection: Arc<Connection>,
@@ -25,7 +25,7 @@ struct RabbitMQDelivery<T> {
 }
 
 #[async_trait]
-impl<T> MQDelivery<T> for RabbitMQDelivery<T>
+impl<T> MessageQueueDelivery<T> for RabbitMQDelivery<T>
 where
     T: for<'de> Deserialize<'de> + Clone + Send + Sync,
 {
@@ -40,11 +40,11 @@ where
 }
 
 #[async_trait]
-impl<T> MQReceiver<T> for RabbitMQReceiver
+impl<T> MessageQueueReceiver<T> for RabbitMQReceiver
 where
     T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
 {
-    async fn receive(&mut self) -> Option<anyhow::Result<Box<dyn MQDelivery<T>>>> {
+    async fn receive(&mut self) -> Option<anyhow::Result<Box<dyn MessageQueueDelivery<T>>>> {
         if let Some(delivery) = self.consumer.next().await {
             let Ok(delivery) = delivery else {
                 return Some(Err(anyhow::anyhow!(
@@ -108,7 +108,7 @@ where
         queue_name: &str,
         exchange: &str,
         routing_key: &str,
-    ) -> anyhow::Result<Box<dyn MQReceiver<T>>>
+    ) -> anyhow::Result<Box<dyn MessageQueueReceiver<T>>>
     where
         T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
     {

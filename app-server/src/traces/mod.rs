@@ -9,7 +9,7 @@ use crate::{
         events::Event, labels::get_registered_label_classes_for_path, spans::Span,
         stats::add_spans_and_events_to_project_usage_stats, DB,
     },
-    mq::MQDelivery,
+    mq::MessageQueueDelivery,
     pipeline::runner::PipelineRunner,
     traces::{
         evaluators::run_evaluator,
@@ -41,7 +41,7 @@ pub async fn process_spans_and_events<T>(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    delivery: Box<dyn MQDelivery<T>>,
+    delivery: Box<dyn MessageQueueDelivery<T>>,
 ) {
     let span_usage =
         get_llm_usage_for_span(&mut span.get_attributes(), db.clone(), cache.clone()).await;

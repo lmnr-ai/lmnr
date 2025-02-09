@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use super::{MQDelivery, MQReceiver, MessageQueue};
+use super::{MessageQueue, MessageQueueDelivery, MessageQueueReceiver};
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ struct TokioMpscDelivery<T> {
 }
 
 #[async_trait]
-impl<T> MQDelivery<T> for TokioMpscDelivery<T>
+impl<T> MessageQueueDelivery<T> for TokioMpscDelivery<T>
 where
     T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
 {
@@ -40,11 +40,11 @@ where
 }
 
 #[async_trait]
-impl<T> MQReceiver<T> for TokioMpscReceiver
+impl<T> MessageQueueReceiver<T> for TokioMpscReceiver
 where
     T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
 {
-    async fn receive(&mut self) -> Option<anyhow::Result<Box<dyn MQDelivery<T>>>> {
+    async fn receive(&mut self) -> Option<anyhow::Result<Box<dyn MessageQueueDelivery<T>>>> {
         let payload = self.receiver.recv().await;
         match payload {
             Some(payload) => {
@@ -120,7 +120,7 @@ where
         _queue_name: &str,
         exchange: &str,
         routing_key: &str,
-    ) -> anyhow::Result<Box<dyn MQReceiver<T>>> {
+    ) -> anyhow::Result<Box<dyn MessageQueueReceiver<T>>> {
         let key = self.key(exchange, routing_key);
 
         let (sender, receiver) = mpsc::channel(100);

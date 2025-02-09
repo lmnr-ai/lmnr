@@ -5,14 +5,14 @@ pub mod rabbit;
 pub mod tokio_mpsc;
 
 #[async_trait]
-pub trait MQReceiver<T>: Send + Sync {
-    async fn receive(&mut self) -> Option<anyhow::Result<Box<dyn MQDelivery<T>>>>
+pub trait MessageQueueReceiver<T>: Send + Sync {
+    async fn receive(&mut self) -> Option<anyhow::Result<Box<dyn MessageQueueDelivery<T>>>>
     where
         T: for<'de> Deserialize<'de> + Clone;
 }
 
 #[async_trait]
-pub trait MQDelivery<T>: Send + Sync {
+pub trait MessageQueueDelivery<T>: Send + Sync {
     async fn ack(&self) -> anyhow::Result<()>;
     fn data(&self) -> T
     where
@@ -31,5 +31,5 @@ where
         queue_name: &str,
         exchange: &str,
         routing_key: &str,
-    ) -> anyhow::Result<Box<dyn MQReceiver<T>>>;
+    ) -> anyhow::Result<Box<dyn MessageQueueReceiver<T>>>;
 }
