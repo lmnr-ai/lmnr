@@ -130,7 +130,6 @@ async fn run_pipeline_graph(
 
             // Both successful and failed runs have trace
             if let Some(trace) = trace {
-                // TODO: record spans/traces if needed
                 let run_stats = RunTraceStats::from_messages(&trace.messages);
                 let run_trace = RunTrace {
                     run_id,

@@ -10,6 +10,11 @@ use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient
 use dashmap::DashMap;
 use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
 use features::{is_feature_enabled, Feature};
+use lapin::{
+    options::{ExchangeDeclareOptions, QueueDeclareOptions},
+    types::FieldTable,
+    Connection, ConnectionProperties, ExchangeKind,
+};
 use machine_manager::{
     machine_manager_service_client::MachineManagerServiceClient, MachineManager, MachineManagerImpl,
 };
@@ -30,11 +35,6 @@ use chunk::{
     runner::{Chunker, ChunkerRunner, ChunkerType},
 };
 use language_model::{costs::LLMPriceEntry, LanguageModelProvider, LanguageModelProviderName};
-use lapin::{
-    options::{ExchangeDeclareOptions, QueueDeclareOptions},
-    types::FieldTable,
-    Connection, ConnectionProperties,
-};
 use moka::future::Cache as MokaCache;
 use routes::pipelines::GraphInterruptMessage;
 use semantic_search::{
@@ -66,6 +66,7 @@ mod features;
 mod labels;
 mod language_model;
 mod machine_manager;
+mod mq;
 mod names;
 mod opentelemetry;
 mod pipeline;
@@ -86,12 +87,14 @@ fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
 }
 
 fn main() -> anyhow::Result<()> {
+    // == Crypto utils ==
     sodiumoxide::init().expect("failed to initialize sodiumoxide");
 
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
+    // == General configuration ==
     dotenv::dotenv().ok();
 
     let general_runtime =
@@ -113,6 +116,8 @@ fn main() -> anyhow::Result<()> {
         .unwrap();
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
+    // == Stuff that is needed both for HTTP and gRPC servers ==
+    // === 1. Caches ===
     let mut caches: HashMap<TypeId, Arc<dyn CacheTrait>> = HashMap::new();
     let auth_cache: Arc<MokaCache<String, User>> = Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
     caches.insert(TypeId::of::<User>(), auth_cache);
@@ -137,6 +142,7 @@ fn main() -> anyhow::Result<()> {
 
     let cache = Arc::new(Cache::new(caches));
 
+    // === 2. Database ===
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     let mut pool = None;
@@ -155,196 +161,109 @@ fn main() -> anyhow::Result<()> {
         );
     });
     let pool = pool.unwrap();
-
     let db = Arc::new(db::DB::new(pool));
 
-    let mut chunkers = HashMap::new();
-    let character_split_chunker = CharacterSplitChunker {};
-    chunkers.insert(
-        ChunkerType::CharacterSplit,
-        Chunker::CharacterSplit(character_split_chunker),
-    );
-    let chunker_runner = Arc::new(ChunkerRunner::new(chunkers));
-
-    let interrupt_senders = Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
-
-    let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-    let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-    let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-    let client = clickhouse::Client::default()
-        .with_url(clickhouse_url)
-        .with_user(clickhouse_user)
-        .with_database("default")
-        .with_option("async_insert", "1")
-        .with_option("wait_for_async_insert", "0");
-
-    let clickhouse = match clickhouse_password {
-        Ok(password) => client.with_password(password),
-        _ => {
-            log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
-            client
-        }
-    };
-
-    let mut rabbitmq_connection = None;
-    runtime_handle.block_on(async {
+    // === 3. Spans message queue ===
+    let spans_message_queue: Arc<dyn mq::MessageQueue<api::v1::traces::RabbitMqSpanMessage>> =
         if is_feature_enabled(Feature::FullBuild) {
             let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-            let connection = Arc::new(
-                Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+            runtime_handle.block_on(async {
+                let connection =
+                    Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+                        .await
+                        .unwrap();
+
+                // declare the exchange
+                let channel = connection.create_channel().await.unwrap();
+
+                channel
+                    .exchange_declare(
+                        OBSERVATIONS_EXCHANGE,
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions::default(),
+                        FieldTable::default(),
+                    )
                     .await
-                    .unwrap(),
-            );
+                    .unwrap();
 
-            // declare the exchange
-            let channel = connection.create_channel().await.unwrap();
-            channel
-                .exchange_declare(
-                    OBSERVATIONS_EXCHANGE,
-                    lapin::ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+                channel
+                    .queue_declare(
+                        OBSERVATIONS_QUEUE,
+                        QueueDeclareOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
 
-            channel
-                .queue_declare(
-                    OBSERVATIONS_QUEUE,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-            rabbitmq_connection = Some(connection);
-        }
-    });
-    let rabbitmq_connection_grpc = rabbitmq_connection.clone();
-
-    let mut aws_sdk_config = None;
-    runtime_handle.block_on(async {
-        aws_sdk_config = Some(
-            aws_config::defaults(BehaviorVersion::latest())
-                .region(aws_config::Region::new(
-                    env::var("AWS_REGION").unwrap_or("us-east-1".to_string()),
-                ))
-                .load()
-                .await,
-        );
-    });
-    let aws_sdk_config = aws_sdk_config.unwrap();
-    let storage: Arc<dyn Storage> = if is_feature_enabled(Feature::Storage) {
-        let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
-        let s3_storage = storage::s3::S3Storage::new(
-            s3_client,
-            env::var("S3_TRACE_PAYLOADS_BUCKET").expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
-        );
-        Arc::new(s3_storage)
-    } else {
-        Arc::new(MockStorage {})
-    };
+                Arc::new(mq::rabbit::RabbitMQ::new(Arc::new(connection)))
+            })
+        } else {
+            Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
+        };
 
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
-    let clickhouse_for_grpc = clickhouse.clone();
+    let spans_mq_for_http = spans_message_queue.clone();
 
-    let (semantic_search, pipeline_runner, language_model_runner) =
-        runtime_handle.block_on(async {
-            let semantic_search: Arc<dyn SemanticSearch> = if is_feature_enabled(Feature::FullBuild)
-            {
-                let semantic_search_url =
-                    env::var("SEMANTIC_SEARCH_URL").expect("SEMANTIC_SEARCH_URL must be set");
-
-                let semantic_search_client = Arc::new(
-                    SemanticSearchClient::connect(semantic_search_url)
-                        .await
-                        .unwrap(),
-                );
-                Arc::new(
-                    semantic_search::semantic_search_impl::SemanticSearchImpl::new(
-                        semantic_search_client,
-                    ),
-                )
-            } else {
-                Arc::new(semantic_search::mock::MockSemanticSearch {})
-            };
-
-            let code_executor: Arc<dyn CodeExecutor> = if is_feature_enabled(Feature::FullBuild) {
-                let code_executor_url =
-                    env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
-                let code_executor_client = Arc::new(
-                    CodeExecutorClient::connect(code_executor_url)
-                        .await
-                        .unwrap(),
-                );
-                Arc::new(code_executor::code_executor_impl::CodeExecutorImpl::new(
-                    code_executor_client,
-                ))
-            } else {
-                Arc::new(code_executor::mock::MockCodeExecutor {})
-            };
-
-            let client = reqwest::Client::new();
-            let anthropic = language_model::Anthropic::new(client.clone());
-            let openai = language_model::OpenAI::new(client.clone());
-            let openai_azure = language_model::OpenAIAzure::new(client.clone());
-            let gemini = language_model::Gemini::new(client.clone());
-            let groq = language_model::Groq::new(client.clone());
-            let mistral = language_model::Mistral::new(client.clone());
-
-            let mut language_models: HashMap<LanguageModelProviderName, LanguageModelProvider> =
-                HashMap::new();
-            language_models.insert(
-                LanguageModelProviderName::Anthropic,
-                LanguageModelProvider::Anthropic(anthropic),
-            );
-            language_models.insert(
-                LanguageModelProviderName::OpenAI,
-                LanguageModelProvider::OpenAI(openai),
-            );
-            language_models.insert(
-                LanguageModelProviderName::OpenAIAzure,
-                LanguageModelProvider::OpenAIAzure(openai_azure),
-            );
-            language_models.insert(
-                LanguageModelProviderName::Gemini,
-                LanguageModelProvider::Gemini(gemini),
-            );
-            language_models.insert(
-                LanguageModelProviderName::Groq,
-                LanguageModelProvider::Groq(groq),
-            );
-            language_models.insert(
-                LanguageModelProviderName::Mistral,
-                LanguageModelProvider::Mistral(mistral),
-            );
-            language_models.insert(
-                LanguageModelProviderName::Bedrock,
-                LanguageModelProvider::Bedrock(language_model::AnthropicBedrock::new(
-                    aws_sdk_bedrockruntime::Client::new(&aws_sdk_config),
-                )),
-            );
-            let language_model_runner =
-                Arc::new(language_model::LanguageModelRunner::new(language_models));
-
-            let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
-                language_model_runner.clone(),
-                semantic_search.clone(),
-                rabbitmq_connection.clone(),
-                code_executor.clone(),
-                db_for_http.clone(),
-                cache_for_http.clone(),
-            ));
-
-            (semantic_search, pipeline_runner, language_model_runner)
-        });
-
-    let pipeline_runner_for_grpc = pipeline_runner.clone();
+    // == HTTP server ==
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
         .spawn(move || {
             runtime_handle_for_http.block_on(async {
+                // == AWS config for S3 and Bedrock ==
+                let aws_sdk_config = aws_config::defaults(BehaviorVersion::latest())
+                    .region(aws_config::Region::new(
+                        env::var("AWS_REGION").unwrap_or("us-east-1".to_string()),
+                    ))
+                    .load()
+                    .await;
+
+                // == Storage ==
+                let storage: Arc<dyn Storage> = if is_feature_enabled(Feature::Storage) {
+                    let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
+                    let s3_storage = storage::s3::S3Storage::new(
+                        s3_client,
+                        env::var("S3_TRACE_PAYLOADS_BUCKET")
+                            .expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
+                    );
+                    Arc::new(s3_storage)
+                } else {
+                    Arc::new(MockStorage {})
+                };
+
+                // == Chunkers ==
+                // TODO: either add chunkers back to the datasets or remove them from code
+                let mut chunkers = HashMap::new();
+                let character_split_chunker = CharacterSplitChunker {};
+                chunkers.insert(
+                    ChunkerType::CharacterSplit,
+                    Chunker::CharacterSplit(character_split_chunker),
+                );
+                let chunker_runner = Arc::new(ChunkerRunner::new(chunkers));
+
+                // == Clickhouse ==
+                let clickhouse_url =
+                    env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+                let clickhouse_user =
+                    env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+                let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+                let clickhouse_client = clickhouse::Client::default()
+                    .with_url(clickhouse_url)
+                    .with_user(clickhouse_user)
+                    .with_database("default")
+                    .with_option("async_insert", "1")
+                    .with_option("wait_for_async_insert", "0");
+
+                let clickhouse = match clickhouse_password {
+                    Ok(password) => clickhouse_client.with_password(password),
+                    _ => {
+                        log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+                        clickhouse_client
+                    }
+                };
+
+                // == Machine manager ==
                 let machine_manager: Arc<dyn MachineManager> =
                     if is_feature_enabled(Feature::MachineManager) {
                         let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
@@ -359,7 +278,103 @@ fn main() -> anyhow::Result<()> {
                         Arc::new(machine_manager::MockMachineManager {})
                     };
 
+                // == Name generator ==
                 let name_generator = Arc::new(NameGenerator::new());
+
+                // == Interrupt senders for pipeline execution control ==
+                let interrupt_senders =
+                    Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
+
+                // == Semantic search ==
+                let semantic_search: Arc<dyn SemanticSearch> =
+                    if is_feature_enabled(Feature::FullBuild) {
+                        let semantic_search_url = env::var("SEMANTIC_SEARCH_URL")
+                            .expect("SEMANTIC_SEARCH_URL must be set");
+
+                        let semantic_search_client = Arc::new(
+                            SemanticSearchClient::connect(semantic_search_url)
+                                .await
+                                .unwrap(),
+                        );
+                        Arc::new(
+                            semantic_search::semantic_search_impl::SemanticSearchImpl::new(
+                                semantic_search_client,
+                            ),
+                        )
+                    } else {
+                        Arc::new(semantic_search::mock::MockSemanticSearch {})
+                    };
+
+                // == Python executor ==
+                let code_executor: Arc<dyn CodeExecutor> = if is_feature_enabled(Feature::FullBuild)
+                {
+                    let code_executor_url =
+                        env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
+                    let code_executor_client = Arc::new(
+                        CodeExecutorClient::connect(code_executor_url)
+                            .await
+                            .unwrap(),
+                    );
+                    Arc::new(code_executor::code_executor_impl::CodeExecutorImpl::new(
+                        code_executor_client,
+                    ))
+                } else {
+                    Arc::new(code_executor::mock::MockCodeExecutor {})
+                };
+
+                // == Language models ==
+                let client = reqwest::Client::new();
+                let anthropic = language_model::Anthropic::new(client.clone());
+                let openai = language_model::OpenAI::new(client.clone());
+                let openai_azure = language_model::OpenAIAzure::new(client.clone());
+                let gemini = language_model::Gemini::new(client.clone());
+                let groq = language_model::Groq::new(client.clone());
+                let mistral = language_model::Mistral::new(client.clone());
+
+                let mut language_models: HashMap<LanguageModelProviderName, LanguageModelProvider> =
+                    HashMap::new();
+                language_models.insert(
+                    LanguageModelProviderName::Anthropic,
+                    LanguageModelProvider::Anthropic(anthropic),
+                );
+                language_models.insert(
+                    LanguageModelProviderName::OpenAI,
+                    LanguageModelProvider::OpenAI(openai),
+                );
+                language_models.insert(
+                    LanguageModelProviderName::OpenAIAzure,
+                    LanguageModelProvider::OpenAIAzure(openai_azure),
+                );
+                language_models.insert(
+                    LanguageModelProviderName::Gemini,
+                    LanguageModelProvider::Gemini(gemini),
+                );
+                language_models.insert(
+                    LanguageModelProviderName::Groq,
+                    LanguageModelProvider::Groq(groq),
+                );
+                language_models.insert(
+                    LanguageModelProviderName::Mistral,
+                    LanguageModelProvider::Mistral(mistral),
+                );
+                language_models.insert(
+                    LanguageModelProviderName::Bedrock,
+                    LanguageModelProvider::Bedrock(language_model::AnthropicBedrock::new(
+                        aws_sdk_bedrockruntime::Client::new(&aws_sdk_config),
+                    )),
+                );
+                let language_model_runner =
+                    Arc::new(language_model::LanguageModelRunner::new(language_models));
+
+                // == Pipeline runner ==
+                let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
+                    language_model_runner.clone(),
+                    semantic_search.clone(),
+                    spans_mq_for_http.clone(),
+                    code_executor.clone(),
+                    db_for_http.clone(),
+                    cache_for_http.clone(),
+                ));
 
                 HttpServer::new(move || {
                     let auth = HttpAuthentication::bearer(auth::validator);
@@ -372,18 +387,15 @@ fn main() -> anyhow::Result<()> {
                         .parse::<u8>()
                         .unwrap_or(8);
 
-                    // start 8 threads per core to process spans from RabbitMQ
-                    if is_feature_enabled(Feature::FullBuild) {
-                        for _ in 0..num_workers_per_thread {
-                            tokio::spawn(process_queue_spans(
-                                pipeline_runner.clone(),
-                                db_for_http.clone(),
-                                cache_for_http.clone(),
-                                rabbitmq_connection.clone(),
-                                clickhouse.clone(),
-                                storage.clone(),
-                            ));
-                        }
+                    for _ in 0..num_workers_per_thread {
+                        tokio::spawn(process_queue_spans(
+                            pipeline_runner.clone(),
+                            db_for_http.clone(),
+                            cache_for_http.clone(),
+                            spans_mq_for_http.clone(),
+                            clickhouse.clone(),
+                            storage.clone(),
+                        ));
                     }
 
                     App::new()
@@ -397,7 +409,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(semantic_search.clone()))
                         .app_data(web::Data::new(interrupt_senders.clone()))
                         .app_data(web::Data::new(language_model_runner.clone()))
-                        .app_data(web::Data::new(rabbitmq_connection.clone()))
+                        .app_data(web::Data::new(spans_mq_for_http.clone()))
                         .app_data(web::Data::new(clickhouse.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
                         .app_data(web::Data::new(semantic_search.clone()))
@@ -570,9 +582,7 @@ fn main() -> anyhow::Result<()> {
                 let process_traces_service = ProcessTracesService::new(
                     db.clone(),
                     cache.clone(),
-                    rabbitmq_connection_grpc.clone(),
-                    clickhouse_for_grpc,
-                    pipeline_runner_for_grpc,
+                    spans_message_queue.clone(),
                 );
 
                 Server::builder()

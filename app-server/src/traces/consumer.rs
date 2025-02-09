@@ -3,9 +3,6 @@
 
 use std::sync::Arc;
 
-use futures::StreamExt;
-use lapin::{options::BasicConsumeOptions, options::*, types::FieldTable, Connection};
-
 use super::{
     process_label_classes, process_spans_and_events, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
     OBSERVATIONS_ROUTING_KEY,
@@ -15,82 +12,66 @@ use crate::{
     cache::Cache,
     db::{spans::Span, DB},
     features::{is_feature_enabled, Feature},
+    mq::MessageQueue,
     pipeline::runner::PipelineRunner,
     storage::Storage,
 };
 
-pub async fn process_queue_spans<T: Storage + ?Sized>(
+pub async fn process_queue_spans<S, Q>(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    rabbitmq_connection: Option<Arc<Connection>>,
+    queue: Arc<Q>,
     clickhouse: clickhouse::Client,
-    storage: Arc<T>,
-) {
+    storage: Arc<S>,
+) where
+    S: Storage + ?Sized,
+    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
+{
     loop {
         inner_process_queue_spans(
             pipeline_runner.clone(),
             db.clone(),
             cache.clone(),
-            rabbitmq_connection.clone(),
+            queue.clone(),
             clickhouse.clone(),
             storage.clone(),
         )
         .await;
-        log::warn!("Span listener exited. Creating a new RabbitMQ channel...");
+        log::warn!("Span listener exited. Rebinding queue conneciton...");
     }
 }
 
-async fn inner_process_queue_spans<T: Storage + ?Sized>(
+async fn inner_process_queue_spans<S, Q>(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    rabbitmq_connection: Option<Arc<Connection>>,
+    queue: Arc<Q>,
     clickhouse: clickhouse::Client,
-    storage: Arc<T>,
-) {
+    storage: Arc<S>,
+) where
+    S: Storage + ?Sized,
+    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
+{
     // Safe to unwrap because we checked is_feature_enabled above
-    let channel = rabbitmq_connection.unwrap().create_channel().await.unwrap();
-
-    channel
-        .queue_bind(
+    let mut receiver = queue
+        .get_receiver(
             OBSERVATIONS_QUEUE,
             OBSERVATIONS_EXCHANGE,
             OBSERVATIONS_ROUTING_KEY,
-            QueueBindOptions::default(),
-            FieldTable::default(),
         )
         .await
         .unwrap();
 
-    let mut consumer = channel
-        .basic_consume(
-            OBSERVATIONS_QUEUE,
-            OBSERVATIONS_ROUTING_KEY,
-            BasicConsumeOptions::default(),
-            FieldTable::default(),
-        )
-        .await
-        .unwrap();
+    log::info!("Started processing spans from queue");
 
-    log::info!("Started processing spans from RabbitMQ");
-
-    while let Some(delivery) = consumer.next().await {
-        let Ok(delivery) = delivery else {
-            log::error!("Failed to get delivery from RabbitMQ. Continuing...");
+    while let Some(delivery) = receiver.receive().await {
+        if let Err(e) = delivery {
+            log::error!("Failed to receive message from queue: {:?}", e);
             continue;
-        };
-
-        let Ok(payload) = String::from_utf8(delivery.data.clone()) else {
-            log::error!("Failed to parse delivery data as UTF-8. Continuing...");
-            continue;
-        };
-
-        let Ok(rabbitmq_span_message) = serde_json::from_str::<RabbitMqSpanMessage>(&payload)
-        else {
-            log::error!("Failed to parse delivery data as `RabbitMqSpanMessage`. Continuing...");
-            continue;
-        };
+        }
+        let delivery = delivery.unwrap();
+        let rabbitmq_span_message = delivery.data();
 
         if is_feature_enabled(Feature::UsageLimit) {
             match super::limits::update_workspace_limit_exceeded_by_project_id(
@@ -110,9 +91,9 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
                 Ok(limits_exceeded) => {
                     if limits_exceeded.spans {
                         let _ = delivery
-                            .ack(BasicAckOptions::default())
+                            .ack()
                             .await
-                            .map_err(|e| log::error!("Failed to ack RabbitMQ delivery: {:?}", e));
+                            .map_err(|e| log::error!("Failed to ack MQ delivery: {:?}", e));
                         continue;
                     }
                 }
@@ -144,7 +125,7 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
             db.clone(),
             clickhouse.clone(),
             cache.clone(),
-            Some(delivery),
+            delivery,
         )
         .await;
 
@@ -158,5 +139,5 @@ async fn inner_process_queue_spans<T: Storage + ?Sized>(
         .await;
     }
 
-    log::warn!("RabbitMQ closed connection. Shutting down span listener");
+    log::warn!("Queue closed connection. Shutting down span listener");
 }
