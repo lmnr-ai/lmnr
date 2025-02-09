@@ -7,7 +7,7 @@ use actix_web::{
 use actix_web_httpauth::middleware::HttpAuthentication;
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
-use ch::browser_events::process_browser_events;
+use browser_events::process_browser_events;
 use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient, CodeExecutor};
 use dashmap::DashMap;
 use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
@@ -56,6 +56,7 @@ use uuid::Uuid;
 
 mod api;
 mod auth;
+mod browser_events;
 mod cache;
 mod ch;
 mod chunk;
