@@ -8,7 +8,6 @@ import useSWR from "swr";
 
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
 import { Evaluation } from "@/lib/evaluation/types";
