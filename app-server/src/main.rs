@@ -5,7 +5,9 @@ use actix_web::{
     App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
+use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
+use ch::browser_events::process_browser_events;
 use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient, CodeExecutor};
 use dashmap::DashMap;
 use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
@@ -163,17 +165,25 @@ fn main() -> anyhow::Result<()> {
     let pool = pool.unwrap();
     let db = Arc::new(db::DB::new(pool));
 
-    // === 3. Spans message queue ===
-    let spans_message_queue: Arc<dyn mq::MessageQueue<api::v1::traces::RabbitMqSpanMessage>> =
-        if is_feature_enabled(Feature::FullBuild) {
-            let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-            runtime_handle.block_on(async {
-                let connection =
-                    Connection::connect(&rabbitmq_url, ConnectionProperties::default())
-                        .await
-                        .unwrap();
+    // === 3. Message queues ===
+    let connection = if is_feature_enabled(Feature::FullBuild) {
+        let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
+        runtime_handle.block_on(async {
+            let connection = Arc::new(
+                Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+                    .await
+                    .unwrap(),
+            );
+            Some(connection)
+        })
+    } else {
+        None
+    };
 
-                // declare the exchange
+    // ==== 3.1 Spans message queue ====
+    let spans_message_queue: Arc<dyn mq::MessageQueue<api::v1::traces::RabbitMqSpanMessage>> =
+        if let Some(connection) = connection.as_ref() {
+            runtime_handle.block_on(async {
                 let channel = connection.create_channel().await.unwrap();
 
                 channel
@@ -195,11 +205,43 @@ fn main() -> anyhow::Result<()> {
                     .await
                     .unwrap();
 
-                Arc::new(mq::rabbit::RabbitMQ::new(Arc::new(connection)))
+                Arc::new(mq::rabbit::RabbitMQ::new(connection.clone()))
             })
         } else {
             Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
         };
+
+    // ==== 3.2 Browser events message queue ====
+    let browser_events_message_queue: Arc<
+        dyn mq::MessageQueue<api::v1::browser_sessions::QueueBrowserEventMessage>,
+    > = if let Some(connection) = connection {
+        runtime_handle.block_on(async {
+            let channel = connection.create_channel().await.unwrap();
+
+            channel
+                .exchange_declare(
+                    BROWSER_SESSIONS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    BROWSER_SESSIONS_QUEUE,
+                    QueueDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            Arc::new(mq::rabbit::RabbitMQ::new(connection))
+        })
+    } else {
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
+    };
 
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
@@ -396,6 +438,11 @@ fn main() -> anyhow::Result<()> {
                             clickhouse.clone(),
                             storage.clone(),
                         ));
+
+                        tokio::spawn(process_browser_events(
+                            clickhouse.clone(),
+                            browser_events_message_queue.clone(),
+                        ));
                     }
 
                     App::new()
@@ -416,6 +463,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(chunker_runner.clone()))
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(machine_manager.clone()))
+                        .app_data(web::Data::new(browser_events_message_queue.clone()))
                         // Scopes with specific auth or no auth
                         .service(
                             web::scope("api/v1/auth")
