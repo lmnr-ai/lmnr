@@ -26,6 +26,7 @@ export enum SpanType {
   EXECUTOR = 3,
   EVALUATOR = 4,
   EVALUATION = 5,
+  TOOL = 6,
 }
 
 export enum SpanMetric {
@@ -175,4 +176,45 @@ export const getSpansCountInProject = async (
   });
 
   return await result.json();
+};
+
+const DEFAULT_LIMIT: number = 200;
+
+export const searchSpans = async (
+  projectId: string,
+  searchQuery: string,
+  timeRange: TimeRange,
+): Promise<{
+  spanIds: Set<string>;
+  traceIds: Set<string>;
+}> => {
+  const baseQuery = `
+    SELECT span_id spanId, trace_id traceId FROM spans
+    WHERE 
+      project_id = {projectId: UUID}
+      AND (
+        input_lower LIKE {query: String} 
+        OR
+        output_lower LIKE {query: String}
+      )`;
+
+  const query = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+
+  const response = await clickhouseClient.query({
+    query: `${query} LIMIT ${DEFAULT_LIMIT}`,
+    format: "JSONEachRow",
+    query_params: {
+      projectId,
+      query: `%${searchQuery.toLowerCase()}%`,
+    },
+  });
+
+  const result = await response.json() as { spanId: string; traceId: string }[];
+  const traceIds = new Set<string>();
+  const spanIds = new Set<string>();
+  result.forEach(r => {
+    traceIds.add(r.traceId);
+    spanIds.add(r.spanId);
+  });
+  return { traceIds, spanIds };
 };

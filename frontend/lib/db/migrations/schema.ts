@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO', 'CODE']);
-export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION']);
+export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION', 'TOOL']);
 export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION']);
 export const workspaceRole = pgEnum("workspace_role", ['member', 'owner']);
 
@@ -286,7 +286,7 @@ export const traces = pgTable("traces", {
     foreignColumns: [projects.id],
     name: "new_traces_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_trace_id_accessible_for_api_key(api_key(), id)` }),
+  pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_project_id_accessible_for_api_key(api_key(), project_id)` }),
 ]);
 
 export const users = pgTable("users", {
@@ -564,4 +564,5 @@ export const spans = pgTable("spans", {
   }).onUpdate("cascade").onDelete("cascade"),
   primaryKey({ columns: [table.spanId, table.projectId], name: "spans_pkey" }),
   unique("unique_span_id_project_id").on(table.spanId, table.projectId),
+  pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["public"], using: sql`is_project_id_accessible_for_api_key(api_key(), project_id)` }),
 ]);

@@ -292,7 +292,7 @@ export function DataTable<TData>({
         ) : (
           <TableRow>
             <TableCell colSpan={columns.length} className="text-center">
-              <div className="flex flex-col space-y-2">
+              <div className="flex flex-col space-y-2 p-1">
                 <Skeleton className="w-full h-8" />
                 <Skeleton className="w-full h-8" />
                 <Skeleton className="w-full h-8" />

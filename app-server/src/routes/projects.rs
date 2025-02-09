@@ -106,17 +106,14 @@ async fn create_project(
     user: User,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
     req: web::Json<CreateProjectRequest>,
 ) -> ResponseResult {
     let req = req.into_inner();
     let cache = cache.into_inner();
-    let semantic_search = semantic_search.into_inner().as_ref().clone();
 
     let project = projects::create_project(
         &db.pool,
         cache.clone(),
-        semantic_search.clone(),
         &user.id,
         &req.name,
         req.workspace_id,

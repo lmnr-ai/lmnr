@@ -1,83 +1,13 @@
-use std::collections::HashSet;
-use std::sync::Arc;
-
 use super::{GetMetricsQueryParams, ResponseResult};
 use crate::ch::utils::get_bounds;
-use crate::semantic_search::semantic_search_grpc::DateRanges;
-use crate::semantic_search::SemanticSearch;
 use crate::{
     ch::{self, modifiers::GroupByInterval, Aggregation},
     db::modifiers::{DateRange, RelativeDateInterval},
 };
-use actix_web::{get, post, web, HttpResponse};
+use actix_web::{post, web, HttpResponse};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use uuid::Uuid;
-
-const DEFAULT_SEARCH_LIMIT: u32 = 250;
-
-#[derive(Deserialize)]
-struct TraceSearchQueryParams {
-    search: String,
-    #[serde(default)]
-    limit: Option<u32>,
-    #[serde(default)]
-    date_range: Option<DateRange>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TraceSearchResponse {
-    trace_ids: HashSet<Uuid>,
-    span_ids: HashSet<Uuid>,
-}
-
-#[get("traces/search")]
-pub async fn search_traces(
-    path: web::Path<Uuid>,
-    query_params: web::Query<TraceSearchQueryParams>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
-) -> ResponseResult {
-    let project_id = path.into_inner();
-    let limit = query_params.limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
-    let params = query_params.into_inner();
-    let search_query = params.search;
-    let date_range = params.date_range;
-    let Ok(query_res) = semantic_search
-        .query(
-            &format!("spans-{project_id}"),
-            search_query,
-            limit as u32,
-            0.0,
-            vec![],
-            date_range
-                .clone()
-                .map(|range| DateRanges::from_name_and_db_range("created_at", range)),
-            true,
-        )
-        .await
-    else {
-        // Most likely, no collection yet (for older projects).
-        return Ok(HttpResponse::Ok().json(TraceSearchResponse {
-            trace_ids: HashSet::new(),
-            span_ids: HashSet::new(),
-        }));
-    };
-
-    let mut trace_ids = HashSet::new();
-    let mut span_ids = HashSet::new();
-    query_res.results.iter().for_each(|point| {
-        trace_ids.insert(Uuid::parse_str(point.data.get("trace_id").unwrap()).unwrap());
-        span_ids.insert(Uuid::parse_str(point.data.get("span_id").unwrap()).unwrap());
-    });
-
-    let response = TraceSearchResponse {
-        trace_ids,
-        span_ids,
-    };
-
-    Ok(HttpResponse::Ok().json(response))
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

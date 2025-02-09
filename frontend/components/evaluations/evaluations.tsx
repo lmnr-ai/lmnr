@@ -8,7 +8,6 @@ import useSWR from "swr";
 
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
 import { Evaluation } from "@/lib/evaluation/types";
@@ -133,8 +132,8 @@ export default function Evaluations() {
       <Header path="evaluations" />
       <div className="flex size-full">
         <EvaluationsGroupsBar />
-        <div className="flex flex-col h-full flex-1 space-y-4">
-          <div className="flex gap-4 p-4 items-center">
+        <div className="flex flex-col h-full flex-1">
+          <div className="flex gap-4 pt-4 px-4 items-center">
             <div className="flex gap-2 text-secondary-foreground">
               <div className="text-primary-foreground text-xl font-medium">{searchParams.get("groupId")}</div>
             </div>
@@ -164,38 +163,30 @@ export default function Evaluations() {
             </ResizablePanel>
             <ResizableHandle className="z-50" />
             <ResizablePanel className="flex-grow" minSize={40} defaultSize={40}>
-              {isLoading ? (
-                <div className="flex flex-col h-full p-4 gap-2">
-                  <Skeleton className="w-full h-8" />
-                  <Skeleton className="w-full h-8" />
-                  <Skeleton className="w-full h-8" />
-                </div>
-              ) : (
-                <DataTable
-                  enableRowSelection
-                  columns={columns}
-                  data={data?.items}
-                  onRowClick={(row) => push(`/project/${params?.projectId}/evaluations/${row.original.id}`)}
-                  defaultPageNumber={page.number}
-                  defaultPageSize={page.size}
-                  pageCount={Math.ceil(Number(data?.totalCount || 0) / page.size)}
-                  totalItemsCount={Number(data?.totalCount || 0)}
-                  onPageChange={handlePageChange}
-                  getRowId={(row: Evaluation) => row.id}
-                  paginated
-                  manualPagination
-                  pageSizeOptions={[10, 25]}
-                  selectionPanel={(selectedRowIds) => (
-                    <div className="flex flex-col space-y-2">
-                      <DeleteSelectedRows
-                        selectedRowIds={selectedRowIds}
-                        onDelete={handleDeleteEvaluations}
-                        entityName="evaluations"
-                      />
-                    </div>
-                  )}
-                />
-              )}
+              <DataTable
+                enableRowSelection
+                columns={columns}
+                data={data?.items}
+                onRowClick={(row) => push(`/project/${params?.projectId}/evaluations/${row.original.id}`)}
+                defaultPageNumber={page.number}
+                defaultPageSize={page.size}
+                pageCount={Math.ceil(Number(data?.totalCount || 0) / page.size)}
+                totalItemsCount={Number(data?.totalCount || 0)}
+                onPageChange={handlePageChange}
+                getRowId={(row: Evaluation) => row.id}
+                paginated
+                manualPagination
+                pageSizeOptions={[10, 25]}
+                selectionPanel={(selectedRowIds) => (
+                  <div className="flex flex-col space-y-2">
+                    <DeleteSelectedRows
+                      selectedRowIds={selectedRowIds}
+                      onDelete={handleDeleteEvaluations}
+                      entityName="evaluations"
+                    />
+                  </div>
+                )}
+              />
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>
