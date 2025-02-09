@@ -22,13 +22,12 @@ struct EventBatch {
 
 #[options("events")]
 async fn options_handler() -> ResponseResult {
-    // TODO: use cors middleware from actix_cors crate
     Ok(HttpResponse::Ok()
         .insert_header(("Access-Control-Allow-Origin", "*"))
         .insert_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
         .insert_header((
             "Access-Control-Allow-Headers",
-            "Authorization, Content-Type",
+            "Authorization, Content-Type, Content-Encoding, Accept",
         ))
         .insert_header(("Access-Control-Max-Age", "86400"))
         .finish())
