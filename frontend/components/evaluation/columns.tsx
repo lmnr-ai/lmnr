@@ -29,33 +29,43 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
 
 export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
   {
-    cell: ({ row }) => (
-      <ComparisonCell
-        original={getDurationString(row.original.startTime, row.original.endTime)}
-        comparison={getDurationString(row.original.comparedStartTime ?? "-", row.original.comparedEndTime ?? "-")}
-      />
-    ),
+    cell: ({ row }) => {
+      const comparison =
+        row.original.comparedStartTime && row.original.comparedEndTime
+          ? getDurationString(row.original.comparedStartTime, row.original.comparedEndTime)
+          : "-";
+
+      return (
+        <ComparisonCell
+          original={getDurationString(row.original.startTime, row.original.endTime)}
+          comparison={comparison}
+        />
+      );
+    },
     header: "Duration",
   },
   {
-    accessorFn: (row) =>
-      new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumSignificantDigits: 5 }).format(
-        row.inputCost + row.outputCost
-      ),
-    cell: ({ row }) => (
-      <ComparisonCell
-        original={new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: "USD",
-          maximumSignificantDigits: 5,
-        }).format(row.original.inputCost + row.original.inputCost)}
-        comparison={new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: "USD",
-          maximumSignificantDigits: 5,
-        }).format((row.original.comparedInputCost ?? 0) + (row.original.comparedOutputCost ?? 0))}
-      />
-    ),
+    cell: ({ row }) => {
+      const comparison =
+        row.original.comparedInputCost && row.original.comparedOutputCost
+          ? new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumSignificantDigits: 5,
+          }).format(row.original.comparedInputCost + row.original.comparedOutputCost)
+          : "-";
+
+      return (
+        <ComparisonCell
+          original={new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumSignificantDigits: 5,
+          }).format(row.original.inputCost + row.original.inputCost)}
+          comparison={comparison}
+        />
+      );
+    },
     header: "Cost",
   },
 ];
@@ -81,6 +91,9 @@ export const getScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapoint
   scores.map((name) => ({
     header: name,
     cell: ({ row }) => (
-      <ComparisonCell original={row.original.scores?.[name] ?? "-"} comparison={row.original.comparedScores?.[name]} />
+      <ComparisonCell
+        original={row.original.scores?.[name] ?? "-"}
+        comparison={row.original.comparedScores?.[name] ?? "-"}
+      />
     ),
   }));

@@ -84,18 +84,36 @@ export default function Chart({ evaluationId, scores, className, isLoading = fal
   const [isScoresLoading, setIsScoresLoading] = useState(false);
 
   useEffect(() => {
-    try {
-      setIsScoresLoading(true);
-      scores.forEach((scoreName) => {
-        fetch(
-          `/api/projects/${params?.projectId}/evaluation-score-distribution?` +
-            `evaluationIds=${evaluationId}&scoreName=${scoreName}`
-        )
-          .then((res) => res.json())
-          .then((data) => setData((prev) => ({ ...prev, [scoreName]: data })));
-      });
-      setIsScoresLoading(false);
-    } catch (e) {}
+    const fetchScores = async () => {
+      try {
+        setIsScoresLoading(true);
+        const promises = scores.map((scoreName) =>
+          fetch(
+            `/api/projects/${params?.projectId}/evaluation-score-distribution?` +
+              `evaluationIds=${evaluationId}&scoreName=${scoreName}`
+          )
+            .then((res) => res.json())
+            .then((data) => ({ scoreName, data }))
+        );
+
+        const results = await Promise.all(promises);
+        const newData = results.reduce(
+          (acc, { scoreName, data }) => ({
+            ...acc,
+            [scoreName]: data,
+          }),
+          {}
+        );
+
+        setData(newData);
+      } catch (e) {
+        console.error("Error fetching scores:", e);
+      } finally {
+        setIsScoresLoading(false);
+      }
+    };
+
+    fetchScores();
   }, [evaluationId, scores, params?.projectId]);
 
   const chartConfig = useMemo<ChartConfig>(
