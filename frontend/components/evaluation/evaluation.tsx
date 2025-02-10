@@ -1,5 +1,4 @@
 "use client";
-import { ColumnDef } from "@tanstack/react-table";
 import { ArrowRight } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
@@ -7,6 +6,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import Chart from "@/components/evaluation/chart";
+import {
+  comparedComplementaryColumns,
+  complementaryColumns,
+  defaultColumns,
+  getScoreColumns,
+} from "@/components/evaluation/columns";
 import CompareChart from "@/components/evaluation/compare-chart";
 import ScoreCard from "@/components/evaluation/score-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,7 +21,6 @@ import {
   EvaluationDatapointPreviewWithCompared,
   EvaluationResultsInfo,
 } from "@/lib/evaluation/types";
-import { getDurationString } from "@/lib/flow/utils";
 import { swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
@@ -31,51 +35,6 @@ interface EvaluationProps {
   evaluationId: string;
   evaluationName: string;
 }
-
-const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
-  {
-    accessorFn: (row) => row.index,
-    header: "Index",
-  },
-  {
-    accessorFn: (row) => JSON.stringify(row.data),
-    header: "Data",
-  },
-  {
-    accessorFn: (row) => (row.target ? JSON.stringify(row.target) : "-"),
-    header: "Target",
-  },
-];
-
-const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
-  {
-    accessorFn: (row) => (row.executorOutput ? JSON.stringify(row.executorOutput) : "-"),
-    header: "Output",
-  },
-  {
-    accessorFn: (row) => getDurationString(row.startTime, row.endTime),
-    header: "Duration",
-  },
-  {
-    accessorFn: (row) =>
-      new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumSignificantDigits: 5 }).format(
-        row.inputCost + row.outputCost
-      ),
-    header: "Cost",
-  },
-];
-
-const getScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapointPreviewWithCompared>[] =>
-  scores.map((name) => ({
-    header: name,
-    cell: (row) => (
-      <div className="flex flex-row items-center space-x-2">
-        <div className="text-green-300">{row.row.original.comparedScores?.[name] ?? "-"}</div>
-        <ArrowRight className="font-bold" size={12} />
-        <div className="text-blue-300">{row.row.original.scores?.[name] ?? "-"}</div>
-      </div>
-    ),
-  }));
 
 export default function Evaluation({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
   const { push } = useRouter();
@@ -114,7 +73,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   const columns = useMemo(() => {
     if (targetId) {
-      return [...defaultColumns, ...getScoreColumns(scores)];
+      return [...defaultColumns, ...comparedComplementaryColumns, ...getScoreColumns(scores)];
     }
     return [...defaultColumns, ...complementaryColumns];
   }, [scores, targetId]);
@@ -126,6 +85,10 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
         return {
           ...original,
+          comparedStartTime: compared?.startTime,
+          comparedEndTime: compared?.endTime,
+          comparedInputCost: compared?.inputCost,
+          comparedOutputCost: compared?.outputCost,
           comparedId: compared?.id,
           comparedEvaluationId: compared?.evaluationId,
           comparedScores: compared?.scores,

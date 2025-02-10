@@ -39,6 +39,10 @@ export type EvaluationDatapointPreviewWithCompared = {
   comparedId?: string;
   comparedEvaluationId?: string;
   comparedScores?: Record<string, any>;
+  comparedStartTime?: string;
+  comparedEndTime?: string;
+  comparedInputCost?: number;
+  comparedOutputCost?: number;
 } & EvaluationDatapointPreview;
 
 export type EvaluationStats = {
