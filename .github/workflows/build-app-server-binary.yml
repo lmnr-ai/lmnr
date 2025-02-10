@@ -1,0 +1,83 @@
+name: Build & publish lmnr images
+on:
+  push:
+    branches:
+      - test-action
+  # release:
+  #   types:
+  #     - published
+
+jobs:
+  build-and-upload:
+    name: Build and Upload
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust toolchain
+        run: rustup update
+
+      - name: Install additional dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libssl-dev
+
+      - name: Build Release Binary
+        run: cargo build --release
+        working-directory: ./app-server
+
+      - name: verify binary path
+        run: |
+          if [[ -f app-server/target/release/app-server ]]; then
+            echo "Binary found at app-server/target/release/app-server"
+          else
+            echo "Binary not found at app-server/target/release/app-server"
+            exit 1
+          fi
+
+      - name: Get latest release
+        id: get_latest_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const response = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            core.setOutput('upload_url', response.data.upload_url);
+            core.setOutput('release_id', response.data.id);
+
+      - name: Delete existing assets
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release_id = '${{ steps.get_latest_release.outputs.release_id }}';
+            const response = await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release_id
+            });
+
+            for (const asset of response.data) {
+              if (asset.name === 'app-server') {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: asset.id
+                });
+              }
+            }
+
+      - name: Upload to latest release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_latest_release.outputs.upload_url }}
+          asset_path: ./app-server/target/release/app-server
+          asset_name: app-server
+          asset_content_type: application/octet-stream
