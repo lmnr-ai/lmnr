@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
 export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {

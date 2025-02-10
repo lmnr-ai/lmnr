@@ -147,16 +147,14 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         const text = await blob.text();
         const batchEvents = JSON.parse(text);
 
-        const events = batchEvents.flatMap((batch: any) => {
-          return batch.map((data: any) => {
-            const event = JSON.parse(data.text);
-            return {
-              data: JSON.parse(event.data),
-              timestamp: new Date(event.timestamp).getTime(),
-              type: parseInt(event.event_type)
-            };
-          });
-        });
+        const events = batchEvents.flatMap((batch: any) => batch.map((data: any) => {
+          const event = JSON.parse(data.text);
+          return {
+            data: JSON.parse(event.data),
+            timestamp: new Date(event.timestamp).getTime(),
+            type: parseInt(event.event_type)
+          };
+        }));
 
         setEvents(events);
       } catch (e) {

@@ -85,10 +85,28 @@ export default function CodeEditor({
   lineWrapping = true
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const { ref: inViewRef, inView } = useInView({
     threshold: 0,
     triggerOnce: false
   });
+
+  // Update dimensions when the container size changes
+  useEffect(() => {
+    if (containerRef.current && inView) {
+      const updateDimensions = () => {
+        setDimensions({
+          width: containerRef.current?.offsetWidth || 0,
+          height: containerRef.current?.offsetHeight || 0
+        });
+      };
+
+      const resizeObserver = new ResizeObserver(debounce(updateDimensions, 100));
+      resizeObserver.observe(containerRef.current);
+
+      return () => resizeObserver.disconnect();
+    }
+  }, [inView]);
 
   // Combine refs
   const setRefs = useCallback(
@@ -115,23 +133,16 @@ export default function CodeEditor({
     return extensions;
   }, [language, lineWrapping, value.length]);
 
-  // Render a placeholder when not in view
+  // Render a placeholder with preserved dimensions when not in view
   if (!inView) {
     return (
       <div
         ref={setRefs}
-        className={cn('flex h-full', background)}
-        style={{
-          height: '100%',
-          padding: '1rem',
-          whiteSpace: 'pre-wrap',
-          overflow: 'hidden',
-          fontSize: '10pt'
-        }}
-      >
-        {value.slice(0, 500)}
-        {value.length > 500 && '...'}
-      </div>
+        style={dimensions ? {
+          width: `${dimensions.width}px`,
+          height: `${dimensions.height}px`
+        } : undefined}
+      />
     );
   }
 

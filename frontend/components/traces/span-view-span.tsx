@@ -38,7 +38,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
   }
 
   return (
-    <ScrollArea className="w-full h-full mt-0">
+    <ScrollArea className="h-full mt-0">
       <div className="max-h-0">
         <div
           className="flex flex-col gap-4 h-full p-4 w-full"
