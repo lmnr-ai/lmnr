@@ -117,29 +117,23 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           chunks.push(value);
         }
 
-        // Combine chunks and parse JSON
-        const decoder = new TextDecoder();
-        const text = decoder.decode(new Uint8Array(Buffer.concat(chunks)));
+        // Combine chunks using Blob and convert to text
+        const blob = new Blob(chunks, { type: 'application/json' });
+        const text = await blob.text();
         const batchEvents = JSON.parse(text);
 
         const events = batchEvents.flatMap((batch: any) => {
           return batch.map((data: any) => {
-            return JSON.parse(data.text);
-          });
-        });
-
-        const processedEvents = events.map((event: any) => {
-          if (event.data && typeof event.data === 'string') {
+            const event = JSON.parse(data.text);
             return {
               data: JSON.parse(event.data),
               timestamp: new Date(event.timestamp).getTime(),
               type: parseInt(event.event_type)
             };
-          }
-          return event;
+          });
         });
 
-        setEvents(processedEvents);
+        setEvents(events);
       } catch (e) {
         console.error('Error processing events:', e);
       }

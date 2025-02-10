@@ -26,17 +26,14 @@ export async function GET(request: NextRequest, props: { params: Promise<{ proje
       controller.enqueue('['); // Start JSON array
 
       let isFirst = true;
-      const stream = res.stream();
-      let totalSize = 0;
+      const resultStream = res.stream();
 
       try {
-        for await (const row of stream) {
+        for await (const row of resultStream) {
           if (!isFirst) {
             controller.enqueue(',');
           }
           controller.enqueue(JSON.stringify(row));
-          totalSize += JSON.stringify(row).length;
-          console.log(JSON.stringify(row).length / (1024 * 1024) + 'MB');
           isFirst = false;
         }
 
@@ -45,8 +42,6 @@ export async function GET(request: NextRequest, props: { params: Promise<{ proje
       } catch (error) {
         controller.error(error);
       }
-      console.log("totalSize", totalSize / (1024 * 1024) + 'MB');
-
     }
 
   });
