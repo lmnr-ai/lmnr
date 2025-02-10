@@ -4,11 +4,29 @@ import { ArrowRight } from "lucide-react";
 import { EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 import { getDurationString } from "@/lib/flow/utils";
 
-const ComparisonCell = ({ original, comparison }: { original: string | number; comparison: string | number }) => (
-  <div className="flex flex-row items-center space-x-2">
-    <div className="text-green-300">{original}</div>
-    <ArrowRight className="font-bold min-w-3" size={12} />
+const getPercentageChange = (original: number, compared: number) =>
+  (((original - compared) / compared) * 100).toFixed(2);
+
+const ComparisonCell = ({
+  original,
+  comparison,
+  originalValue,
+  comparisonValue,
+}: {
+  original: string | number;
+  comparison: string | number;
+  originalValue?: number;
+  comparisonValue?: number;
+}) => (
+  <div className="flex items-center space-x-2">
     <div className="text-blue-300">{comparison}</div>
+    <ArrowRight className="font-bold min-w-3" size={12} />
+    <div className="text-green-300">{original}</div>
+    {!!originalValue && !!comparisonValue && (
+      <span className="text-secondary-foreground">
+        {originalValue >= comparisonValue ? "▲" : "▼"} ({getPercentageChange(originalValue, comparisonValue)}%)
+      </span>
+    )}
   </div>
 );
 
@@ -35,10 +53,17 @@ export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewW
           ? getDurationString(row.original.comparedStartTime, row.original.comparedEndTime)
           : "-";
 
+      const comparisonValue =
+        row.original.comparedEndTime && row.original.comparedStartTime
+          ? new Date(row.original.comparedEndTime).getSeconds() - new Date(row.original.comparedStartTime).getSeconds()
+          : undefined;
+
       return (
         <ComparisonCell
           original={getDurationString(row.original.startTime, row.original.endTime)}
           comparison={comparison}
+          originalValue={new Date(row.original.endTime).getSeconds() - new Date(row.original.startTime).getSeconds()}
+          comparisonValue={comparisonValue}
         />
       );
     },
@@ -48,21 +73,20 @@ export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewW
     cell: ({ row }) => {
       const comparison =
         row.original.comparedInputCost && row.original.comparedOutputCost
-          ? new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency: "USD",
-            maximumSignificantDigits: 5,
-          }).format(row.original.comparedInputCost + row.original.comparedOutputCost)
+          ? `${(row.original.comparedInputCost + row.original.comparedOutputCost).toFixed(5)}$`
           : "-";
+
+      const comparisonValue =
+        row.original.comparedInputCost && row.original.comparedOutputCost
+          ? row.original.comparedInputCost + row.original.comparedOutputCost
+          : undefined;
 
       return (
         <ComparisonCell
-          original={new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency: "USD",
-            maximumSignificantDigits: 5,
-          }).format(row.original.inputCost + row.original.inputCost)}
+          original={`${(row.original.inputCost + row.original.outputCost).toFixed(5)}$`}
           comparison={comparison}
+          originalValue={row.original.inputCost + row.original.outputCost}
+          comparisonValue={comparisonValue}
         />
       );
     },
@@ -92,8 +116,10 @@ export const getScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapoint
     header: name,
     cell: ({ row }) => (
       <ComparisonCell
-        original={row.original.scores?.[name] ?? "-"}
-        comparison={row.original.comparedScores?.[name] ?? "-"}
+        original={Number(row.original.scores?.[name]) || "-"}
+        comparison={Number(row.original.comparedScores?.[name]) || "-"}
+        originalValue={Number(row.original.scores?.[name]) || undefined}
+        comparisonValue={Number(row.original.comparedScores?.[name]) || undefined}
       />
     ),
   }));

@@ -43,11 +43,11 @@ export default function ScoreCard({ scoreName }: ScoreCardProps) {
           <div className="flex flex-col">
             <div className="text-sm text-gray-500">Average</div>
             <div className="flex flex-row items-center">
-              {comparedAverage && <div className="text-5xl font-bold mr-2">{comparedAverage.toFixed(2)}</div>}
-              {comparedAverage && average && <ArrowRight className="min-w-6 text-5xl font-bold mr-2" size={24} />}
-              {average && <div className="text-5xl font-bold">{average.toFixed(2)}</div>}
+              {!!comparedAverage && <div className="text-5xl font-bold mr-2">{comparedAverage.toFixed(2)}</div>}
+              {!!comparedAverage && !!average && <ArrowRight className="min-w-6 text-5xl font-bold mr-2" size={24} />}
+              {!!average && <div className="text-5xl font-bold">{average.toFixed(2)}</div>}
             </div>
-            {comparedAverage && average && (
+            {!!comparedAverage && !!average && (
               <div
                 className={cn("text-md font-medium", {
                   "text-green-400": average >= comparedAverage,

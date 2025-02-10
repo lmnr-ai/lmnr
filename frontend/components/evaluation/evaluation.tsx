@@ -21,7 +21,7 @@ import {
   EvaluationDatapointPreviewWithCompared,
   EvaluationResultsInfo,
 } from "@/lib/evaluation/types";
-import { swrFetcher } from "@/lib/utils";
+import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
 import { Button } from "../ui/button";
@@ -41,18 +41,15 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams();
-  const datapointId = searchParams.get("datapointId");
+  const traceId = searchParams.get("traceId");
   const targetId = searchParams.get("targetId");
   const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(
-    `/api/projects/${params?.projectId}/evaluations/${evaluationId}?${new URLSearchParams(searchParams.getAll("sort").map((param) => ["sort", param]))}`,
+    `/api/projects/${params?.projectId}/evaluations/${evaluationId}`,
     swrFetcher
   );
 
   const { data: targetData } = useSWR<EvaluationResultsInfo>(
-    () =>
-      targetId
-        ? `/api/projects/${params?.projectId}/evaluations/${targetId}?${new URLSearchParams(searchParams.getAll("sort").map((param) => ["sort", param]))}`
-        : null,
+    () => (targetId ? `/api/projects/${params?.projectId}/evaluations/${targetId}` : null),
     swrFetcher
   );
 
@@ -62,6 +59,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const onClose = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("datapointId");
+    params.delete("traceId");
     params.delete("spanId");
     push(`${pathName}?${params}`);
   }, [searchParams, pathName, push]);
@@ -101,6 +99,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
     const params = new URLSearchParams(searchParams);
     params.set("datapointId", row.id);
+    params.set("traceId", row.traceId);
     push(`${pathName}?${params}`);
   };
 
@@ -158,14 +157,19 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
               disabled={evaluations.length <= 1}
               className="flex font-medium w-40 text-secondary-foreground"
             >
-              <SelectValue placeholder="Select compared evaluation" />
+              <SelectValue placeholder="Select compared evaluation">
+                {evaluations?.find((evaluation) => evaluation.id === targetId)?.name}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {evaluations
                 .filter((item) => item.id != evaluationId)
                 .map((item) => (
                   <SelectItem key={item.id} value={item.id}>
-                    {item.name}
+                    <span>
+                      {item.name}
+                      <span className="text-secondary-foreground text-xs ml-2">{formatTimestamp(item.createdAt)}</span>
+                    </span>
                   </SelectItem>
                 ))}
             </SelectContent>
@@ -190,7 +194,10 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                 .filter((item) => item.id != targetId)
                 .map((item) => (
                   <SelectItem key={item.id} value={item.id}>
-                    {item.name}
+                    <span>
+                      {item.name}
+                      <span className="text-secondary-foreground text-xs ml-2">{formatTimestamp(item.createdAt)}</span>
+                    </span>
                   </SelectItem>
                 ))}
             </SelectContent>
@@ -227,7 +234,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
       </div>
       <div className="flex flex-grow flex-col">
         <div className="flex flex-col flex-grow">
-          <div className="flex flex-row space-x-4 p-4 mr-4">
+          <div className="flex flex-row space-x-4 p-4">
             {isLoading || !selectedScore ? (
               <>
                 <Skeleton className="w-72 h-48" />
@@ -265,7 +272,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
           </div>
         </div>
       </div>
-      {datapointId && (
+      {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
             enable={{
@@ -276,7 +283,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
             }}
           >
             <div className="w-full h-full flex">
-              <TraceView onClose={onClose} traceId={datapointId} />
+              <TraceView onClose={onClose} traceId={traceId} />
             </div>
           </Resizable>
         </div>
