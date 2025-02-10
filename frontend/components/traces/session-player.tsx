@@ -70,10 +70,23 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       workerRef.current = new Worker(new URL('@/lib/workers/player-worker.ts', import.meta.url));
 
       workerRef.current.onmessage = (e) => {
-        const { result, isPlaying } = e.data;
+        const { result, isPlaying, type } = e.data;
         if (playerRef.current) {
           try {
-            playerRef.current.goto(result, isPlaying);
+            // Handle page navigation events differently
+            if (type === 'navigation') {
+              // Temporarily pause during navigation to reduce main thread blocking
+              const wasPlaying = playerRef.current.state.playing;
+              playerRef.current.pause();
+              requestAnimationFrame(() => {
+                playerRef.current.goto(result);
+                if (wasPlaying) {
+                  playerRef.current.play();
+                }
+              });
+            } else {
+              playerRef.current.goto(result, isPlaying);
+            }
           } catch (e) {
             console.error(e);
           }
@@ -85,16 +98,28 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       };
     }, []);
 
-    // Update the debouncedGoto function
+    // Update the debouncedGoto function to include event type information
     const debouncedGoto = useCallback((time: number) => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
 
       debounceTimerRef.current = setTimeout(() => {
-        workerRef.current?.postMessage({ time, isPlaying });
+        // Find the nearest event at or before the target time
+        const currentEvent = events.reduce((prev, curr) => {
+          const prevTime = (prev.timestamp - startTime) / 1000;
+          const currTime = (curr.timestamp - startTime) / 1000;
+          return Math.abs(currTime - time) < Math.abs(prevTime - time) ? curr : prev;
+        }, events[0]);
+
+        workerRef.current?.postMessage({
+          time,
+          isPlaying,
+          eventType: currentEvent?.type,
+          timestamp: currentEvent?.timestamp
+        });
       }, 50);
-    }, [isPlaying]);
+    }, [isPlaying, events, startTime]);
 
     const getEvents = async () => {
       const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
@@ -227,7 +252,39 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const time = parseFloat(e.target.value);
       setCurrentTime(time); // Update UI immediately
-      debouncedGoto(time); // Debounce the actual goto call
+
+      // Pause playback during seeking
+      const wasPlaying = isPlaying;
+      if (wasPlaying && playerRef.current) {
+        playerRef.current.pause();
+      }
+
+      // Modify debouncedGoto to resume playback if needed
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        const currentEvent = events.reduce((prev, curr) => {
+          const prevTime = (prev.timestamp - startTime) / 1000;
+          const currTime = (curr.timestamp - startTime) / 1000;
+          return Math.abs(currTime - time) < Math.abs(prevTime - time) ? curr : prev;
+        }, events[0]);
+
+        workerRef.current?.postMessage({
+          time,
+          isPlaying: wasPlaying, // Pass the previous playing state
+          eventType: currentEvent?.type,
+          timestamp: currentEvent?.timestamp
+        });
+
+        // Resume playback after seeking if it was playing before
+        if (wasPlaying && playerRef.current) {
+          requestAnimationFrame(() => {
+            playerRef.current.play();
+          });
+        }
+      }, 50);
     };
 
     const toggleSpeed = () => {

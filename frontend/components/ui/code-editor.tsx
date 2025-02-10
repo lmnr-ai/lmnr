@@ -85,7 +85,6 @@ export default function CodeEditor({
   lineWrapping = true
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const { ref: inViewRef, inView } = useInView({
     threshold: 0,
     triggerOnce: false
@@ -99,31 +98,6 @@ export default function CodeEditor({
     },
     [inViewRef]
   );
-
-  // Debounced resize handler
-  const handleResize = useCallback(
-    debounce(() => {
-      if (containerRef.current) {
-        const { width, height } = containerRef.current.getBoundingClientRect();
-        setDimensions({ width, height });
-      }
-    }, 100),
-    []
-  );
-
-  useEffect(() => {
-    handleResize();
-
-    const resizeObserver = new ResizeObserver(handleResize);
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
-
-    return () => {
-      handleResize.cancel();
-      resizeObserver.disconnect();
-    };
-  }, [handleResize]);
 
   // Memoize extensions to prevent recreating them on every render
   const extensions = useMemo(() => {
@@ -141,28 +115,12 @@ export default function CodeEditor({
     return extensions;
   }, [language, lineWrapping, value.length]);
 
-  // Memoize onChange callback
-  const handleChange = useCallback((v: string) => {
-    onChange?.(v);
-  }, [onChange]);
-
-  // Memoize className
-  const containerClassName = useMemo(() =>
-    cn('w-full h-full bg-card text-foreground', background, className),
-  [background, className]
-  );
-
-  const editorClassName = useMemo(() =>
-    cn('flex h-full', background),
-  [background]
-  );
-
   // Render a placeholder when not in view
   if (!inView) {
     return (
       <div
         ref={setRefs}
-        className={containerClassName}
+        className={cn('flex h-full', background)}
         style={{
           height: '100%',
           padding: '1rem',
@@ -178,17 +136,15 @@ export default function CodeEditor({
   }
 
   return (
-    <div ref={setRefs} className={containerClassName}>
+    <div ref={setRefs} className={cn('w-full h-full bg-card text-foreground', background, className)}>
       <CodeMirror
         placeholder={placeholder}
-        className={editorClassName}
         theme={myTheme}
+        className="h-full"
         extensions={extensions}
         editable={editable}
         value={value}
-        onChange={handleChange}
-        width={`${dimensions.width}px`}
-        height={`${dimensions.height}px`}
+        onChange={onChange}
       />
     </div>
   );
