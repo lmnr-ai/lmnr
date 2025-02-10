@@ -103,8 +103,31 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           'Content-Type': 'application/json'
         }
       });
+
       try {
-        const events = await res.json();
+        // Create a streaming reader
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No reader available');
+
+        // Read the stream chunks and accumulate them
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+
+        // Combine chunks and parse JSON
+        const decoder = new TextDecoder();
+        const text = decoder.decode(new Uint8Array(Buffer.concat(chunks)));
+        const batchEvents = JSON.parse(text);
+
+        const events = batchEvents.flatMap((batch: any) => {
+          return batch.map((data: any) => {
+            return JSON.parse(data.text);
+          });
+        });
+
         const processedEvents = events.map((event: any) => {
           if (event.data && typeof event.data === 'string') {
             return {
@@ -118,7 +141,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
         setEvents(processedEvents);
       } catch (e) {
-        console.error(e);
+        console.error('Error processing events:', e);
       }
     };
 
@@ -291,12 +314,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               className="flex-grow cursor-pointer"
               min="0"
               step="0.1"
-              max={totalDuration}
-              value={currentTime}
+              max={totalDuration || 0}
+              value={currentTime || 0}
               onChange={handleTimelineChange}
             />
             <span className="font-mono">
-              {formatSecondsToMinutesAndSeconds(currentTime)}/{formatSecondsToMinutesAndSeconds(totalDuration)}
+              {formatSecondsToMinutesAndSeconds(currentTime || 0)}/{formatSecondsToMinutesAndSeconds(totalDuration || 0)}
             </span>
           </div>
           {events.length === 0 && (
