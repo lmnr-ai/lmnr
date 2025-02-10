@@ -19,10 +19,10 @@ const ComparisonCell = ({
   comparisonValue?: number;
 }) => (
   <div className="flex items-center space-x-2">
-    <div className="text-blue-300">{comparison}</div>
+    <div className="text-green-300">{comparison}</div>
     <ArrowRight className="font-bold min-w-3" size={12} />
-    <div className="text-green-300">{original}</div>
-    {!!originalValue && !!comparisonValue && (
+    <div className="text-blue-300">{original}</div>
+    {!!originalValue && !!comparisonValue && originalValue - comparisonValue !== 0 && (
       <span className="text-secondary-foreground">
         {originalValue >= comparisonValue ? "▲" : "▼"} ({getPercentageChange(originalValue, comparisonValue)}%)
       </span>
@@ -34,6 +34,7 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
   {
     accessorKey: "index",
     header: "Index",
+    size: 70,
   },
   {
     accessorFn: (row) => JSON.stringify(row.data),
@@ -55,14 +56,15 @@ export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewW
 
       const comparisonValue =
         row.original.comparedEndTime && row.original.comparedStartTime
-          ? new Date(row.original.comparedEndTime).getSeconds() - new Date(row.original.comparedStartTime).getSeconds()
+          ? new Date(row.original.comparedEndTime).getTime() / 1000 -
+            new Date(row.original.comparedStartTime).getTime() / 1000
           : undefined;
 
       return (
         <ComparisonCell
           original={getDurationString(row.original.startTime, row.original.endTime)}
           comparison={comparison}
-          originalValue={new Date(row.original.endTime).getSeconds() - new Date(row.original.startTime).getSeconds()}
+          originalValue={(new Date(row.original.endTime).getTime() - new Date(row.original.startTime).getTime()) / 1000}
           comparisonValue={comparisonValue}
         />
       );
@@ -78,14 +80,14 @@ export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewW
 
       const comparisonValue =
         row.original.comparedInputCost && row.original.comparedOutputCost
-          ? row.original.comparedInputCost + row.original.comparedOutputCost
+          ? Number((row.original.comparedInputCost + row.original.comparedOutputCost).toFixed(5))
           : undefined;
 
       return (
         <ComparisonCell
           original={`${(row.original.inputCost + row.original.outputCost).toFixed(5)}$`}
           comparison={comparison}
-          originalValue={row.original.inputCost + row.original.outputCost}
+          originalValue={Number((row.original.inputCost + row.original.outputCost).toFixed(5))}
           comparisonValue={comparisonValue}
         />
       );
@@ -111,7 +113,7 @@ export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompa
   },
 ];
 
-export const getScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapointPreviewWithCompared>[] =>
+export const getComparedScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapointPreviewWithCompared>[] =>
   scores.map((name) => ({
     header: name,
     cell: ({ row }) => (
@@ -122,4 +124,10 @@ export const getScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapoint
         comparisonValue={Number(row.original.comparedScores?.[name]) || undefined}
       />
     ),
+  }));
+
+export const getScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapointPreviewWithCompared>[] =>
+  scores.map((name) => ({
+    header: name,
+    cell: ({ row }) => row.original.scores?.[name],
   }));

@@ -10,6 +10,7 @@ import {
   comparedComplementaryColumns,
   complementaryColumns,
   defaultColumns,
+  getComparedScoreColumns,
   getScoreColumns,
 } from "@/components/evaluation/columns";
 import CompareChart from "@/components/evaluation/compare-chart";
@@ -41,7 +42,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams();
-  const traceId = searchParams.get("traceId");
   const targetId = searchParams.get("targetId");
   const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(
     `/api/projects/${params?.projectId}/evaluations/${evaluationId}`,
@@ -54,9 +54,11 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   );
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
+  const [traceId, setTraceId] = useState<string | undefined>(undefined);
   const evaluation = data?.evaluation;
 
   const onClose = useCallback(() => {
+    setTraceId(undefined);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("datapointId");
     params.delete("traceId");
@@ -71,9 +73,9 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   const columns = useMemo(() => {
     if (targetId) {
-      return [...defaultColumns, ...comparedComplementaryColumns, ...getScoreColumns(scores)];
+      return [...defaultColumns, ...comparedComplementaryColumns, ...getComparedScoreColumns(scores)];
     }
-    return [...defaultColumns, ...complementaryColumns];
+    return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores)];
   }, [scores, targetId]);
 
   const tableData = useMemo(() => {
@@ -97,6 +99,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   }, [data?.results, targetData?.results, targetId]);
 
   const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
+    setTraceId(row.traceId);
     const params = new URLSearchParams(searchParams);
     params.set("datapointId", row.id);
     params.set("traceId", row.traceId);
@@ -187,7 +190,9 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
             }}
           >
             <SelectTrigger className="flex font-medium w-40 text-secondary-foreground">
-              <SelectValue placeholder="select evaluation" />
+              <SelectValue placeholder="Select evaluation">
+                {evaluations?.find((evaluation) => evaluation.id === evaluationId)?.name}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {evaluations
