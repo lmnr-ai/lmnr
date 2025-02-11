@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_web::{post, web, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
@@ -26,7 +28,7 @@ pub async fn process_traces(
     body: Bytes,
     project_api_key: ProjectApiKey,
     cache: web::Data<crate::cache::Cache>,
-    spans_message_queue: web::Data<dyn MessageQueue<RabbitMqSpanMessage>>,
+    spans_message_queue: web::Data<Arc<dyn MessageQueue<RabbitMqSpanMessage>>>,
     db: web::Data<DB>,
 ) -> ResponseResult {
     let db = db.into_inner();
@@ -34,7 +36,7 @@ pub async fn process_traces(
     let request = ExportTraceServiceRequest::decode(body).map_err(|e| {
         anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
     })?;
-    let spans_message_queue = spans_message_queue.into_inner();
+    let spans_message_queue = spans_message_queue.as_ref().clone();
 
     if is_feature_enabled(Feature::UsageLimit) {
         let limits_exceeded = get_workspace_limit_exceeded_by_project_id(

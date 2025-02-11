@@ -1,11 +1,8 @@
-name: Build & publish lmnr images
+name: Build & publish app-server binary
 on:
-  push:
-    branches:
-      - test-action
-  # release:
-  #   types:
-  #     - published
+  release:
+    types:
+      - published
 
 jobs:
   build-and-upload:
@@ -44,12 +41,17 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const response = await github.rest.repos.getLatestRelease({
+            const response = await github.rest.repos.listReleases({
               owner: context.repo.owner,
               repo: context.repo.repo
             });
-            core.setOutput('upload_url', response.data.upload_url);
-            core.setOutput('release_id', response.data.id);
+            if (response.data.length === 0) {
+              core.setFailed('No releases found');
+              return;
+            }
+            const latest_release = response.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+            core.setOutput('upload_url', latest_release.upload_url);
+            core.setOutput('release_id', latest_release.id);
 
       - name: Delete existing assets
         uses: actions/github-script@v7
