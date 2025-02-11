@@ -4,7 +4,7 @@ import 'rrweb-player/dist/style.css';
 
 import { PauseIcon, PlayIcon } from '@radix-ui/react-icons';
 import { Loader2 } from 'lucide-react';
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import rrwebPlayer from 'rrweb-player';
 
 import { useProjectContext } from '@/contexts/project-context';
@@ -44,7 +44,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [startTime, setStartTime] = useState(0);
     const { projectId } = useProjectContext();
-    const workerRef = useRef<Worker | null>(null);
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Add resize observer effect
     useEffect(() => {
@@ -62,42 +62,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       return () => resizeObserver.disconnect();
     }, []);
 
-    // Add debounce timer ref
-    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-    // Initialize worker
-    useEffect(() => {
-      workerRef.current = new Worker(new URL('@/lib/workers/player-worker.ts', import.meta.url));
-
-      workerRef.current.onmessage = (e) => {
-        const { result, isPlaying, type } = e.data;
-        if (playerRef.current) {
-          try {
-            // Handle page navigation events differently
-            if (type === 'navigation') {
-              // Temporarily pause during navigation to reduce main thread blocking
-              const wasPlaying = playerRef.current.state.playing;
-              playerRef.current.pause();
-              requestAnimationFrame(() => {
-                playerRef.current.goto(result);
-                if (wasPlaying) {
-                  playerRef.current.play();
-                }
-              });
-            } else {
-              playerRef.current.goto(result, isPlaying);
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      };
-
-      return () => {
-        workerRef.current?.terminate();
-      };
-    }, []);
-
     const getEvents = async () => {
       const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
         method: 'GET',
@@ -107,11 +71,9 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       });
 
       try {
-        // Create a streaming reader
         const reader = res.body?.getReader();
         if (!reader) throw new Error('No reader available');
 
-        // Read the stream chunks and accumulate them
         const chunks: Uint8Array[] = [];
         while (true) {
           const { done, value } = await reader.read();
@@ -119,14 +81,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           chunks.push(value);
         }
 
-        // Combine chunks using Blob and convert to text
         const blob = new Blob(chunks, { type: 'application/json' });
         const text = await blob.text();
         const batchEvents = JSON.parse(text);
 
         const events = batchEvents.flatMap((batch: any) => batch.map((data: any) => {
           const event = JSON.parse(data.text);
-          console.log(event);
           return {
             data: JSON.parse(event.data),
             timestamp: new Date(event.timestamp).getTime(),
@@ -170,7 +130,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         const startTime = events[0].timestamp;
         setStartTime(startTime);
 
-        // Set total duration and add player listeners
         const duration = (events[events.length - 1].timestamp - events[0].timestamp) / 1000;
         setTotalDuration(duration);
 
@@ -226,38 +185,25 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
     const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const time = parseFloat(e.target.value);
-      setCurrentTime(time); // Update UI immediately
+      setCurrentTime(time);
 
-      // Pause playback during seeking
       const wasPlaying = isPlaying;
       if (wasPlaying && playerRef.current) {
         playerRef.current.pause();
       }
 
-      // Modify debouncedGoto to resume playback if needed
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
 
       debounceTimerRef.current = setTimeout(() => {
-        const currentEvent = events.reduce((prev, curr) => {
-          const prevTime = (prev.timestamp - startTime) / 1000;
-          const currTime = (curr.timestamp - startTime) / 1000;
-          return Math.abs(currTime - time) < Math.abs(prevTime - time) ? curr : prev;
-        }, events[0]);
-
-        workerRef.current?.postMessage({
-          time,
-          isPlaying: wasPlaying, // Pass the previous playing state
-          eventType: currentEvent?.type,
-          timestamp: currentEvent?.timestamp
-        });
-
-        // Resume playback after seeking if it was playing before
-        if (wasPlaying && playerRef.current) {
-          requestAnimationFrame(() => {
-            playerRef.current.play();
-          });
+        if (playerRef.current) {
+          playerRef.current.goto(time * 1000);
+          if (wasPlaying) {
+            requestAnimationFrame(() => {
+              playerRef.current.play();
+            });
+          }
         }
       }, 50);
     };
@@ -266,15 +212,14 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       setSpeed((currentSpeed) => (currentSpeed === 1 ? 2 : 1));
     };
 
-    // Update the imperative handle
     useImperativeHandle(ref, () => ({
       goto: (time: number) => {
         if (playerRef.current) {
           setCurrentTime(time);
-          workerRef.current?.postMessage({ time, isPlaying });
+          playerRef.current.goto(time * 1000);
         }
       }
-    }), [isPlaying]);
+    }), []);
 
     return (
       <>
