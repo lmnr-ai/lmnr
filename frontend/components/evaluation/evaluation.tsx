@@ -211,20 +211,18 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
             </Button>
           )}
         </div>
-        {targetId && (
-          <Select value={selectedScore} onValueChange={setSelectedScore}>
-            <SelectTrigger className="w-fit font-medium max-w-40 text-secondary-foreground h-7">
-              <SelectValue placeholder="select score" />
-            </SelectTrigger>
-            <SelectContent>
-              {scores.map((score) => (
-                <SelectItem key={score} value={score}>
-                  {score}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        <Select value={selectedScore} onValueChange={setSelectedScore}>
+          <SelectTrigger className="w-fit font-medium max-w-40 text-secondary-foreground h-7">
+            <SelectValue placeholder="select score" />
+          </SelectTrigger>
+          <SelectContent>
+            {scores.map((score) => (
+              <SelectItem key={score} value={score}>
+                {score}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {!targetId && (
           <DownloadButton
             uri={`/api/projects/${params?.projectId}/evaluations/${evaluationId}/download`}
@@ -254,7 +252,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       scoreName={selectedScore}
                     />
                   ) : (
-                    <Chart className="h-full" evaluationId={evaluationId} scores={scores} />
+                    <Chart className="h-full" evaluationId={evaluationId} scoreName={selectedScore} />
                   )}
                 </div>
               </>

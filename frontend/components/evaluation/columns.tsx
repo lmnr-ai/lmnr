@@ -3,11 +3,10 @@ import { ArrowRight } from "lucide-react";
 
 import { EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 import { getDurationString } from "@/lib/flow/utils";
+import { isValidNumber } from "@/lib/utils";
 
 const getPercentageChange = (original: number, compared: number) =>
   (((original - compared) / compared) * 100).toFixed(2);
-
-const isValidNumber = (value?: number): value is number => typeof value === "number" && !isNaN(value);
 
 const ComparisonCell = ({
   original,
@@ -20,9 +19,11 @@ const ComparisonCell = ({
   originalValue?: number;
   comparisonValue?: number;
 }) => {
-  // Only show comparison if both values are valid numbers and they're different
   const shouldShowComparison =
-    isValidNumber(originalValue) && isValidNumber(comparisonValue) && originalValue !== comparisonValue;
+    isValidNumber(originalValue) &&
+    isValidNumber(comparisonValue) &&
+    originalValue !== comparisonValue &&
+    comparisonValue !== 0;
 
   return (
     <div className="flex items-center space-x-2">
@@ -64,8 +65,8 @@ export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewW
 
       const comparisonValue =
         row.original.comparedEndTime && row.original.comparedStartTime
-          ? new Date(row.original.comparedEndTime).getTime() / 1000 -
-            new Date(row.original.comparedStartTime).getTime() / 1000
+          ? (new Date(row.original.comparedEndTime).getTime() - new Date(row.original.comparedStartTime).getTime()) /
+            1000
           : undefined;
 
       return (

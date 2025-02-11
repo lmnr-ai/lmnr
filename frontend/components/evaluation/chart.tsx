@@ -1,191 +1,61 @@
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import useSWR from "swr";
 
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { renderTick } from "@/components/evaluation/graphs-utils";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BucketRow } from "@/lib/types";
-
-import { Label } from "../ui/label";
-
-const getTransformedData = (data: {
-  [scoreName: string]: BucketRow[];
-}): { index: number; [scoreName: string]: number }[] => {
-  const res: { [index: number]: { [scoreName: string]: number } } = {};
-  for (const [scoreName, rows] of Object.entries(data)) {
-    rows.forEach((row, index) => {
-      res[index] = {
-        ...res[index],
-        [scoreName]: row.heights[0],
-      };
-    });
-  }
-  return Object.values(res).map((row, index) => ({
-    index,
-    ...row,
-  }));
-};
-
-function renderTick(tickProps: any) {
-  const {
-    x,
-    y,
-    payload: { value, offset },
-  } = tickProps;
-  const VERTICAL_TICK_OFFSET = 8;
-  const VERTICAL_TICK_LENGTH = 4;
-  const FONT_SIZE = 8;
-  const BUCKET_COUNT = 10;
-  const PERCENTAGE_STEP = 100 / BUCKET_COUNT;
-
-  // Value is equal to index starting from 0
-  // So we calculate percentage ticks/marks by multiplying value by 10
-  return (
-    <g>
-      <path d={`M${x - offset},${y - VERTICAL_TICK_OFFSET}v${VERTICAL_TICK_LENGTH}`} stroke="gray" />
-      <text
-        x={x - offset + FONT_SIZE / 2}
-        y={y + VERTICAL_TICK_OFFSET}
-        textAnchor="middle"
-        fill="gray"
-        fontSize={FONT_SIZE}
-      >
-        {value * PERCENTAGE_STEP}%
-      </text>
-      {value === BUCKET_COUNT - 1 && (
-        <>
-          <path d={`M${x + offset},${y - VERTICAL_TICK_OFFSET}v${VERTICAL_TICK_LENGTH}`} stroke="gray" />
-          <text
-            x={x + offset - FONT_SIZE / 2}
-            y={y + VERTICAL_TICK_OFFSET}
-            textAnchor="middle"
-            fill="gray"
-            fontSize={FONT_SIZE}
-          >
-            100%
-          </text>
-        </>
-      )}
-    </g>
-  );
-}
+import { swrFetcher } from "@/lib/utils";
 
 interface ChartProps {
   evaluationId: string;
-  scores: string[];
   className?: string;
-  isLoading?: boolean;
+  scoreName: string;
 }
 
-export default function Chart({ evaluationId, scores, className, isLoading = false }: ChartProps) {
+const newChartConfig = {
+  ["index"]: {
+    color: "hsl(var(--chart-1))",
+  },
+};
+
+export default function Chart({ evaluationId, className, scoreName }: ChartProps) {
   const params = useParams();
-  const [data, setData] = useState<{ [score: string]: BucketRow[] }>({});
-  const [showScores, setShowScores] = useState<string[]>(scores);
-  const [isScoresLoading, setIsScoresLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchScores = async () => {
-      try {
-        setIsScoresLoading(true);
-        const promises = scores.map((scoreName) =>
-          fetch(
-            `/api/projects/${params?.projectId}/evaluation-score-distribution?` +
-              `evaluationIds=${evaluationId}&scoreName=${scoreName}`
-          )
-            .then((res) => res.json())
-            .then((data) => ({ scoreName, data }))
-        );
-
-        const results = await Promise.all(promises);
-        const newData = results.reduce(
-          (acc, { scoreName, data }) => ({
-            ...acc,
-            [scoreName]: data,
-          }),
-          {}
-        );
-
-        setData(newData);
-      } catch (e) {
-        console.error("Error fetching scores:", e);
-      } finally {
-        setIsScoresLoading(false);
-      }
-    };
-
-    fetchScores();
-  }, [evaluationId, scores, params?.projectId]);
-
-  const chartConfig = useMemo<ChartConfig>(
-    () =>
-      Object.fromEntries(
-        scores.map((scoreName, index) => [
-          scoreName,
-          {
-            color: `hsl(var(--chart-${(index % 5) + 1}))`,
-            label: scoreName,
-          },
-        ])
-      ),
-    [scores]
+  const { data, isLoading } = useSWR<BucketRow[]>(
+    `/api/projects/${params?.projectId}/evaluation-score-distribution?` +
+      `evaluationIds=${evaluationId}&scoreName=${scoreName}`,
+    swrFetcher
   );
 
   return (
     <div className={className}>
-      {isScoresLoading ? (
+      {isLoading ? (
         <Skeleton className="h-48 w-full" />
       ) : (
-        <>
-          <ChartContainer config={chartConfig} className="max-h-[178px] w-full">
-            <BarChart accessibilityLayer data={getTransformedData(data)} barSize={"4%"}>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="index"
-                tickLine={false}
-                axisLine={true}
-                padding={{ left: 0, right: 0 }}
-                tick={renderTick as any}
-              />
-              <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} />
-              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-              {showScores.map((scoreName) => (
-                <Bar
-                  key={scoreName}
-                  dataKey={scoreName}
-                  fill={chartConfig[scoreName].color}
-                  radius={4}
-                  name={scoreName}
-                />
-              ))}
-            </BarChart>
-          </ChartContainer>
-          <div className="flex flex-row justify-center w-full space-x-4 items-center">
-            {scores.map((score) => (
-              <div
-                key={score}
-                className={"flex items-center text-sm cursor-pointer " + "decoration-dashed text-muted-foreground"}
-                style={
-                  showScores.includes(score)
-                    ? {
-                      color: chartConfig[score].color,
-                    }
-                    : {}
-                }
-                onClick={() => {
-                  let newShowScores = new Set(showScores);
-                  if (newShowScores.has(score)) {
-                    newShowScores.delete(score);
-                  } else {
-                    newShowScores.add(score);
-                  }
-                  setShowScores(Array.from(newShowScores));
-                }}
-              >
-                <Label className="cursor-pointer">{score}</Label>
-              </div>
-            ))}
-          </div>
-        </>
+        <ChartContainer config={newChartConfig} className="max-h-48 w-full">
+          <BarChart
+            accessibilityLayer
+            data={(data ?? []).map((row: BucketRow, index: number) => ({
+              index,
+              height: row.heights[0],
+            }))}
+            barSize="4%"
+          >
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="index"
+              tickLine={false}
+              axisLine={true}
+              padding={{ left: 0, right: 0 }}
+              tick={renderTick as any}
+            />
+            <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} />
+            <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+            <Bar key={scoreName} dataKey="height" fill="hsl(var(--chart-1))" radius={4} name={scoreName} />
+          </BarChart>
+        </ChartContainer>
       )}
     </div>
   );

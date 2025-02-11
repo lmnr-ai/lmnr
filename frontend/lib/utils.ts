@@ -419,3 +419,5 @@ export const pluralize = (count: number, singular: string, plural: string) => {
       return plural;
   }
 };
+
+export const isValidNumber = (value?: number): value is number => typeof value === "number" && !isNaN(value);
