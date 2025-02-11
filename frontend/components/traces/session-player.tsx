@@ -98,29 +98,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       };
     }, []);
 
-    // Update the debouncedGoto function to include event type information
-    const debouncedGoto = useCallback((time: number) => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      debounceTimerRef.current = setTimeout(() => {
-        // Find the nearest event at or before the target time
-        const currentEvent = events.reduce((prev, curr) => {
-          const prevTime = (prev.timestamp - startTime) / 1000;
-          const currTime = (curr.timestamp - startTime) / 1000;
-          return Math.abs(currTime - time) < Math.abs(prevTime - time) ? curr : prev;
-        }, events[0]);
-
-        workerRef.current?.postMessage({
-          time,
-          isPlaying,
-          eventType: currentEvent?.type,
-          timestamp: currentEvent?.timestamp
-        });
-      }, 50);
-    }, [isPlaying, events, startTime]);
-
     const getEvents = async () => {
       const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
         method: 'GET',
@@ -149,13 +126,13 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
         const events = batchEvents.flatMap((batch: any) => batch.map((data: any) => {
           const event = JSON.parse(data.text);
+          console.log(event);
           return {
             data: JSON.parse(event.data),
             timestamp: new Date(event.timestamp).getTime(),
             type: parseInt(event.event_type)
           };
         }));
-
         setEvents(events);
       } catch (e) {
         console.error('Error processing events:', e);
