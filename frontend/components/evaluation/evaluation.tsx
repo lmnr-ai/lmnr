@@ -158,17 +158,15 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
           <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
             <SelectTrigger
               disabled={evaluations.length <= 1}
-              className="flex font-medium w-40 text-secondary-foreground"
+              className="flex font-medium text-secondary-foreground truncate"
             >
-              <SelectValue placeholder="Select compared evaluation">
-                {evaluations?.find((evaluation) => evaluation.id === targetId)?.name}
-              </SelectValue>
+              <SelectValue placeholder="Select compared evaluation" />
             </SelectTrigger>
             <SelectContent>
               {evaluations
                 .filter((item) => item.id != evaluationId)
                 .map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
+                  <SelectItem className="truncate" key={item.id} value={item.id}>
                     <span>
                       {item.name}
                       <span className="text-secondary-foreground text-xs ml-2">{formatTimestamp(item.createdAt)}</span>
@@ -189,10 +187,8 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
               push(`/project/${params?.projectId}/evaluations/${value}?${searchParams}`);
             }}
           >
-            <SelectTrigger className="flex font-medium w-40 text-secondary-foreground">
-              <SelectValue placeholder="Select evaluation">
-                {evaluations?.find((evaluation) => evaluation.id === evaluationId)?.name}
-              </SelectValue>
+            <SelectTrigger className="flex font-medium text-secondary-foreground">
+              <SelectValue placeholder="Select evaluation" />
             </SelectTrigger>
             <SelectContent>
               {evaluations

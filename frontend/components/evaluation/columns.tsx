@@ -7,6 +7,8 @@ import { getDurationString } from "@/lib/flow/utils";
 const getPercentageChange = (original: number, compared: number) =>
   (((original - compared) / compared) * 100).toFixed(2);
 
+const isValidNumber = (value?: number): value is number => typeof value === "number" && !isNaN(value);
+
 const ComparisonCell = ({
   original,
   comparison,
@@ -17,18 +19,24 @@ const ComparisonCell = ({
   comparison: string | number;
   originalValue?: number;
   comparisonValue?: number;
-}) => (
-  <div className="flex items-center space-x-2">
-    <div className="text-green-300">{comparison}</div>
-    <ArrowRight className="font-bold min-w-3" size={12} />
-    <div className="text-blue-300">{original}</div>
-    {!!originalValue && !!comparisonValue && originalValue - comparisonValue !== 0 && (
-      <span className="text-secondary-foreground">
-        {originalValue >= comparisonValue ? "▲" : "▼"} ({getPercentageChange(originalValue, comparisonValue)}%)
-      </span>
-    )}
-  </div>
-);
+}) => {
+  // Only show comparison if both values are valid numbers and they're different
+  const shouldShowComparison =
+    isValidNumber(originalValue) && isValidNumber(comparisonValue) && originalValue !== comparisonValue;
+
+  return (
+    <div className="flex items-center space-x-2">
+      <div className="text-green-300">{comparison}</div>
+      <ArrowRight className="font-bold min-w-3" size={12} />
+      <div className="text-blue-300">{original}</div>
+      {shouldShowComparison && (
+        <span className="text-secondary-foreground">
+          {originalValue >= comparisonValue ? "▲" : "▼"} ({getPercentageChange(originalValue, comparisonValue)}%)
+        </span>
+      )}
+    </div>
+  );
+};
 
 export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
   {
@@ -118,8 +126,8 @@ export const getComparedScoreColumns = (scores: string[]): ColumnDef<EvaluationD
     header: name,
     cell: ({ row }) => (
       <ComparisonCell
-        original={Number(row.original.scores?.[name]) || "-"}
-        comparison={Number(row.original.comparedScores?.[name]) || "-"}
+        original={row.original.scores?.[name] ?? "-"}
+        comparison={row.original.comparedScores?.[name] ?? "-"}
         originalValue={Number(row.original.scores?.[name]) || undefined}
         comparisonValue={Number(row.original.comparedScores?.[name]) || undefined}
       />
