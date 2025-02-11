@@ -4,25 +4,28 @@ import useSWR from "swr";
 
 import { cn, isValidNumber, swrFetcher } from "@/lib/utils";
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Skeleton } from "../ui/skeleton";
 
 interface ScoreCardProps {
-  scoreName: string;
+  scores: string[];
+  selectedScore: string;
+  setSelectedScore: (score: string) => void;
 }
 
-export default function ScoreCard({ scoreName }: ScoreCardProps) {
+export default function ScoreCard({ scores, selectedScore, setSelectedScore }: ScoreCardProps) {
   const searchParams = useSearchParams();
   const params = useParams();
   const targetId = searchParams.get("targetId");
 
   const { data, isLoading } = useSWR<{ averageValue?: number }>(
-    `/api/projects/${params?.projectId}/evaluation-score-stats?evaluationId=${params?.evaluationId}&scoreName=${scoreName}`,
+    `/api/projects/${params?.projectId}/evaluation-score-stats?evaluationId=${params?.evaluationId}&scoreName=${selectedScore}`,
     swrFetcher
   );
 
   const { data: comparedData, isLoading: isComparedLoading } = useSWR<{ averageValue?: number }>(
     targetId
-      ? `/api/projects/${params?.projectId}/evaluation-score-stats?evaluationId=${targetId}&scoreName=${scoreName}`
+      ? `/api/projects/${params?.projectId}/evaluation-score-stats?evaluationId=${targetId}&scoreName=${selectedScore}`
       : null,
     swrFetcher
   );
@@ -42,8 +45,19 @@ export default function ScoreCard({ scoreName }: ScoreCardProps) {
         <Skeleton className="h-full w-full" />
       ) : (
         <>
-          <h2 className="text-xl font-semibold mb-4">{scoreName}</h2>
-          <div className="flex flex-col">
+          <Select value={selectedScore} onValueChange={setSelectedScore}>
+            <SelectTrigger className="w-fit font-medium max-w-40 text-secondary-foreground h-7">
+              <SelectValue placeholder="select score" className="text-lg" />
+            </SelectTrigger>
+            <SelectContent>
+              {scores.map((score) => (
+                <SelectItem key={score} value={score}>
+                  {score}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex flex-col mt-2">
             <div className="text-sm text-gray-500">Average</div>
             <div className="flex flex-row items-center">
               {isValidNumber(comparedAverage) && (
