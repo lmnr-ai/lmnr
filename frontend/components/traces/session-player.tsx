@@ -4,7 +4,7 @@ import 'rrweb-player/dist/style.css';
 
 import { PauseIcon, PlayIcon } from '@radix-ui/react-icons';
 import { Loader2 } from 'lucide-react';
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import rrwebPlayer from 'rrweb-player';
 
 import { useProjectContext } from '@/contexts/project-context';
@@ -44,7 +44,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [startTime, setStartTime] = useState(0);
     const { projectId } = useProjectContext();
-    const workerRef = useRef<Worker | null>(null);
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Add resize observer effect
     useEffect(() => {
@@ -62,40 +62,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       return () => resizeObserver.disconnect();
     }, []);
 
-    // Add debounce timer ref
-    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-    // Initialize worker
-    useEffect(() => {
-      workerRef.current = new Worker(new URL('@/lib/workers/player-worker.ts', import.meta.url));
-
-      workerRef.current.onmessage = (e) => {
-        const { result, isPlaying } = e.data;
-        if (playerRef.current) {
-          try {
-            playerRef.current.goto(result, isPlaying);
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      };
-
-      return () => {
-        workerRef.current?.terminate();
-      };
-    }, []);
-
-    // Update the debouncedGoto function
-    const debouncedGoto = useCallback((time: number) => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      debounceTimerRef.current = setTimeout(() => {
-        workerRef.current?.postMessage({ time, isPlaying });
-      }, 50);
-    }, [isPlaying]);
-
     const getEvents = async () => {
       const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
         method: 'GET',
@@ -103,22 +69,33 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           'Content-Type': 'application/json'
         }
       });
-      try {
-        const events = await res.json();
-        const processedEvents = events.map((event: any) => {
-          if (event.data && typeof event.data === 'string') {
-            return {
-              data: JSON.parse(event.data),
-              timestamp: new Date(event.timestamp).getTime(),
-              type: parseInt(event.event_type)
-            };
-          }
-          return event;
-        });
 
-        setEvents(processedEvents);
+      try {
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No reader available');
+
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+
+        const blob = new Blob(chunks, { type: 'application/json' });
+        const text = await blob.text();
+        const batchEvents = JSON.parse(text);
+
+        const events = batchEvents.flatMap((batch: any) => batch.map((data: any) => {
+          const event = JSON.parse(data.text);
+          return {
+            data: JSON.parse(event.data),
+            timestamp: new Date(event.timestamp).getTime(),
+            type: parseInt(event.event_type)
+          };
+        }));
+        setEvents(events);
       } catch (e) {
-        console.error(e);
+        console.error('Error processing events:', e);
       }
     };
 
@@ -153,7 +130,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         const startTime = events[0].timestamp;
         setStartTime(startTime);
 
-        // Set total duration and add player listeners
         const duration = (events[events.length - 1].timestamp - events[0].timestamp) / 1000;
         setTotalDuration(duration);
 
@@ -209,23 +185,41 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
     const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const time = parseFloat(e.target.value);
-      setCurrentTime(time); // Update UI immediately
-      debouncedGoto(time); // Debounce the actual goto call
+      setCurrentTime(time);
+
+      const wasPlaying = isPlaying;
+      if (wasPlaying && playerRef.current) {
+        playerRef.current.pause();
+      }
+
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        if (playerRef.current) {
+          playerRef.current.goto(time * 1000);
+          if (wasPlaying) {
+            requestAnimationFrame(() => {
+              playerRef.current.play();
+            });
+          }
+        }
+      }, 50);
     };
 
     const toggleSpeed = () => {
       setSpeed((currentSpeed) => (currentSpeed === 1 ? 2 : 1));
     };
 
-    // Update the imperative handle
     useImperativeHandle(ref, () => ({
       goto: (time: number) => {
         if (playerRef.current) {
           setCurrentTime(time);
-          workerRef.current?.postMessage({ time, isPlaying });
+          playerRef.current.goto(time * 1000);
         }
       }
-    }), [isPlaying]);
+    }), []);
 
     return (
       <>
@@ -291,12 +285,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               className="flex-grow cursor-pointer"
               min="0"
               step="0.1"
-              max={totalDuration}
-              value={currentTime}
+              max={totalDuration || 0}
+              value={currentTime || 0}
               onChange={handleTimelineChange}
             />
             <span className="font-mono">
-              {formatSecondsToMinutesAndSeconds(currentTime)}/{formatSecondsToMinutesAndSeconds(totalDuration)}
+              {formatSecondsToMinutesAndSeconds(currentTime || 0)}/{formatSecondsToMinutesAndSeconds(totalDuration || 0)}
             </span>
           </div>
           {events.length === 0 && (

@@ -247,7 +247,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                                 ref={traceTreePanel}
                               >
                                 <StatsShields
-                                  className="px-2 h-12 sticky top-0 bg-background z-50 border-b"
+                                  className="px-2 h-10 sticky top-0 bg-background z-50 border-b"
                                   startTime={trace.startTime}
                                   endTime={trace.endTime}
                                   totalTokenCount={trace.totalTokenCount}

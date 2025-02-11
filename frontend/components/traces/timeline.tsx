@@ -148,7 +148,7 @@ export default function Timeline({
 
   return (
     <div className="flex flex-col h-full w-full relative" ref={ref}>
-      <div className="bg-background flex text-xs w-full border-b z-30 sticky top-0 h-12 px-4">
+      <div className="bg-background flex text-xs w-full border-b z-30 sticky top-0 h-10 px-4">
         <div className="flex w-full relative">
           {timeIntervals.map((interval, index) => (
             <div
