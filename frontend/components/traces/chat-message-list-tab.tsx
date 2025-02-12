@@ -1,3 +1,5 @@
+import React from 'react';
+
 import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
 import { isStringType } from '@/lib/utils';
 
@@ -12,14 +14,12 @@ interface ContentPartTextProps {
 
 function ContentPartText({ text, presetKey }: ContentPartTextProps) {
   return (
-    <div className="w-full h-full">
-      <Formatter
-        collapsible
-        value={text}
-        className="rounded-none max-h-[50vh] border-none"
-        presetKey={presetKey}
-      />
-    </div>
+    <Formatter
+      collapsible
+      value={text}
+      className="rounded-none max-h-[400px] border-none"
+      presetKey={presetKey}
+    />
   );
 }
 
@@ -55,9 +55,9 @@ interface ContentPartsProps {
 
 function ContentParts({ contentParts }: ContentPartsProps) {
   return (
-    <div className="flex flex-col space-y-2">
+    <div className="flex flex-col space-y-2 w-full">
       {contentParts.map((contentPart, index) => (
-        <div key={index}>
+        <div key={index} className="w-full">
           {contentPart.type === 'text' ? (
             <ContentPartText text={contentPart.text} />
           ) : contentPart.type === 'image' ? (
@@ -84,10 +84,17 @@ export default function ChatMessageListTab({
   messages,
   presetKey
 }: ChatMessageListTabProps) {
+  // Memoize messages to prevent unnecessary re-renders
+  const memoizedMessages = React.useMemo(() => messages, [messages]);
+
   return (
-    <div className="w-full h-full flex flex-col space-y-4">
-      {messages.map((message, index) => (
-        <div key={index} className="flex flex-col border rounded">
+    <div className="w-full flex flex-col space-y-4">
+      {memoizedMessages.map((message, index) => (
+        <div
+          key={`message-${index}`}
+          className="flex flex-col border rounded"
+          style={{ contain: 'content' }}
+        >
           <div className="font-medium text-sm text-secondary-foreground border-b p-2">
             {message.role.toUpperCase()}
           </div>

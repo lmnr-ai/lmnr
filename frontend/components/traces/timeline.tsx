@@ -10,6 +10,7 @@ interface TimelineProps {
   childSpans: { [key: string]: Span[] };
   collapsedSpans: Set<string>;
   browserSessionTime: number | null;
+  containerHeight: number;
 }
 
 interface SegmentEvent {
@@ -31,7 +32,8 @@ export default function Timeline({
   spans,
   childSpans,
   collapsedSpans,
-  browserSessionTime
+  browserSessionTime,
+  containerHeight
 }: TimelineProps) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [timeIntervals, setTimeIntervals] = useState<string[]>([]);
@@ -80,8 +82,17 @@ export default function Timeline({
       traverse(span, childSpans, orderedSpans);
     }
 
-    let startTime = new Date(orderedSpans[0].startTime).getTime();
-    let endTime = new Date(orderedSpans[orderedSpans.length - 1].endTime).getTime();
+    if (orderedSpans.length === 0) {
+      return;
+    }
+
+    let startTime = Infinity;
+    let endTime = -Infinity;
+
+    for (const span of orderedSpans) {
+      startTime = Math.min(startTime, new Date(span.startTime).getTime());
+      endTime = Math.max(endTime, new Date(span.endTime).getTime());
+    }
 
     setStartTime(startTime);
 
@@ -137,17 +148,27 @@ export default function Timeline({
 
   return (
     <div className="flex flex-col h-full w-full relative" ref={ref}>
-      <div className="bg-background flex text-xs w-full border-b z-40 sticky top-0 h-12 px-4">
-        {timeIntervals.map((interval, index) => (
-          <div
-            className="border-l text-secondary-foreground pl-1 flex items-center min-w-12 relative z-0"
-            style={{ width: '10%' }}
-            key={index}
-          >
-            {interval}
-          </div>
-        ))}
-        <div className="border-r" />
+      <div className="bg-background flex text-xs w-full border-b z-30 sticky top-0 h-10 px-4">
+        <div className="flex w-full relative">
+          {timeIntervals.map((interval, index) => (
+            <div
+              className="border-l text-secondary-foreground pl-1 flex items-center min-w-12 relative z-0"
+              style={{ width: '10%' }}
+              key={index}
+            >
+              {interval}
+            </div>
+          ))}
+          <div className="border-r" />
+          {browserSessionTime && (
+            <div className="absolute top-0 bg-primary z-50 w-[1px]"
+              style={{
+                left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + '%',
+                height: containerHeight
+              }}
+            />
+          )}
+        </div>
       </div>
       <div className="px-4">
         <div className="flex flex-col space-y-1 w-full pt-[6px] relative">
@@ -182,13 +203,6 @@ export default function Timeline({
               </div>
             </div>
           ))}
-          {browserSessionTime && (
-            <div className="absolute -top-32 h-[calc(100%+142px)] bg-primary z-50 w-[1px]"
-              style={{
-                left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + '%'
-              }}
-            />
-          )}
         </div>
       </div>
     </div>

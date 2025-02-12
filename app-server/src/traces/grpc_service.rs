@@ -3,44 +3,42 @@ use std::sync::Arc;
 use sqlx::PgPool;
 
 use crate::{
-    api::utils::get_api_key_from_raw_value,
+    api::{utils::get_api_key_from_raw_value, v1::traces::RabbitMqSpanMessage},
     cache::Cache,
     db::{project_api_keys::ProjectApiKey, DB},
     features::{is_feature_enabled, Feature},
+    mq::MessageQueue,
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
 };
-use lapin::Connection;
 use tonic::{Request, Response, Status};
 
 use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue};
 
-pub struct ProcessTracesService {
+pub struct ProcessTracesService<Q>
+where
+    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
+{
     db: Arc<DB>,
     cache: Arc<Cache>,
-    rabbitmq_connection: Option<Arc<Connection>>,
-    clickhouse: clickhouse::Client,
+    queue: Arc<Q>,
 }
 
-impl ProcessTracesService {
-    pub fn new(
-        db: Arc<DB>,
-        cache: Arc<Cache>,
-        rabbitmq_connection: Option<Arc<Connection>>,
-        clickhouse: clickhouse::Client,
-    ) -> Self {
-        Self {
-            db,
-            cache,
-            rabbitmq_connection,
-            clickhouse,
-        }
+impl<Q> ProcessTracesService<Q>
+where
+    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
+{
+    pub fn new(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<Q>) -> Self {
+        Self { db, cache, queue }
     }
 }
 
 #[tonic::async_trait]
-impl TraceService for ProcessTracesService {
+impl<Q> TraceService for ProcessTracesService<Q>
+where
+    Q: MessageQueue<RabbitMqSpanMessage> + Sync + Send + ?Sized + 'static,
+{
     async fn export(
         &self,
         request: Request<ExportTraceServiceRequest>,
@@ -69,19 +67,12 @@ impl TraceService for ProcessTracesService {
             }
         }
 
-        let response = push_spans_to_queue(
-            request,
-            project_id,
-            self.rabbitmq_connection.clone(),
-            self.db.clone(),
-            self.clickhouse.clone(),
-            self.cache.clone(),
-        )
-        .await
-        .map_err(|e| {
-            log::error!("Failed to process traces: {:?}", e);
-            Status::internal("Failed to process traces")
-        })?;
+        let response = push_spans_to_queue(request, project_id, self.queue.clone())
+            .await
+            .map_err(|e| {
+                log::error!("Failed to process traces: {:?}", e);
+                Status::internal("Failed to process traces")
+            })?;
 
         Ok(Response::new(response))
     }

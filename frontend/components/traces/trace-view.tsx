@@ -140,8 +140,8 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     if (!traceTreePanel.current) {
       return;
     }
-
-    setTraceTreePanelWidth(traceTreePanel.current!.getBoundingClientRect().width);
+    const newTraceTreePanelWidth = traceTreePanel.current.getBoundingClientRect().width;
+    setTraceTreePanelWidth(newTraceTreePanelWidth);
 
     // if no span is selected, timeline should take full width
     if (!selectedSpan) {
@@ -149,7 +149,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     } else {
       // if a span is selected, waterfall is hidden, so timeline should take the width of the trace tree panel
       setTimelineWidth(
-        traceTreePanelWidth + 1
+        newTraceTreePanelWidth + 1
       );
     }
   }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
@@ -247,7 +247,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                                 ref={traceTreePanel}
                               >
                                 <StatsShields
-                                  className="px-2 pt-1 h-12 flex-none sticky top-0 bg-background z-50 border-b"
+                                  className="px-2 h-10 sticky top-0 bg-background z-50 border-b"
                                   startTime={trace.startTime}
                                   endTime={trace.endTime}
                                   totalTokenCount={trace.totalTokenCount}
@@ -304,6 +304,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                             {!selectedSpan && (
                               <td className="flex flex-grow w-full p-0 relative">
                                 <Timeline
+                                  containerHeight={containerHeight}
                                   spans={spans}
                                   childSpans={childSpans}
                                   collapsedSpans={collapsedSpans}

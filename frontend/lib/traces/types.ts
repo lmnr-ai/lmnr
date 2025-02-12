@@ -46,7 +46,8 @@ export enum SpanType {
   LLM = 'LLM',
   EXECUTOR = 'EXECUTOR',
   EVALUATOR = 'EVALUATOR',
-  EVALUATION = 'EVALUATION'
+  EVALUATION = 'EVALUATION',
+  TOOL = 'TOOL'
 }
 
 export type Span = {
