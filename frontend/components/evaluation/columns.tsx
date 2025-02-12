@@ -129,8 +129,8 @@ export const getComparedScoreColumns = (scores: string[]): ColumnDef<EvaluationD
       <ComparisonCell
         original={row.original.scores?.[name] ?? "-"}
         comparison={row.original.comparedScores?.[name] ?? "-"}
-        originalValue={Number(row.original.scores?.[name]) || undefined}
-        comparisonValue={Number(row.original.comparedScores?.[name]) || undefined}
+        originalValue={Number(row.original.scores?.[name])}
+        comparisonValue={Number(row.original.comparedScores?.[name])}
       />
     ),
   }));
