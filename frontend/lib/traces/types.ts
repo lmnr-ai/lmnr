@@ -83,7 +83,7 @@ export type TraceWithSpans = {
   metadata: Record<string, string> | null;
   hasBrowserSession: boolean | null;
   projectId: string;
-  spans: Omit<Span, 'labels'>[];
+  spans: Span[];
 };
 
 export type Trace = {
