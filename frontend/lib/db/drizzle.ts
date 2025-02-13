@@ -4,6 +4,7 @@ import postgres from 'postgres';
 
 import * as relations from './migrations/relations';
 import * as schema from './migrations/schema';
+import { env } from "process";
 
 config({ path: ".env" }); // or .env.local
 
@@ -21,7 +22,7 @@ function singleton<Value>(name: string, value: () => Value): Value {
 
 // Function to create the database connection and apply migrations if needed
 function createDatabaseConnection() {
-  const client = postgres(process.env.DATABASE_URL!, { max: 10 });
+  const client = postgres(env.DATABASE_URL!, { max: Number(env.DATABASE_MAX_CONNECTION || 8) });
 
   return drizzle(client, { schema: { ...schema, ...relations } });
 }
