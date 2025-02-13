@@ -269,8 +269,8 @@ impl ChatMessageContentPart {
                 // https://python.langchain.com/docs/how_to/multimodal_inputs/
                 // Discussion we've opened with OpenLLMetry:
                 // https://github.com/traceloop/openllmetry/issues/2516
-                let pattern = Regex::new(r"^data:image/[a-zA-z]+;base64,.*$").unwrap();
-                if pattern.is_match(&image_url.url) {
+                let pattern = Regex::new(r"^data:image\/[a-zA-z]+;base64,.*$").unwrap();
+                if pattern.is_match(&image_url.url.chars().take(50).collect::<String>()) {
                     let base64_data = image_url.url.split(',').last().unwrap();
                     let data = crate::storage::base64_to_bytes(base64_data)?;
                     let key = crate::storage::create_key(project_id, &None);
