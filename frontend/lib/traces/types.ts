@@ -64,7 +64,6 @@ export type Span = {
   outputPreview: string | null;
   spanType: SpanType;
   events: Event[];
-  labels: SpanLabel[];
   path: string;
   model?: string;
   inputUrl: string | null;

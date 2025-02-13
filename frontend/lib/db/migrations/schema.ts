@@ -76,6 +76,7 @@ export const events = pgTable("events", {
   spanId: uuid("span_id").notNull(),
   projectId: uuid("project_id").notNull(),
 }, (table) => [
+  index("events_span_id_project_id_idx").using("btree", table.spanId.asc().nullsLast().op("uuid_ops"), table.projectId.asc().nullsLast().op("uuid_ops")),
   foreignKey({
     columns: [table.spanId, table.projectId],
     foreignColumns: [spans.spanId, spans.projectId],
