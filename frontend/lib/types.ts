@@ -28,6 +28,14 @@ export type ChatMessageDocumentUrl = {
   url: string;
 };
 
+export type OpenAIImageUrl = {
+  type: 'image_url';
+  image_url: {
+    url: string;
+    detail: string | null;
+  };
+};
+
 export type ChatMessageContentPart =
   | ChatMessageText
   | ChatMessageImageUrl
