@@ -1,42 +1,24 @@
-import { Loader2, Plus } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { Loader2, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { useToast } from '@/lib/hooks/use-toast';
-import { Project, WorkspaceWithProjects } from '@/lib/workspaces/types';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/lib/hooks/use-toast";
+import { Project, WorkspaceWithProjects } from "@/lib/workspaces/types";
 
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 
 interface ProjectCreateDialogProps {
   onProjectCreate?: () => void;
   workspaces: WorkspaceWithProjects[];
 }
 
-export default function ProjectCreateDialog({
-  onProjectCreate,
-  workspaces
-}: ProjectCreateDialogProps) {
-  const [newProjectWorkspaceId, setNewProjectWorkspaceId] = useState<
-    string | undefined
-  >(undefined);
-  const [newProjectName, setNewProjectName] = useState('');
+export default function ProjectCreateDialog({ onProjectCreate, workspaces }: ProjectCreateDialogProps) {
+  const [newProjectWorkspaceId, setNewProjectWorkspaceId] = useState<string | undefined>(undefined);
+  const [newProjectName, setNewProjectName] = useState("");
 
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const router = useRouter();
@@ -45,23 +27,22 @@ export default function ProjectCreateDialog({
   const createNewProject = useCallback(async () => {
     setIsCreatingProject(true);
     try {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
+      const res = await fetch("/api/projects", {
+        method: "POST",
         body: JSON.stringify({
           name: newProjectName,
-          workspaceId: newProjectWorkspaceId
-        })
+          workspaceId: newProjectWorkspaceId,
+        }),
       });
       const newProject = (await res.json()) as Project;
       onProjectCreate?.();
-      router.push(`/project/${newProject.id}/traces`);
+      router.push(`/projects/${newProject.id}/traces`);
       setIsCreatingProject(false);
     } catch (e) {
       toast({
-        title: 'Error creating project',
-        variant: 'destructive',
-        description:
-          'Possible reason: you have reached the projects limit in this workspace.'
+        title: "Error creating project",
+        variant: "destructive",
+        description: "Possible reason: you have reached the projects limit in this workspace.",
       });
       setIsCreatingProject(false);
     }
@@ -103,11 +84,7 @@ export default function ProjectCreateDialog({
             </SelectContent>
           </Select>
           <Label>Name</Label>
-          <Input
-            autoFocus
-            placeholder="Name"
-            onChange={(e) => setNewProjectName(e.target.value)}
-          />
+          <Input autoFocus placeholder="Name" onChange={(e) => setNewProjectName(e.target.value)} />
         </div>
         <DialogFooter>
           <Button
@@ -115,9 +92,7 @@ export default function ProjectCreateDialog({
             handleEnter={true}
             disabled={newProjectWorkspaceId === undefined || !newProjectName}
           >
-            {isCreatingProject && (
-              <Loader2 className="mr-2 animate-spin" size={16} />
-            )}
+            {isCreatingProject && <Loader2 className="mr-2 animate-spin" size={16} />}
             Create
           </Button>
         </DialogFooter>

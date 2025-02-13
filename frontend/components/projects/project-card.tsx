@@ -14,7 +14,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
   const { data, isLoading } = useSWR<ProjectStats>(`/api/projects/${project.id}/stats`, swrFetcher);
 
   return (
-    <Link href={`/project/${project.id}/traces`} key={project.id}>
+    <Link href={`/projects/${project.id}/traces`} key={project.id}>
       <div className="hover:bg-secondary w-96 h-44 rounded-md bg-secondary/40 transition-all duration-100">
         <div className="p-4 flex flex-col justify-between h-full">
           <div className="flex items-center justify-between">

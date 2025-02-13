@@ -1,22 +1,15 @@
-import { GitFork, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
+import { GitFork, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import { useProjectContext } from '@/contexts/project-context';
-import { PipelineVersionInfo } from '@/lib/pipeline/types';
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useProjectContext } from "@/contexts/project-context";
+import { PipelineVersionInfo } from "@/lib/pipeline/types";
 
-import { useToast } from '../../lib/hooks/use-toast';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { useToast } from "../../lib/hooks/use-toast";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 
 interface ForkButtonProps {
   defaultNewPipelineName: string;
@@ -26,17 +19,12 @@ interface ForkButtonProps {
 /**
  * Fork button which forks pipeline version into a newly created pipeline inside selected project.
  */
-export default function ForkButton({
-  defaultNewPipelineName,
-  selectedPipelineVersion
-}: ForkButtonProps) {
+export default function ForkButton({ defaultNewPipelineName, selectedPipelineVersion }: ForkButtonProps) {
   const { toast } = useToast();
   const router = useRouter();
   const { projectId } = useProjectContext();
 
-  const [newPipelineName, setNewPipelineName] = useState<string>(
-    defaultNewPipelineName
-  );
+  const [newPipelineName, setNewPipelineName] = useState<string>(defaultNewPipelineName);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -44,18 +32,18 @@ export default function ForkButton({
     setIsLoading(true);
 
     let res = await fetch(`/api/projects/${projectId}/pipeline-versions`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({
         refVersionId: selectedPipelineVersion.id,
-        newPipelineName
+        newPipelineName,
       }),
-      cache: 'no-cache'
+      cache: "no-cache",
     });
 
     if (res.status != 200) {
       toast({
-        title: 'Error forking version',
-        variant: 'destructive'
+        title: "Error forking version",
+        variant: "destructive",
       });
 
       setIsLoading(false);
@@ -66,13 +54,13 @@ export default function ForkButton({
     let res_body = await res.json();
 
     toast({
-      title: 'Successfully forked version'
+      title: "Successfully forked version",
     });
 
     setIsLoading(false);
     setIsOpen(false);
 
-    router.push(`/project/${projectId}/pipelines/${res_body.pipelineId}`);
+    router.push(`/projects/${projectId}/pipelines/${res_body.pipelineId}`);
   };
 
   return (
@@ -92,9 +80,7 @@ export default function ForkButton({
         <DialogHeader>
           <DialogTitle>Fork version</DialogTitle>
         </DialogHeader>
-        <Label className="mb-4">
-          Fork to newly created pipeline inside this project
-        </Label>
+        <Label className="mb-4">Fork to newly created pipeline inside this project</Label>
 
         <Label>New pipeline name</Label>
         <Input
@@ -105,11 +91,7 @@ export default function ForkButton({
           onChange={(e) => setNewPipelineName(e.target.value)}
         />
         <DialogFooter>
-          <Button
-            disabled={!newPipelineName || isLoading}
-            handleEnter={true}
-            onClick={forkPipelineVersion}
-          >
+          <Button disabled={!newPipelineName || isLoading} handleEnter={true} onClick={forkPipelineVersion}>
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             Fork
           </Button>

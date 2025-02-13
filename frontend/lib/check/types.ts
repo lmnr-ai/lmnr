@@ -1,14 +1,14 @@
 export const checkTypeToStringMap: Record<string, string> = {
-  EVAL: 'Evaluation',
-  INPUT: 'Input (Coming soon)'
+  EVAL: "Evaluation",
+  INPUT: "Input (Coming soon)",
 };
 
-// for URLs, which start with /project/{projectId}/ ... url from this map ... /{templateId}
+// for URLs, which start with /projects/{projectId}/ ... url from this map ... /{templateId}
 export const checkTypeToTemplateUrlMap: Record<string, string> = {
-  EVAL: '/evaluations'
+  EVAL: "/evaluations",
 };
 
-export type CheckType = 'EVAL' | 'INPUT';
+export type CheckType = "EVAL" | "INPUT";
 
 export type Check = {
   name: string; // name is needed for better display, e.g. "Evaluation against dataset {dataset_name}"
@@ -17,7 +17,7 @@ export type Check = {
   templateId: string | null;
 };
 
-export type CheckJobStatus = 'Running' | 'Passed' | 'NotPassed' | 'ExecError';
+export type CheckJobStatus = "Running" | "Passed" | "NotPassed" | "ExecError";
 
 export type CheckJob = {
   id: string;

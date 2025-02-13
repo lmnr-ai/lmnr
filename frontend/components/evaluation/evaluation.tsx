@@ -230,11 +230,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
             ) : (
               <>
                 <div className="flex-none w-72">
-                  <ScoreCard
-                    scores={scores}
-                    selectedScore={selectedScore}
-                    setSelectedScore={setSelectedScore}
-                  />
+                  <ScoreCard scores={scores} selectedScore={selectedScore} setSelectedScore={setSelectedScore} />
                 </div>
                 <div className="flex-grow">
                   {targetId ? (

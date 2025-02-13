@@ -1,35 +1,40 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
+import Link from "next/link";
+import { ReactNode } from "react";
 
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { useProjectContext } from '@/contexts/project-context';
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useWorkspaceContext } from "@/contexts/workspace-context";
+import { cn } from "@/lib/utils";
 
-import { Button } from './button';
+import { Button } from "./button";
 
 interface HeaderProps {
   path: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
   className?: string;
   showSidebarTrigger?: boolean;
 }
 
 export default function Header({ path, children, className, showSidebarTrigger = true }: HeaderProps) {
-  const { projectId, projectName } = useProjectContext();
-
-  const segments = path.split('/');
+  const { project, workspace } = useWorkspaceContext();
+  const segments = path.split("/");
 
   return (
-    <div
-      className={`font-medium flex items-center justify-between flex-none h-12 border-b w-full ${className}`}
-    >
+    <div className={cn("font-medium flex items-center justify-between h-12 border-b overflow-auto", className)}>
       <div className="flex items-center">
-        {showSidebarTrigger && (
-          <SidebarTrigger className='ml-2 -mr-2 hover:bg-secondary' />
-        )}
-        {projectName && (
+        {showSidebarTrigger && <SidebarTrigger className="ml-2 -mr-2 hover:bg-secondary" />}
+        {workspace?.name && (
           <div className="flex items-center pl-4 space-x-3 text-secondary-foreground">
-            <p>{projectName}</p>
+            <p title={workspace.name} className="max-w-16 truncate">
+              {workspace.name}
+            </p>
+            <div className="text-secondary-foreground/40">/</div>
+          </div>
+        )}
+        {project?.name && (
+          <div className="flex items-center pl-4 space-x-3 text-secondary-foreground">
+            <p>{project?.name}</p>
             <div className="text-secondary-foreground/40">/</div>
           </div>
         )}
@@ -40,7 +45,7 @@ export default function Header({ path, children, className, showSidebarTrigger =
               <div className="px-3">{segment}</div>
             ) : (
               <Link
-                href={`/project/${projectId}/${segment.replace(/ /g, '-')}`}
+                href={`/projects/${project?.id}/${segment.replace(/ /g, "-")}`}
                 className="hover:bg-secondary rounded-lg px-2 mx-1 p-0.5 text-secondary-foreground"
               >
                 {segment}
@@ -51,7 +56,7 @@ export default function Header({ path, children, className, showSidebarTrigger =
         {children}
       </div>
       <div className="flex pr-4 space-x-2">
-        <Button variant='outline'>
+        <Button variant="outline">
           <a href="https://cal.com/robert-lmnr/demo" target="_blank">
             Book a demo
           </a>
