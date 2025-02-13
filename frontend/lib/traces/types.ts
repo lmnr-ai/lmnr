@@ -64,14 +64,11 @@ export type Span = {
   outputPreview: string | null;
   spanType: SpanType;
   events: Event[];
-  labels: SpanLabel[];
   path: string;
   model?: string;
   inputUrl: string | null;
   outputUrl: string | null;
 };
-
-export type SpanPreview = Omit<Span, 'labels'>;
 
 export type TraceWithSpans = {
   id: string;

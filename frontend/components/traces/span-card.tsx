@@ -2,7 +2,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getDuration, getDurationString } from '@/lib/flow/utils';
-import { SpanPreview } from '@/lib/traces/types';
+import { Span } from '@/lib/traces/types';
 import { cn, formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
 import SpanTypeIcon from './span-type-icon';
@@ -12,16 +12,16 @@ const SQUARE_SIZE = 22;
 const SQUARE_ICON_SIZE = 16;
 
 interface SpanCardProps {
-  span: SpanPreview;
+  span: Span;
   activeSpans: string[];
   parentY: number;
-  childSpans: { [key: string]: SpanPreview[] };
+  childSpans: { [key: string]: Span[] };
   containerWidth: number;
   depth: number;
-  selectedSpan?: SpanPreview | null;
+  selectedSpan?: Span | null;
   collapsedSpans: Set<string>;
   traceStartTime: string;
-  onSpanSelect?: (span: SpanPreview) => void;
+  onSpanSelect?: (span: Span) => void;
   onToggleCollapse?: (spanId: string) => void;
   onSelectTime?: (time: number) => void;
 }

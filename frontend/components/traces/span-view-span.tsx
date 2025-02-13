@@ -6,8 +6,8 @@ import { Span } from '@/lib/traces/types';
 import Formatter from '../ui/formatter';
 import { ScrollArea } from '../ui/scroll-area';
 import ChatMessageListTab from './chat-message-list-tab';
-import SpanLabels from './span-labels';
 import SpanDatasets from './span-datasets';
+import SpanLabels from './span-labels';
 
 interface SpanViewSpanProps {
   span: Span;

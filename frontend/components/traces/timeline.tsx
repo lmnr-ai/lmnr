@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getDuration } from '@/lib/flow/utils';
-import { SpanPreview } from '@/lib/traces/types';
+import { Span } from '@/lib/traces/types';
 import { SPAN_TYPE_TO_COLOR } from '@/lib/traces/utils';
 
 
 interface TimelineProps {
-  spans: SpanPreview[];
-  childSpans: { [key: string]: SpanPreview[] };
+  spans: Span[];
+  childSpans: { [key: string]: Span[] };
   collapsedSpans: Set<string>;
   browserSessionTime: number | null;
   containerHeight: number;
@@ -22,7 +22,7 @@ interface SegmentEvent {
 interface Segment {
   left: number;
   width: number;
-  span: SpanPreview;
+  span: Span;
   events: SegmentEvent[];
 }
 
@@ -43,7 +43,7 @@ export default function Timeline({
   const ref = useRef<HTMLDivElement>(null);
 
   const traverse = useCallback(
-    (span: SpanPreview, childSpans: { [key: string]: SpanPreview[] }, orderedSpans: SpanPreview[]) => {
+    (span: Span, childSpans: { [key: string]: Span[] }, orderedSpans: Span[]) => {
       if (!span) {
         return;
       }
@@ -73,7 +73,7 @@ export default function Timeline({
       return;
     }
 
-    const orderedSpans: SpanPreview[] = [];
+    const orderedSpans: Span[] = [];
     const topLevelSpans = spans
       .filter((span) => span.parentSpanId === null)
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());

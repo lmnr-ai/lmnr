@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
-import { SpanPreview, TraceWithSpans } from '@/lib/traces/types';
+import { Span, TraceWithSpans } from '@/lib/traces/types';
 import { cn, swrFetcher } from '@/lib/utils';
 
 import { Button } from '../ui/button';
@@ -44,13 +44,13 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     swrFetcher
   );
 
-  const [childSpans, setChildSpans] = useState<{ [key: string]: SpanPreview[] }>({});
-  const [topLevelSpans, setTopLevelSpans] = useState<SpanPreview[]>([]);
-  const [spans, setSpans] = useState<SpanPreview[]>([]);
-  const [selectedSpan, setSelectedSpan] = useState<SpanPreview | null>(
+  const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({});
+  const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
+  const [spans, setSpans] = useState<Span[]>([]);
+  const [selectedSpan, setSelectedSpan] = useState<Span | null>(
     searchParams.get('spanId')
       ? spans.find(
-        (span: SpanPreview) => span.spanId === searchParams.get('spanId')
+        (span: Span) => span.spanId === searchParams.get('spanId')
       ) || null
       : null
   );
@@ -68,9 +68,9 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
 
     const spans = trace.spans;
 
-    const childSpans = {} as { [key: string]: SpanPreview[] };
+    const childSpans = {} as { [key: string]: Span[] };
 
-    const topLevelSpans = spans.filter((span: SpanPreview) => !span.parentSpanId);
+    const topLevelSpans = spans.filter((span: Span) => !span.parentSpanId);
 
     for (const span of spans) {
       if (span.parentSpanId) {
@@ -96,7 +96,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       setSelectedSpan(
         searchParams.get('spanId')
           ? spans.find(
-            (span: SpanPreview) => span.spanId === searchParams.get('spanId')
+            (span: Span) => span.spanId === searchParams.get('spanId')
           ) || null
           : null
       );
@@ -111,7 +111,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     setSelectedSpan(
       searchParams.get('spanId')
         ? spans.find(
-          (span: SpanPreview) => span.spanId === searchParams.get('spanId')
+          (span: Span) => span.spanId === searchParams.get('spanId')
         ) || null
         : null
     );
@@ -349,7 +349,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                   setBrowserSessionTime(time);
 
                   const activeSpans = spans.filter(
-                    (span: SpanPreview) => {
+                    (span: Span) => {
                       const spanStartTime = new Date(span.startTime).getTime();
                       const spanEndTime = new Date(span.endTime).getTime();
 
