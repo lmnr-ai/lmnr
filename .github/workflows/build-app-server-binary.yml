@@ -7,7 +7,10 @@ on:
 jobs:
   build-and-upload:
     name: Build and Upload
-    runs-on: ubuntu-latest
+    # This is used for HF Spaces, where we use
+    # debian:bookworm, that has GLIBC 2.36, but
+    # ubuntu-latest has GLIBC 2.38,
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
       packages: write
