@@ -82,8 +82,6 @@ mod storage;
 mod traces;
 
 const DEFAULT_CACHE_SIZE: u64 = 100; // entries
-const HTTP_PAYLOAD_LIMIT: usize = 5 * 1024 * 1024; // 5MB
-const GRPC_PAYLOAD_DECODING_LIMIT: usize = 50 * 1024 * 1024; // 50MB
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -108,6 +106,16 @@ fn main() -> anyhow::Result<()> {
 
     std::env::set_var("RUST_LOG", "info");
     env_logger::init();
+
+    let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
+        .unwrap_or(String::from("5242880")) // default to 5MB
+        .parse()
+        .unwrap();
+
+    let grpc_payload_limit: usize = env::var("GRPC_PAYLOAD_LIMIT")
+        .unwrap_or(String::from("26214400")) // default to 25MB
+        .parse()
+        .unwrap();
 
     let port = env::var("PORT")
         .unwrap_or(String::from("8000"))
@@ -449,8 +457,8 @@ fn main() -> anyhow::Result<()> {
                     App::new()
                         .wrap(Logger::default())
                         .wrap(NormalizePath::trim())
-                        .app_data(JsonConfig::default().limit(HTTP_PAYLOAD_LIMIT))
-                        .app_data(PayloadConfig::new(HTTP_PAYLOAD_LIMIT))
+                        .app_data(JsonConfig::default().limit(http_payload_limit))
+                        .app_data(PayloadConfig::new(http_payload_limit))
                         .app_data(web::Data::from(cache_for_http.clone()))
                         .app_data(web::Data::from(db_for_http.clone()))
                         .app_data(web::Data::new(pipeline_runner.clone()))
@@ -639,7 +647,7 @@ fn main() -> anyhow::Result<()> {
                         TraceServiceServer::new(process_traces_service)
                             .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
                             .send_compressed(tonic::codec::CompressionEncoding::Gzip)
-                            .max_decoding_message_size(GRPC_PAYLOAD_DECODING_LIMIT),
+                            .max_decoding_message_size(grpc_payload_limit),
                     )
                     .serve_with_shutdown(grpc_address, async {
                         wait_stop_signal("gRPC service").await;
