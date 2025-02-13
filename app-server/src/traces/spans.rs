@@ -493,20 +493,6 @@ impl Span {
             );
         }
 
-        // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
-        // attributes over gen_ai/vercel/LiteLLM attributes.
-        // Therefore this block is outside and after the LLM span type check.
-        if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
-            span.input = Some(
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
-            );
-        }
-        if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
-            span.output = Some(
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
-            );
-        }
-
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
         // Take their values if input/output are not already set.
         if let Some(input) = attributes.get("traceloop.entity.input") {
@@ -518,6 +504,30 @@ impl Span {
             if span.output.is_none() {
                 span.output = Some(output.clone());
             }
+        }
+
+        // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
+        // attributes over gen_ai/vercel/LiteLLM attributes.
+        // Therefore this block is outside and after the LLM span type check.
+        if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
+            let input =
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
+            if span.span_type == SpanType::LLM {
+                let input_messages = input_chat_messages_from_json(&input);
+                if let Ok(input_messages) = input_messages {
+                    span.input = Some(json!(input_messages));
+                } else {
+                    span.input = Some(input);
+                }
+            } else {
+                span.input = Some(input);
+            }
+        }
+        if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
+            // TODO: try parse output as ChatMessage with tool calls
+            span.output = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
         }
 
         // Spans with this attribute are wrapped in a NonRecordingSpan that, and we only
@@ -813,6 +823,7 @@ fn input_chat_messages_from_prompt_content(
         .get(format!("{prefix}.{i}.content").as_str())
         .is_some()
     {
+        // TODO: handle case where content is not a string, e.g. LangChain tool messages
         let content = if let Some(serde_json::Value::String(s)) =
             attributes.get(format!("{prefix}.{i}.content").as_str())
         {
@@ -850,6 +861,43 @@ fn input_chat_messages_from_prompt_content(
     }
 
     input_messages
+}
+
+fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMessage>> {
+    if let Some(messages) = input.as_array() {
+        messages
+            .iter()
+            .map(|message| {
+                let Some(role) = message.get("role").and_then(|v| v.as_str()) else {
+                    return Err(anyhow::anyhow!("Can't find role in message"));
+                };
+                let Some(otel_content) = message.get("content") else {
+                    return Err(anyhow::anyhow!("Can't find content in message"));
+                };
+                let content = match serde_json::from_value::<
+                    Vec<InstrumentationChatMessageContentPart>,
+                >(otel_content.clone())
+                {
+                    Ok(otel_parts) => {
+                        let mut parts = Vec::new();
+                        for part in otel_parts {
+                            parts.push(ChatMessageContentPart::from_instrumentation_content_part(
+                                part,
+                            ));
+                        }
+                        ChatMessageContent::ContentPartList(parts)
+                    }
+                    Err(_) => ChatMessageContent::Text(otel_content.to_string()),
+                };
+                Ok(ChatMessage {
+                    role: role.to_string(),
+                    content,
+                })
+            })
+            .collect()
+    } else {
+        Err(anyhow::anyhow!("Input is not a list"))
+    }
 }
 
 #[derive(Serialize)]
