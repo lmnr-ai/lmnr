@@ -71,6 +71,8 @@ export type Span = {
   outputUrl: string | null;
 };
 
+export type SpanPreview = Omit<Span, 'labels'>;
+
 export type TraceWithSpans = {
   id: string;
   startTime: string;
@@ -84,7 +86,7 @@ export type TraceWithSpans = {
   metadata: Record<string, string> | null;
   hasBrowserSession: boolean | null;
   projectId: string;
-  spans: Span[];
+  spans: Omit<Span, 'labels'>[];
 };
 
 export type Trace = {
