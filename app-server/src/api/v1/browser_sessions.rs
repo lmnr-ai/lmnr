@@ -51,11 +51,19 @@ async fn create_session_event(
     project_api_key: ProjectApiKey,
     queue: web::Data<Arc<dyn mq::MessageQueue<QueueBrowserEventMessage>>>,
 ) -> ResponseResult {
-    // Skip if there are no events
+    let filtered_batch = batch.into_inner();
+
+    // Return 400 Bad Request if trace_id is null (00000000-0000-0000-0000-000000000000)
+    if filtered_batch.trace_id == Uuid::nil() {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Invalid trace_id: must not be null (00000000-0000-0000-0000-000000000000)"
+        })));
+    }
+
     queue
         .publish(
             &QueueBrowserEventMessage {
-                batch: batch.into_inner(),
+                batch: filtered_batch,
                 project_id: project_api_key.project_id,
             },
             BROWSER_SESSIONS_EXCHANGE,
