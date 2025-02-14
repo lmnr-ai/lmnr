@@ -178,16 +178,17 @@ fn main() -> anyhow::Result<()> {
     let connection = if is_feature_enabled(Feature::FullBuild) {
         let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
         runtime_handle.block_on(async {
-            let connection = Arc::new(
+            Some(Arc::new(
                 Connection::connect(&rabbitmq_url, ConnectionProperties::default())
                     .await
                     .unwrap(),
-            );
-            Some(connection)
+            ))
         })
     } else {
         None
     };
+
+    let connection_for_health = connection.clone(); // Clone before moving into HttpServer
 
     // ==== 3.1 Spans message queue ====
     let spans_message_queue: Arc<dyn mq::MessageQueue<api::v1::traces::RabbitMqSpanMessage>> =
@@ -473,6 +474,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(machine_manager.clone()))
                         .app_data(web::Data::new(browser_events_message_queue.clone()))
+                        .app_data(web::Data::new(connection_for_health.clone()))
                         // Scopes with specific auth or no auth
                         .service(
                             web::scope("api/v1/auth")
@@ -623,6 +625,8 @@ fn main() -> anyhow::Result<()> {
                                         .service(routes::provider_api_keys::save_api_key),
                                 ),
                         )
+                        .service(routes::probes::check_health)
+                        .service(routes::probes::check_ready)
                 })
                 .bind(("0.0.0.0", port))?
                 .run()
