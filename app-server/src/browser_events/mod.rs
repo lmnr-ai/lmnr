@@ -85,13 +85,13 @@ async fn inner_process_browser_events(
         }
 
         // Execute batch insert with individual bindings
-        // let mut query_with_bindings = clickhouse.query(&query);
-        // for value in values {
-        //     query_with_bindings = query_with_bindings.bind(value);
-        // }
-        // if let Err(e) = query_with_bindings.execute().await {
-        //     log::error!("Failed to insert browser events: {:?}", e);
-        // }
+        let mut query_with_bindings = clickhouse.query(&query);
+        for value in values {
+            query_with_bindings = query_with_bindings.bind(value);
+        }
+        if let Err(e) = query_with_bindings.execute().await {
+            log::error!("Failed to insert browser events: {:?}", e);
+        }
 
         if let Err(e) = delivery.ack().await {
             log::error!("Failed to ack message: {:?}", e);

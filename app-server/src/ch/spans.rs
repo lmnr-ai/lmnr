@@ -107,6 +107,7 @@ impl CHSpan {
                 .unwrap_or(String::from("<null>")),
             input: String::from("<null>"),
             output: String::from("<null>"),
+            // TODO: actually write input and output if CPU usage is ok
             // input: json_value_to_string(span_input),
             // output: json_value_to_string(span_output),
         }
