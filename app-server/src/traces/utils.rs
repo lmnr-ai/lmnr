@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use backoff::{Error, ExponentialBackoff};
 use regex::Regex;
 use serde_json::Value;
 use uuid::Uuid;
@@ -141,7 +142,33 @@ pub async fn record_span_to_db(
         );
     }
 
-    db::spans::record_span(&db.pool, &span, project_id).await?;
+    let insert_span = || async {
+        db::spans::record_span(&db.pool, &span, project_id)
+            .await
+            .map_err(|e| {
+                log::error!(
+                    "Failed attempt to record span [{}]. Will retry according to backoff policy. Error: {:?}",
+                    span.span_id,
+                    e
+                );
+                Error::Transient {
+                    err: e,
+                    retry_after: None,
+                }
+            })
+    };
+
+    // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
+    // up to 1 minute and until the total elapsed time is 15 minutes
+    // https://docs.rs/backoff/latest/backoff/default/index.html
+    let exponential_backoff = ExponentialBackoff::default();
+    if let Err(e) = backoff::future::retry(exponential_backoff, insert_span).await {
+        log::error!(
+            "Exhausted backoff retries for span [{}]: {:?}",
+            span.span_id,
+            e
+        );
+    }
 
     Ok(())
 }

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use backoff::ExponentialBackoff;
 use uuid::Uuid;
 
 use crate::{
@@ -89,8 +90,29 @@ async fn inner_process_browser_events(
         for value in values {
             query_with_bindings = query_with_bindings.bind(value);
         }
-        if let Err(e) = query_with_bindings.execute().await {
-            log::error!("Failed to insert browser events: {:?}", e);
+        let final_query = query_with_bindings;
+        let insert_browser_events = || async {
+            final_query.clone().execute().await
+                .map_err(|e| {
+                    log::error!(
+                        "Failed attempt to insert browser events. Will retry according to backoff policy. Error: {:?}",
+                        e
+                    );
+                    backoff::Error::Transient {
+                        err: e,
+                        retry_after: None,
+                    }
+                })
+        };
+        // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
+        // up to 1 minute and until the total elapsed time is 15 minutes
+        // https://docs.rs/backoff/latest/backoff/default/index.html
+        let exponential_backoff = ExponentialBackoff::default();
+        if let Err(e) = backoff::future::retry(exponential_backoff, insert_browser_events).await {
+            log::error!(
+                "Exhausted backoff retries. Failed to insert browser events: {:?}",
+                e
+            );
         }
 
         if let Err(e) = delivery.ack().await {
