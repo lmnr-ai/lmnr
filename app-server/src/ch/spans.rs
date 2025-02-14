@@ -69,15 +69,17 @@ impl CHSpan {
     pub fn from_db_span(span: &Span, usage: SpanUsage, project_id: Uuid) -> Self {
         let span_attributes = span.get_attributes();
 
-        // let span_input = span
-        //     .input
-        //     .clone()
-        //     .unwrap_or(Value::String(String::from("")));
+        let span_input_string = span
+            .input
+            .clone()
+            .unwrap_or(Value::String(String::from("")))
+            .to_string();
 
-        // let span_output = span
-        //     .output
-        //     .clone()
-        //     .unwrap_or(Value::String(String::from("")));
+        let span_output_string = span
+            .output
+            .clone()
+            .unwrap_or(Value::String(String::from("")))
+            .to_string();
 
         CHSpan {
             span_id: span.span_id,
@@ -105,11 +107,8 @@ impl CHSpan {
             path: span_attributes
                 .flat_path()
                 .unwrap_or(String::from("<null>")),
-            input: String::from("<null>"),
-            output: String::from("<null>"),
-            // TODO: actually write input and output if CPU usage is ok
-            // input: json_value_to_string(span_input),
-            // output: json_value_to_string(span_output),
+            input: span_input_string,
+            output: span_output_string,
         }
     }
 }
