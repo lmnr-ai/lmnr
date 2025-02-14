@@ -69,17 +69,17 @@ impl CHSpan {
     pub fn from_db_span(span: &Span, usage: SpanUsage, project_id: Uuid) -> Self {
         let span_attributes = span.get_attributes();
 
-        let span_input_string = span
-            .input
-            .clone()
-            .unwrap_or(Value::String(String::from("")))
-            .to_string();
+        let span_input_string = json_value_to_string(
+            span.input
+                .clone()
+                .unwrap_or(Value::String(String::from(""))),
+        );
 
-        let span_output_string = span
-            .output
-            .clone()
-            .unwrap_or(Value::String(String::from("")))
-            .to_string();
+        let span_output_string = json_value_to_string(
+            span.output
+                .clone()
+                .unwrap_or(Value::String(String::from(""))),
+        );
 
         CHSpan {
             span_id: span.span_id,
