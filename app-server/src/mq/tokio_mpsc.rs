@@ -31,6 +31,26 @@ where
         Ok(())
     }
 
+    async fn nack(&self, requeue: bool) -> anyhow::Result<()> {
+        if requeue {
+            Err(anyhow::anyhow!(
+                "Nack with requeue is not supported for TokioMpsc queue"
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn reject(&self, requeue: bool) -> anyhow::Result<()> {
+        if requeue {
+            Err(anyhow::anyhow!(
+                "Reject with requeue is not supported for TokioMpsc queue"
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     fn data(&self) -> T
     where
         T: for<'de> Deserialize<'de> + Clone,

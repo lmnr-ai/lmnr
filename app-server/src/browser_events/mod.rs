@@ -108,15 +108,22 @@ async fn inner_process_browser_events(
         // up to 1 minute and until the total elapsed time is 15 minutes
         // https://docs.rs/backoff/latest/backoff/default/index.html
         let exponential_backoff = ExponentialBackoff::default();
-        if let Err(e) = backoff::future::retry(exponential_backoff, insert_browser_events).await {
-            log::error!(
-                "Exhausted backoff retries. Failed to insert browser events: {:?}",
-                e
-            );
-        }
-
-        if let Err(e) = delivery.ack().await {
-            log::error!("Failed to ack message: {:?}", e);
+        match backoff::future::retry(exponential_backoff, insert_browser_events).await {
+            Ok(_) => {
+                if let Err(e) = delivery.ack().await {
+                    log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
+                }
+            }
+            Err(e) => {
+                log::error!(
+                    "Exhausted backoff retries. Failed to insert browser events: {:?}",
+                    e
+                );
+                // TODO: Implement proper nacks and DLX
+                if let Err(e) = delivery.reject(false).await {
+                    log::error!("Failed to reject MQ delivery (browser events): {:?}", e);
+                }
+            }
         }
     }
 }
