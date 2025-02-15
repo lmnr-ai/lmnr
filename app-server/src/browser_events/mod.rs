@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use backoff::ExponentialBackoff;
+use backoff::ExponentialBackoffBuilder;
 use uuid::Uuid;
 
 use crate::{
@@ -107,7 +107,13 @@ async fn inner_process_browser_events(
         // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
         // up to 1 minute and until the total elapsed time is 15 minutes
         // https://docs.rs/backoff/latest/backoff/default/index.html
-        let exponential_backoff = ExponentialBackoff::default();
+        let exponential_backoff = ExponentialBackoffBuilder::new()
+            .with_initial_interval(std::time::Duration::from_millis(500))
+            .with_multiplier(1.5)
+            .with_randomization_factor(0.5)
+            .with_max_interval(std::time::Duration::from_secs(1 * 60))
+            .with_max_elapsed_time(Some(std::time::Duration::from_secs(15 * 60)))
+            .build();
         match backoff::future::retry(exponential_backoff, insert_browser_events).await {
             Ok(_) => {
                 if let Err(e) = delivery.ack().await {
