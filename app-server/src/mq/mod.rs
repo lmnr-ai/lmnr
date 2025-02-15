@@ -14,6 +14,8 @@ pub trait MessageQueueReceiver<T>: Send + Sync {
 #[async_trait]
 pub trait MessageQueueDelivery<T>: Send + Sync {
     async fn ack(&self) -> anyhow::Result<()>;
+    async fn nack(&self, requeue: bool) -> anyhow::Result<()>;
+    async fn reject(&self, requeue: bool) -> anyhow::Result<()>;
     fn data(&self) -> T
     where
         T: for<'de> Deserialize<'de> + Clone;

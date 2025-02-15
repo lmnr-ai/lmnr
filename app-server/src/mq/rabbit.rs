@@ -2,7 +2,10 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use lapin::{
     message::Delivery,
-    options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
+    options::{
+        BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicPublishOptions,
+        BasicRejectOptions, QueueBindOptions,
+    },
     types::FieldTable,
     BasicProperties, Connection, Consumer,
 };
@@ -31,6 +34,21 @@ where
 {
     async fn ack(&self) -> anyhow::Result<()> {
         self.delivery.ack(BasicAckOptions::default()).await?;
+        Ok(())
+    }
+
+    async fn nack(&self, requeue: bool) -> anyhow::Result<()> {
+        self.delivery
+            .nack(BasicNackOptions {
+                multiple: false,
+                requeue,
+            })
+            .await?;
+        Ok(())
+    }
+
+    async fn reject(&self, requeue: bool) -> anyhow::Result<()> {
+        self.delivery.reject(BasicRejectOptions { requeue }).await?;
         Ok(())
     }
 
