@@ -159,14 +159,14 @@ pub async fn record_span_to_db(
     };
 
     // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
-    // up to 1 minute and until the total elapsed time is 15 minutes
+    // up to 1 minute and until the total elapsed time is 5 minutes (default is 15 minutes)
     // https://docs.rs/backoff/latest/backoff/default/index.html
     let exponential_backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(std::time::Duration::from_millis(500))
         .with_multiplier(1.5)
         .with_randomization_factor(0.5)
         .with_max_interval(std::time::Duration::from_secs(1 * 60))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(15 * 60)))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(5 * 60)))
         .build();
     backoff::future::retry(exponential_backoff, insert_span)
         .await
