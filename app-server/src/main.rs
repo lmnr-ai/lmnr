@@ -31,7 +31,7 @@ use traces::{
     limits::WorkspaceLimitsExceeded, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
 };
 
-use cache::{cache::CacheTrait, Cache};
+use cache::{cache::CacheTrait, Cache, RedisCache};
 use chunk::{
     character_split::CharacterSplitChunker,
     runner::{Chunker, ChunkerRunner, ChunkerType},
@@ -132,8 +132,16 @@ fn main() -> anyhow::Result<()> {
     let mut caches: HashMap<TypeId, Arc<dyn CacheTrait>> = HashMap::new();
     let auth_cache: Arc<MokaCache<String, User>> = Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
     caches.insert(TypeId::of::<User>(), auth_cache);
-    let project_api_key_cache: Arc<MokaCache<String, ProjectApiKey>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
+
+    let project_api_key_cache: Arc<dyn CacheTrait> = if let Ok(redis_url) = env::var("REDIS_URL") {
+        runtime_handle.block_on(async {
+            let redis_cache = RedisCache::<ProjectApiKey>::new(&redis_url).await.unwrap();
+            Arc::new(redis_cache)
+        })
+    } else {
+        Arc::new(MokaCache::<String, ProjectApiKey>::new(DEFAULT_CACHE_SIZE))
+    };
+
     caches.insert(TypeId::of::<ProjectApiKey>(), project_api_key_cache);
     let pipeline_version_cache: Arc<MokaCache<String, PipelineVersion>> =
         Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));

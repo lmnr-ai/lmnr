@@ -68,6 +68,8 @@ tokio-tungstenite = "0.24"
 url = "2.5.0"
 uuid = {version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics", "serde"]}
 zstd = "0.13.2"
+redis = { version = "0.28.2", features = ["tokio-comp"] }
+bincode = "1.3.3"
 
 [build-dependencies]
 tonic-build = "0.12.3"
