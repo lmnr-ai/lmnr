@@ -6,7 +6,7 @@ use sqlx::{prelude::FromRow, PgPool};
 use uuid::Uuid;
 
 use crate::{
-    cache::Cache,
+    cache::{keys::USER_CACHE_KEY, Cache, CacheTrait},
     db::{self, user::User},
 };
 
@@ -33,12 +33,13 @@ pub async fn create_project(
         project.workspace_id
     );
 
-    let workspace_api_keys =
+    let workspace_user_api_keys =
         db::workspace::get_user_api_keys_in_workspace(pool, &project.workspace_id).await?;
 
     // Invalidate user cache for all users in workspace
-    for api_key in workspace_api_keys {
-        let remove_res = cache.remove::<User>(&api_key).await;
+    for api_key in workspace_user_api_keys {
+        let user_cache_key = format!("{USER_CACHE_KEY}:{}", api_key);
+        let remove_res = cache.remove::<User>(&user_cache_key).await;
         match remove_res {
             Ok(_) => log::info!(
                 "Invalidated user cache for user in workspace: {}",

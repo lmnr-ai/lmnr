@@ -7,7 +7,7 @@ use sqlx::prelude::FromRow;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::cache::Cache;
+use crate::cache::{keys::USER_CACHE_KEY, Cache, CacheTrait};
 
 #[derive(Serialize, FromRow)]
 pub struct UserInfo {
@@ -93,6 +93,7 @@ pub async fn get_user_from_api_key(
     //     Ok(None) => {}
     //     Err(e) => log::error!("Error getting user from cache: {}", e),
     // };
+    let cache_key = format!("{USER_CACHE_KEY}:{api_key}");
 
     match sqlx::query_as::<_, User>(
         "
@@ -120,7 +121,7 @@ pub async fn get_user_from_api_key(
     .await
     {
         Ok(Some(user)) => {
-            let _ = cache.insert::<User>(api_key, &user).await;
+            let _ = cache.insert::<User>(&cache_key, user.clone()).await;
             Ok(user)
         }
         Ok(None) => Err(anyhow::anyhow!("No user found for api key")),

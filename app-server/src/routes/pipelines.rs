@@ -15,7 +15,7 @@ use crate::pipeline::utils::get_target_pipeline_version_cache_key;
 use crate::routes::error::pipeline_runner_to_http_error;
 use crate::traces::evaluators::get_stored_env;
 use crate::{
-    cache::Cache,
+    cache::{Cache, CacheTrait},
     db::{
         self,
         pipelines::{pipeline_version, write_pipeline, Pipeline, PipelineVersion},

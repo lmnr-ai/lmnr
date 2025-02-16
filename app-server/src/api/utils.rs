@@ -3,13 +3,12 @@ use std::sync::Arc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::db::pipelines::PipelineVersion;
 use crate::pipeline::utils::get_target_pipeline_version_cache_key;
 use crate::routes::api_keys::hash_api_key;
 use crate::routes::error;
 use crate::{
-    cache::Cache,
-    db::{self, DB},
+    cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait},
+    db::{self, pipelines::PipelineVersion, project_api_keys::ProjectApiKey, DB},
 };
 
 pub async fn query_target_pipeline_version(
@@ -32,7 +31,7 @@ pub async fn query_target_pipeline_version(
                 .await?;
             if let Some(pipeline_version) = &pipeline_version {
                 let _ = cache
-                    .insert::<PipelineVersion>(cache_key, pipeline_version)
+                    .insert::<PipelineVersion>(&cache_key, pipeline_version.clone())
                     .await;
             }
             Ok(pipeline_version)
@@ -44,17 +43,18 @@ pub async fn get_api_key_from_raw_value(
     pool: &PgPool,
     cache: Arc<Cache>,
     raw_api_key: String,
-) -> anyhow::Result<db::project_api_keys::ProjectApiKey> {
+) -> anyhow::Result<ProjectApiKey> {
     let api_key_hash = hash_api_key(&raw_api_key);
+    let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{api_key_hash}");
     let cache_res = cache
-        .get::<db::project_api_keys::ProjectApiKey>(&api_key_hash)
+        .get::<db::project_api_keys::ProjectApiKey>(&cache_key)
         .await;
     match cache_res {
         Ok(Some(api_key)) => Ok(api_key),
         Ok(None) | Err(_) => {
             let api_key = db::project_api_keys::get_api_key(pool, &api_key_hash).await?;
             let _ = cache
-                .insert::<db::project_api_keys::ProjectApiKey>(api_key_hash, &api_key)
+                .insert::<db::project_api_keys::ProjectApiKey>(&cache_key, api_key.clone())
                 .await;
 
             Ok(api_key)

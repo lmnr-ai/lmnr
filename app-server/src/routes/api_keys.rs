@@ -5,7 +5,7 @@ use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
 use super::ResponseResult;
-use crate::cache::Cache;
+use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
 
 #[derive(Deserialize)]
 struct CreateProjectApiKeyRequest {
@@ -45,7 +45,8 @@ async fn create_project_api_key(
     )
     .await?;
 
-    let _ = cache.insert::<ProjectApiKey>(key.hash.clone(), &key).await;
+    let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{}", hash);
+    let _ = cache.insert::<ProjectApiKey>(&cache_key, key.clone()).await;
 
     let response = CreateProjectApiKeyResponse {
         value,
@@ -84,7 +85,8 @@ async fn revoke_project_api_key(
 
     let hash = db::project_api_keys::delete_api_key(&db.pool, &req.id, &project_id).await?;
 
-    let _ = cache.remove::<ProjectApiKey>(&hash).await;
+    let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{hash}");
+    let _ = cache.remove::<ProjectApiKey>(&cache_key).await;
 
     Ok(HttpResponse::Ok().finish())
 }

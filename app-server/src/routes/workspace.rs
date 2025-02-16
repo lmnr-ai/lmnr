@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use super::error::workspace_error_to_http_error;
 use crate::{
-    cache::Cache,
+    cache::{keys::USER_CACHE_KEY, Cache, CacheTrait},
     db::{
         self, stats,
         user::{get_by_email, User},
@@ -69,14 +69,9 @@ async fn create_workspace(
     log::info!("Added owner {} to workspace: {}", user.id, workspace.id);
 
     let projects = if let Some(project_name) = project_name {
-        let project = projects::create_project(
-            &db.pool,
-            cache.clone(),
-            &user.id,
-            &project_name,
-            workspace.id,
-        )
-        .await?;
+        let project =
+            projects::create_project(&db.pool, cache, &user.id, &project_name, workspace.id)
+                .await?;
 
         vec![project]
     } else {
@@ -151,7 +146,8 @@ async fn add_user_to_workspace(
     db::workspace::add_user_to_workspace_by_email(&db.pool, &email, &workspace_id).await?;
 
     // after user is added to workspace, we need to invalidate the cache
-    let remove_res = cache.remove::<User>(&user.api_key.unwrap()).await;
+    let cache_key = format!("{USER_CACHE_KEY}:{}", user.api_key.unwrap());
+    let remove_res = cache.remove::<User>(&cache_key).await;
     match remove_res {
         Ok(_) => log::info!("Invalidated user cache for user: {}", user.id),
         Err(e) => log::error!("Error removing user from cache: {}", e),

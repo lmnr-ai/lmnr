@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    cache::Cache,
+    cache::{keys::USER_CACHE_KEY, Cache, CacheTrait},
     db::{self, user::User, DB},
     projects,
     routes::ResponseResult,
@@ -77,7 +77,8 @@ async fn delete_project(
 
     // Cleanup: Invalidate user cache for all users in workspace
     for key in user_keys {
-        let remove_res = cache.remove::<User>(&key).await;
+        let cache_key = format!("{USER_CACHE_KEY}:{}", key);
+        let remove_res = cache.remove::<User>(&cache_key).await;
         match remove_res {
             Ok(_) => info!(
                 "Invalidated user cache for a user in workspace: {}",
@@ -111,14 +112,8 @@ async fn create_project(
     let req = req.into_inner();
     let cache = cache.into_inner();
 
-    let project = projects::create_project(
-        &db.pool,
-        cache.clone(),
-        &user.id,
-        &req.name,
-        req.workspace_id,
-    )
-    .await?;
+    let project =
+        projects::create_project(&db.pool, cache, &user.id, &req.name, req.workspace_id).await?;
 
     Ok(HttpResponse::Ok().json(project))
 }

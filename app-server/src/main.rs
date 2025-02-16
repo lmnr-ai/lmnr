@@ -10,7 +10,7 @@ use aws_config::BehaviorVersion;
 use browser_events::process_browser_events;
 use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient, CodeExecutor};
 use dashmap::DashMap;
-use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
+use db::user::User;
 use features::{is_feature_enabled, Feature};
 use lapin::{
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
@@ -22,29 +22,26 @@ use machine_manager::{
 };
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
-use projects::Project;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use storage::{mock::MockStorage, Storage};
 use tonic::transport::Server;
 use traces::{
-    consumer::process_queue_spans, grpc_service::ProcessTracesService,
-    limits::WorkspaceLimitsExceeded, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
+    consumer::process_queue_spans, grpc_service::ProcessTracesService, OBSERVATIONS_EXCHANGE,
+    OBSERVATIONS_QUEUE,
 };
 
-use cache::{cache::CacheTrait, Cache, RedisCache};
+use cache::{Cache, InMemoryCache, RedisCache};
 use chunk::{
     character_split::CharacterSplitChunker,
     runner::{Chunker, ChunkerRunner, ChunkerType},
 };
-use language_model::{costs::LLMPriceEntry, LanguageModelProvider, LanguageModelProviderName};
-use moka::future::Cache as MokaCache;
+use language_model::{LanguageModelProvider, LanguageModelProviderName};
 use routes::pipelines::GraphInterruptMessage;
 use semantic_search::{
     semantic_search_grpc::semantic_search_client::SemanticSearchClient, SemanticSearch,
 };
 use sodiumoxide;
 use std::{
-    any::TypeId,
     collections::HashMap,
     env,
     io::{self, Error},
@@ -80,8 +77,6 @@ mod runtime;
 mod semantic_search;
 mod storage;
 mod traces;
-
-const DEFAULT_CACHE_SIZE: u64 = 100; // entries
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -128,38 +123,16 @@ fn main() -> anyhow::Result<()> {
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
     // == Stuff that is needed both for HTTP and gRPC servers ==
-    // === 1. Caches ===
-    let mut caches: HashMap<TypeId, Arc<dyn CacheTrait>> = HashMap::new();
-    let auth_cache: Arc<MokaCache<String, User>> = Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<User>(), auth_cache);
-
-    let project_api_key_cache: Arc<dyn CacheTrait> = if let Ok(redis_url) = env::var("REDIS_URL") {
+    // === 1. Cache ===
+    let cache = if let Ok(redis_url) = env::var("REDIS_URL") {
         runtime_handle.block_on(async {
-            let redis_cache = RedisCache::<ProjectApiKey>::new(&redis_url).await.unwrap();
-            Arc::new(redis_cache)
+            let redis_cache = RedisCache::new(&redis_url).await.unwrap();
+            Cache::Redis(redis_cache)
         })
     } else {
-        Arc::new(MokaCache::<String, ProjectApiKey>::new(DEFAULT_CACHE_SIZE))
+        Cache::InMemory(InMemoryCache::new(None))
     };
-
-    caches.insert(TypeId::of::<ProjectApiKey>(), project_api_key_cache);
-    let pipeline_version_cache: Arc<MokaCache<String, PipelineVersion>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<PipelineVersion>(), pipeline_version_cache);
-    let project_cache: Arc<MokaCache<String, Project>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<Project>(), project_cache);
-    let workspace_limits_cache: Arc<MokaCache<String, WorkspaceLimitsExceeded>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(
-        TypeId::of::<WorkspaceLimitsExceeded>(),
-        workspace_limits_cache,
-    );
-    let llm_costs_cache: Arc<MokaCache<String, LLMPriceEntry>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<LLMPriceEntry>(), llm_costs_cache);
-
-    let cache = Arc::new(Cache::new(caches));
+    let cache = Arc::new(cache);
 
     // === 2. Database ===
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
