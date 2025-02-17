@@ -28,8 +28,7 @@ impl CacheTrait for InMemoryCache {
             return Ok(None);
         };
 
-        let value = serde_json::from_slice(&bytes)
-            .map_err(|e| CacheError::UnhandledError(anyhow::Error::from(e)))?;
+        let value = serde_json::from_slice(&bytes).map_err(|e| CacheError::SerDeError(e))?;
         Ok(Some(value))
     }
 
@@ -37,8 +36,7 @@ impl CacheTrait for InMemoryCache {
     where
         T: Serialize + Send + Sync + 'static,
     {
-        let bytes = serde_json::to_vec(&value)
-            .map_err(|e| CacheError::UnhandledError(anyhow::Error::from(e)))?;
+        let bytes = serde_json::to_vec(&value).map_err(|e| CacheError::SerDeError(e))?;
         self.cache.insert(String::from(key), bytes).await;
         Ok(())
     }

@@ -12,7 +12,9 @@ pub use redis::RedisCache;
 #[derive(thiserror::Error, Debug)]
 pub enum CacheError {
     #[error("{0}")]
-    UnhandledError(#[from] anyhow::Error),
+    InternalError(#[from] anyhow::Error),
+    #[error("{{0}}")]
+    SerDeError(#[from] serde_json::Error),
 }
 
 #[enum_dispatch]

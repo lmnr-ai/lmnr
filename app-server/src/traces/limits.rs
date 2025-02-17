@@ -38,7 +38,7 @@ pub async fn get_workspace_limit_exceeded_by_project_id(
             };
             let _ = cache
                 .insert::<WorkspaceLimitsExceeded>(&cache_key, workspace_limits_exceeded.clone())
-                .await?;
+                .await;
             Ok(workspace_limits_exceeded)
         }
     }

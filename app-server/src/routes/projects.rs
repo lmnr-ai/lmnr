@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use actix_web::{delete, get, post, web, HttpResponse};
-use log::{error, info};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -67,9 +66,11 @@ async fn delete_project(
     let project = db::projects::get_project(&db.pool, &project_id).await?;
 
     db::projects::delete_project(&db.pool, &project_id).await?;
-    info!(
+    log::info!(
         "Deleted project: id: {}, name: {}, workspace_id: {}",
-        project.id, project.name, project.workspace_id
+        project.id,
+        project.name,
+        project.workspace_id
     );
 
     let user_keys =
@@ -80,11 +81,11 @@ async fn delete_project(
         let cache_key = format!("{USER_CACHE_KEY}:{}", key);
         let remove_res = cache.remove(&cache_key).await;
         match remove_res {
-            Ok(_) => info!(
+            Ok(_) => log::info!(
                 "Invalidated user cache for a user in workspace: {}",
                 project.workspace_id
             ),
-            Err(e) => error!("Could not invalidate user cache for user: {}", e),
+            Err(e) => log::error!("Could not invalidate user cache for user: {}", e),
         }
     }
 

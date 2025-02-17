@@ -12,13 +12,13 @@ impl RedisCache {
     pub async fn new(redis_url: &str) -> Result<Self, CacheError> {
         let client = redis::Client::open(redis_url)
             .map_err(anyhow::Error::from)
-            .map_err(CacheError::UnhandledError)?;
+            .map_err(CacheError::InternalError)?;
 
         let connection = client
             .get_multiplexed_async_connection()
             .await
             .map_err(anyhow::Error::from)
-            .map_err(CacheError::UnhandledError)?;
+            .map_err(CacheError::InternalError)?;
         Ok(Self { connection })
     }
 }
@@ -39,13 +39,13 @@ impl CacheTrait for RedisCache {
                     Ok(value) => Ok(Some(value)),
                     Err(e) => {
                         log::error!("Deserialization error: {}", e);
-                        Err(CacheError::UnhandledError(anyhow::Error::from(e)))
+                        Err(CacheError::SerDeError(e))
                     }
                 }
             }
             Err(e) => {
                 log::error!("Redis get error: {}", e);
-                Err(CacheError::UnhandledError(anyhow::Error::from(e)))
+                Err(CacheError::InternalError(anyhow::Error::from(e)))
             }
         }
     }
@@ -58,7 +58,7 @@ impl CacheTrait for RedisCache {
             Ok(bytes) => bytes,
             Err(e) => {
                 log::error!("Serialization error: {}", e);
-                return Err(CacheError::UnhandledError(anyhow::Error::from(e)));
+                return Err(CacheError::SerDeError(e));
             }
         };
 
@@ -69,7 +69,7 @@ impl CacheTrait for RedisCache {
             .await
         {
             log::error!("Redis set error: {}", e);
-            Err(CacheError::UnhandledError(anyhow::Error::from(e)))
+            Err(CacheError::InternalError(anyhow::Error::from(e)))
         } else {
             Ok(())
         }
@@ -83,7 +83,7 @@ impl CacheTrait for RedisCache {
             .await
         {
             log::error!("Redis delete error: {}", e);
-            Err(CacheError::UnhandledError(anyhow::Error::from(e)))
+            Err(CacheError::InternalError(anyhow::Error::from(e)))
         } else {
             Ok(())
         }
