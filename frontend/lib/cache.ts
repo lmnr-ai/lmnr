@@ -32,15 +32,19 @@ class CacheManager {
 
   constructor() {
     this.useRedis = !!process.env.REDIS_URL;
+    // Initialize Redis client immediately if we're using Redis
+    if (this.useRedis) {
+      this.redisClient = redis;
+      this.redisClient.on('error', (err) => console.error('Redis Client Error', err));
+    }
   }
 
-  private async getRedisClient(): Promise<RedisClientType> {
+  private async getRedisClient(): Promise<Redis> {
     if (!this.redisClient) {
-      this.redisClient = createClient({
-        url: process.env.REDIS_URL
-      });
+      this.redisClient = redis;
+    }
+    if (['reconnecting', 'wait'].includes(this.redisClient.status)) {
       await this.redisClient.connect();
-      this.redisClient.on('error', (err) => console.error('Redis Client Error', err));
     }
     return this.redisClient;
   }
@@ -71,6 +75,15 @@ class CacheManager {
       this.memoryCache.set(key, { value, expiresAt: null });
     }
   }
+
+  async remove(key: string): Promise<void> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      await client.del(key);
+    } else {
+      this.memoryCache.delete(key);
+    }
+  }
 }
 
-export const cache = new CacheManager(); 
+export const cache = new CacheManager();
