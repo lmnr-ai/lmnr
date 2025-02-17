@@ -53,7 +53,12 @@ class CacheManager {
     if (this.useRedis) {
       const client = await this.getRedisClient();
       const value = await client.get(key);
-      return value ? JSON.parse(value) : null;
+      try {
+        return value ? JSON.parse(value) : null;
+      } catch (e) {
+        console.error("Error parsing value from cache", e);
+        throw e;
+      }
     } else {
       const entry = this.memoryCache.get(key);
       if (!entry) {
@@ -70,7 +75,12 @@ class CacheManager {
   async set<T>(key: string, value: T): Promise<void> {
     if (this.useRedis) {
       const client = await this.getRedisClient();
-      await client.set(key, JSON.stringify(value));
+      try {
+        await client.set(key, JSON.stringify(value));
+      } catch (e) {
+        console.error("Error setting entry in cache", e);
+        throw e;
+      }
     } else {
       this.memoryCache.set(key, { value, expiresAt: null });
     }
@@ -79,7 +89,12 @@ class CacheManager {
   async remove(key: string): Promise<void> {
     if (this.useRedis) {
       const client = await this.getRedisClient();
-      await client.del(key);
+      try {
+        await client.del(key);
+      } catch (e) {
+        console.error("Error deleting entry from cache", e);
+        throw e;
+      }
     } else {
       this.memoryCache.delete(key);
     }

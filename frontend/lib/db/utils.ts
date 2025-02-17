@@ -3,9 +3,9 @@ import { PgTableWithColumns, SelectedFields, TableConfig } from "drizzle-orm/pg-
 import { getServerSession } from 'next-auth';
 
 import { authOptions } from "../auth";
+import { cache } from "../cache";
 import { PaginatedResponse } from "../types";
 import { db } from "./drizzle";
-import { cache } from "../cache";
 import { apiKeys, membersOfWorkspaces, projects, users } from "./migrations/schema";
 
 export const isUserMemberOfProject = async (projectId: string, apiKey: string) => {

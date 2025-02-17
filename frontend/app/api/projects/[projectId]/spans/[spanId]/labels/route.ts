@@ -2,11 +2,6 @@ import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
 import { fetcher } from '@/lib/utils';
-import { LabelSource } from '@/lib/traces/types';
-import { db } from '@/lib/db/drizzle';
-import { eq } from 'drizzle-orm';
-import { labelClasses } from '@/lib/db/migrations/schema';
-import { NextResponse } from 'next/server';
 
 export async function GET(
   req: Request,

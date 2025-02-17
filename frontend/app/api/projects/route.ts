@@ -3,8 +3,8 @@ import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
 import { projects } from '@/lib/db/migrations/schema';
+import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
 
 export async function POST(req: NextRequest): Promise<Response> {
   const session = await getServerSession(authOptions);
