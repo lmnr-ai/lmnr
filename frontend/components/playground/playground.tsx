@@ -1,71 +1,60 @@
-'use client';
+"use client";
+import { CoreAssistantMessage, CoreSystemMessage, CoreUserMessage } from "ai";
 import { Loader2, PlayIcon } from "lucide-react";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { v4 } from "uuid";
+import { Controller, FormProvider, SubmitHandler, useForm } from "react-hook-form";
 
-import { useProjectContext } from "@/contexts/project-context";
-import { Graph, runGraph } from "@/lib/flow/graph";
-import { LLMNode, NodeHandleType, NodeType } from "@/lib/flow/types";
-import { createNodeData } from "@/lib/flow/utils";
+import Messages from "@/components/playground/messages";
+import { Provider } from "@/lib/pipeline/types";
 import { Playground as PlaygroundType } from "@/lib/playground/types";
-import { ChatMessage, ChatMessageContent } from "@/lib/types";
 
-import LanguageModelSelect from "../pipeline/nodes/components/model-select";
 import { Button } from "../ui/button";
-import EditableChat from "../ui/editable-chat";
 import Formatter from "../ui/formatter";
 import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
+import LLMSelect from "./messages/LLMSelect";
 
-const renderText = (text: string, inputs: Record<string, string>) =>
-  text.replace(/\{\{([^}]+)\}\}/g, (match, p1) => inputs[p1] || match);
+export interface PlaygroundForm {
+  model: `${Provider}:${string}`;
+  messages: (CoreSystemMessage | CoreUserMessage | CoreAssistantMessage)[];
+}
 
-const renderChatMessageContent = (content: ChatMessageContent, inputs: Record<string, string>) => {
-  if (typeof content === 'string') {
-    return renderText(content, inputs);
-  }
-
-  for (const c of content) {
-    if (c.type === 'text') {
-      c.text = renderText(c.text, inputs);
-    }
-  }
-
-  return content;
-};
-
-const renderChatMessages = (messages: ChatMessage[], inputs: Record<string, string>) => messages.map((m) => ({
-  role: m.role,
-  content: renderChatMessageContent(m.content, inputs)
-}));
+const mockMessages: PlaygroundForm["messages"] = [
+  {
+    role: "user",
+    content: [
+      {
+        type: "text",
+        text: "please explain what is on the image?",
+      },
+    ],
+  },
+];
 
 export default function Playground({ playground }: { playground: PlaygroundType }) {
+  const params = useParams();
 
-  const { projectId } = useProjectContext();
-
-  const [messages, setMessages] = useState<ChatMessage[]>(playground.promptMessages);
-  const [modelId, setModelId] = useState<string>(playground.modelId !== '' ? playground.modelId : 'openai:gpt-4o-mini');
-
-  const [inputs, setInputs] = useState<string>('{}');
-  const [output, setOutput] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [inputs, setInputs] = useState<string>("{}");
+  const [output, setOutput] = useState<string>("");
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
     setIsUpdating(true);
 
     timer = setTimeout(() => {
-      fetch(`/api/projects/${projectId}/playgrounds/${playground.id}`, {
-        method: 'POST',
+      fetch(`/api/projects/${params?.projectId}/playgrounds/${playground.id}`, {
+        method: "POST",
         body: JSON.stringify({
-          promptMessages: messages,
-          modelId,
-        })
+          promptMessages: playground.promptMessages,
+          modelId: playground.modelId,
+        }),
       })
         .then((res) => res.json())
         .then((data) => {
-          console.log(data);
           setIsUpdating(false);
         });
     }, 200);
@@ -73,36 +62,42 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     return () => {
       clearTimeout(timer);
     };
-  }, [messages, modelId, projectId, playground.id]);
+  }, [params?.projectId, playground.id, playground.modelId, playground.promptMessages]);
 
-  const run = async () => {
-    setOutput('');
-    setIsLoading(true);
+  // @ts-ignore -- todo: fix deep-recursion typing issue
+  const methods = useForm<PlaygroundForm>({
+    defaultValues: {
+      model: "openai:gpt-4o-mini",
+      messages: mockMessages,
+    },
+  });
+
+  const { control, handleSubmit } = methods;
+  const submit: SubmitHandler<PlaygroundForm> = async (form) => {
     try {
-      const node = createNodeData(v4(), NodeType.LLM) as LLMNode;
-      node.model = modelId;
-      node.dynamicInputs = Object.entries(JSON.parse(inputs)).map(([key, value]) => ({
-        id: v4(),
-        name: key,
-        type: NodeHandleType.STRING
-      }));
-      node.inputs = [
-        {
-          id: v4(),
-          name: 'chat_messages',
-          type: NodeHandleType.CHAT_MESSAGE_LIST,
-        }
-      ];
+      setIsLoading(true);
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          model: form.model,
+          messages: form.messages,
+        }),
+      });
 
-      const graph = Graph.fromNode(node);
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let output = "";
 
-      const inputValues: Record<string, any> = JSON.parse(inputs);
-      inputValues['chat_messages'] = renderChatMessages(messages, inputValues);
+      while (true) {
+        const { done, value } = await reader!.read();
+        if (done) break;
 
-      const output = await runGraph(graph, inputValues, projectId);
-      setOutput(output);
-    } catch (error) {
-      console.error(error);
+        const text = decoder.decode(value);
+        output += text;
+        setOutput(output);
+      }
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsLoading(false);
     }
@@ -111,63 +106,47 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   return (
     <div className="h-full flex flex-col">
       <Header path={`playgrounds/${playground.name}`}>
-        {isUpdating && (
-          <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
-        )}
+        {isUpdating && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />}
       </Header>
       <ScrollArea className="flex-grow overflow-auto">
         <div className="max-h-0">
-          <div className="">
-            <div className="flex flex-col gap-4 p-4">
-              <div className="flex flex-col gap-2">
-                <LanguageModelSelect
-                  modelId={modelId}
-                  onModelChange={(model) => {
-                    setModelId(model.id);
+          <div className="flex flex-col gap-4 p-4">
+            <div className="flex flex-col gap-2"></div>
+            <FormProvider {...methods}>
+              <Controller
+                render={({ field: { value, onChange } }) => <LLMSelect value={value} onChange={onChange} />}
+                name="model"
+                control={control}
+              />
+              <Messages />
+            </FormProvider>
+          </div>
+          <div className="px-4">
+            <Button onClick={handleSubmit(submit)} disabled={isUpdating || isLoading}>
+              {isUpdating || isLoading ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <PlayIcon className="w-4 h-4 mr-1" />
+              )}
+              Run
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2 p-4">
+            <div className="flex gap-4">
+              <div className="flex-1 flex flex-col gap-2">
+                <div className="text-sm font-medium">Inputs</div>
+                <Formatter
+                  value={inputs}
+                  onChange={(value) => {
+                    setInputs(value);
                   }}
-                />
-                <EditableChat
-                  messages={messages}
-                  setMessages={(messages) => {
-                    setMessages(messages);
-                  }}
+                  editable={true}
+                  defaultMode="json"
                 />
               </div>
-            </div>
-            <div className="px-4">
-              <Button
-                onClick={run}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                ) : (
-                  <PlayIcon className="w-4 h-4 mr-1" />
-                )}
-                Run
-              </Button>
-            </div>
-            <div className="flex flex-col gap-2 p-4">
-              <div className="flex gap-4">
-                <div className="flex-1 flex flex-col gap-2">
-                  <div className="text-sm font-medium">Inputs</div>
-                  <Formatter
-                    value={inputs}
-                    onChange={(value) => {
-                      setInputs(value);
-                    }}
-                    editable={true}
-                    defaultMode="json"
-                  />
-                </div>
-                <div className="flex-1 flex flex-col gap-2">
-                  <div className="text-sm font-medium">Output</div>
-                  <Formatter
-                    value={output}
-                    editable={false}
-                    defaultMode="json"
-                  />
-                </div>
+              <div className="flex-1 flex flex-col gap-2">
+                <div className="text-sm font-medium">Output</div>
+                <Formatter value={output} editable={false} defaultMode="json" />
               </div>
             </div>
           </div>
