@@ -1,12 +1,12 @@
 import { Redis } from 'ioredis';
 
 // Singleton Redis client
-const getRedisClient = (() => {
+const getRedisSingleton = (() => {
   let client: Redis | null = null;
 
   return () => {
     if (!client) {
-      client = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+      client = new Redis(process.env.REDIS_URL!, {
         maxRetriesPerRequest: 3,
         retryStrategy(times) {
           const delay = Math.min(times * 50, 2000);
@@ -17,8 +17,6 @@ const getRedisClient = (() => {
     return client;
   };
 })();
-
-const redis = getRedisClient();
 
 interface CacheEntry<T> {
   value: T;
@@ -34,14 +32,14 @@ class CacheManager {
     this.useRedis = !!process.env.REDIS_URL;
     // Initialize Redis client immediately if we're using Redis
     if (this.useRedis) {
-      this.redisClient = redis;
+      this.redisClient = getRedisSingleton();
       this.redisClient.on('error', (err) => console.error('Redis Client Error', err));
     }
   }
 
   private async getRedisClient(): Promise<Redis> {
     if (!this.redisClient) {
-      this.redisClient = redis;
+      this.redisClient = getRedisSingleton();
     }
     if (['reconnecting', 'wait'].includes(this.redisClient.status)) {
       await this.redisClient.connect();
