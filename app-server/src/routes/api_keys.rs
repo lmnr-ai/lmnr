@@ -86,7 +86,7 @@ async fn revoke_project_api_key(
     let hash = db::project_api_keys::delete_api_key(&db.pool, &req.id, &project_id).await?;
 
     let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{hash}");
-    let _ = cache.remove::<ProjectApiKey>(&cache_key).await;
+    let _ = cache.remove(&cache_key).await;
 
     Ok(HttpResponse::Ok().finish())
 }

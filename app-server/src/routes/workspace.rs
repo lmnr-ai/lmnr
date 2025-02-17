@@ -147,7 +147,7 @@ async fn add_user_to_workspace(
 
     // after user is added to workspace, we need to invalidate the cache
     let cache_key = format!("{USER_CACHE_KEY}:{}", user.api_key.unwrap());
-    let remove_res = cache.remove::<User>(&cache_key).await;
+    let remove_res = cache.remove(&cache_key).await;
     match remove_res {
         Ok(_) => log::info!("Invalidated user cache for user: {}", user.id),
         Err(e) => log::error!("Error removing user from cache: {}", e),

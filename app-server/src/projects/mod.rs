@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     cache::{keys::USER_CACHE_KEY, Cache, CacheTrait},
-    db::{self, user::User},
+    db,
 };
 
 #[derive(Deserialize, Serialize, FromRow, Clone)]
@@ -39,7 +39,7 @@ pub async fn create_project(
     // Invalidate user cache for all users in workspace
     for api_key in workspace_user_api_keys {
         let user_cache_key = format!("{USER_CACHE_KEY}:{}", api_key);
-        let remove_res = cache.remove::<User>(&user_cache_key).await;
+        let remove_res = cache.remove(&user_cache_key).await;
         match remove_res {
             Ok(_) => log::info!(
                 "Invalidated user cache for user in workspace: {}",

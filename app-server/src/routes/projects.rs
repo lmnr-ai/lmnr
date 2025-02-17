@@ -78,7 +78,7 @@ async fn delete_project(
     // Cleanup: Invalidate user cache for all users in workspace
     for key in user_keys {
         let cache_key = format!("{USER_CACHE_KEY}:{}", key);
-        let remove_res = cache.remove::<User>(&cache_key).await;
+        let remove_res = cache.remove(&cache_key).await;
         match remove_res {
             Ok(_) => info!(
                 "Invalidated user cache for a user in workspace: {}",

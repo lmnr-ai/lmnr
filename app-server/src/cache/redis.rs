@@ -75,10 +75,7 @@ impl CacheTrait for RedisCache {
         }
     }
 
-    async fn remove<T>(&self, key: &str) -> Result<(), CacheError>
-    where
-        T: Send + Sync + 'static,
-    {
+    async fn remove(&self, key: &str) -> Result<(), CacheError> {
         if let Err(e) = self
             .connection
             .clone()

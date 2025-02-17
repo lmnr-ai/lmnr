@@ -16,7 +16,7 @@ pub struct UserInfo {
     pub email: String,
 }
 
-#[derive(Default, Debug, Clone, Serialize, FromRow)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: Uuid,
     pub name: String,
@@ -85,15 +85,16 @@ pub async fn get_user_from_api_key(
     api_key: String,
     cache: Arc<Cache>,
 ) -> Result<User> {
-    // let cache_res = cache.get::<User>(&api_key).await;
-    // match cache_res {
-    //     Ok(Some(user)) => {
-    //         return Ok(user);
-    //     }
-    //     Ok(None) => {}
-    //     Err(e) => log::error!("Error getting user from cache: {}", e),
-    // };
     let cache_key = format!("{USER_CACHE_KEY}:{api_key}");
+
+    let cache_res = cache.get::<User>(&api_key).await;
+    match cache_res {
+        Ok(Some(user)) => {
+            return Ok(user);
+        }
+        Ok(None) => {}
+        Err(e) => log::error!("Error getting user from cache: {}", e),
+    };
 
     match sqlx::query_as::<_, User>(
         "

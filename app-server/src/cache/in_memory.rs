@@ -43,10 +43,7 @@ impl CacheTrait for InMemoryCache {
         Ok(())
     }
 
-    async fn remove<T>(&self, key: &str) -> Result<(), CacheError>
-    where
-        T: Send + Sync + 'static,
-    {
+    async fn remove(&self, key: &str) -> Result<(), CacheError> {
         self.cache.remove(key).await;
         Ok(())
     }

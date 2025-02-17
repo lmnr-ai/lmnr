@@ -30,7 +30,5 @@ pub trait CacheTrait: Sync + Send {
     async fn insert<T>(&self, key: &str, value: T) -> Result<(), CacheError>
     where
         T: Serialize + Send + Sync + 'static;
-    async fn remove<T>(&self, key: &str) -> Result<(), CacheError>
-    where
-        T: Send + Sync + 'static;
+    async fn remove(&self, key: &str) -> Result<(), CacheError>;
 }
