@@ -49,7 +49,7 @@ pub async fn process_spans_and_events<T>(
     match record_span_to_db(db.clone(), &span_usage, &project_id, span).await {
         Ok(_) => {
             let _ = delivery.ack().await.map_err(|e| {
-                log::error!("Failed to ack MQ delivery: {:?}", e);
+                log::error!("Failed to ack MQ delivery (span): {:?}", e);
             });
         }
         Err(e) => {
@@ -59,6 +59,10 @@ pub async fn process_spans_and_events<T>(
                 project_id,
                 e
             );
+            // TODO: Implement proper nacks and DLX
+            let _ = delivery.reject(false).await.map_err(|e| {
+                log::error!("Failed to reject MQ delivery (span): {:?}", e);
+            });
         }
     }
 
