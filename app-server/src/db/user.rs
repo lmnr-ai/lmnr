@@ -87,7 +87,7 @@ pub async fn get_user_from_api_key(
 ) -> Result<User> {
     let cache_key = format!("{USER_CACHE_KEY}:{api_key}");
 
-    let cache_res = cache.get::<User>(&api_key).await;
+    let cache_res = cache.get::<User>(&cache_key).await;
     match cache_res {
         Ok(Some(user)) => {
             return Ok(user);
