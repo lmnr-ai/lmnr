@@ -177,15 +177,23 @@ pub async fn update_span_label(
     id: Uuid,
     span_id: Uuid,
     value: f64,
-    user_id: Option<Uuid>,
+    user_email: Option<String>,
     class_id: Uuid,
     label_source: &LabelSource,
     reasoning: Option<String>,
 ) -> Result<DBSpanLabel> {
     let span_label = sqlx::query_as::<_, DBSpanLabel>(
         "INSERT INTO labels
-            (id, span_id, class_id, user_id, value, updated_at, label_source, reasoning)
-        VALUES ($1, $2, $3, $4, $5, now(), $6, $7)
+            (id,
+            span_id,
+            class_id,
+            user_id,
+            value,
+            updated_at,
+            label_source,
+            reasoning
+        )
+        VALUES ($1, $2, $3, (SELECT id FROM users WHERE email = $4 LIMIT 1), $5, now(), $6, $7)
         ON CONFLICT (span_id, class_id, user_id)
         DO UPDATE SET value = $5, updated_at = now(), label_source = $6,
             reasoning = COALESCE($7, labels.reasoning)
@@ -203,7 +211,7 @@ pub async fn update_span_label(
     .bind(id)
     .bind(span_id)
     .bind(class_id)
-    .bind(user_id)
+    .bind(user_email)
     .bind(value)
     .bind(label_source)
     .bind(reasoning)

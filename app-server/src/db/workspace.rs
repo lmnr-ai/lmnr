@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use crate::projects::Project;
+use super::projects::Project;
 
 use super::stats::create_usage_stats_for_workspace;
 
@@ -18,8 +18,6 @@ pub struct Workspace {
 // create an error type with multiple variants
 #[derive(thiserror::Error, Debug)]
 pub enum WorkspaceError {
-    #[error("User with email {0} not found")]
-    UserNotFound(String),
     #[error("Not allowed")]
     NotAllowed,
     #[error("{0}")]
@@ -240,28 +238,4 @@ pub async fn get_workspace(
             })
         }
     }
-}
-
-#[derive(FromRow)]
-struct WorkspaceApiKey {
-    api_key: String,
-}
-
-pub async fn get_user_api_keys_in_workspace(
-    pool: &PgPool,
-    workspace_id: &Uuid,
-) -> anyhow::Result<Vec<String>> {
-    let records = sqlx::query_as::<_, WorkspaceApiKey>(
-        "SELECT
-            api_keys.api_key
-        FROM members_of_workspaces
-        JOIN api_keys ON members_of_workspaces.user_id = api_keys.user_id
-        WHERE
-            workspace_id = $1",
-    )
-    .bind(workspace_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(records.iter().map(|r| r.api_key.clone()).collect())
 }

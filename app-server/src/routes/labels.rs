@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::db::{self, labels::LabelSource, user::User, DB};
+use crate::db::{self, labels::LabelSource, DB};
 
 use super::ResponseResult;
 
@@ -114,6 +114,8 @@ struct UpdateSpanLabelRequest {
     datapoint_id: Option<Uuid>,
     #[serde(default)]
     score_name: Option<String>,
+    #[serde(default)]
+    user_email: Option<String>,
 }
 
 #[post("spans/{span_id}/labels")]
@@ -121,7 +123,6 @@ pub async fn update_span_label(
     path: web::Path<(Uuid, Uuid)>,
     req: web::Json<UpdateSpanLabelRequest>,
     db: web::Data<DB>,
-    user: User,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let (project_id, span_id) = path.into_inner();
@@ -136,10 +137,10 @@ pub async fn update_span_label(
 
     // evaluator was triggered from the UI
     // so the source is AUTO
-    let user_id = if source == LabelSource::AUTO {
+    let user_email = if source == LabelSource::AUTO {
         None
     } else {
-        Some(user.id)
+        req.user_email
     };
 
     let Some(label_class) = db::labels::get_label_class(&db.pool, project_id, class_id).await?
@@ -166,7 +167,7 @@ pub async fn update_span_label(
         id,
         span_id,
         class_id,
-        user_id,
+        user_email,
         label_class.name,
         value_key,
         value,

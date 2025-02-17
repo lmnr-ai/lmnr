@@ -1,23 +1,14 @@
 use std::sync::Arc;
 
-use actix_web::{delete, get, post, web, HttpResponse};
-use serde::{Deserialize, Serialize};
+use actix_web::{delete, get, web, HttpResponse};
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    cache::{keys::USER_CACHE_KEY, Cache, CacheTrait},
-    db::{self, user::User, DB},
-    projects,
+    db::{self, DB},
     routes::ResponseResult,
     semantic_search::SemanticSearch,
 };
-
-#[get("")] // scope: /projects
-async fn get_projects(user: User, db: web::Data<DB>) -> ResponseResult {
-    let projects = db::projects::get_all_projects_for_user(&db.pool, &user.id).await?;
-
-    Ok(HttpResponse::Ok().json(projects))
-}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,7 +49,6 @@ async fn get_project(project_id: web::Path<Uuid>, db: web::Data<DB>) -> Response
 async fn delete_project(
     project_id: web::Path<Uuid>,
     db: web::Data<DB>,
-    cache: web::Data<Cache>,
     semantic_search: web::Data<Arc<dyn SemanticSearch>>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
@@ -73,48 +63,9 @@ async fn delete_project(
         project.workspace_id
     );
 
-    let user_keys =
-        db::workspace::get_user_api_keys_in_workspace(&db.pool, &project.workspace_id).await?;
-
-    // Cleanup: Invalidate user cache for all users in workspace
-    for key in user_keys {
-        let cache_key = format!("{USER_CACHE_KEY}:{}", key);
-        let remove_res = cache.remove(&cache_key).await;
-        match remove_res {
-            Ok(_) => log::info!(
-                "Invalidated user cache for a user in workspace: {}",
-                project.workspace_id
-            ),
-            Err(e) => log::error!("Could not invalidate user cache for user: {}", e),
-        }
-    }
-
     semantic_search
         .delete_collections(project_id.to_string())
         .await?;
 
     Ok(HttpResponse::Ok().finish())
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CreateProjectRequest {
-    name: String,
-    workspace_id: Uuid,
-}
-
-#[post("")]
-async fn create_project(
-    user: User,
-    db: web::Data<DB>,
-    cache: web::Data<Cache>,
-    req: web::Json<CreateProjectRequest>,
-) -> ResponseResult {
-    let req = req.into_inner();
-    let cache = cache.into_inner();
-
-    let project =
-        projects::create_project(&db.pool, cache, &user.id, &req.name, req.workspace_id).await?;
-
-    Ok(HttpResponse::Ok().json(project))
 }

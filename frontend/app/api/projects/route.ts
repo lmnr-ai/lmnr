@@ -1,9 +1,10 @@
-import { type NextRequest } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
+import { db } from '@/lib/db/drizzle';
 import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
-import { fetcher } from '@/lib/utils';
+import { projects } from '@/lib/db/migrations/schema';
 
 export async function POST(req: NextRequest): Promise<Response> {
   const session = await getServerSession(authOptions);
@@ -12,15 +13,17 @@ export async function POST(req: NextRequest): Promise<Response> {
   const body = await req.json();
 
   if (!isCurrentUserMemberOfWorkspace(body.workspaceId)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
-  return await fetcher(`/projects`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    },
-    body: JSON.stringify(body)
-  });
+  const project = await db.insert(projects).values({
+    name: body.name,
+    workspaceId: body.workspaceId,
+  }).returning();
+
+  if (project.length === 0) {
+    return new NextResponse(JSON.stringify({ error: 'Failed to create project' }), { status: 500 });
+  }
+
+  return NextResponse.json(project[0]);
 }

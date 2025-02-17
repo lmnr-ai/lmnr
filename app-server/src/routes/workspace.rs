@@ -4,15 +4,13 @@ use uuid::Uuid;
 
 use super::error::workspace_error_to_http_error;
 use crate::{
-    cache::{keys::USER_CACHE_KEY, Cache, CacheTrait},
     db::{
         self, stats,
-        user::{get_by_email, User},
+        user::User,
         workspace::{WorkspaceError, WorkspaceWithProjects},
         DB,
     },
     features::{is_feature_enabled, Feature},
-    projects,
     routes::ResponseResult,
 };
 
@@ -48,14 +46,11 @@ struct CreateWorkspaceRequest {
 async fn create_workspace(
     user: User,
     db: web::Data<DB>,
-    cache: web::Data<Cache>,
     req: web::Json<CreateWorkspaceRequest>,
 ) -> ResponseResult {
     let req = req.into_inner();
     let name = req.name;
     let project_name = req.project_name;
-
-    let cache = cache.into_inner();
 
     let workspace = db::workspace::create_new_workspace(&db.pool, Uuid::new_v4(), name).await?;
     log::info!(
@@ -70,8 +65,7 @@ async fn create_workspace(
 
     let projects = if let Some(project_name) = project_name {
         let project =
-            projects::create_project(&db.pool, cache, &user.id, &project_name, workspace.id)
-                .await?;
+            db::projects::create_project(&db.pool, &user.id, &project_name, workspace.id).await?;
 
         vec![project]
     } else {
@@ -94,7 +88,6 @@ async fn add_user_to_workspace(
     req_user: User,
     path: web::Path<Uuid>,
     req: web::Json<AddUserRequest>,
-    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let workspace_id = path.into_inner();
     let email = req.into_inner().email;
@@ -131,27 +124,12 @@ async fn add_user_to_workspace(
         }
     }
 
-    let user = get_by_email(&db.pool, &email).await?;
-    let Some(user) = user else {
-        return Err(workspace_error_to_http_error(WorkspaceError::UserNotFound(
-            email.to_string(),
-        )));
-    };
-
     let owned_workspaces = db::workspace::get_owned_workspaces(&db.pool, &req_user.id).await?;
     if !owned_workspaces.iter().any(|w| w.id == workspace_id) {
         return Err(workspace_error_to_http_error(WorkspaceError::NotAllowed));
     }
 
     db::workspace::add_user_to_workspace_by_email(&db.pool, &email, &workspace_id).await?;
-
-    // after user is added to workspace, we need to invalidate the cache
-    let cache_key = format!("{USER_CACHE_KEY}:{}", user.api_key.unwrap());
-    let remove_res = cache.remove(&cache_key).await;
-    match remove_res {
-        Ok(_) => log::info!("Invalidated user cache for user: {}", user.id),
-        Err(e) => log::error!("Error removing user from cache: {}", e),
-    }
 
     Ok(HttpResponse::Ok().finish())
 }

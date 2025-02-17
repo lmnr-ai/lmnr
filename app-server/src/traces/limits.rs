@@ -9,8 +9,7 @@ use crate::{
         keys::{PROJECT_CACHE_KEY, WORKSPACE_LIMITS_CACHE_KEY},
         Cache, CacheTrait,
     },
-    db::{self, DB},
-    projects::Project,
+    db::{self, projects::Project, DB},
 };
 
 #[derive(Clone, Serialize, Deserialize)]
