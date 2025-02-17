@@ -24,6 +24,7 @@ aws-config = "1.5.10"
 aws-credential-types = "1.2.1"
 aws-sdk-bedrockruntime = "1.61.0"
 aws-sdk-s3 = "1.63.0"
+backoff = {version = "0.4.0", features = ["tokio"]}
 base64 = "0.22.1"
 bimap = "0.6.3"
 bytes = "1.7.1"
@@ -49,6 +50,7 @@ num_cpus = "1.16.0"
 prost = "0.13"
 rand = "0.8.5"
 rayon = "1.10"
+redis = {version = "0.28.2", features = ["tokio-comp"]}
 regex = "1.10.3"
 reqwest = {version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "multipart"]}
 reqwest-eventsource = "0.6.0"
@@ -68,7 +70,6 @@ tokio-tungstenite = "0.24"
 url = "2.5.0"
 uuid = {version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics", "serde"]}
 zstd = "0.13.2"
-backoff = { version = "0.4.0", features = ["tokio"] }
 
 [build-dependencies]
 tonic-build = "0.12.3"

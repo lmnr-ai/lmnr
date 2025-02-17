@@ -22,6 +22,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     db::{self, user::User},
     features::{is_feature_enabled, Feature},
     routes::ResponseResult,
@@ -78,7 +79,7 @@ struct ManageSubscriptionRequest {
 #[post("")] // POST /api/v1/manage-subscription
 pub async fn update_subscription(
     db: web::Data<db::DB>,
-    cache: web::Data<crate::cache::Cache>,
+    cache: web::Data<Cache>,
     request: web::Json<ManageSubscriptionRequest>,
 ) -> ResponseResult {
     if !is_feature_enabled(Feature::Subscription) {
@@ -111,12 +112,9 @@ pub async fn update_subscription(
     if is_upgrade_from_free {
         tokio::spawn(async move {
             let _ = db::subscriptions::reset_workspace_usage(db.clone(), workspace_id).await;
-            let _ = update_workspace_limit_exceeded_by_workspace_id(
-                db.clone(),
-                cache.clone(),
-                workspace_id,
-            )
-            .await;
+            let _ =
+                update_workspace_limit_exceeded_by_workspace_id(db.clone(), cache, workspace_id)
+                    .await;
         });
     };
 

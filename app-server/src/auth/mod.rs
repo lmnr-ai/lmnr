@@ -1,7 +1,6 @@
 use anyhow::Result;
 use std::env;
 use std::future::{ready, Ready};
-use std::sync::Arc;
 
 use actix_web::dev::Payload;
 use actix_web::dev::ServiceRequest;
@@ -55,13 +54,8 @@ pub async fn validator(
         .cloned()
         .unwrap()
         .into_inner();
-    let cache = req
-        .app_data::<web::Data<Cache>>()
-        .cloned()
-        .unwrap()
-        .into_inner();
 
-    match validate_token(&db, cache.clone(), credentials.token().to_string()).await {
+    match validate_token(&db, credentials.token().to_string()).await {
         Ok(user) => {
             req.extensions_mut().insert(user);
             Ok(req)
@@ -73,8 +67,8 @@ pub async fn validator(
     }
 }
 
-async fn validate_token(db: &DB, cache: Arc<Cache>, token: String) -> Result<User> {
-    get_user_from_api_key(&db.pool, token, cache).await
+async fn validate_token(db: &DB, token: String) -> Result<User> {
+    get_user_from_api_key(&db.pool, token).await
 }
 
 pub async fn project_validator(

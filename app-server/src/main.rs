@@ -1,8 +1,7 @@
-use actix_service::Service;
 use actix_web::{
     middleware::{Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
-    App, HttpMessage, HttpServer,
+    App, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
@@ -10,7 +9,6 @@ use aws_config::BehaviorVersion;
 use browser_events::process_browser_events;
 use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient, CodeExecutor};
 use dashmap::DashMap;
-use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
 use features::{is_feature_enabled, Feature};
 use lapin::{
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
@@ -22,29 +20,26 @@ use machine_manager::{
 };
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
-use projects::Project;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use storage::{mock::MockStorage, Storage};
 use tonic::transport::Server;
 use traces::{
-    consumer::process_queue_spans, grpc_service::ProcessTracesService,
-    limits::WorkspaceLimitsExceeded, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
+    consumer::process_queue_spans, grpc_service::ProcessTracesService, OBSERVATIONS_EXCHANGE,
+    OBSERVATIONS_QUEUE,
 };
 
-use cache::{cache::CacheTrait, Cache};
+use cache::{Cache, InMemoryCache, RedisCache};
 use chunk::{
     character_split::CharacterSplitChunker,
     runner::{Chunker, ChunkerRunner, ChunkerType},
 };
-use language_model::{costs::LLMPriceEntry, LanguageModelProvider, LanguageModelProviderName};
-use moka::future::Cache as MokaCache;
+use language_model::{LanguageModelProvider, LanguageModelProviderName};
 use routes::pipelines::GraphInterruptMessage;
 use semantic_search::{
     semantic_search_grpc::semantic_search_client::SemanticSearchClient, SemanticSearch,
 };
 use sodiumoxide;
 use std::{
-    any::TypeId,
     collections::HashMap,
     env,
     io::{self, Error},
@@ -73,15 +68,12 @@ mod mq;
 mod names;
 mod opentelemetry;
 mod pipeline;
-mod projects;
 mod provider_api_keys;
 mod routes;
 mod runtime;
 mod semantic_search;
 mod storage;
 mod traces;
-
-const DEFAULT_CACHE_SIZE: u64 = 100; // entries
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -128,30 +120,16 @@ fn main() -> anyhow::Result<()> {
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
     // == Stuff that is needed both for HTTP and gRPC servers ==
-    // === 1. Caches ===
-    let mut caches: HashMap<TypeId, Arc<dyn CacheTrait>> = HashMap::new();
-    let auth_cache: Arc<MokaCache<String, User>> = Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<User>(), auth_cache);
-    let project_api_key_cache: Arc<MokaCache<String, ProjectApiKey>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<ProjectApiKey>(), project_api_key_cache);
-    let pipeline_version_cache: Arc<MokaCache<String, PipelineVersion>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<PipelineVersion>(), pipeline_version_cache);
-    let project_cache: Arc<MokaCache<String, Project>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<Project>(), project_cache);
-    let workspace_limits_cache: Arc<MokaCache<String, WorkspaceLimitsExceeded>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(
-        TypeId::of::<WorkspaceLimitsExceeded>(),
-        workspace_limits_cache,
-    );
-    let llm_costs_cache: Arc<MokaCache<String, LLMPriceEntry>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<LLMPriceEntry>(), llm_costs_cache);
-
-    let cache = Arc::new(Cache::new(caches));
+    // === 1. Cache ===
+    let cache = if let Ok(redis_url) = env::var("REDIS_URL") {
+        runtime_handle.block_on(async {
+            let redis_cache = RedisCache::new(&redis_url).await.unwrap();
+            Cache::Redis(redis_cache)
+        })
+    } else {
+        Cache::InMemory(InMemoryCache::new(None))
+    };
+    let cache = Arc::new(cache);
 
     // === 2. Database ===
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -536,94 +514,55 @@ fn main() -> anyhow::Result<()> {
                         )
                         .service(
                             web::scope("/api/v1/subscriptions")
-                                .wrap(auth.clone())
+                                .wrap(auth)
                                 .service(routes::subscriptions::save_stripe_customer_id)
                                 .service(routes::subscriptions::get_user_subscription_info),
                         )
                         .service(
-                            web::scope("/api/v1/projects")
-                                .wrap(auth)
-                                .service(routes::projects::create_project)
-                                .service(routes::projects::get_projects)
-                                .service(
-                                    web::scope("/{project_id}")
-                                        .wrap_fn(|req: actix_web::dev::ServiceRequest, srv| {
-                                            let project_id = Uuid::parse_str(
-                                                req.match_info().get("project_id").unwrap(),
-                                            )
-                                            .unwrap();
-                                            let user: User;
-                                            {
-                                                let binding = req.extensions();
-                                                // it is safe to unwrap here because if this middle runs user is present in the request
-                                                user = binding.get::<User>().cloned().unwrap();
-                                            }
-                                            if user
-                                                .project_ids
-                                                .as_ref()
-                                                .unwrap()
-                                                .contains(&project_id)
-                                            {
-                                                srv.call(req)
-                                            } else {
-                                                // return unauthorized
-                                                log::error!(
-                                                "Unauthorized, user {:} is not part of project {}",
-                                                user.id,
-                                                project_id
-                                            );
-                                                Box::pin(futures_util::future::err(
-                                                    actix_web::error::ErrorUnauthorized(""),
-                                                ))
-                                            }
-                                        })
-                                        .service(routes::projects::get_project)
-                                        .service(routes::projects::delete_project)
-                                        .service(routes::pipelines::run_pipeline_graph)
-                                        .service(routes::pipelines::get_pipelines)
-                                        .service(routes::pipelines::create_pipeline)
-                                        .service(routes::pipelines::update_pipeline)
-                                        .service(routes::pipelines::get_pipeline_by_id)
-                                        .service(routes::pipelines::delete_pipeline)
-                                        .service(routes::pipelines::create_pipeline_version)
-                                        .service(routes::pipelines::fork_pipeline_version)
-                                        .service(routes::pipelines::update_pipeline_version)
-                                        .service(routes::pipelines::overwrite_pipeline_version)
-                                        .service(routes::pipelines::get_pipeline_versions_info)
-                                        .service(routes::pipelines::get_pipeline_versions)
-                                        .service(routes::pipelines::get_pipeline_version)
-                                        .service(routes::pipelines::get_version)
-                                        .service(routes::pipelines::get_templates)
-                                        .service(routes::pipelines::create_template)
-                                        .service(routes::pipelines::run_pipeline_interrupt_graph)
-                                        .service(routes::pipelines::update_target_pipeline_version)
-                                        .service(routes::api_keys::create_project_api_key)
-                                        .service(routes::api_keys::get_api_keys_for_project)
-                                        .service(routes::api_keys::revoke_project_api_key)
-                                        .service(routes::evaluations::get_evaluation_score_stats)
-                                        .service(
-                                            routes::evaluations::get_evaluation_score_distribution,
-                                        )
-                                        .service(routes::datasets::delete_dataset)
-                                        .service(routes::datasets::upload_datapoint_file)
-                                        .service(routes::datasets::create_datapoint_embeddings)
-                                        .service(routes::datasets::update_datapoint_embeddings)
-                                        .service(routes::datasets::delete_datapoint_embeddings)
-                                        .service(routes::datasets::delete_all_datapoints)
-                                        .service(routes::datasets::index_dataset)
-                                        .service(routes::labels::get_label_classes)
-                                        .service(routes::labels::get_span_labels)
-                                        .service(routes::labels::update_span_label)
-                                        .service(routes::labels::delete_span_label)
-                                        .service(routes::labels::register_label_class_for_path)
-                                        .service(routes::labels::remove_label_class_from_path)
-                                        .service(
-                                            routes::labels::get_registered_label_classes_for_path,
-                                        )
-                                        .service(routes::labels::update_label_class)
-                                        .service(routes::traces::get_traces_metrics)
-                                        .service(routes::provider_api_keys::save_api_key),
-                                ),
+                            // auth on path projects/{project_id} is handled by middleware on Next.js
+                            web::scope("/api/v1/projects/{project_id}")
+                                .service(routes::projects::get_project)
+                                .service(routes::projects::delete_project)
+                                .service(routes::pipelines::run_pipeline_graph)
+                                .service(routes::pipelines::get_pipelines)
+                                .service(routes::pipelines::create_pipeline)
+                                .service(routes::pipelines::update_pipeline)
+                                .service(routes::pipelines::get_pipeline_by_id)
+                                .service(routes::pipelines::delete_pipeline)
+                                .service(routes::pipelines::create_pipeline_version)
+                                .service(routes::pipelines::fork_pipeline_version)
+                                .service(routes::pipelines::update_pipeline_version)
+                                .service(routes::pipelines::overwrite_pipeline_version)
+                                .service(routes::pipelines::get_pipeline_versions_info)
+                                .service(routes::pipelines::get_pipeline_versions)
+                                .service(routes::pipelines::get_pipeline_version)
+                                .service(routes::pipelines::get_version)
+                                .service(routes::pipelines::get_templates)
+                                .service(routes::pipelines::create_template)
+                                .service(routes::pipelines::run_pipeline_interrupt_graph)
+                                .service(routes::pipelines::update_target_pipeline_version)
+                                .service(routes::api_keys::create_project_api_key)
+                                .service(routes::api_keys::get_api_keys_for_project)
+                                .service(routes::api_keys::revoke_project_api_key)
+                                .service(routes::evaluations::get_evaluation_score_stats)
+                                .service(routes::evaluations::get_evaluation_score_distribution)
+                                .service(routes::datasets::delete_dataset)
+                                .service(routes::datasets::upload_datapoint_file)
+                                .service(routes::datasets::create_datapoint_embeddings)
+                                .service(routes::datasets::update_datapoint_embeddings)
+                                .service(routes::datasets::delete_datapoint_embeddings)
+                                .service(routes::datasets::delete_all_datapoints)
+                                .service(routes::datasets::index_dataset)
+                                .service(routes::labels::get_label_classes)
+                                .service(routes::labels::get_span_labels)
+                                .service(routes::labels::update_span_label)
+                                .service(routes::labels::delete_span_label)
+                                .service(routes::labels::register_label_class_for_path)
+                                .service(routes::labels::remove_label_class_from_path)
+                                .service(routes::labels::get_registered_label_classes_for_path)
+                                .service(routes::labels::update_label_class)
+                                .service(routes::traces::get_traces_metrics)
+                                .service(routes::provider_api_keys::save_api_key),
                         )
                         .service(routes::probes::check_health)
                         .service(routes::probes::check_ready)
