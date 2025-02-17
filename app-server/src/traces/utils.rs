@@ -21,12 +21,12 @@ use super::{
     spans::{SpanAttributes, SpanUsage},
 };
 
-pub fn json_value_to_string(v: Value) -> String {
+pub fn json_value_to_string(v: &Value) -> String {
     match v {
-        Value::String(s) => s,
+        Value::String(s) => s.to_string(),
         Value::Array(a) => a
             .iter()
-            .map(|v| json_value_to_string(v.clone()))
+            .map(json_value_to_string)
             .collect::<Vec<_>>()
             .join(", "),
         _ => v.to_string(),

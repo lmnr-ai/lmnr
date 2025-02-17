@@ -138,6 +138,12 @@ fn main() -> anyhow::Result<()> {
     runtime_handle.block_on(async {
         pool = Some(
             sqlx::postgres::PgPoolOptions::new()
+                .min_connections(
+                    env::var("DATABASE_MIN_CONNECTIONS")
+                        .unwrap_or(String::from("5"))
+                        .parse()
+                        .unwrap_or(5),
+                )
                 .max_connections(
                     env::var("DATABASE_MAX_CONNECTIONS")
                         .unwrap_or(String::from("10"))

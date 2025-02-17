@@ -184,11 +184,7 @@ impl SpanAttributes {
 
     fn raw_path(&self) -> Option<Vec<String>> {
         match self.attributes.get(SPAN_PATH) {
-            Some(Value::Array(arr)) => Some(
-                arr.iter()
-                    .map(|v| json_value_to_string(v.clone()))
-                    .collect(),
-            ),
+            Some(Value::Array(arr)) => Some(arr.iter().map(|v| json_value_to_string(v)).collect()),
             Some(Value::String(s)) => Some(vec![s.clone()]),
             _ => None,
         }
@@ -202,7 +198,7 @@ impl SpanAttributes {
         let attributes_ids_path = match self.attributes.get(SPAN_IDS_PATH) {
             Some(Value::Array(arr)) => Some(
                 arr.iter()
-                    .map(|v| json_value_to_string(v.clone()))
+                    .map(|v| json_value_to_string(v))
                     .collect::<Vec<_>>(),
             ),
             _ => None,
@@ -316,7 +312,7 @@ impl SpanAttributes {
             Some(
                 metadata
                     .into_iter()
-                    .map(|(k, v)| (k, json_value_to_string(v)))
+                    .map(|(k, v)| (k, json_value_to_string(&v)))
                     .collect(),
             )
         }

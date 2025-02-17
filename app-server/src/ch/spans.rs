@@ -71,14 +71,14 @@ impl CHSpan {
 
         let span_input_string = json_value_to_string(
             span.input
-                .clone()
-                .unwrap_or(Value::String(String::from(""))),
+                .as_ref()
+                .unwrap_or(&Value::String(String::from(""))),
         );
 
         let span_output_string = json_value_to_string(
             span.output
-                .clone()
-                .unwrap_or(Value::String(String::from(""))),
+                .as_ref()
+                .unwrap_or(&Value::String(String::from(""))),
         );
 
         CHSpan {

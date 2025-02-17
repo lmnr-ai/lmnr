@@ -141,14 +141,14 @@ pub async fn semantic_search(
                     )]));
             let data = db_data
                 .iter()
-                .map(|(k, v)| (k.clone(), json_value_to_string(v.clone())))
+                .map(|(k, v)| (k.clone(), json_value_to_string(v)))
                 .collect::<HashMap<String, String>>();
             let content = if let Some(index_column) = indexed_on.clone() {
                 data.get(&index_column)
                     .cloned()
-                    .unwrap_or(json_value_to_string(db_datapoint.data.clone()))
+                    .unwrap_or(json_value_to_string(&db_datapoint.data))
             } else {
-                json_value_to_string(db_datapoint.data.clone())
+                json_value_to_string(&db_datapoint.data)
             };
 
             SemanticSearchResult {
