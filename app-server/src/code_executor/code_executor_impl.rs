@@ -9,7 +9,7 @@ use crate::pipeline::nodes::{HandleType, NodeInput};
 use super::code_executor_grpc::{
     code_executor_client::CodeExecutorClient, ExecuteCodeRequest, HandleType as GrpcHandleType,
 };
-use super::CodeExecutor;
+use super::CodeExecutorTrait;
 
 pub struct CodeExecutorImpl {
     client: Arc<CodeExecutorClient<Channel>>,
@@ -22,7 +22,7 @@ impl CodeExecutorImpl {
 }
 
 #[async_trait]
-impl CodeExecutor for CodeExecutorImpl {
+impl CodeExecutorTrait for CodeExecutorImpl {
     async fn execute(
         &self,
         code: &String,

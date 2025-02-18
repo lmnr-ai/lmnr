@@ -96,7 +96,7 @@ pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
     semantic_search: Arc<SemanticSearch>,
     queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
-    code_executor: Arc<dyn CodeExecutor>,
+    code_executor: Arc<CodeExecutor>,
     db: Arc<DB>,
     cache: Arc<Cache>,
 }
@@ -106,7 +106,7 @@ impl PipelineRunner {
         language_model: Arc<LanguageModelRunner>,
         semantic_search: Arc<SemanticSearch>,
         queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
-        code_executor: Arc<dyn CodeExecutor>,
+        code_executor: Arc<CodeExecutor>,
         db: Arc<DB>,
         cache: Arc<Cache>,
     ) -> Self {

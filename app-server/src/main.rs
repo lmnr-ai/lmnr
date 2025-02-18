@@ -331,20 +331,18 @@ fn main() -> anyhow::Result<()> {
                             .await
                             .unwrap(),
                     );
-                    Arc::new(semantic_search::SemanticSearch::Grpc(
+                    Arc::new(
                         semantic_search::semantic_search_impl::SemanticSearchImpl::new(
                             semantic_search_client,
-                        ),
-                    ))
+                        )
+                        .into(),
+                    )
                 } else {
-                    Arc::new(semantic_search::SemanticSearch::Mock(
-                        semantic_search::mock::MockSemanticSearch {},
-                    ))
+                    Arc::new(semantic_search::mock::MockSemanticSearch {}.into())
                 };
 
                 // == Python executor ==
-                let code_executor: Arc<dyn CodeExecutor> = if is_feature_enabled(Feature::FullBuild)
-                {
+                let code_executor: Arc<CodeExecutor> = if is_feature_enabled(Feature::FullBuild) {
                     let code_executor_url =
                         env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
                     let code_executor_client = Arc::new(
@@ -352,11 +350,14 @@ fn main() -> anyhow::Result<()> {
                             .await
                             .unwrap(),
                     );
-                    Arc::new(code_executor::code_executor_impl::CodeExecutorImpl::new(
-                        code_executor_client,
-                    ))
+                    Arc::new(
+                        code_executor::code_executor_impl::CodeExecutorImpl::new(
+                            code_executor_client,
+                        )
+                        .into(),
+                    )
                 } else {
-                    Arc::new(code_executor::mock::MockCodeExecutor {})
+                    Arc::new(code_executor::mock::MockCodeExecutor {}.into())
                 };
 
                 // == Language models ==
