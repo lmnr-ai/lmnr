@@ -151,7 +151,10 @@ pub async fn record_span_to_db(
                     span.span_id,
                     e
                 );
-                backoff::Error::Permanent(e)
+                backoff::Error::Transient {
+                    err: e,
+                    retry_after: None,
+                }
             })
     };
 

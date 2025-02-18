@@ -98,7 +98,10 @@ async fn inner_process_browser_events(
                         "Failed attempt to insert browser events. Will retry according to backoff policy. Error: {:?}",
                         e
                     );
-                    backoff::Error::Permanent(e)
+                    backoff::Error::Transient {
+                        err: e,
+                        retry_after: None,
+                    }
                 })
         };
         // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
