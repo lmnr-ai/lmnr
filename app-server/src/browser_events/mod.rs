@@ -37,13 +37,22 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
         .await
         .unwrap();
 
-    while let Some(delivery) = receiver.receive::<QueueBrowserEventMessage>().await {
+    while let Some(delivery) = receiver.receive().await {
         if let Err(e) = delivery {
             log::error!("Failed to receive message from queue: {:?}", e);
             continue;
         }
         let delivery = delivery.unwrap();
-        let message = delivery.data();
+        let acker = delivery.acker();
+        let message = match bincode::deserialize::<QueueBrowserEventMessage>(&delivery.data()) {
+            Ok(message) => message,
+            Err(e) => {
+                log::error!("Failed to deserialize message from queue: {:?}", e);
+                let _ = acker.reject(false).await;
+                continue;
+            }
+        };
+
         let project_id = message.project_id;
         let batch = message.batch;
 
@@ -118,7 +127,7 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
             .build();
         match backoff::future::retry(exponential_backoff, insert_browser_events).await {
             Ok(_) => {
-                if let Err(e) = delivery.ack().await {
+                if let Err(e) = acker.ack().await {
                     log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
                 }
             }
@@ -128,7 +137,7 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
                     e
                 );
                 // TODO: Implement proper nacks and DLX
-                if let Err(e) = delivery.reject(false).await {
+                if let Err(e) = acker.reject(false).await {
                     log::error!("Failed to reject MQ delivery (browser events): {:?}", e);
                 }
             }

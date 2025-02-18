@@ -1,14 +1,9 @@
-use std::sync::Arc;
-
-use async_trait::async_trait;
-
 use super::{
-    MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
+    MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
-
 use dashmap::DashMap;
-use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
@@ -21,59 +16,59 @@ pub struct TokioMpscReceiver {
     receiver: Receiver<Vec<u8>>,
 }
 
-pub struct TokioMpscDelivery<T> {
-    data: T,
+pub struct TokioMpscDelivery {
+    data: Vec<u8>,
 }
 
-#[async_trait]
-impl<T> MessageQueueDeliveryTrait<T> for TokioMpscDelivery<T>
-where
-    T: for<'de> Deserialize<'de> + Clone + Send + Sync,
-{
-    async fn ack(&self) -> anyhow::Result<()> {
-        Ok(())
+impl MessageQueueDeliveryTrait for TokioMpscDelivery {
+    fn acker(&self) -> MessageQueueAcker {
+        MessageQueueAcker::TokioMpscAcker
     }
 
-    async fn nack(&self, requeue: bool) -> anyhow::Result<()> {
-        if requeue {
-            Err(anyhow::anyhow!(
-                "Nack with requeue is not supported for TokioMpsc queue"
-            ))
-        } else {
-            Ok(())
-        }
-    }
-
-    async fn reject(&self, requeue: bool) -> anyhow::Result<()> {
-        if requeue {
-            Err(anyhow::anyhow!(
-                "Reject with requeue is not supported for TokioMpsc queue"
-            ))
-        } else {
-            Ok(())
-        }
-    }
-
-    fn data(&self) -> T {
-        self.data.clone()
+    fn data(self) -> Vec<u8> {
+        self.data
     }
 }
 
-#[async_trait]
+// #[async_trait]
+// impl<T> MessageQueueDeliveryTrait<T> for TokioMpscDelivery<T>
+// where
+//     T: for<'de> Deserialize<'de> + Send + Sync,
+// {
+//     async fn ack(&self) -> anyhow::Result<()> {
+//         Ok(())
+//     }
+
+//     async fn nack(&self, requeue: bool) -> anyhow::Result<()> {
+//         if requeue {
+//             Err(anyhow::anyhow!(
+//                 "Nack with requeue is not supported for TokioMpsc queue"
+//             ))
+//         } else {
+//             Ok(())
+//         }
+//     }
+
+//     async fn reject(&self, requeue: bool) -> anyhow::Result<()> {
+//         if requeue {
+//             Err(anyhow::anyhow!(
+//                 "Reject with requeue is not supported for TokioMpsc queue"
+//             ))
+//         } else {
+//             Ok(())
+//         }
+//     }
+
+//     fn data(&self) -> Arc<T> {
+//         self.data.clone()
+//     }
+// }
+
 impl MessageQueueReceiverTrait for TokioMpscReceiver {
-    async fn receive<T>(&mut self) -> Option<anyhow::Result<MessageQueueDelivery<T>>>
-    where
-        T: for<'de> Deserialize<'de> + Clone + Send + Sync,
-    {
+    async fn receive(&mut self) -> Option<anyhow::Result<MessageQueueDelivery>> {
         let payload = self.receiver.recv().await;
         match payload {
-            Some(payload) => {
-                let message = serde_json::from_slice(&payload);
-                match message {
-                    Ok(message) => Some(Ok(TokioMpscDelivery { data: message }.into())),
-                    Err(e) => Some(Err(anyhow::anyhow!("Failed to deserialize payload: {}", e))),
-                }
-            }
+            Some(payload) => Some(Ok(TokioMpscDelivery { data: payload }.into())),
             None => None,
         }
     }
@@ -95,12 +90,13 @@ impl TokioMpscQueue {
     }
 }
 
-#[async_trait]
 impl MessageQueueTrait for TokioMpscQueue {
-    async fn publish<T>(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()>
-    where
-        T: Serialize + Clone + Send + Sync,
-    {
+    async fn publish(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+    ) -> anyhow::Result<()> {
         let key = self.key(exchange, routing_key);
 
         let Some(senders) = self.senders.get(&key) else {
@@ -129,7 +125,7 @@ impl MessageQueueTrait for TokioMpscQueue {
             }
         }
 
-        let payload = serde_json::to_vec(message)?;
+        let payload = bincode::serialize(&message)?;
         senders.lock().await[max_index].send(payload).await?;
 
         Ok(())

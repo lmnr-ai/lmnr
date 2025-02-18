@@ -59,12 +59,14 @@ async fn create_session_event(
         })));
     }
 
+    let message = QueueBrowserEventMessage {
+        batch: filtered_batch,
+        project_id: project_api_key.project_id,
+    };
+
     queue
         .publish(
-            &QueueBrowserEventMessage {
-                batch: filtered_batch,
-                project_id: project_api_key.project_id,
-            },
+            &bincode::serialize(&message).unwrap(),
             BROWSER_SESSIONS_EXCHANGE,
             BROWSER_SESSIONS_ROUTING_KEY,
         )

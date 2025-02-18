@@ -250,7 +250,7 @@ impl PipelineRunner {
 
         self.queue
             .publish(
-                &parent_span_mq_message,
+                &serde_json::to_vec(&parent_span_mq_message).unwrap(),
                 OBSERVATIONS_EXCHANGE,
                 OBSERVATIONS_ROUTING_KEY,
             )
@@ -265,7 +265,7 @@ impl PipelineRunner {
 
             self.queue
                 .publish(
-                    &message_span_mq_message,
+                    &serde_json::to_vec(&message_span_mq_message).unwrap(),
                     OBSERVATIONS_EXCHANGE,
                     OBSERVATIONS_ROUTING_KEY,
                 )

@@ -59,13 +59,22 @@ async fn inner_process_queue_spans(
 
     log::info!("Started processing spans from queue");
 
-    while let Some(delivery) = receiver.receive::<RabbitMqSpanMessage>().await {
+    while let Some(delivery) = receiver.receive().await {
         if let Err(e) = delivery {
             log::error!("Failed to receive message from queue: {:?}", e);
             continue;
         }
         let delivery = delivery.unwrap();
-        let rabbitmq_span_message = delivery.data();
+        let acker = delivery.acker();
+        let rabbitmq_span_message =
+            match serde_json::from_slice::<RabbitMqSpanMessage>(&delivery.data()) {
+                Ok(rabbitmq_span_message) => rabbitmq_span_message,
+                Err(e) => {
+                    log::error!("Failed to deserialize span message: {:?}", e);
+                    let _ = acker.reject(false).await;
+                    continue;
+                }
+            };
 
         if is_feature_enabled(Feature::UsageLimit) {
             match super::limits::update_workspace_limit_exceeded_by_project_id(
@@ -84,7 +93,7 @@ async fn inner_process_queue_spans(
                 // ignore the span if the limit is exceeded
                 Ok(limits_exceeded) => {
                     if limits_exceeded.spans {
-                        let _ = delivery
+                        let _ = acker
                             .ack()
                             .await
                             .map_err(|e| log::error!("Failed to ack MQ delivery: {:?}", e));
@@ -119,7 +128,7 @@ async fn inner_process_queue_spans(
             db.clone(),
             clickhouse.clone(),
             cache.clone(),
-            delivery,
+            acker,
         )
         .await;
 

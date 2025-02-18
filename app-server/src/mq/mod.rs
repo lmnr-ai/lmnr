@@ -1,7 +1,8 @@
-use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
-use serde::{Deserialize, Serialize};
-
+use lapin::{
+    acker::Acker,
+    options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
+};
 pub mod rabbit;
 pub mod tokio_mpsc;
 
@@ -21,45 +22,74 @@ pub enum MessageQueueReceiver {
 }
 
 #[enum_dispatch]
-pub enum MessageQueueDelivery<T>
-where
-    T: for<'de> Deserialize<'de> + Clone + Send + Sync,
-{
-    Rabbit(RabbitMQDelivery<T>),
-    TokioMpsc(TokioMpscDelivery<T>),
+pub enum MessageQueueDelivery {
+    Rabbit(RabbitMQDelivery),
+    TokioMpsc(TokioMpscDelivery),
 }
 
-#[async_trait]
 #[enum_dispatch(MessageQueueReceiver)]
 pub trait MessageQueueReceiverTrait: Send + Sync {
-    async fn receive<T>(&mut self) -> Option<anyhow::Result<MessageQueueDelivery<T>>>
-    where
-        T: for<'de> Deserialize<'de> + Clone + Send + Sync;
+    async fn receive(&mut self) -> Option<anyhow::Result<MessageQueueDelivery>>;
 }
 
-#[async_trait]
-#[enum_dispatch(MessageQueueDelivery<T>)]
-pub trait MessageQueueDeliveryTrait<T>: Send + Sync
-where
-    T: for<'de> Deserialize<'de> + Clone + Send + Sync,
-{
-    async fn ack(&self) -> anyhow::Result<()>;
-    async fn nack(&self, requeue: bool) -> anyhow::Result<()>;
-    async fn reject(&self, requeue: bool) -> anyhow::Result<()>;
-    fn data(&self) -> T;
+pub enum MessageQueueAcker {
+    RabbitAcker(Acker),
+    TokioMpscAcker,
 }
 
-#[async_trait]
+impl MessageQueueAcker {
+    pub async fn ack(&self) -> anyhow::Result<()> {
+        match self {
+            Self::RabbitAcker(acker) => match acker.ack(BasicAckOptions::default()).await {
+                Ok(_) => Ok(()),
+                Err(e) => Err(anyhow::anyhow!("Failed to ack message: {}", e)),
+            },
+            Self::TokioMpscAcker => Ok(()),
+        }
+    }
+
+    #[allow(unused)]
+    pub async fn nack(&self, requeue: bool) -> anyhow::Result<()> {
+        match self {
+            Self::RabbitAcker(acker) => match acker
+                .nack(BasicNackOptions {
+                    multiple: false,
+                    requeue,
+                })
+                .await
+            {
+                Ok(_) => Ok(()),
+                Err(e) => Err(anyhow::anyhow!("Failed to nack message: {}", e)),
+            },
+            Self::TokioMpscAcker => Ok(()),
+        }
+    }
+
+    pub async fn reject(&self, requeue: bool) -> anyhow::Result<()> {
+        match self {
+            Self::RabbitAcker(acker) => match acker.reject(BasicRejectOptions { requeue }).await {
+                Ok(_) => Ok(()),
+                Err(e) => Err(anyhow::anyhow!("Failed to reject message: {}", e)),
+            },
+            Self::TokioMpscAcker => Ok(()),
+        }
+    }
+}
+
+#[enum_dispatch(MessageQueueDelivery)]
+pub trait MessageQueueDeliveryTrait: Send + Sync {
+    fn acker(&self) -> MessageQueueAcker;
+    fn data(self) -> Vec<u8>;
+}
+
 #[enum_dispatch(MessageQueue)]
 pub trait MessageQueueTrait: Send + Sync {
-    async fn publish<T>(
+    async fn publish(
         &self,
-        message: &T,
+        message: &[u8],
         exchange: &str,
         routing_key: &str,
-    ) -> anyhow::Result<()>
-    where
-        T: Serialize + Clone + Send + Sync;
+    ) -> anyhow::Result<()>;
 
     async fn get_receiver(
         &self,

@@ -1,19 +1,14 @@
-use async_trait::async_trait;
 use futures::StreamExt;
 use lapin::{
-    message::Delivery,
-    options::{
-        BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicPublishOptions,
-        BasicRejectOptions, QueueBindOptions,
-    },
+    acker::Acker,
+    options::{BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
     types::FieldTable,
     BasicProperties, Connection, Consumer,
 };
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::{
-    MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
+    MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 
@@ -25,47 +20,23 @@ pub struct RabbitMQReceiver {
     consumer: Consumer,
 }
 
-pub struct RabbitMQDelivery<T> {
-    delivery: Delivery,
-    data: T,
+pub struct RabbitMQDelivery {
+    acker: Acker,
+    data: Vec<u8>,
 }
 
-#[async_trait]
-impl<T> MessageQueueDeliveryTrait<T> for RabbitMQDelivery<T>
-where
-    T: for<'de> Deserialize<'de> + Clone + Send + Sync,
-{
-    async fn ack(&self) -> anyhow::Result<()> {
-        self.delivery.ack(BasicAckOptions::default()).await?;
-        Ok(())
+impl MessageQueueDeliveryTrait for RabbitMQDelivery {
+    fn acker(&self) -> MessageQueueAcker {
+        MessageQueueAcker::RabbitAcker(self.acker.clone())
     }
 
-    async fn nack(&self, requeue: bool) -> anyhow::Result<()> {
-        self.delivery
-            .nack(BasicNackOptions {
-                multiple: false,
-                requeue,
-            })
-            .await?;
-        Ok(())
-    }
-
-    async fn reject(&self, requeue: bool) -> anyhow::Result<()> {
-        self.delivery.reject(BasicRejectOptions { requeue }).await?;
-        Ok(())
-    }
-
-    fn data(&self) -> T {
-        self.data.clone()
+    fn data(self) -> Vec<u8> {
+        self.data
     }
 }
 
-#[async_trait]
 impl MessageQueueReceiverTrait for RabbitMQReceiver {
-    async fn receive<T>(&mut self) -> Option<anyhow::Result<MessageQueueDelivery<T>>>
-    where
-        T: for<'de> Deserialize<'de> + Clone + Send + Sync,
-    {
+    async fn receive(&mut self) -> Option<anyhow::Result<MessageQueueDelivery>> {
         if let Some(delivery) = self.consumer.next().await {
             let Ok(delivery) = delivery else {
                 return Some(Err(anyhow::anyhow!(
@@ -73,21 +44,10 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
                 )));
             };
 
-            let Ok(payload) = String::from_utf8(delivery.data.clone()) else {
-                return Some(Err(anyhow::anyhow!(
-                    "Failed to parse delivery data as UTF-8."
-                )));
-            };
-
-            let payload = serde_json::from_str::<T>(&payload);
-            match payload {
-                Ok(payload) => Some(Ok(RabbitMQDelivery {
-                    delivery,
-                    data: payload,
-                }
-                .into())),
-                Err(e) => Some(Err(anyhow::anyhow!("Failed to deserialize payload: {}", e))),
-            }
+            Some(Ok(MessageQueueDelivery::Rabbit(RabbitMQDelivery {
+                acker: delivery.acker,
+                data: delivery.data,
+            })))
         } else {
             None
         }
@@ -100,15 +60,13 @@ impl RabbitMQ {
     }
 }
 
-#[async_trait]
 impl MessageQueueTrait for RabbitMQ {
-    async fn publish<T>(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()>
-    where
-        T: Serialize + Clone + Send + Sync,
-    {
-        let payload = serde_json::to_string(message)?;
-        let payload = payload.as_bytes();
-
+    async fn publish(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+    ) -> anyhow::Result<()> {
         let channel = self.connection.create_channel().await?;
 
         channel
@@ -116,7 +74,7 @@ impl MessageQueueTrait for RabbitMQ {
                 exchange,
                 routing_key,
                 BasicPublishOptions::default(),
-                payload,
+                message,
                 BasicProperties::default(),
             )
             .await?

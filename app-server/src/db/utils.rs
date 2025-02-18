@@ -93,13 +93,13 @@ pub fn sanitize_string_for_postgres(input: &str) -> String {
         .collect::<String>()
 }
 
-pub fn sanitize_value(v: Value) -> Value {
+pub fn sanitize_value(v: &Value) -> Value {
     match v {
-        Value::String(s) => Value::String(sanitize_string_for_postgres(&s)),
-        Value::Array(arr) => Value::Array(arr.into_iter().map(sanitize_value).collect()),
+        Value::String(s) => Value::String(sanitize_string_for_postgres(s)),
+        Value::Array(arr) => Value::Array(arr.iter().map(sanitize_value).collect()),
         Value::Object(obj) => Value::Object(
-            obj.into_iter()
-                .map(|(k, v)| (sanitize_string_for_postgres(&k), sanitize_value(v)))
+            obj.iter()
+                .map(|(k, v)| (sanitize_string_for_postgres(k), sanitize_value(v)))
                 .collect(),
         ),
         _ => v.clone(),
