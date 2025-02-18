@@ -42,7 +42,11 @@ pub async fn run_evaluator(
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
 
-    let span_output = json_value_to_string(span.output.clone().unwrap_or_default());
+    let span_output = json_value_to_string(
+        span.output
+            .as_ref()
+            .unwrap_or(&serde_json::Value::String(String::from(""))),
+    );
     let label_values_map =
         serde_json::from_value::<HashMap<String, f64>>(label_class.value_map.clone())
             .map_err(|e| anyhow::anyhow!("Failed to parse label values map: {}", e))?;

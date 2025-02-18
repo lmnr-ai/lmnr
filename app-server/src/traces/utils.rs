@@ -21,12 +21,12 @@ use super::{
     spans::{SpanAttributes, SpanUsage},
 };
 
-pub fn json_value_to_string(v: Value) -> String {
+pub fn json_value_to_string(v: &Value) -> String {
     match v {
-        Value::String(s) => s,
+        Value::String(s) => s.to_string(),
         Value::Array(a) => a
             .iter()
-            .map(|v| json_value_to_string(v.clone()))
+            .map(json_value_to_string)
             .collect::<Vec<_>>()
             .join(", "),
         _ => v.to_string(),
@@ -151,15 +151,12 @@ pub async fn record_span_to_db(
                     span.span_id,
                     e
                 );
-                backoff::Error::Transient {
-                    err: e,
-                    retry_after: None,
-                }
+                backoff::Error::Permanent(e)
             })
     };
 
     // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
-    // up to 1 minute and until the total elapsed time is 5 minutes (default is 15 minutes)
+    // up to 1 minute and until the total elapsed time is 5 minutes
     // https://docs.rs/backoff/latest/backoff/default/index.html
     let exponential_backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(std::time::Duration::from_millis(500))

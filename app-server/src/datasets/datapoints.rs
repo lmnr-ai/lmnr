@@ -92,7 +92,7 @@ impl Datapoint {
         let metadata_map = self
             .metadata
             .iter()
-            .map(|(k, v)| (k.to_owned(), json_value_to_string(v.clone())))
+            .map(|(k, v)| (k.to_owned(), json_value_to_string(v)))
             .collect::<HashMap<String, String>>();
 
         let content: String = match data_map.get(index_column).unwrap() {
