@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{
     api::v1::browser_sessions::{
@@ -61,47 +59,61 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
         }
 
         // We could further tune async_insert by setting
-        //  - `async_insert_max_data_size` (bytes)
-        //  - `async_insert_busy_timeout_ms`
+        // - `async_insert_max_data_size` (bytes)
+        // - `async_insert_busy_timeout_ms`
         // These are defaulted globally to 10MiB and 1000ms respectively.
         // More: https://clickhouse.com/docs/en/optimize/asynchronous-inserts
-        let mut query = String::from(
-            "
-        INSERT INTO browser_session_events (
-            event_id, session_id, trace_id, timestamp,
-            event_type, data, project_id
-        )
-        SETTINGS async_insert = 1,
-            wait_for_async_insert = 1
-        VALUES ",
-        );
+        let query = "
+            INSERT INTO browser_session_events (
+                event_id, session_id, trace_id, timestamp,
+                event_type, data, project_id
+            )
+            SELECT
+                event_id,
+                session_id,
+                trace_id,
+                timestamp,
+                event_type,
+                data,
+                project_id
+            FROM (
+                SELECT
+                    generateUUIDv4() as event_id,
+                    ? as session_id,
+                    ? as trace_id,
+                    arr.1 as timestamp,
+                    arr.2 as event_type,
+                    arr.3 as data,
+                    ? as project_id
+                FROM (
+                    SELECT arrayJoin(arrayZip(?, ?, ?)) as arr
+                )
+            )
+            SETTINGS async_insert = 1,
+                wait_for_async_insert = 1";
 
-        let mut values = Vec::new();
+        // Prepare arrays for batch insert
+        let timestamps: Vec<String> = batch
+            .events
+            .iter()
+            .map(|e| e.timestamp.to_string())
+            .collect();
+        let event_types: Vec<String> = batch
+            .events
+            .iter()
+            .map(|e| e.event_type.to_string())
+            .collect();
+        let event_data: Vec<&str> = batch.events.iter().map(|e| e.data.get()).collect();
 
-        for (i, event) in batch.events.iter().enumerate() {
-            if i > 0 {
-                query.push_str(", ");
-            }
-            query.push_str("(?, ?, ?, ?, ?, ?, ?)");
+        let final_query = clickhouse
+            .query(query)
+            .bind(batch.session_id.to_string())
+            .bind(batch.trace_id.to_string())
+            .bind(project_id.to_string())
+            .bind(timestamps)
+            .bind(event_types)
+            .bind(event_data);
 
-            // Add each value individually
-            values.extend_from_slice(&[
-                Uuid::new_v4().to_string(),
-                batch.session_id.to_string(),
-                batch.trace_id.to_string(),
-                event.timestamp.to_string(),
-                event.event_type.to_string(),
-                event.data.to_string(),
-                project_id.to_string(),
-            ]);
-        }
-
-        // Execute batch insert with individual bindings
-        let mut query_with_bindings = clickhouse.query(&query);
-        for value in values {
-            query_with_bindings = query_with_bindings.bind(value);
-        }
-        let final_query = query_with_bindings;
         let insert_browser_events = || async {
             final_query.clone().execute().await
                 .map_err(|e| {
