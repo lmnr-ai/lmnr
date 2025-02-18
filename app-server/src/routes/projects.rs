@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     db::{self, DB},
     routes::ResponseResult,
-    semantic_search::SemanticSearch,
+    semantic_search::{SemanticSearch, SemanticSearchTrait},
 };
 
 #[derive(Serialize)]
@@ -45,7 +45,7 @@ async fn get_project(project_id: web::Path<Uuid>, db: web::Data<DB>) -> Response
 async fn delete_project(
     project_id: web::Path<Uuid>,
     db: web::Data<DB>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
 

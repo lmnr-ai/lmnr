@@ -13,7 +13,7 @@ use crate::{
     },
     db::{self, datasets, DB},
     routes::ResponseResult,
-    semantic_search::SemanticSearch,
+    semantic_search::{SemanticSearch, SemanticSearchTrait},
 };
 
 const BATCH_SIZE: usize = 50;
@@ -22,7 +22,7 @@ const BATCH_SIZE: usize = 50;
 async fn delete_dataset(
     db: web::Data<DB>,
     path: web::Path<(Uuid, Uuid)>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
 
@@ -49,7 +49,7 @@ async fn upload_datapoint_file(
     payload: Multipart,
     path: web::Path<(Uuid, Uuid)>,
     db: web::Data<DB>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let db = db.into_inner();
@@ -89,7 +89,7 @@ struct CreateDatapointsRequest {
 async fn create_datapoint_embeddings(
     path: web::Path<(Uuid, Uuid)>,
     req: web::Json<CreateDatapointsRequest>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let req = req.into_inner();
@@ -130,7 +130,7 @@ struct UpdateDatapointRequest {
 async fn update_datapoint_embeddings(
     path: web::Path<(Uuid, Uuid, Uuid)>,
     req: web::Json<UpdateDatapointRequest>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();
@@ -173,7 +173,7 @@ pub struct DeleteDatapointRequest {
 async fn delete_datapoint_embeddings(
     path: web::Path<(Uuid, Uuid)>,
     req: web::Json<DeleteDatapointRequest>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let datapoint_ids = req.into_inner().ids;
@@ -200,7 +200,7 @@ async fn delete_datapoint_embeddings(
 async fn delete_all_datapoints(
     path: web::Path<(Uuid, Uuid)>,
     db: web::Data<DB>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
 
@@ -230,7 +230,7 @@ async fn index_dataset(
     db: web::Data<DB>,
     path: web::Path<(Uuid, Uuid)>,
     request: web::Json<IndexDatasetRequest>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     let (project_id, dataset_id) = path.into_inner();
     let index_column = &request.index_column;

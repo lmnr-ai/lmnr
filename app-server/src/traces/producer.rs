@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     db::{events::Event, spans::Span},
-    mq::MessageQueue,
+    mq::{MessageQueue, MessageQueueTrait},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
@@ -18,14 +18,11 @@ use crate::{
 use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
 
 // TODO: Implement partial_success
-pub async fn push_spans_to_queue<Q>(
+pub async fn push_spans_to_queue(
     request: ExportTraceServiceRequest,
     project_id: Uuid,
-    queue: Arc<Q>,
-) -> Result<ExportTraceServiceResponse>
-where
-    Q: MessageQueue<RabbitMqSpanMessage> + Send + Sync + ?Sized + 'static,
-{
+    queue: Arc<MessageQueue>,
+) -> Result<ExportTraceServiceResponse> {
     for resource_span in request.resource_spans {
         for scope_span in resource_span.scope_spans {
             for otel_span in scope_span.spans {
@@ -58,7 +55,7 @@ where
 
                 queue
                     .publish(
-                        &rabbitmq_span_message,
+                        &serde_json::to_vec(&rabbitmq_span_message).unwrap(),
                         OBSERVATIONS_EXCHANGE,
                         OBSERVATIONS_ROUTING_KEY,
                     )

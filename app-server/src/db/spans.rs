@@ -62,12 +62,12 @@ pub struct Span {
 
 pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
     let sanitized_input = match &span.input {
-        Some(v) => Some(sanitize_value(v.clone())),
+        Some(v) => Some(sanitize_value(v)),
         None => None,
     };
 
     let sanitized_output = match &span.output {
-        Some(v) => Some(sanitize_value(v.clone())),
+        Some(v) => Some(sanitize_value(v)),
         None => None,
     };
 

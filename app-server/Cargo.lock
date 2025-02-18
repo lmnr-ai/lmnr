@@ -506,7 +506,6 @@ dependencies = [
  "tonic-build",
  "url",
  "uuid",
- "zstd",
 ]
 
 [[package]]

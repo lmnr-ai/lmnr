@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 
+use in_memory::InMemoryCache;
+use redis::RedisCache;
+
 pub mod in_memory;
 pub mod keys;
 pub mod redis;
-
-pub use in_memory::InMemoryCache;
-pub use redis::RedisCache;
 
 #[derive(thiserror::Error, Debug)]
 pub enum CacheError {

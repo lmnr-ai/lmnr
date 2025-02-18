@@ -12,22 +12,19 @@ use crate::{
     cache::Cache,
     db::{spans::Span, DB},
     features::{is_feature_enabled, Feature},
-    mq::MessageQueue,
+    mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
     pipeline::runner::PipelineRunner,
     storage::Storage,
 };
 
-pub async fn process_queue_spans<S, Q>(
+pub async fn process_queue_spans(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    queue: Arc<Q>,
+    queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
-    storage: Arc<S>,
-) where
-    S: Storage + ?Sized,
-    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
-{
+    storage: Arc<Storage>,
+) {
     loop {
         inner_process_queue_spans(
             pipeline_runner.clone(),
@@ -42,17 +39,14 @@ pub async fn process_queue_spans<S, Q>(
     }
 }
 
-async fn inner_process_queue_spans<S, Q>(
+async fn inner_process_queue_spans(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    queue: Arc<Q>,
+    queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
-    storage: Arc<S>,
-) where
-    S: Storage + ?Sized,
-    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
-{
+    storage: Arc<Storage>,
+) {
     // Safe to unwrap because we checked is_feature_enabled above
     let mut receiver = queue
         .get_receiver(
@@ -71,7 +65,16 @@ async fn inner_process_queue_spans<S, Q>(
             continue;
         }
         let delivery = delivery.unwrap();
-        let rabbitmq_span_message = delivery.data();
+        let acker = delivery.acker();
+        let rabbitmq_span_message =
+            match serde_json::from_slice::<RabbitMqSpanMessage>(&delivery.data()) {
+                Ok(rabbitmq_span_message) => rabbitmq_span_message,
+                Err(e) => {
+                    log::error!("Failed to deserialize span message: {:?}", e);
+                    let _ = acker.reject(false).await;
+                    continue;
+                }
+            };
 
         if is_feature_enabled(Feature::UsageLimit) {
             match super::limits::update_workspace_limit_exceeded_by_project_id(
@@ -90,7 +93,7 @@ async fn inner_process_queue_spans<S, Q>(
                 // ignore the span if the limit is exceeded
                 Ok(limits_exceeded) => {
                     if limits_exceeded.spans {
-                        let _ = delivery
+                        let _ = acker
                             .ack()
                             .await
                             .map_err(|e| log::error!("Failed to ack MQ delivery: {:?}", e));
@@ -125,7 +128,7 @@ async fn inner_process_queue_spans<S, Q>(
             db.clone(),
             clickhouse.clone(),
             cache.clone(),
-            delivery,
+            acker,
         )
         .await;
 

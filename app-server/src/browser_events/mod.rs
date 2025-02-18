@@ -1,20 +1,25 @@
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     api::v1::browser_sessions::{
-        BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
+        EventBatch, BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
     },
-    mq,
+    mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
 };
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct QueueBrowserEventMessage {
+    pub batch: EventBatch,
+    pub project_id: Uuid,
+}
 
 pub async fn process_browser_events(
     clickhouse: clickhouse::Client,
-    browser_events_message_queue: Arc<
-        dyn mq::MessageQueue<crate::api::v1::browser_sessions::QueueBrowserEventMessage>,
-    >,
+    browser_events_message_queue: Arc<MessageQueue>,
 ) {
     loop {
         inner_process_browser_events(clickhouse.clone(), browser_events_message_queue.clone())
@@ -22,10 +27,7 @@ pub async fn process_browser_events(
     }
 }
 
-async fn inner_process_browser_events(
-    clickhouse: clickhouse::Client,
-    queue: Arc<dyn mq::MessageQueue<crate::api::v1::browser_sessions::QueueBrowserEventMessage>>,
-) {
+async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc<MessageQueue>) {
     let mut receiver = queue
         .get_receiver(
             BROWSER_SESSIONS_QUEUE,
@@ -41,7 +43,16 @@ async fn inner_process_browser_events(
             continue;
         }
         let delivery = delivery.unwrap();
-        let message = delivery.data();
+        let acker = delivery.acker();
+        let message = match serde_json::from_slice::<QueueBrowserEventMessage>(&delivery.data()) {
+            Ok(message) => message,
+            Err(e) => {
+                log::error!("Failed to deserialize message from queue: {:?}", e);
+                let _ = acker.reject(false).await;
+                continue;
+            }
+        };
+
         let project_id = message.project_id;
         let batch = message.batch;
 
@@ -50,47 +61,61 @@ async fn inner_process_browser_events(
         }
 
         // We could further tune async_insert by setting
-        //  - `async_insert_max_data_size` (bytes)
-        //  - `async_insert_busy_timeout_ms`
+        // - `async_insert_max_data_size` (bytes)
+        // - `async_insert_busy_timeout_ms`
         // These are defaulted globally to 10MiB and 1000ms respectively.
         // More: https://clickhouse.com/docs/en/optimize/asynchronous-inserts
-        let mut query = String::from(
-            "
-        INSERT INTO browser_session_events (
-            event_id, session_id, trace_id, timestamp,
-            event_type, data, project_id
-        )
-        SETTINGS async_insert = 1,
-            wait_for_async_insert = 1
-        VALUES ",
-        );
+        let query = "
+            INSERT INTO browser_session_events (
+                event_id, session_id, trace_id, timestamp,
+                event_type, data, project_id
+            )
+            SELECT
+                event_id,
+                session_id,
+                trace_id,
+                timestamp,
+                event_type,
+                data,
+                project_id
+            FROM (
+                SELECT
+                    generateUUIDv4() as event_id,
+                    ? as session_id,
+                    ? as trace_id,
+                    arr.1 as timestamp,
+                    arr.2 as event_type,
+                    arr.3 as data,
+                    ? as project_id
+                FROM (
+                    SELECT arrayJoin(arrayZip(?, ?, ?)) as arr
+                )
+            )
+            SETTINGS async_insert = 1,
+                wait_for_async_insert = 1";
 
-        let mut values = Vec::new();
+        // Prepare arrays for batch insert
+        let timestamps: Vec<String> = batch
+            .events
+            .iter()
+            .map(|e| e.timestamp.to_string())
+            .collect();
+        let event_types: Vec<String> = batch
+            .events
+            .iter()
+            .map(|e| e.event_type.to_string())
+            .collect();
+        let event_data: Vec<&str> = batch.events.iter().map(|e| e.data.get()).collect();
 
-        for (i, event) in batch.events.iter().enumerate() {
-            if i > 0 {
-                query.push_str(", ");
-            }
-            query.push_str("(?, ?, ?, ?, ?, ?, ?)");
+        let final_query = clickhouse
+            .query(query)
+            .bind(batch.session_id.to_string())
+            .bind(batch.trace_id.to_string())
+            .bind(project_id.to_string())
+            .bind(timestamps)
+            .bind(event_types)
+            .bind(event_data);
 
-            // Add each value individually
-            values.extend_from_slice(&[
-                Uuid::new_v4().to_string(),
-                batch.session_id.to_string(),
-                batch.trace_id.to_string(),
-                event.timestamp.to_string(),
-                event.event_type.to_string(),
-                event.data.to_string(),
-                project_id.to_string(),
-            ]);
-        }
-
-        // Execute batch insert with individual bindings
-        let mut query_with_bindings = clickhouse.query(&query);
-        for value in values {
-            query_with_bindings = query_with_bindings.bind(value);
-        }
-        let final_query = query_with_bindings;
         let insert_browser_events = || async {
             final_query.clone().execute().await
                 .map_err(|e| {
@@ -116,7 +141,7 @@ async fn inner_process_browser_events(
             .build();
         match backoff::future::retry(exponential_backoff, insert_browser_events).await {
             Ok(_) => {
-                if let Err(e) = delivery.ack().await {
+                if let Err(e) = acker.ack().await {
                     log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
                 }
             }
@@ -126,7 +151,7 @@ async fn inner_process_browser_events(
                     e
                 );
                 // TODO: Implement proper nacks and DLX
-                if let Err(e) = delivery.reject(false).await {
+                if let Err(e) = acker.reject(false).await {
                     log::error!("Failed to reject MQ delivery (browser events): {:?}", e);
                 }
             }
