@@ -17,12 +17,12 @@ interface ModelSelectProps {
   onChange: (id: `${Provider}:${string}`) => void;
 }
 
-const LLMSelect = ({ value, disabled, onChange }: ModelSelectProps) => {
+const LlmSelect = ({ value, disabled, onChange }: ModelSelectProps) => {
   const model = useMemo(() => providers.flatMap((provider) => provider.models).find((v) => v.id === value), [value]);
   const [open, setOpen] = useState(false);
 
   const { projectId } = useProjectContext();
-  const { data: providerApiKeys } = useSWR<ProviderApiKey[]>(
+  const { data: providerApiKeys, isLoading } = useSWR<ProviderApiKey[]>(
     `/api/projects/${projectId}/provider-api-keys`,
     swrFetcher
   );
@@ -32,7 +32,7 @@ const LLMSelect = ({ value, disabled, onChange }: ModelSelectProps) => {
 
   return (
     <>
-      {model && !isProviderKeySet(model.id.split(":")[0]) && (
+      {model && !isLoading && !isProviderKeySet(model.id.split(":")[0]) && (
         <div className="mt-2 text-destructive text-sm">
           API key for {model.id} is not set. Please set it in the{" "}
           <Link href={`/project/${projectId}/settings`} className="underline">
@@ -44,7 +44,7 @@ const LLMSelect = ({ value, disabled, onChange }: ModelSelectProps) => {
       <Popover open={open} onOpenChange={setOpen} modal>
         <PopoverTrigger asChild disabled={disabled}>
           <Button variant="outline" className="justify-between">
-            {model?.name ?? "-"}
+            {model?.id ?? "-"}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -65,7 +65,7 @@ const LLMSelect = ({ value, disabled, onChange }: ModelSelectProps) => {
                       }}
                     >
                       <Check className={value === model.id ? "opacity-100" : "opacity-0"} />
-                      {provider.provider}:{model.name}
+                      {model.id}
                     </CommandItem>
                   ))
                 )}
@@ -78,4 +78,4 @@ const LLMSelect = ({ value, disabled, onChange }: ModelSelectProps) => {
   );
 };
 
-export default LLMSelect;
+export default LlmSelect;

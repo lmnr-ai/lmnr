@@ -1,14 +1,16 @@
 import { CoreMessage, ImagePart, TextPart } from "ai";
-import { CircleMinus, Image as IconImage } from "lucide-react";
+import { Image as IconImage, X } from "lucide-react";
 import Image from "next/image";
 import { Controller, FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
 
-import { PlaygroundForm } from "@/components/playground/playground";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Provider } from "@/lib/pipeline/types";
+import { PlaygroundForm } from "@/lib/playground/types";
+
+const buttonClassName = "size-fit p-[1px] transition-all duration-200 opacity-0 group-hover:opacity-100";
 
 const ContentPart = ({
   parentIndex,
@@ -35,13 +37,13 @@ const ContentPart = ({
                   <IconMessage className="size-3" />
                 </span>
                 <Input
-                  placeholder="Enter message"
+                  placeholder="Enter text message"
                   {...register(`messages.${parentIndex}.content.${index}.text` as const)}
                   className="border-none p-0 focus-visible:ring-0 h-fit rounded-none"
                 />
                 {fields.length > 1 && (
-                  <Button onClick={() => remove(index)} className="size-fit" variant="ghost" size="icon">
-                    <CircleMinus className="text-gray-400" size={16} />
+                  <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                    <X className="text-gray-400" size={12} />
                   </Button>
                 )}
               </div>
@@ -54,20 +56,16 @@ const ContentPart = ({
                   <IconImage className="size-3" />
                 </span>
                 <DefaultTextarea
-                  placeholder="Enter message"
+                  placeholder="Image URL, or base64 image"
                   {...register(`messages.${parentIndex}.content.${index}.image` as const)}
                   className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none"
                 />
-                <Image
-                  className="self-start object-cover"
-                  width={24}
-                  height={24}
-                  alt="img"
-                  src={part.image as string}
-                />
+                {typeof part.image === "string" && part.image && (
+                  <Image className="self-start object-cover" width={24} height={24} alt="img" src={part.image} />
+                )}
                 {fields.length > 1 && (
-                  <Button onClick={() => remove(index)} className="size-fit" variant="ghost" size="icon">
-                    <CircleMinus className="text-gray-400" size={16} />
+                  <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                    <X className="text-gray-400" size={12} />
                   </Button>
                 )}
               </div>
@@ -103,7 +101,7 @@ const MessageParts = ({ index, fields, remove }: MessagePartsProps) => {
                   <IconMessage className="size-3" />
                 </span>
                 <Input
-                  placeholder="Enter message"
+                  placeholder="Enter text message"
                   onChange={onChange}
                   value={value}
                   className="border-none p-0 focus-visible:ring-0 h-fit rounded-none"

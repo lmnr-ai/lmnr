@@ -1,39 +1,23 @@
 "use client";
-import { CoreAssistantMessage, CoreSystemMessage, CoreUserMessage } from "ai";
 import { Loader2, PlayIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Controller, FormProvider, SubmitHandler, useForm } from "react-hook-form";
 
 import Messages from "@/components/playground/messages";
-import { Provider } from "@/lib/pipeline/types";
-import { Playground as PlaygroundType } from "@/lib/playground/types";
+import { useToast } from "@/lib/hooks/use-toast";
+import { Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
+import { streamReader } from "@/lib/utils";
 
 import { Button } from "../ui/button";
 import Formatter from "../ui/formatter";
 import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
-import LLMSelect from "./messages/LLMSelect";
-
-export interface PlaygroundForm {
-  model: `${Provider}:${string}`;
-  messages: (CoreSystemMessage | CoreUserMessage | CoreAssistantMessage)[];
-}
-
-const mockMessages: PlaygroundForm["messages"] = [
-  {
-    role: "user",
-    content: [
-      {
-        type: "text",
-        text: "please explain what is on the image?",
-      },
-    ],
-  },
-];
+import LlmSelect from "./messages/llm-select";
 
 export default function Playground({ playground }: { playground: PlaygroundType }) {
   const params = useParams();
+  const { toast } = useToast();
 
   const [inputs, setInputs] = useState<string>("{}");
   const [output, setOutput] = useState<string>("");
@@ -54,7 +38,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         }),
       })
         .then((res) => res.json())
-        .then((data) => {
+        .then(() => {
           setIsUpdating(false);
         });
     }, 200);
@@ -64,11 +48,10 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     };
   }, [params?.projectId, playground.id, playground.modelId, playground.promptMessages]);
 
-  // @ts-ignore -- todo: fix deep-recursion typing issue
   const methods = useForm<PlaygroundForm>({
     defaultValues: {
       model: "openai:gpt-4o-mini",
-      messages: mockMessages,
+      messages: [],
     },
   });
 
@@ -84,20 +67,17 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         }),
       });
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let output = "";
+      const stream = response.body?.pipeThrough(new TextDecoderStream());
 
-      while (true) {
-        const { done, value } = await reader!.read();
-        if (done) break;
+      if (!stream) return;
 
-        const text = decoder.decode(value);
-        output += text;
-        setOutput(output);
-      }
+      await streamReader(stream, (chunk) => {
+        setOutput((prev) => prev + chunk);
+      });
     } catch (e) {
-      console.error(e);
+      if (e instanceof Error) {
+        toast({ title: "Error occured.", variant: "destructive", description: e.message });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -114,7 +94,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
             <div className="flex flex-col gap-2"></div>
             <FormProvider {...methods}>
               <Controller
-                render={({ field: { value, onChange } }) => <LLMSelect value={value} onChange={onChange} />}
+                render={({ field: { value, onChange } }) => <LlmSelect value={value} onChange={onChange} />}
                 name="model"
                 control={control}
               />

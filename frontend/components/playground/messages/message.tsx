@@ -4,10 +4,11 @@ import { CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-re
 import { Controller, useFieldArray, UseFieldArrayReturn, useFormContext } from "react-hook-form";
 
 import MessageParts from "@/components/playground/messages/message-parts";
-import { PlaygroundForm } from "@/components/playground/playground";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Provider } from "@/lib/pipeline/types";
+import { PlaygroundForm } from "@/lib/playground/types";
 
 interface MessageProps {
   insert: UseFieldArrayReturn<PlaygroundForm, "messages">["insert"];
@@ -36,6 +37,8 @@ const defaultImagePart: ImagePart = {
   image: "",
 };
 
+const buttonClassName =
+  "size-fit p-[5px] bg-muted/50 transition-opacity duration-200 opacity-0 group-hover:opacity-100";
 const Message = ({ insert, remove, index, deletable = true }: MessageProps) => {
   const { control } = useFormContext<{
     model: `${Provider}:${string}`;
@@ -52,7 +55,7 @@ const Message = ({ insert, remove, index, deletable = true }: MessageProps) => {
   });
 
   return (
-    <div className="px-2 py-3 rounded-sm border-[1px] bg-muted/50">
+    <div className="px-2 py-3 rounded-md border-[1px] bg-muted/50 group">
       <div className="flex items-center gap-1">
         <Controller
           render={({ field: { value, onChange } }) => (
@@ -72,19 +75,44 @@ const Message = ({ insert, remove, index, deletable = true }: MessageProps) => {
           name={`messages.${index}.role`}
           control={control}
         />
-        <Button onClick={() => append(defaultTextPart)} className="size-fit" variant="ghost" size="icon">
-          <MessageCirclePlus size={16} />
-        </Button>
-        <Button onClick={() => append(defaultImagePart)} className="size-fit" variant="ghost" size="icon">
-          <ImagePlus size={16} />
-        </Button>
-        <Button onClick={() => insert(index + 1, defaultMessage)} className="size-fit" variant="ghost" size="icon">
-          <CirclePlus size={16} />
-        </Button>
+        <Tooltip>
+          <TooltipContent>Add text message part</TooltipContent>
+          <TooltipTrigger asChild>
+            <Button onClick={() => append(defaultTextPart)} className={buttonClassName} variant="outline" size="icon">
+              <MessageCirclePlus size={12} />
+            </Button>
+          </TooltipTrigger>
+        </Tooltip>
+        <Tooltip>
+          <TooltipContent>Add image message part</TooltipContent>
+          <TooltipTrigger asChild>
+            <Button onClick={() => append(defaultImagePart)} className={buttonClassName} variant="outline" size="icon">
+              <ImagePlus size={12} />
+            </Button>
+          </TooltipTrigger>
+        </Tooltip>
+        <Tooltip>
+          <TooltipContent>Add message</TooltipContent>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => insert(index + 1, defaultMessage)}
+              className={buttonClassName}
+              variant="outline"
+              size="icon"
+            >
+              <CirclePlus className="text-muted-foreground" size={12} />
+            </Button>
+          </TooltipTrigger>
+        </Tooltip>
         {deletable && (
-          <Button onClick={() => remove(index)} className="size-fit" variant="ghost" size="icon">
-            <CircleMinus size={16} />
-          </Button>
+          <Tooltip>
+            <TooltipContent>Remove message</TooltipContent>
+            <TooltipTrigger asChild>
+              <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                <CircleMinus className="text-muted-foreground" size={12} />
+              </Button>
+            </TooltipTrigger>
+          </Tooltip>
         )}
       </div>
       <MessageParts remove={contentRemove} fields={fields} index={index} />

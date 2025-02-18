@@ -1,7 +1,7 @@
 import { useFieldArray, useFormContext } from "react-hook-form";
 
 import Message from "@/components/playground/messages/message";
-import { PlaygroundForm } from "@/components/playground/playground";
+import { PlaygroundForm } from "@/lib/playground/types";
 
 const Messages = () => {
   const { control } = useFormContext<PlaygroundForm>();
@@ -11,9 +11,9 @@ const Messages = () => {
   });
 
   return (
-    <div className="flex flex-col gap-2 p-2 border-[1px] rounded-sm">
+    <div className="flex flex-col gap-2 p-2 border-[1px] rounded-md">
       {fields.map((message, index) => (
-        <Message key={message.id} index={index} insert={insert} remove={remove} />
+        <Message deletable={fields.length > 1} key={message.id} index={index} insert={insert} remove={remove} />
       ))}
     </div>
   );
