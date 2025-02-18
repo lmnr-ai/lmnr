@@ -2,20 +2,14 @@ export type WorkspaceStats = {
   tierName: string;
   seatsIncludedInTier: number;
   totalSpans: number;
-  totalEvents: number;
   spansThisMonth: number;
-  eventsThisMonth: number;
   spansLimit: number;
-  eventsLimit: number;
   spansOverLimit: number;
   spansOverLimitCost: number;
-  eventsOverLimit: number;
-  eventsOverLimitCost: number;
   members: number;
   membersLimit: number;
-
   resetTime: string;
-  storageLimit: number; // in MiB
+  // storageLimit: number; // in MiB
 };
 
 export type StorageStats = {

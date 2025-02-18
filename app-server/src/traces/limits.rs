@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
@@ -9,13 +8,8 @@ use crate::{
         keys::{PROJECT_CACHE_KEY, WORKSPACE_LIMITS_CACHE_KEY},
         Cache, CacheTrait,
     },
-    db::{self, projects::Project, DB},
+    db::{self, projects::Project, stats::WorkspaceLimitsExceeded, DB},
 };
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct WorkspaceLimitsExceeded {
-    pub spans: bool,
-}
 
 pub async fn get_workspace_limit_exceeded_by_project_id(
     db: Arc<DB>,
@@ -29,12 +23,8 @@ pub async fn get_workspace_limit_exceeded_by_project_id(
     match cache_res {
         Ok(Some(workspace_limits_exceeded)) => Ok(workspace_limits_exceeded),
         Ok(None) | Err(_) => {
-            let workspace_stats = db::stats::get_workspace_stats(&db.pool, &workspace_id).await?;
-            let is_free_tier = workspace_stats.tier_name.to_lowercase().trim() == "free";
-            let workspace_limits_exceeded = WorkspaceLimitsExceeded {
-                spans: workspace_stats.spans_this_month >= workspace_stats.spans_limit
-                    && is_free_tier,
-            };
+            let workspace_limits_exceeded =
+                db::stats::is_workspace_over_limit(&db.pool, &workspace_id).await?;
             let _ = cache
                 .insert::<WorkspaceLimitsExceeded>(&cache_key, workspace_limits_exceeded.clone())
                 .await;
@@ -62,14 +52,11 @@ pub async fn update_workspace_limit_exceeded_by_workspace_id(
     workspace_id: Uuid,
 ) -> Result<WorkspaceLimitsExceeded> {
     let cache_key = format!("{WORKSPACE_LIMITS_CACHE_KEY}:{workspace_id}");
-    let workspace_stats = db::stats::get_workspace_stats(&db.pool, &workspace_id).await?;
-    let is_free_tier = workspace_stats.tier_name.to_lowercase().trim() == "free";
-    let workspace_limits_exceeded = WorkspaceLimitsExceeded {
-        spans: workspace_stats.spans_this_month >= workspace_stats.spans_limit && is_free_tier,
-    };
+    let workspace_limits_exceeded =
+        db::stats::is_workspace_over_limit(&db.pool, &workspace_id).await?;
     let _ = cache
         .insert::<WorkspaceLimitsExceeded>(&cache_key, workspace_limits_exceeded.clone())
-        .await?;
+        .await;
 
     Ok(workspace_limits_exceeded)
 }
