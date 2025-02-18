@@ -112,7 +112,7 @@ pub struct ChatChunkChoice {
 #[derive(Debug, Deserialize)]
 pub struct ChatCompletionChunk {
     pub choices: Vec<ChatChunkChoice>,
-    #[serde(default)] // TODO: seems like this `default` is not needed
+    #[serde(default)]
     pub model: Option<String>,
 }
 

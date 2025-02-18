@@ -46,7 +46,6 @@ pub async fn process_traces(
         )
         .await?;
 
-        // TODO: do the same for events
         if limits_exceeded.spans {
             return Ok(HttpResponse::Forbidden().json("Workspace span limit exceeded"));
         }

@@ -22,7 +22,7 @@ impl InMemoryCache {
 impl CacheTrait for InMemoryCache {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>
     where
-        T: for<'de> Deserialize<'de> + Send + Sync + 'static,
+        T: for<'de> Deserialize<'de> + Send + Sync,
     {
         let Some(bytes) = self.cache.get(key).await else {
             return Ok(None);
@@ -34,7 +34,7 @@ impl CacheTrait for InMemoryCache {
 
     async fn insert<T>(&self, key: &str, value: T) -> Result<(), CacheError>
     where
-        T: Serialize + Send + Sync + 'static,
+        T: Serialize + Send + Sync,
     {
         let bytes = serde_json::to_vec(&value).map_err(|e| CacheError::SerDeError(e))?;
         self.cache.insert(String::from(key), bytes).await;

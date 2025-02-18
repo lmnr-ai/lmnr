@@ -21,13 +21,8 @@ export default function WorkspaceUsage({
 }: WorkspaceUsageProps) {
   const router = useRouter();
 
-  const members = workspaceStats?.members ?? 0;
-  const membersLimit = workspaceStats?.membersLimit ?? 1;
   const spansThisMonth = workspaceStats?.spansThisMonth ?? 0;
   const spansLimit = workspaceStats?.spansLimit ?? 1;
-  const seatsIncludedInTier = workspaceStats?.seatsIncludedInTier ?? 1;
-
-  const tierName = workspaceStats.tierName;
   const resetTime = workspaceStats.resetTime;
 
   return (

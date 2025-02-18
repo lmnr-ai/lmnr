@@ -27,7 +27,7 @@ impl RedisCache {
 impl CacheTrait for RedisCache {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>
     where
-        T: for<'de> Deserialize<'de> + Send + Sync + 'static,
+        T: for<'de> Deserialize<'de> + Send + Sync,
     {
         let result: RedisResult<Vec<u8>> = self.connection.clone().get(key).await;
         match result {
@@ -52,7 +52,7 @@ impl CacheTrait for RedisCache {
 
     async fn insert<T>(&self, key: &str, value: T) -> Result<(), CacheError>
     where
-        T: Serialize + Send + Sync + 'static,
+        T: Serialize + Send + Sync,
     {
         let bytes = match serde_json::to_vec(&value) {
             Ok(bytes) => bytes,

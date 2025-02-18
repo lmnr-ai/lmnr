@@ -108,22 +108,6 @@ async fn add_user_to_workspace(
         }
     }
 
-    if is_feature_enabled(Feature::UsageLimit) {
-        let limits = stats::get_workspace_stats(&db.pool, &workspace_id).await?;
-        let user_limit = limits.members_limit;
-        let num_users = limits.members;
-
-        if num_users >= user_limit {
-            return Err(workspace_error_to_http_error(
-                WorkspaceError::LimitReached {
-                    entity: "users".to_string(),
-                    limit: user_limit,
-                    usage: num_users,
-                },
-            ));
-        }
-    }
-
     let owned_workspaces = db::workspace::get_owned_workspaces(&db.pool, &req_user.id).await?;
     if !owned_workspaces.iter().any(|w| w.id == workspace_id) {
         return Err(workspace_error_to_http_error(WorkspaceError::NotAllowed));

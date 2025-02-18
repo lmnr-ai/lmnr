@@ -28,9 +28,9 @@ pub enum Cache {
 pub trait CacheTrait: Sync + Send {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>
     where
-        T: for<'de> Deserialize<'de> + Send + Sync + 'static;
+        T: for<'de> Deserialize<'de> + Send + Sync;
     async fn insert<T>(&self, key: &str, value: T) -> Result<(), CacheError>
     where
-        T: Serialize + Send + Sync + 'static;
+        T: Serialize + Send + Sync;
     async fn remove(&self, key: &str) -> Result<(), CacheError>;
 }

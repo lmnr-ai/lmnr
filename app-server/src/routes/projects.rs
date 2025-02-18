@@ -18,8 +18,6 @@ struct GetProjectResponse {
     workspace_id: Uuid,
     spans_this_month: i64,
     spans_limit: i64,
-    events_this_month: i64,
-    events_limit: i64,
     is_free_tier: bool,
 }
 
@@ -37,8 +35,6 @@ async fn get_project(project_id: web::Path<Uuid>, db: web::Data<DB>) -> Response
         workspace_id: project.workspace_id,
         spans_this_month: workspace_stats.spans_this_month,
         spans_limit: workspace_stats.spans_limit,
-        events_this_month: workspace_stats.events_this_month,
-        events_limit: workspace_stats.events_limit,
         is_free_tier: workspace_stats.tier_name.to_lowercase().trim() == "free",
     };
 
