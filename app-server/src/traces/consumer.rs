@@ -17,15 +17,14 @@ use crate::{
     storage::Storage,
 };
 
-pub async fn process_queue_spans<S, Q>(
+pub async fn process_queue_spans<Q>(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<Q>,
     clickhouse: clickhouse::Client,
-    storage: Arc<S>,
+    storage: Arc<Storage>,
 ) where
-    S: Storage + ?Sized,
     Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
 {
     loop {
@@ -42,15 +41,14 @@ pub async fn process_queue_spans<S, Q>(
     }
 }
 
-async fn inner_process_queue_spans<S, Q>(
+async fn inner_process_queue_spans<Q>(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<Q>,
     clickhouse: clickhouse::Client,
-    storage: Arc<S>,
+    storage: Arc<Storage>,
 ) where
-    S: Storage + ?Sized,
     Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
 {
     // Safe to unwrap because we checked is_feature_enabled above

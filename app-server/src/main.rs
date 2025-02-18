@@ -241,7 +241,7 @@ fn main() -> anyhow::Result<()> {
     let cache_for_http = cache.clone();
     let spans_mq_for_http = spans_message_queue.clone();
 
-    // == HTTP server ==
+    // == HTTP server and listener workers ==
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
         .spawn(move || {
@@ -255,16 +255,16 @@ fn main() -> anyhow::Result<()> {
                     .await;
 
                 // == Storage ==
-                let storage: Arc<dyn Storage> = if is_feature_enabled(Feature::Storage) {
+                let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
                     let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
                     let s3_storage = storage::s3::S3Storage::new(
                         s3_client,
                         env::var("S3_TRACE_PAYLOADS_BUCKET")
                             .expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
                     );
-                    Arc::new(s3_storage)
+                    Arc::new(s3_storage.into())
                 } else {
-                    Arc::new(MockStorage {})
+                    Arc::new(MockStorage {}.into())
                 };
 
                 // == Chunkers ==

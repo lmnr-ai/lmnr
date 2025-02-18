@@ -5,7 +5,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::storage::Storage;
+use crate::storage::{Storage, StorageTrait};
 
 use super::providers::openai::OpenAIImageUrl;
 
@@ -231,10 +231,10 @@ impl ChatMessageContentPart {
     /// Store the media in the storage and replace the media with the url
     /// returning the modified `ChatMessageContentPart`.
     /// For `Image`, we replace the content with `ImageUrl`
-    pub async fn store_media<S: Storage + ?Sized>(
+    pub async fn store_media(
         &self,
         project_id: &Uuid,
-        storage: Arc<S>,
+        storage: Arc<Storage>,
     ) -> Result<ChatMessageContentPart> {
         match self {
             ChatMessageContentPart::Image(image) => {
