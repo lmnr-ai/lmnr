@@ -135,21 +135,15 @@ fn main() -> anyhow::Result<()> {
     // === 2. Database ===
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    let min_connections = env::var("DATABASE_MIN_CONNECTIONS")
-        .unwrap_or(String::from("5"))
-        .parse()
-        .unwrap_or(5);
     let max_connections = env::var("DATABASE_MAX_CONNECTIONS")
         .unwrap_or(String::from("10"))
         .parse()
         .unwrap_or(10);
 
-    log::info!("Database min connections: {}", min_connections);
     log::info!("Database max connections: {}", max_connections);
 
     let pool = runtime_handle.block_on(async {
         sqlx::postgres::PgPoolOptions::new()
-            .min_connections(min_connections)
             .max_connections(max_connections)
             .connect(&db_url)
             .await
