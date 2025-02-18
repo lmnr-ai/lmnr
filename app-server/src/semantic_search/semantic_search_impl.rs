@@ -13,7 +13,7 @@ use super::semantic_search_grpc::{
     RequestPayload,
 };
 
-use crate::semantic_search::SemanticSearch;
+use crate::semantic_search::SemanticSearchTrait;
 
 #[derive(Clone, Debug)]
 pub struct SemanticSearchImpl {
@@ -27,7 +27,7 @@ impl SemanticSearchImpl {
 }
 
 #[async_trait]
-impl SemanticSearch for SemanticSearchImpl {
+impl SemanticSearchTrait for SemanticSearchImpl {
     async fn query(
         &self,
         collection_name: &str,

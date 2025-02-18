@@ -28,7 +28,7 @@ use traces::{
     OBSERVATIONS_QUEUE,
 };
 
-use cache::{Cache, InMemoryCache, RedisCache};
+use cache::{in_memory::InMemoryCache, redis::RedisCache, Cache};
 use chunk::{
     character_split::CharacterSplitChunker,
     runner::{Chunker, ChunkerRunner, ChunkerType},
@@ -321,24 +321,26 @@ fn main() -> anyhow::Result<()> {
                     Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
                 // == Semantic search ==
-                let semantic_search: Arc<dyn SemanticSearch> =
-                    if is_feature_enabled(Feature::FullBuild) {
-                        let semantic_search_url = env::var("SEMANTIC_SEARCH_URL")
-                            .expect("SEMANTIC_SEARCH_URL must be set");
+                let semantic_search: Arc<SemanticSearch> = if is_feature_enabled(Feature::FullBuild)
+                {
+                    let semantic_search_url =
+                        env::var("SEMANTIC_SEARCH_URL").expect("SEMANTIC_SEARCH_URL must be set");
 
-                        let semantic_search_client = Arc::new(
-                            SemanticSearchClient::connect(semantic_search_url)
-                                .await
-                                .unwrap(),
-                        );
-                        Arc::new(
-                            semantic_search::semantic_search_impl::SemanticSearchImpl::new(
-                                semantic_search_client,
-                            ),
-                        )
-                    } else {
-                        Arc::new(semantic_search::mock::MockSemanticSearch {})
-                    };
+                    let semantic_search_client = Arc::new(
+                        SemanticSearchClient::connect(semantic_search_url)
+                            .await
+                            .unwrap(),
+                    );
+                    Arc::new(semantic_search::SemanticSearch::Grpc(
+                        semantic_search::semantic_search_impl::SemanticSearchImpl::new(
+                            semantic_search_client,
+                        ),
+                    ))
+                } else {
+                    Arc::new(semantic_search::SemanticSearch::Mock(
+                        semantic_search::mock::MockSemanticSearch {},
+                    ))
+                };
 
                 // == Python executor ==
                 let code_executor: Arc<dyn CodeExecutor> = if is_feature_enabled(Feature::FullBuild)

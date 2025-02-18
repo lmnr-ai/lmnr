@@ -13,7 +13,7 @@ use super::{nodes::StreamChunk, runner::PipelineRunner, RunType};
 
 pub struct Context {
     pub language_model: Arc<LanguageModelRunner>,
-    pub semantic_search: Arc<dyn SemanticSearch>,
+    pub semantic_search: Arc<SemanticSearch>,
     pub env: HashMap<String, String>,
     pub tx: Option<Sender<StreamChunk>>,
     pub metadata: HashMap<String, String>,

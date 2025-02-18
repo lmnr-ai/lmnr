@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::{
     engine::{RunOutput, RunnableNode},
     pipeline::context::Context,
+    semantic_search::SemanticSearchTrait,
 };
 
 use super::{utils::map_handles, Handle, NodeInput};

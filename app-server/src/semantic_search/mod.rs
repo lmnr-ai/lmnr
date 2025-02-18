@@ -2,19 +2,30 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use enum_dispatch::enum_dispatch;
 
 use self::semantic_search_grpc::{
     index_request::Datapoint, CalculateSimilarityScoresResponse, CreateCollectionResponse,
     DeleteCollectionsResponse, DeleteEmbeddingsResponse, IndexResponse, QueryResponse,
 };
 
+use mock::MockSemanticSearch;
+use semantic_search_impl::SemanticSearchImpl;
+
 pub mod mock;
 pub mod semantic_search_grpc;
 pub mod semantic_search_impl;
 pub mod utils;
 
+#[enum_dispatch]
+pub enum SemanticSearch {
+    Grpc(SemanticSearchImpl),
+    Mock(MockSemanticSearch),
+}
+
 #[async_trait]
-pub trait SemanticSearch: Sync + Send {
+#[enum_dispatch(SemanticSearch)]
+pub trait SemanticSearchTrait: Sync + Send {
     async fn query(
         &self,
         collection_name: &str,

@@ -94,7 +94,7 @@ impl Serialize for PipelineRunnerError {
 #[derive(Clone)]
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
-    semantic_search: Arc<dyn SemanticSearch>,
+    semantic_search: Arc<SemanticSearch>,
     queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
     code_executor: Arc<dyn CodeExecutor>,
     db: Arc<DB>,
@@ -104,7 +104,7 @@ pub struct PipelineRunner {
 impl PipelineRunner {
     pub fn new(
         language_model: Arc<LanguageModelRunner>,
-        semantic_search: Arc<dyn SemanticSearch>,
+        semantic_search: Arc<SemanticSearch>,
         queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
         code_executor: Arc<dyn CodeExecutor>,
         db: Arc<DB>,

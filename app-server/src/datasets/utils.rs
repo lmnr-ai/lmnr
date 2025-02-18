@@ -1,6 +1,10 @@
 use std::{collections::HashMap, result::Result, sync::Arc};
 
-use crate::{pipeline::nodes::NodeInput, routes::error::Error, semantic_search::SemanticSearch};
+use crate::{
+    pipeline::nodes::NodeInput,
+    routes::error::Error,
+    semantic_search::{SemanticSearch, SemanticSearchTrait},
+};
 use actix_multipart::Multipart;
 use anyhow::Context;
 use futures_util::StreamExt;
@@ -40,7 +44,7 @@ pub async fn read_multipart_file(mut payload: Multipart) -> Result<ParsedFile, E
 
 pub async fn index_new_points(
     datapoints: Vec<Datapoint>,
-    semantic_search: Arc<dyn SemanticSearch>,
+    semantic_search: Arc<SemanticSearch>,
     collection_name: String,
     new_index_column: Option<String>,
 ) -> anyhow::Result<()> {
