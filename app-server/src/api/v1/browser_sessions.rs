@@ -15,7 +15,8 @@ pub struct RRWebEvent {
     #[serde(rename = "type")]
     pub event_type: i32,
     pub timestamp: i64,
-    pub data: serde_json::Value,
+    // #[serde(borrow)]
+    pub data: Box<serde_json::value::RawValue>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

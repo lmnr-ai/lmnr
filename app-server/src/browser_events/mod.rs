@@ -93,7 +93,7 @@ async fn inner_process_browser_events(
             .iter()
             .map(|e| e.event_type.to_string())
             .collect();
-        let event_data: Vec<String> = batch.events.iter().map(|e| e.data.to_string()).collect();
+        let event_data: Vec<&str> = batch.events.iter().map(|e| e.data.get()).collect();
 
         let final_query = clickhouse
             .query(query)
