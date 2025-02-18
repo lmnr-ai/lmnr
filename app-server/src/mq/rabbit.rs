@@ -12,23 +12,26 @@ use lapin::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::{MessageQueue, MessageQueueDelivery, MessageQueueReceiver};
+use super::{
+    MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
+    MessageQueueReceiverTrait, MessageQueueTrait,
+};
 
 pub struct RabbitMQ {
     connection: Arc<Connection>,
 }
 
-struct RabbitMQReceiver {
+pub struct RabbitMQReceiver {
     consumer: Consumer,
 }
 
-struct RabbitMQDelivery<T> {
+pub struct RabbitMQDelivery<T> {
     delivery: Delivery,
     data: T,
 }
 
 #[async_trait]
-impl<T> MessageQueueDelivery<T> for RabbitMQDelivery<T>
+impl<T> MessageQueueDeliveryTrait<T> for RabbitMQDelivery<T>
 where
     T: for<'de> Deserialize<'de> + Clone + Send + Sync,
 {
@@ -58,11 +61,11 @@ where
 }
 
 #[async_trait]
-impl<T> MessageQueueReceiver<T> for RabbitMQReceiver
-where
-    T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
-{
-    async fn receive(&mut self) -> Option<anyhow::Result<Box<dyn MessageQueueDelivery<T>>>> {
+impl MessageQueueReceiverTrait for RabbitMQReceiver {
+    async fn receive<T>(&mut self) -> Option<anyhow::Result<MessageQueueDelivery<T>>>
+    where
+        T: for<'de> Deserialize<'de> + Clone + Send + Sync,
+    {
         if let Some(delivery) = self.consumer.next().await {
             let Ok(delivery) = delivery else {
                 return Some(Err(anyhow::anyhow!(
@@ -78,10 +81,11 @@ where
 
             let payload = serde_json::from_str::<T>(&payload);
             match payload {
-                Ok(payload) => Some(Ok(Box::new(RabbitMQDelivery {
+                Ok(payload) => Some(Ok(RabbitMQDelivery {
                     delivery,
                     data: payload,
-                }))),
+                }
+                .into())),
                 Err(e) => Some(Err(anyhow::anyhow!("Failed to deserialize payload: {}", e))),
             }
         } else {
@@ -97,11 +101,11 @@ impl RabbitMQ {
 }
 
 #[async_trait]
-impl<T> MessageQueue<T> for RabbitMQ
-where
-    T: for<'de> Deserialize<'de> + Serialize + Clone + Send + Sync + 'static,
-{
-    async fn publish(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()> {
+impl MessageQueueTrait for RabbitMQ {
+    async fn publish<T>(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()>
+    where
+        T: Serialize + Clone + Send + Sync,
+    {
         let payload = serde_json::to_string(message)?;
         let payload = payload.as_bytes();
 
@@ -126,10 +130,7 @@ where
         queue_name: &str,
         exchange: &str,
         routing_key: &str,
-    ) -> anyhow::Result<Box<dyn MessageQueueReceiver<T>>>
-    where
-        T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
-    {
+    ) -> anyhow::Result<MessageQueueReceiver> {
         let channel = self.connection.create_channel().await?;
 
         channel
@@ -151,6 +152,6 @@ where
             )
             .await?;
 
-        Ok(Box::new(RabbitMQReceiver { consumer }))
+        Ok(RabbitMQReceiver { consumer }.into())
     }
 }

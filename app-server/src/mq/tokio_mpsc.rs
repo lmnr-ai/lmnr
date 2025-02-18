@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use super::{MessageQueue, MessageQueueDelivery, MessageQueueReceiver};
+use super::{
+    MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
+    MessageQueueReceiverTrait, MessageQueueTrait,
+};
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -14,18 +17,18 @@ use tokio::sync::{
 // TODO: Possibly think about how to generalize the inner type with any
 // `T: Clone + Serialize + Deserialize + Send + Sync`
 // instead of manually (de)serializing into `Vec<u8>`
-struct TokioMpscReceiver {
+pub struct TokioMpscReceiver {
     receiver: Receiver<Vec<u8>>,
 }
 
-struct TokioMpscDelivery<T> {
+pub struct TokioMpscDelivery<T> {
     data: T,
 }
 
 #[async_trait]
-impl<T> MessageQueueDelivery<T> for TokioMpscDelivery<T>
+impl<T> MessageQueueDeliveryTrait<T> for TokioMpscDelivery<T>
 where
-    T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
+    T: for<'de> Deserialize<'de> + Clone + Send + Sync,
 {
     async fn ack(&self) -> anyhow::Result<()> {
         Ok(())
@@ -51,26 +54,23 @@ where
         }
     }
 
-    fn data(&self) -> T
-    where
-        T: for<'de> Deserialize<'de> + Clone,
-    {
+    fn data(&self) -> T {
         self.data.clone()
     }
 }
 
 #[async_trait]
-impl<T> MessageQueueReceiver<T> for TokioMpscReceiver
-where
-    T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
-{
-    async fn receive(&mut self) -> Option<anyhow::Result<Box<dyn MessageQueueDelivery<T>>>> {
+impl MessageQueueReceiverTrait for TokioMpscReceiver {
+    async fn receive<T>(&mut self) -> Option<anyhow::Result<MessageQueueDelivery<T>>>
+    where
+        T: for<'de> Deserialize<'de> + Clone + Send + Sync,
+    {
         let payload = self.receiver.recv().await;
         match payload {
             Some(payload) => {
                 let message = serde_json::from_slice(&payload);
                 match message {
-                    Ok(message) => Some(Ok(Box::new(TokioMpscDelivery { data: message }))),
+                    Ok(message) => Some(Ok(TokioMpscDelivery { data: message }.into())),
                     Err(e) => Some(Err(anyhow::anyhow!("Failed to deserialize payload: {}", e))),
                 }
             }
@@ -96,11 +96,11 @@ impl TokioMpscQueue {
 }
 
 #[async_trait]
-impl<T> MessageQueue<T> for TokioMpscQueue
-where
-    T: for<'de> Deserialize<'de> + Serialize + Clone + Send + Sync + 'static,
-{
-    async fn publish(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()> {
+impl MessageQueueTrait for TokioMpscQueue {
+    async fn publish<T>(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()>
+    where
+        T: Serialize + Clone + Send + Sync,
+    {
         let key = self.key(exchange, routing_key);
 
         let Some(senders) = self.senders.get(&key) else {
@@ -140,7 +140,7 @@ where
         _queue_name: &str,
         exchange: &str,
         routing_key: &str,
-    ) -> anyhow::Result<Box<dyn MessageQueueReceiver<T>>> {
+    ) -> anyhow::Result<MessageQueueReceiver> {
         let key = self.key(exchange, routing_key);
 
         let (sender, receiver) = mpsc::channel(100);
@@ -151,6 +151,6 @@ where
             .lock()
             .await
             .push(sender);
-        Ok(Box::new(tokio_mpsc_receiver))
+        Ok(tokio_mpsc_receiver.into())
     }
 }

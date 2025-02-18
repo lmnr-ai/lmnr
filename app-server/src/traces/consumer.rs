@@ -12,21 +12,19 @@ use crate::{
     cache::Cache,
     db::{spans::Span, DB},
     features::{is_feature_enabled, Feature},
-    mq::MessageQueue,
+    mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
     pipeline::runner::PipelineRunner,
     storage::Storage,
 };
 
-pub async fn process_queue_spans<Q>(
+pub async fn process_queue_spans(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    queue: Arc<Q>,
+    queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
-) where
-    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
-{
+) {
     loop {
         inner_process_queue_spans(
             pipeline_runner.clone(),
@@ -41,16 +39,14 @@ pub async fn process_queue_spans<Q>(
     }
 }
 
-async fn inner_process_queue_spans<Q>(
+async fn inner_process_queue_spans(
     pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    queue: Arc<Q>,
+    queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
-) where
-    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
-{
+) {
     // Safe to unwrap because we checked is_feature_enabled above
     let mut receiver = queue
         .get_receiver(
@@ -63,7 +59,7 @@ async fn inner_process_queue_spans<Q>(
 
     log::info!("Started processing spans from queue");
 
-    while let Some(delivery) = receiver.receive().await {
+    while let Some(delivery) = receiver.receive::<RabbitMqSpanMessage>().await {
         if let Err(e) = delivery {
             log::error!("Failed to receive message from queue: {:?}", e);
             continue;

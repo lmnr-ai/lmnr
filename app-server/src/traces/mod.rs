@@ -3,13 +3,14 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
+    api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     ch::{self, spans::CHSpan},
     db::{
         events::Event, labels::get_registered_label_classes_for_path, spans::Span,
         stats::add_spans_and_events_to_project_usage_stats, DB,
     },
-    mq::MessageQueueDelivery,
+    mq::{MessageQueueDelivery, MessageQueueDeliveryTrait},
     pipeline::runner::PipelineRunner,
     traces::{
         evaluators::run_evaluator,
@@ -34,14 +35,14 @@ pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
 pub const OBSERVATIONS_EXCHANGE: &str = "observations_exchange";
 pub const OBSERVATIONS_ROUTING_KEY: &str = "observations_routing_key";
 
-pub async fn process_spans_and_events<T>(
+pub async fn process_spans_and_events(
     span: &mut Span,
     events: Vec<Event>,
     project_id: &Uuid,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    delivery: Box<dyn MessageQueueDelivery<T>>,
+    delivery: MessageQueueDelivery<RabbitMqSpanMessage>,
 ) {
     let span_usage =
         get_llm_usage_for_span(&mut span.get_attributes(), db.clone(), cache.clone()).await;

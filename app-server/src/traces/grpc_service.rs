@@ -3,7 +3,7 @@ use std::sync::Arc;
 use sqlx::PgPool;
 
 use crate::{
-    api::{utils::get_api_key_from_raw_value, v1::traces::RabbitMqSpanMessage},
+    api::utils::get_api_key_from_raw_value,
     cache::Cache,
     db::{project_api_keys::ProjectApiKey, DB},
     features::{is_feature_enabled, Feature},
@@ -16,29 +16,20 @@ use tonic::{Request, Response, Status};
 
 use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue};
 
-pub struct ProcessTracesService<Q>
-where
-    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
-{
+pub struct ProcessTracesService {
     db: Arc<DB>,
     cache: Arc<Cache>,
-    queue: Arc<Q>,
+    queue: Arc<MessageQueue>,
 }
 
-impl<Q> ProcessTracesService<Q>
-where
-    Q: MessageQueue<RabbitMqSpanMessage> + ?Sized,
-{
-    pub fn new(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<Q>) -> Self {
+impl ProcessTracesService {
+    pub fn new(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<MessageQueue>) -> Self {
         Self { db, cache, queue }
     }
 }
 
 #[tonic::async_trait]
-impl<Q> TraceService for ProcessTracesService<Q>
-where
-    Q: MessageQueue<RabbitMqSpanMessage> + Sync + Send + ?Sized + 'static,
-{
+impl TraceService for ProcessTracesService {
     async fn export(
         &self,
         request: Request<ExportTraceServiceRequest>,

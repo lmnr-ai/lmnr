@@ -4,7 +4,12 @@ use actix_web::{options, post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{db::project_api_keys::ProjectApiKey, mq, routes::types::ResponseResult};
+use crate::{
+    browser_events::QueueBrowserEventMessage,
+    db::project_api_keys::ProjectApiKey,
+    mq::{MessageQueue, MessageQueueTrait},
+    routes::types::ResponseResult,
+};
 
 pub const BROWSER_SESSIONS_QUEUE: &str = "browser_sessions_queue";
 pub const BROWSER_SESSIONS_EXCHANGE: &str = "browser_sessions_exchange";
@@ -26,12 +31,6 @@ pub struct EventBatch {
     pub trace_id: Uuid,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct QueueBrowserEventMessage {
-    pub batch: EventBatch,
-    pub project_id: Uuid,
-}
-
 #[options("events")]
 async fn options_handler() -> ResponseResult {
     Ok(HttpResponse::Ok()
@@ -49,7 +48,7 @@ async fn options_handler() -> ResponseResult {
 async fn create_session_event(
     batch: web::Json<EventBatch>,
     project_api_key: ProjectApiKey,
-    queue: web::Data<Arc<dyn mq::MessageQueue<QueueBrowserEventMessage>>>,
+    queue: web::Data<Arc<MessageQueue>>,
 ) -> ResponseResult {
     let filtered_batch = batch.into_inner();
 

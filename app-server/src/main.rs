@@ -18,6 +18,7 @@ use lapin::{
 use machine_manager::{
     machine_manager_service_client::MachineManagerServiceClient, MachineManager, MachineManagerImpl,
 };
+use mq::MessageQueue;
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
@@ -174,40 +175,37 @@ fn main() -> anyhow::Result<()> {
     let connection_for_health = connection.clone(); // Clone before moving into HttpServer
 
     // ==== 3.1 Spans message queue ====
-    let spans_message_queue: Arc<dyn mq::MessageQueue<api::v1::traces::RabbitMqSpanMessage>> =
-        if let Some(connection) = connection.as_ref() {
-            runtime_handle.block_on(async {
-                let channel = connection.create_channel().await.unwrap();
+    let spans_message_queue: Arc<MessageQueue> = if let Some(connection) = connection.as_ref() {
+        runtime_handle.block_on(async {
+            let channel = connection.create_channel().await.unwrap();
 
-                channel
-                    .exchange_declare(
-                        OBSERVATIONS_EXCHANGE,
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+            channel
+                .exchange_declare(
+                    OBSERVATIONS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
 
-                channel
-                    .queue_declare(
-                        OBSERVATIONS_QUEUE,
-                        QueueDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+            channel
+                .queue_declare(
+                    OBSERVATIONS_QUEUE,
+                    QueueDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
 
-                Arc::new(mq::rabbit::RabbitMQ::new(connection.clone()))
-            })
-        } else {
-            Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
-        };
+            Arc::new(mq::rabbit::RabbitMQ::new(connection.clone()).into())
+        })
+    } else {
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
+    };
 
     // ==== 3.2 Browser events message queue ====
-    let browser_events_message_queue: Arc<
-        dyn mq::MessageQueue<api::v1::browser_sessions::QueueBrowserEventMessage>,
-    > = if let Some(connection) = connection {
+    let browser_events_message_queue: Arc<MessageQueue> = if let Some(connection) = connection {
         runtime_handle.block_on(async {
             let channel = connection.create_channel().await.unwrap();
 
@@ -230,10 +228,10 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            Arc::new(mq::rabbit::RabbitMQ::new(connection))
+            Arc::new(mq::rabbit::RabbitMQ::new(connection).into())
         })
     } else {
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
     };
 
     let runtime_handle_for_http = runtime_handle.clone();

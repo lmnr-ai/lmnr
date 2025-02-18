@@ -10,7 +10,7 @@ use crate::{
         DB,
     },
     engine::{engine::EngineOutput, Engine},
-    mq::MessageQueue,
+    mq::{MessageQueue, MessageQueueTrait},
     routes::pipelines::GraphInterruptMessage,
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
 };
@@ -95,7 +95,7 @@ impl Serialize for PipelineRunnerError {
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
     semantic_search: Arc<SemanticSearch>,
-    queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
+    queue: Arc<MessageQueue>,
     code_executor: Arc<CodeExecutor>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -105,7 +105,7 @@ impl PipelineRunner {
     pub fn new(
         language_model: Arc<LanguageModelRunner>,
         semantic_search: Arc<SemanticSearch>,
-        queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
+        queue: Arc<MessageQueue>,
         code_executor: Arc<CodeExecutor>,
         db: Arc<DB>,
         cache: Arc<Cache>,

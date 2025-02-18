@@ -1,20 +1,25 @@
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     api::v1::browser_sessions::{
-        BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
+        EventBatch, BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
     },
-    mq,
+    mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
 };
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct QueueBrowserEventMessage {
+    pub batch: EventBatch,
+    pub project_id: Uuid,
+}
 
 pub async fn process_browser_events(
     clickhouse: clickhouse::Client,
-    browser_events_message_queue: Arc<
-        dyn mq::MessageQueue<crate::api::v1::browser_sessions::QueueBrowserEventMessage>,
-    >,
+    browser_events_message_queue: Arc<MessageQueue>,
 ) {
     loop {
         inner_process_browser_events(clickhouse.clone(), browser_events_message_queue.clone())
@@ -22,10 +27,7 @@ pub async fn process_browser_events(
     }
 }
 
-async fn inner_process_browser_events(
-    clickhouse: clickhouse::Client,
-    queue: Arc<dyn mq::MessageQueue<crate::api::v1::browser_sessions::QueueBrowserEventMessage>>,
-) {
+async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc<MessageQueue>) {
     let mut receiver = queue
         .get_receiver(
             BROWSER_SESSIONS_QUEUE,
@@ -35,7 +37,7 @@ async fn inner_process_browser_events(
         .await
         .unwrap();
 
-    while let Some(delivery) = receiver.receive().await {
+    while let Some(delivery) = receiver.receive::<QueueBrowserEventMessage>().await {
         if let Err(e) = delivery {
             log::error!("Failed to receive message from queue: {:?}", e);
             continue;
