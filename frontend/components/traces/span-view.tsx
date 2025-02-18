@@ -66,7 +66,7 @@ export function SpanView({ spanId }: SpanViewProps) {
               <ExportSpansDialog span={span} />
               <AddLabelPopover span={span} />
             </div>
-            <div className="flex flex-col py-1 space-y-2">
+            <div className="flex py-1 gap-2">
               <StatsShields
                 startTime={span.startTime}
                 endTime={span.endTime}
@@ -84,6 +84,9 @@ export function SpanView({ spanId }: SpanViewProps) {
                 outputCost={span.attributes['gen_ai.usage.output_cost'] ?? 0}
                 cost={span.attributes['gen_ai.usage.cost'] ?? 0}
               />
+              <div className="flex flex-row text-xs font-mono space-x-2 rounded-md p-0.5 px-2 border items-center">
+                {new Date(span.startTime).toLocaleString()}
+              </div>
             </div>
           </div>
           <TabsList className="border-none text-sm px-4">
@@ -99,27 +102,25 @@ export function SpanView({ spanId }: SpanViewProps) {
           </TabsList>
         </div>
         <div className="flex-grow flex h-0">
-          <TabsContent value="span" className="h-full w-full mt-0">
-            <SpanViewSpan span={span} />
-          </TabsContent>
-          <TabsContent value="attributes" className="h-full w-full mt-0">
-            {span ? (
+          <div className="flex-grow flex flex-col">
+            <TabsContent value="span" className="h-full w-full mt-0">
+              <SpanViewSpan span={span} />
+            </TabsContent>
+            <TabsContent value="attributes" className="h-full w-full">
               <Formatter
                 className="border-none rounded-none"
                 value={JSON.stringify(span.attributes)}
                 defaultMode="yaml"
               />
-            ) : (
-              <Skeleton className="h-8" />
-            )}
-          </TabsContent>
-          <TabsContent value="events" className="h-full w-full mt-0">
-            <Formatter
-              className="h-full border-none rounded-none"
-              value={JSON.stringify(cleanedEvents)}
-              defaultMode="yaml"
-            />
-          </TabsContent>
+            </TabsContent>
+            <TabsContent value="events" className="h-full w-full mt-0">
+              <Formatter
+                className="h-full border-none rounded-none"
+                value={JSON.stringify(cleanedEvents)}
+                defaultMode="yaml"
+              />
+            </TabsContent>
+          </div>
         </div>
       </Tabs>
     </>

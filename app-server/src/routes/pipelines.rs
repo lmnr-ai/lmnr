@@ -15,7 +15,7 @@ use crate::pipeline::utils::get_target_pipeline_version_cache_key;
 use crate::routes::error::pipeline_runner_to_http_error;
 use crate::traces::evaluators::get_stored_env;
 use crate::{
-    cache::Cache,
+    cache::{Cache, CacheTrait},
     db::{
         self,
         pipelines::{pipeline_version, write_pipeline, Pipeline, PipelineVersion},
@@ -130,7 +130,6 @@ async fn run_pipeline_graph(
 
             // Both successful and failed runs have trace
             if let Some(trace) = trace {
-                // TODO: record spans/traces if needed
                 let run_stats = RunTraceStats::from_messages(&trace.messages);
                 let run_trace = RunTrace {
                     run_id,
@@ -291,7 +290,7 @@ async fn update_pipeline(
     let old_pipeline = db::pipelines::pipeline::get_pipeline_by_id(&db.pool, &pipeline_id).await?;
     let cache_key =
         get_target_pipeline_version_cache_key(&project_id.to_string(), &old_pipeline.name);
-    let _ = cache.remove::<PipelineVersion>(&cache_key).await;
+    let _ = cache.remove(&cache_key).await;
 
     // TODO: Don't allow to make pipelines public if they don't contain commits
     let updated_pipeline = db::pipelines::update_pipeline(&db.pool, &pipeline).await?;
@@ -351,7 +350,7 @@ async fn update_target_pipeline_version(
         &project_id.to_string(),
         &pipeline_version.pipeline_name,
     );
-    let _ = cache.remove::<PipelineVersion>(&cache_key).await;
+    let _ = cache.remove(&cache_key).await;
 
     Ok(HttpResponse::Ok().json(target_pipeline_version))
 }

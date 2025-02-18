@@ -1,7 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
-    cache::Cache,
+    cache::{keys::LLM_PRICES_CACHE_KEY, Cache, CacheTrait},
     db::{
         prices::{get_price, DBPriceEntry},
         DB,
@@ -9,13 +11,12 @@ use crate::{
 };
 
 use super::providers::utils::calculate_cost;
-
 pub enum TokensKind {
     Input,
     Output,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct LLMPriceEntry {
     _provider: String,
     _model: String,
@@ -55,19 +56,15 @@ pub async fn estimate_cost(
     num_tokens: u32,
     tokens_kind: TokensKind,
 ) -> Option<f64> {
-    // TODO: uncomment the cache when we figure out how to refresh it
-    let cache_res: Option<LLMPriceEntry> = None;
-    // let cache_res = cache
-    //     .get::<LLMPriceEntry>(&format!("{}:{}", provider, model))
-    //     .await
-    //     .ok()?;
+    let cache_key = format!("{LLM_PRICES_CACHE_KEY}:{provider}:{model}");
+    let cache_res = cache.get::<LLMPriceEntry>(&cache_key).await.ok()?;
     let price_per_million_tokens = match cache_res {
         Some(price) => price.input_price_per_million,
         None => {
             let price = get_price(&db.pool, provider, model).await.ok()?;
             let price = LLMPriceEntry::from(price);
             let _ = cache
-                .insert::<LLMPriceEntry>(format!("{}:{}", provider, model), &price)
+                .insert::<LLMPriceEntry>(&cache_key, price.clone())
                 .await;
             price.get_price(tokens_kind)?
         }

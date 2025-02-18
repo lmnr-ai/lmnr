@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
+    cache::keys::TARGET_PIPELINE_VERSION_CACHE_KEY,
     engine::Task,
     language_model::{ChatMessage, ChatMessageContent, ChatMessageContentPart},
 };
@@ -95,7 +96,7 @@ fn task_from_node(node: Node) -> Task {
 }
 
 pub fn get_target_pipeline_version_cache_key(project_id: &str, pipeline_name: &str) -> String {
-    format!("{}:{}", project_id, pipeline_name)
+    format!("{TARGET_PIPELINE_VERSION_CACHE_KEY}:{project_id}:{pipeline_name}")
 }
 
 pub fn render_chat_message_list(messages: Vec<ChatMessage>) -> String {

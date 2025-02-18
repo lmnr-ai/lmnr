@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use backoff::ExponentialBackoffBuilder;
 use regex::Regex;
 use serde_json::Value;
 use uuid::Uuid;
@@ -20,12 +21,12 @@ use super::{
     spans::{SpanAttributes, SpanUsage},
 };
 
-pub fn json_value_to_string(v: Value) -> String {
+pub fn json_value_to_string(v: &Value) -> String {
     match v {
-        Value::String(s) => s,
+        Value::String(s) => s.to_string(),
         Value::Array(a) => a
             .iter()
-            .map(|v| json_value_to_string(v.clone()))
+            .map(json_value_to_string)
             .collect::<Vec<_>>()
             .join(", "),
         _ => v.to_string(),
@@ -141,7 +142,42 @@ pub async fn record_span_to_db(
         );
     }
 
-    db::spans::record_span(&db.pool, &span, project_id).await?;
+    let insert_span = || async {
+        db::spans::record_span(&db.pool, &span, project_id)
+            .await
+            .map_err(|e| {
+                log::error!(
+                    "Failed attempt to record span [{}]. Will retry according to backoff policy. Error: {:?}",
+                    span.span_id,
+                    e
+                );
+                backoff::Error::Transient {
+                    err: e,
+                    retry_after: None,
+                }
+            })
+    };
+
+    // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
+    // up to 1 minute and until the total elapsed time is 5 minutes
+    // https://docs.rs/backoff/latest/backoff/default/index.html
+    let exponential_backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(std::time::Duration::from_millis(500))
+        .with_multiplier(1.5)
+        .with_randomization_factor(0.5)
+        .with_max_interval(std::time::Duration::from_secs(1 * 60))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(5 * 60)))
+        .build();
+    backoff::future::retry(exponential_backoff, insert_span)
+        .await
+        .map_err(|e| {
+            log::error!(
+                "Exhausted backoff retries for span [{}]: {:?}",
+                span.span_id,
+                e
+            );
+            e
+        })?;
 
     Ok(())
 }

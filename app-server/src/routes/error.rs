@@ -96,13 +96,6 @@ Set the target version for the pipeline in the pipeline builder."),
         }
     }
 
-    pub fn user_not_found(email: String) -> Self {
-        Self::RequestError {
-            error_code: "api.UserNotFound".to_string(),
-            error_message: Some(Value::String(format!("User not found: {}", email))),
-        }
-    }
-
     pub fn limit_error(error_message: &str) -> Self {
         Self::RequestError {
             error_code: "api.LimitReached".to_string(),
@@ -113,7 +106,6 @@ Set the target version for the pipeline in the pipeline builder."),
 
 pub fn workspace_error_to_http_error(e: WorkspaceError) -> Error {
     match e {
-        WorkspaceError::UserNotFound(email) => Error::user_not_found(email),
         WorkspaceError::UnhandledError(e) => Error::InternalAnyhowError(e),
         WorkspaceError::LimitReached {
             entity,

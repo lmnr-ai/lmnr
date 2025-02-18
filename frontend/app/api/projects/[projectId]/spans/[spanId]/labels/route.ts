@@ -39,6 +39,8 @@ export async function POST(
     body.scoreName = body.scoreName.trim() + (user.name ? ` (${user.name})` : '');
   }
 
+  body.userEmail = user.email;
+
   return await fetcher(`/projects/${projectId}/spans/${spanId}/labels`, {
     method: 'POST',
     headers: {

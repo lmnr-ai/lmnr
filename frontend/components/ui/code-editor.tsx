@@ -85,11 +85,28 @@ export default function CodeEditor({
   lineWrapping = true
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const { ref: inViewRef, inView } = useInView({
     threshold: 0,
     triggerOnce: false
   });
+
+  // Update dimensions when the container size changes
+  useEffect(() => {
+    if (containerRef.current && inView) {
+      const updateDimensions = () => {
+        setDimensions({
+          width: containerRef.current?.offsetWidth || 0,
+          height: containerRef.current?.offsetHeight || 0
+        });
+      };
+
+      const resizeObserver = new ResizeObserver(debounce(updateDimensions, 100));
+      resizeObserver.observe(containerRef.current);
+
+      return () => resizeObserver.disconnect();
+    }
+  }, [inView]);
 
   // Combine refs
   const setRefs = useCallback(
@@ -99,31 +116,6 @@ export default function CodeEditor({
     },
     [inViewRef]
   );
-
-  // Debounced resize handler
-  const handleResize = useCallback(
-    debounce(() => {
-      if (containerRef.current) {
-        const { width, height } = containerRef.current.getBoundingClientRect();
-        setDimensions({ width, height });
-      }
-    }, 100),
-    []
-  );
-
-  useEffect(() => {
-    handleResize();
-
-    const resizeObserver = new ResizeObserver(handleResize);
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
-
-    return () => {
-      handleResize.cancel();
-      resizeObserver.disconnect();
-    };
-  }, [handleResize]);
 
   // Memoize extensions to prevent recreating them on every render
   const extensions = useMemo(() => {
@@ -141,54 +133,29 @@ export default function CodeEditor({
     return extensions;
   }, [language, lineWrapping, value.length]);
 
-  // Memoize onChange callback
-  const handleChange = useCallback((v: string) => {
-    onChange?.(v);
-  }, [onChange]);
-
-  // Memoize className
-  const containerClassName = useMemo(() =>
-    cn('w-full h-full bg-card text-foreground', background, className),
-  [background, className]
-  );
-
-  const editorClassName = useMemo(() =>
-    cn('flex h-full', background),
-  [background]
-  );
-
-  // Render a placeholder when not in view
+  // Render a placeholder with preserved dimensions when not in view
   if (!inView) {
     return (
       <div
         ref={setRefs}
-        className={containerClassName}
-        style={{
-          height: '100%',
-          padding: '1rem',
-          whiteSpace: 'pre-wrap',
-          overflow: 'hidden',
-          fontSize: '10pt'
-        }}
-      >
-        {value.slice(0, 500)}
-        {value.length > 500 && '...'}
-      </div>
+        style={dimensions ? {
+          width: `${dimensions.width}px`,
+          height: `${dimensions.height}px`
+        } : undefined}
+      />
     );
   }
 
   return (
-    <div ref={setRefs} className={containerClassName}>
+    <div ref={setRefs} className={cn('w-full h-full bg-card text-foreground', background, className)}>
       <CodeMirror
         placeholder={placeholder}
-        className={editorClassName}
         theme={myTheme}
+        className="h-full"
         extensions={extensions}
         editable={editable}
         value={value}
-        onChange={handleChange}
-        width={`${dimensions.width}px`}
-        height={`${dimensions.height}px`}
+        onChange={onChange}
       />
     </div>
   );

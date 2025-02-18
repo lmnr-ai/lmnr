@@ -1,8 +1,13 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
+
+#[derive(Clone, Serialize, Deserialize, FromRow)]
+pub struct WorkspaceLimitsExceeded {
+    pub spans: bool,
+}
 
 pub async fn create_usage_stats_for_workspace(pool: &PgPool, workspace_id: &Uuid) -> Result<()> {
     sqlx::query("INSERT INTO workspace_usage (workspace_id) VALUES ($1);")
@@ -71,17 +76,11 @@ pub async fn get_workspace_storage_stats(
 pub struct WorkspaceStats {
     pub tier_name: String,
     pub total_spans: i64,
-    pub total_events: i64,
     pub spans_this_month: i64,
-    pub events_this_month: i64,
     pub spans_limit: i64,
-    pub events_limit: i64,
     pub spans_over_limit: i64,
     // TODO: fetch this from stripe meters once they are configured
     pub spans_over_limit_cost: f64,
-    pub events_over_limit: i64,
-    // TODO: fetch this from stripe meters once they are configured
-    pub events_over_limit_cost: f64,
 
     pub members: i64,
     pub members_limit: i64,
@@ -106,27 +105,16 @@ pub async fn get_workspace_stats(pool: &PgPool, workspace_id: &Uuid) -> Result<W
             subscription_tiers.name as tier_name,
             subscription_tiers.members_per_workspace as seats_included_in_tier,
             workspace_usage.span_count as total_spans,
-            workspace_usage.event_count as total_events,
             subscription_tiers.spans as spans_limit,
             GREATEST(
                 workspace_usage.span_count_since_reset - subscription_tiers.spans, 
                 0
             ) as spans_over_limit,
-            subscription_tiers.events as events_limit,
-            GREATEST(
-                workspace_usage.event_count_since_reset - subscription_tiers.events, 
-                0
-            ) as events_over_limit,
             workspace_usage.span_count_since_reset as spans_this_month,
-            workspace_usage.event_count_since_reset as events_this_month,
             GREATEST(
                 workspace_usage.span_count_since_reset - subscription_tiers.spans,
                 0
             )::float8 * subscription_tiers.extra_span_price as spans_over_limit_cost,
-            GREATEST(
-                workspace_usage.event_count_since_reset - subscription_tiers.events,
-                0
-            )::float8 * subscription_tiers.extra_event_price as events_over_limit_cost,
 
             members_per_workspace.members,
             subscription_tiers.members_per_workspace +
@@ -145,6 +133,35 @@ pub async fn get_workspace_stats(pool: &PgPool, workspace_id: &Uuid) -> Result<W
     .await?;
 
     Ok(workspace_stats)
+}
+
+pub async fn is_workspace_over_limit(
+    pool: &PgPool,
+    workspace_id: &Uuid,
+) -> Result<WorkspaceLimitsExceeded> {
+    let limits_exceeded = sqlx::query_as::<_, WorkspaceLimitsExceeded>(
+        "WITH workspace_stats AS (
+            SELECT
+                subscription_tiers.name as tier_name,
+                subscription_tiers.spans as spans_limit,
+                workspace_usage.span_count as spans_this_month
+            FROM
+                workspaces
+            JOIN subscription_tiers ON subscription_tiers.id = workspaces.tier_id
+            JOIN workspace_usage ON workspace_usage.workspace_id = workspaces.id
+            WHERE
+                workspace_id = $1
+        )
+        SELECT
+            spans_this_month >= spans_limit AND LOWER(TRIM(tier_name)) = 'free' as spans
+        FROM
+            workspace_stats",
+    )
+    .bind(workspace_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(limits_exceeded)
 }
 
 #[derive(Debug, FromRow, Serialize)]

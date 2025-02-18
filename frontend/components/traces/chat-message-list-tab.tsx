@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
+import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from '@/lib/types';
 import { isStringType } from '@/lib/utils';
 
 import DownloadButton from '../ui/download-button';
@@ -14,14 +14,12 @@ interface ContentPartTextProps {
 
 function ContentPartText({ text, presetKey }: ContentPartTextProps) {
   return (
-    <div className="w-full">
-      <Formatter
-        collapsible
-        value={text}
-        className="rounded-none max-h-[400px] border-none overflow-auto"
-        presetKey={presetKey}
-      />
-    </div>
+    <Formatter
+      collapsible
+      value={text}
+      className="rounded-none max-h-[400px] border-none"
+      presetKey={presetKey}
+    />
   );
 }
 
@@ -56,21 +54,33 @@ interface ContentPartsProps {
 }
 
 function ContentParts({ contentParts }: ContentPartsProps) {
+
+  const renderContentPart = (contentPart: ChatMessageContentPart) => {
+    switch (contentPart.type) {
+      case 'text':
+        return <ContentPartText text={contentPart.text} />;
+      case 'image':
+        return <ContentPartImage b64_data={contentPart.data} />;
+      case 'image_url':
+        // it means we managed to parse span input and properly store image in S3
+        if (contentPart.url) {
+          return <ContentPartImageUrl url={contentPart.url} />;
+        } else {
+          const openAIImageUrl = contentPart as any as OpenAIImageUrl;
+          return <img src={openAIImageUrl.image_url.url} alt="span image" className='w-full' />;
+        }
+      case 'document_url':
+        return <ContentPartDocumentUrl url={contentPart.url} />;
+      default:
+        return <div>Unknown content part</div>;
+    }
+  };
+
   return (
-    <div className="flex flex-col space-y-2">
+    <div className="flex flex-col space-y-2 w-full">
       {contentParts.map((contentPart, index) => (
-        <div key={index}>
-          {contentPart.type === 'text' ? (
-            <ContentPartText text={contentPart.text} />
-          ) : contentPart.type === 'image' ? (
-            <ContentPartImage b64_data={contentPart.data} />
-          ) : contentPart.type === 'image_url' ? (
-            <ContentPartImageUrl url={contentPart.url} />
-          ) : contentPart.type === 'document_url' ? (
-            <ContentPartDocumentUrl url={contentPart.url} />
-          ) : (
-            <div>Unknown content part</div>
-          )}
+        <div key={index} className="w-full">
+          {renderContentPart(contentPart)}
         </div>
       ))}
     </div>
@@ -90,7 +100,7 @@ export default function ChatMessageListTab({
   const memoizedMessages = React.useMemo(() => messages, [messages]);
 
   return (
-    <div className="w-full overflow-auto flex flex-col space-y-4">
+    <div className="w-full flex flex-col space-y-4">
       {memoizedMessages.map((message, index) => (
         <div
           key={`message-${index}`}
@@ -100,7 +110,7 @@ export default function ChatMessageListTab({
           <div className="font-medium text-sm text-secondary-foreground border-b p-2">
             {message.role.toUpperCase()}
           </div>
-          <div style={{ contain: 'content' }}>
+          <div>
             {isStringType(message.content) ? (
               <ContentPartText
                 text={message.content}
