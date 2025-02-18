@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
     api::v1::browser_sessions::{
@@ -42,7 +44,7 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
         }
         let delivery = delivery.unwrap();
         let acker = delivery.acker();
-        let message = match bincode::deserialize::<QueueBrowserEventMessage>(&delivery.data()) {
+        let message = match serde_json::from_slice::<QueueBrowserEventMessage>(&delivery.data()) {
             Ok(message) => message,
             Err(e) => {
                 log::error!("Failed to deserialize message from queue: {:?}", e);

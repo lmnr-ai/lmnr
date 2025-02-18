@@ -30,40 +30,6 @@ impl MessageQueueDeliveryTrait for TokioMpscDelivery {
     }
 }
 
-// #[async_trait]
-// impl<T> MessageQueueDeliveryTrait<T> for TokioMpscDelivery<T>
-// where
-//     T: for<'de> Deserialize<'de> + Send + Sync,
-// {
-//     async fn ack(&self) -> anyhow::Result<()> {
-//         Ok(())
-//     }
-
-//     async fn nack(&self, requeue: bool) -> anyhow::Result<()> {
-//         if requeue {
-//             Err(anyhow::anyhow!(
-//                 "Nack with requeue is not supported for TokioMpsc queue"
-//             ))
-//         } else {
-//             Ok(())
-//         }
-//     }
-
-//     async fn reject(&self, requeue: bool) -> anyhow::Result<()> {
-//         if requeue {
-//             Err(anyhow::anyhow!(
-//                 "Reject with requeue is not supported for TokioMpsc queue"
-//             ))
-//         } else {
-//             Ok(())
-//         }
-//     }
-
-//     fn data(&self) -> Arc<T> {
-//         self.data.clone()
-//     }
-// }
-
 impl MessageQueueReceiverTrait for TokioMpscReceiver {
     async fn receive(&mut self) -> Option<anyhow::Result<MessageQueueDelivery>> {
         let payload = self.receiver.recv().await;
@@ -125,8 +91,9 @@ impl MessageQueueTrait for TokioMpscQueue {
             }
         }
 
-        let payload = bincode::serialize(&message)?;
-        senders.lock().await[max_index].send(payload).await?;
+        senders.lock().await[max_index]
+            .send(message.to_vec())
+            .await?;
 
         Ok(())
     }

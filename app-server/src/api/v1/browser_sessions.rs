@@ -20,7 +20,6 @@ pub struct RRWebEvent {
     #[serde(rename = "type")]
     pub event_type: i32,
     pub timestamp: i64,
-    // #[serde(borrow)]
     pub data: Box<serde_json::value::RawValue>,
 }
 
@@ -67,7 +66,7 @@ async fn create_session_event(
 
     queue
         .publish(
-            &bincode::serialize(&message).unwrap(),
+            &serde_json::to_vec(&message).unwrap(),
             BROWSER_SESSIONS_EXCHANGE,
             BROWSER_SESSIONS_ROUTING_KEY,
         )
