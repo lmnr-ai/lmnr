@@ -131,15 +131,18 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
             .with_max_elapsed_time(Some(std::time::Duration::from_secs(60)))
             .build();
 
-        let _ = backoff::future::retry(exponential_backoff, insert_browser_events)
-            .await
-            .map_err(|e| {
-                log::error!("Failed to insert chunk of browser events: {:?}", e);
-            });
-
-        // Only ack the message after all chunks have been processed
-        if let Err(e) = acker.ack().await {
-            log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
+        match backoff::future::retry(exponential_backoff, insert_browser_events).await {
+            Ok(_) => {
+                if let Err(e) = acker.ack().await {
+                    log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
+                }
+            }
+            Err(e) => {
+                log::error!("Exhausted retries for inserting browser events: {:?}", e);
+                if let Err(e) = acker.reject(false).await {
+                    log::error!("Failed to reject MQ delivery (browser events): {:?}", e);
+                }
+            }
         }
     }
 }
