@@ -115,7 +115,7 @@ const Message = ({ insert, remove, index, deletable = true }: MessageProps) => {
           </Tooltip>
         )}
       </div>
-      <MessageParts remove={contentRemove} fields={fields} index={index} />
+      <MessageParts remove={contentRemove} fields={fields} parentIndex={index} />
     </div>
   );
 };

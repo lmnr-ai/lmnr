@@ -1,4 +1,3 @@
-// Allow streaming responses up to 30 seconds
 import { streamText } from "ai";
 
 import { getModel } from "@/lib/playground/providersRegistry";
@@ -12,10 +11,6 @@ export async function POST(req: Request) {
       messages,
       maxTokens: 1024,
     });
-
-    if (!result) {
-      throw new Error("No stream returned from model");
-    }
 
     return result.toTextStreamResponse();
   } catch (e) {

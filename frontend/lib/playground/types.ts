@@ -9,22 +9,22 @@ export type Playground = typeof playgrounds.$inferSelect & {
   promptMessages: ChatMessage[];
 };
 
-interface ImagePart {
+export interface ImagePart {
   type: "image";
   image: DataContent | URL;
 }
 
-interface TextPart {
+export interface TextPart {
   type: "text";
   text: string;
 }
 
-interface SimpleMessage {
+export interface Message {
   role: "system" | "user" | "assistant";
-  content: ImagePart[] | TextPart[] | string;
+  content: Array<ImagePart | TextPart>;
 }
 
 export interface PlaygroundForm {
   model: `${Provider}:${string}`;
-  messages: SimpleMessage[];
+  messages: Message[];
 }

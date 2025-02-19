@@ -1,12 +1,14 @@
 "use client";
+import { debounce, isEmpty } from "lodash";
 import { Loader2, PlayIcon } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Controller, FormProvider, SubmitHandler, useForm } from "react-hook-form";
 
 import Messages from "@/components/playground/messages";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
+import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
+import { mapMessages, remapMessages } from "@/lib/playground/utils";
 import { streamReader } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -14,6 +16,13 @@ import Formatter from "../ui/formatter";
 import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
 import LlmSelect from "./messages/llm-select";
+
+const defaultMessages: Message[] = [
+  {
+    role: "user",
+    content: [{ type: "text", text: "" }],
+  },
+];
 
 export default function Playground({ playground }: { playground: PlaygroundType }) {
   const params = useParams();
@@ -25,41 +34,19 @@ export default function Playground({ playground }: { playground: PlaygroundType 
 
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    setIsUpdating(true);
-
-    timer = setTimeout(() => {
-      fetch(`/api/projects/${params?.projectId}/playgrounds/${playground.id}`, {
-        method: "POST",
-        body: JSON.stringify({
-          promptMessages: playground.promptMessages,
-          modelId: playground.modelId,
-        }),
-      })
-        .then((res) => res.json())
-        .then(() => {
-          setIsUpdating(false);
-        });
-    }, 200);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [params?.projectId, playground.id, playground.modelId, playground.promptMessages]);
-
   const methods = useForm<PlaygroundForm>({
     defaultValues: {
       model: "openai:gpt-4o-mini",
-      messages: [],
+      messages: isEmpty(playground.promptMessages) ? defaultMessages : mapMessages(playground.promptMessages),
     },
   });
 
-  const { control, handleSubmit } = methods;
+  const { control, handleSubmit, watch } = methods;
   const submit: SubmitHandler<PlaygroundForm> = async (form) => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/generate", {
+      setOutput("");
+      const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
         method: "POST",
         body: JSON.stringify({
           model: form.model,
@@ -69,19 +56,60 @@ export default function Playground({ playground }: { playground: PlaygroundType 
 
       const stream = response.body?.pipeThrough(new TextDecoderStream());
 
-      if (!stream) return;
+      if (!stream) {
+        throw new Error("No stream found.");
+      }
 
       await streamReader(stream, (chunk) => {
         setOutput((prev) => prev + chunk);
       });
     } catch (e) {
       if (e instanceof Error) {
-        toast({ title: "Error occured.", variant: "destructive", description: e.message });
+        toast({ title: e.message, variant: "destructive" });
       }
     } finally {
       setIsLoading(false);
     }
   };
+
+  const updatePlaygroundData = useCallback(
+    async (form: PlaygroundForm, id: string, projectId?: string) => {
+      try {
+        setIsUpdating(true);
+        await fetch(`/api/projects/${projectId}/playgrounds/${id}`, {
+          method: "POST",
+          body: JSON.stringify({
+            promptMessages: remapMessages(form.messages),
+            modelId: form.model,
+          }),
+        });
+      } catch (e) {
+        if (e instanceof Error) {
+          toast({ title: e.message, variant: "destructive" });
+        }
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    if (!params?.projectId) return;
+
+    const debouncedUpdate = debounce((form: PlaygroundForm) => {
+      updatePlaygroundData(form, playground.id, String(params.projectId));
+    }, 300);
+
+    const subscription = watch((form) => {
+      debouncedUpdate(form as PlaygroundForm);
+    });
+
+    return () => {
+      debouncedUpdate.cancel();
+      subscription.unsubscribe();
+    };
+  }, [params?.projectId, playground.id, updatePlaygroundData, watch]);
 
   return (
     <div className="h-full flex flex-col">
