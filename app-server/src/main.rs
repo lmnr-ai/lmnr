@@ -412,12 +412,18 @@ fn main() -> anyhow::Result<()> {
                     let shared_secret_auth =
                         HttpAuthentication::bearer(auth::shared_secret_validator);
 
-                    let num_workers_per_thread = env::var("NUM_WORKERS_PER_THREAD")
-                        .unwrap_or(String::from("8"))
+                    let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("4"))
                         .parse::<u8>()
-                        .unwrap_or(8);
+                        .unwrap_or(4);
 
-                    for _ in 0..num_workers_per_thread {
+                    let num_browser_events_workers_per_thread =
+                        env::var("NUM_BROWSER_EVENTS_WORKERS_PER_THREAD")
+                            .unwrap_or(String::from("4"))
+                            .parse::<u8>()
+                            .unwrap_or(4);
+
+                    for _ in 0..num_spans_workers_per_thread {
                         tokio::spawn(process_queue_spans(
                             pipeline_runner.clone(),
                             db_for_http.clone(),
@@ -426,7 +432,9 @@ fn main() -> anyhow::Result<()> {
                             clickhouse.clone(),
                             storage.clone(),
                         ));
+                    }
 
+                    for _ in 0..num_browser_events_workers_per_thread {
                         tokio::spawn(process_browser_events(
                             clickhouse.clone(),
                             browser_events_message_queue.clone(),
