@@ -417,18 +417,18 @@ fn main() -> anyhow::Result<()> {
                     let shared_secret_auth =
                         HttpAuthentication::bearer(auth::shared_secret_validator);
 
-                    let num_trace_workers_per_thread = env::var("NUM_WORKERS_PER_THREAD")
-                        .unwrap_or(String::from("2"))
+                    let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("4"))
                         .parse::<u8>()
-                        .unwrap_or(2);
+                        .unwrap_or(4);
 
                     let num_browser_events_workers_per_thread =
                         env::var("NUM_BROWSER_EVENTS_WORKERS_PER_THREAD")
-                            .unwrap_or(String::from("2"))
+                            .unwrap_or(String::from("4"))
                             .parse::<u8>()
-                            .unwrap_or(2);
+                            .unwrap_or(4);
 
-                    for _ in 0..num_trace_workers_per_thread {
+                    for _ in 0..num_spans_workers_per_thread {
                         tokio::spawn(process_queue_spans(
                             pipeline_runner.clone(),
                             db_for_http.clone(),
