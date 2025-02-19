@@ -65,47 +65,62 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
         // - `async_insert_busy_timeout_ms`
         // These are defaulted globally to 10MiB and 1000ms respectively.
         // More: https://clickhouse.com/docs/en/optimize/asynchronous-inserts
-        let mut query = String::from(
-            "
-        INSERT INTO browser_session_events (
-            event_id, session_id, trace_id, timestamp,
-            event_type, data, project_id
-        )
-        SETTINGS async_insert = 1,
-            wait_for_async_insert = 1
-        VALUES ",
-        );
+        let query = "
+            INSERT INTO browser_session_events (
+                event_id, session_id, trace_id, timestamp,
+                event_type, data, project_id
+            )
+            SELECT
+                event_id,
+                session_id,
+                trace_id,
+                timestamp,
+                event_type,
+                data,
+                project_id
+            FROM (
+                SELECT
+                    generateUUIDv4() as event_id,
+                    ? as session_id,
+                    ? as trace_id,
+                    arr.1 as timestamp,
+                    arr.2 as event_type,
+                    arr.3 as data,
+                    ? as project_id
+                FROM (
+                    SELECT arrayJoin(arrayZip(?, ?, ?)) as arr
+                )
+            )
+            SETTINGS async_insert = 1,
+                wait_for_async_insert = 1,
+                max_query_size = 100000000";
 
-        for i in 0..batch.events.len() {
-            if i > 0 {
-                query.push_str(", ");
-            }
-            query.push_str("(generateUUIDv4(), ?, ?, ?, ?, ?, ?)");
-        }
-
-        let values = batch
+        // Prepare arrays for batch insert
+        let timestamps: Vec<String> = batch
             .events
-            .into_iter()
-            .flat_map(|event| {
-                vec![
-                    batch.session_id.to_string(),
-                    batch.trace_id.to_string(),
-                    event.timestamp.to_string(),
-                    event.event_type.to_string(),
-                    // TODO: see if we can get away with not cloning the data
-                    // for now it is causing issues with temporary lifetimes.
-                    event.data.get().to_string(),
-                    project_id.to_string(),
-                ]
-            })
-            .collect::<Vec<_>>();
+            .iter()
+            .map(|e| e.timestamp.to_string())
+            .collect();
+        let event_types: Vec<String> = batch
+            .events
+            .iter()
+            .map(|e| e.event_type.to_string())
+            .collect();
+        let event_data: Vec<String> = batch
+            .events
+            .iter()
+            .map(|e| serde_json::to_string(&e.data).unwrap_or_default())
+            .collect();
 
-        // Execute batch insert with individual bindings
-        let mut query_with_bindings = clickhouse.query(&query);
-        for value in values {
-            query_with_bindings = query_with_bindings.bind(value);
-        }
-        let final_query = query_with_bindings;
+        let final_query = clickhouse
+            .query(query)
+            .bind(batch.session_id.to_string())
+            .bind(batch.trace_id.to_string())
+            .bind(project_id.to_string())
+            .bind(timestamps)
+            .bind(event_types)
+            .bind(event_data);
+
         let insert_browser_events = || async {
             final_query.clone().execute().await
                 .map_err(|e| {
@@ -119,16 +134,15 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
                     }
                 })
         };
-
-        // Starting with 1 second delay, delay multiplies by random factor between 1 and 2
-        // up to 1 minute and until the total elapsed time is 60 seconds
+        // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
+        // up to 1 minute and until the total elapsed time is 1 minutes
         // https://docs.rs/backoff/latest/backoff/default/index.html
         let exponential_backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(std::time::Duration::from_millis(1000))
             .with_multiplier(1.5)
             .with_randomization_factor(0.5)
-            .with_max_interval(std::time::Duration::from_secs(60))
-            .with_max_elapsed_time(Some(std::time::Duration::from_secs(60)))
+            .with_max_interval(std::time::Duration::from_secs(1 * 60))
+            .with_max_elapsed_time(Some(std::time::Duration::from_secs(1 * 60)))
             .build();
 
         match backoff::future::retry(exponential_backoff, insert_browser_events).await {
@@ -138,7 +152,11 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
                 }
             }
             Err(e) => {
-                log::error!("Exhausted retries for inserting browser events: {:?}", e);
+                log::error!(
+                    "Exhausted backoff retries. Failed to insert browser events: {:?}",
+                    e
+                );
+                // TODO: Implement proper nacks and DLX
                 if let Err(e) = acker.reject(false).await {
                     log::error!("Failed to reject MQ delivery (browser events): {:?}", e);
                 }
