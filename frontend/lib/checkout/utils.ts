@@ -2,7 +2,9 @@ import { fetcher } from '../utils';
 
 export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
   pro_monthly_2024_09: 'Laminar Pro tier',
+  pro_monthly_2025_02: 'Laminar Pro tier',
   team_monthly_2024_11: 'Laminar Team tier',
+  team_monthly_2025_02: 'Laminar Team tier',
   additional_seat_2024_11: 'Additional seat'
 };
 
