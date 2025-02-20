@@ -4,6 +4,7 @@ import { cache } from '../cache';
 import { db } from '../db/drizzle';
 import { subscriptionTiers, users, userSubscriptionInfo, workspaces, workspaceUsage } from '../db/migrations/schema';
 
+// This cache key MUST match the key in the app-server
 const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
 
 export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
@@ -112,6 +113,14 @@ export const getIdFromStripeObject = (
   return stripeObject?.id;
 };
 
+
+// This function updates the cache that is used on the backend,
+// but since Stripe as a feature assumes production, we assume
+// shared Redis cache as well.
+// 
+// Worst case scenario if the cache fails,
+// is that the workspace will upgrade but the spans will still be rejected
+// based on the cached value. Bad, but not critical.
 const updateUsageCacheForWorkspace = async (workspaceId: string) => {
   const cacheKey = `${WORKSPACE_LIMITS_CACHE_KEY}:${workspaceId}`;
   const baseQuery = db.$with('workspace_stats').as(
