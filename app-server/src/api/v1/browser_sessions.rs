@@ -20,7 +20,7 @@ pub struct RRWebEvent {
     #[serde(rename = "type")]
     pub event_type: u8,
     pub timestamp: i64,
-    pub data: Box<serde_json::value::RawValue>,
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -29,6 +29,8 @@ pub struct EventBatch {
     pub events: Vec<RRWebEvent>,
     pub session_id: Uuid,
     pub trace_id: Uuid,
+    pub source: Option<String>,
+    pub sdk_version: Option<String>,
 }
 
 #[options("events")]

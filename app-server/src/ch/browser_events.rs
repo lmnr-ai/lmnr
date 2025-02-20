@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::api::v1::browser_sessions::EventBatch;
 
 #[derive(Row, Serialize)]
-pub struct BrowserEventCHRow<'data_str> {
+pub struct BrowserEventCHRow {
     #[serde(with = "clickhouse::serde::uuid")]
     pub event_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
@@ -14,7 +14,7 @@ pub struct BrowserEventCHRow<'data_str> {
     pub trace_id: Uuid,
     pub timestamp: i64,
     pub event_type: u8,
-    pub data: &'data_str str,
+    pub data: Vec<u8>,
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
 }
@@ -39,7 +39,7 @@ pub async fn insert_browser_events(
         .with_option("async_insert", "1")
         .with_option("wait_for_async_insert", "1");
 
-    for event in &event_batch.events {
+    for event in event_batch.events.iter() {
         insert
             .write(&BrowserEventCHRow {
                 event_id: Uuid::new_v4(),
@@ -47,7 +47,7 @@ pub async fn insert_browser_events(
                 trace_id: event_batch.trace_id,
                 timestamp: event.timestamp,
                 event_type: event.event_type,
-                data: event.data.get(),
+                data: event.data.clone(),
                 project_id: project_id,
             })
             .await

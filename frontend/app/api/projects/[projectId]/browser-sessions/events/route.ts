@@ -9,7 +9,11 @@ export async function GET(request: NextRequest, props: { params: Promise<{ proje
 
   const res = await clickhouseClient.query({
     query: `
-      SELECT *
+      SELECT 
+        trace_id,
+        timestamp,
+        event_type,
+        base64Encode(data) as data
       FROM browser_session_events
       WHERE trace_id = {id: UUID}
         AND project_id = {projectId: UUID}
