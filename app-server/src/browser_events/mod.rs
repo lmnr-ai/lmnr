@@ -8,6 +8,7 @@ use crate::{
     api::v1::browser_sessions::{
         EventBatch, BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
     },
+    ch::browser_events::insert_browser_events,
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
 };
 
@@ -60,79 +61,13 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
             continue;
         }
 
-        // We could further tune async_insert by setting
-        // - `async_insert_max_data_size` (bytes)
-        // - `async_insert_busy_timeout_ms`
-        // These are defaulted globally to 10MiB and 1000ms respectively.
-        // More: https://clickhouse.com/docs/en/optimize/asynchronous-inserts
-        let query = "
-            INSERT INTO browser_session_events (
-                event_id, session_id, trace_id, timestamp,
-                event_type, data, project_id
-            )
-            SELECT
-                event_id,
-                session_id,
-                trace_id,
-                timestamp,
-                event_type,
-                data,
-                project_id
-            FROM (
-                SELECT
-                    generateUUIDv4() as event_id,
-                    ? as session_id,
-                    ? as trace_id,
-                    arr.1 as timestamp,
-                    arr.2 as event_type,
-                    arr.3 as data,
-                    ? as project_id
-                FROM (
-                    SELECT arrayJoin(arrayZip(?, ?, ?)) as arr
-                )
-            )
-            SETTINGS async_insert = 1,
-                wait_for_async_insert = 1,
-                max_query_size = 100000000";
-
-        // Prepare arrays for batch insert
-        let timestamps: Vec<String> = batch
-            .events
-            .iter()
-            .map(|e| e.timestamp.to_string())
-            .collect();
-        let event_types: Vec<String> = batch
-            .events
-            .iter()
-            .map(|e| e.event_type.to_string())
-            .collect();
-        let event_data: Vec<String> = batch
-            .events
-            .iter()
-            .map(|e| serde_json::to_string(&e.data).unwrap_or_default())
-            .collect();
-
-        let final_query = clickhouse
-            .query(query)
-            .bind(batch.session_id.to_string())
-            .bind(batch.trace_id.to_string())
-            .bind(project_id.to_string())
-            .bind(timestamps)
-            .bind(event_types)
-            .bind(event_data);
-
         let insert_browser_events = || async {
-            final_query.clone().execute().await
-                .map_err(|e| {
-                    log::error!(
-                        "Failed attempt to insert browser events. Will retry according to backoff policy. Error: {:?}",
-                        e
-                    );
-                    backoff::Error::Transient {
-                        err: e,
-                        retry_after: None,
-                    }
-                })
+            insert_browser_events(&clickhouse, project_id, &batch).await.map_err(|e| {
+                log::error!("Failed attempt to insert browser events. Will retry according to backoff policy. Error: {:?}", e);
+                backoff::Error::transient(e)
+            })?;
+
+            Ok::<(), backoff::Error<clickhouse::error::Error>>(())
         };
         // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
         // up to 1 minute and until the total elapsed time is 1 minutes
