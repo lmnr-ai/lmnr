@@ -1,12 +1,12 @@
-import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import Stripe from 'stripe';
 
 import { authOptions } from '@/lib/auth';
-import { getUserSubscriptionInfo } from '@/lib/checkout/utils';
 import { db } from '@/lib/db/drizzle';
 import { users, userSubscriptionInfo } from '@/lib/db/migrations/schema';
+import { eq } from 'drizzle-orm';
+import { getUserSubscriptionInfo } from '@/lib/checkout/utils';
 
 export default async function CheckoutPage(
   props: {
@@ -45,7 +45,11 @@ export default async function CheckoutPage(
   const userId = existingStripeCustomer?.userId ??
     (await db.query.users.findFirst({
       where: eq(users.email, userSession.user.email!)
-    }))!.id;
+    }))?.id;
+
+  if (!userId) {
+    redirect(`/workspace/${workspaceId}`);
+  }
 
   if (!existingStripeCustomer?.stripeCustomerId) {
     // update the user's stripe customer id to then be able to manage their subscription
