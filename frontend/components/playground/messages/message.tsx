@@ -1,7 +1,7 @@
 import { ImagePart, TextPart } from "ai";
 import { capitalize } from "lodash";
 import { CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
-import { Controller, useFieldArray, UseFieldArrayReturn, useFormContext } from "react-hook-form";
+import { Controller, ControllerRenderProps, useFieldArray, UseFieldArrayReturn, useFormContext } from "react-hook-form";
 
 import MessageParts from "@/components/playground/messages/message-parts";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { PlaygroundForm } from "@/lib/playground/types";
 interface MessageProps {
   insert: UseFieldArrayReturn<PlaygroundForm, "messages">["insert"];
   remove: UseFieldArrayReturn<PlaygroundForm, "messages">["remove"];
+  update: UseFieldArrayReturn<PlaygroundForm, "messages">["update"];
   index: number;
   deletable?: boolean;
 }
@@ -39,7 +40,7 @@ const defaultImagePart: ImagePart = {
 
 const buttonClassName =
   "size-fit p-[5px] bg-muted/50 transition-opacity duration-200 opacity-0 group-hover:opacity-100";
-const Message = ({ insert, remove, index, deletable = true }: MessageProps) => {
+const Message = ({ insert, remove, update, index, deletable = true }: MessageProps) => {
   const { control, watch } = useFormContext<{
     model: `${Provider}:${string}`;
     messages: { role: "system" | "role" | "user"; content: (TextPart | ImagePart)[] }[];
@@ -54,12 +55,21 @@ const Message = ({ insert, remove, index, deletable = true }: MessageProps) => {
     control,
   });
 
+  const handleUpdateRole =
+    (onChange: ControllerRenderProps["onChange"]) => (value: PlaygroundForm["messages"]["0"]["role"]) => {
+      if (value === "system") {
+        update(index, { content: [{ type: "text", text: "" }], role: value });
+      } else {
+        onChange(value);
+      }
+    };
+
   return (
     <div className="px-2 py-3 rounded-md border-[1px] bg-muted/50 group overflow-hidden">
       <div className="flex items-center gap-1 mb-2">
         <Controller
           render={({ field: { value, onChange } }) => (
-            <Select value={value} onValueChange={onChange}>
+            <Select value={value} onValueChange={handleUpdateRole(onChange)}>
               <SelectTrigger className="w-fit border-none pl-1">
                 <SelectValue />
               </SelectTrigger>
