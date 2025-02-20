@@ -8,7 +8,7 @@ import { Controller, FormProvider, SubmitHandler, useForm } from "react-hook-for
 import Messages from "@/components/playground/messages";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
-import { mapMessages, remapMessages } from "@/lib/playground/utils";
+import { mapMessages, parseSystemMessages, remapMessages } from "@/lib/playground/utils";
 import { streamReader } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -51,7 +51,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         method: "POST",
         body: JSON.stringify({
           model: form.model,
-          messages: form.messages,
+          messages: parseSystemMessages(form.messages),
         }),
       });
 

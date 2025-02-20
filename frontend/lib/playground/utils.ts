@@ -1,3 +1,5 @@
+import { CoreMessage, CoreSystemMessage } from "ai";
+
 import { ImagePart, Message, TextPart } from "@/lib/playground/types";
 import { ChatMessage, ChatMessageImageUrl, ChatMessageText } from "@/lib/types";
 
@@ -53,3 +55,14 @@ export const remapMessages = (messages: Message[]): ChatMessage[] =>
       }
     }),
   }));
+
+export const parseSystemMessages = (messages: Message[]): CoreMessage[] =>
+  messages.map((message) => {
+    if (message.role === "system" && message.content?.[0]?.type === "text") {
+      return {
+        role: message.role,
+        content: message.content?.[0]?.text,
+      } as CoreSystemMessage;
+    }
+    return message as CoreMessage;
+  });

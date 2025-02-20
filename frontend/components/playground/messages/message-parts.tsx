@@ -1,3 +1,4 @@
+import { ImagePart, TextPart } from "ai";
 import { Image as IconImage, X } from "lucide-react";
 import Image from "next/image";
 import { FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
@@ -5,13 +6,20 @@ import { FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hoo
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
+import { Provider } from "@/lib/pipeline/types";
 import { PlaygroundForm } from "@/lib/playground/types";
 
 const buttonClassName = "size-fit p-[1px] transition-all duration-200 opacity-0 group-hover:opacity-100";
 
 interface MessagePartsProps {
   parentIndex: number;
-  fields: FieldArrayWithId<PlaygroundForm, `messages.${number}.content`>[];
+  fields: FieldArrayWithId<
+    {
+      model: `${Provider}:${string}`;
+      messages: { role: "system" | "role" | "user"; content: (TextPart | ImagePart)[] }[];
+    },
+    `messages.${number}.content`
+  >[];
   remove: UseFieldArrayRemove;
 }
 

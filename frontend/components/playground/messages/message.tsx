@@ -40,7 +40,7 @@ const defaultImagePart: ImagePart = {
 const buttonClassName =
   "size-fit p-[5px] bg-muted/50 transition-opacity duration-200 opacity-0 group-hover:opacity-100";
 const Message = ({ insert, remove, index, deletable = true }: MessageProps) => {
-  const { control } = useFormContext<{
+  const { control, watch } = useFormContext<{
     model: `${Provider}:${string}`;
     messages: { role: "system" | "role" | "user"; content: (TextPart | ImagePart)[] }[];
   }>();
@@ -75,22 +75,36 @@ const Message = ({ insert, remove, index, deletable = true }: MessageProps) => {
           name={`messages.${index}.role`}
           control={control}
         />
-        <Tooltip>
-          <TooltipContent>Add text message part</TooltipContent>
-          <TooltipTrigger asChild>
-            <Button onClick={() => append(defaultTextPart)} className={buttonClassName} variant="outline" size="icon">
-              <MessageCirclePlus size={12} />
-            </Button>
-          </TooltipTrigger>
-        </Tooltip>
-        <Tooltip>
-          <TooltipContent>Add image message part</TooltipContent>
-          <TooltipTrigger asChild>
-            <Button onClick={() => append(defaultImagePart)} className={buttonClassName} variant="outline" size="icon">
-              <ImagePlus size={12} />
-            </Button>
-          </TooltipTrigger>
-        </Tooltip>
+        {watch(`messages.${index}.role`) !== "system" && (
+          <>
+            <Tooltip>
+              <TooltipContent>Add text message part</TooltipContent>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => append(defaultTextPart)}
+                  className={buttonClassName}
+                  variant="outline"
+                  size="icon"
+                >
+                  <MessageCirclePlus size={12} />
+                </Button>
+              </TooltipTrigger>
+            </Tooltip>
+            <Tooltip>
+              <TooltipContent>Add image message part</TooltipContent>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => append(defaultImagePart)}
+                  className={buttonClassName}
+                  variant="outline"
+                  size="icon"
+                >
+                  <ImagePlus size={12} />
+                </Button>
+              </TooltipTrigger>
+            </Tooltip>
+          </>
+        )}
         <Tooltip>
           <TooltipContent>Add message</TooltipContent>
           <TooltipTrigger asChild>
