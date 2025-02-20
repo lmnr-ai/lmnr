@@ -5,7 +5,6 @@ import { FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hoo
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
-import { Input } from "@/components/ui/input";
 import { PlaygroundForm } from "@/lib/playground/types";
 
 const buttonClassName = "size-fit p-[1px] transition-all duration-200 opacity-0 group-hover:opacity-100";
@@ -29,10 +28,10 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 <span className="pt-1">
                   <IconMessage className="size-3" />
                 </span>
-                <Input
+                <DefaultTextarea
                   placeholder="Enter text message"
                   {...register(`messages.${parentIndex}.content.${index}.text` as const)}
-                  className="border-none p-0 focus-visible:ring-0 h-fit rounded-none"
+                  className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none"
                 />
                 {fields.length > 1 && (
                   <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">

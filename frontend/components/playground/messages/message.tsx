@@ -55,12 +55,12 @@ const Message = ({ insert, remove, index, deletable = true }: MessageProps) => {
   });
 
   return (
-    <div className="px-2 py-3 rounded-md border-[1px] bg-muted/50 group">
-      <div className="flex items-center gap-1">
+    <div className="px-2 py-3 rounded-md border-[1px] bg-muted/50 group overflow-hidden">
+      <div className="flex items-center gap-1 mb-2">
         <Controller
           render={({ field: { value, onChange } }) => (
             <Select value={value} onValueChange={onChange}>
-              <SelectTrigger className="w-fit border-none mb-2 pl-1 mr-auto">
+              <SelectTrigger className="w-fit border-none pl-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

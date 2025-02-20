@@ -1,7 +1,7 @@
 "use client";
 import { debounce, isEmpty } from "lodash";
 import { Loader2, PlayIcon } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Controller, FormProvider, SubmitHandler, useForm } from "react-hook-form";
 
@@ -25,9 +25,10 @@ const defaultMessages: Message[] = [
 ];
 
 export default function Playground({ playground }: { playground: PlaygroundType }) {
+  const { replace } = useRouter();
   const params = useParams();
   const { toast } = useToast();
-
+  const searchParams = useSearchParams();
   const [inputs, setInputs] = useState<string>("{}");
   const [output, setOutput] = useState<string>("");
   const [isUpdating, setIsUpdating] = useState(false);
@@ -93,6 +94,12 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     },
     [toast]
   );
+
+  useEffect(() => {
+    if (params.playgroundId === "create" && searchParams.get("spanId")) {
+      replace(`/project/${params?.projectId}/playgrounds/${playground.id}`);
+    }
+  }, [params.playgroundId, params?.projectId, playground.id, replace, searchParams]);
 
   useEffect(() => {
     if (!params?.projectId) return;
