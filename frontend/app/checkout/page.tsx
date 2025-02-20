@@ -1,12 +1,12 @@
+import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import Stripe from 'stripe';
 
 import { authOptions } from '@/lib/auth';
+import { getUserSubscriptionInfo } from '@/lib/checkout/utils';
 import { db } from '@/lib/db/drizzle';
 import { users, userSubscriptionInfo } from '@/lib/db/migrations/schema';
-import { eq } from 'drizzle-orm';
-import { getUserSubscriptionInfo } from '@/lib/checkout/utils';
 
 export default async function CheckoutPage(
   props: {

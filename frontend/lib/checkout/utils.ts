@@ -117,7 +117,7 @@ export const getIdFromStripeObject = (
 // This function updates the cache that is used on the backend,
 // but since Stripe as a feature assumes production, we assume
 // shared Redis cache as well.
-// 
+//
 // Worst case scenario if the cache fails,
 // is that the workspace will upgrade but the spans will still be rejected
 // based on the cached value. Bad, but not critical.
