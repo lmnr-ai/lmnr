@@ -69,8 +69,8 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
 
             Ok::<(), backoff::Error<clickhouse::error::Error>>(())
         };
-        // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
-        // up to 1 minute and until the total elapsed time is 1 minutes
+        // Starting with 1 second delay, delay multiplies by random factor between 1 and 2
+        // up to 1 minute and until the total elapsed time is 1 minute
         // https://docs.rs/backoff/latest/backoff/default/index.html
         let exponential_backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(std::time::Duration::from_millis(1000))
