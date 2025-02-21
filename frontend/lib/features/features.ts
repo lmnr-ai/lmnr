@@ -8,6 +8,7 @@ export const enum Feature {
   POSTHOG = "POSTHOG",
   LOCAL_DB = "LOCAL_DB",
   FULL_BUILD = "FULL_BUILD",
+  SUBSCRIPTION = "SUBSCRIPTION",
 }
 
 // right now all managed-version features are disabled in local environment
@@ -32,5 +33,12 @@ export const isFeatureEnabled = (feature: Feature) => {
     return ["FULL", "PRODUCTION"].includes(environment);
   }
 
-  return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
+  if (feature === Feature.SUBSCRIPTION) {
+    return (
+      process.env.ENVIRONMENT === "PRODUCTION" &&
+      !!process.env.STRIPE_SECRET_KEY
+    );
+  }
+
+  return process.env.ENVIRONMENT === "PRODUCTION";
 };

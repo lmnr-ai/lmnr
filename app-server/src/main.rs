@@ -467,16 +467,6 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(shared_secret_auth.clone())
                                 .service(routes::auth::signin),
                         )
-                        .service(
-                            web::scope("api/v1/auth")
-                                .wrap(shared_secret_auth.clone())
-                                .service(routes::auth::signin),
-                        )
-                        .service(
-                            web::scope("api/v1/manage-subscriptions")
-                                .wrap(shared_secret_auth)
-                                .service(routes::subscriptions::update_subscription),
-                        )
                         .service(api::v1::machine_manager::vnc_stream) // vnc stream does not need auth
                         .service(
                             web::scope("/v1/browser-sessions")
@@ -519,12 +509,6 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(auth.clone())
                                 .service(routes::limits::get_workspace_stats)
                                 .service(routes::limits::get_workspace_storage_stats),
-                        )
-                        .service(
-                            web::scope("/api/v1/subscriptions")
-                                .wrap(auth)
-                                .service(routes::subscriptions::save_stripe_customer_id)
-                                .service(routes::subscriptions::get_user_subscription_info),
                         )
                         .service(
                             // auth on path projects/{project_id} is handled by middleware on Next.js

@@ -9,7 +9,6 @@ pub mod pipelines;
 pub mod probes;
 pub mod projects;
 pub mod provider_api_keys;
-pub mod subscriptions;
 pub mod traces;
 pub mod types;
 pub mod workspace;

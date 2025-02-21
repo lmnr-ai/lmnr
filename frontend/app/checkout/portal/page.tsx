@@ -3,8 +3,7 @@ import { getServerSession } from 'next-auth';
 import Stripe from 'stripe';
 
 import { authOptions } from '@/lib/auth';
-import { UserSubscriptionInfo } from '@/lib/checkout/types';
-import { fetcherJSON } from '@/lib/utils';
+import { getUserSubscriptionInfo } from '@/lib/checkout/utils';
 
 export default async function CheckoutPortalPage(
   props: {
@@ -27,13 +26,7 @@ export default async function CheckoutPortalPage(
     );
     stripeCustomerId = session.customer as string;
   } else {
-    const existingStripeCustomer = (await fetcherJSON('/subscriptions', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userSession.user.apiKey}`
-      }
-    })) as UserSubscriptionInfo | null;
+    const existingStripeCustomer = await getUserSubscriptionInfo(userSession.user.email!);
     stripeCustomerId = existingStripeCustomer?.activated
       ? existingStripeCustomer?.stripeCustomerId
       : null;
@@ -43,8 +36,8 @@ export default async function CheckoutPortalPage(
     // fallback to log in by email, if we could not find the customer
     redirect(
       'https://billing.stripe.com/p/login/14keVz71QekEc0g144?' +
-        'prefilled_email=' +
-        userSession.user.email
+      'prefilled_email=' +
+      userSession.user.email
     );
   } else {
     const returnUrl =
