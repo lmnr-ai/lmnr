@@ -24,6 +24,22 @@ const defaultMessages: Message[] = [
   },
 ];
 
+const renderText = (text: string, inputs: Record<string, string>) =>
+  text.replace(/\{\{([^}]+)\}\}/g, (match, p1) => inputs[p1] || match);
+
+const renderMessages = (messages: Message[], inputs: Record<string, string>): Message[] =>
+  messages.map((message) => ({
+    ...message,
+    content: message.content.map((content) =>
+      content.type === "text"
+        ? {
+          ...content,
+          text: renderText(content.text, inputs),
+        }
+        : content
+    ),
+  }));
+
 export default function Playground({ playground }: { playground: PlaygroundType }) {
   const { replace } = useRouter();
   const params = useParams();
@@ -47,11 +63,13 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     try {
       setIsLoading(true);
       setOutput("");
+      const inputValues: Record<string, any> = JSON.parse(inputs);
+
       const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
         method: "POST",
         body: JSON.stringify({
           model: form.model,
-          messages: parseSystemMessages(form.messages),
+          messages: parseSystemMessages(renderMessages(form.messages, inputValues)),
         }),
       });
 
