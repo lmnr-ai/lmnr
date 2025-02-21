@@ -532,9 +532,9 @@ function IconGemini({ className, ...props }: React.ComponentProps<"svg">) {
       <title>Gemini</title>
       <defs>
         <linearGradient id="lobe-icons-gemini-fill" x1="0%" x2="68.73%" y1="100%" y2="30.395%">
-          <stop offset="0%" stop-color="#1C7DFF"></stop>
-          <stop offset="52.021%" stop-color="#1C69FF"></stop>
-          <stop offset="100%" stop-color="#F0DCD6"></stop>
+          <stop offset="0%" stopColor="#1C7DFF"></stop>
+          <stop offset="52.021%" stopColor="#1C69FF"></stop>
+          <stop offset="100%" stopColor="#F0DCD6"></stop>
         </linearGradient>
       </defs>
       <path
@@ -584,15 +584,15 @@ function IconAmazonBedrock({ className, ...props }: React.ComponentProps<"svg">)
       <title>Bedrock</title>
       <defs>
         <linearGradient id="lobe-icons-bedrock-fill" x1="80%" x2="20%" y1="20%" y2="80%">
-          <stop offset="0%" stop-color="#6350FB"></stop>
-          <stop offset="50%" stop-color="#3D8FFF"></stop>
-          <stop offset="100%" stop-color="#9AD8F8"></stop>
+          <stop offset="0%" stopColor="#6350FB"></stop>
+          <stop offset="50%" stopColor="#3D8FFF"></stop>
+          <stop offset="100%" stopColor="#9AD8F8"></stop>
         </linearGradient>
       </defs>
       <path
         d="M13.05 15.513h3.08c.214 0 .389.177.389.394v1.82a1.704 1.704 0 011.296 1.661c0 .943-.755 1.708-1.685 1.708-.931 0-1.686-.765-1.686-1.708 0-.807.554-1.484 1.297-1.662v-1.425h-2.69v4.663a.395.395 0 01-.188.338l-2.69 1.641a.385.385 0 01-.405-.002l-4.926-3.086a.395.395 0 01-.185-.336V16.3L2.196 14.87A.395.395 0 012 14.555L2 14.528V9.406c0-.14.073-.27.192-.34l2.465-1.462V4.448c0-.129.062-.249.165-.322l.021-.014L9.77 1.058a.385.385 0 01.407 0l2.69 1.675a.395.395 0 01.185.336V7.6h3.856V5.683a1.704 1.704 0 01-1.296-1.662c0-.943.755-1.708 1.685-1.708.931 0 1.685.765 1.685 1.708 0 .807-.553 1.484-1.296 1.662v2.311a.391.391 0 01-.389.394h-4.245v1.806h6.624a1.69 1.69 0 011.64-1.313c.93 0 1.685.764 1.685 1.707 0 .943-.754 1.708-1.685 1.708a1.69 1.69 0 01-1.64-1.314H13.05v1.937h4.953l.915 1.18a1.66 1.66 0 01.84-.227c.931 0 1.685.764 1.685 1.707 0 .943-.754 1.708-1.685 1.708-.93 0-1.685-.765-1.685-1.708 0-.346.102-.668.276-.937l-.724-.935H13.05v1.806zM9.973 1.856L7.93 3.122V6.09h-.778V3.604L5.435 4.669v2.945l2.11 1.36L9.712 7.61V5.334h.778V7.83c0 .136-.07.263-.184.335L7.963 9.638v2.081l1.422 1.009-.446.646-1.406-.998-1.53 1.005-.423-.66 1.605-1.055v-1.99L5.038 8.29l-2.26 1.34v1.676l1.972-1.189.398.677-2.37 1.429V14.3l2.166 1.258 2.27-1.368.397.677-2.176 1.311V19.3l1.876 1.175 2.365-1.426.398.678-2.017 1.216 1.918 1.201 2.298-1.403v-5.78l-4.758 2.893-.4-.675 5.158-3.136V3.289L9.972 1.856zM16.13 18.47a.913.913 0 00-.908.92c0 .507.406.918.908.918a.913.913 0 00.907-.919.913.913 0 00-.907-.92zm3.63-3.81a.913.913 0 00-.908.92c0 .508.406.92.907.92a.913.913 0 00.908-.92.913.913 0 00-.908-.92zm1.555-4.99a.913.913 0 00-.908.92c0 .507.407.918.908.918a.913.913 0 00.907-.919.913.913 0 00-.907-.92zM17.296 3.1a.913.913 0 00-.907.92c0 .508.406.92.907.92a.913.913 0 00.908-.92.913.913 0 00-.908-.92z"
         fill="url(#lobe-icons-bedrock-fill)"
-        fill-rule="nonzero"
+        fillRule="nonzero"
       ></path>
     </svg>
   );
@@ -627,8 +627,8 @@ function IconAzure({ className, ...props }: React.ComponentProps<"svg">) {
           y1="1.626"
           y2="23.03"
         >
-          <stop stop-color="#114A8B"></stop>
-          <stop offset="1" stop-color="#0669BC"></stop>
+          <stop stopColor="#114A8B"></stop>
+          <stop offset="1" stopColor="#0669BC"></stop>
         </linearGradient>
         <linearGradient
           gradientUnits="userSpaceOnUse"
@@ -638,11 +638,11 @@ function IconAzure({ className, ...props }: React.ComponentProps<"svg">) {
           y1="15.302"
           y2="15.888"
         >
-          <stop stop-opacity=".3"></stop>
-          <stop offset=".071" stop-opacity=".2"></stop>
-          <stop offset=".321" stop-opacity=".1"></stop>
-          <stop offset=".623" stop-opacity=".05"></stop>
-          <stop offset="1" stop-opacity="0"></stop>
+          <stop stopOpacity=".3"></stop>
+          <stop offset=".071" stopOpacity=".2"></stop>
+          <stop offset=".321" stopOpacity=".1"></stop>
+          <stop offset=".623" stopOpacity=".05"></stop>
+          <stop offset="1" stopOpacity="0"></stop>
         </linearGradient>
         <linearGradient
           gradientUnits="userSpaceOnUse"
@@ -652,8 +652,8 @@ function IconAzure({ className, ...props }: React.ComponentProps<"svg">) {
           y1="1.626"
           y2="22.814"
         >
-          <stop stop-color="#3CCBF4"></stop>
-          <stop offset="1" stop-color="#2892DF"></stop>
+          <stop stopColor="#3CCBF4"></stop>
+          <stop offset="1" stopColor="#2892DF"></stop>
         </linearGradient>
       </defs>
     </svg>

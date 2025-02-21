@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Controller, FormProvider, SubmitHandler, useForm } from "react-hook-form";
 
 import Messages from "@/components/playground/messages";
+import LlmSelectNew from "@/components/playground/messages/llm-select-new";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
 import { mapMessages, parseSystemMessages, remapMessages } from "@/lib/playground/utils";
@@ -33,9 +34,9 @@ const renderMessages = (messages: Message[], inputs: Record<string, string>): Me
     content: message.content.map((content) =>
       content.type === "text"
         ? {
-          ...content,
-          text: renderText(content.text, inputs),
-        }
+            ...content,
+            text: renderText(content.text, inputs),
+          }
         : content
     ),
   }));
@@ -68,6 +69,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
       const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
         method: "POST",
         body: JSON.stringify({
+          projectId: params?.projectId,
           model: form.model,
           messages: parseSystemMessages(renderMessages(form.messages, inputValues)),
         }),
@@ -146,6 +148,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
           <div className="flex flex-col gap-4 p-4">
             <div className="flex flex-col gap-2"></div>
             <FormProvider {...methods}>
+              <LlmSelectNew />
               <Controller
                 render={({ field: { value, onChange } }) => <LlmSelect value={value} onChange={onChange} />}
                 name="model"

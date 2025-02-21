@@ -1,4 +1,5 @@
 import { CheckJobStatus } from "@/lib/check/types";
+import { EnvVars } from "@/lib/env/utils";
 import { DisplayableGraph, NodeHandleType, NodeInput, RunnableGraph } from "@/lib/flow/types";
 
 export type PipelineType = "WORKSHOP" | "COMMIT";
@@ -106,6 +107,15 @@ export type LanguageModel = {
 
 export type Provider = "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "bedrock" | "openai-azure";
 
+export const providerToApiKey: Record<Provider, EnvVars> = {
+  openai: EnvVars.OPENAI_API_KEY,
+  anthropic: EnvVars.ANTHROPIC_API_KEY,
+  gemini: EnvVars.GEMINI_API_KEY,
+  groq: EnvVars.GROQ_API_KEY,
+  mistral: EnvVars.MISTRAL_API_KEY,
+  bedrock: EnvVars.AWS_ACCESS_KEY_ID,
+  "openai-azure": EnvVars.AWS_ACCESS_KEY_ID,
+};
 export const providers: { provider: Provider; models: LanguageModel[] }[] = [
   {
     provider: "openai",
