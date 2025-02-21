@@ -4,9 +4,9 @@ import 'rrweb-player/dist/style.css';
 
 import { PauseIcon, PlayIcon } from '@radix-ui/react-icons';
 import { Loader2 } from 'lucide-react';
+import pako from 'pako';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import rrwebPlayer from 'rrweb-player';
-import pako from 'pako';
 
 import { useProjectContext } from '@/contexts/project-context';
 import { formatSecondsToMinutesAndSeconds } from '@/lib/utils';
@@ -88,32 +88,30 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         const text = await blob.text();
         const batchEvents = JSON.parse(text);
 
-        const events = batchEvents.flatMap((batch: any) => {
-          return batch.map((data: any) => {
-            const parsedEvent = JSON.parse(data.text);
-            const base64DecodedData = atob(parsedEvent.data);
-            let decompressedData = null;
+        const events = batchEvents.flatMap((batch: any) => batch.map((data: any) => {
+          const parsedEvent = JSON.parse(data.text);
+          const base64DecodedData = atob(parsedEvent.data);
+          let decompressedData = null;
 
-            try {
-              const encodedData = new Uint8Array(base64DecodedData.split('').map((c: any) => c.charCodeAt(0)));
-              decompressedData = pako.ungzip(encodedData, { to: 'string' });
-            } catch (e) {
-              // old non-compressed events
-              decompressedData = base64DecodedData;
-            }
+          try {
+            const encodedData = new Uint8Array(base64DecodedData.split('').map((c: any) => c.charCodeAt(0)));
+            decompressedData = pako.ungzip(encodedData, { to: 'string' });
+          } catch (e) {
+            // old non-compressed events
+            decompressedData = base64DecodedData;
+          }
 
-            const event = {
-              ...parsedEvent,
-              data: JSON.parse(decompressedData)
-            };
+          const event = {
+            ...parsedEvent,
+            data: JSON.parse(decompressedData)
+          };
 
-            return {
-              data: event.data,
-              timestamp: new Date(event.timestamp).getTime(),
-              type: parseInt(event.event_type)
-            };
-          });
-        });
+          return {
+            data: event.data,
+            timestamp: new Date(event.timestamp).getTime(),
+            type: parseInt(event.event_type)
+          };
+        }));
 
         setEvents(events);
       } catch (e) {
