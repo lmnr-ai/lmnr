@@ -18,9 +18,9 @@ pub const BROWSER_SESSIONS_ROUTING_KEY: &str = "browser_sessions_routing_key";
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RRWebEvent {
     #[serde(rename = "type")]
-    pub event_type: i32,
+    pub event_type: u8,
     pub timestamp: i64,
-    pub data: Box<serde_json::value::RawValue>,
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -29,6 +29,10 @@ pub struct EventBatch {
     pub events: Vec<RRWebEvent>,
     pub session_id: Uuid,
     pub trace_id: Uuid,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub sdk_version: Option<String>,
 }
 
 #[options("events")]
