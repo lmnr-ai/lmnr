@@ -11,7 +11,7 @@ use crate::db::project_api_keys::ProjectApiKey;
 use crate::db::{self, DB};
 use crate::features::{is_feature_enabled, Feature};
 use crate::routes::types::ResponseResult;
-use crate::semantic_search::SemanticSearch;
+use crate::semantic_search::{SemanticSearch, SemanticSearchTrait};
 use crate::traces::utils::json_value_to_string;
 
 const DEFAULT_LIMIT: u32 = 10;
@@ -55,7 +55,7 @@ pub async fn semantic_search(
     params: web::Json<SemanticSearchRequest>,
     db: web::Data<DB>,
     project_api_key: ProjectApiKey,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     if !is_feature_enabled(Feature::FullBuild) {
         let error = "Semantic search is not enabled. Please enable full build";

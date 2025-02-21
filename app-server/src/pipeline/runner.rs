@@ -10,7 +10,7 @@ use crate::{
         DB,
     },
     engine::{engine::EngineOutput, Engine},
-    mq::MessageQueue,
+    mq::{MessageQueue, MessageQueueTrait},
     routes::pipelines::GraphInterruptMessage,
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
 };
@@ -94,9 +94,9 @@ impl Serialize for PipelineRunnerError {
 #[derive(Clone)]
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
-    semantic_search: Arc<dyn SemanticSearch>,
-    queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
-    code_executor: Arc<dyn CodeExecutor>,
+    semantic_search: Arc<SemanticSearch>,
+    queue: Arc<MessageQueue>,
+    code_executor: Arc<CodeExecutor>,
     db: Arc<DB>,
     cache: Arc<Cache>,
 }
@@ -104,9 +104,9 @@ pub struct PipelineRunner {
 impl PipelineRunner {
     pub fn new(
         language_model: Arc<LanguageModelRunner>,
-        semantic_search: Arc<dyn SemanticSearch>,
-        queue: Arc<dyn MessageQueue<RabbitMqSpanMessage>>,
-        code_executor: Arc<dyn CodeExecutor>,
+        semantic_search: Arc<SemanticSearch>,
+        queue: Arc<MessageQueue>,
+        code_executor: Arc<CodeExecutor>,
         db: Arc<DB>,
         cache: Arc<Cache>,
     ) -> Self {
@@ -250,7 +250,7 @@ impl PipelineRunner {
 
         self.queue
             .publish(
-                &parent_span_mq_message,
+                &serde_json::to_vec(&parent_span_mq_message).unwrap(),
                 OBSERVATIONS_EXCHANGE,
                 OBSERVATIONS_ROUTING_KEY,
             )
@@ -265,7 +265,7 @@ impl PipelineRunner {
 
             self.queue
                 .publish(
-                    &message_span_mq_message,
+                    &serde_json::to_vec(&message_span_mq_message).unwrap(),
                     OBSERVATIONS_EXCHANGE,
                     OBSERVATIONS_ROUTING_KEY,
                 )

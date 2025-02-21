@@ -19,7 +19,7 @@ use crate::{
     },
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     pipeline::{nodes::Message, trace::MetaLog},
-    storage::Storage,
+    storage::{Storage, StorageTrait},
 };
 
 use super::{
@@ -665,11 +665,7 @@ impl Span {
             .collect()
     }
 
-    pub async fn store_payloads<S: Storage + ?Sized>(
-        &mut self,
-        project_id: &Uuid,
-        storage: Arc<S>,
-    ) -> Result<()> {
+    pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
@@ -689,19 +685,15 @@ impl Span {
                     new_messages.push(message);
                 }
                 self.input = Some(serde_json::to_value(new_messages).unwrap());
-            // We cannot parse the input as a Vec<ChatMessage>, but we check if
-            // it's still large. Obviously serializing to JSON affects the size,
-            // but we don't need to be exact here.
             } else {
-                let input_str = serde_json::to_string(&self.input).unwrap_or_default();
-                if input_str.len() > payload_size_threshold {
+                let mut data = Vec::new();
+                serde_json::to_writer(&mut data, &self.input)?;
+                if data.len() > payload_size_threshold {
                     let key = crate::storage::create_key(project_id, &None);
-                    let mut data = Vec::new();
-                    serde_json::to_writer(&mut data, &self.input)?;
-                    let url = storage.store(data, &key).await?;
+                    let url = storage.store(data.clone(), &key).await?;
                     self.input_url = Some(url);
                     self.input = Some(serde_json::Value::String(
-                        input_str.chars().take(100).collect(),
+                        String::from_utf8_lossy(&data).chars().take(100).collect(),
                     ));
                 }
             }

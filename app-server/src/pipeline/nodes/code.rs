@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::code_executor::CodeExecutorTrait;
 use crate::engine::{RunOutput, RunnableNode};
 use crate::pipeline::context::Context;
 use anyhow::Result;

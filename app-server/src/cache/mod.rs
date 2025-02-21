@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 
+use in_memory::InMemoryCache;
+use redis::RedisCache;
+
 pub mod in_memory;
 pub mod keys;
 pub mod redis;
-
-pub use in_memory::InMemoryCache;
-pub use redis::RedisCache;
 
 #[derive(thiserror::Error, Debug)]
 pub enum CacheError {
@@ -25,12 +25,12 @@ pub enum Cache {
 
 #[async_trait]
 #[enum_dispatch(Cache)]
-pub trait CacheTrait: Sync + Send {
+pub trait CacheTrait {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>
     where
-        T: for<'de> Deserialize<'de> + Send + Sync;
+        T: for<'de> Deserialize<'de>;
     async fn insert<T>(&self, key: &str, value: T) -> Result<(), CacheError>
     where
-        T: Serialize + Send + Sync;
+        T: Serialize + Send;
     async fn remove(&self, key: &str) -> Result<(), CacheError>;
 }

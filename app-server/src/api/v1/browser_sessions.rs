@@ -4,7 +4,12 @@ use actix_web::{options, post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{db::project_api_keys::ProjectApiKey, mq, routes::types::ResponseResult};
+use crate::{
+    browser_events::QueueBrowserEventMessage,
+    db::project_api_keys::ProjectApiKey,
+    mq::{MessageQueue, MessageQueueTrait},
+    routes::types::ResponseResult,
+};
 
 pub const BROWSER_SESSIONS_QUEUE: &str = "browser_sessions_queue";
 pub const BROWSER_SESSIONS_EXCHANGE: &str = "browser_sessions_exchange";
@@ -15,7 +20,7 @@ pub struct RRWebEvent {
     #[serde(rename = "type")]
     pub event_type: i32,
     pub timestamp: i64,
-    pub data: serde_json::Value,
+    pub data: Box<serde_json::value::RawValue>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,12 +29,6 @@ pub struct EventBatch {
     pub events: Vec<RRWebEvent>,
     pub session_id: Uuid,
     pub trace_id: Uuid,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct QueueBrowserEventMessage {
-    pub batch: EventBatch,
-    pub project_id: Uuid,
 }
 
 #[options("events")]
@@ -49,7 +48,7 @@ async fn options_handler() -> ResponseResult {
 async fn create_session_event(
     batch: web::Json<EventBatch>,
     project_api_key: ProjectApiKey,
-    queue: web::Data<Arc<dyn mq::MessageQueue<QueueBrowserEventMessage>>>,
+    queue: web::Data<Arc<MessageQueue>>,
 ) -> ResponseResult {
     let filtered_batch = batch.into_inner();
 
@@ -60,12 +59,14 @@ async fn create_session_event(
         })));
     }
 
+    let message = QueueBrowserEventMessage {
+        batch: filtered_batch,
+        project_id: project_api_key.project_id,
+    };
+
     queue
         .publish(
-            &QueueBrowserEventMessage {
-                batch: filtered_batch,
-                project_id: project_api_key.project_id,
-            },
+            &serde_json::to_vec(&message).unwrap(),
             BROWSER_SESSIONS_EXCHANGE,
             BROWSER_SESSIONS_ROUTING_KEY,
         )

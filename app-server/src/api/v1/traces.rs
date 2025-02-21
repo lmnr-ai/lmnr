@@ -28,7 +28,7 @@ pub async fn process_traces(
     body: Bytes,
     project_api_key: ProjectApiKey,
     cache: web::Data<crate::cache::Cache>,
-    spans_message_queue: web::Data<Arc<dyn MessageQueue<RabbitMqSpanMessage>>>,
+    spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
 ) -> ResponseResult {
     let db = db.into_inner();

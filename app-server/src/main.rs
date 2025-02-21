@@ -18,6 +18,7 @@ use lapin::{
 use machine_manager::{
     machine_manager_service_client::MachineManagerServiceClient, MachineManager, MachineManagerImpl,
 };
+use mq::MessageQueue;
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
@@ -28,7 +29,7 @@ use traces::{
     OBSERVATIONS_QUEUE,
 };
 
-use cache::{Cache, InMemoryCache, RedisCache};
+use cache::{in_memory::InMemoryCache, redis::RedisCache, Cache};
 use chunk::{
     character_split::CharacterSplitChunker,
     runner::{Chunker, ChunkerRunner, ChunkerType},
@@ -134,21 +135,15 @@ fn main() -> anyhow::Result<()> {
     // === 2. Database ===
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    let min_connections = env::var("DATABASE_MIN_CONNECTIONS")
-        .unwrap_or(String::from("5"))
-        .parse()
-        .unwrap_or(5);
     let max_connections = env::var("DATABASE_MAX_CONNECTIONS")
         .unwrap_or(String::from("10"))
         .parse()
         .unwrap_or(10);
 
-    log::info!("Database min connections: {}", min_connections);
     log::info!("Database max connections: {}", max_connections);
 
     let pool = runtime_handle.block_on(async {
         sqlx::postgres::PgPoolOptions::new()
-            .min_connections(min_connections)
             .max_connections(max_connections)
             .connect(&db_url)
             .await
@@ -174,40 +169,37 @@ fn main() -> anyhow::Result<()> {
     let connection_for_health = connection.clone(); // Clone before moving into HttpServer
 
     // ==== 3.1 Spans message queue ====
-    let spans_message_queue: Arc<dyn mq::MessageQueue<api::v1::traces::RabbitMqSpanMessage>> =
-        if let Some(connection) = connection.as_ref() {
-            runtime_handle.block_on(async {
-                let channel = connection.create_channel().await.unwrap();
+    let spans_message_queue: Arc<MessageQueue> = if let Some(connection) = connection.as_ref() {
+        runtime_handle.block_on(async {
+            let channel = connection.create_channel().await.unwrap();
 
-                channel
-                    .exchange_declare(
-                        OBSERVATIONS_EXCHANGE,
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+            channel
+                .exchange_declare(
+                    OBSERVATIONS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
 
-                channel
-                    .queue_declare(
-                        OBSERVATIONS_QUEUE,
-                        QueueDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+            channel
+                .queue_declare(
+                    OBSERVATIONS_QUEUE,
+                    QueueDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
 
-                Arc::new(mq::rabbit::RabbitMQ::new(connection.clone()))
-            })
-        } else {
-            Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
-        };
+            Arc::new(mq::rabbit::RabbitMQ::new(connection.clone()).into())
+        })
+    } else {
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
+    };
 
     // ==== 3.2 Browser events message queue ====
-    let browser_events_message_queue: Arc<
-        dyn mq::MessageQueue<api::v1::browser_sessions::QueueBrowserEventMessage>,
-    > = if let Some(connection) = connection {
+    let browser_events_message_queue: Arc<MessageQueue> = if let Some(connection) = connection {
         runtime_handle.block_on(async {
             let channel = connection.create_channel().await.unwrap();
 
@@ -230,10 +222,10 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            Arc::new(mq::rabbit::RabbitMQ::new(connection))
+            Arc::new(mq::rabbit::RabbitMQ::new(connection).into())
         })
     } else {
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
     };
 
     let runtime_handle_for_http = runtime_handle.clone();
@@ -241,7 +233,7 @@ fn main() -> anyhow::Result<()> {
     let cache_for_http = cache.clone();
     let spans_mq_for_http = spans_message_queue.clone();
 
-    // == HTTP server ==
+    // == HTTP server and listener workers ==
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
         .spawn(move || {
@@ -255,16 +247,16 @@ fn main() -> anyhow::Result<()> {
                     .await;
 
                 // == Storage ==
-                let storage: Arc<dyn Storage> = if is_feature_enabled(Feature::Storage) {
+                let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
                     let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
                     let s3_storage = storage::s3::S3Storage::new(
                         s3_client,
                         env::var("S3_TRACE_PAYLOADS_BUCKET")
                             .expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
                     );
-                    Arc::new(s3_storage)
+                    Arc::new(s3_storage.into())
                 } else {
-                    Arc::new(MockStorage {})
+                    Arc::new(MockStorage {}.into())
                 };
 
                 // == Chunkers ==
@@ -299,7 +291,7 @@ fn main() -> anyhow::Result<()> {
                 };
 
                 // == Machine manager ==
-                let machine_manager: Arc<dyn MachineManager> =
+                let machine_manager: Arc<MachineManager> =
                     if is_feature_enabled(Feature::MachineManager) {
                         let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
                             .expect("MACHINE_MANAGER_URL_GRPC must be set");
@@ -308,9 +300,9 @@ fn main() -> anyhow::Result<()> {
                                 .await
                                 .unwrap(),
                         );
-                        Arc::new(MachineManagerImpl::new(machine_manager_client))
+                        Arc::new(MachineManagerImpl::new(machine_manager_client).into())
                     } else {
-                        Arc::new(machine_manager::MockMachineManager {})
+                        Arc::new(machine_manager::MockMachineManager {}.into())
                     };
 
                 // == Name generator ==
@@ -321,28 +313,28 @@ fn main() -> anyhow::Result<()> {
                     Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
                 // == Semantic search ==
-                let semantic_search: Arc<dyn SemanticSearch> =
-                    if is_feature_enabled(Feature::FullBuild) {
-                        let semantic_search_url = env::var("SEMANTIC_SEARCH_URL")
-                            .expect("SEMANTIC_SEARCH_URL must be set");
+                let semantic_search: Arc<SemanticSearch> = if is_feature_enabled(Feature::FullBuild)
+                {
+                    let semantic_search_url =
+                        env::var("SEMANTIC_SEARCH_URL").expect("SEMANTIC_SEARCH_URL must be set");
 
-                        let semantic_search_client = Arc::new(
-                            SemanticSearchClient::connect(semantic_search_url)
-                                .await
-                                .unwrap(),
-                        );
-                        Arc::new(
-                            semantic_search::semantic_search_impl::SemanticSearchImpl::new(
-                                semantic_search_client,
-                            ),
+                    let semantic_search_client = Arc::new(
+                        SemanticSearchClient::connect(semantic_search_url)
+                            .await
+                            .unwrap(),
+                    );
+                    Arc::new(
+                        semantic_search::semantic_search_impl::SemanticSearchImpl::new(
+                            semantic_search_client,
                         )
-                    } else {
-                        Arc::new(semantic_search::mock::MockSemanticSearch {})
-                    };
+                        .into(),
+                    )
+                } else {
+                    Arc::new(semantic_search::mock::MockSemanticSearch {}.into())
+                };
 
                 // == Python executor ==
-                let code_executor: Arc<dyn CodeExecutor> = if is_feature_enabled(Feature::FullBuild)
-                {
+                let code_executor: Arc<CodeExecutor> = if is_feature_enabled(Feature::FullBuild) {
                     let code_executor_url =
                         env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
                     let code_executor_client = Arc::new(
@@ -350,11 +342,14 @@ fn main() -> anyhow::Result<()> {
                             .await
                             .unwrap(),
                     );
-                    Arc::new(code_executor::code_executor_impl::CodeExecutorImpl::new(
-                        code_executor_client,
-                    ))
+                    Arc::new(
+                        code_executor::code_executor_impl::CodeExecutorImpl::new(
+                            code_executor_client,
+                        )
+                        .into(),
+                    )
                 } else {
-                    Arc::new(code_executor::mock::MockCodeExecutor {})
+                    Arc::new(code_executor::mock::MockCodeExecutor {}.into())
                 };
 
                 // == Language models ==
@@ -417,12 +412,18 @@ fn main() -> anyhow::Result<()> {
                     let shared_secret_auth =
                         HttpAuthentication::bearer(auth::shared_secret_validator);
 
-                    let num_workers_per_thread = env::var("NUM_WORKERS_PER_THREAD")
-                        .unwrap_or(String::from("8"))
+                    let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("4"))
                         .parse::<u8>()
-                        .unwrap_or(8);
+                        .unwrap_or(4);
 
-                    for _ in 0..num_workers_per_thread {
+                    let num_browser_events_workers_per_thread =
+                        env::var("NUM_BROWSER_EVENTS_WORKERS_PER_THREAD")
+                            .unwrap_or(String::from("4"))
+                            .parse::<u8>()
+                            .unwrap_or(4);
+
+                    for _ in 0..num_spans_workers_per_thread {
                         tokio::spawn(process_queue_spans(
                             pipeline_runner.clone(),
                             db_for_http.clone(),
@@ -431,7 +432,9 @@ fn main() -> anyhow::Result<()> {
                             clickhouse.clone(),
                             storage.clone(),
                         ));
+                    }
 
+                    for _ in 0..num_browser_events_workers_per_thread {
                         tokio::spawn(process_browser_events(
                             clickhouse.clone(),
                             browser_events_message_queue.clone(),
@@ -463,16 +466,6 @@ fn main() -> anyhow::Result<()> {
                             web::scope("api/v1/auth")
                                 .wrap(shared_secret_auth.clone())
                                 .service(routes::auth::signin),
-                        )
-                        .service(
-                            web::scope("api/v1/auth")
-                                .wrap(shared_secret_auth.clone())
-                                .service(routes::auth::signin),
-                        )
-                        .service(
-                            web::scope("api/v1/manage-subscriptions")
-                                .wrap(shared_secret_auth)
-                                .service(routes::subscriptions::update_subscription),
                         )
                         .service(api::v1::machine_manager::vnc_stream) // vnc stream does not need auth
                         .service(
@@ -516,12 +509,6 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(auth.clone())
                                 .service(routes::limits::get_workspace_stats)
                                 .service(routes::limits::get_workspace_storage_stats),
-                        )
-                        .service(
-                            web::scope("/api/v1/subscriptions")
-                                .wrap(auth)
-                                .service(routes::subscriptions::save_stripe_customer_id)
-                                .service(routes::subscriptions::get_user_subscription_info),
                         )
                         .service(
                             // auth on path projects/{project_id} is handled by middleware on Next.js

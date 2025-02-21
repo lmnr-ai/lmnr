@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::code_executor::CodeExecutor;
+use crate::code_executor::CodeExecutorTrait;
 use crate::pipeline::nodes::{HandleType, NodeInput};
 
 pub struct MockCodeExecutor {}
 
 #[async_trait]
-impl CodeExecutor for MockCodeExecutor {
+impl CodeExecutorTrait for MockCodeExecutor {
     async fn execute(
         &self,
         _code: &String,

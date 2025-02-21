@@ -4,7 +4,10 @@ use crate::machine_manager::{
     ComputerActionCoordinate as MachineManagerComputerActionCoordinate,
     ComputerActionRequest as MachineManagerComputerActionRequest,
 };
-use crate::{machine_manager::MachineManager, routes::types::ResponseResult};
+use crate::{
+    machine_manager::{MachineManager, MachineManagerTrait},
+    routes::types::ResponseResult,
+};
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
 use futures_util::{SinkExt, StreamExt};
 use log::{error, info};
@@ -17,7 +20,7 @@ use uuid::Uuid;
 
 #[post("machine/start")]
 pub async fn start_machine(
-    machine_manager: web::Data<Arc<dyn MachineManager>>,
+    machine_manager: web::Data<Arc<MachineManager>>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
 ) -> ResponseResult {
@@ -36,7 +39,7 @@ struct TerminateMachineRequest {
 
 #[post("machine/terminate")]
 pub async fn terminate_machine(
-    machine_manager: web::Data<Arc<dyn MachineManager>>,
+    machine_manager: web::Data<Arc<MachineManager>>,
     request: web::Json<TerminateMachineRequest>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
@@ -89,7 +92,7 @@ struct ComputerActionResponse {
 
 #[post("machine/computer_action")]
 pub async fn execute_computer_action(
-    machine_manager: web::Data<Arc<dyn MachineManager>>,
+    machine_manager: web::Data<Arc<MachineManager>>,
     request: web::Json<ComputerActionRequest>,
 ) -> ResponseResult {
     let request = request.into_inner();

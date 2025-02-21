@@ -1,13 +1,24 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use base64::{prelude::BASE64_STANDARD, Engine};
+use enum_dispatch::enum_dispatch;
 use uuid::Uuid;
 
 pub mod mock;
 pub mod s3;
 
+use mock::MockStorage;
+use s3::S3Storage;
+
+#[enum_dispatch]
+pub enum Storage {
+    Mock(MockStorage),
+    S3(S3Storage),
+}
+
 #[async_trait]
-pub trait Storage: Sync + Send {
+#[enum_dispatch(Storage)]
+pub trait StorageTrait {
     async fn store(&self, data: Vec<u8>, key: &str) -> Result<String>;
 }
 
