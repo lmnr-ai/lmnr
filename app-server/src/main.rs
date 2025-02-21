@@ -291,7 +291,7 @@ fn main() -> anyhow::Result<()> {
                 };
 
                 // == Machine manager ==
-                let machine_manager: Arc<dyn MachineManager> =
+                let machine_manager: Arc<MachineManager> =
                     if is_feature_enabled(Feature::MachineManager) {
                         let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
                             .expect("MACHINE_MANAGER_URL_GRPC must be set");
@@ -300,9 +300,9 @@ fn main() -> anyhow::Result<()> {
                                 .await
                                 .unwrap(),
                         );
-                        Arc::new(MachineManagerImpl::new(machine_manager_client))
+                        Arc::new(MachineManagerImpl::new(machine_manager_client).into())
                     } else {
-                        Arc::new(machine_manager::MockMachineManager {})
+                        Arc::new(machine_manager::MockMachineManager {}.into())
                     };
 
                 // == Name generator ==
