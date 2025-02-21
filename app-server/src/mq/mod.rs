@@ -28,7 +28,7 @@ pub enum MessageQueueDelivery {
 }
 
 #[enum_dispatch(MessageQueueReceiver)]
-pub trait MessageQueueReceiverTrait: Send + Sync {
+pub trait MessageQueueReceiverTrait {
     async fn receive(&mut self) -> Option<anyhow::Result<MessageQueueDelivery>>;
 }
 
@@ -77,13 +77,13 @@ impl MessageQueueAcker {
 }
 
 #[enum_dispatch(MessageQueueDelivery)]
-pub trait MessageQueueDeliveryTrait: Send + Sync {
+pub trait MessageQueueDeliveryTrait {
     fn acker(&self) -> MessageQueueAcker;
     fn data(self) -> Vec<u8>;
 }
 
 #[enum_dispatch(MessageQueue)]
-pub trait MessageQueueTrait: Send + Sync {
+pub trait MessageQueueTrait {
     async fn publish(
         &self,
         message: &[u8],

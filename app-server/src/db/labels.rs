@@ -250,53 +250,6 @@ pub async fn get_span_labels(pool: &PgPool, span_id: Uuid) -> Result<Vec<SpanLab
     Ok(span_labels)
 }
 
-#[derive(FromRow)]
-pub struct SpanLabelInstance {
-    pub input: Option<Value>,
-    pub output: Option<Value>,
-    pub value: f64,
-    pub reasoning: Option<String>,
-}
-
-/// filter down `span_ids` to only those that are labeled with `label_class_id`
-pub async fn get_labeled_spans(
-    pool: &PgPool,
-    project_id: Uuid,
-    span_ids: &Vec<Uuid>,
-    label_class_id: Uuid,
-    manual_only: bool,
-) -> Result<Vec<SpanLabelInstance>> {
-    let spans = sqlx::query_as::<_, SpanLabelInstance>(
-        "SELECT
-            spans.input,
-            spans.output,
-            labels.value,
-            labels.reasoning
-        FROM spans
-        JOIN labels ON spans.span_id = labels.span_id
-            -- only get the latest label for now
-            AND labels.updated_at = (
-                SELECT MAX(updated_at)
-                FROM labels
-                WHERE span_id = spans.span_id
-                AND CASE WHEN $4 THEN labels.label_source = 'MANUAL' ELSE TRUE END
-                AND class_id = $3
-            )
-        JOIN label_classes ON labels.class_id = label_classes.id AND label_classes.id = $3
-        WHERE label_classes.project_id = $1
-        AND spans.span_id = ANY($2)
-        AND labels.value IS NOT NULL",
-    )
-    .bind(project_id)
-    .bind(&span_ids)
-    .bind(label_class_id)
-    .bind(manual_only)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(spans)
-}
-
 pub async fn register_label_class_for_path(
     pool: &PgPool,
     project_id: Uuid,

@@ -17,7 +17,7 @@ pub enum MachineManager {
 
 #[async_trait]
 #[enum_dispatch(MachineManager)]
-pub trait MachineManagerTrait: Send + Sync {
+pub trait MachineManagerTrait {
     async fn start_machine(&self) -> Result<Uuid>;
 
     async fn terminate_machine(&self, machine_id: Uuid) -> Result<()>;
