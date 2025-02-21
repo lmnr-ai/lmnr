@@ -46,6 +46,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [startTime, setStartTime] = useState(0);
     const { projectId } = useProjectContext();
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Add resize observer effect
     useEffect(() => {
@@ -64,14 +65,15 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     }, []);
 
     const getEvents = async () => {
-      const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
+      setIsLoading(true);
       try {
+        const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
         const reader = res.body?.getReader();
         if (!reader) throw new Error('No reader available');
 
@@ -116,6 +118,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         setEvents(events);
       } catch (e) {
         console.error('Error processing events:', e);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -313,12 +317,17 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               {formatSecondsToMinutesAndSeconds(currentTime || 0)}/{formatSecondsToMinutesAndSeconds(totalDuration || 0)}
             </span>
           </div>
-          {events.length === 0 && (
+          {isLoading && (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
               <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
             </div>
           )}
-          {events.length > 0 && (
+          {!isLoading && events.length === 0 && hasBrowserSession && (
+            <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
+              No browser session was recorded. This might be due to an outdated SDK version.
+            </div>
+          )}
+          {!isLoading && events.length > 0 && (
             <div ref={playerContainerRef} />
           )}
         </div>

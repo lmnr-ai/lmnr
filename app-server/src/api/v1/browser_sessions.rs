@@ -29,7 +29,9 @@ pub struct EventBatch {
     pub events: Vec<RRWebEvent>,
     pub session_id: Uuid,
     pub trace_id: Uuid,
+    #[serde(default)]
     pub source: Option<String>,
+    #[serde(default)]
     pub sdk_version: Option<String>,
 }
 
