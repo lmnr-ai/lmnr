@@ -36,7 +36,7 @@ pub enum CodeExecutor {
 
 #[async_trait]
 #[enum_dispatch(CodeExecutor)]
-pub trait CodeExecutorTrait: Sync + Send {
+pub trait CodeExecutorTrait {
     async fn execute(
         &self,
         code: &String,

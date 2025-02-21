@@ -25,12 +25,12 @@ pub enum Cache {
 
 #[async_trait]
 #[enum_dispatch(Cache)]
-pub trait CacheTrait: Sync + Send {
+pub trait CacheTrait {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>
     where
-        T: for<'de> Deserialize<'de> + Send + Sync;
+        T: for<'de> Deserialize<'de>;
     async fn insert<T>(&self, key: &str, value: T) -> Result<(), CacheError>
     where
-        T: Serialize + Send + Sync;
+        T: Serialize + Send;
     async fn remove(&self, key: &str) -> Result<(), CacheError>;
 }

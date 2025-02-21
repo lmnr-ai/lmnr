@@ -25,7 +25,7 @@ pub enum SemanticSearch {
 
 #[async_trait]
 #[enum_dispatch(SemanticSearch)]
-pub trait SemanticSearchTrait: Sync + Send {
+pub trait SemanticSearchTrait {
     async fn query(
         &self,
         collection_name: &str,
