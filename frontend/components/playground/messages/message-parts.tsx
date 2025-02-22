@@ -1,6 +1,5 @@
 import { ImagePart, TextPart } from "ai";
 import { Image as IconImage, X } from "lucide-react";
-import Image from "next/image";
 import { FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -61,7 +60,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                   className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none"
                 />
                 {typeof part.image === "string" && part.image && (
-                  <Image className="self-start object-cover" width={24} height={24} alt="img" src={part.image} />
+                  <img className="self-start object-cover" width={24} height={24} alt="img" src={part.image} />
                 )}
                 {fields.length > 1 && (
                   <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">

@@ -1,80 +1,121 @@
-import { Check, ChevronsUpDown } from "lucide-react";
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import useSWR from "swr";
+import { isEmpty } from "lodash";
+import { Check, ChevronDown, Search } from "lucide-react";
+import { ReactNode, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useProjectContext } from "@/contexts/project-context";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  IconAmazonBedrock,
+  IconAnthropic,
+  IconAzure,
+  IconGemini,
+  IconGroq,
+  IconMistral,
+  IconOpenAI,
+} from "@/components/ui/icons";
+import { Input } from "@/components/ui/input";
 import { Provider, providers } from "@/lib/pipeline/types";
-import { ProviderApiKey } from "@/lib/settings/types";
-import { swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
-interface ModelSelectProps {
+const providerIconMap: Record<Provider, ReactNode> = {
+  openai: <IconOpenAI className="mr-2" />,
+  anthropic: <IconAnthropic className="mr-2" />,
+  gemini: <IconGemini className="mr-2" />,
+  groq: <IconGroq className="mr-2" />,
+  mistral: <IconMistral className="mr-2" />,
+  bedrock: <IconAmazonBedrock className="mr-2" />,
+  "openai-azure": <IconAzure className="mr-2" />,
+};
+
+const providerNameMap: Record<Provider, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  gemini: "Gemini",
+  groq: "Groq",
+  mistral: "Mistal",
+  bedrock: "Amazon Bedrock",
+  "openai-azure": "Azure",
+};
+
+interface LlmSelectNewProps {
   value: string;
   disabled?: boolean;
   onChange: (id: `${Provider}:${string}`) => void;
 }
 
-const LlmSelect = ({ value, disabled, onChange }: ModelSelectProps) => {
-  const model = useMemo(() => providers.flatMap((provider) => provider.models).find((v) => v.id === value), [value]);
-  const [open, setOpen] = useState(false);
-
-  const { projectId } = useProjectContext();
-  const { data: providerApiKeys, isLoading } = useSWR<ProviderApiKey[]>(
-    `/api/projects/${projectId}/provider-api-keys`,
-    swrFetcher
+const LlmSelect = ({ disabled, onChange, value }: LlmSelectNewProps) => {
+  const [query, setQuery] = useState("");
+  const options = useMemo<typeof providers>(
+    () =>
+      providers
+        .map(({ provider, models }) => {
+          const lowerQuery = query.toLowerCase();
+          const providerMatches = provider.toLowerCase().includes(lowerQuery);
+          const filteredModels = models.filter(({ name }) => name.toLowerCase().includes(lowerQuery));
+          return providerMatches || filteredModels.length > 0
+            ? { provider, models: providerMatches ? models : filteredModels }
+            : null;
+        })
+        .filter(Boolean) as typeof providers,
+    [query]
   );
-
-  const isProviderKeySet = (provider: string) =>
-    providerApiKeys?.some((key) => key.name.toLowerCase().includes(provider.toLowerCase()));
-
   return (
-    <>
-      {model && !isLoading && !isProviderKeySet(model.id.split(":")[0]) && (
-        <div className="mt-2 text-destructive text-sm">
-          API key for {model.id} is not set. Please set it in the{" "}
-          <Link href={`/project/${projectId}/settings`} className="underline">
-            settings
-          </Link>
-          .
+    <DropdownMenu>
+      <DropdownMenuTrigger value={value} asChild>
+        <Button disabled={disabled} className="w-64 py-4" variant="outline">
+          {providerIconMap[value.split(":")[0] as Provider]}{" "}
+          <span>{providers.flatMap((p) => p.models).find((m) => m.id === value)?.name ?? "Select model"}</span>
+          <ChevronDown className="ml-auto" size={16} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <div className="flex items-center px-2" onKeyDown={(e) => e.stopPropagation()}>
+          <Search size={12} />
+          <Input
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search model..."
+            className="border-none bg-transparent focus-visible:ring-0 flex-1 h-fit rounded-none"
+          />
         </div>
-      )}
-      <Popover open={open} onOpenChange={setOpen} modal>
-        <PopoverTrigger asChild disabled={disabled}>
-          <Button variant="outline" className="justify-between">
-            {model?.id ?? "-"}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="p-0 w-[--radix-popover-trigger-width] max-h-[--radix-popover-content-available-height]">
-          <Command className="w-full overflow-y-auto">
-            <CommandInput placeholder="provider:model-name" />
-            <CommandList>
-              <CommandEmpty> No model found </CommandEmpty>
-              <CommandGroup>
-                {providers.map((provider) =>
-                  provider.models.map((model) => (
-                    <CommandItem
-                      key={model.id}
-                      value={model.id}
-                      onSelect={() => {
-                        onChange(model.id);
-                        setOpen(false);
-                      }}
-                    >
-                      <Check className={value === model.id ? "opacity-100" : "opacity-0"} />
-                      {model.id}
-                    </CommandItem>
-                  ))
-                )}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    </>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          {!isEmpty(options) ? (
+            options.map((provider) => (
+              <DropdownMenuSub key={provider.provider}>
+                <DropdownMenuSubTrigger>
+                  {providerIconMap[provider.provider]} {providerNameMap[provider.provider]}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent>
+                    {provider.models.map((model) => (
+                      <DropdownMenuItem key={model.id} onSelect={() => onChange(model.id)}>
+                        <Check size={14} className={cn("mr-2", { "opacity-0": value !== model.id })} />
+                        {providerIconMap[provider.provider]} {model.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            ))
+          ) : (
+            <DropdownMenuSub>
+              <DropdownMenuItem disabled>Not models found</DropdownMenuItem>
+            </DropdownMenuSub>
+          )}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 

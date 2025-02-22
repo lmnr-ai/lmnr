@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { db } from "@/lib/db/drizzle";
@@ -10,6 +10,7 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
 
   const result = await db.query.playgrounds.findMany({
     where: eq(playgrounds.projectId, projectId),
+    orderBy: [desc(playgrounds.createdAt)],
   });
 
   return new Response(JSON.stringify(result));
