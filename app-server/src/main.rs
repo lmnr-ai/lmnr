@@ -192,7 +192,13 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            Arc::new(mq::rabbit::RabbitMQ::new(connection.clone()).into())
+            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(64);
+
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
+            Arc::new(rabbit_mq.into())
         })
     } else {
         Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
@@ -222,7 +228,13 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            Arc::new(mq::rabbit::RabbitMQ::new(connection).into())
+            let max_channels = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(64);
+
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection, max_channels);
+            Arc::new(rabbit_mq.into())
         })
     } else {
         Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
