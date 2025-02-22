@@ -42,7 +42,7 @@ impl Manager for RabbitChannelManager {
 
 pub struct RabbitMQ {
     connection: Arc<Connection>,
-    channel_pool: Pool<RabbitChannelManager>,
+    publisher_channel_pool: Pool<RabbitChannelManager>,
 }
 
 pub struct RabbitMQReceiver {
@@ -96,19 +96,22 @@ impl RabbitMQ {
 
         Self {
             connection,
-            channel_pool: pool,
+            publisher_channel_pool: pool,
         }
     }
 }
 
 impl MessageQueueTrait for RabbitMQ {
+    /// Publish a message to a RabbitMQ exchange.
+    /// It uses a channel from the pool to publish the message.
+    /// We use a channel from the pool to avoid creating a new channel for each message.
     async fn publish(
         &self,
         message: &[u8],
         exchange: &str,
         routing_key: &str,
     ) -> anyhow::Result<()> {
-        let channel = match self.channel_pool.get().await {
+        let channel = match self.publisher_channel_pool.get().await {
             Ok(channel) => channel,
             Err(PoolError::Backend(e)) => {
                 log::error!("Failed to get channel from pool: {}", e);
