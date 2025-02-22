@@ -875,7 +875,7 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                         }
                         ChatMessageContent::ContentPartList(parts)
                     }
-                    Err(_) => ChatMessageContent::Text(otel_content.to_string()),
+                    Err(_) => ChatMessageContent::Text(json_value_to_string(otel_content)),
                 };
                 Ok(ChatMessage {
                     role: role.to_string(),
