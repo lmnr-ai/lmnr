@@ -5,6 +5,7 @@ import { getDuration, getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
 import { cn, formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
+import { Skeleton } from '../ui/skeleton';
 import SpanTypeIcon from './span-type-icon';
 
 const ROW_HEIGHT = 36;
@@ -38,11 +39,13 @@ export function SpanCard({
   onToggleCollapse,
   traceStartTime,
   activeSpans,
-  onSelectTime
+  onSelectTime,
 }: SpanCardProps) {
   const [isSelected, setIsSelected] = useState(false);
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+
+  console.log(span.pending);
 
   const childrenSpans = childSpans[span.spanId];
 
@@ -85,13 +88,26 @@ export function SpanCard({
             containerWidth={SQUARE_SIZE}
             containerHeight={SQUARE_SIZE}
             size={SQUARE_ICON_SIZE}
+            className={span.pending ? "text-muted-foreground bg-muted" : ""}
           />
-          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]">
+          <div className={cn(
+            "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]",
+            span.pending && "text-muted-foreground"
+          )}>
             {span.name}
           </div>
-          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
-            {getDurationString(span.startTime, span.endTime)}
-          </div>
+          {span.pending
+            ? (
+              <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
+            )
+            : (
+              (
+                <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+                  {getDurationString(span.startTime, span.endTime)}
+                </div>
+              )
+            )
+          }
           <div
             className="z-30 top-[-px]  hover:bg-red-100/10 absolute transition-all"
             style={{
@@ -100,7 +116,9 @@ export function SpanCard({
               left: -depth * 24 - 8
             }}
             onClick={() => {
-              onSpanSelect?.(span);
+              if (!span.pending) {
+                onSpanSelect?.(span);
+              }
             }}
           />
           {isSelected && (

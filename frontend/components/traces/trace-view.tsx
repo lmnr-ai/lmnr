@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
-import { Span, TraceWithSpans } from '@/lib/traces/types';
+import { Span, SpanType, TraceWithSpans } from '@/lib/traces/types';
 import { cn, swrFetcher } from '@/lib/utils';
 
 import { Button } from '../ui/button';
@@ -66,7 +66,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       return;
     }
 
-    const spans = trace.spans;
+    const spans = enrichSpansWithPending(trace.spans);
 
     const childSpans = {} as { [key: string]: Span[] };
 
@@ -367,3 +367,58 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     </div >
   );
 }
+
+const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
+  const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
+  const pendingSpans = new Map<string, Span>();
+
+  for (const span of existingSpans) {
+    if (span.parentSpanId) {
+      const parentSpanIds = span.attributes['lmnr.span.ids_path'] as string[] | undefined;
+      const parentSpanNames = span.attributes['lmnr.span.path'] as string[] | undefined;
+
+      if (parentSpanIds !== undefined && parentSpanNames !== undefined
+        && parentSpanIds.length === parentSpanNames.length && parentSpanIds.length > 0
+      ) {
+        for (let i = 0; i < parentSpanIds.length; i++) {
+          const spanId = parentSpanIds[i];
+          const spanName = parentSpanNames[i];
+
+          if (!existingSpanIds.has(spanId)) {
+            const parentSpanId = i > 0 ? parentSpanIds[i - 1] : null;
+            const parentSpanName = i > 0 ? parentSpanNames[i - 1] : null;
+            const pendingSpan = {
+              spanId,
+              name: spanName,
+              parentSpanId,
+              parentSpanName,
+              startTime: new Date(span.startTime).toISOString(),
+              endTime: new Date(span.endTime).toISOString(),
+              attributes: {},
+              events: [],
+              logs: [],
+              spans: [],
+              traceId: span.traceId,
+              traceName: span.name,
+              input: null,
+              output: null,
+              inputPreview: null,
+              outputPreview: null,
+              spanType: SpanType.DEFAULT,
+              path: '',
+              inputUrl: null,
+              outputUrl: null,
+              pending: true,
+            } as Span;
+            pendingSpans.set(spanId, pendingSpan);
+          }
+        }
+      }
+    }
+  }
+
+  return [
+    ...existingSpans,
+    ...pendingSpans.values()
+  ];
+};

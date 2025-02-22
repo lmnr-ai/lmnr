@@ -68,6 +68,7 @@ export type Span = {
   model?: string;
   inputUrl: string | null;
   outputUrl: string | null;
+  pending?: boolean;
 };
 
 export type TraceWithSpans = {

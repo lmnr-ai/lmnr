@@ -17,6 +17,7 @@ import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import DateRangeFilter from '../ui/date-range-filter';
 import Mono from '../ui/mono';
+import { Skeleton } from '../ui/skeleton';
 import TextSearchFilter from '../ui/text-search-filter';
 import {
   Tooltip,
@@ -280,11 +281,21 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
           }}
           className="cursor-pointer flex gap-2 items-center hover:bg-secondary"
         >
-          <div className=''>
+          <div>
             <SpanTypeIcon className='z-10' spanType={row.getValue()} />
           </div>
-          <div className='flex text-sm text-ellipsis overflow-hidden whitespace-nowrap'>{row.row.original.topSpanName}</div>
-        </div>),
+          {row.row.original.topSpanName ?
+            <div className='flex text-sm text-ellipsis overflow-hidden whitespace-nowrap'>
+              {row.row.original.topSpanName}
+            </div>
+            : (
+              <Skeleton
+                className="w-12 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-sm"
+              />
+            )
+          }
+        </div>
+      ),
       size: 150
     },
     {
