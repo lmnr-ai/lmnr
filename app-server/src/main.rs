@@ -228,12 +228,12 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            let max_channels = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
+            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(64);
 
-            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection, max_channels);
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection, max_channel_pool_size);
             Arc::new(rabbit_mq.into())
         })
     } else {
