@@ -69,6 +69,7 @@ tokio-stream = {version = "0.1", features = ["net"]}
 tokio-tungstenite = "0.24"
 url = "2.5.0"
 uuid = {version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics", "serde"]}
+deadpool = "0.12.2"
 
 [build-dependencies]
 tonic-build = "0.12.3"

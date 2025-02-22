@@ -1,9 +1,10 @@
+use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures::StreamExt;
 use lapin::{
     acker::Acker,
     options::{BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
     types::FieldTable,
-    BasicProperties, Connection, Consumer,
+    BasicProperties, Channel, Connection, Consumer,
 };
 use std::sync::Arc;
 
@@ -12,8 +13,36 @@ use super::{
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 
+struct RabbitChannelManager {
+    connection: Arc<Connection>,
+}
+
+impl Manager for RabbitChannelManager {
+    type Type = Channel;
+    type Error = anyhow::Error;
+
+    async fn create(&self) -> Result<Channel, Self::Error> {
+        Ok(self.connection.create_channel().await?)
+    }
+
+    async fn recycle(
+        &self,
+        channel: &mut Channel,
+        _: &deadpool::managed::Metrics,
+    ) -> deadpool::managed::RecycleResult<Self::Error> {
+        if channel.status().connected() {
+            Ok(())
+        } else {
+            Err(RecycleError::Backend(anyhow::anyhow!(
+                "Channel disconnected"
+            )))
+        }
+    }
+}
+
 pub struct RabbitMQ {
     connection: Arc<Connection>,
+    publisher_channel_pool: Pool<RabbitChannelManager>,
 }
 
 pub struct RabbitMQReceiver {
@@ -55,19 +84,44 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
 }
 
 impl RabbitMQ {
-    pub fn new(connection: Arc<Connection>) -> Self {
-        Self { connection }
+    pub fn new(connection: Arc<Connection>, max_channel_pool_size: usize) -> Self {
+        let manager = RabbitChannelManager {
+            connection: Arc::clone(&connection),
+        };
+
+        let pool = Pool::builder(manager)
+            .max_size(max_channel_pool_size)
+            .build()
+            .unwrap();
+
+        Self {
+            connection,
+            publisher_channel_pool: pool,
+        }
     }
 }
 
 impl MessageQueueTrait for RabbitMQ {
+    /// Publish a message to a RabbitMQ exchange.
+    /// It uses a channel from the pool to publish the message.
+    /// We use a channel from the pool to avoid creating a new channel for each message.
     async fn publish(
         &self,
         message: &[u8],
         exchange: &str,
         routing_key: &str,
     ) -> anyhow::Result<()> {
-        let channel = self.connection.create_channel().await?;
+        let channel = match self.publisher_channel_pool.get().await {
+            Ok(channel) => channel,
+            Err(PoolError::Backend(e)) => {
+                log::error!("Failed to get channel from pool: {}", e);
+                return Err(anyhow::anyhow!("Failed to get channel from pool: {}", e));
+            }
+            Err(e) => {
+                log::error!("Pool error: {}", e);
+                return Err(anyhow::anyhow!("Pool error: {}", e));
+            }
+        };
 
         channel
             .basic_publish(
