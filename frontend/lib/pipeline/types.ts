@@ -115,7 +115,18 @@ export const providerToApiKey: Record<Provider, EnvVars> = {
   mistral: EnvVars.MISTRAL_API_KEY,
   bedrock: EnvVars.AWS_ACCESS_KEY_ID,
   "openai-azure": EnvVars.AWS_ACCESS_KEY_ID,
-};
+} as const;
+
+export const apiKeyToProvider: Record<string, Provider> = {
+  [EnvVars.OPENAI_API_KEY]: "openai",
+  [EnvVars.ANTHROPIC_API_KEY]: "anthropic",
+  [EnvVars.GEMINI_API_KEY]: "gemini",
+  [EnvVars.GROQ_API_KEY]: "groq",
+  [EnvVars.MISTRAL_API_KEY]: "mistral",
+  [EnvVars.AWS_ACCESS_KEY_ID]: "bedrock",
+  [EnvVars.AWS_SECRET_ACCESS_KEY]: "openai-azure",
+} as const;
+
 export const providers: { provider: Provider; models: LanguageModel[] }[] = [
   {
     provider: "openai",

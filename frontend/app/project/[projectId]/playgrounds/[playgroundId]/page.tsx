@@ -46,8 +46,9 @@ export default async function PlaygroundPage(props: {
           }
         }
       }
+      return notFound();
     } catch (e) {
-      console.error(e);
+      return notFound();
     }
   }
 

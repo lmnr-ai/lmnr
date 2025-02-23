@@ -9,7 +9,7 @@ import Messages from "@/components/playground/messages";
 import LlmSelect from "@/components/playground/messages/llm-select";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
-import { mapMessages, parseSystemMessages, remapMessages } from "@/lib/playground/utils";
+import { addInputs, mapMessages, parseSystemMessages, remapMessages } from "@/lib/playground/utils";
 import { streamReader } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -23,22 +23,6 @@ const defaultMessages: Message[] = [
     content: [{ type: "text", text: "" }],
   },
 ];
-
-const renderText = (text: string, inputs: Record<string, string>) =>
-  text.replace(/\{\{([^}]+)\}\}/g, (match, p1) => inputs[p1] || match);
-
-const renderMessages = (messages: Message[], inputs: Record<string, string>): Message[] =>
-  messages.map((message) => ({
-    ...message,
-    content: message.content.map((content) =>
-      content.type === "text"
-        ? {
-          ...content,
-          text: renderText(content.text, inputs),
-        }
-        : content
-    ),
-  }));
 
 export default function Playground({ playground }: { playground: PlaygroundType }) {
   const { replace } = useRouter();
@@ -54,11 +38,27 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   const methods = useForm<PlaygroundForm>({
     defaultValues: {
       model: "openai:gpt-4o-mini",
-      messages: isEmpty(playground.promptMessages) ? defaultMessages : mapMessages(playground.promptMessages),
+      messages: defaultMessages,
     },
   });
 
-  const { control, handleSubmit, watch } = methods;
+  const { control, handleSubmit, watch, reset } = methods;
+
+  const handleResetForm = async () => {
+    if (playground) {
+      const messages = await mapMessages(playground.promptMessages);
+
+      reset({
+        model: (playground.modelId as PlaygroundForm["model"]) ?? "openai:gpt-4o-mini",
+        messages: isEmpty(messages) ? defaultMessages : messages,
+      });
+    }
+  };
+
+  useEffect(() => {
+    handleResetForm();
+  }, []);
+
   const submit: SubmitHandler<PlaygroundForm> = async (form) => {
     try {
       setIsLoading(true);
@@ -70,7 +70,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         body: JSON.stringify({
           projectId: params?.projectId,
           model: form.model,
-          messages: parseSystemMessages(renderMessages(form.messages, inputValues)),
+          messages: parseSystemMessages(addInputs(form.messages, inputValues)),
         }),
       });
 
