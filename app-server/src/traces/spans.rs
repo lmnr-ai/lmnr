@@ -19,7 +19,7 @@ use crate::{
     },
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     pipeline::{nodes::Message, trace::MetaLog},
-    storage::Storage,
+    storage::{Storage, StorageTrait},
 };
 
 use super::{
@@ -184,11 +184,7 @@ impl SpanAttributes {
 
     fn raw_path(&self) -> Option<Vec<String>> {
         match self.attributes.get(SPAN_PATH) {
-            Some(Value::Array(arr)) => Some(
-                arr.iter()
-                    .map(|v| json_value_to_string(v.clone()))
-                    .collect(),
-            ),
+            Some(Value::Array(arr)) => Some(arr.iter().map(|v| json_value_to_string(v)).collect()),
             Some(Value::String(s)) => Some(vec![s.clone()]),
             _ => None,
         }
@@ -202,7 +198,7 @@ impl SpanAttributes {
         let attributes_ids_path = match self.attributes.get(SPAN_IDS_PATH) {
             Some(Value::Array(arr)) => Some(
                 arr.iter()
-                    .map(|v| json_value_to_string(v.clone()))
+                    .map(|v| json_value_to_string(v))
                     .collect::<Vec<_>>(),
             ),
             _ => None,
@@ -316,7 +312,7 @@ impl SpanAttributes {
             Some(
                 metadata
                     .into_iter()
-                    .map(|(k, v)| (k, json_value_to_string(v)))
+                    .map(|(k, v)| (k, json_value_to_string(&v)))
                     .collect(),
             )
         }
@@ -493,20 +489,6 @@ impl Span {
             );
         }
 
-        // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
-        // attributes over gen_ai/vercel/LiteLLM attributes.
-        // Therefore this block is outside and after the LLM span type check.
-        if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
-            span.input = Some(
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
-            );
-        }
-        if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
-            span.output = Some(
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
-            );
-        }
-
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
         // Take their values if input/output are not already set.
         if let Some(input) = attributes.get("traceloop.entity.input") {
@@ -518,6 +500,30 @@ impl Span {
             if span.output.is_none() {
                 span.output = Some(output.clone());
             }
+        }
+
+        // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
+        // attributes over gen_ai/vercel/LiteLLM attributes.
+        // Therefore this block is outside and after the LLM span type check.
+        if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
+            let input =
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
+            if span.span_type == SpanType::LLM {
+                let input_messages = input_chat_messages_from_json(&input);
+                if let Ok(input_messages) = input_messages {
+                    span.input = Some(json!(input_messages));
+                } else {
+                    span.input = Some(input);
+                }
+            } else {
+                span.input = Some(input);
+            }
+        }
+        if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
+            // TODO: try parse output as ChatMessage with tool calls
+            span.output = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
         }
 
         // Spans with this attribute are wrapped in a NonRecordingSpan that, and we only
@@ -659,11 +665,7 @@ impl Span {
             .collect()
     }
 
-    pub async fn store_payloads<S: Storage + ?Sized>(
-        &mut self,
-        project_id: &Uuid,
-        storage: Arc<S>,
-    ) -> Result<()> {
+    pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
@@ -683,19 +685,15 @@ impl Span {
                     new_messages.push(message);
                 }
                 self.input = Some(serde_json::to_value(new_messages).unwrap());
-            // We cannot parse the input as a Vec<ChatMessage>, but we check if
-            // it's still large. Obviously serializing to JSON affects the size,
-            // but we don't need to be exact here.
             } else {
-                let input_str = serde_json::to_string(&self.input).unwrap_or_default();
-                if input_str.len() > payload_size_threshold {
+                let mut data = Vec::new();
+                serde_json::to_writer(&mut data, &self.input)?;
+                if data.len() > payload_size_threshold {
                     let key = crate::storage::create_key(project_id, &None);
-                    let mut data = Vec::new();
-                    serde_json::to_writer(&mut data, &self.input)?;
-                    let url = storage.store(data, &key).await?;
+                    let url = storage.store(data.clone(), &key).await?;
                     self.input_url = Some(url);
                     self.input = Some(serde_json::Value::String(
-                        input_str.chars().take(100).collect(),
+                        String::from_utf8_lossy(&data).chars().take(100).collect(),
                     ));
                 }
             }
@@ -813,6 +811,7 @@ fn input_chat_messages_from_prompt_content(
         .get(format!("{prefix}.{i}.content").as_str())
         .is_some()
     {
+        // TODO: handle case where content is not a string, e.g. LangChain tool messages
         let content = if let Some(serde_json::Value::String(s)) =
             attributes.get(format!("{prefix}.{i}.content").as_str())
         {
@@ -850,6 +849,43 @@ fn input_chat_messages_from_prompt_content(
     }
 
     input_messages
+}
+
+fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMessage>> {
+    if let Some(messages) = input.as_array() {
+        messages
+            .iter()
+            .map(|message| {
+                let Some(role) = message.get("role").and_then(|v| v.as_str()) else {
+                    return Err(anyhow::anyhow!("Can't find role in message"));
+                };
+                let Some(otel_content) = message.get("content") else {
+                    return Err(anyhow::anyhow!("Can't find content in message"));
+                };
+                let content = match serde_json::from_value::<
+                    Vec<InstrumentationChatMessageContentPart>,
+                >(otel_content.clone())
+                {
+                    Ok(otel_parts) => {
+                        let mut parts = Vec::new();
+                        for part in otel_parts {
+                            parts.push(ChatMessageContentPart::from_instrumentation_content_part(
+                                part,
+                            ));
+                        }
+                        ChatMessageContent::ContentPartList(parts)
+                    }
+                    Err(_) => ChatMessageContent::Text(json_value_to_string(otel_content)),
+                };
+                Ok(ChatMessage {
+                    role: role.to_string(),
+                    content,
+                })
+            })
+            .collect()
+    } else {
+        Err(anyhow::anyhow!("Input is not a list"))
+    }
 }
 
 #[derive(Serialize)]

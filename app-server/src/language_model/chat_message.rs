@@ -5,7 +5,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::storage::Storage;
+use crate::storage::{Storage, StorageTrait};
 
 use super::providers::openai::OpenAIImageUrl;
 
@@ -231,10 +231,10 @@ impl ChatMessageContentPart {
     /// Store the media in the storage and replace the media with the url
     /// returning the modified `ChatMessageContentPart`.
     /// For `Image`, we replace the content with `ImageUrl`
-    pub async fn store_media<S: Storage + ?Sized>(
+    pub async fn store_media(
         &self,
         project_id: &Uuid,
-        storage: Arc<S>,
+        storage: Arc<Storage>,
     ) -> Result<ChatMessageContentPart> {
         match self {
             ChatMessageContentPart::Image(image) => {
@@ -263,14 +263,15 @@ impl ChatMessageContentPart {
                 ))
             }
             ChatMessageContentPart::ImageUrl(image_url) => {
-                // LangChain allows `image_url` to be a base64 encoded image
+                // OpenAI and LangChain allow `image_url` to be a base64 encoded image
                 // This somewhat hacky solution is to check if the url is a base64 encoded image
                 // and if so, store the image and return the new url
                 // https://python.langchain.com/docs/how_to/multimodal_inputs/
+                // https://platform.openai.com/docs/guides/vision#uploading-base64-encoded-images
                 // Discussion we've opened with OpenLLMetry:
                 // https://github.com/traceloop/openllmetry/issues/2516
-                let pattern = Regex::new(r"^data:image/[a-zA-z]+;base64,.*$").unwrap();
-                if pattern.is_match(&image_url.url) {
+                let pattern = Regex::new(r"^data:image/[a-zA-Z]+;base64,.*$").unwrap();
+                if pattern.is_match(&image_url.url.chars().take(50).collect::<String>()) {
                     let base64_data = image_url.url.split(',').last().unwrap();
                     let data = crate::storage::base64_to_bytes(base64_data)?;
                     let key = crate::storage::create_key(project_id, &None);

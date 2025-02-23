@@ -1,0 +1,1 @@
+CREATE INDEX "events_span_id_project_id_idx" ON "events" USING btree ("span_id" uuid_ops,"project_id" uuid_ops);

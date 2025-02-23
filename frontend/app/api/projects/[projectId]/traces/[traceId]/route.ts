@@ -1,11 +1,10 @@
-
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
-import { NextRequest,NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 import { searchSpans } from '@/lib/clickhouse/spans';
 import { TimeRange } from '@/lib/clickhouse/utils';
 import { db } from '@/lib/db/drizzle';
-import { events, labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
+import { events, spans, traces } from '@/lib/db/migrations/schema';
 
 export async function GET(
   req: NextRequest,
@@ -42,30 +41,8 @@ export async function GET(
       .from(events)
       .groupBy(events.spanId, events.projectId)
   );
-  const spanLabelsQuery = db.$with('span_labels').as(
-    db.select({
-      spanId: labels.spanId,
-      projectId: labelClasses.projectId,
-      labels: sql`jsonb_agg(jsonb_build_object(
-        'id', labels.id,
-        'spanId', labels.span_id,
-        'classId', labels.class_id,
-        'createdAt', labels.created_at,
-        'updatedAt', labels.updated_at,
-        'className', label_classes.name,
-        'valueMap', label_classes.value_map,
-        'value', labels.value,
-        'labelSource', labels.label_source,
-        'description', label_classes.description,
-        'reasoning', labels.reasoning
-      ))`.as('labels')
-    })
-      .from(labels)
-      .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-      .groupBy(labels.spanId, labelClasses.projectId)
-  );
 
-  const spansQuery = db.with(spanEventsQuery, spanLabelsQuery).select({
+  const spansQuery = db.with(spanEventsQuery).select({
     // inputs and outputs are ignored on purpose
     spanId: spans.spanId,
     startTime: spans.startTime,
@@ -76,11 +53,14 @@ export async function GET(
     attributes: spans.attributes,
     spanType: spans.spanType,
     events: sql`COALESCE(${spanEventsQuery.events}, '[]'::jsonb)`.as('events'),
-    labels: sql`COALESCE(${spanLabelsQuery.labels}, '[]'::jsonb)`.as('labels')
   })
     .from(spans)
-    .leftJoin(spanEventsQuery, eq(spans.spanId, spanEventsQuery.spanId))
-    .leftJoin(spanLabelsQuery, eq(spans.spanId, spanLabelsQuery.spanId))
+    .leftJoin(spanEventsQuery,
+      and(
+        eq(spans.spanId, spanEventsQuery.spanId),
+        eq(spans.projectId, spanEventsQuery.projectId)
+      )
+    )
     .where(
       and(
         eq(spans.traceId, traceId),

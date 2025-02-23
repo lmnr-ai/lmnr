@@ -6,7 +6,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::db::datapoints::DBDatapoint;
-use crate::semantic_search::SemanticSearch;
+use crate::semantic_search::{SemanticSearch, SemanticSearchTrait};
 use crate::{datasets::Dataset, db::DB, pipeline::nodes::utils::render_template};
 
 use super::NodeInput;
@@ -21,7 +21,7 @@ pub struct SemanticSearchPoint {
 
 pub(super) async fn query_datasources(
     datasets: &Vec<Dataset>,
-    semantic_search: Arc<dyn SemanticSearch>,
+    semantic_search: Arc<SemanticSearch>,
     db: Arc<DB>,
     query: String,
     collection_name: String,

@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
+import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from '@/lib/types';
 import { isStringType } from '@/lib/utils';
 
 import DownloadButton from '../ui/download-button';
@@ -54,21 +54,33 @@ interface ContentPartsProps {
 }
 
 function ContentParts({ contentParts }: ContentPartsProps) {
+
+  const renderContentPart = (contentPart: ChatMessageContentPart) => {
+    switch (contentPart.type) {
+      case 'text':
+        return <ContentPartText text={contentPart.text} />;
+      case 'image':
+        return <ContentPartImage b64_data={contentPart.data} />;
+      case 'image_url':
+        // it means we managed to parse span input and properly store image in S3
+        if (contentPart.url) {
+          return <ContentPartImageUrl url={contentPart.url} />;
+        } else {
+          const openAIImageUrl = contentPart as any as OpenAIImageUrl;
+          return <img src={openAIImageUrl.image_url.url} alt="span image" className='w-full' />;
+        }
+      case 'document_url':
+        return <ContentPartDocumentUrl url={contentPart.url} />;
+      default:
+        return <div>Unknown content part</div>;
+    }
+  };
+
   return (
     <div className="flex flex-col space-y-2 w-full">
       {contentParts.map((contentPart, index) => (
         <div key={index} className="w-full">
-          {contentPart.type === 'text' ? (
-            <ContentPartText text={contentPart.text} />
-          ) : contentPart.type === 'image' ? (
-            <ContentPartImage b64_data={contentPart.data} />
-          ) : contentPart.type === 'image_url' ? (
-            <ContentPartImageUrl url={contentPart.url} />
-          ) : contentPart.type === 'document_url' ? (
-            <ContentPartDocumentUrl url={contentPart.url} />
-          ) : (
-            <div>Unknown content part</div>
-          )}
+          {renderContentPart(contentPart)}
         </div>
       ))}
     </div>

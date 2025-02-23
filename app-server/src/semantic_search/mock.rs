@@ -8,13 +8,13 @@ use super::semantic_search_grpc::{
     DeleteCollectionsResponse, DeleteEmbeddingsResponse, IndexResponse, QueryResponse,
 };
 
-use super::SemanticSearch;
+use super::SemanticSearchTrait;
 
 #[derive(Clone)]
 pub struct MockSemanticSearch {}
 
 #[async_trait]
-impl SemanticSearch for MockSemanticSearch {
+impl SemanticSearchTrait for MockSemanticSearch {
     async fn query(
         &self,
         _: &str,

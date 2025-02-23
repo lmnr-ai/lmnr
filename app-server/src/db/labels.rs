@@ -177,15 +177,23 @@ pub async fn update_span_label(
     id: Uuid,
     span_id: Uuid,
     value: f64,
-    user_id: Option<Uuid>,
+    user_email: Option<String>,
     class_id: Uuid,
     label_source: &LabelSource,
     reasoning: Option<String>,
 ) -> Result<DBSpanLabel> {
     let span_label = sqlx::query_as::<_, DBSpanLabel>(
         "INSERT INTO labels
-            (id, span_id, class_id, user_id, value, updated_at, label_source, reasoning)
-        VALUES ($1, $2, $3, $4, $5, now(), $6, $7)
+            (id,
+            span_id,
+            class_id,
+            user_id,
+            value,
+            updated_at,
+            label_source,
+            reasoning
+        )
+        VALUES ($1, $2, $3, (SELECT id FROM users WHERE email = $4 LIMIT 1), $5, now(), $6, $7)
         ON CONFLICT (span_id, class_id, user_id)
         DO UPDATE SET value = $5, updated_at = now(), label_source = $6,
             reasoning = COALESCE($7, labels.reasoning)
@@ -203,7 +211,7 @@ pub async fn update_span_label(
     .bind(id)
     .bind(span_id)
     .bind(class_id)
-    .bind(user_id)
+    .bind(user_email)
     .bind(value)
     .bind(label_source)
     .bind(reasoning)
@@ -240,53 +248,6 @@ pub async fn get_span_labels(pool: &PgPool, span_id: Uuid) -> Result<Vec<SpanLab
     .await?;
 
     Ok(span_labels)
-}
-
-#[derive(FromRow)]
-pub struct SpanLabelInstance {
-    pub input: Option<Value>,
-    pub output: Option<Value>,
-    pub value: f64,
-    pub reasoning: Option<String>,
-}
-
-/// filter down `span_ids` to only those that are labeled with `label_class_id`
-pub async fn get_labeled_spans(
-    pool: &PgPool,
-    project_id: Uuid,
-    span_ids: &Vec<Uuid>,
-    label_class_id: Uuid,
-    manual_only: bool,
-) -> Result<Vec<SpanLabelInstance>> {
-    let spans = sqlx::query_as::<_, SpanLabelInstance>(
-        "SELECT
-            spans.input,
-            spans.output,
-            labels.value,
-            labels.reasoning
-        FROM spans
-        JOIN labels ON spans.span_id = labels.span_id
-            -- only get the latest label for now
-            AND labels.updated_at = (
-                SELECT MAX(updated_at)
-                FROM labels
-                WHERE span_id = spans.span_id
-                AND CASE WHEN $4 THEN labels.label_source = 'MANUAL' ELSE TRUE END
-                AND class_id = $3
-            )
-        JOIN label_classes ON labels.class_id = label_classes.id AND label_classes.id = $3
-        WHERE label_classes.project_id = $1
-        AND spans.span_id = ANY($2)
-        AND labels.value IS NOT NULL",
-    )
-    .bind(project_id)
-    .bind(&span_ids)
-    .bind(label_class_id)
-    .bind(manual_only)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(spans)
 }
 
 pub async fn register_label_class_for_path(

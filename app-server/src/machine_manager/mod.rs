@@ -2,14 +2,22 @@ mod machine_manager_service_grpc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use enum_dispatch::enum_dispatch;
 use machine_manager_service_client::MachineManagerServiceClient;
 pub use machine_manager_service_grpc::*;
 use std::sync::Arc;
 use tonic::transport::Channel;
 use uuid::Uuid;
 
+#[enum_dispatch]
+pub enum MachineManager {
+    MachineManagerImpl(MachineManagerImpl),
+    MockMachineManager(MockMachineManager),
+}
+
 #[async_trait]
-pub trait MachineManager: Send + Sync {
+#[enum_dispatch(MachineManager)]
+pub trait MachineManagerTrait {
     async fn start_machine(&self) -> Result<Uuid>;
 
     async fn terminate_machine(&self, machine_id: Uuid) -> Result<()>;
@@ -31,7 +39,7 @@ impl MachineManagerImpl {
 }
 
 #[async_trait]
-impl MachineManager for MachineManagerImpl {
+impl MachineManagerTrait for MachineManagerImpl {
     async fn start_machine(&self) -> Result<Uuid> {
         let mut client = self.client.as_ref().clone();
         let request = tonic::Request::new(StartMachineRequest {});
@@ -66,7 +74,7 @@ impl MachineManager for MachineManagerImpl {
 pub struct MockMachineManager {}
 
 #[async_trait]
-impl MachineManager for MockMachineManager {
+impl MachineManagerTrait for MockMachineManager {
     async fn start_machine(&self) -> Result<Uuid> {
         todo!()
     }

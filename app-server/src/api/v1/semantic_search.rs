@@ -11,7 +11,7 @@ use crate::db::project_api_keys::ProjectApiKey;
 use crate::db::{self, DB};
 use crate::features::{is_feature_enabled, Feature};
 use crate::routes::types::ResponseResult;
-use crate::semantic_search::SemanticSearch;
+use crate::semantic_search::{SemanticSearch, SemanticSearchTrait};
 use crate::traces::utils::json_value_to_string;
 
 const DEFAULT_LIMIT: u32 = 10;
@@ -55,7 +55,7 @@ pub async fn semantic_search(
     params: web::Json<SemanticSearchRequest>,
     db: web::Data<DB>,
     project_api_key: ProjectApiKey,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
+    semantic_search: web::Data<Arc<SemanticSearch>>,
 ) -> ResponseResult {
     if !is_feature_enabled(Feature::FullBuild) {
         let error = "Semantic search is not enabled. Please enable full build";
@@ -141,14 +141,14 @@ pub async fn semantic_search(
                     )]));
             let data = db_data
                 .iter()
-                .map(|(k, v)| (k.clone(), json_value_to_string(v.clone())))
+                .map(|(k, v)| (k.clone(), json_value_to_string(v)))
                 .collect::<HashMap<String, String>>();
             let content = if let Some(index_column) = indexed_on.clone() {
                 data.get(&index_column)
                     .cloned()
-                    .unwrap_or(json_value_to_string(db_datapoint.data.clone()))
+                    .unwrap_or(json_value_to_string(&db_datapoint.data))
             } else {
-                json_value_to_string(db_datapoint.data.clone())
+                json_value_to_string(&db_datapoint.data)
             };
 
             SemanticSearchResult {

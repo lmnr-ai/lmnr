@@ -6,13 +6,12 @@ pub mod evaluations;
 pub mod labels;
 pub mod limits;
 pub mod pipelines;
+pub mod probes;
 pub mod projects;
 pub mod provider_api_keys;
-pub mod subscriptions;
 pub mod traces;
 pub mod types;
 pub mod workspace;
-
 use serde::{Deserialize, Serialize};
 use types::*;
 

@@ -1,10 +1,12 @@
+import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import Stripe from 'stripe';
 
 import { authOptions } from '@/lib/auth';
-import { UserSubscriptionInfo } from '@/lib/checkout/types';
-import { fetcher, fetcherJSON } from '@/lib/utils';
+import { getUserSubscriptionInfo } from '@/lib/checkout/utils';
+import { db } from '@/lib/db/drizzle';
+import { users, userSubscriptionInfo } from '@/lib/db/migrations/schema';
 
 export default async function CheckoutPage(
   props: {
@@ -13,7 +15,7 @@ export default async function CheckoutPage(
 ) {
   const searchParams = await props.searchParams;
   const lookupKey =
-    (searchParams?.lookupKey as string) ?? 'pro_monthly_2024_09';
+    (searchParams?.lookupKey as string) ?? 'pro_monthly_2025_02';
   const workspaceId = searchParams?.workspaceId as string;
   const workspaceName = searchParams?.workspaceName as string;
   const userSession = await getServerSession(authOptions);
@@ -21,13 +23,7 @@ export default async function CheckoutPage(
     redirect(`/sign-in?callbackUrl=/workspace/${workspaceId}`);
   }
 
-  const existingStripeCustomer = (await fetcherJSON('/subscriptions', {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${userSession.user.apiKey}`
-    }
-  })) as UserSubscriptionInfo | null;
+  const existingStripeCustomer = await getUserSubscriptionInfo(userSession.user.email!);
 
   if (
     existingStripeCustomer?.stripeCustomerId &&
@@ -46,17 +42,25 @@ export default async function CheckoutPage(
       })
     ).id;
 
+  const userId = existingStripeCustomer?.userId ??
+    (await db.query.users.findFirst({
+      where: eq(users.email, userSession.user.email!)
+    }))?.id;
+
+  if (!userId) {
+    redirect(`/workspace/${workspaceId}`);
+  }
+
   if (!existingStripeCustomer?.stripeCustomerId) {
     // update the user's stripe customer id to then be able to manage their subscription
-    await fetcher('/subscriptions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userSession?.user.apiKey}`
-      },
-      body: JSON.stringify({
+    await db.insert(userSubscriptionInfo).values({
+      userId,
+      stripeCustomerId: customerId,
+    }).onConflictDoUpdate({
+      target: userSubscriptionInfo.userId,
+      set: {
         stripeCustomerId: customerId
-      })
+      }
     });
   }
 

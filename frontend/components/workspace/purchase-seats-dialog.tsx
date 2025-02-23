@@ -48,6 +48,7 @@ export default function PurchaseSeatsDialog({
         <Label className="text-sm text-secondary-foreground">
           Your current tier includes {seatsIncludedInTier} seats.
           You have {currentQuantity - seatsIncludedInTier} additional seats.
+          Purchasing seats will charge your payment method on file.
         </Label>
         <Input
           type="number"

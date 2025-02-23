@@ -1,50 +1,71 @@
-use async_trait::async_trait;
+use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures::StreamExt;
 use lapin::{
-    message::Delivery,
-    options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
+    acker::Acker,
+    options::{BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
     types::FieldTable,
-    BasicProperties, Connection, Consumer,
+    BasicProperties, Channel, Connection, Consumer,
 };
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::{MessageQueue, MessageQueueDelivery, MessageQueueReceiver};
+use super::{
+    MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
+    MessageQueueReceiverTrait, MessageQueueTrait,
+};
 
-pub struct RabbitMQ {
+struct RabbitChannelManager {
     connection: Arc<Connection>,
 }
 
-struct RabbitMQReceiver {
+impl Manager for RabbitChannelManager {
+    type Type = Channel;
+    type Error = anyhow::Error;
+
+    async fn create(&self) -> Result<Channel, Self::Error> {
+        Ok(self.connection.create_channel().await?)
+    }
+
+    async fn recycle(
+        &self,
+        channel: &mut Channel,
+        _: &deadpool::managed::Metrics,
+    ) -> deadpool::managed::RecycleResult<Self::Error> {
+        if channel.status().connected() {
+            Ok(())
+        } else {
+            Err(RecycleError::Backend(anyhow::anyhow!(
+                "Channel disconnected"
+            )))
+        }
+    }
+}
+
+pub struct RabbitMQ {
+    connection: Arc<Connection>,
+    publisher_channel_pool: Pool<RabbitChannelManager>,
+}
+
+pub struct RabbitMQReceiver {
     consumer: Consumer,
 }
 
-struct RabbitMQDelivery<T> {
-    delivery: Delivery,
-    data: T,
+pub struct RabbitMQDelivery {
+    acker: Acker,
+    data: Vec<u8>,
 }
 
-#[async_trait]
-impl<T> MessageQueueDelivery<T> for RabbitMQDelivery<T>
-where
-    T: for<'de> Deserialize<'de> + Clone + Send + Sync,
-{
-    async fn ack(&self) -> anyhow::Result<()> {
-        self.delivery.ack(BasicAckOptions::default()).await?;
-        Ok(())
+impl MessageQueueDeliveryTrait for RabbitMQDelivery {
+    fn acker(&self) -> MessageQueueAcker {
+        MessageQueueAcker::RabbitAcker(self.acker.clone())
     }
 
-    fn data(&self) -> T {
-        self.data.clone()
+    fn data(self) -> Vec<u8> {
+        self.data
     }
 }
 
-#[async_trait]
-impl<T> MessageQueueReceiver<T> for RabbitMQReceiver
-where
-    T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
-{
-    async fn receive(&mut self) -> Option<anyhow::Result<Box<dyn MessageQueueDelivery<T>>>> {
+impl MessageQueueReceiverTrait for RabbitMQReceiver {
+    async fn receive(&mut self) -> Option<anyhow::Result<MessageQueueDelivery>> {
         if let Some(delivery) = self.consumer.next().await {
             let Ok(delivery) = delivery else {
                 return Some(Err(anyhow::anyhow!(
@@ -52,20 +73,10 @@ where
                 )));
             };
 
-            let Ok(payload) = String::from_utf8(delivery.data.clone()) else {
-                return Some(Err(anyhow::anyhow!(
-                    "Failed to parse delivery data as UTF-8."
-                )));
-            };
-
-            let payload = serde_json::from_str::<T>(&payload);
-            match payload {
-                Ok(payload) => Some(Ok(Box::new(RabbitMQDelivery {
-                    delivery,
-                    data: payload,
-                }))),
-                Err(e) => Some(Err(anyhow::anyhow!("Failed to deserialize payload: {}", e))),
-            }
+            Some(Ok(MessageQueueDelivery::Rabbit(RabbitMQDelivery {
+                acker: delivery.acker,
+                data: delivery.data,
+            })))
         } else {
             None
         }
@@ -73,28 +84,51 @@ where
 }
 
 impl RabbitMQ {
-    pub fn new(connection: Arc<Connection>) -> Self {
-        Self { connection }
+    pub fn new(connection: Arc<Connection>, max_channel_pool_size: usize) -> Self {
+        let manager = RabbitChannelManager {
+            connection: Arc::clone(&connection),
+        };
+
+        let pool = Pool::builder(manager)
+            .max_size(max_channel_pool_size)
+            .build()
+            .unwrap();
+
+        Self {
+            connection,
+            publisher_channel_pool: pool,
+        }
     }
 }
 
-#[async_trait]
-impl<T> MessageQueue<T> for RabbitMQ
-where
-    T: for<'de> Deserialize<'de> + Serialize + Clone + Send + Sync + 'static,
-{
-    async fn publish(&self, message: &T, exchange: &str, routing_key: &str) -> anyhow::Result<()> {
-        let payload = serde_json::to_string(message)?;
-        let payload = payload.as_bytes();
-
-        let channel = self.connection.create_channel().await?;
+impl MessageQueueTrait for RabbitMQ {
+    /// Publish a message to a RabbitMQ exchange.
+    /// It uses a channel from the pool to publish the message.
+    /// We use a channel from the pool to avoid creating a new channel for each message.
+    async fn publish(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+    ) -> anyhow::Result<()> {
+        let channel = match self.publisher_channel_pool.get().await {
+            Ok(channel) => channel,
+            Err(PoolError::Backend(e)) => {
+                log::error!("Failed to get channel from pool: {}", e);
+                return Err(anyhow::anyhow!("Failed to get channel from pool: {}", e));
+            }
+            Err(e) => {
+                log::error!("Pool error: {}", e);
+                return Err(anyhow::anyhow!("Pool error: {}", e));
+            }
+        };
 
         channel
             .basic_publish(
                 exchange,
                 routing_key,
                 BasicPublishOptions::default(),
-                payload,
+                message,
                 BasicProperties::default(),
             )
             .await?
@@ -108,10 +142,7 @@ where
         queue_name: &str,
         exchange: &str,
         routing_key: &str,
-    ) -> anyhow::Result<Box<dyn MessageQueueReceiver<T>>>
-    where
-        T: for<'de> Deserialize<'de> + Clone + Send + Sync + 'static,
-    {
+    ) -> anyhow::Result<MessageQueueReceiver> {
         let channel = self.connection.create_channel().await?;
 
         channel
@@ -133,6 +164,6 @@ where
             )
             .await?;
 
-        Ok(Box::new(RabbitMQReceiver { consumer }))
+        Ok(RabbitMQReceiver { consumer }.into())
     }
 }

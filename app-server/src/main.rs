@@ -1,8 +1,7 @@
-use actix_service::Service;
 use actix_web::{
     middleware::{Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
-    App, HttpMessage, HttpServer,
+    App, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
@@ -10,7 +9,6 @@ use aws_config::BehaviorVersion;
 use browser_events::process_browser_events;
 use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient, CodeExecutor};
 use dashmap::DashMap;
-use db::{pipelines::PipelineVersion, project_api_keys::ProjectApiKey, user::User};
 use features::{is_feature_enabled, Feature};
 use lapin::{
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
@@ -20,31 +18,29 @@ use lapin::{
 use machine_manager::{
     machine_manager_service_client::MachineManagerServiceClient, MachineManager, MachineManagerImpl,
 };
+use mq::MessageQueue;
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
-use projects::Project;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use storage::{mock::MockStorage, Storage};
 use tonic::transport::Server;
 use traces::{
-    consumer::process_queue_spans, grpc_service::ProcessTracesService,
-    limits::WorkspaceLimitsExceeded, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
+    consumer::process_queue_spans, grpc_service::ProcessTracesService, OBSERVATIONS_EXCHANGE,
+    OBSERVATIONS_QUEUE,
 };
 
-use cache::{cache::CacheTrait, Cache};
+use cache::{in_memory::InMemoryCache, redis::RedisCache, Cache};
 use chunk::{
     character_split::CharacterSplitChunker,
     runner::{Chunker, ChunkerRunner, ChunkerType},
 };
-use language_model::{costs::LLMPriceEntry, LanguageModelProvider, LanguageModelProviderName};
-use moka::future::Cache as MokaCache;
+use language_model::{LanguageModelProvider, LanguageModelProviderName};
 use routes::pipelines::GraphInterruptMessage;
 use semantic_search::{
     semantic_search_grpc::semantic_search_client::SemanticSearchClient, SemanticSearch,
 };
 use sodiumoxide;
 use std::{
-    any::TypeId,
     collections::HashMap,
     env,
     io::{self, Error},
@@ -73,17 +69,12 @@ mod mq;
 mod names;
 mod opentelemetry;
 mod pipeline;
-mod projects;
 mod provider_api_keys;
 mod routes;
 mod runtime;
 mod semantic_search;
 mod storage;
 mod traces;
-
-const DEFAULT_CACHE_SIZE: u64 = 100; // entries
-const HTTP_PAYLOAD_LIMIT: usize = 5 * 1024 * 1024; // 5MB
-const GRPC_PAYLOAD_DECODING_LIMIT: usize = 50 * 1024 * 1024; // 50MB
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -109,6 +100,16 @@ fn main() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "info");
     env_logger::init();
 
+    let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
+        .unwrap_or(String::from("5242880")) // default to 5MB
+        .parse()
+        .unwrap();
+
+    let grpc_payload_limit: usize = env::var("GRPC_PAYLOAD_LIMIT")
+        .unwrap_or(String::from("26214400")) // default to 25MB
+        .parse()
+        .unwrap();
+
     let port = env::var("PORT")
         .unwrap_or(String::from("8000"))
         .parse()
@@ -120,102 +121,91 @@ fn main() -> anyhow::Result<()> {
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
     // == Stuff that is needed both for HTTP and gRPC servers ==
-    // === 1. Caches ===
-    let mut caches: HashMap<TypeId, Arc<dyn CacheTrait>> = HashMap::new();
-    let auth_cache: Arc<MokaCache<String, User>> = Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<User>(), auth_cache);
-    let project_api_key_cache: Arc<MokaCache<String, ProjectApiKey>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<ProjectApiKey>(), project_api_key_cache);
-    let pipeline_version_cache: Arc<MokaCache<String, PipelineVersion>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<PipelineVersion>(), pipeline_version_cache);
-    let project_cache: Arc<MokaCache<String, Project>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<Project>(), project_cache);
-    let workspace_limits_cache: Arc<MokaCache<String, WorkspaceLimitsExceeded>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(
-        TypeId::of::<WorkspaceLimitsExceeded>(),
-        workspace_limits_cache,
-    );
-    let llm_costs_cache: Arc<MokaCache<String, LLMPriceEntry>> =
-        Arc::new(MokaCache::new(DEFAULT_CACHE_SIZE));
-    caches.insert(TypeId::of::<LLMPriceEntry>(), llm_costs_cache);
-
-    let cache = Arc::new(Cache::new(caches));
+    // === 1. Cache ===
+    let cache = if let Ok(redis_url) = env::var("REDIS_URL") {
+        runtime_handle.block_on(async {
+            let redis_cache = RedisCache::new(&redis_url).await.unwrap();
+            Cache::Redis(redis_cache)
+        })
+    } else {
+        Cache::InMemory(InMemoryCache::new(None))
+    };
+    let cache = Arc::new(cache);
 
     // === 2. Database ===
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    let mut pool = None;
-    runtime_handle.block_on(async {
-        pool = Some(
-            sqlx::postgres::PgPoolOptions::new()
-                .max_connections(
-                    env::var("DATABASE_MAX_CONNECTIONS")
-                        .unwrap_or(String::from("10"))
-                        .parse()
-                        .unwrap_or(10),
-                )
-                .connect(&db_url)
-                .await
-                .unwrap(),
-        );
+    let max_connections = env::var("DATABASE_MAX_CONNECTIONS")
+        .unwrap_or(String::from("10"))
+        .parse()
+        .unwrap_or(10);
+
+    log::info!("Database max connections: {}", max_connections);
+
+    let pool = runtime_handle.block_on(async {
+        sqlx::postgres::PgPoolOptions::new()
+            .max_connections(max_connections)
+            .connect(&db_url)
+            .await
+            .unwrap()
     });
-    let pool = pool.unwrap();
+
     let db = Arc::new(db::DB::new(pool));
 
     // === 3. Message queues ===
     let connection = if is_feature_enabled(Feature::FullBuild) {
         let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
         runtime_handle.block_on(async {
-            let connection = Arc::new(
+            Some(Arc::new(
                 Connection::connect(&rabbitmq_url, ConnectionProperties::default())
                     .await
                     .unwrap(),
-            );
-            Some(connection)
+            ))
         })
     } else {
         None
     };
 
+    let connection_for_health = connection.clone(); // Clone before moving into HttpServer
+
     // ==== 3.1 Spans message queue ====
-    let spans_message_queue: Arc<dyn mq::MessageQueue<api::v1::traces::RabbitMqSpanMessage>> =
-        if let Some(connection) = connection.as_ref() {
-            runtime_handle.block_on(async {
-                let channel = connection.create_channel().await.unwrap();
+    let spans_message_queue: Arc<MessageQueue> = if let Some(connection) = connection.as_ref() {
+        runtime_handle.block_on(async {
+            let channel = connection.create_channel().await.unwrap();
 
-                channel
-                    .exchange_declare(
-                        OBSERVATIONS_EXCHANGE,
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+            channel
+                .exchange_declare(
+                    OBSERVATIONS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
 
-                channel
-                    .queue_declare(
-                        OBSERVATIONS_QUEUE,
-                        QueueDeclareOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+            channel
+                .queue_declare(
+                    OBSERVATIONS_QUEUE,
+                    QueueDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
 
-                Arc::new(mq::rabbit::RabbitMQ::new(connection.clone()))
-            })
-        } else {
-            Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
-        };
+            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(64);
+
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
+            Arc::new(rabbit_mq.into())
+        })
+    } else {
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
+    };
 
     // ==== 3.2 Browser events message queue ====
-    let browser_events_message_queue: Arc<
-        dyn mq::MessageQueue<api::v1::browser_sessions::QueueBrowserEventMessage>,
-    > = if let Some(connection) = connection {
+    let browser_events_message_queue: Arc<MessageQueue> = if let Some(connection) = connection {
         runtime_handle.block_on(async {
             let channel = connection.create_channel().await.unwrap();
 
@@ -238,10 +228,16 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            Arc::new(mq::rabbit::RabbitMQ::new(connection))
+            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(64);
+
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection, max_channel_pool_size);
+            Arc::new(rabbit_mq.into())
         })
     } else {
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new())
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
     };
 
     let runtime_handle_for_http = runtime_handle.clone();
@@ -249,7 +245,7 @@ fn main() -> anyhow::Result<()> {
     let cache_for_http = cache.clone();
     let spans_mq_for_http = spans_message_queue.clone();
 
-    // == HTTP server ==
+    // == HTTP server and listener workers ==
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
         .spawn(move || {
@@ -263,16 +259,16 @@ fn main() -> anyhow::Result<()> {
                     .await;
 
                 // == Storage ==
-                let storage: Arc<dyn Storage> = if is_feature_enabled(Feature::Storage) {
+                let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
                     let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
                     let s3_storage = storage::s3::S3Storage::new(
                         s3_client,
                         env::var("S3_TRACE_PAYLOADS_BUCKET")
                             .expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
                     );
-                    Arc::new(s3_storage)
+                    Arc::new(s3_storage.into())
                 } else {
-                    Arc::new(MockStorage {})
+                    Arc::new(MockStorage {}.into())
                 };
 
                 // == Chunkers ==
@@ -307,7 +303,7 @@ fn main() -> anyhow::Result<()> {
                 };
 
                 // == Machine manager ==
-                let machine_manager: Arc<dyn MachineManager> =
+                let machine_manager: Arc<MachineManager> =
                     if is_feature_enabled(Feature::MachineManager) {
                         let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
                             .expect("MACHINE_MANAGER_URL_GRPC must be set");
@@ -316,9 +312,9 @@ fn main() -> anyhow::Result<()> {
                                 .await
                                 .unwrap(),
                         );
-                        Arc::new(MachineManagerImpl::new(machine_manager_client))
+                        Arc::new(MachineManagerImpl::new(machine_manager_client).into())
                     } else {
-                        Arc::new(machine_manager::MockMachineManager {})
+                        Arc::new(machine_manager::MockMachineManager {}.into())
                     };
 
                 // == Name generator ==
@@ -329,28 +325,28 @@ fn main() -> anyhow::Result<()> {
                     Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
                 // == Semantic search ==
-                let semantic_search: Arc<dyn SemanticSearch> =
-                    if is_feature_enabled(Feature::FullBuild) {
-                        let semantic_search_url = env::var("SEMANTIC_SEARCH_URL")
-                            .expect("SEMANTIC_SEARCH_URL must be set");
+                let semantic_search: Arc<SemanticSearch> = if is_feature_enabled(Feature::FullBuild)
+                {
+                    let semantic_search_url =
+                        env::var("SEMANTIC_SEARCH_URL").expect("SEMANTIC_SEARCH_URL must be set");
 
-                        let semantic_search_client = Arc::new(
-                            SemanticSearchClient::connect(semantic_search_url)
-                                .await
-                                .unwrap(),
-                        );
-                        Arc::new(
-                            semantic_search::semantic_search_impl::SemanticSearchImpl::new(
-                                semantic_search_client,
-                            ),
+                    let semantic_search_client = Arc::new(
+                        SemanticSearchClient::connect(semantic_search_url)
+                            .await
+                            .unwrap(),
+                    );
+                    Arc::new(
+                        semantic_search::semantic_search_impl::SemanticSearchImpl::new(
+                            semantic_search_client,
                         )
-                    } else {
-                        Arc::new(semantic_search::mock::MockSemanticSearch {})
-                    };
+                        .into(),
+                    )
+                } else {
+                    Arc::new(semantic_search::mock::MockSemanticSearch {}.into())
+                };
 
                 // == Python executor ==
-                let code_executor: Arc<dyn CodeExecutor> = if is_feature_enabled(Feature::FullBuild)
-                {
+                let code_executor: Arc<CodeExecutor> = if is_feature_enabled(Feature::FullBuild) {
                     let code_executor_url =
                         env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
                     let code_executor_client = Arc::new(
@@ -358,11 +354,14 @@ fn main() -> anyhow::Result<()> {
                             .await
                             .unwrap(),
                     );
-                    Arc::new(code_executor::code_executor_impl::CodeExecutorImpl::new(
-                        code_executor_client,
-                    ))
+                    Arc::new(
+                        code_executor::code_executor_impl::CodeExecutorImpl::new(
+                            code_executor_client,
+                        )
+                        .into(),
+                    )
                 } else {
-                    Arc::new(code_executor::mock::MockCodeExecutor {})
+                    Arc::new(code_executor::mock::MockCodeExecutor {}.into())
                 };
 
                 // == Language models ==
@@ -425,12 +424,18 @@ fn main() -> anyhow::Result<()> {
                     let shared_secret_auth =
                         HttpAuthentication::bearer(auth::shared_secret_validator);
 
-                    let num_workers_per_thread = env::var("NUM_WORKERS_PER_THREAD")
-                        .unwrap_or(String::from("8"))
+                    let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("4"))
                         .parse::<u8>()
-                        .unwrap_or(8);
+                        .unwrap_or(4);
 
-                    for _ in 0..num_workers_per_thread {
+                    let num_browser_events_workers_per_thread =
+                        env::var("NUM_BROWSER_EVENTS_WORKERS_PER_THREAD")
+                            .unwrap_or(String::from("4"))
+                            .parse::<u8>()
+                            .unwrap_or(4);
+
+                    for _ in 0..num_spans_workers_per_thread {
                         tokio::spawn(process_queue_spans(
                             pipeline_runner.clone(),
                             db_for_http.clone(),
@@ -439,7 +444,9 @@ fn main() -> anyhow::Result<()> {
                             clickhouse.clone(),
                             storage.clone(),
                         ));
+                    }
 
+                    for _ in 0..num_browser_events_workers_per_thread {
                         tokio::spawn(process_browser_events(
                             clickhouse.clone(),
                             browser_events_message_queue.clone(),
@@ -449,8 +456,8 @@ fn main() -> anyhow::Result<()> {
                     App::new()
                         .wrap(Logger::default())
                         .wrap(NormalizePath::trim())
-                        .app_data(JsonConfig::default().limit(HTTP_PAYLOAD_LIMIT))
-                        .app_data(PayloadConfig::new(HTTP_PAYLOAD_LIMIT))
+                        .app_data(JsonConfig::default().limit(http_payload_limit))
+                        .app_data(PayloadConfig::new(http_payload_limit))
                         .app_data(web::Data::from(cache_for_http.clone()))
                         .app_data(web::Data::from(db_for_http.clone()))
                         .app_data(web::Data::new(pipeline_runner.clone()))
@@ -465,21 +472,12 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(machine_manager.clone()))
                         .app_data(web::Data::new(browser_events_message_queue.clone()))
+                        .app_data(web::Data::new(connection_for_health.clone()))
                         // Scopes with specific auth or no auth
                         .service(
                             web::scope("api/v1/auth")
                                 .wrap(shared_secret_auth.clone())
                                 .service(routes::auth::signin),
-                        )
-                        .service(
-                            web::scope("api/v1/auth")
-                                .wrap(shared_secret_auth.clone())
-                                .service(routes::auth::signin),
-                        )
-                        .service(
-                            web::scope("api/v1/manage-subscriptions")
-                                .wrap(shared_secret_auth)
-                                .service(routes::subscriptions::update_subscription),
                         )
                         .service(api::v1::machine_manager::vnc_stream) // vnc stream does not need auth
                         .service(
@@ -525,96 +523,53 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::limits::get_workspace_storage_stats),
                         )
                         .service(
-                            web::scope("/api/v1/subscriptions")
-                                .wrap(auth.clone())
-                                .service(routes::subscriptions::save_stripe_customer_id)
-                                .service(routes::subscriptions::get_user_subscription_info),
+                            // auth on path projects/{project_id} is handled by middleware on Next.js
+                            web::scope("/api/v1/projects/{project_id}")
+                                .service(routes::projects::get_project)
+                                .service(routes::projects::delete_project)
+                                .service(routes::pipelines::run_pipeline_graph)
+                                .service(routes::pipelines::get_pipelines)
+                                .service(routes::pipelines::create_pipeline)
+                                .service(routes::pipelines::update_pipeline)
+                                .service(routes::pipelines::get_pipeline_by_id)
+                                .service(routes::pipelines::delete_pipeline)
+                                .service(routes::pipelines::create_pipeline_version)
+                                .service(routes::pipelines::fork_pipeline_version)
+                                .service(routes::pipelines::update_pipeline_version)
+                                .service(routes::pipelines::overwrite_pipeline_version)
+                                .service(routes::pipelines::get_pipeline_versions_info)
+                                .service(routes::pipelines::get_pipeline_versions)
+                                .service(routes::pipelines::get_pipeline_version)
+                                .service(routes::pipelines::get_version)
+                                .service(routes::pipelines::get_templates)
+                                .service(routes::pipelines::create_template)
+                                .service(routes::pipelines::run_pipeline_interrupt_graph)
+                                .service(routes::pipelines::update_target_pipeline_version)
+                                .service(routes::api_keys::create_project_api_key)
+                                .service(routes::api_keys::get_api_keys_for_project)
+                                .service(routes::api_keys::revoke_project_api_key)
+                                .service(routes::evaluations::get_evaluation_score_stats)
+                                .service(routes::evaluations::get_evaluation_score_distribution)
+                                .service(routes::datasets::delete_dataset)
+                                .service(routes::datasets::upload_datapoint_file)
+                                .service(routes::datasets::create_datapoint_embeddings)
+                                .service(routes::datasets::update_datapoint_embeddings)
+                                .service(routes::datasets::delete_datapoint_embeddings)
+                                .service(routes::datasets::delete_all_datapoints)
+                                .service(routes::datasets::index_dataset)
+                                .service(routes::labels::get_label_classes)
+                                .service(routes::labels::get_span_labels)
+                                .service(routes::labels::update_span_label)
+                                .service(routes::labels::delete_span_label)
+                                .service(routes::labels::register_label_class_for_path)
+                                .service(routes::labels::remove_label_class_from_path)
+                                .service(routes::labels::get_registered_label_classes_for_path)
+                                .service(routes::labels::update_label_class)
+                                .service(routes::traces::get_traces_metrics)
+                                .service(routes::provider_api_keys::save_api_key),
                         )
-                        .service(
-                            web::scope("/api/v1/projects")
-                                .wrap(auth)
-                                .service(routes::projects::create_project)
-                                .service(routes::projects::get_projects)
-                                .service(
-                                    web::scope("/{project_id}")
-                                        .wrap_fn(|req: actix_web::dev::ServiceRequest, srv| {
-                                            let project_id = Uuid::parse_str(
-                                                req.match_info().get("project_id").unwrap(),
-                                            )
-                                            .unwrap();
-                                            let user: User;
-                                            {
-                                                let binding = req.extensions();
-                                                // it is safe to unwrap here because if this middle runs user is present in the request
-                                                user = binding.get::<User>().cloned().unwrap();
-                                            }
-                                            if user
-                                                .project_ids
-                                                .as_ref()
-                                                .unwrap()
-                                                .contains(&project_id)
-                                            {
-                                                srv.call(req)
-                                            } else {
-                                                // return unauthorized
-                                                log::error!(
-                                                "Unauthorized, user {:} is not part of project {}",
-                                                user.id,
-                                                project_id
-                                            );
-                                                Box::pin(futures_util::future::err(
-                                                    actix_web::error::ErrorUnauthorized(""),
-                                                ))
-                                            }
-                                        })
-                                        .service(routes::projects::get_project)
-                                        .service(routes::projects::delete_project)
-                                        .service(routes::pipelines::run_pipeline_graph)
-                                        .service(routes::pipelines::get_pipelines)
-                                        .service(routes::pipelines::create_pipeline)
-                                        .service(routes::pipelines::update_pipeline)
-                                        .service(routes::pipelines::get_pipeline_by_id)
-                                        .service(routes::pipelines::delete_pipeline)
-                                        .service(routes::pipelines::create_pipeline_version)
-                                        .service(routes::pipelines::fork_pipeline_version)
-                                        .service(routes::pipelines::update_pipeline_version)
-                                        .service(routes::pipelines::overwrite_pipeline_version)
-                                        .service(routes::pipelines::get_pipeline_versions_info)
-                                        .service(routes::pipelines::get_pipeline_versions)
-                                        .service(routes::pipelines::get_pipeline_version)
-                                        .service(routes::pipelines::get_version)
-                                        .service(routes::pipelines::get_templates)
-                                        .service(routes::pipelines::create_template)
-                                        .service(routes::pipelines::run_pipeline_interrupt_graph)
-                                        .service(routes::pipelines::update_target_pipeline_version)
-                                        .service(routes::api_keys::create_project_api_key)
-                                        .service(routes::api_keys::get_api_keys_for_project)
-                                        .service(routes::api_keys::revoke_project_api_key)
-                                        .service(routes::evaluations::get_evaluation_score_stats)
-                                        .service(
-                                            routes::evaluations::get_evaluation_score_distribution,
-                                        )
-                                        .service(routes::datasets::delete_dataset)
-                                        .service(routes::datasets::upload_datapoint_file)
-                                        .service(routes::datasets::create_datapoint_embeddings)
-                                        .service(routes::datasets::update_datapoint_embeddings)
-                                        .service(routes::datasets::delete_datapoint_embeddings)
-                                        .service(routes::datasets::delete_all_datapoints)
-                                        .service(routes::datasets::index_dataset)
-                                        .service(routes::labels::get_label_classes)
-                                        .service(routes::labels::get_span_labels)
-                                        .service(routes::labels::update_span_label)
-                                        .service(routes::labels::delete_span_label)
-                                        .service(routes::labels::register_label_class_for_path)
-                                        .service(routes::labels::remove_label_class_from_path)
-                                        .service(
-                                            routes::labels::get_registered_label_classes_for_path,
-                                        )
-                                        .service(routes::labels::update_label_class)
-                                        .service(routes::traces::get_traces_metrics)
-                                        .service(routes::provider_api_keys::save_api_key),
-                                ),
-                        )
+                        .service(routes::probes::check_health)
+                        .service(routes::probes::check_ready)
                 })
                 .bind(("0.0.0.0", port))?
                 .run()
@@ -639,7 +594,7 @@ fn main() -> anyhow::Result<()> {
                         TraceServiceServer::new(process_traces_service)
                             .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
                             .send_compressed(tonic::codec::CompressionEncoding::Gzip)
-                            .max_decoding_message_size(GRPC_PAYLOAD_DECODING_LIMIT),
+                            .max_decoding_message_size(grpc_payload_limit),
                     )
                     .serve_with_shutdown(grpc_address, async {
                         wait_stop_signal("gRPC service").await;

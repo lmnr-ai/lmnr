@@ -15,7 +15,6 @@ pub mod projects;
 pub mod provider_api_keys;
 pub mod spans;
 pub mod stats;
-pub mod subscriptions;
 pub mod trace;
 pub mod user;
 pub mod utils;
