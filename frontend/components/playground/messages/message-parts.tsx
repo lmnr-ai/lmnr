@@ -7,6 +7,7 @@ import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
 import { Provider } from "@/lib/pipeline/types";
 import { PlaygroundForm } from "@/lib/playground/types";
+import { Input } from "@/components/ui/input";
 
 const buttonClassName = "size-fit p-[1px] transition-all duration-200 opacity-0 group-hover:opacity-100";
 
@@ -54,7 +55,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 <span className="pt-1">
                   <IconImage className="size-3" />
                 </span>
-                <DefaultTextarea
+                <Input
                   placeholder="Image URL, or base64 image"
                   {...register(`messages.${parentIndex}.content.${index}.image` as const)}
                   className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none"
