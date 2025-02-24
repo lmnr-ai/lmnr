@@ -15,13 +15,14 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function PlaygroundPage(props: {
-  searchParams: { spanId?: string };
+  searchParams: Promise<{ spanId?: string }>;
   params: Promise<{ projectId: string; playgroundId: string }>;
 }) {
   const params = await props.params;
 
   if (params.playgroundId === "create") {
-    const spanId = props.searchParams?.spanId;
+    const searchParams = await props.searchParams;
+    const spanId = searchParams?.spanId;
     try {
       if (spanId) {
         const span = await db.query.spans.findFirst({
