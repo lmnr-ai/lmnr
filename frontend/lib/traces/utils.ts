@@ -33,3 +33,8 @@ export const buildSpansUrl = (
     : `&startDate=${startDate}&endDate=${endDate}`;
   return `/project/${projectId}/traces?view=spans&filter=${JSON.stringify(filters)}${timeRangeParam}`;
 };
+
+export const isStringDateOld = (date: string) => {
+  const d = new Date(date);
+  return d < new Date(Date.now() - 1000 * 60 * 60);
+};

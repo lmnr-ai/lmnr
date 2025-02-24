@@ -1,11 +1,13 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleX } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getDuration, getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
+import { isStringDateOld } from '@/lib/traces/utils';
 import { cn, formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
 import { Skeleton } from '../ui/skeleton';
+import { NoSpanTooltip } from './no-span-tooltip';
 import SpanTypeIcon from './span-type-icon';
 
 const ROW_HEIGHT = 36;
@@ -95,9 +97,14 @@ export function SpanCard({
             {span.name}
           </div>
           {span.pending
-            ? (
-              <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
-            )
+            ? isStringDateOld(span.startTime) ?
+              // TODO: Fix this tooltip.
+              <NoSpanTooltip>
+                <CircleX className="w-4 h-4 rounded-sm text-red-600/50" />
+              </NoSpanTooltip>
+              : <Skeleton
+                className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs"
+              />
             : (
               (
                 <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
@@ -113,7 +120,7 @@ export function SpanCard({
               height: ROW_HEIGHT,
               left: -depth * 24 - 8
             }}
-            onClick={() => {
+            onClick={(e) => {
               if (!span.pending) {
                 onSpanSelect?.(span);
               }

@@ -1,13 +1,14 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { ArrowRight, RefreshCcw } from 'lucide-react';
+import { ArrowRight, CircleX, RefreshCcw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useRef,useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { useUserContext } from '@/contexts/user-context';
 import { useToast } from '@/lib/hooks/use-toast';
 import { SpanType, Trace, TraceWithSpans } from '@/lib/traces/types';
+import { isStringDateOld } from '@/lib/traces/utils';
 import { DatatableFilter, PaginatedResponse } from '@/lib/types';
 import { getFilterFromUrlParams } from '@/lib/utils';
 
@@ -25,6 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
+import { NoSpanTooltip } from './no-span-tooltip';
 import SpanTypeIcon from './span-type-icon';
 
 interface TracesTableProps {
@@ -171,12 +173,13 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       const insertIndex = currentTraces?.findIndex(trace => trace.startTime <= newObj.start_time);
       const newTraces = currentTraces ? [...currentTraces] : [];
       const rtEventTrace = dbTraceRowToTrace(newObj);
-      const newTrace = (rtEventTrace.topSpanType === null) ?
-        {
-          ...rtEventTrace,
-          ...(await getTraceTopSpanInfo(rtEventTrace.id))
-        } :
-        rtEventTrace;
+      const { topSpanType, topSpanName, ...rest } = rtEventTrace;
+      const newTrace = (rtEventTrace.topSpanType === null)
+        ? {
+          ...(await getTraceTopSpanInfo(rtEventTrace.id)),
+          ...rest,
+        }
+        : rtEventTrace;
       newTraces.splice(Math.max(insertIndex ?? 0, 0), 0, newTrace);
       if (newTraces.length > pageSize) {
         newTraces.splice(pageSize, newTraces.length - pageSize);
@@ -191,11 +194,14 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       if (updateIndex !== -1) {
         const newTraces = [...currentTraces];
         const existingTrace = currentTraces[updateIndex];
+        const rtEventTrace = dbTraceRowToTrace(newObj);
+        const { topSpanType, topSpanName, ...rest } = rtEventTrace;
         if (existingTrace.topSpanType === null) {
-          newTraces[updateIndex] = {
-            ...dbTraceRowToTrace(newObj),
-            ...(await getTraceTopSpanInfo(existingTrace.id))
+          const newTrace = {
+            ...(await getTraceTopSpanInfo(existingTrace.id)),
+            ...rest,
           };
+          newTraces[updateIndex] = newTrace;
         } else {
           newTraces[updateIndex] = dbTraceRowToTrace(newObj);
         }
@@ -347,20 +353,23 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       id: 'top_span_type',
       cell: (row) => (
         <div
-          onClick={(event) => {
-            event.stopPropagation();
-            handleAddFilter('span_type', row.getValue());
-          }}
-          className="cursor-pointer flex gap-2 items-center hover:bg-secondary"
+          // onClick={(event) => {
+          //   event.stopPropagation();
+          //   handleAddFilter('span_type', row.getValue());
+          // }}
+          className="cursor-pointer flex gap-2 items-center"
         >
           <div>
             {row.row.original.topSpanName ?
               <SpanTypeIcon className='z-10' spanType={row.getValue()} />
               : (
-                <Skeleton
-                  className="w-6 h-6 bg-secondary rounded-sm"
-                />
-              )
+                isStringDateOld(row.row.original.endTime) ?
+                  <NoSpanTooltip>
+                    <CircleX className="w-6 h-6 rounded-sm" />
+                  </NoSpanTooltip>
+                  : <Skeleton
+                    className="w-6 h-6 bg-secondary rounded-sm"
+                  />)
             }
           </div>
           {row.row.original.topSpanName ?
@@ -368,9 +377,15 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
               {row.row.original.topSpanName}
             </div>
             : (
-              <Skeleton
-                className="w-12 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm"
-              />
+              isStringDateOld(row.row.original.endTime) ?
+                <NoSpanTooltip>
+                  <div className='flex text-muted-foreground'>
+                    None
+                  </div>
+                </NoSpanTooltip>
+                : <Skeleton
+                  className="w-12 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm"
+                />
             )
           }
         </div>

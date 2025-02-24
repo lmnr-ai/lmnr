@@ -75,10 +75,6 @@ export const eventsRelations = relations(events, ({one}) => ({
 export const spansRelations = relations(spans, ({one, many}) => ({
   events: many(events),
   datapointToSpans: many(datapointToSpan),
-  trace: one(traces, {
-    fields: [spans.traceId],
-    references: [traces.id]
-  }),
   project: one(projects, {
     fields: [spans.projectId],
     references: [projects.id]
@@ -159,12 +155,11 @@ export const subscriptionTiersRelations = relations(subscriptionTiers, ({many}) 
   workspaces: many(workspaces),
 }));
 
-export const tracesRelations = relations(traces, ({one, many}) => ({
+export const tracesRelations = relations(traces, ({one}) => ({
   project: one(projects, {
     fields: [traces.projectId],
     references: [projects.id]
   }),
-  spans: many(spans),
 }));
 
 export const playgroundsRelations = relations(playgrounds, ({one}) => ({

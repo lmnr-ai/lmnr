@@ -464,6 +464,7 @@ export const projectApiKeys = pgTable("project_api_keys", {
   hash: text().default('').notNull(),
   id: uuid().defaultRandom().primaryKey().notNull(),
 }, (table) => [
+  index("project_api_keys_hash_idx").using("hash", table.hash.asc().nullsLast().op("text_ops")),
   foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
@@ -553,11 +554,6 @@ export const spans = pgTable("spans", {
   index("spans_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")),
   index("spans_trace_id_idx").using("btree", table.traceId.asc().nullsLast().op("uuid_ops")),
   index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("uuid_ops")),
-  foreignKey({
-    columns: [table.traceId],
-    foreignColumns: [traces.id],
-    name: "new_spans_trace_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
   foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
