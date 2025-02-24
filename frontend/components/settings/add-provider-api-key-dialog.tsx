@@ -1,17 +1,12 @@
-import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { Plus } from "lucide-react";
+import { useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { EnvVars } from '@/lib/env/utils';
+import { envVarsToIconMap } from "@/components/playground/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EnvVars } from "@/lib/env/utils";
 
 import {
   Dialog,
@@ -20,26 +15,27 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
-} from '../ui/dialog';
+  DialogTrigger,
+} from "../ui/dialog";
 
 interface AddProviderApiKeyDialogProps {
-  existingKeyNames: string[]
-  onAdd: (name: string, value: string) => void
+  existingKeyNames: string[];
+  onAdd: (name: string, value: string) => void;
 }
 
 export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: AddProviderApiKeyDialogProps) {
-
-  const [envVarType, setEnvVarType] = useState<string>('');
-  const [envVarName, setEnvVarName] = useState<string>('');
-  const [envVarValue, setEnvVarValue] = useState<string>('');
+  const [envVarType, setEnvVarType] = useState<string>("");
+  const [envVarName, setEnvVarName] = useState<string>("");
+  const [envVarValue, setEnvVarValue] = useState<string>("");
 
   return (
-    <Dialog onOpenChange={() => {
-      setEnvVarName('');
-      setEnvVarType('');
-      setEnvVarValue('');
-    }}>
+    <Dialog
+      onOpenChange={() => {
+        setEnvVarName("");
+        setEnvVarType("");
+        setEnvVarValue("");
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" className="h-8">
           <Plus className="w-4 mr-1 text-gray-500" />
@@ -55,10 +51,10 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
           <Select
             onValueChange={(value) => {
               setEnvVarType(value);
-              if (value !== 'custom') {
+              if (value !== "custom") {
                 setEnvVarName(value);
               } else {
-                setEnvVarName('');
+                setEnvVarName("");
               }
             }}
           >
@@ -66,16 +62,19 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
               <SelectValue placeholder="API key provider" />
             </SelectTrigger>
             <SelectContent>
-              {
-                Object.values(EnvVars).filter(e => !existingKeyNames.includes(e)).map((v) => (
+              {Object.values(EnvVars)
+                .filter((e) => !existingKeyNames.includes(e))
+                .map((v) => (
                   <SelectItem key={v} value={v}>
-                    {v}
+                    <span className="flex gap-2 items-center">
+                      {envVarsToIconMap[v]}
+                      {v}
+                    </span>
                   </SelectItem>
-                ))
-              }
+                ))}
             </SelectContent>
           </Select>
-          {envVarType === 'custom' && (
+          {envVarType === "custom" && (
             <Input
               placeholder="Name"
               onChange={(e) => {
@@ -96,15 +95,13 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
         <DialogFooter>
           <DialogClose asChild>
             <Button
-              disabled={envVarValue === ''
-                || envVarName === ''
-                || envVarType === ''
-                || existingKeyNames.includes(envVarName)
+              disabled={
+                envVarValue === "" || envVarName === "" || envVarType === "" || existingKeyNames.includes(envVarName)
               }
               onClick={() => {
-                setEnvVarName('');
-                setEnvVarType('');
-                setEnvVarValue('');
+                setEnvVarName("");
+                setEnvVarType("");
+                setEnvVarValue("");
                 onAdd(envVarName, envVarValue);
               }}
               handleEnter

@@ -1,9 +1,9 @@
-import { Metadata } from 'next';
+import { Metadata } from "next";
 
-import Playgrounds from '@/components/playgrounds/playgrounds';
+import Playgrounds from "@/components/playgrounds/playgrounds";
 
 export const metadata: Metadata = {
-  title: 'Playgrounds'
+  title: "Playgrounds",
 };
 
 export default async function PlaygroundsPage() {
