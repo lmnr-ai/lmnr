@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, CircleX } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleX, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getDuration, getDurationString } from '@/lib/flow/utils';
@@ -100,7 +100,9 @@ export function SpanCard({
             ? isStringDateOld(span.startTime) ?
               // TODO: Fix this tooltip.
               <NoSpanTooltip>
-                <CircleX className="w-4 h-4 rounded-sm text-red-600/50" />
+                <div className='flex rounded bg-secondary p-1'>
+                  <X className="w-4 h-4 text-secondary-foreground" />
+                </div>
               </NoSpanTooltip>
               : <Skeleton
                 className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs"

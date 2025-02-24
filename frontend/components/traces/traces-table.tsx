@@ -1,6 +1,6 @@
 'use client';
 import { ColumnDef } from '@tanstack/react-table';
-import { ArrowRight, CircleX, RefreshCcw } from 'lucide-react';
+import { ArrowRight, RefreshCcw, X } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -368,13 +368,15 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
           // }}
           className="cursor-pointer flex gap-2 items-center"
         >
-          <div>
+          <div className='flex items-center gap-2'>
             {row.row.original.topSpanName ?
               <SpanTypeIcon className='z-10' spanType={row.getValue()} />
               : (
                 isStringDateOld(row.row.original.endTime) ?
                   <NoSpanTooltip>
-                    <CircleX className="w-6 h-6 rounded-sm" />
+                    <div className='flex items-center gap-2 rounded-sm bg-secondary p-1'>
+                      <X className="w-4 h-4" />
+                    </div>
                   </NoSpanTooltip>
                   : <Skeleton
                     className="w-6 h-6 bg-secondary rounded-sm"
@@ -393,7 +395,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
                   </div>
                 </NoSpanTooltip>
                 : <Skeleton
-                  className="w-12 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm"
+                  className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm"
                 />
             )
           }
