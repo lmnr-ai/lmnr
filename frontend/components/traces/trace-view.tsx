@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
 import { Span, SpanType, TraceWithSpans } from '@/lib/traces/types';
 import { cn, swrFetcher } from '@/lib/utils';
 
@@ -39,7 +40,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const { projectId } = useProjectContext();
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
-  const { data: trace, isLoading } = useSWR<TraceWithSpans>(
+  const { data: trace, isLoading, mutate } = useSWR<TraceWithSpans>(
     `/api/projects/${projectId}/traces/${traceId}`,
     swrFetcher
   );
@@ -153,6 +154,41 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       );
     }
   }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
+
+
+  const { supabaseClient: supabase } = useUserContext();
+
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    supabase.channel('table-db-changes').unsubscribe();
+
+    supabase
+      .channel('table-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'spans',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            // just mutate for now
+            mutate();
+          }
+        }
+      )
+      .subscribe();
+
+    // remove all channels on unmount
+    return () => {
+      supabase.removeAllChannels();
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
@@ -380,11 +416,29 @@ const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
       if (parentSpanIds !== undefined && parentSpanNames !== undefined
         && parentSpanIds.length === parentSpanNames.length && parentSpanIds.length > 0
       ) {
+        const startTime = new Date(span.startTime);
+        const endTime = new Date(span.endTime);
         for (let i = 0; i < parentSpanIds.length; i++) {
           const spanId = parentSpanIds[i];
           const spanName = parentSpanNames[i];
 
           if (!existingSpanIds.has(spanId)) {
+            if (pendingSpans.has(spanId)) {
+              // if the pending span is already present, just update the start and end time
+              // to span over all its children
+              const existingStartTime = new Date(pendingSpans.get(spanId)!.startTime);
+              const existingEndTime = new Date(pendingSpans.get(spanId)!.endTime);
+              pendingSpans.set(
+                spanId,
+                {
+                  ...pendingSpans.get(spanId)!,
+                  startTime: (startTime < existingStartTime ? startTime : existingStartTime).toISOString(),
+                  endTime: (endTime > existingEndTime ? endTime : existingEndTime).toISOString(),
+                }
+              );
+              continue;
+            }
+
             const parentSpanId = i > 0 ? parentSpanIds[i - 1] : null;
             const parentSpanName = i > 0 ? parentSpanNames[i - 1] : null;
             const pendingSpan = {

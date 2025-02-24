@@ -6,7 +6,6 @@ import TracesDashboard from '@/components/traces/traces';
 import Header from '@/components/ui/header';
 import { db } from '@/lib/db/drizzle';
 import { traces } from '@/lib/db/migrations/schema';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
 
 export const metadata: Metadata = {
   title: 'Traces'
@@ -19,7 +18,6 @@ export default async function TracesPage(
 ) {
   const params = await props.params;
   const projectId = params.projectId;
-  const isSupabaseEnabled = isFeatureEnabled(Feature.SUPABASE);
   const anyInProject = await db.query.traces.findFirst({
     where: and(
       eq(traces.projectId, projectId),
@@ -32,7 +30,7 @@ export default async function TracesPage(
   return (
     <>
       <Header path={'traces'} className="border-b-0" />
-      <TracesDashboard isSupabaseEnabled={isSupabaseEnabled} />
+      <TracesDashboard />
     </>
   );
 }

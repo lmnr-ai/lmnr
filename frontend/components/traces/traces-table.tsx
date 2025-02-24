@@ -1,13 +1,13 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef,useState } from 'react';
 
 import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { useUserContext } from '@/contexts/user-context';
 import { useToast } from '@/lib/hooks/use-toast';
-import { Trace } from '@/lib/traces/types';
+import { SpanType, Trace, TraceWithSpans } from '@/lib/traces/types';
 import { DatatableFilter, PaginatedResponse } from '@/lib/types';
 import { getFilterFromUrlParams } from '@/lib/utils';
 
@@ -28,7 +28,6 @@ import {
 import SpanTypeIcon from './span-type-icon';
 
 interface TracesTableProps {
-  isSupabaseEnabled: boolean;
   onRowClick?: (rowId: string) => void;
 }
 const toFilterUrlParam = (filters: DatatableFilter[]): string =>
@@ -41,7 +40,7 @@ const renderCost = (val: any) => {
   return `$${parseFloat(val).toFixed(5) || val}`;
 };
 
-export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTableProps) {
+export default function TracesTable({ onRowClick }: TracesTableProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
@@ -60,7 +59,6 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
   const { projectId } = useProjectContext();
   const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
-  const [canRefresh, setCanRefresh] = useState<boolean>(false);
   const pageCount = Math.ceil(totalCount / pageSize);
   const [traceId, setTraceId] = useState<string | null>(
     searchParams.get('traceId') ?? null
@@ -72,6 +70,13 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
 
   const isCurrentTimestampIncluded =
     !!pastHours || (!!endDate && new Date(endDate) >= new Date());
+
+  const tracesRef = useRef<Trace[] | undefined>(traces);
+
+  // Keep ref updated
+  useEffect(() => {
+    tracesRef.current = traces;
+  }, [traces]);
 
   const getTraces = async () => {
     let queryFilter = searchParams.get('filter');
@@ -122,20 +127,6 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
     setTotalCount(data.totalCount);
   };
 
-  // TODO: figure out if we need to re-query the DB for the new trace
-  // by id in order to get the top span info.
-  //
-  // This is only possible for the cases where we allow to explicitly set
-  // the trace id in the instrumentation, resulting in multiple parent spans,
-  // i.e. the first top level span may be present and recorded, while the
-  // trace is still running.
-  // https://docs.lmnr.ai/tracing/manual-instrumentation#setting-trace-id-manually
-  //
-  // In pure OpenTelemetry, the trace ends as soon
-  // as the top span ends, so by that time we have the top span info.
-
-  // If we do decide to re-query, then instead of `dbTraceRowToTrace` and
-  // `updateRealtimeTraces` we can just call `getTraces` directly.
   const dbTraceRowToTrace = (row: Record<string, any>): Trace => ({
     startTime: row.start_time,
     endTime: row.end_time,
@@ -156,33 +147,114 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
     topSpanPath: null,
   });
 
-  const updateRealtimeTraces = (eventType: 'INSERT' | 'UPDATE',
-    old: Record<string, any>,
-    newObj: Record<string, any>
-  ) => {
-    if (eventType === 'INSERT') {
-      const insertIndex = traces?.findIndex(trace => trace.startTime <= newObj.start_time);
-      if (insertIndex !== -1 && insertIndex !== undefined) {
-        const newTraces = traces ? [...traces] : [];
-        newTraces.splice(insertIndex, 0, dbTraceRowToTrace(newObj));
-        if (newTraces.length > pageSize) {
-          newTraces.slice(0, pageSize);
-        }
-        setTraces(newTraces);
+  // TODO: maybe also query top span input and output previews?
+  const getTraceTopSpanInfo = async (id: string): Promise<{
+    topSpanName: string | null;
+    topSpanType: SpanType | null;
+  }> => {
+    const response = await fetch(`/api/projects/${projectId}/traces/${id}`);
+    const trace = await response.json() as TraceWithSpans;
+    const topSpan = trace.spans.find(span => span.parentSpanId === null);
+    return {
+      topSpanName: topSpan?.name ?? null,
+      topSpanType: topSpan?.spanType ?? null,
+    };
+  };
 
-        // This is also not exactly reliable, because old traces may be
-        // out of range by that time.
-        setTotalCount(totalCount + 1);
+  const updateRealtimeTraces = useCallback(async (
+    eventType: 'INSERT' | 'UPDATE',
+    old: Record<string, any>,
+    newObj: Record<string, any>,
+  ) => {
+    const currentTraces = tracesRef.current;
+    if (eventType === 'INSERT') {
+      const insertIndex = currentTraces?.findIndex(trace => trace.startTime <= newObj.start_time);
+      const newTraces = currentTraces ? [...currentTraces] : [];
+      const rtEventTrace = dbTraceRowToTrace(newObj);
+      const newTrace = (rtEventTrace.topSpanType === null) ?
+        {
+          ...rtEventTrace,
+          ...(await getTraceTopSpanInfo(rtEventTrace.id))
+        } :
+        rtEventTrace;
+      newTraces.splice(Math.max(insertIndex ?? 0, 0), 0, newTrace);
+      if (newTraces.length > pageSize) {
+        newTraces.splice(pageSize, newTraces.length - pageSize);
       }
+      setTraces(newTraces);
+      setTotalCount(prev => parseInt(`${prev}`) + 1);
     } else if (eventType === 'UPDATE') {
-      const updateIndex = traces?.findIndex(trace => trace.id === newObj.id || trace.id === old.id);
-      if (updateIndex !== -1 && updateIndex !== undefined) {
-        const newTraces = traces ? [...traces] : [];
-        newTraces[updateIndex] = dbTraceRowToTrace(newObj);
+      if (currentTraces === undefined || currentTraces.length === 0) {
+        return;
+      }
+      const updateIndex = currentTraces.findIndex(trace => trace.id === newObj.id || trace.id === old.id);
+      if (updateIndex !== -1) {
+        const newTraces = [...currentTraces];
+        const existingTrace = currentTraces[updateIndex];
+        if (existingTrace.topSpanType === null) {
+          newTraces[updateIndex] = {
+            ...dbTraceRowToTrace(newObj),
+            ...(await getTraceTopSpanInfo(existingTrace.id))
+          };
+        } else {
+          newTraces[updateIndex] = dbTraceRowToTrace(newObj);
+        }
         setTraces(newTraces);
       }
     }
-  };
+  }, []); // only depends on pageSize now
+
+  const { supabaseClient: supabase } = useUserContext();
+
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    // When enableStreaming changes, need to remove all channels and, if enabled, re-subscribe
+    supabase.channel('table-db-changes').unsubscribe();
+
+    supabase
+      .channel('table-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'traces',
+          filter: `project_id=eq.${projectId}`
+        },
+        async (payload) => {
+          if (payload.eventType === 'INSERT') {
+            if (isCurrentTimestampIncluded) {
+              await updateRealtimeTraces('INSERT', payload.old, payload.new);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'traces',
+          filter: `project_id=eq.${projectId}`
+        },
+        async (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            if (isCurrentTimestampIncluded) {
+              await updateRealtimeTraces('UPDATE', payload.old, payload.new);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // remove all channels on unmount
+    return () => {
+      supabase.removeAllChannels();
+    };
+  }, []);
 
   useEffect(() => {
     getTraces();
@@ -282,7 +354,14 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
           className="cursor-pointer flex gap-2 items-center hover:bg-secondary"
         >
           <div>
-            <SpanTypeIcon className='z-10' spanType={row.getValue()} />
+            {row.row.original.topSpanName ?
+              <SpanTypeIcon className='z-10' spanType={row.getValue()} />
+              : (
+                <Skeleton
+                  className="w-6 h-6 bg-secondary rounded-sm"
+                />
+              )
+            }
           </div>
           {row.row.original.topSpanName ?
             <div className='flex text-sm text-ellipsis overflow-hidden whitespace-nowrap'>
@@ -290,7 +369,7 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
             </div>
             : (
               <Skeleton
-                className="w-12 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-sm"
+                className="w-12 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm"
               />
             )
           }
@@ -445,60 +524,6 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
     },
   ];
 
-  const { supabaseClient: supabase } = useUserContext();
-
-  useEffect(() => {
-    if (!supabase) {
-      return;
-    }
-
-    // When enableStreaming changes, need to remove all channels and, if enabled, re-subscribe
-    supabase.channel('table-db-changes').unsubscribe();
-
-    supabase
-      .channel('table-db-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'traces',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setCanRefresh(isCurrentTimestampIncluded);
-            if (isCurrentTimestampIncluded) {
-              updateRealtimeTraces('INSERT', payload.old, payload.new);
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'traces',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'UPDATE') {
-            setCanRefresh(isCurrentTimestampIncluded);
-            if (isCurrentTimestampIncluded) {
-              updateRealtimeTraces('UPDATE', payload.old, payload.new);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    // remove all channels on unmount
-    return () => {
-      supabase.removeAllChannels();
-    };
-  }, []);
-
   const filters = [
     {
       name: 'ID',
@@ -577,10 +602,7 @@ export default function TracesTable({ isSupabaseEnabled, onRowClick }: TracesTab
       />
       <DateRangeFilter />
       <Button
-        onClick={() => {
-          setCanRefresh(false);
-          getTraces();
-        }}
+        onClick={getTraces}
         variant="outline"
       >
         <RefreshCcw size={16} className="mr-2" />

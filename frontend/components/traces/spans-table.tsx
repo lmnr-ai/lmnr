@@ -2,15 +2,15 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, RefreshCcw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import useSWR from 'swr';
+import { useEffect, useRef, useState } from 'react';
 
 import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Span } from '@/lib/traces/types';
 import { DatatableFilter, PaginatedResponse } from '@/lib/types';
-import { getFilterFromUrlParams, swrFetcher } from '@/lib/utils';
+import { getFilterFromUrlParams } from '@/lib/utils';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Button } from '../ui/button';
@@ -64,6 +64,13 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     searchParams.get('spanId') ?? null
   );
 
+  const spansRef = useRef<Span[] | undefined>(spans);
+
+  // Keep ref updated
+  useEffect(() => {
+    spansRef.current = spans;
+  }, [spans]);
+
   const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
     filter ? (getFilterFromUrlParams(filter) ?? []) : []
   );
@@ -116,18 +123,6 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     setTotalCount(data.totalCount);
   };
 
-  const { data, mutate } = useSWR<PaginatedResponse<Span>>(
-    `/api/projects/${projectId}/spans?pageNumber=${pageNumber}&pageSize=${pageSize}`,
-    swrFetcher
-  );
-
-  useEffect(() => {
-    if (data) {
-      setSpans(data.items);
-      setTotalCount(data.totalCount);
-    }
-  }, [data]);
-
   useEffect(() => {
     getSpans();
   }, [
@@ -140,6 +135,69 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     endDate,
     textSearchFilter
   ]);
+
+  const { supabaseClient: supabase } = useUserContext();
+
+  const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
+    spanId: row.span_id,
+    parentSpanId: row.parent_span_id,
+    traceId: row.trace_id,
+    spanType: row.span_type,
+    name: row.name,
+    path: row.attributes['lmnr.span.path'] ?? "",
+    startTime: row.start_time,
+    endTime: row.end_time,
+    attributes: row.attributes,
+    input: null,
+    output: null,
+    inputPreview: row.input_preview,
+    outputPreview: row.output_preview,
+    events: [],
+    inputUrl: null,
+    outputUrl: null,
+    model: row.attributes['gen_ai.response.model'] ?? row.attributes['gen_ai.request.model'] ?? null,
+  });
+
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    supabase.channel('table-db-changes').unsubscribe();
+
+    supabase
+      .channel('table-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'spans',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const currentSpans = spansRef.current;
+            const insertIndex = currentSpans?.findIndex(span => span.startTime <= payload.new.start_time);
+            const newSpans = currentSpans ? [...currentSpans] : [];
+            const rtEventSpan = dbSpanRowToSpan(payload.new);
+            newSpans.splice(Math.max(insertIndex ?? 0, 0), 0, rtEventSpan);
+            if (newSpans.length > pageSize) {
+              newSpans.splice(pageSize, newSpans.length - pageSize);
+            }
+            setSpans(newSpans);
+            setTotalCount(prev => parseInt(`${prev}`) + 1);
+          }
+        }
+      )
+      .subscribe();
+
+    // remove all channels on unmount
+    return () => {
+      supabase.removeAllChannels();
+    };
+  }, []);
+
 
   const handleDeleteSpans = async (spanId: string[]) => {
     const response = await fetch(
@@ -160,7 +218,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
         title: 'Span deleted',
         description: `Successfully deleted ${spanId.length} Span(s).`
       });
-      mutate();
+      getSpans();
     }
   };
 

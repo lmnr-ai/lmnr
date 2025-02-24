@@ -45,8 +45,6 @@ export function SpanCard({
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
-  console.log(span.pending);
-
   const childrenSpans = childSpans[span.spanId];
 
   const hasChildren = childrenSpans && childrenSpans.length > 0;

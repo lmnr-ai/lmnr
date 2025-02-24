@@ -48,7 +48,7 @@ export enum SpanType {
   EVALUATOR = 'EVALUATOR',
   EVALUATION = 'EVALUATION',
   TOOL = 'TOOL'
-}
+};
 
 export type Span = {
   spanId: string;
