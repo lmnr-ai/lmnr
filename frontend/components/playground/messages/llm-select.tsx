@@ -54,7 +54,7 @@ const LlmSelect = ({ apiKeys, disabled, onChange, value }: LlmSelectNewProps) =>
   return (
     <DropdownMenu>
       <DropdownMenuTrigger value={value} asChild>
-        <Button disabled={disabled} className="w-64 py-4" variant="outline">
+        <Button disabled={disabled} className="py-4" variant="outline">
           <span className="mr-2">{providerIconMap[value.split(":")[0] as Provider]}</span>
           <span>{providers.flatMap((p) => p.models).find((m) => m.id === value)?.name ?? "Select model"}</span>
           <ChevronDown className="ml-auto" size={16} />

@@ -64,7 +64,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                       )}
                     </div>
                     {typeof value === "string" && value && (
-                      <img className="object-cover rounded-sm w-96" alt="img" src={value} />
+                      <img className="object-cover rounded-sm w-[35%]" alt="img" src={value} />
                     )}
                   </div>
                 )}

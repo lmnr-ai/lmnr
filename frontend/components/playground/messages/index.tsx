@@ -23,7 +23,7 @@ const Messages = () => {
   });
 
   return (
-    <div className="flex flex-col gap-2 p-2 border-[1px] rounded-md">
+    <div className="flex flex-col gap-2">
       {fields.map((message, index) => (
         <Message
           update={update}
