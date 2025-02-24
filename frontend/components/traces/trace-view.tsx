@@ -102,11 +102,13 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           : null
       );
     }
+  }, [trace]);
 
-    if (trace.hasBrowserSession) {
+  useEffect(() => {
+    if (trace?.hasBrowserSession) {
       setShowBrowserSession(true);
     }
-  }, [trace]);
+  }, []);
 
   useEffect(() => {
     setSelectedSpan(
