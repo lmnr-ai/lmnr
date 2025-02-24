@@ -35,9 +35,9 @@ export const buildSpansUrl = (
 };
 
 // If the span hadn't arrived in one hour, it's probably not going to arrive.
-const SECONDS_DATE_THRESHOLD = 1000 * 60 * 60; // 1 hour
+const MILLISECONDS_DATE_THRESHOLD = 1000 * 60 * 60; // 1 hour
 
 export const isStringDateOld = (date: string) => {
   const d = new Date(date);
-  return d < new Date(Date.now() - SECONDS_DATE_THRESHOLD);
+  return d < new Date(Date.now() - MILLISECONDS_DATE_THRESHOLD);
 };
