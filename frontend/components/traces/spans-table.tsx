@@ -17,7 +17,9 @@ import { Button } from '../ui/button';
 import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import DateRangeFilter from '../ui/date-range-filter';
+import { Label } from '../ui/label';
 import Mono from '../ui/mono';
+import { Switch } from '../ui/switch';
 import TextSearchFilter from '../ui/text-search-filter';
 import {
   Tooltip,
@@ -39,6 +41,8 @@ const renderCost = (val: any) => {
   }
   return `$${parseFloat(val).toFixed(5) || val}`;
 };
+
+const LIVE_UPDATES_STORAGE_KEY = 'spans-live-updates';
 
 export default function SpansTable({ onRowClick }: SpansTableProps) {
   const { projectId } = useProjectContext();
@@ -63,6 +67,10 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   const [spanId, setSpanId] = useState<string | null>(
     searchParams.get('spanId') ?? null
   );
+  const [enableLiveUpdates, setEnableLiveUpdates] = useState(() => {
+    const stored = globalThis?.localStorage?.getItem(LIVE_UPDATES_STORAGE_KEY);
+    return stored == null ? true : stored === 'true';
+  });
 
   const spansRef = useRef<Span[] | undefined>(spans);
 
@@ -561,6 +569,16 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
         <RefreshCcw size={16} className="mr-2" />
         Refresh
       </Button>
+      <div className="flex items-center space-x-2">
+        <Switch
+          checked={enableLiveUpdates}
+          onCheckedChange={(checked) => {
+            setEnableLiveUpdates(checked);
+            localStorage.setItem(LIVE_UPDATES_STORAGE_KEY, checked.toString());
+          }}
+        />
+        <Label>Live</Label>
+      </div>
     </DataTable>
   );
 }

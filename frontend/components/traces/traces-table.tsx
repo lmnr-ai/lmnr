@@ -1,3 +1,4 @@
+'use client';
 import { ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, CircleX, RefreshCcw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -17,8 +18,10 @@ import { Button } from '../ui/button';
 import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import DateRangeFilter from '../ui/date-range-filter';
+import { Label } from '../ui/label';
 import Mono from '../ui/mono';
 import { Skeleton } from '../ui/skeleton';
+import { Switch } from '../ui/switch';
 import TextSearchFilter from '../ui/text-search-filter';
 import {
   Tooltip,
@@ -41,6 +44,8 @@ const renderCost = (val: any) => {
   }
   return `$${parseFloat(val).toFixed(5) || val}`;
 };
+
+const LIVE_UPDATES_STORAGE_KEY = 'traces-live-updates';
 
 export default function TracesTable({ onRowClick }: TracesTableProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
@@ -65,6 +70,10 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const [traceId, setTraceId] = useState<string | null>(
     searchParams.get('traceId') ?? null
   );
+  const [enableLiveUpdates, setEnableLiveUpdates] = useState(() => {
+    const stored = globalThis?.localStorage?.getItem(LIVE_UPDATES_STORAGE_KEY);
+    return stored == null ? true : stored === 'true';
+  });
 
   const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
     filter ? (getFilterFromUrlParams(filter) ?? []) : []
@@ -213,7 +222,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const { supabaseClient: supabase } = useUserContext();
 
   useEffect(() => {
-    if (!supabase) {
+    if (!supabase || !enableLiveUpdates) {
       return;
     }
 
@@ -260,7 +269,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     return () => {
       supabase.removeAllChannels();
     };
-  }, []);
+  }, [enableLiveUpdates]);
 
   useEffect(() => {
     getTraces();
@@ -623,6 +632,16 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         <RefreshCcw size={16} className="mr-2" />
         Refresh
       </Button>
+      <div className="flex items-center space-x-2">
+        <Switch
+          checked={enableLiveUpdates}
+          onCheckedChange={(checked) => {
+            setEnableLiveUpdates(checked);
+            localStorage.setItem(LIVE_UPDATES_STORAGE_KEY, checked.toString());
+          }}
+        />
+        <Label>Live</Label>
+      </div>
     </DataTable>
   );
 }
