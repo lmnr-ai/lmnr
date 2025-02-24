@@ -30,11 +30,13 @@ export default async function PlaygroundPage(props: {
         });
 
         if (span) {
+          const parsedSpanId = span.spanId.replace(/[0-]+/g, "");
+
           const result = await db
             .insert(playgrounds)
             .values({
               projectId: params.projectId,
-              name: `Playground - ${span.name}`,
+              name: `${span.name} - ${parsedSpanId}`,
               promptMessages: span.input,
             })
             .returning();

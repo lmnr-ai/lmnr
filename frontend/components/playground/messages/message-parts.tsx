@@ -1,4 +1,3 @@
-import { ImagePart, TextPart } from "ai";
 import { Image as IconImage, X } from "lucide-react";
 import { Controller, FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
 
@@ -6,20 +5,13 @@ import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
-import { Provider } from "@/lib/pipeline/types";
 import { PlaygroundForm } from "@/lib/playground/types";
 
 const buttonClassName = "size-fit p-[1px] transition-all duration-200 opacity-0 group-hover:opacity-100";
 
 interface MessagePartsProps {
   parentIndex: number;
-  fields: FieldArrayWithId<
-    {
-      model: `${Provider}:${string}`;
-      messages: { role: "system" | "role" | "user"; content: (TextPart | ImagePart)[] }[];
-    },
-    `messages.${number}.content`
-  >[];
+  fields: FieldArrayWithId<PlaygroundForm, `messages.${number}.content`>[];
   remove: UseFieldArrayRemove;
 }
 
@@ -49,11 +41,12 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
               </div>
             );
 
-          case "image":
+          default:
             return (
               <Controller
+                key={part.id}
                 render={({ field: { value, onChange } }) => (
-                  <div key={part.id}>
+                  <div>
                     <div className="flex gap-2 mb-1">
                       <span className="pt-1">
                         <IconImage className="size-3" />
@@ -71,7 +64,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                       )}
                     </div>
                     {typeof value === "string" && value && (
-                      <img className="object-cover rounded-sm w-24" alt="img" src={value} />
+                      <img className="object-cover rounded-sm w-96" alt="img" src={value} />
                     )}
                   </div>
                 )}
