@@ -80,8 +80,10 @@ export default function PlaygroundPanel({ apiKeys, isUpdating }: { apiKeys: Prov
           <Messages />
         </div>
         <div className="px-4">
-          <Button onClick={handleSubmit(submit)} disabled={isUpdating || isLoading}>
-            {isUpdating || isLoading ? (
+          <Button
+            onClick={handleSubmit(submit)}
+          >
+            {isLoading ? (
               <Loader2 className="w-4 h-4 mr-1 animate-spin" />
             ) : (
               <PlayIcon className="w-4 h-4 mr-1" />
