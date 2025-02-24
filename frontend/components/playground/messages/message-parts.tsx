@@ -53,8 +53,8 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
             return (
               <Controller
                 render={({ field: { value, onChange } }) => (
-                  <div>
-                    <div key={part.id} className="flex gap-2 mb-1">
+                  <div key={part.id}>
+                    <div className="flex gap-2 mb-1">
                       <span className="pt-1">
                         <IconImage className="size-3" />
                       </span>
