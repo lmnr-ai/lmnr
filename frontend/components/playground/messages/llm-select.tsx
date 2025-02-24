@@ -2,8 +2,9 @@ import { isEmpty } from "lodash";
 import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ReactNode, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
+import { providerIconMap, providerNameMap } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,39 +18,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  IconAmazonBedrock,
-  IconAnthropic,
-  IconAzure,
-  IconGemini,
-  IconGroq,
-  IconMistral,
-  IconOpenAI,
-} from "@/components/ui/icons";
+import { IconAnthropic, IconGemini, IconOpenAI } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
+import { EnvVars } from "@/lib/env/utils";
 import { apiKeyToProvider, Provider, providers } from "@/lib/pipeline/types";
 import { ProviderApiKey } from "@/lib/settings/types";
 import { cn } from "@/lib/utils";
-
-const providerIconMap: Record<Provider, ReactNode> = {
-  openai: <IconOpenAI />,
-  anthropic: <IconAnthropic />,
-  gemini: <IconGemini />,
-  groq: <IconGroq />,
-  mistral: <IconMistral />,
-  bedrock: <IconAmazonBedrock />,
-  "openai-azure": <IconAzure />,
-};
-
-const providerNameMap: Record<Provider, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  gemini: "Gemini",
-  groq: "Groq",
-  mistral: "Mistal",
-  bedrock: "Amazon Bedrock",
-  "openai-azure": "Azure",
-};
 
 interface LlmSelectNewProps {
   value: string;
@@ -64,7 +38,7 @@ const LlmSelect = ({ apiKeys, disabled, onChange, value }: LlmSelectNewProps) =>
   const options = useMemo<typeof providers>(
     () =>
       providers
-        .filter((provider) => apiKeys.map((key) => apiKeyToProvider?.[key.name]).includes(provider.provider))
+        .filter((provider) => apiKeys.map((key) => apiKeyToProvider?.[key.name as EnvVars]).includes(provider.provider))
         .map(({ provider, models }) => {
           const lowerQuery = query.toLowerCase();
           const providerMatches = provider.toLowerCase().includes(lowerQuery);

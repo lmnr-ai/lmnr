@@ -6,7 +6,7 @@ import { FormProvider, useForm } from "react-hook-form";
 import useSWR from "swr";
 
 import PlaygroundPanel from "@/components/playground/playground-panel";
-import ProvidersAlert from "@/components/playground/providers-alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
 import { mapMessages, remapMessages } from "@/lib/playground/utils";
@@ -108,15 +108,16 @@ export default function Playground({ playground }: { playground: PlaygroundType 
       <Header path={`playgrounds/${playground.name}`}>
         {isUpdating && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />}
       </Header>
-
-      {!isApiKeysLoading && !isEmpty(apiKeys) ? (
+      {isApiKeysLoading ? (
+        <div className="flex flex-col gap-4 py-8 px-4">
+          <Skeleton className="w-64 h-8" />
+          <Skeleton className="w-full h-32" />
+          <Skeleton className="w-16 h-7" />
+        </div>
+      ) : (
         <FormProvider {...methods}>
           <PlaygroundPanel apiKeys={apiKeys ?? []} isUpdating={isUpdating} />
         </FormProvider>
-      ) : (
-        <div className="p-4">
-          <ProvidersAlert />
-        </div>
       )}
     </div>
   );

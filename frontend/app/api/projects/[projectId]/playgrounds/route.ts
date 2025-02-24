@@ -41,7 +41,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
   const projectId = params.projectId;
 
   const searchParams = req.nextUrl.searchParams;
-  const playgroundIds = searchParams.get("playgroundIds")?.split(",");
+  const playgroundIds = searchParams.get("playgroundIds")?.split(",").filter(Boolean);
 
   if (!playgroundIds) {
     return new Response("At least one playground id is required", { status: 400 });

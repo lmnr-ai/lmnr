@@ -94,19 +94,3 @@ const isStorageUrl = (url: string) => {
   const storagePattern = /^\/api\/projects\/[^/]+\/payloads\/[^/]+$/;
   return storagePattern.test(url);
 };
-
-const insertInputs = (text: string, inputs: Record<string, string>) =>
-  text.replace(/\{\{([^}]+)\}\}/g, (match, p1) => inputs[p1] || match);
-
-export const addInputs = (messages: Message[], inputs: Record<string, string>): Message[] =>
-  messages.map((message) => ({
-    ...message,
-    content: message.content.map((content) =>
-      content.type === "text"
-        ? {
-          ...content,
-          text: insertInputs(content.text, inputs),
-        }
-        : content
-    ),
-  }));

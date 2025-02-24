@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { PlayCircle } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
 
@@ -54,7 +54,7 @@ export function SpanView({ spanId }: SpanViewProps) {
               </div>
               <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
             </div>
-            <div className="flex-none flex flex-row space-x-2">
+            <div className="flex-wrap gap-2 flex flex-row">
               <AddToLabelingQueuePopover span={span} />
               <ExportSpansDialog span={span} />
               <AddLabelPopover span={span} />
@@ -63,7 +63,7 @@ export function SpanView({ spanId }: SpanViewProps) {
                 passHref
               >
                 <Button variant="outline">
-                  <Play className="mr-2" size={16} />
+                  <PlayCircle className="mr-2" size={16} />
                   Playground
                 </Button>
               </Link>

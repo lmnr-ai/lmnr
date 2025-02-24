@@ -7,7 +7,6 @@ import MessageParts from "@/components/playground/messages/message-parts";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Provider } from "@/lib/pipeline/types";
 import { PlaygroundForm } from "@/lib/playground/types";
 
 interface MessageProps {
@@ -41,10 +40,7 @@ const defaultImagePart: ImagePart = {
 const buttonClassName =
   "size-fit p-[5px] bg-muted/50 transition-opacity duration-200 opacity-0 group-hover:opacity-100";
 const Message = ({ insert, remove, update, index, deletable = true }: MessageProps) => {
-  const { control, watch } = useFormContext<{
-    model: `${Provider}:${string}`;
-    messages: { role: "system" | "role" | "user"; content: (TextPart | ImagePart)[] }[];
-  }>();
+  const { control, watch } = useFormContext<PlaygroundForm>();
 
   const {
     fields,

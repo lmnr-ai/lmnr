@@ -21,7 +21,6 @@ export default async function PlaygroundPage(props: {
   const params = await props.params;
 
   if (params.playgroundId === "create") {
-    const params = await props.params;
     const spanId = props.searchParams?.spanId;
     try {
       if (spanId) {

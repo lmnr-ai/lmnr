@@ -1,13 +1,13 @@
 import { ImagePart, TextPart } from "ai";
 import { Image as IconImage, X } from "lucide-react";
-import { FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
+import { Controller, FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
+import { Input } from "@/components/ui/input";
 import { Provider } from "@/lib/pipeline/types";
 import { PlaygroundForm } from "@/lib/playground/types";
-import { Input } from "@/components/ui/input";
 
 const buttonClassName = "size-fit p-[1px] transition-all duration-200 opacity-0 group-hover:opacity-100";
 
@@ -24,7 +24,7 @@ interface MessagePartsProps {
 }
 
 const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
-  const { register } = useFormContext<PlaygroundForm>();
+  const { register, control } = useFormContext<PlaygroundForm>();
 
   return (
     <div className="flex-1 flex flex-col gap-2">
@@ -51,24 +51,33 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
 
           case "image":
             return (
-              <div key={part.id} className="flex gap-2">
-                <span className="pt-1">
-                  <IconImage className="size-3" />
-                </span>
-                <Input
-                  placeholder="Image URL, or base64 image"
-                  {...register(`messages.${parentIndex}.content.${index}.image` as const)}
-                  className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none"
-                />
-                {typeof part.image === "string" && part.image && (
-                  <img className="self-start object-cover" width={24} height={24} alt="img" src={part.image} />
+              <Controller
+                render={({ field: { value, onChange } }) => (
+                  <div>
+                    <div key={part.id} className="flex gap-2 mb-1">
+                      <span className="pt-1">
+                        <IconImage className="size-3" />
+                      </span>
+                      <Input
+                        placeholder="Image URL, or base64 image"
+                        value={value.toString()}
+                        onChange={onChange}
+                        className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none"
+                      />
+                      {fields.length > 1 && (
+                        <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                          <X className="text-gray-400" size={12} />
+                        </Button>
+                      )}
+                    </div>
+                    {typeof value === "string" && value && (
+                      <img className="object-cover rounded-sm w-24" alt="img" src={value} />
+                    )}
+                  </div>
                 )}
-                {fields.length > 1 && (
-                  <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
-                    <X className="text-gray-400" size={12} />
-                  </Button>
-                )}
-              </div>
+                name={`messages.${parentIndex}.content.${index}.image`}
+                control={control}
+              />
             );
         }
       })}

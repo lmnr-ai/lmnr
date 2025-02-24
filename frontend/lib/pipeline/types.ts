@@ -117,14 +117,18 @@ export const providerToApiKey: Record<Provider, EnvVars> = {
   "openai-azure": EnvVars.AWS_ACCESS_KEY_ID,
 } as const;
 
-export const apiKeyToProvider: Record<string, Provider> = {
+export const apiKeyToProvider: Partial<Record<EnvVars, Provider>> = {
   [EnvVars.OPENAI_API_KEY]: "openai",
   [EnvVars.ANTHROPIC_API_KEY]: "anthropic",
   [EnvVars.GEMINI_API_KEY]: "gemini",
   [EnvVars.GROQ_API_KEY]: "groq",
   [EnvVars.MISTRAL_API_KEY]: "mistral",
   [EnvVars.AWS_ACCESS_KEY_ID]: "bedrock",
-  [EnvVars.AWS_SECRET_ACCESS_KEY]: "openai-azure",
+  [EnvVars.AWS_SECRET_ACCESS_KEY]: "bedrock",
+  [EnvVars.AWS_REGION]: "bedrock",
+  [EnvVars.OPENAI_AZURE_API_KEY]: "openai-azure",
+  [EnvVars.OPENAI_AZUURE_DEPLOYMENT_NAME]: "openai-azure",
+  [EnvVars.OPENAI_AZUURE_RESOURCE_ID]: "openai-azure",
 } as const;
 
 export const providers: { provider: Provider; models: LanguageModel[] }[] = [
@@ -151,6 +155,14 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         id: "openai:o1-preview",
         name: "o1-preview",
       },
+      {
+        id: "openai:o1",
+        name: "o1",
+      },
+      {
+        id: "openai:o3-mini",
+        name: "o3-mini",
+      },
     ],
   },
   {
@@ -158,23 +170,23 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
     models: [
       {
         id: "anthropic:claude-3-haiku-20240307",
-        name: "claude-3-haiku",
+        name: "claude-3-haiku-20240307",
       },
       {
         id: "anthropic:claude-3-sonnet-20240229",
-        name: "claude-3-sonnet",
+        name: "claude-3-sonnet-20240229",
       },
       {
         id: "anthropic:claude-3-opus-20240229",
-        name: "claude-3-opus",
+        name: "claude-3-opus-20240229",
       },
       {
         id: "anthropic:claude-3-5-sonnet-20241022",
-        name: "claude-3-5-sonnet",
+        name: "claude-3-5-sonnet-20241022",
       },
       {
         id: "anthropic:claude-3-5-haiku-20241022",
-        name: "claude-3-5-haiku",
+        name: "claude-3-5-haiku-20241022",
       },
     ],
   },
@@ -241,7 +253,7 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
       },
       {
         id: "mistral:mistral-tiny",
-        name: "mitsral-tiny",
+        name: "mistral-tiny",
       },
     ],
   },

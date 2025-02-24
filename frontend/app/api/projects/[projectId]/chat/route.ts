@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const parseResult = z.array(coreMessageSchema).min(1).safeParse(messages);
 
     if (!parseResult.success) {
-      throw new Error("Messages doesn't match structure.");
+      throw new Error(`Messages doesn't match structure: ${parseResult.error}`);
     }
 
     const provider = model.split(":")[0] as Provider;
@@ -31,6 +31,10 @@ export async function POST(req: Request) {
       })
       .from(providerApiKeys)
       .where(and(eq(providerApiKeys.projectId, projectId), eq(providerApiKeys.name, apiKeyName)));
+
+    if (!key) {
+      throw new Error("No matching key found.");
+    }
 
     const decodedKey = await decodeApiKey(key.name, key.nonceHex, key.value);
 

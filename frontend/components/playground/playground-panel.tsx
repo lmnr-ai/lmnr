@@ -1,4 +1,5 @@
 "use client";
+import { isEmpty } from "lodash";
 import { Loader2, PlayIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -6,9 +7,10 @@ import { Controller, SubmitHandler, useFormContext } from "react-hook-form";
 
 import Messages from "@/components/playground/messages";
 import LlmSelect from "@/components/playground/messages/llm-select";
+import ProvidersAlert from "@/components/playground/providers-alert";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
-import { addInputs, parseSystemMessages } from "@/lib/playground/utils";
+import { parseSystemMessages } from "@/lib/playground/utils";
 import { ProviderApiKey } from "@/lib/settings/types";
 import { streamReader } from "@/lib/utils";
 
@@ -19,7 +21,6 @@ import { ScrollArea } from "../ui/scroll-area";
 export default function PlaygroundPanel({ apiKeys, isUpdating }: { apiKeys: ProviderApiKey[]; isUpdating: boolean }) {
   const params = useParams();
   const { toast } = useToast();
-  const [inputs, setInputs] = useState<string>("{}");
   const [output, setOutput] = useState<string>("");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -30,14 +31,13 @@ export default function PlaygroundPanel({ apiKeys, isUpdating }: { apiKeys: Prov
     try {
       setIsLoading(true);
       setOutput("");
-      const inputValues: Record<string, any> = JSON.parse(inputs);
 
       const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
         method: "POST",
         body: JSON.stringify({
           projectId: params?.projectId,
           model: form.model,
-          messages: parseSystemMessages(addInputs(form.messages, inputValues)),
+          messages: parseSystemMessages(form.messages),
         }),
       });
 
@@ -59,11 +59,17 @@ export default function PlaygroundPanel({ apiKeys, isUpdating }: { apiKeys: Prov
     }
   };
 
+  if (isEmpty(apiKeys)) {
+    return (
+      <div className="p-4">
+        <ProvidersAlert />
+      </div>
+    );
+  }
   return (
     <ScrollArea className="flex-grow overflow-auto">
       <div className="max-h-0">
         <div className="flex flex-col gap-4 p-4">
-          <div className="flex flex-col gap-2"></div>
           <Controller
             render={({ field: { value, onChange } }) => (
               <LlmSelect apiKeys={apiKeys} value={value} onChange={onChange} />
@@ -85,17 +91,6 @@ export default function PlaygroundPanel({ apiKeys, isUpdating }: { apiKeys: Prov
         </div>
         <div className="flex flex-col gap-2 p-4">
           <div className="flex gap-4">
-            <div className="flex-1 flex flex-col gap-2">
-              <div className="text-sm font-medium">Inputs</div>
-              <Formatter
-                value={inputs}
-                onChange={(value) => {
-                  setInputs(value);
-                }}
-                editable={true}
-                defaultMode="json"
-              />
-            </div>
             <div className="flex-1 flex flex-col gap-2">
               <div className="text-sm font-medium">Output</div>
               <Formatter value={output} editable={false} defaultMode="json" />
