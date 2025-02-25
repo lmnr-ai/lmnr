@@ -11,6 +11,11 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
   const result = await db.query.playgrounds.findMany({
     where: eq(playgrounds.projectId, projectId),
     orderBy: [desc(playgrounds.createdAt)],
+    columns: {
+      id: true,
+      name: true,
+      createdAt: true,
+    },
   });
 
   return new Response(JSON.stringify(result));

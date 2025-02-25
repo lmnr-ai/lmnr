@@ -9,6 +9,8 @@ export type Playground = typeof playgrounds.$inferSelect & {
   promptMessages: ChatMessage[];
 };
 
+export type PlaygroundInfo = Pick<Playground, "id" | "name" | "createdAt">;
+
 export interface ImagePart {
   type: "image";
   image: DataContent | URL;
