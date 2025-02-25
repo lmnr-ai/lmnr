@@ -70,10 +70,12 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const [traceId, setTraceId] = useState<string | null>(
     searchParams.get('traceId') ?? null
   );
-  const [enableLiveUpdates, setEnableLiveUpdates] = useState(() => {
+  const [enableLiveUpdates, setEnableLiveUpdates] = useState<boolean>(true);
+
+  useEffect(() => {
     const stored = globalThis?.localStorage?.getItem(LIVE_UPDATES_STORAGE_KEY);
-    return stored == null ? true : stored === 'true';
-  });
+    setEnableLiveUpdates(stored == null ? true : stored === 'true');
+  }, []);
 
   const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
     filter ? (getFilterFromUrlParams(filter) ?? []) : []
@@ -226,7 +228,12 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const { supabaseClient: supabase } = useUserContext();
 
   useEffect(() => {
-    if (!supabase || !enableLiveUpdates) {
+    if (!supabase) {
+      return;
+    }
+
+    if (!enableLiveUpdates) {
+      supabase.removeAllChannels();
       return;
     }
 

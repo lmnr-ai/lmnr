@@ -38,6 +38,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const [timelineWidth, setTimelineWidth] = useState(0);
   const [traceTreePanelWidth, setTraceTreePanelWidth] = useState(0);
   const { projectId } = useProjectContext();
+  const [hasBrowserSession, setHasBrowserSession] = useState(false);
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
   const { data: trace, isLoading, mutate } = useSWR<TraceWithSpans>(
@@ -102,10 +103,18 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           : null
       );
     }
+    if (trace?.hasBrowserSession) {
+      if (!hasBrowserSession) {
+        // if we previously didn't have a browser session, show it
+        setShowBrowserSession(true);
+      }
+      setHasBrowserSession(true);
+    }
   }, [trace]);
 
   useEffect(() => {
     if (trace?.hasBrowserSession) {
+      setHasBrowserSession(true);
       setShowBrowserSession(true);
     }
   }, []);
@@ -415,60 +424,69 @@ const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
       const parentSpanIds = span.attributes['lmnr.span.ids_path'] as string[] | undefined;
       const parentSpanNames = span.attributes['lmnr.span.path'] as string[] | undefined;
 
-      if (parentSpanIds !== undefined && parentSpanNames !== undefined
-        && parentSpanIds.length === parentSpanNames.length && parentSpanIds.length > 0
-      ) {
-        const startTime = new Date(span.startTime);
-        const endTime = new Date(span.endTime);
-        for (let i = 0; i < parentSpanIds.length; i++) {
-          const spanId = parentSpanIds[i];
-          const spanName = parentSpanNames[i];
+      if (parentSpanIds === undefined || parentSpanNames === undefined) {
+        continue;
+      }
 
-          if (!existingSpanIds.has(spanId)) {
-            if (pendingSpans.has(spanId)) {
-              // if the pending span is already present, just update the start and end time
-              // to span over all its children
-              const existingStartTime = new Date(pendingSpans.get(spanId)!.startTime);
-              const existingEndTime = new Date(pendingSpans.get(spanId)!.endTime);
-              pendingSpans.set(
-                spanId,
-                {
-                  ...pendingSpans.get(spanId)!,
-                  startTime: (startTime < existingStartTime ? startTime : existingStartTime).toISOString(),
-                  endTime: (endTime > existingEndTime ? endTime : existingEndTime).toISOString(),
-                }
-              );
-              continue;
-            }
+      if (parentSpanIds.length === 0 || parentSpanNames.length === 0) {
+        continue;
+      }
+      if (parentSpanIds.length !== parentSpanNames.length) {
+        continue;
+      }
 
-            const parentSpanId = i > 0 ? parentSpanIds[i - 1] : null;
-            const parentSpanName = i > 0 ? parentSpanNames[i - 1] : null;
-            const pendingSpan = {
-              spanId,
-              name: spanName,
-              parentSpanId,
-              parentSpanName,
-              startTime: new Date(span.startTime).toISOString(),
-              endTime: new Date(span.endTime).toISOString(),
-              attributes: {},
-              events: [],
-              logs: [],
-              spans: [],
-              traceId: span.traceId,
-              traceName: span.name,
-              input: null,
-              output: null,
-              inputPreview: null,
-              outputPreview: null,
-              spanType: SpanType.DEFAULT,
-              path: '',
-              inputUrl: null,
-              outputUrl: null,
-              pending: true,
-            } as Span;
-            pendingSpans.set(spanId, pendingSpan);
-          }
+      const startTime = new Date(span.startTime);
+      const endTime = new Date(span.endTime);
+      for (let i = 0; i < parentSpanIds.length; i++) {
+        const spanId = parentSpanIds[i];
+        const spanName = parentSpanNames[i];
+
+        if (existingSpanIds.has(spanId)) {
+          continue;
         }
+
+        if (pendingSpans.has(spanId)) {
+          // if the pending span is already present, just update the start and end time
+          // to span over all its children
+          const existingStartTime = new Date(pendingSpans.get(spanId)!.startTime);
+          const existingEndTime = new Date(pendingSpans.get(spanId)!.endTime);
+          pendingSpans.set(
+            spanId,
+            {
+              ...pendingSpans.get(spanId)!,
+              startTime: (startTime < existingStartTime ? startTime : existingStartTime).toISOString(),
+              endTime: (endTime > existingEndTime ? endTime : existingEndTime).toISOString(),
+            }
+          );
+          continue;
+        }
+
+        const parentSpanId = i > 0 ? parentSpanIds[i - 1] : null;
+        const parentSpanName = i > 0 ? parentSpanNames[i - 1] : null;
+        const pendingSpan = {
+          spanId,
+          name: spanName,
+          parentSpanId,
+          parentSpanName,
+          startTime: new Date(span.startTime).toISOString(),
+          endTime: new Date(span.endTime).toISOString(),
+          attributes: {},
+          events: [],
+          logs: [],
+          spans: [],
+          traceId: span.traceId,
+          traceName: span.name,
+          input: null,
+          output: null,
+          inputPreview: null,
+          outputPreview: null,
+          spanType: SpanType.DEFAULT,
+          path: '',
+          inputUrl: null,
+          outputUrl: null,
+          pending: true,
+        } as Span;
+        pendingSpans.set(spanId, pendingSpan);
       }
     }
   }

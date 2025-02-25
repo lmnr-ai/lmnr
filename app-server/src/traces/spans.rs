@@ -277,9 +277,9 @@ impl SpanAttributes {
 
     pub fn update_path(&mut self) {
         self.attributes.insert(
-            SPAN_PATH.to_string(),
+            SPAN_IDS_PATH.to_string(),
             Value::Array(
-                self.path()
+                self.ids_path()
                     .unwrap_or_default()
                     .into_iter()
                     .map(serde_json::Value::String)
@@ -287,9 +287,9 @@ impl SpanAttributes {
             ),
         );
         self.attributes.insert(
-            SPAN_IDS_PATH.to_string(),
+            SPAN_PATH.to_string(),
             Value::Array(
-                self.ids_path()
+                self.path()
                     .unwrap_or_default()
                     .into_iter()
                     .map(serde_json::Value::String)

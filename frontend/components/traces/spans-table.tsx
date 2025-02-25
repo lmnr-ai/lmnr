@@ -67,10 +67,12 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   const [spanId, setSpanId] = useState<string | null>(
     searchParams.get('spanId') ?? null
   );
-  const [enableLiveUpdates, setEnableLiveUpdates] = useState(() => {
+  const [enableLiveUpdates, setEnableLiveUpdates] = useState<boolean>(true);
+
+  useEffect(() => {
     const stored = globalThis?.localStorage?.getItem(LIVE_UPDATES_STORAGE_KEY);
-    return stored == null ? true : stored === 'true';
-  });
+    setEnableLiveUpdates(stored == null ? true : stored === 'true');
+  }, []);
 
   const spansRef = useRef<Span[] | undefined>(spans);
 
@@ -171,6 +173,11 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       return;
     }
 
+    if (!enableLiveUpdates) {
+      supabase.removeAllChannels();
+      return;
+    }
+
     supabase.channel('table-db-changes').unsubscribe();
 
     supabase
@@ -230,24 +237,24 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     }
   };
 
-  const handleAddFilter = (column: string, value: string) => {
-    const newFilter = { column, operator: 'eq', value };
-    const existingFilterIndex = activeFilters.findIndex(
-      (filter) => filter.column === column && filter.value === value
-    );
+  // const handleAddFilter = (column: string, value: string) => {
+  //   const newFilter = { column, operator: 'eq', value };
+  //   const existingFilterIndex = activeFilters.findIndex(
+  //     (filter) => filter.column === column && filter.value === value
+  //   );
 
-    let updatedFilters;
-    if (existingFilterIndex === -1) {
+  //   let updatedFilters;
+  //   if (existingFilterIndex === -1) {
 
-      updatedFilters = [...activeFilters, newFilter];
-    } else {
+  //     updatedFilters = [...activeFilters, newFilter];
+  //   } else {
 
-      updatedFilters = [...activeFilters];
-    }
+  //     updatedFilters = [...activeFilters];
+  //   }
 
-    setActiveFilters(updatedFilters);
-    updateUrlWithFilters(updatedFilters);
-  };
+  //   setActiveFilters(updatedFilters);
+  //   updateUrlWithFilters(updatedFilters);
+  // };
 
   const updateUrlWithFilters = (filters: DatatableFilter[]) => {
     searchParams.delete('filter');
@@ -293,10 +300,10 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       id: 'span_type',
       cell: (row) => (
         <div
-          onClick={(event) => {
-            event.stopPropagation();
-            handleAddFilter('span_type', row.getValue());
-          }}
+          // onClick={(event) => {
+          //   event.stopPropagation();
+          //   handleAddFilter('span_type', row.getValue());
+          // }}
           className="cursor-pointer flex space-x-2 items-center hover:underline"
         >
           <SpanTypeIcon className='z-10' spanType={row.getValue()} />
@@ -307,10 +314,10 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     {
       cell: (row) => (
         <div
-          onClick={(event) => {
-            event.stopPropagation();
-            handleAddFilter('name', row.getValue());
-          }}
+          // onClick={(event) => {
+          //   event.stopPropagation();
+          //   handleAddFilter('name', row.getValue());
+          // }}
           className="cursor-pointer hover:underline"
         >
           {row.getValue()}
