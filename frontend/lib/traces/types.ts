@@ -71,22 +71,6 @@ export type Span = {
   pending?: boolean;
 };
 
-export type TraceWithSpans = {
-  id: string;
-  startTime: string;
-  endTime: string;
-  inputTokenCount: number;
-  outputTokenCount: number;
-  totalTokenCount: number;
-  inputCost: number | null;
-  outputCost: number | null;
-  cost: number | null;
-  metadata: Record<string, string> | null;
-  hasBrowserSession: boolean | null;
-  projectId: string;
-  spans: Span[];
-};
-
 export type Trace = {
   startTime: string;
   endTime: string;

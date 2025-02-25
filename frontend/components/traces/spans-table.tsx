@@ -163,8 +163,8 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     inputPreview: row.input_preview,
     outputPreview: row.output_preview,
     events: [],
-    inputUrl: null,
-    outputUrl: null,
+    inputUrl: row.input_url,
+    outputUrl: row.output_url,
     model: row.attributes['gen_ai.response.model'] ?? row.attributes['gen_ai.request.model'] ?? null,
   });
 
