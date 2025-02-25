@@ -275,6 +275,7 @@ export const traces = pgTable("traces", {
   inputCost: doublePrecision("input_cost").default(sql`'0'`).notNull(),
   outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
   hasBrowserSession: boolean("has_browser_session"),
+  topSpanId: uuid("top_span_id"),
 }, (table) => [
   index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast().op("jsonb_ops")),
   index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast().op("timestamptz_ops"), table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.desc().nullsFirst().op("uuid_ops")).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),

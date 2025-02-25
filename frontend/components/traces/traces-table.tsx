@@ -8,7 +8,7 @@ import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
 import { useUserContext } from '@/contexts/user-context';
 import { useToast } from '@/lib/hooks/use-toast';
-import { SpanType, Trace, TraceWithSpans } from '@/lib/traces/types';
+import { SpanType, Trace } from '@/lib/traces/types';
 import { isStringDateOld } from '@/lib/traces/utils';
 import { DatatableFilter, PaginatedResponse } from '@/lib/types';
 import { getFilterFromUrlParams } from '@/lib/utils';
@@ -151,6 +151,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     cost: row.cost,
     metadata: row.metadata,
     hasBrowserSession: row.has_browser_session,
+    topSpanId: row.top_span_id,
     topSpanInputPreview: null,
     topSpanOutputPreview: null,
     topSpanName: null,
@@ -159,16 +160,19 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   });
 
   // TODO: maybe also query top span input and output previews?
-  const getTraceTopSpanInfo = async (id: string): Promise<{
-    topSpanName: string | null;
-    topSpanType: SpanType | null;
+  const getTraceTopSpanInfo = async (spanId: string): Promise<{
+    topSpanName: string | null,
+    topSpanType: SpanType | null,
+    topSpanInputPreview: any | null,
+    topSpanOutputPreview: any | null,
   }> => {
-    const response = await fetch(`/api/projects/${projectId}/traces/${id}`);
-    const trace = await response.json() as TraceWithSpans;
-    const topSpan = trace.spans.find(span => span.parentSpanId === null);
+    const response = await fetch(`/api/projects/${projectId}/spans/${spanId}/basic-info`);
+    const span = await response.json();
     return {
-      topSpanName: topSpan?.name ?? null,
-      topSpanType: topSpan?.spanType ?? null,
+      topSpanName: span?.name ?? null,
+      topSpanType: span?.spanType ?? null,
+      topSpanInputPreview: span?.inputPreview ?? null,
+      topSpanOutputPreview: span?.outputPreview ?? null,
     };
   };
 
@@ -182,10 +186,10 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       const insertIndex = currentTraces?.findIndex(trace => trace.startTime <= newObj.start_time);
       const newTraces = currentTraces ? [...currentTraces] : [];
       const rtEventTrace = dbTraceRowToTrace(newObj);
-      const { topSpanType, topSpanName, ...rest } = rtEventTrace;
-      const newTrace = (rtEventTrace.topSpanType === null)
+      const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
+      const newTrace = (rtEventTrace.topSpanType === null && rtEventTrace.topSpanId != null)
         ? {
-          ...(await getTraceTopSpanInfo(rtEventTrace.id)),
+          ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
           ...rest,
         }
         : rtEventTrace;
@@ -204,10 +208,10 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         const newTraces = [...currentTraces];
         const existingTrace = currentTraces[updateIndex];
         const rtEventTrace = dbTraceRowToTrace(newObj);
-        const { topSpanType, topSpanName, ...rest } = rtEventTrace;
-        if (existingTrace.topSpanType === null) {
+        const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
+        if (existingTrace.topSpanType === null && rtEventTrace.topSpanId != null) {
           const newTrace = {
-            ...(await getTraceTopSpanInfo(existingTrace.id)),
+            ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
             ...rest,
           };
           newTraces[updateIndex] = newTrace;
@@ -307,24 +311,24 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     }
   };
 
-  const handleAddFilter = (column: string, value: string) => {
-    const newFilter = { column, operator: 'eq', value };
-    const existingFilterIndex = activeFilters.findIndex(
-      (filter) => filter.column === column && filter.value === value
-    );
+  // const handleAddFilter = (column: string, value: string) => {
+  //   const newFilter = { column, operator: 'eq', value };
+  //   const existingFilterIndex = activeFilters.findIndex(
+  //     (filter) => filter.column === column && filter.value === value
+  //   );
 
-    let updatedFilters;
-    if (existingFilterIndex === -1) {
+  //   let updatedFilters;
+  //   if (existingFilterIndex === -1) {
 
-      updatedFilters = [...activeFilters, newFilter];
-    } else {
+  //     updatedFilters = [...activeFilters, newFilter];
+  //   } else {
 
-      updatedFilters = [...activeFilters];
-    }
+  //     updatedFilters = [...activeFilters];
+  //   }
 
-    setActiveFilters(updatedFilters);
-    updateUrlWithFilters(updatedFilters);
-  };
+  //   setActiveFilters(updatedFilters);
+  //   updateUrlWithFilters(updatedFilters);
+  // };
 
   const updateUrlWithFilters = (filters: DatatableFilter[]) => {
     searchParams.delete('filter');

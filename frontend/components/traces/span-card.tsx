@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, CircleX, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getDuration, getDurationString } from '@/lib/flow/utils';

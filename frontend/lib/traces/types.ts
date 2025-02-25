@@ -99,6 +99,7 @@ export type Trace = {
   outputCost: number | null;
   cost: number | null;
   metadata: Record<string, string> | null;
+  topSpanId: string | null;
   topSpanInputPreview: any | null;
   topSpanOutputPreview: any | null;
   topSpanName: string | null;

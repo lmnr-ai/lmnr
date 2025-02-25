@@ -76,6 +76,8 @@ export async function GET(
       latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
     }).from(traces).leftJoin(
       topLevelSpans,
+      // We could as well join on eq(traces.topSpanId, topLevelSpans.id),
+      // but this is more performant, as spans are indexed by traceId
       eq(traces.id, topLevelSpans.traceId)
     ).where(
       and(
@@ -197,6 +199,14 @@ export async function DELETE(
 
   try {
     await db.delete(traces)
+      .where(
+        and(
+          inArray(traces.id, traceId),
+          eq(traces.projectId, projectId)
+        )
+      );
+
+    await db.delete(spans)
       .where(
         and(
           inArray(traces.id, traceId),

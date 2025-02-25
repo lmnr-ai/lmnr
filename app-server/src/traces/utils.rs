@@ -129,6 +129,10 @@ pub async fn record_span_to_db(
             }
         }
     });
+    // Once we've set the parent span id, check if it's the top span
+    if span.parent_span_id.is_none() {
+        trace_attributes.set_top_span_id(span.span_id);
+    }
     span_attributes.update_path();
     span.set_attributes(&span_attributes);
 
