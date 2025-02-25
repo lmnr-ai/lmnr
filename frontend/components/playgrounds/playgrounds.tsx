@@ -9,7 +9,7 @@ import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Playground } from "@/lib/playground/types";
+import { PlaygroundInfo } from "@/lib/playground/types";
 import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -28,13 +28,11 @@ import Mono from "../ui/mono";
 import { TableCell, TableRow } from "../ui/table";
 import CreatePlaygroundDialog from "./create-playground-dialog";
 
-type SearchPlayground = Pick<Playground, "id" | "name" | "createdAt">;
-
 export default function Playgrounds() {
   const { projectId } = useProjectContext();
 
   const router = useRouter();
-  const { data, mutate } = useSWR<SearchPlayground[]>(`/api/projects/${projectId}/playgrounds`, swrFetcher);
+  const { data, mutate } = useSWR<PlaygroundInfo[]>(`/api/projects/${projectId}/playgrounds`, swrFetcher);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -67,7 +65,7 @@ export default function Playgrounds() {
     setIsDeleteDialogOpen(false);
   };
 
-  const columns: ColumnDef<SearchPlayground>[] = [
+  const columns: ColumnDef<PlaygroundInfo>[] = [
     {
       cell: ({ row }) => <Mono>{row.original.id}</Mono>,
       size: 300,
