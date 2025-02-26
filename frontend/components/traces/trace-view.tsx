@@ -101,6 +101,13 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       }
     }
 
+    // Sort child spans for each parent by start time
+    for (const parentId in childSpans) {
+      childSpans[parentId].sort((a, b) => {
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+      });
+    }
+
     setChildSpans(childSpans);
     setTopLevelSpans(topLevelSpans);
   }, [spans]);
@@ -464,6 +471,13 @@ const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
   const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
   const pendingSpans = new Map<string, Span>();
 
+  // First, add all existing pending spans to the pendingSpans map
+  for (const span of existingSpans) {
+    if (span.pending) {
+      pendingSpans.set(span.spanId, span);
+    }
+  }
+
   for (const span of existingSpans) {
     if (span.parentSpanId) {
       const parentSpanIds = span.attributes['lmnr.span.ids_path'] as string[] | undefined;
@@ -483,18 +497,13 @@ const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
         const spanId = parentSpanIds[i];
         const spanName = parentSpanNames[i];
 
-        if (existingSpanIds.has(spanId)) {
+        // Skip if this span exists and is not pending
+        if (existingSpanIds.has(spanId) && !pendingSpans.has(spanId)) {
           continue;
         }
 
         if (pendingSpans.has(spanId)) {
-          // TODO: looks like this is not working for realtime inserts and is
-          // unreachable because of the existingSpanIds check above.
-          // If the check above is removed, the pending spans are inserted
-          // repeatedly, many times over.
-
-          // if the pending span is already present, just update the start and end time
-          // to span over all its children
+          // Update the time range of the pending span to cover all its children
           const existingStartTime = new Date(pendingSpans.get(spanId)!.startTime);
           const existingEndTime = new Date(pendingSpans.get(spanId)!.endTime);
           pendingSpans.set(
@@ -538,8 +547,11 @@ const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
     }
   }
 
+  // Filter out existing spans that are pending (to avoid duplicates)
+  const nonPendingExistingSpans = existingSpans.filter(span => !span.pending);
+
   return [
-    ...existingSpans,
+    ...nonPendingExistingSpans,
     ...pendingSpans.values()
   ];
 };
