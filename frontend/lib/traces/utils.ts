@@ -33,3 +33,11 @@ export const buildSpansUrl = (
     : `&startDate=${startDate}&endDate=${endDate}`;
   return `/project/${projectId}/traces?view=spans&filter=${JSON.stringify(filters)}${timeRangeParam}`;
 };
+
+// If the span hadn't arrived in one hour, it's probably not going to arrive.
+const MILLISECONDS_DATE_THRESHOLD = 1000 * 60 * 60; // 1 hour
+
+export const isStringDateOld = (date: string) => {
+  const d = new Date(date);
+  return d < new Date(Date.now() - MILLISECONDS_DATE_THRESHOLD);
+};

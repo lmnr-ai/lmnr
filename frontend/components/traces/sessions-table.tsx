@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { useProjectContext } from '@/contexts/project-context';
+import { useUserContext } from '@/contexts/user-context';
 import { getDurationString } from '@/lib/flow/utils';
 import { SessionPreview, Trace } from '@/lib/traces/types';
 import { DatatableFilter, PaginatedResponse } from '@/lib/types';
@@ -124,6 +125,60 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     endDate,
     textSearchFilter
   ]);
+
+  const { supabaseClient: supabase } = useUserContext();
+
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    // When enableStreaming changes, need to remove all channels and, if enabled, re-subscribe
+    supabase.channel('table-db-changes').unsubscribe();
+
+    supabase
+      .channel('table-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'traces',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            // for now just requery.
+            if (payload.new.session_id != null) {
+              getSessions();
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'traces',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            if (payload.new.session_id != null) {
+              // for now just requery.
+              getSessions();
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // remove all channels on unmount
+    return () => {
+      supabase.removeAllChannels();
+    };
+  }, []);
 
   const handleAddFilter = (column: string, value: string) => {
     const newFilter = { column, operator: 'eq', value };
@@ -379,7 +434,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       <TextSearchFilter />
       <DataTableFilter possibleFilters={filterColumns}
         activeFilters={activeFilters}
-        updateFilters={handleUpdateFilters}/>
+        updateFilters={handleUpdateFilters} />
       <DateRangeFilter />
       <Button
         onClick={() => {

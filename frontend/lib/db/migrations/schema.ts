@@ -275,6 +275,7 @@ export const traces = pgTable("traces", {
   inputCost: doublePrecision("input_cost").default(sql`'0'`).notNull(),
   outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
   hasBrowserSession: boolean("has_browser_session"),
+  topSpanId: uuid("top_span_id"),
 }, (table) => [
   index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast().op("jsonb_ops")),
   index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast().op("timestamptz_ops"), table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.desc().nullsFirst().op("uuid_ops")).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
@@ -464,6 +465,7 @@ export const projectApiKeys = pgTable("project_api_keys", {
   hash: text().default('').notNull(),
   id: uuid().defaultRandom().primaryKey().notNull(),
 }, (table) => [
+  index("project_api_keys_hash_idx").using("hash", table.hash.asc().nullsLast().op("text_ops")),
   foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
@@ -553,11 +555,6 @@ export const spans = pgTable("spans", {
   index("spans_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")),
   index("spans_trace_id_idx").using("btree", table.traceId.asc().nullsLast().op("uuid_ops")),
   index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("uuid_ops")),
-  foreignKey({
-    columns: [table.traceId],
-    foreignColumns: [traces.id],
-    name: "new_spans_trace_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
   foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
