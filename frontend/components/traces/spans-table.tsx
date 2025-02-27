@@ -68,6 +68,8 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     searchParams.get('spanId') ?? null
   );
   const [enableLiveUpdates, setEnableLiveUpdates] = useState<boolean>(true);
+  const isCurrentTimestampIncluded =
+    !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
   useEffect(() => {
     const stored = globalThis?.localStorage?.getItem(LIVE_UPDATES_STORAGE_KEY);
@@ -180,7 +182,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
 
     supabase.channel('table-db-changes').unsubscribe();
 
-    supabase
+    const channel = supabase
       .channel('table-db-changes')
       .on(
         'postgres_changes',
@@ -191,7 +193,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
           filter: `project_id=eq.${projectId}`
         },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
+          if (payload.eventType === 'INSERT' && isCurrentTimestampIncluded) {
             const currentSpans = spansRef.current;
             const insertIndex = currentSpans?.findIndex(span => span.startTime <= payload.new.start_time);
             const newSpans = currentSpans ? [...currentSpans] : [];
@@ -207,11 +209,11 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       )
       .subscribe();
 
-    // remove all channels on unmount
+    // remove the channel on unmount
     return () => {
-      supabase.removeAllChannels();
+      channel.unsubscribe();
     };
-  }, []);
+  }, [enableLiveUpdates, projectId, isCurrentTimestampIncluded, supabase]);
 
 
   const handleDeleteSpans = async (spanId: string[]) => {

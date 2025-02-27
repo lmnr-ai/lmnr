@@ -229,9 +229,14 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            // Use a functional state update to avoid race conditions
+            const rtEventSpan = dbSpanRowToSpan(payload.new);
+            // Unfortunately supabase realtime does not support multiple filters,
+            // so we filter here manually.
+            // https://discord.com/channels/839993398554656828/1263229409725255680
+            if (rtEventSpan.traceId !== traceId) {
+              return;
+            }
             setSpans(currentSpans => {
-              const rtEventSpan = dbSpanRowToSpan(payload.new);
               const newSpans = [...currentSpans];
               const index = newSpans.findIndex(span => span.spanId === rtEventSpan.spanId);
               if (index !== -1 && newSpans[index].pending) {
