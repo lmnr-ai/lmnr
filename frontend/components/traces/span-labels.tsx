@@ -1,22 +1,17 @@
-import { Info, X } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
-import useSWR from 'swr';
+import { Info, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+import useSWR from "swr";
 
-import { useProjectContext } from '@/contexts/project-context';
-import { eventEmitter } from '@/lib/event-emitter';
-import { Span, SpanLabel } from '@/lib/traces/types';
-import { cn, swrFetcher } from '@/lib/utils';
+import { useProjectContext } from "@/contexts/project-context";
+import { eventEmitter } from "@/lib/event-emitter";
+import { Span, SpanLabel } from "@/lib/traces/types";
+import { cn, swrFetcher } from "@/lib/utils";
 
-import { Button } from '../ui/button';
-import { Skeleton } from '../ui/skeleton';
-import { Table, TableBody, TableCell, TableRow } from '../ui/table';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '../ui/tooltip';
+import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
+import { Table, TableBody, TableCell, TableRow } from "../ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
 interface SpanLabelsProps {
   span: Span;
@@ -35,27 +30,25 @@ export default function SpanLabels({ span }: SpanLabelsProps) {
     const handleLabelAdded = () => {
       mutate();
     };
-    eventEmitter.on('mutateSpanLabels', handleLabelAdded);
+    eventEmitter.on("mutateSpanLabels", handleLabelAdded);
 
     return () => {
-      eventEmitter.off('mutateSpanLabels', handleLabelAdded);
+      eventEmitter.off("mutateSpanLabels", handleLabelAdded);
     };
   }, [mutate]);
 
   const removeLabel = async (labelId: string) => {
-    const params = (searchParams.get('datapointId') && span.attributes['lmnr.span.type'] === 'EXECUTOR')
-      ? `?datapointId=${searchParams.get('datapointId')}`
-      : '';
+    const params =
+      searchParams.get("datapointId") && span.attributes["lmnr.span.type"] === "EXECUTOR"
+        ? `?datapointId=${searchParams.get("datapointId")}`
+        : "";
 
-    const response = await fetch(
-      `/api/projects/${projectId}/spans/${span.spanId}/labels/${labelId}` + params,
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    const response = await fetch(`/api/projects/${projectId}/spans/${span.spanId}/labels/${labelId}` + params, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
 
     if (response.ok) {
       mutate();
@@ -74,13 +67,7 @@ export default function SpanLabels({ span }: SpanLabelsProps) {
           <Table className="">
             <TableBody className="text-base">
               {data?.map((label: SpanLabel, index: number) => (
-                <TableRow
-                  key={label.id}
-                  className={cn(
-                    'text-sm',
-                    index === data.length - 1 ? 'border-b-0' : ''
-                  )}
-                >
+                <TableRow key={label.id} className={cn("text-sm", index === data.length - 1 ? "border-b-0" : "")}>
                   <TableCell>
                     <div className="flex">
                       <div className="border-secondary-foreground/30 border p-0.5 px-3 bg-secondary rounded-full">
@@ -110,7 +97,7 @@ export default function SpanLabels({ span }: SpanLabelsProps) {
                     )}
                   </TableCell>
                   <TableCell>{label.labelSource}</TableCell>
-                  <TableCell>{Object.entries(label.valueMap).find(([k, v]) => v === label.value)?.[0] ?? ''}</TableCell>
+                  {/*<TableCell>{Object.entries(label.valueMap).find(([k, v]) => v === label.value)?.[0] ?? ''}</TableCell>*/}
                   <TableCell>{label.userEmail}</TableCell>
                   <TableCell>
                     <Button
@@ -127,9 +114,7 @@ export default function SpanLabels({ span }: SpanLabelsProps) {
             </TableBody>
           </Table>
         ) : (
-          <div className="p-2 text-secondary-foreground text-sm">
-            No labels
-          </div>
+          <div className="p-2 text-secondary-foreground text-sm">No labels</div>
         )}
       </div>
     </div>
