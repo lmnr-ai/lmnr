@@ -307,14 +307,14 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         </div>
       </div>
       <div className="flex-grow flex">
-        {(!trace && spans.length === 0) && (
+        {(!trace || spans.length === 0) && (
           <div className="w-full p-4 h-full flex flex-col space-y-2">
             <Skeleton className="w-full h-8" />
             <Skeleton className="w-full h-8" />
             <Skeleton className="w-full h-8" />
           </div>
         )}
-        {trace && (
+        {trace && spans.length > 0 && (
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>
               <div className="flex h-full w-full relative" ref={container}>
