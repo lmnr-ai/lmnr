@@ -1,5 +1,5 @@
 {
-  "id": "a07dcf27-bce3-4e17-984f-5dee16705f1e",
+  "id": "4d539d5b-0534-4824-8070-ddefb59e326f",
   "prevId": "ed89a34b-5365-4832-9f6a-36fb9901e921",
   "version": "7",
   "dialect": "postgresql",
@@ -728,7 +728,7 @@
           "name": "color",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         }
       },
       "indexes": {},
@@ -748,7 +748,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "label_classes_project_id_name_key": {
+          "name": "label_classes_project_id_name_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name",
+            "project_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -993,6 +1002,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {},

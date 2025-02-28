@@ -180,6 +180,7 @@ export const labels = pgTable(
     userId: uuid("user_id").defaultRandom(),
     labelSource: labelSource("label_source").default("MANUAL").notNull(),
     reasoning: text(),
+    projectId: uuid("project_id").notNull(),
   },
   (table) => [
     foreignKey({
@@ -203,7 +204,7 @@ export const labelClasses = pgTable(
     description: text(),
     evaluatorRunnableGraph: jsonb("evaluator_runnable_graph"),
     pipelineVersionId: uuid("pipeline_version_id"),
-    color: text(),
+    color: text().notNull(),
   },
   (table) => [
     foreignKey({
@@ -213,6 +214,7 @@ export const labelClasses = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    unique("label_classes_project_id_name_key").on(table.name, table.projectId),
   ]
 );
 
