@@ -86,7 +86,16 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
         const blob = new Blob(chunks, { type: 'application/json' });
         const text = await blob.text();
-        const batchEvents = JSON.parse(text);
+
+        let batchEvents = [];
+        try {
+          batchEvents = JSON.parse(text);
+        } catch (e) {
+          console.error('Error parsing events:', e);
+          setIsLoading(false);
+          setEvents([]);
+          return;
+        }
 
         const events = batchEvents.flatMap((batch: any) => batch.map((data: any) => {
           const parsedEvent = JSON.parse(data.text);
