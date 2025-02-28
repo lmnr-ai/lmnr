@@ -25,7 +25,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   const res = await db
     .insert(labelClasses)
     .values({
-      projectId: projectId,
+      projectId,
       name: body.name,
       description: body.description,
       evaluatorRunnableGraph: body.evaluatorRunnableGraph,

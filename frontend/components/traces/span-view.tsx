@@ -2,6 +2,7 @@ import { PlayCircle } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
 
+import LabelsContextProvider from "@/components/labels/labels-context";
 import LabelsList from "@/components/labels/labels-list";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
@@ -85,7 +86,9 @@ export function SpanView({ spanId }: SpanViewProps) {
                 {new Date(span.startTime).toLocaleString()}
               </div>
             </div>
-            <LabelsList spanId={span.spanId} />
+            <LabelsContextProvider>
+              <LabelsList />
+            </LabelsContextProvider>
           </div>
           <TabsList className="border-none text-sm px-4">
             <TabsTrigger value="span" className="z-50">

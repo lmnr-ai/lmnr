@@ -3,29 +3,27 @@ import { isEmpty } from "lodash";
 import { Plus } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Dispatch, SetStateAction, useMemo } from "react";
-import { useSWRConfig } from "swr";
 
+import { useLabelsContext } from "@/components/labels/labels-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { LabelClass, SpanLabel } from "@/lib/traces/types";
 
 interface PickLabelProps {
-  labels: LabelClass[];
-  spanLabels: SpanLabel[];
   setStep: Dispatch<SetStateAction<0 | 1>>;
   query: string;
   setQuery: Dispatch<SetStateAction<string>>;
 }
-const PickLabel = ({ labels, spanLabels, setStep, query, setQuery }: PickLabelProps) => {
+const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
+  const { labels, labelClasses, mutate } = useLabelsContext();
+
   const { selected, available, hasExactMatch } = useMemo(() => {
-    const selectedIds = spanLabels.map(({ classId }) => classId);
-    const selected = labels
-      .filter((label) => selectedIds.includes(label.id))
-      .map((label) => ({ ...label, labelId: spanLabels.find(({ classId }) => classId === label.id)?.id }));
-    const available = labels.filter((label) => !selectedIds.includes(label.id));
+    const selectedIds = labels.map(({ classId }) => classId);
+    const selected = labelClasses.filter((label) => selectedIds.includes(label.id));
+    const available = labelClasses.filter((label) => !selectedIds.includes(label.id));
 
     const searchLower = query.toLowerCase();
     const filteredSelected = selected.filter((label) => label.name.toLowerCase().includes(searchLower));
@@ -38,9 +36,8 @@ const PickLabel = ({ labels, spanLabels, setStep, query, setQuery }: PickLabelPr
       available: filteredAvailable,
       hasExactMatch,
     };
-  }, [labels, spanLabels, query]);
+  }, [labelClasses, labels, query]);
 
-  const { mutate } = useSWRConfig();
   const handleCheckLabel = (classId: string) => async (checked: CheckedState) => {
     try {
       if (Boolean(checked)) {
@@ -51,13 +48,12 @@ const PickLabel = ({ labels, spanLabels, setStep, query, setQuery }: PickLabelPr
             reasoning: "",
           }),
         });
+
         const data = (await res.json()) as SpanLabel;
 
-        await mutate(
-          `/api/projects/${params?.projectId}/spans/${searchParams.get("spanId")}/labels`,
-          [...spanLabels, data],
-          false
-        );
+        await mutate([...labels, data], {
+          revalidate: false,
+        });
       }
     } catch (e) {
       // TODO: add toast
@@ -65,17 +61,24 @@ const PickLabel = ({ labels, spanLabels, setStep, query, setQuery }: PickLabelPr
     }
   };
 
-  const handleUncheckLabel = (id?: string) => async (checked: CheckedState) => {
+  const deleteLabel = async (label: SpanLabel) => {
+    await fetch(`/api/projects/${params?.projectId}/spans/${searchParams.get("spanId")}/labels/${label.id}`, {
+      method: "DELETE",
+    });
+    return [label];
+  };
+
+  const handleUncheckLabel = (label?: SpanLabel) => async (checked: CheckedState) => {
     try {
-      if (!checked && id) {
-        await fetch(`/api/projects/${params?.projectId}/spans/${searchParams.get("spanId")}/labels/${id}`, {
-          method: "DELETE",
+      if (!checked && label) {
+        await mutate(deleteLabel(label), {
+          optimisticData: [...labels.filter((l) => l.id !== label.id)],
+          rollbackOnError: true,
+          populateCache: (updatedData, original) => [
+            ...(original ?? []).filter((item) => !updatedData.map((u) => u.id).includes(item.id)),
+          ],
+          revalidate: false,
         });
-        await mutate(
-          `/api/projects/${params?.projectId}/spans/${searchParams.get("spanId")}/labels`,
-          [...spanLabels.filter((l) => l.id !== id)],
-          false
-        );
       }
     } catch (e) {
       // TODO: add toast
@@ -95,43 +98,11 @@ const PickLabel = ({ labels, spanLabels, setStep, query, setQuery }: PickLabelPr
 
       {(!isEmpty(selected) || !isEmpty(available)) && <DropdownMenuSeparator />}
 
-      <>
-        {!isEmpty(selected) && (
-          <>
-            <DropdownMenuGroup>
-              {selected.map((l) => (
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={l.id}>
-                  <Checkbox
-                    onCheckedChange={handleUncheckLabel(l.labelId)}
-                    checked
-                    className="border border-secondary mr-2"
-                  />
-                  <div style={{ background: String(l.color) }} className={`w-2 h-2 rounded-full`} />
-                  <span className="ml-1.5">{l.name}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </>
-        )}
-      </>
+      {!isEmpty(selected) && <SelectedLabels labels={selected} onCheck={handleUncheckLabel} spanLabels={labels} />}
+
       {!isEmpty(selected) && !isEmpty(available) && <DropdownMenuSeparator />}
-      {!isEmpty(available) && (
-        <>
-          <DropdownMenuGroup>
-            {available.map((l) => (
-              <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={l.id}>
-                <Checkbox
-                  checked={false}
-                  onCheckedChange={handleCheckLabel(l.id)}
-                  className="border border-secondary mr-2"
-                />
-                <div style={{ background: String(l.color) }} className={`w-2 h-2 rounded-full`} />
-                <span className="ml-1.5">{l.name}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-        </>
-      )}
+
+      {!isEmpty(available) && <AvailableLabels labels={available} onCheck={handleCheckLabel} />}
       {query && !hasExactMatch && available.length + selected.length < 5 && (
         <>
           <DropdownMenuSeparator />
@@ -153,3 +124,45 @@ const PickLabel = ({ labels, spanLabels, setStep, query, setQuery }: PickLabelPr
 };
 
 export default PickLabel;
+
+const AvailableLabels = ({
+  labels,
+  onCheck,
+}: {
+  labels: LabelClass[];
+  onCheck: (classId: string) => (checked: CheckedState) => Promise<void>;
+}) => (
+  <DropdownMenuGroup>
+    {labels.map((label) => (
+      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={label.id}>
+        <Checkbox checked={false} onCheckedChange={onCheck(label.id)} className="border border-secondary mr-2" />
+        <div style={{ background: label.color }} className={`w-2 h-2 rounded-full`} />
+        <span className="ml-1.5">{label.name}</span>
+      </DropdownMenuItem>
+    ))}
+  </DropdownMenuGroup>
+);
+
+const SelectedLabels = ({
+  labels,
+  onCheck,
+  spanLabels,
+}: {
+  labels: LabelClass[];
+  onCheck: (label?: SpanLabel) => (checked: CheckedState) => Promise<void>;
+  spanLabels: SpanLabel[];
+}) => (
+  <DropdownMenuGroup>
+    {labels.map((label) => (
+      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={label.id}>
+        <Checkbox
+          onCheckedChange={onCheck(spanLabels.find((s) => s.classId === label.id))}
+          checked
+          className="border border-secondary mr-2"
+        />
+        <div style={{ background: label.color }} className={`w-2 h-2 rounded-full`} />
+        <span className="ml-1.5">{label.name}</span>
+      </DropdownMenuItem>
+    ))}
+  </DropdownMenuGroup>
+);

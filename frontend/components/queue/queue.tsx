@@ -58,7 +58,6 @@ export default function Queue({ queue }: QueueProps) {
       if (data.ok) {
         const json = await data.json();
         setData(json);
-        console.log(json);
       }
     });
   };

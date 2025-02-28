@@ -47,6 +47,7 @@ export async function POST(
   const [res] = await db
     .insert(labels)
     .values({
+      projectId,
       classId: body.classId,
       spanId: spanId,
       userId: user.id,

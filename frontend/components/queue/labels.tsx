@@ -1,7 +1,8 @@
-import { Loader2, MoreVertical, Plus } from "lucide-react";
+import { Loader2, MoreVertical, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 
+import LabelsContextProvider from "@/components/labels/labels-context";
 import LabelsList from "@/components/labels/labels-list";
 import { useProjectContext } from "@/contexts/project-context";
 import { toast } from "@/lib/hooks/use-toast";
@@ -12,6 +13,7 @@ import { AddLabel } from "../traces/add-label";
 import { Button } from "../ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -19,7 +21,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Table, TableBody, TableCell, TableRow } from "../ui/table";
 
@@ -85,11 +86,13 @@ export function Labels({ span, onAddLabel }: LabelsProps) {
           </Popover>
         </div>
         <div className="flex-col space-y-1">
-          <LabelsList />
+          <LabelsContextProvider>
+            <LabelsList />
+          </LabelsContextProvider>
           <Table>
             <TableBody className="text-base">
               {labelClasses?.map((labelClass) => (
-                <TableRow key={labelClass.id} className="px-0 mx-0">
+                <TableRow key={labelClass.id} className="hover:bg-transparent px-0 mx-0">
                   <TableCell className="p-0 py-2">
                     <div className={cn("flex pr-1")}>
                       <p className="border rounded-lg bg-secondary p-1 px-2 text-sm overflow-hidden truncate max-w-[100px]">
@@ -99,49 +102,42 @@ export function Labels({ span, onAddLabel }: LabelsProps) {
                   </TableCell>
 
                   <TableCell className="w-12">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost">
+                    <Dialog>
+                      <div className="flex gap-2">
+                        <Button className="h-fit" variant="ghost" size="icon">
                           <MoreVertical size={14} />
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Delete label class</DropdownMenuItem>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Delete Label Class</DialogTitle>
-                              <DialogDescription>
-                                Are you sure you want to delete this label class? This will also delete all labels with
-                                this class.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter>
-                              <Button
-                                variant="outline"
-                                onClick={(e) => {
-                                  (e.target as HTMLElement).closest("dialog")?.close();
-                                }}
-                              >
-                                Cancel
-                              </Button>
-                              <Button onClick={() => deleteLabelClass(labelClass.id)} disabled={isDeletingLabelClass}>
-                                {isDeletingLabelClass ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Deleting
-                                  </>
-                                ) : (
-                                  "Delete"
-                                )}
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        <DialogTrigger asChild>
+                          <Button className="h-fit" variant="ghost" size="icon">
+                            <Trash2 size={14} />
+                          </Button>
+                        </DialogTrigger>
+                      </div>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Delete Label Class</DialogTitle>
+                          <DialogDescription>
+                            Are you sure you want to delete this label class? This will also delete all labels with this
+                            class.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                          <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                          </DialogClose>
+                          <Button onClick={() => deleteLabelClass(labelClass.id)} disabled={isDeletingLabelClass}>
+                            {isDeletingLabelClass ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Deleting
+                              </>
+                            ) : (
+                              "Delete"
+                            )}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </TableCell>
                 </TableRow>
               ))}

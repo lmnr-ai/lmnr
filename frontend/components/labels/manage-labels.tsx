@@ -3,25 +3,17 @@ import { PropsWithChildren, useMemo, useState } from "react";
 import CreateLabel from "@/components/labels/create-label";
 import PickLabel from "@/components/labels/pick-label";
 import { DropdownMenu, DropdownMenuContent } from "@/components/ui/dropdown-menu";
-import { LabelClass, SpanLabel } from "@/lib/traces/types";
 
-interface ManageLabelsProps {
-  labels: LabelClass[];
-  spanLabels: SpanLabel[];
-  spanId?: string;
-}
-
-const ManageLabels = ({ labels, spanLabels, children }: PropsWithChildren<ManageLabelsProps>) => {
+const ManageLabels = ({ children }: PropsWithChildren) => {
   const [step, setStep] = useState<0 | 1>(0);
-
   const [query, setQuery] = useState("");
 
   const renderStep = useMemo(
     () => ({
-      0: <PickLabel query={query} setQuery={setQuery} setStep={setStep} labels={labels} spanLabels={spanLabels} />,
-      1: <CreateLabel labels={labels} name={query} />,
+      0: <PickLabel query={query} setQuery={setQuery} setStep={setStep} />,
+      1: <CreateLabel name={query} />,
     }),
-    [labels, query, spanLabels]
+    [query]
   );
 
   return (

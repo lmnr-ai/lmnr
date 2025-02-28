@@ -1,7 +1,7 @@
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { useSWRConfig } from "swr";
 
+import { useLabelsContext } from "@/components/labels/labels-context";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { LabelClass } from "@/lib/traces/types";
@@ -47,10 +47,9 @@ const defaultColors: { color: string; name: string }[] = [
 
 interface CreateLabelProps {
   name: string;
-  labels: LabelClass[];
 }
 
-const CreateLabel = ({ name, labels }: CreateLabelProps) => {
+const CreateLabel = ({ name }: CreateLabelProps) => {
   const [query, setQuery] = useState("");
   const params = useParams();
   const colors = useMemo(
@@ -58,13 +57,13 @@ const CreateLabel = ({ name, labels }: CreateLabelProps) => {
     [query]
   );
 
-  const { mutate } = useSWRConfig();
+  const { labelClasses, mutateLabelClass } = useLabelsContext();
+
   const handleCreateLabelClass = async (color: string) => {
     try {
       const response = await fetch(`/api/projects/${params?.projectId}/label-classes`, {
         method: "POST",
         body: JSON.stringify({
-          projectId: params?.projectId,
           name,
           description: "",
           evaluatorRunnableGraph: "",
@@ -72,17 +71,9 @@ const CreateLabel = ({ name, labels }: CreateLabelProps) => {
         }),
       });
       const data = (await response.json()) as LabelClass;
-      // {
-      //   "id": "94e05544-9f66-4874-8822-02546eae1e67",
-      //     "createdAt": "2025-02-27 14:33:44.635844+00",
-      //     "name": "okay lets go",
-      //     "projectId": "54099983-3e7e-425d-bd7b-4823c57820f4",
-      //     "description": "",
-      //     "evaluatorRunnableGraph": "",
-      //     "pipelineVersionId": null,
-      //     "color": "rgb(38, 181, 206)"
-      // }
-      await mutate(`/api/projects/${params?.projectId}/label-classes`, [...labels, data], false);
+      await mutateLabelClass([...labelClasses, data], {
+        revalidate: false,
+      });
     } catch (e) {
       console.error(e);
     }
