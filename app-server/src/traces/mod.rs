@@ -95,6 +95,7 @@ pub async fn process_spans_and_events(
     let ch_span = CHSpan::from_db_span(span, span_usage, *project_id);
 
     if let Err(e) = ch::spans::insert_span(clickhouse.clone(), &ch_span).await {
+        log::error!("{:?}", ch_span);
         log::error!(
             "Failed to insert span into Clickhouse. span_id [{}], project_id [{}]: {:?}",
             span.span_id,

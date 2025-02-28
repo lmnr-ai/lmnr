@@ -193,35 +193,23 @@ pub async fn record_labels_to_db_and_ch(
 
     let labels = span.get_attributes().labels();
 
-    for (label_name, label_value_key) in labels {
+    for (label_name, _) in labels {
         let label_class = project_labels.iter().find(|l| l.name == label_name);
         if let Some(label_class) = label_class {
-            let key = match label_value_key {
-                Value::String(s) => s.clone(),
-                v => v.to_string(),
-            };
-            let value_map =
-                serde_json::from_value::<HashMap<String, f64>>(label_class.value_map.clone())
-                    .unwrap_or_default();
-            let label_value = value_map.get(&key).cloned();
             let id = Uuid::new_v4();
-            if let Some(label_value) = label_value {
-                crate::labels::insert_or_update_label(
-                    &db.pool,
-                    clickhouse.clone(),
-                    *project_id,
-                    id,
-                    span.span_id,
-                    label_class.id,
-                    None,
-                    label_name,
-                    key,
-                    label_value,
-                    LabelSource::CODE,
-                    None,
-                )
-                .await?;
-            }
+            crate::labels::insert_or_update_label(
+                &db.pool,
+                clickhouse.clone(),
+                *project_id,
+                id,
+                span.span_id,
+                label_class.id,
+                None,
+                label_name,
+                LabelSource::CODE,
+                None,
+            )
+            .await?;
         }
     }
 

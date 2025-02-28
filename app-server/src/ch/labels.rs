@@ -31,8 +31,6 @@ pub struct CHLabel {
     pub id: Uuid,
     pub name: String,
     pub label_source: u8,
-    pub value_key: String,
-    pub value: f64,
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
 }
@@ -44,8 +42,6 @@ impl CHLabel {
         id: Uuid,
         name: String,
         label_source: LabelSource,
-        value_key: String,
-        value: f64,
         span_id: Uuid,
     ) -> Self {
         Self {
@@ -55,8 +51,6 @@ impl CHLabel {
             id,
             name,
             label_source: label_source.into(),
-            value_key,
-            value,
             span_id,
         }
     }
@@ -69,20 +63,9 @@ pub async fn insert_label(
     id: Uuid,
     name: String,
     label_source: LabelSource,
-    value_key: String,
-    value: f64,
     span_id: Uuid,
 ) -> Result<()> {
-    let label = CHLabel::new(
-        project_id,
-        class_id,
-        id,
-        name,
-        label_source,
-        value_key,
-        value,
-        span_id,
-    );
+    let label = CHLabel::new(project_id, class_id, id, name, label_source, span_id);
     let ch_insert = client.insert("labels");
     match ch_insert {
         Ok(mut ch_insert) => {
