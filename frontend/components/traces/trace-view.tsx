@@ -225,17 +225,16 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           event: 'INSERT',
           schema: 'public',
           table: 'spans',
-          filter: `project_id=eq.${projectId}`
+          // Ideally, we would filter by both trace_id, and project_id, but
+          // unfortunately supabase realtime does not support multiple filters,
+          // https://discord.com/channels/839993398554656828/1263229409725255680
+          // so we filter by trace_id only, and project_id is handled by
+          // the RLS/realtime auth on the DB.
+          filter: `trace_id=eq.${traceId}`
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const rtEventSpan = dbSpanRowToSpan(payload.new);
-            // Unfortunately supabase realtime does not support multiple filters,
-            // so we filter here manually.
-            // https://discord.com/channels/839993398554656828/1263229409725255680
-            if (rtEventSpan.traceId !== traceId) {
-              return;
-            }
             setSpans(currentSpans => {
               const newSpans = [...currentSpans];
               const index = newSpans.findIndex(span => span.spanId === rtEventSpan.spanId);
