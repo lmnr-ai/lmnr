@@ -11,7 +11,6 @@ const removeQueueItemSchema = z.object({
   spanId: z.string(),
   addedLabels: z.array(
     z.object({
-      value: z.number(),
       labelClass: z.object({
         name: z.string(),
         id: z.string(),

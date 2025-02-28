@@ -42,7 +42,6 @@ export default function Queue({ queue }: QueueProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const [addedLabels, setAddedLabels] = useState<
     Array<{
-      value: number;
       labelClass: LabelClass;
       reasoning?: string | null;
     }>
@@ -243,10 +242,10 @@ export default function Queue({ queue }: QueueProps) {
           <ResizablePanel className="w-1/3 p-4 border-l" minSize={10} defaultSize={17}>
             <Labels
               span={data?.[0]?.span}
-              onAddLabel={(value, labelClass) => {
+              onAddLabel={(labelClass) => {
                 const isDuplicateClass = addedLabels.some((label) => label.labelClass.id === labelClass.id);
                 if (!isDuplicateClass) {
-                  setAddedLabels((prev) => [...prev, { value, labelClass, reasoning: null }]);
+                  setAddedLabels((prev) => [...prev, { labelClass, reasoning: null }]);
                 }
               }}
             />

@@ -1,13 +1,12 @@
-import { Loader2, MoreVertical, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 
-import LabelsContextProvider from "@/components/labels/labels-context";
-import LabelsList from "@/components/labels/labels-list";
+import { Badge } from "@/components/ui/badge";
 import { useProjectContext } from "@/contexts/project-context";
 import { toast } from "@/lib/hooks/use-toast";
 import { LabelClass, Span } from "@/lib/traces/types";
-import { cn, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/utils";
 
 import { AddLabel } from "../traces/add-label";
 import { Button } from "../ui/button";
@@ -27,7 +26,7 @@ import { Table, TableBody, TableCell, TableRow } from "../ui/table";
 interface LabelsProps {
   span: Span | undefined;
   className?: string;
-  onAddLabel: (value: number, labelClass: LabelClass) => void;
+  onAddLabel: (labelClass: LabelClass) => void;
 }
 
 export function Labels({ span, onAddLabel }: LabelsProps) {
@@ -86,26 +85,21 @@ export function Labels({ span, onAddLabel }: LabelsProps) {
           </Popover>
         </div>
         <div className="flex-col space-y-1">
-          <LabelsContextProvider>
-            <LabelsList />
-          </LabelsContextProvider>
           <Table>
             <TableBody className="text-base">
               {labelClasses?.map((labelClass) => (
                 <TableRow key={labelClass.id} className="hover:bg-transparent px-0 mx-0">
                   <TableCell className="p-0 py-2">
-                    <div className={cn("flex pr-1")}>
-                      <p className="border rounded-lg bg-secondary p-1 px-2 text-sm overflow-hidden truncate max-w-[100px]">
-                        {labelClass.name}
-                      </p>
-                    </div>
+                    <Badge className="rounded-3xl" variant="outline">
+                      <div style={{ background: labelClass.color }} className={`w-2 h-2 rounded-full`} />
+                      <span className="ml-1.5">{labelClass.name}</span>
+                    </Badge>
                   </TableCell>
-
                   <TableCell className="w-12">
                     <Dialog>
                       <div className="flex gap-2">
-                        <Button className="h-fit" variant="ghost" size="icon">
-                          <MoreVertical size={14} />
+                        <Button onClick={() => onAddLabel(labelClass)} className="h-fit" variant="ghost" size="icon">
+                          <Plus size={14} />
                         </Button>
                         <DialogTrigger asChild>
                           <Button className="h-fit" variant="ghost" size="icon">
