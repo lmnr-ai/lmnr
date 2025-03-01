@@ -37,8 +37,6 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const traceTreePanel = useRef<HTMLDivElement>(null);
   // here timelineWidth refers to the width of the trace tree panel AND waterfall timeline
   const [timelineWidth, setTimelineWidth] = useState(0);
-  const [traceTreePanelWidth, setTraceTreePanelWidth] = useState(0);
-  const [hasBrowserSession, setHasBrowserSession] = useState(false);
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
@@ -78,14 +76,10 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     fetchTrace().then((trace) => {
       setTrace(trace);
       if (trace.hasBrowserSession) {
-        if (!hasBrowserSession) {
-          // if we previously didn't have a browser session, show it
-          setShowBrowserSession(true);
-        }
-        setHasBrowserSession(true);
+        setShowBrowserSession(true);
       }
     });
-  }, [traceId, spans, projectId]);
+  }, [traceId]);
 
   useEffect(() => {
     const childSpans = {} as { [key: string]: Span[] };
@@ -103,9 +97,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
 
     // Sort child spans for each parent by start time
     for (const parentId in childSpans) {
-      childSpans[parentId].sort((a, b) => {
-        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-      });
+      childSpans[parentId].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     }
 
     setChildSpans(childSpans);
@@ -127,6 +119,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         const singleSpan = spans[0];
         setSelectedSpan(singleSpan);
         searchParams.set('spanId', singleSpan.spanId);
+        searchParams.set('traceId', traceId);
         router.push(`${pathName}?${searchParams.toString()}`);
       } else {
         // Otherwise, use the spanId from URL if present
@@ -139,6 +132,11 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         );
       }
     });
+    return () => {
+      setTrace(null);
+      setSpans([]);
+      setShowBrowserSession(false);
+    };
   }, [traceId, projectId]);
 
   useEffect(() => {
@@ -175,7 +173,6 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       return;
     }
     const newTraceTreePanelWidth = traceTreePanel.current.getBoundingClientRect().width;
-    setTraceTreePanelWidth(newTraceTreePanelWidth);
 
     // if no span is selected, timeline should take full width
     if (!selectedSpan) {
@@ -211,27 +208,47 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const { supabaseClient: supabase } = useUserContext();
 
   useEffect(() => {
-    if (!supabase || !projectId) {
+    if (!supabase || !traceId) {
       return;
     }
 
-    supabase.channel('table-db-changes').unsubscribe();
-
-    supabase
-      .channel('table-db-changes')
+    const channel = supabase
+      .channel(`trace-updates-${traceId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'spans',
-          filter: `project_id=eq.${projectId}`
+          filter: `trace_id=eq.${traceId}`
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            // Use a functional state update to avoid race conditions
+            const rtEventSpan = dbSpanRowToSpan(payload.new);
+
+            if (rtEventSpan.attributes['lmnr.internal.has_browser_session']) {
+              setShowBrowserSession(true);
+            }
+
+            setTrace((currentTrace: Trace | null) => {
+              if (!currentTrace) {
+                return null;
+              }
+
+              const newTrace = { ...currentTrace };
+              newTrace.endTime = new Date(Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())).toUTCString();
+              newTrace.totalTokenCount += (rtEventSpan.attributes['gen_ai.usage.input_tokens'] ?? 0) + (rtEventSpan.attributes['gen_ai.usage.output_tokens'] ?? 0);
+              newTrace.inputTokenCount += rtEventSpan.attributes['gen_ai.usage.input_tokens'] ?? 0;
+              newTrace.outputTokenCount += rtEventSpan.attributes['gen_ai.usage.output_tokens'] ?? 0;
+              newTrace.inputCost += rtEventSpan.attributes['gen_ai.usage.input_cost'] ?? 0;
+              newTrace.outputCost += rtEventSpan.attributes['gen_ai.usage.output_cost'] ?? 0;
+              newTrace.cost += (rtEventSpan.attributes['gen_ai.usage.input_cost'] ?? 0) + (rtEventSpan.attributes['gen_ai.usage.output_cost'] ?? 0);
+              newTrace.hasBrowserSession = currentTrace.hasBrowserSession || rtEventSpan.attributes['lmnr.internal.has_browser_session'];
+
+              return newTrace;
+            });
+
             setSpans(currentSpans => {
-              const rtEventSpan = dbSpanRowToSpan(payload.new);
               const newSpans = [...currentSpans];
               const index = newSpans.findIndex(span => span.spanId === rtEventSpan.spanId);
               if (index !== -1 && newSpans[index].pending) {
@@ -247,11 +264,11 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       )
       .subscribe();
 
-    // remove all channels on unmount
+    // Remove only this specific channel on cleanup
     return () => {
-      supabase.removeAllChannels();
+      supabase.removeChannel(channel);
     };
-  }, [supabase, projectId]);
+  }, [supabase, traceId]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
@@ -302,14 +319,14 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         </div>
       </div>
       <div className="flex-grow flex">
-        {(!trace && spans.length === 0) && (
+        {(!trace || spans.length === 0) && (
           <div className="w-full p-4 h-full flex flex-col space-y-2">
             <Skeleton className="w-full h-8" />
             <Skeleton className="w-full h-8" />
             <Skeleton className="w-full h-8" />
           </div>
         )}
-        {trace && (
+        {trace && spans.length > 0 && (
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>
               <div className="flex h-full w-full relative" ref={container}>

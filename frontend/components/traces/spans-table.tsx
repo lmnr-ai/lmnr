@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import DeleteSelectedRows from '@/components/ui/DeleteSelectedRows';
 import { useProjectContext } from '@/contexts/project-context';
-import { useUserContext } from '@/contexts/user-context';
+// import { useUserContext } from '@/contexts/user-context';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Span } from '@/lib/traces/types';
 import { DatatableFilter, PaginatedResponse } from '@/lib/types';
@@ -17,9 +17,9 @@ import { Button } from '../ui/button';
 import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import DateRangeFilter from '../ui/date-range-filter';
-import { Label } from '../ui/label';
+// import { Label } from '../ui/label';
 import Mono from '../ui/mono';
-import { Switch } from '../ui/switch';
+// import { Switch } from '../ui/switch';
 import TextSearchFilter from '../ui/text-search-filter';
 import {
   Tooltip,
@@ -68,6 +68,8 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     searchParams.get('spanId') ?? null
   );
   const [enableLiveUpdates, setEnableLiveUpdates] = useState<boolean>(true);
+  const isCurrentTimestampIncluded =
+    !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
   useEffect(() => {
     const stored = globalThis?.localStorage?.getItem(LIVE_UPDATES_STORAGE_KEY);
@@ -146,72 +148,83 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
     textSearchFilter
   ]);
 
-  const { supabaseClient: supabase } = useUserContext();
+  // const { supabaseClient: supabase } = useUserContext();
 
-  const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
-    spanId: row.span_id,
-    parentSpanId: row.parent_span_id,
-    traceId: row.trace_id,
-    spanType: row.span_type,
-    name: row.name,
-    path: row.attributes['lmnr.span.path'] ?? "",
-    startTime: row.start_time,
-    endTime: row.end_time,
-    attributes: row.attributes,
-    input: null,
-    output: null,
-    inputPreview: row.input_preview,
-    outputPreview: row.output_preview,
-    events: [],
-    inputUrl: row.input_url,
-    outputUrl: row.output_url,
-    model: row.attributes['gen_ai.response.model'] ?? row.attributes['gen_ai.request.model'] ?? null,
-  });
+  // const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
+  //   spanId: row.span_id,
+  //   parentSpanId: row.parent_span_id,
+  //   traceId: row.trace_id,
+  //   spanType: row.span_type,
+  //   name: row.name,
+  //   path: row.attributes['lmnr.span.path'] ?? "",
+  //   startTime: row.start_time,
+  //   endTime: row.end_time,
+  //   attributes: row.attributes,
+  //   input: null,
+  //   output: null,
+  //   inputPreview: row.input_preview,
+  //   outputPreview: row.output_preview,
+  //   events: [],
+  //   inputUrl: row.input_url,
+  //   outputUrl: row.output_url,
+  //   model: row.attributes['gen_ai.response.model'] ?? row.attributes['gen_ai.request.model'] ?? null,
+  // });
 
-  useEffect(() => {
-    if (!supabase) {
-      return;
-    }
+  // const getTrace = async (traceId: string): Promise<Trace> => {
+  //   const res = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
+  //   const data = await res.json();
+  //   return data;
+  // };
 
-    if (!enableLiveUpdates) {
-      supabase.removeAllChannels();
-      return;
-    }
+  // useEffect(() => {
+  //   if (!supabase) {
+  //     return;
+  //   }
 
-    supabase.channel('table-db-changes').unsubscribe();
+  //   if (!enableLiveUpdates) {
+  //     supabase.removeAllChannels();
+  //     return;
+  //   }
 
-    supabase
-      .channel('table-db-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'spans',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const currentSpans = spansRef.current;
-            const insertIndex = currentSpans?.findIndex(span => span.startTime <= payload.new.start_time);
-            const newSpans = currentSpans ? [...currentSpans] : [];
-            const rtEventSpan = dbSpanRowToSpan(payload.new);
-            newSpans.splice(Math.max(insertIndex ?? 0, 0), 0, rtEventSpan);
-            if (newSpans.length > pageSize) {
-              newSpans.splice(pageSize, newSpans.length - pageSize);
-            }
-            setSpans(newSpans);
-            setTotalCount(prev => parseInt(`${prev}`) + 1);
-          }
-        }
-      )
-      .subscribe();
+  //   supabase.channel('table-db-changes').unsubscribe();
 
-    // remove all channels on unmount
-    return () => {
-      supabase.removeAllChannels();
-    };
-  }, []);
+  //   supabase
+  //     .channel('table-db-changes')
+  //     .on(
+  //       'postgres_changes',
+  //       {
+  //         event: 'INSERT',
+  //         schema: 'public',
+  //         table: 'spans',
+  //         filter: `project_id=eq.${projectId}`
+  //       },
+  //       (payload) => {
+  //         if (payload.eventType === 'INSERT') {
+  //           const currentSpans = spansRef.current;
+  //           const insertIndex = currentSpans?.findIndex(span => span.startTime <= payload.new.start_time);
+  //           const newSpans = currentSpans ? [...currentSpans] : [];
+  //           const rtEventSpan = dbSpanRowToSpan(payload.new);
+  //           getTrace(rtEventSpan.traceId).then(trace => {
+  //             if (trace.traceType !== 'DEFAULT') {
+  //               return;
+  //             }
+  //             newSpans.splice(Math.max(insertIndex ?? 0, 0), 0, rtEventSpan);
+  //             if (newSpans.length > pageSize) {
+  //               newSpans.splice(pageSize, newSpans.length - pageSize);
+  //             }
+  //             setSpans(newSpans);
+  //             setTotalCount(prev => parseInt(`${prev}`) + 1);
+  //           });
+  //         }
+  //       }
+  //     )
+  //     .subscribe();
+
+  //   // remove all channels on unmount
+  //   return () => {
+  //     supabase.removeAllChannels();
+  //   };
+  // }, []);
 
 
   const handleDeleteSpans = async (spanId: string[]) => {
@@ -256,13 +269,13 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   //   updateUrlWithFilters(updatedFilters);
   // };
 
-  const updateUrlWithFilters = (filters: DatatableFilter[]) => {
-    searchParams.delete('filter');
-    searchParams.delete('pageNumber');
-    searchParams.append('pageNumber', '0');
-    searchParams.append('filter', toFilterUrlParam(filters));
-    router.push(`${pathName}?${searchParams.toString()}`);
-  };
+  // const updateUrlWithFilters = (filters: DatatableFilter[]) => {
+  //   searchParams.delete('filter');
+  //   searchParams.delete('pageNumber');
+  //   searchParams.append('pageNumber', '0');
+  //   searchParams.append('filter', toFilterUrlParam(filters));
+  //   router.push(`${pathName}?${searchParams.toString()}`);
+  // };
 
 
   const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
@@ -576,7 +589,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
         <RefreshCcw size={16} className="mr-2" />
         Refresh
       </Button>
-      <div className="flex items-center space-x-2">
+      {/* <div className="flex items-center space-x-2">
         <Switch
           checked={enableLiveUpdates}
           onCheckedChange={(checked) => {
@@ -585,7 +598,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
           }}
         />
         <Label>Live</Label>
-      </div>
+      </div> */}
     </DataTable>
   );
 }
