@@ -8,6 +8,12 @@ import pako from 'pako';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import rrwebPlayer from 'rrweb-player';
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useProjectContext } from '@/contexts/project-context';
 import { formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
@@ -86,7 +92,16 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
         const blob = new Blob(chunks, { type: 'application/json' });
         const text = await blob.text();
-        const batchEvents = JSON.parse(text);
+
+        let batchEvents = [];
+        try {
+          batchEvents = JSON.parse(text);
+        } catch (e) {
+          console.error('Error parsing events:', e);
+          setIsLoading(false);
+          setEvents([]);
+          return;
+        }
 
         const events = batchEvents.flatMap((batch: any) => batch.map((data: any) => {
           const parsedEvent = JSON.parse(data.text);
@@ -230,8 +245,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       }, 50);
     };
 
-    const toggleSpeed = () => {
-      setSpeed((currentSpeed) => (currentSpeed === 1 ? 2 : 1));
+    const handleSpeedChange = (newSpeed: number) => {
+      setSpeed(newSpeed);
     };
 
     useImperativeHandle(ref, () => ({
@@ -296,12 +311,23 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             >
               {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
             </button>
-            <button
-              onClick={toggleSpeed}
-              className="text-white py-1 px-2 rounded text-sm"
-            >
-              {speed}x
-            </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
+                {speed}x
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {[1, 2, 4, 8].map((speedOption) => (
+                  <DropdownMenuItem
+                    key={speedOption}
+                    onClick={() => handleSpeedChange(speedOption)}
+                  >
+                    {speedOption}x
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <input
               type="range"
               className="flex-grow cursor-pointer"

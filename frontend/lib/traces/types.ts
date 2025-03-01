@@ -1,4 +1,4 @@
-import { labelClasses } from "../db/migrations/schema";
+import { labelClasses, traces } from "../db/migrations/schema";
 import { Event } from "../events/types";
 import { GraphMessagePreview } from "../pipeline/types";
 
@@ -72,6 +72,7 @@ export type Trace = {
   topSpanType: SpanType | null;
   topSpanPath: string | null;
   hasBrowserSession: boolean | null;
+  traceType: (typeof traces.$inferSelect)["traceType"] | null;
   // events: TraceEvent[];
 };
 
