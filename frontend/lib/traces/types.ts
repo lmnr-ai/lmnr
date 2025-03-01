@@ -50,22 +50,7 @@ export type Span = {
   model?: string;
   inputUrl: string | null;
   outputUrl: string | null;
-};
-
-export type TraceWithSpans = {
-  id: string;
-  startTime: string;
-  endTime: string;
-  inputTokenCount: number;
-  outputTokenCount: number;
-  totalTokenCount: number;
-  inputCost: number | null;
-  outputCost: number | null;
-  cost: number | null;
-  metadata: Record<string, string> | null;
-  hasBrowserSession: boolean | null;
-  projectId: string;
-  spans: Span[];
+  pending?: boolean;
 };
 
 export type Trace = {
@@ -80,6 +65,7 @@ export type Trace = {
   outputCost: number | null;
   cost: number | null;
   metadata: Record<string, string> | null;
+  topSpanId: string | null;
   topSpanInputPreview: any | null;
   topSpanOutputPreview: any | null;
   topSpanName: string | null;

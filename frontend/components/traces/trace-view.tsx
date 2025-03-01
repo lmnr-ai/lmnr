@@ -1,11 +1,11 @@
 import { ChartNoAxesGantt, ChevronsRight, Disc } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
-import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
-import { Span, TraceWithSpans } from '@/lib/traces/types';
-import { cn, swrFetcher } from '@/lib/utils';
+import { useUserContext } from '@/contexts/user-context';
+import { Span, SpanType, Trace } from '@/lib/traces/types';
+import { cn } from '@/lib/utils';
 
 import { Button } from '../ui/button';
 import MonoWithCopy from '../ui/mono-with-copy';
@@ -27,6 +27,8 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const router = useRouter();
   const pathName = usePathname();
+  const { projectId } = useProjectContext();
+
   const container = useRef<HTMLDivElement>(null);
   // containerHeight refers to the height of the trace view container
   const [containerHeight, setContainerHeight] = useState(0);
@@ -36,17 +38,23 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   // here timelineWidth refers to the width of the trace tree panel AND waterfall timeline
   const [timelineWidth, setTimelineWidth] = useState(0);
   const [traceTreePanelWidth, setTraceTreePanelWidth] = useState(0);
-  const { projectId } = useProjectContext();
+  const [hasBrowserSession, setHasBrowserSession] = useState(false);
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
-  const { data: trace, isLoading } = useSWR<TraceWithSpans>(
-    `/api/projects/${projectId}/traces/${traceId}`,
-    swrFetcher
-  );
+
+  const [trace, setTrace] = useState<Trace | null>(null);
+
+  const [spans, setSpans] = useState<Span[]>([]);
+  const spansRef = useRef<Span[]>([]);
+
+  // Keep ref updated
+  useEffect(() => {
+    spansRef.current = spans;
+  }, [spans]);
 
   const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({});
   const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
-  const [spans, setSpans] = useState<Span[]>([]);
+
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(
     searchParams.get('spanId')
       ? spans.find(
@@ -62,12 +70,24 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!trace) {
-      return;
-    }
+    const fetchTrace = async () => {
+      const trace = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
+      return await trace.json();
+    };
 
-    const spans = trace.spans;
+    fetchTrace().then((trace) => {
+      setTrace(trace);
+      if (trace.hasBrowserSession) {
+        if (!hasBrowserSession) {
+          // if we previously didn't have a browser session, show it
+          setShowBrowserSession(true);
+        }
+        setHasBrowserSession(true);
+      }
+    });
+  }, [traceId, spans, projectId]);
 
+  useEffect(() => {
     const childSpans = {} as { [key: string]: Span[] };
 
     const topLevelSpans = spans.filter((span: Span) => !span.parentSpanId);
@@ -81,31 +101,45 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       }
     }
 
+    // Sort child spans for each parent by start time
+    for (const parentId in childSpans) {
+      childSpans[parentId].sort((a, b) => {
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+      });
+    }
+
     setChildSpans(childSpans);
     setTopLevelSpans(topLevelSpans);
-    setSpans(spans);
+  }, [spans]);
 
-    // If there's only one span, select it automatically
-    if (spans.length === 1) {
-      const singleSpan = spans[0];
-      setSelectedSpan(singleSpan);
-      searchParams.set('spanId', singleSpan.spanId);
-      router.push(`${pathName}?${searchParams.toString()}`);
-    } else {
-      // Otherwise, use the spanId from URL if present
-      setSelectedSpan(
-        searchParams.get('spanId')
-          ? spans.find(
-            (span: Span) => span.spanId === searchParams.get('spanId')
-          ) || null
-          : null
-      );
-    }
+  useEffect(() => {
+    const fetchSpans = async () => {
+      const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/spans`);
+      const results = await response.json();
+      return enrichSpansWithPending(results);
+    };
 
-    if (trace.hasBrowserSession) {
-      setShowBrowserSession(true);
-    }
-  }, [trace]);
+    fetchSpans().then((spans) => {
+      setSpans(spans);
+
+      // If there's only one span, select it automatically
+      if (spans.length === 1) {
+        const singleSpan = spans[0];
+        setSelectedSpan(singleSpan);
+        searchParams.set('spanId', singleSpan.spanId);
+        router.push(`${pathName}?${searchParams.toString()}`);
+      } else {
+        // Otherwise, use the spanId from URL if present
+        setSelectedSpan(
+          searchParams.get('spanId')
+            ? spans.find(
+              (span: Span) => span.spanId === searchParams.get('spanId')
+            ) || null
+            : null
+        );
+      }
+    });
+  }, [traceId, projectId]);
 
   useEffect(() => {
     setSelectedSpan(
@@ -153,6 +187,71 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       );
     }
   }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
+
+  const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
+    spanId: row.span_id,
+    parentSpanId: row.parent_span_id,
+    traceId: row.trace_id,
+    spanType: row.span_type,
+    name: row.name,
+    path: row.attributes['lmnr.span.path'] ?? "",
+    startTime: row.start_time,
+    endTime: row.end_time,
+    attributes: row.attributes,
+    input: null,
+    output: null,
+    inputPreview: row.input_preview,
+    outputPreview: row.output_preview,
+    events: [],
+    inputUrl: row.input_url,
+    outputUrl: row.output_url,
+    model: row.attributes['gen_ai.response.model'] ?? row.attributes['gen_ai.request.model'] ?? null,
+  });
+
+  const { supabaseClient: supabase } = useUserContext();
+
+  useEffect(() => {
+    if (!supabase || !projectId) {
+      return;
+    }
+
+    supabase.channel('table-db-changes').unsubscribe();
+
+    supabase
+      .channel('table-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'spans',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            // Use a functional state update to avoid race conditions
+            setSpans(currentSpans => {
+              const rtEventSpan = dbSpanRowToSpan(payload.new);
+              const newSpans = [...currentSpans];
+              const index = newSpans.findIndex(span => span.spanId === rtEventSpan.spanId);
+              if (index !== -1 && newSpans[index].pending) {
+                newSpans[index] = rtEventSpan;
+              } else {
+                newSpans.push(rtEventSpan);
+              }
+
+              return enrichSpansWithPending(newSpans);
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    // remove all channels on unmount
+    return () => {
+      supabase.removeAllChannels();
+    };
+  }, [supabase, projectId]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
@@ -203,7 +302,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         </div>
       </div>
       <div className="flex-grow flex">
-        {isLoading && (
+        {(!trace && spans.length === 0) && (
           <div className="w-full p-4 h-full flex flex-col space-y-2">
             <Skeleton className="w-full h-8" />
             <Skeleton className="w-full h-8" />
@@ -367,3 +466,92 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     </div >
   );
 }
+
+const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
+  const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
+  const pendingSpans = new Map<string, Span>();
+
+  // First, add all existing pending spans to the pendingSpans map
+  for (const span of existingSpans) {
+    if (span.pending) {
+      pendingSpans.set(span.spanId, span);
+    }
+  }
+
+  for (const span of existingSpans) {
+    if (span.parentSpanId) {
+      const parentSpanIds = span.attributes['lmnr.span.ids_path'] as string[] | undefined;
+      const parentSpanNames = span.attributes['lmnr.span.path'] as string[] | undefined;
+
+      if (
+        parentSpanIds === undefined || parentSpanNames === undefined ||
+        parentSpanIds.length === 0 || parentSpanNames.length === 0 ||
+        parentSpanIds.length !== parentSpanNames.length
+      ) {
+        continue;
+      }
+
+      const startTime = new Date(span.startTime);
+      const endTime = new Date(span.endTime);
+      for (let i = 0; i < parentSpanIds.length; i++) {
+        const spanId = parentSpanIds[i];
+        const spanName = parentSpanNames[i];
+
+        // Skip if this span exists and is not pending
+        if (existingSpanIds.has(spanId) && !pendingSpans.has(spanId)) {
+          continue;
+        }
+
+        if (pendingSpans.has(spanId)) {
+          // Update the time range of the pending span to cover all its children
+          const existingStartTime = new Date(pendingSpans.get(spanId)!.startTime);
+          const existingEndTime = new Date(pendingSpans.get(spanId)!.endTime);
+          pendingSpans.set(
+            spanId,
+            {
+              ...pendingSpans.get(spanId)!,
+              startTime: (startTime < existingStartTime ? startTime : existingStartTime).toISOString(),
+              endTime: (endTime > existingEndTime ? endTime : existingEndTime).toISOString(),
+            }
+          );
+          continue;
+        }
+
+        const parentSpanId = i > 0 ? parentSpanIds[i - 1] : null;
+        const parentSpanName = i > 0 ? parentSpanNames[i - 1] : null;
+        const pendingSpan = {
+          spanId,
+          name: spanName,
+          parentSpanId,
+          parentSpanName,
+          startTime: new Date(span.startTime).toISOString(),
+          endTime: new Date(span.endTime).toISOString(),
+          attributes: {},
+          events: [],
+          logs: [],
+          spans: [],
+          traceId: span.traceId,
+          traceName: span.name,
+          input: null,
+          output: null,
+          inputPreview: null,
+          outputPreview: null,
+          spanType: SpanType.DEFAULT,
+          path: '',
+          inputUrl: null,
+          outputUrl: null,
+          pending: true,
+        } as Span;
+        pendingSpans.set(spanId, pendingSpan);
+      }
+    }
+  }
+
+  // Filter out existing spans that are pending (to avoid duplicates)
+  const nonPendingExistingSpans = existingSpans.filter(span => !span.pending);
+
+  return [
+    ...nonPendingExistingSpans,
+    ...pendingSpans.values()
+  ];
+};
