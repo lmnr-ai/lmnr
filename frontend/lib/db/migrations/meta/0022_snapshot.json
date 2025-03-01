@@ -1,6 +1,6 @@
 {
-  "id": "bd97755c-ae71-4808-b943-cc916ecd8120",
-  "prevId": "ed89a34b-5365-4832-9f6a-36fb9901e921",
+  "id": "e1d09da1-b691-4e49-b8c6-11ea530a24be",
+  "prevId": "bd97755c-ae71-4808-b943-cc916ecd8120",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2506,6 +2506,12 @@
         "has_browser_session": {
           "name": "has_browser_session",
           "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "top_span_id": {
+          "name": "top_span_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         }

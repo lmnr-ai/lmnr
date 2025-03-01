@@ -129,18 +129,12 @@ pub async fn record_span_to_db(
             }
         }
     });
+    // Once we've set the parent span id, check if it's the top span
+    if span.parent_span_id.is_none() {
+        trace_attributes.set_top_span_id(span.span_id);
+    }
     span_attributes.update_path();
     span.set_attributes(&span_attributes);
-
-    let update_attrs_res =
-        trace::update_trace_attributes(&db.pool, project_id, &trace_attributes).await;
-    if let Err(e) = update_attrs_res {
-        log::error!(
-            "Failed to update trace attributes [{}]: {:?}",
-            span.span_id,
-            e
-        );
-    }
 
     let insert_span = || async {
         db::spans::record_span(&db.pool, &span, project_id)
@@ -178,6 +172,15 @@ pub async fn record_span_to_db(
             );
             e
         })?;
+
+    // Insert or update trace only after the span has been successfully inserted
+    if let Err(e) = trace::update_trace_attributes(&db.pool, project_id, &trace_attributes).await {
+        log::error!(
+            "Failed to update trace attributes [{}]: {:?}",
+            span.span_id,
+            e
+        );
+    }
 
     Ok(())
 }
