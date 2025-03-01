@@ -37,8 +37,6 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const traceTreePanel = useRef<HTMLDivElement>(null);
   // here timelineWidth refers to the width of the trace tree panel AND waterfall timeline
   const [timelineWidth, setTimelineWidth] = useState(0);
-  const [traceTreePanelWidth, setTraceTreePanelWidth] = useState(0);
-  const [hasBrowserSession, setHasBrowserSession] = useState(false);
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
@@ -77,11 +75,9 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
 
     fetchTrace().then((trace) => {
       setTrace(trace);
-      if (trace.hasBrowserSession && !hasBrowserSession) {
-        // if we previously didn't have a browser session, show it
+      if (trace.hasBrowserSession) {
         setShowBrowserSession(true);
       }
-      setHasBrowserSession(trace.hasBrowserSession);
     });
   }, [traceId]);
 
@@ -177,7 +173,6 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       return;
     }
     const newTraceTreePanelWidth = traceTreePanel.current.getBoundingClientRect().width;
-    setTraceTreePanelWidth(newTraceTreePanelWidth);
 
     // if no span is selected, timeline should take full width
     if (!selectedSpan) {
@@ -232,7 +227,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
             const rtEventSpan = dbSpanRowToSpan(payload.new);
 
             if (rtEventSpan.attributes['lmnr.internal.has_browser_session']) {
-              setHasBrowserSession(true);
+              setShowBrowserSession(true);
             }
 
             setTrace((currentTrace: Trace | null) => {
