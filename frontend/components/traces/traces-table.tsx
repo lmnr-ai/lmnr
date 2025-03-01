@@ -154,6 +154,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     metadata: row.metadata,
     hasBrowserSession: row.has_browser_session,
     topSpanId: row.top_span_id,
+    traceType: row.trace_type,
     topSpanInputPreview: null,
     topSpanOutputPreview: null,
     topSpanName: null,
@@ -644,16 +645,19 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         <RefreshCcw size={16} className="mr-2" />
         Refresh
       </Button>
-      <div className="flex items-center space-x-2">
-        <Switch
-          checked={enableLiveUpdates}
-          onCheckedChange={(checked) => {
-            setEnableLiveUpdates(checked);
-            localStorage.setItem(LIVE_UPDATES_STORAGE_KEY, checked.toString());
-          }}
-        />
-        <Label>Live</Label>
-      </div>
+      {
+        supabase &&
+        <div className="flex items-center space-x-2">
+          <Switch
+            checked={enableLiveUpdates}
+            onCheckedChange={(checked) => {
+              setEnableLiveUpdates(checked);
+              localStorage.setItem(LIVE_UPDATES_STORAGE_KEY, checked.toString());
+            }}
+          />
+          <Label>Live</Label>
+        </div>
+      }
     </DataTable>
   );
 }

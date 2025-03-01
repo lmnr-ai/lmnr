@@ -77,13 +77,11 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
 
     fetchTrace().then((trace) => {
       setTrace(trace);
-      if (trace.hasBrowserSession) {
-        if (!hasBrowserSession) {
-          // if we previously didn't have a browser session, show it
-          setShowBrowserSession(true);
-        }
-        setHasBrowserSession(true);
+      if (trace.hasBrowserSession && !hasBrowserSession) {
+        // if we previously didn't have a browser session, show it
+        setShowBrowserSession(true);
       }
+      setHasBrowserSession(trace.hasBrowserSession);
     });
   }, [traceId, spans, projectId]);
 
@@ -103,9 +101,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
 
     // Sort child spans for each parent by start time
     for (const parentId in childSpans) {
-      childSpans[parentId].sort((a, b) => {
-        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-      });
+      childSpans[parentId].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     }
 
     setChildSpans(childSpans);
@@ -127,6 +123,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         const singleSpan = spans[0];
         setSelectedSpan(singleSpan);
         searchParams.set('spanId', singleSpan.spanId);
+        searchParams.set('traceId', traceId);
         router.push(`${pathName}?${searchParams.toString()}`);
       } else {
         // Otherwise, use the spanId from URL if present
@@ -139,6 +136,11 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
         );
       }
     });
+    return () => {
+      setTrace(null);
+      setSpans([]);
+      setShowBrowserSession(false);
+    };
   }, [traceId, projectId]);
 
   useEffect(() => {
