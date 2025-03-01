@@ -83,7 +83,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       }
       setHasBrowserSession(trace.hasBrowserSession);
     });
-  }, [traceId, spans, projectId]);
+  }, [traceId]);
 
   useEffect(() => {
     const childSpans = {} as { [key: string]: Span[] };
@@ -213,30 +213,46 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const { supabaseClient: supabase } = useUserContext();
 
   useEffect(() => {
-    if (!supabase || !projectId) {
+    if (!supabase || !traceId) {
       return;
     }
 
-    supabase.channel('table-db-changes').unsubscribe();
-
-    supabase
-      .channel('table-db-changes')
+    const channel = supabase
+      .channel(`trace-updates-${traceId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'spans',
-          // Ideally, we would filter by both trace_id, and project_id, but
-          // unfortunately supabase realtime does not support multiple filters,
-          // https://discord.com/channels/839993398554656828/1263229409725255680
-          // so we filter by trace_id only, and project_id is handled by
-          // the RLS/realtime auth on the DB.
           filter: `trace_id=eq.${traceId}`
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const rtEventSpan = dbSpanRowToSpan(payload.new);
+
+            if (rtEventSpan.attributes['lmnr.internal.has_browser_session']) {
+              setHasBrowserSession(true);
+            }
+
+            setTrace((currentTrace: Trace | null) => {
+              if (!currentTrace) {
+                return null;
+              }
+
+              const newTrace = { ...currentTrace };
+              newTrace.endTime = new Date(Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())).toUTCString();
+              newTrace.totalTokenCount += (rtEventSpan.attributes['gen_ai.usage.input_tokens'] ?? 0) + (rtEventSpan.attributes['gen_ai.usage.output_tokens'] ?? 0);
+              newTrace.inputTokenCount += rtEventSpan.attributes['gen_ai.usage.input_tokens'] ?? 0;
+              newTrace.outputTokenCount += rtEventSpan.attributes['gen_ai.usage.output_tokens'] ?? 0;
+              newTrace.inputCost += rtEventSpan.attributes['gen_ai.usage.input_cost'] ?? 0;
+              newTrace.outputCost += rtEventSpan.attributes['gen_ai.usage.output_cost'] ?? 0;
+              newTrace.cost += (rtEventSpan.attributes['gen_ai.usage.input_cost'] ?? 0) + (rtEventSpan.attributes['gen_ai.usage.output_cost'] ?? 0);
+              newTrace.hasBrowserSession = currentTrace.hasBrowserSession || rtEventSpan.attributes['lmnr.internal.has_browser_session'];
+
+              return newTrace;
+            });
+
             setSpans(currentSpans => {
               const newSpans = [...currentSpans];
               const index = newSpans.findIndex(span => span.spanId === rtEventSpan.spanId);
@@ -253,11 +269,11 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       )
       .subscribe();
 
-    // remove all channels on unmount
+    // Remove only this specific channel on cleanup
     return () => {
-      supabase.removeAllChannels();
+      supabase.removeChannel(channel);
     };
-  }, [supabase, projectId]);
+  }, [supabase, traceId]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
