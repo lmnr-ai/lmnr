@@ -19,6 +19,6 @@ pub fn get_required_env_vars_for_model(model: &str) -> HashSet<String> {
     }
 }
 
-pub fn calculate_cost(tokens: u32, price_per_million_tokens: f64) -> f64 {
+pub fn calculate_cost(tokens: i64, price_per_million_tokens: f64) -> f64 {
     tokens as f64 * price_per_million_tokens / 1_000_000.0
 }

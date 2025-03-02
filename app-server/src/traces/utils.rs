@@ -42,7 +42,7 @@ pub async fn get_llm_usage_for_span(
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.completion_tokens();
-    let total_tokens = input_tokens + output_tokens;
+    let total_tokens = input_tokens.total() + output_tokens;
 
     let mut input_cost: f64 = 0.0;
     let mut output_cost: f64 = 0.0;
@@ -50,9 +50,7 @@ pub async fn get_llm_usage_for_span(
 
     let response_model = attributes.response_model();
     let model_name = response_model.or(attributes.request_model());
-    let provider_name = attributes
-        .provider_name()
-        .map(|name| name.to_lowercase().trim().to_string());
+    let provider_name = attributes.provider_name();
 
     if let Some(model) = model_name.as_deref() {
         if let Some(provider) = &provider_name {
@@ -61,8 +59,8 @@ pub async fn get_llm_usage_for_span(
                 cache.clone(),
                 provider,
                 model,
-                input_tokens as u32,
-                output_tokens as u32,
+                input_tokens,
+                output_tokens,
             )
             .await;
             if let Some(cost_entry) = cost_entry {
@@ -74,7 +72,7 @@ pub async fn get_llm_usage_for_span(
     }
 
     SpanUsage {
-        input_tokens,
+        input_tokens: input_tokens.total(),
         output_tokens,
         total_tokens,
         input_cost,
