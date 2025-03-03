@@ -38,13 +38,14 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
     };
   }, [labelClasses, labels, query]);
 
-  const handleCheckLabel = (classId: string) => async (checked: CheckedState) => {
+  const handleCheckLabel = (labelClass: LabelClass) => async (checked: CheckedState) => {
     try {
       if (Boolean(checked)) {
         const res = await fetch(`/api/projects/${params?.projectId}/spans/${searchParams.get("spanId")}/labels`, {
           method: "POST",
           body: JSON.stringify({
-            classId,
+            classId: labelClass.id,
+            name: labelClass.name,
             reasoning: "",
           }),
         });
@@ -130,12 +131,12 @@ const AvailableLabels = ({
   onCheck,
 }: {
   labels: LabelClass[];
-  onCheck: (classId: string) => (checked: CheckedState) => Promise<void>;
+  onCheck: (labelClass: LabelClass) => (checked: CheckedState) => Promise<void>;
 }) => (
   <DropdownMenuGroup>
     {labels.map((label) => (
       <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={label.id}>
-        <Checkbox checked={false} onCheckedChange={onCheck(label.id)} className="border border-secondary mr-2" />
+        <Checkbox checked={false} onCheckedChange={onCheck(label)} className="border border-secondary mr-2" />
         <div style={{ background: label.color }} className={`w-2 h-2 rounded-full`} />
         <span className="ml-1.5">{label.name}</span>
       </DropdownMenuItem>
