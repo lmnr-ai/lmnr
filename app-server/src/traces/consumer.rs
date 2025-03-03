@@ -144,3 +144,4 @@ async fn inner_process_queue_spans(
 
     log::warn!("Queue closed connection. Shutting down span listener");
 }
+f
