@@ -105,7 +105,7 @@ export function formatTimestampFromSeconds(seconds: number): string {
 }
 
 export function formatTimestampWithInterval(timestampStr: string, interval: GroupByInterval): string {
-  const date = new Date(timestampStr);
+  const date = new Date(`${timestampStr}Z`);
   return innerFormatTimestampWithInterval(date, interval);
 }
 

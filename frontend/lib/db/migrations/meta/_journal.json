@@ -162,6 +162,13 @@
       "when": 1740465455805,
       "tag": "0022_hesitant_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1740811505413,
+      "tag": "0023_youthful_chamber",
+      "breakpoints": true
     }
   ]
 }

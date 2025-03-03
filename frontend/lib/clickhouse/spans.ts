@@ -155,9 +155,7 @@ export const getSpanMetricsSummary = async (
   return await result.json();
 };
 
-export const getSpansCountInProject = async (
-  projectId: string,
-): Promise<{ count: number }[]> => {
+export const getSpansCountInProject = async (projectId: string): Promise<{ count: number }[]> => {
   const query = `
     SELECT
       count(*) as count
@@ -181,7 +179,7 @@ const DEFAULT_LIMIT: number = 200;
 export const searchSpans = async (
   projectId: string,
   searchQuery: string,
-  timeRange: TimeRange,
+  timeRange: TimeRange
 ): Promise<{
   spanIds: Set<string>;
   traceIds: Set<string>;
@@ -207,12 +205,60 @@ export const searchSpans = async (
     },
   });
 
-  const result = await response.json() as { spanId: string; traceId: string }[];
+  const result = (await response.json()) as { spanId: string; traceId: string }[];
   const traceIds = new Set<string>();
   const spanIds = new Set<string>();
-  result.forEach(r => {
+  result.forEach((r) => {
     traceIds.add(r.traceId);
     spanIds.add(r.spanId);
   });
   return { traceIds, spanIds };
+};
+
+export const getLabelMetricsOverTime = async (
+  projectId: string,
+  groupByInterval: GroupByInterval,
+  timeRange: TimeRange
+): Promise<MetricTimeValue<number>[]> => {
+  const chRoundTime = truncateTimeMap[groupByInterval];
+
+  const baseQuery = `WITH base AS (
+    SELECT
+      ${chRoundTime}(created_at) as time,
+                       count(*) as value
+                     FROM default.labels
+                     WHERE project_id = {projectId: UUID}`;
+
+  const query = addTimeRangeToQuery(baseQuery, timeRange, "created_at");
+
+  let groupByStatement: string;
+
+  if ("pastHours" in timeRange) {
+    if (timeRange.pastHours !== "all") {
+      groupByStatement = groupByTimeRelativeStatement(timeRange.pastHours, groupByInterval, "time");
+    } else {
+      const bounds = await getTimeBounds(projectId, "default.labels", "created_at");
+      groupByStatement = groupByTimeAbsoluteStatement(bounds[0], bounds[1], groupByInterval, "time");
+    }
+  } else {
+    groupByStatement = groupByTimeAbsoluteStatement(timeRange.start, timeRange.end, groupByInterval, "time");
+  }
+
+  const finalQuery = `${query} 
+    GROUP BY time)
+  SELECT 
+    time,
+    toUInt32(any(COALESCE(value, 0))) as value
+  FROM base
+  ${groupByStatement}`;
+
+  const result = await clickhouseClient.query({
+    query: finalQuery,
+    format: "JSONEachRow",
+    query_params: {
+      projectId,
+    },
+  });
+
+  return await result.json();
 };

@@ -1,81 +1,71 @@
-'use client';
+"use client";
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 
-import { useProjectContext } from '@/contexts/project-context';
-import { GroupByInterval } from '@/lib/clickhouse/modifiers';
-import { SpanMetric, SpanMetricGroupBy } from '@/lib/clickhouse/spans';
-import { AggregationFunction } from '@/lib/clickhouse/utils';
-import { getGroupByInterval } from '@/lib/utils';
+import { useProjectContext } from "@/contexts/project-context";
+import { GroupByInterval } from "@/lib/clickhouse/modifiers";
+import { SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/spans";
+import { AggregationFunction } from "@/lib/clickhouse/utils";
+import { getGroupByInterval } from "@/lib/utils";
 
-import DateRangeFilter from '../ui/date-range-filter';
-import { GroupByPeriodSelect } from '../ui/group-by-period-select';
-import Header from '../ui/header';
-import { ScrollArea } from '../ui/scroll-area';
-import { SpanStatChart } from './span-stat-chart';
-import SpanSummaryChart from './span-summary-chart';
-import { TraceStatChart } from './trace-stat-chart';
+import DateRangeFilter from "../ui/date-range-filter";
+import { GroupByPeriodSelect } from "../ui/group-by-period-select";
+import Header from "../ui/header";
+import { ScrollArea } from "../ui/scroll-area";
+import { LabelStatChart } from "./labels-stat-chart";
+import { SpanStatChart } from "./span-stat-chart";
+import SpanSummaryChart from "./span-summary-chart";
+import { TraceStatChart } from "./trace-stat-chart";
 
-const AGGREGATIONS: AggregationFunction[] = [
-  'AVG',
-  'MEDIAN',
-  'SUM',
-  'MIN',
-  'MAX',
-  'p90',
-  'p95',
-  'p99'
-];
-
+const AGGREGATIONS: AggregationFunction[] = ["AVG", "MEDIAN", "SUM", "MIN", "MAX", "p90", "p95", "p99"];
 
 const SPAN_SUMMARY_CHARTS = [
   {
-    title: 'Spans',
+    title: "Spans",
     metric: SpanMetric.Count,
     groupBy: SpanMetricGroupBy.Name,
   },
   {
-    title: 'Cost',
+    title: "Cost",
     metric: SpanMetric.TotalCost,
     groupBy: SpanMetricGroupBy.Model,
   },
   {
-    title: 'Tokens',
+    title: "Tokens",
     metric: SpanMetric.TotalTokens,
     groupBy: SpanMetricGroupBy.Model,
   },
   {
-    title: 'Spans by model',
+    title: "Spans by model",
     metric: SpanMetric.Count,
     groupBy: SpanMetricGroupBy.Model,
-  }
+  },
 ];
 
 export default function Dashboard() {
   const { projectId } = useProjectContext();
 
   const searchParams = new URLSearchParams(useSearchParams().toString());
-  const pastHours = searchParams.get('pastHours') as string | undefined;
-  const startDate = searchParams.get('startDate') as string | undefined;
-  const endDate = searchParams.get('endDate') as string | undefined;
+  const pastHours = searchParams.get("pastHours") as string | undefined;
+  const startDate = searchParams.get("startDate") as string | undefined;
+  const endDate = searchParams.get("endDate") as string | undefined;
   const groupByInterval =
-    searchParams.get('groupByInterval') ??
-    getGroupByInterval(pastHours, startDate, endDate, undefined);
+    searchParams.get("groupByInterval") ?? getGroupByInterval(pastHours, startDate, endDate, undefined);
 
   const router = useRouter();
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const sp = new URLSearchParams(searchParams);
-      sp.set('pastHours', '24');
+      sp.set("pastHours", "24");
       router.replace(`/project/${projectId}/dashboard?${sp.toString()}`);
     }
   }, []);
 
   return (
     <>
-      <Header path={'dashboard'}>
+      <Header path={"dashboard"}>
         <div className="h-12 flex space-x-2 items-center">
           <DateRangeFilter />
           <GroupByPeriodSelect />
@@ -90,9 +80,9 @@ export default function Dashboard() {
                   {...chart}
                   className="w-full"
                   projectId={projectId}
-                  pastHours={pastHours ?? ''}
-                  startDate={startDate ?? ''}
-                  endDate={endDate ?? ''}
+                  pastHours={pastHours ?? ""}
+                  startDate={startDate ?? ""}
+                  endDate={endDate ?? ""}
                   addDollarSign={chart.metric === SpanMetric.TotalCost}
                 />
               </div>
@@ -106,9 +96,9 @@ export default function Dashboard() {
                 defaultAggregation="p90"
                 aggregations={AGGREGATIONS}
                 groupBy={SpanMetricGroupBy.Model}
-                pastHours={pastHours ?? ''}
-                startDate={startDate ?? ''}
-                endDate={endDate ?? ''}
+                pastHours={pastHours ?? ""}
+                startDate={startDate ?? ""}
+                endDate={endDate ?? ""}
                 groupByInterval={groupByInterval as GroupByInterval}
               />
             </div>
@@ -121,9 +111,9 @@ export default function Dashboard() {
                 aggregations={AGGREGATIONS}
                 defaultAggregation="SUM"
                 groupBy={SpanMetricGroupBy.Model}
-                pastHours={pastHours ?? ''}
-                startDate={startDate ?? ''}
-                endDate={endDate ?? ''}
+                pastHours={pastHours ?? ""}
+                startDate={startDate ?? ""}
+                endDate={endDate ?? ""}
                 groupByInterval={groupByInterval as GroupByInterval}
               />
             </div>
@@ -136,9 +126,9 @@ export default function Dashboard() {
                 aggregations={AGGREGATIONS}
                 defaultAggregation="SUM"
                 groupBy={SpanMetricGroupBy.Model}
-                pastHours={pastHours ?? ''}
-                startDate={startDate ?? ''}
-                endDate={endDate ?? ''}
+                pastHours={pastHours ?? ""}
+                startDate={startDate ?? ""}
+                endDate={endDate ?? ""}
                 groupByInterval={groupByInterval as GroupByInterval}
               />
             </div>
@@ -198,6 +188,17 @@ export default function Dashboard() {
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
                 addDollarSign={true}
+              />
+            </div>
+            <div className="col-span-3 h-72">
+              <LabelStatChart
+                title="Labels Frequency"
+                projectId={projectId}
+                pastHours={pastHours}
+                startDate={startDate}
+                endDate={endDate}
+                defaultGroupByInterval={groupByInterval}
+                showTotal
               />
             </div>
           </div>

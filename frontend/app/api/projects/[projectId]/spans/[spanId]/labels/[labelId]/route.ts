@@ -1,11 +1,12 @@
-import { NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { and, eq } from "drizzle-orm";
+import { NextRequest } from "next/server";
 
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
+import { clickhouseClient } from "@/lib/clickhouse/client";
+import { db } from "@/lib/db/drizzle";
+import { labels } from "@/lib/db/migrations/schema";
 
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   props: { params: Promise<{ projectId: string; spanId: string; labelId: string }> }
 ): Promise<Response> {
   const params = await props.params;
@@ -13,18 +14,21 @@ export async function DELETE(
   const spanId = params.spanId;
   const labelId = params.labelId;
 
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+  await db
+    .delete(labels)
+    .where(and(eq(labels.id, labelId), eq(labels.spanId, spanId), eq(labels.projectId, projectId)));
 
-  return await fetcher(
-    `/projects/${projectId}/spans/${spanId}/labels/${labelId}?` +
-      req.nextUrl.searchParams.toString(),
-    {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${user.apiKey}`
-      }
-    }
-  );
+  await clickhouseClient.exec({
+    query: `
+      DELETE FROM default.labels 
+      WHERE id = {id: UUID} AND span_id = {span_id: UUID} AND project_id = {project_id: UUID}
+    `,
+    query_params: {
+      id: labelId,
+      span_id: spanId,
+      project_id: projectId,
+    },
+  });
+
+  return new Response("Span label deleted successfully", { status: 200 });
 }

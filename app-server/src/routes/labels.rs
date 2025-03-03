@@ -128,12 +128,11 @@ pub async fn update_span_label(
     let (project_id, span_id) = path.into_inner();
     let req = req.into_inner();
     let class_id = req.class_id;
-    let value = req.value;
     let reasoning = req.reasoning;
     let source = req.source;
     let clickhouse = clickhouse.into_inner().as_ref().clone();
-    let datapoint_id = req.datapoint_id;
-    let score_name = req.score_name;
+    // let datapoint_id = req.datapoint_id;
+    // let score_name = req.score_name;
 
     // evaluator was triggered from the UI
     // so the source is AUTO
@@ -148,17 +147,6 @@ pub async fn update_span_label(
         return Ok(HttpResponse::BadRequest().body("Label class not found"));
     };
 
-    let value_map =
-        serde_json::from_value::<HashMap<String, f64>>(label_class.value_map).unwrap_or_default();
-
-    let Some(value_key) = value_map
-        .iter()
-        .find(|(_, val)| *val == &value)
-        .map(|(key, _)| key.clone())
-    else {
-        return Ok(HttpResponse::BadRequest().body("Invalid value"));
-    };
-
     let id = Uuid::new_v4();
     let label = crate::labels::insert_or_update_label(
         &db.pool,
@@ -169,25 +157,24 @@ pub async fn update_span_label(
         class_id,
         user_email,
         label_class.name,
-        value_key,
-        value,
         source,
         reasoning,
     )
     .await?;
 
-    if let Some(datapoint_id) = datapoint_id {
-        crate::evaluations::add_evaluation_score_from_label(
-            db.into_inner(),
-            clickhouse.clone(),
-            project_id,
-            label.id,
-            datapoint_id,
-            value,
-            score_name.unwrap_or_default(),
-        )
-        .await?;
-    }
+    // todo!()
+    // if let Some(datapoint_id) = datapoint_id {
+    //     crate::evaluations::add_evaluation_score_from_label(
+    //         db.into_inner(),
+    //         clickhouse.clone(),
+    //         project_id,
+    //         label.id,
+    //         datapoint_id,
+    //         value,
+    //         score_name.unwrap_or_default(),
+    //     )
+    //     .await?;
+    // }
 
     Ok(HttpResponse::Ok().json(label))
 }

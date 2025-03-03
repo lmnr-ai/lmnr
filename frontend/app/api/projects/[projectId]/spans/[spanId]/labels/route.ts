@@ -1,26 +1,35 @@
-import { getServerSession } from 'next-auth';
+import { desc, eq } from "drizzle-orm";
+import { getServerSession } from "next-auth";
 
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
+import { authOptions } from "@/lib/auth";
+import { clickhouseClient } from "@/lib/clickhouse/client";
+import { dateToNanoseconds } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { labelClasses, labels, users } from "@/lib/db/migrations/schema";
 
 export async function GET(
-  req: Request,
+  _req: Request,
   props: { params: Promise<{ projectId: string; spanId: string }> }
 ): Promise<Response> {
   const params = await props.params;
-  const projectId = params.projectId;
   const spanId = params.spanId;
 
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+  const res = await db
+    .select({
+      id: labels.id,
+      createdAt: labels.createdAt,
+      classId: labels.classId,
+      spanId: labels.spanId,
+      name: labelClasses.name,
+      email: users.email,
+    })
+    .from(labels)
+    .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
+    .leftJoin(users, eq(labels.userId, users.id))
+    .where(eq(labels.spanId, spanId))
+    .orderBy(desc(labels.createdAt));
 
-  return await fetcher(`/projects/${projectId}/spans/${spanId}/labels`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    }
-  });
+  return new Response(JSON.stringify(res), { status: 200 });
 }
 
 export async function POST(
@@ -33,20 +42,36 @@ export async function POST(
   const session = await getServerSession(authOptions);
   const user = session!.user;
 
-  const body = await req.json();
+  const body = (await req.json()) as { reasoning?: string; classId: string; name: string };
 
-  if (body.scoreName) {
-    body.scoreName = body.scoreName.trim() + (user.name ? ` (${user.name})` : '');
+  const [res] = await db
+    .insert(labels)
+    .values({
+      projectId,
+      classId: body.classId,
+      spanId: spanId,
+      userId: user.id,
+      reasoning: body.reasoning,
+    })
+    .returning();
+
+  if (res?.id) {
+    await clickhouseClient.insert({
+      table: "default.labels",
+      format: "JSONEachRow",
+      values: [
+        {
+          class_id: body.classId,
+          span_id: spanId,
+          id: res.id,
+          name: body.name,
+          project_id: projectId,
+          label_source: 0,
+          created_at: dateToNanoseconds(new Date()),
+        },
+      ],
+    });
   }
 
-  body.userEmail = user.email;
-
-  return await fetcher(`/projects/${projectId}/spans/${spanId}/labels`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    },
-    body: JSON.stringify(body)
-  });
+  return new Response(JSON.stringify(res), { status: 200 });
 }
