@@ -42,7 +42,7 @@ export async function POST(
   const session = await getServerSession(authOptions);
   const user = session!.user;
 
-  const body = (await req.json()) as { reasoning?: string; classId: string };
+  const body = (await req.json()) as { reasoning?: string; classId: string; name: string };
 
   const [res] = await db
     .insert(labels)
@@ -64,9 +64,10 @@ export async function POST(
           class_id: body.classId,
           span_id: spanId,
           id: res.id,
+          name: body.name,
           project_id: projectId,
           label_source: 0,
-          createdAt: dateToNanoseconds(new Date()),
+          created_at: dateToNanoseconds(new Date()),
         },
       ],
     });

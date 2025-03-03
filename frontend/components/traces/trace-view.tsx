@@ -103,9 +103,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
 
     // Sort child spans for each parent by start time
     for (const parentId in childSpans) {
-      childSpans[parentId].sort((a, b) => {
-        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-      });
+      childSpans[parentId].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     }
 
     setChildSpans(childSpans);
