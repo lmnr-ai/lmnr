@@ -17,17 +17,14 @@ interface AddLabelProps {
 export function AddLabel({ span, onClose }: AddLabelProps) {
   const { projectId } = useProjectContext();
   const [isSaving, setIsSaving] = useState(false);
-  const [showEvaluator, setShowEvaluator] = useState(false);
+  // const [showEvaluator, setShowEvaluator] = useState(false);
 
   const [labelClass, setLabelClass] = useState<LabelClass>({
     id: "",
     name: "",
     projectId: projectId,
     createdAt: "",
-    valueMap: {
-      False: 0,
-      True: 1,
-    },
+    color: "",
     description: null,
     evaluatorRunnableGraph: null,
     pipelineVersionId: null,

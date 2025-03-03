@@ -166,13 +166,13 @@ export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEval
                   </TabsContent>
                   <div className="flex flex-col space-y-2">
                     <Label className="text-secondary-foreground">Expected output</Label>
-                    <div className="flex space-x-1">
-                      {Object.keys(labelClass.valueMap).map((value, index) => (
-                        <div key={index} className="border rounded-md p-0.5 px-2 text-sm">
-                          {value}
-                        </div>
-                      ))}
-                    </div>
+                    {/*<div className="flex space-x-1">*/}
+                    {/*  {Object.keys(labelClass.valueMap).map((value, index) => (*/}
+                    {/*    <div key={index} className="border rounded-md p-0.5 px-2 text-sm">*/}
+                    {/*      {value}*/}
+                    {/*    </div>*/}
+                    {/*  ))}*/}
+                    {/*</div>*/}
                   </div>
                   <div className="flex flex-col flex-none space-y-2">
                     <div className="">
@@ -241,7 +241,7 @@ Provide your reasoning for the assessment, explaining why you believe the output
 
   const [structuredOutputSchema, setStructuredOutputSchema] = useState<string>(`class Output {
   reasoning string @description("Explanation of why the output does or does not follow the instruction")
-  value string @description("one of the following values: ${Object.keys(labelClass.valueMap).join(", ")}")
+  value string @description("one of the following values: -")
 }`);
 
   useEffect(() => {
