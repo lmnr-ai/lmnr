@@ -1,7 +1,7 @@
-import { CSSProperties, useMemo } from "react";
-import { AutoSizer, CellMeasurer, CellMeasurerCache, List } from "react-virtualized";
-import { MeasuredCellParent } from "react-virtualized/dist/es/CellMeasurer";
+import { uniqueId } from "lodash";
+import { useMemo } from "react";
 
+import ImageWithPreview from "@/components/playground/image-with-preview";
 import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
 import { isStringType } from "@/lib/utils";
 
@@ -25,14 +25,20 @@ interface ContentPartImageProps {
 }
 
 function ContentPartImage({ b64_data }: ContentPartImageProps) {
-  return <img src={`data:image/png;base64,${b64_data}`} alt="span image" />;
+  return (
+    <ImageWithPreview
+      src={`data:image/png;base64,${b64_data}`}
+      className="object-cover rounded-sm size-16 ml-2"
+      alt="span image"
+    />
+  );
 }
 
 function ContentPartImageUrl({ url }: { url: string }) {
   // if url is a relative path, add ?payloadType=image to the end of the url
   // because it implies that we stored the image in S3
   if (url.startsWith("/")) url += "?payloadType=image";
-  return <img src={url} alt="span image" />;
+  return <ImageWithPreview src={url} className="object-cover rounded-sm size-16 ml-2" alt="span image" />;
 }
 
 function ContentPartDocumentUrl({ url }: { url: string }) {
@@ -87,68 +93,21 @@ interface ChatMessageListTabProps {
 }
 
 export default function ChatMessageListTab({ messages, presetKey, reversed }: ChatMessageListTabProps) {
+  // Memoize messages to prevent unnecessary re-renders
   const memoizedMessages = useMemo(() => (reversed ? [...messages].reverse() : messages), [messages, reversed]);
 
-  const cache = useMemo(
-    () =>
-      new CellMeasurerCache({
-        fixedWidth: true,
-        defaultHeight: 100,
-        minHeight: 75,
-      }),
-    []
-  );
-
-  const renderRow = ({
-    index,
-    key,
-    parent,
-    style,
-  }: {
-    index: number;
-    key: string;
-    parent: MeasuredCellParent;
-    style?: CSSProperties;
-  }) => {
-    const message = memoizedMessages[index];
-
-    return (
-      <CellMeasurer cache={cache} columnIndex={0} key={key} parent={parent} rowIndex={index}>
-        {({ measure }) => (
-          <div onLoad={measure} className="pb-4" style={style}>
-            <div className="flex flex-col border rounded" style={{ contain: "content" }}>
-              <div className="font-medium text-sm text-secondary-foreground border-b p-2">
-                {message.role.toUpperCase()}
-              </div>
-              <div>
-                {isStringType(message.content) ? (
-                  <ContentPartText text={message.content} presetKey={`${presetKey}-${index}`} />
-                ) : (
-                  <ContentParts contentParts={message.content} />
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </CellMeasurer>
-    );
-  };
-
   return (
-    <div className="w-full h-[calc(100vh-200px)]">
-      <AutoSizer>
-        {({ width, height }) => (
-          <List
-            width={width}
-            height={height}
-            rowCount={memoizedMessages.length}
-            rowHeight={cache.rowHeight}
-            rowRenderer={renderRow}
-            overscanRowCount={3}
-            deferredMeasurementCache={cache}
-          />
-        )}
-      </AutoSizer>
+    <div className="w-full flex flex-col space-y-4">
+      {memoizedMessages.map((message, index) => (
+        <div key={uniqueId()} className="flex flex-col border rounded" style={{ contain: "content" }}>
+          <div className="font-medium text-sm text-secondary-foreground border-b p-2">{message.role.toUpperCase()}</div>
+          {isStringType(message.content) ? (
+            <ContentPartText text={message.content} presetKey={`${presetKey}-${index}`} />
+          ) : (
+            <ContentParts contentParts={message.content} />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

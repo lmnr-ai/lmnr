@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 interface ImageWithPreviewProps {
   src: string;
@@ -11,9 +12,9 @@ interface ImageWithPreviewProps {
 const ImageWithPreview = ({ src, className, alt }: ImageWithPreviewProps) => (
   <Dialog>
     <DialogTrigger>
-      <img className={className} alt={alt} src={src} />
+      <img className={cn("cursor-pointer hover:opacity-90", className)} alt={alt} src={src} />
     </DialogTrigger>
-    <DialogContent>
+    <DialogContent className="max-w-none w-fit overflow-hidden">
       <DialogTitle className="flex justify-between items-center">
         <span>Image Preview</span>
         <DialogClose asChild>
@@ -22,9 +23,7 @@ const ImageWithPreview = ({ src, className, alt }: ImageWithPreviewProps) => (
           </Button>
         </DialogClose>
       </DialogTitle>
-      <div className="max-h-[80vh] max-w-[80vw] overflow-auto">
-        <img className="object-cover rounded-sm" alt={alt} src={src} />
-      </div>
+      <img className="w-auto h-auto rounded-sm max-w-[80vw] max-h-[80vh]" alt={alt} src={src} />
     </DialogContent>
   </Dialog>
 );
