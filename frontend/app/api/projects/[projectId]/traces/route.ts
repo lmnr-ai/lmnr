@@ -133,7 +133,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const labelFilters = urlParamFilters
     .filter((filter) => filter.column === "labels" && filter.operator === "eq")
     .map((filter) => {
-      const [labelName] = filter.value.split(/=(.*)/);
+      const labelName = filter.value.split(/=(.*)/)?.[0];
       return inArray(
         sql`id`,
         db
