@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use code_executor_grpc::{chat_message_content, chat_message_content_part, StringList};
+use enum_dispatch::enum_dispatch;
 
 use crate::{
     language_model::{
@@ -12,21 +12,31 @@ use crate::{
     pipeline::nodes::{HandleType, NodeInput},
 };
 
-use self::code_executor_grpc::{
-    arg, chat_message_list, execute_code_response, Arg,
-    ChatMessageContent as ArgChatMessageContent,
+use code_executor_grpc::{
+    arg, chat_message_content, chat_message_content_part, chat_message_list, execute_code_response,
+    Arg, ChatMessageContent as ArgChatMessageContent,
     ChatMessageContentPart as ArgChatMessageContentPart, ChatMessageImage as ArgChatMessageImage,
     ChatMessageImageUrl as ArgChatMessageImageUrl, ChatMessageList,
     ChatMessageText as ArgChatMessageText, ContentPartList as ArgContentPartList,
-    ExecuteCodeResponse,
+    ExecuteCodeResponse, StringList,
 };
+
+use code_executor_impl::CodeExecutorImpl;
+use mock::MockCodeExecutor;
 
 pub mod code_executor_grpc;
 pub mod code_executor_impl;
 pub mod mock;
 
+#[enum_dispatch]
+pub enum CodeExecutor {
+    Grpc(CodeExecutorImpl),
+    Mock(MockCodeExecutor),
+}
+
 #[async_trait]
-pub trait CodeExecutor: Sync + Send {
+#[enum_dispatch(CodeExecutor)]
+pub trait CodeExecutorTrait {
     async fn execute(
         &self,
         code: &String,
@@ -63,6 +73,28 @@ impl Into<ArgChatMessageContent> for ChatMessageContent {
                                     ArgChatMessageContentPart {
                                         value: Some(chat_message_content_part::Value::ImageUrl(
                                             ArgChatMessageImageUrl { url: image_url.url },
+                                        )),
+                                    }
+                                }
+                                // FIXME: Remove this once we update the code executor
+                                ChatMessageContentPart::Document(document) => {
+                                    ArgChatMessageContentPart {
+                                        value: Some(chat_message_content_part::Value::Text(
+                                            ArgChatMessageText {
+                                                text: serde_json::json!(document.source.to_owned())
+                                                    .to_string(),
+                                            },
+                                        )),
+                                    }
+                                }
+                                // FIXME: Remove this once we update the code executor
+                                ChatMessageContentPart::DocumentUrl(document_url) => {
+                                    ArgChatMessageContentPart {
+                                        value: Some(chat_message_content_part::Value::Text(
+                                            ArgChatMessageText {
+                                                text: serde_json::json!(document_url.url)
+                                                    .to_string(),
+                                            },
                                         )),
                                     }
                                 }

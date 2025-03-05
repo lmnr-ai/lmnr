@@ -1,148 +1,13 @@
 use super::{GetMetricsQueryParams, ResponseResult};
-use super::{PaginatedGetQueryParams, PaginatedResponse, DEFAULT_PAGE_SIZE};
 use crate::ch::utils::get_bounds;
-use crate::ch::MetricTimeValue;
-use crate::features::{is_feature_enabled, Feature};
 use crate::{
     ch::{self, modifiers::GroupByInterval, Aggregation},
-    db::{
-        self,
-        events::Event,
-        modifiers::{DateRange, Filter, RelativeDateInterval},
-        spans::Span,
-        trace::{Session, Trace, TraceWithTopSpan},
-        DB,
-    },
+    db::modifiers::{DateRange, RelativeDateInterval},
 };
-use actix_web::{get, post, web, HttpResponse};
+use actix_web::{post, web, HttpResponse};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde::Deserialize;
 use uuid::Uuid;
-
-#[get("traces")]
-pub async fn get_traces(
-    path: web::Path<Uuid>,
-    db: web::Data<DB>,
-    query_params: web::Query<PaginatedGetQueryParams>,
-) -> ResponseResult {
-    let project_id = path.into_inner();
-    let query_params = query_params.into_inner();
-    let limit = query_params.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
-    let offset = limit * query_params.page_number;
-    let filters = Filter::from_url_params(query_params.filter);
-    let mut filters_vec = filters.unwrap_or_default();
-    filters_vec.push(Filter {
-        filter_column: "trace_type".to_string(),
-        filter_operator: db::modifiers::FilterOperator::Eq,
-        filter_value: Value::String("DEFAULT".to_string()),
-    });
-    let date_range = query_params.date_range;
-    let text_search_filter = query_params.search;
-    let db = db.into_inner().clone();
-    let pool = db.pool.clone();
-    let filters_vec_clone = filters_vec.clone();
-    let date_range_clone = date_range.clone();
-    let text_search_filter_clone = text_search_filter.clone();
-
-    let get_traces_task = tokio::spawn(async move {
-        db::trace::get_traces(
-            &pool,
-            project_id,
-            limit,
-            offset,
-            &Some(filters_vec_clone),
-            &date_range_clone,
-            text_search_filter_clone,
-        )
-        .await
-    });
-    let count_traces_task = tokio::spawn(async move {
-        let total_count = db::trace::count_traces(
-            &db.pool,
-            project_id,
-            &Some(filters_vec),
-            &date_range,
-            text_search_filter,
-        )
-        .await
-        .unwrap_or(0) as u64;
-        // this is checked in the frontend, and we temporarily return true here,
-        // while we migrate other `PaginatedGet` queries to drizzle
-        let any_in_project = true;
-        (total_count, any_in_project)
-    });
-
-    let (traces_result, count_result) = tokio::join!(get_traces_task, count_traces_task);
-    let traces = traces_result.map_err(|e| anyhow::anyhow!("Failed to get traces: {:?}", e))??;
-
-    let (total_count, any_in_project) =
-        count_result.map_err(|e| anyhow::anyhow!("Failed to count traces: {:?}", e))?;
-
-    let response = PaginatedResponse::<TraceWithTopSpan> {
-        total_count,
-        items: traces,
-        any_in_project,
-    };
-
-    Ok(HttpResponse::Ok().json(response))
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TraceWithSpanPreviews {
-    #[serde(flatten)]
-    trace: Trace,
-    spans: Vec<Span>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GetTraceParams {
-    #[serde(default)]
-    search: Option<String>,
-}
-
-#[get("traces/{trace_id}")]
-pub async fn get_single_trace(
-    params: web::Path<(Uuid, Uuid)>,
-    db: web::Data<DB>,
-    query_params: web::Query<GetTraceParams>,
-) -> ResponseResult {
-    let (project_id, trace_id) = params.into_inner();
-    let search = query_params.search.clone();
-
-    let trace = db::trace::get_single_trace(&db.pool, trace_id).await?;
-
-    let span_previews = db::spans::get_trace_spans(&db.pool, trace_id, project_id, search).await?;
-
-    let trace_with_spans = TraceWithSpanPreviews {
-        trace,
-        spans: span_previews,
-    };
-
-    Ok(HttpResponse::Ok().json(trace_with_spans))
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SpanWithEvents {
-    #[serde(flatten)]
-    span: Span,
-    events: Vec<Event>,
-}
-
-#[get("spans/{span_id}")]
-pub async fn get_single_span(params: web::Path<(Uuid, Uuid)>, db: web::Data<DB>) -> ResponseResult {
-    let (project_id, span_id) = params.into_inner();
-
-    let span = db::spans::get_span(&db.pool, span_id, project_id).await?;
-    let events = db::events::get_events_for_span(&db.pool, span_id).await?;
-
-    let span_with_events = SpanWithEvents { span, events };
-
-    Ok(HttpResponse::Ok().json(span_with_events))
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -184,10 +49,6 @@ pub async fn get_traces_metrics(
             .unwrap_or(DateRange::Relative(RelativeDateInterval {
                 past_hours: "all".to_string(),
             }));
-
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(HttpResponse::Ok().json(Vec::<MetricTimeValue<f64>>::new()));
-    }
 
     match defaulted_range {
         DateRange::Relative(interval) => {
@@ -233,35 +94,6 @@ pub async fn get_traces_metrics(
             .await
         }
     }
-}
-
-#[get("sessions")]
-pub async fn get_sessions(
-    db: web::Data<DB>,
-    project_id: web::Path<Uuid>,
-    params: web::Query<PaginatedGetQueryParams>,
-) -> ResponseResult {
-    let project_id = project_id.into_inner();
-    let date_range = &params.date_range;
-    let limit = params.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
-    let offset = limit * (params.page_number);
-    let filters = Filter::from_url_params(params.filter.clone());
-    let sessions =
-        db::trace::get_sessions(&db.pool, project_id, limit, offset, &filters, date_range).await?;
-
-    let total_count =
-        db::trace::count_sessions(&db.pool, project_id, &filters, date_range).await? as u64;
-    let any_in_project = if total_count == 0 {
-        db::trace::count_all_sessions_in_project(&db.pool, project_id).await? > 0
-    } else {
-        true
-    };
-    let response = PaginatedResponse::<Session> {
-        total_count,
-        items: sessions,
-        any_in_project,
-    };
-    Ok(HttpResponse::Ok().json(response))
 }
 
 async fn get_metrics_relative_time(

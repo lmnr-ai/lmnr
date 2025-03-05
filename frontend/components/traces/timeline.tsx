@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getDuration } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
@@ -8,6 +8,9 @@ import { SPAN_TYPE_TO_COLOR } from '@/lib/traces/utils';
 interface TimelineProps {
   spans: Span[];
   childSpans: { [key: string]: Span[] };
+  collapsedSpans: Set<string>;
+  browserSessionTime: number | null;
+  containerHeight: number;
 }
 
 interface SegmentEvent {
@@ -25,31 +28,42 @@ interface Segment {
 
 const HEIGHT = 32;
 
-export default function Timeline({ spans, childSpans }: TimelineProps) {
+export default function Timeline({
+  spans,
+  childSpans,
+  collapsedSpans,
+  browserSessionTime,
+  containerHeight
+}: TimelineProps) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [timeIntervals, setTimeIntervals] = useState<string[]>([]);
+  const [startTime, setStartTime] = useState<number>(0);
+  const [timelineWidthInMilliseconds, setTimelineWidthInMilliseconds] = useState<number>(0);
+
   const ref = useRef<HTMLDivElement>(null);
 
-  const traverse = (
-    span: Span,
-    childSpans: { [key: string]: Span[] },
-    orderedSpands: Span[]
-  ) => {
-    if (!span) {
-      return;
-    }
-
-    orderedSpands.push(span);
-
-    if (childSpans[span.spanId]) {
-      for (const child of childSpans[span.spanId]) {
-        traverse(child, childSpans, orderedSpands);
+  const traverse = useCallback(
+    (span: Span, childSpans: { [key: string]: Span[] }, orderedSpans: Span[]) => {
+      if (!span) {
+        return;
       }
-    }
-  };
+      orderedSpans.push(span);
+
+      if (collapsedSpans.has(span.spanId)) {
+        return;
+      }
+
+      if (childSpans[span.spanId]) {
+        for (const child of childSpans[span.spanId]) {
+          traverse(child, childSpans, orderedSpans);
+        }
+      }
+    },
+    [collapsedSpans]
+  );
 
   useEffect(() => {
-    if (!ref.current || childSpans === null) {
+    if (!ref.current || childSpans === null || spans.length === 0) {
       return;
     }
 
@@ -60,44 +74,32 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
     }
 
     const orderedSpans: Span[] = [];
-    const topLevelSpans = spans.filter((span) => span.parentSpanId === null);
+    const topLevelSpans = spans
+      .filter((span) => span.parentSpanId === null)
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
     for (const span of topLevelSpans) {
       traverse(span, childSpans, orderedSpans);
     }
 
-    let startTime = null;
-    let endTime = null;
-
-    for (const span of spans) {
-      const spanStartTime = new Date(span.startTime);
-      const spanEndTime = new Date(span.endTime);
-
-      if (!startTime) {
-        startTime = spanStartTime;
-      }
-
-      if (!endTime) {
-        endTime = spanEndTime;
-      }
-
-      if (spanStartTime < startTime) {
-        startTime = spanStartTime;
-      }
-
-      if (spanEndTime > endTime) {
-        endTime = spanEndTime;
-      }
-    }
-
-    if (!startTime || !endTime) {
+    if (orderedSpans.length === 0) {
       return;
     }
 
-    const totalDuration = endTime.getTime() - startTime.getTime();
+    let startTime = Infinity;
+    let endTime = -Infinity;
 
-    const upperInterval = Math.ceil(totalDuration / 1000);
-    const unit = upperInterval / 10;
+    for (const span of orderedSpans) {
+      startTime = Math.min(startTime, new Date(span.startTime).getTime());
+      endTime = Math.max(endTime, new Date(span.endTime).getTime());
+    }
+
+    setStartTime(startTime);
+
+    const totalDuration = endTime - startTime;
+
+    const upperIntervalInSeconds = Math.ceil(totalDuration / 1000);
+    const unit = upperIntervalInSeconds / 10;
 
     const timeIntervals = [];
     for (let i = 0; i < 10; i++) {
@@ -105,25 +107,25 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
     }
     setTimeIntervals(timeIntervals);
 
+    const upperIntervalInMilliseconds = upperIntervalInSeconds * 1000;
+    setTimelineWidthInMilliseconds(upperIntervalInMilliseconds);
+
     const segments: Segment[] = [];
 
     for (const span of orderedSpans) {
-      const duration = getDuration(span.startTime, span.endTime) / 1000;
+      const spanDuration = getDuration(span.startTime, span.endTime);
 
-      const width = (duration / upperInterval) * 100;
-      const left =
-        (getDuration(startTime.toISOString(), span.startTime) /
-          1000 /
-          upperInterval) *
-        100;
+      const width = (spanDuration / upperIntervalInMilliseconds) * 100;
+
+      const left = (new Date(span.startTime).getTime() - startTime) / upperIntervalInMilliseconds * 100;
 
       const segmentEvents = [] as SegmentEvent[];
+
       for (const event of span.events) {
         const eventLeft =
           ((new Date(event.timestamp).getTime() -
             new Date(span.startTime).getTime()) /
-            1000 /
-            duration) *
+            upperIntervalInMilliseconds) *
           100;
 
         segmentEvents.push({
@@ -142,21 +144,31 @@ export default function Timeline({ spans, childSpans }: TimelineProps) {
     }
 
     setSegments(segments);
-  }, [spans, childSpans]);
+  }, [spans, childSpans, collapsedSpans]);
 
   return (
-    <div className="flex flex-col h-full w-full" ref={ref}>
-      <div className="bg-background flex text-xs w-full border-b z-40 sticky top-0 h-12 px-4">
-        {timeIntervals.map((interval, index) => (
-          <div
-            className="border-l text-secondary-foreground pl-1 flex items-center min-w-12 relative z-0"
-            style={{ width: '10%' }}
-            key={index}
-          >
-            {interval}
-          </div>
-        ))}
-        <div className="border-r" />
+    <div className="flex flex-col h-full w-full relative" ref={ref}>
+      <div className="bg-background flex text-xs w-full border-b z-30 sticky top-0 h-10 px-4">
+        <div className="flex w-full relative">
+          {timeIntervals.map((interval, index) => (
+            <div
+              className="border-l text-secondary-foreground pl-1 flex items-center min-w-12 relative z-0"
+              style={{ width: '10%' }}
+              key={index}
+            >
+              {interval}
+            </div>
+          ))}
+          <div className="border-r" />
+          {browserSessionTime && (
+            <div className="absolute top-0 bg-primary z-50 w-[1px]"
+              style={{
+                left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + '%',
+                height: containerHeight
+              }}
+            />
+          )}
+        </div>
       </div>
       <div className="px-4">
         <div className="flex flex-col space-y-1 w-full pt-[6px] relative">

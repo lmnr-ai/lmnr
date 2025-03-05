@@ -26,10 +26,9 @@ import AvatarMenu from '../user/avatar-menu';
 
 interface ProjectNavBarProps {
   projectId: string;
-  fullBuild: boolean;
 }
 
-export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarProps) {
+export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
   const pathname = usePathname();
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useState<boolean>(false);
@@ -97,13 +96,6 @@ export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarPro
     }
   ];
 
-  const navbarOptions = allOptions.filter(option => {
-    if (!fullBuild) {
-      return !['dashboard'].includes(option.name);
-    }
-    return true;
-  });
-
   return (
     <Sidebar className="border-r" collapsible='icon'>
       <SidebarHeader className="h-12 bg-background">
@@ -118,7 +110,7 @@ export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarPro
       </SidebarHeader>
       <SidebarContent className="pt-2 bg-background">
         <SidebarMenu className={cn(open || openMobile ? undefined : 'justify-center items-center flex')}>
-          {navbarOptions.map((option, i) => (
+          {allOptions.map((option, i) => (
             <SidebarMenuItem key={i} className='h-7'>
               <SidebarMenuButton
                 asChild
@@ -147,7 +139,7 @@ export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarPro
               <X size={16} />
             </button>
             <p className="text-xs text-muted-foreground mb-2">
-              Laminar is fully open source
+                  Laminar is fully open source
             </p>
             <a
               href="https://github.com/lmnr-ai/lmnr"
@@ -155,7 +147,7 @@ export default function ProjectNavbar({ projectId, fullBuild }: ProjectNavBarPro
               rel="noopener noreferrer"
               className="text-xs text-foreground hover:underline"
             >
-              ⭐ Star it on GitHub
+                  ⭐ Star it on GitHub
             </a>
           </div>
         )}

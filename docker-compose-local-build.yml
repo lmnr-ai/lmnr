@@ -5,9 +5,6 @@ name: lmnr
 services:
   qdrant:
     image: qdrant/qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
     volumes:
       - type: volume
         source: qdrant-data
@@ -15,8 +12,6 @@ services:
     
   rabbitmq:
     image: rabbitmq
-    ports:
-      - "5672:5672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -30,8 +25,6 @@ services:
     build:
       context: ./clickhouse
     container_name: clickhouse
-    ports:
-      - "8123:8123"
     volumes:
       - type: volume
         source: clickhouse-data
@@ -52,8 +45,6 @@ services:
     build:
       context: ./semantic-search-service
     container_name: semantic-search-service
-    ports:
-      - "8080:8080"
     depends_on:
       - qdrant
     environment:
@@ -64,8 +55,6 @@ services:
 
   postgres:
     image: postgres:16
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
@@ -82,18 +71,16 @@ services:
     build:
       context: ./python-executor
     container_name: python-executor
-    ports: 
-      - "8811:8811"
 
   app-server:
+    ports:
+      - "8000:8000"
+      - "8001:8001"
     build:
       context: ./app-server
       args:
         DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     container_name: app-server
-    ports:
-      - "8000:8000"
-      - "8001:8001"
     depends_on:
       semantic-search-service:
         condition: service_started

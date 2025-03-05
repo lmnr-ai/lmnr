@@ -15,13 +15,18 @@ import { Feature, isFeatureEnabled } from '@/lib/features/features';
 import { fetcherJSON } from '@/lib/utils';
 import { GetProjectResponse } from '@/lib/workspaces/types';
 
-export default async function ProjectIdLayout({
-  params,
-  children
-}: {
-  children: React.ReactNode;
-  params: { projectId: string };
-}) {
+export default async function ProjectIdLayout(
+  props: {
+    children: React.ReactNode;
+    params: Promise<{ projectId: string }>;
+  }
+) {
+  const params = await props.params;
+
+  const {
+    children
+  } = props;
+
   const projectId = params.projectId;
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -50,7 +55,7 @@ export default async function ProjectIdLayout({
   });
 
   // getting the cookies for the sidebar state
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar:state") ? cookieStore.get("sidebar:state")?.value === "true" : true;
 
   return (
@@ -66,7 +71,6 @@ export default async function ProjectIdLayout({
             <div className="z-50 h-screen">
               <ProjectNavbar
                 projectId={projectId}
-                fullBuild={isFeatureEnabled(Feature.FULL_BUILD)}
               />
             </div>
             <div className="flex flex-col flex-grow h-screen max-w-full min-h-screen overflow-y-auto">

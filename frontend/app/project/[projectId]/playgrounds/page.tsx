@@ -1,17 +1,11 @@
-import { Metadata } from 'next';
+import { Metadata } from "next";
 
-import Playgrounds from '@/components/playgrounds/playgrounds';
+import Playgrounds from "@/components/playgrounds/playgrounds";
 
 export const metadata: Metadata = {
-  title: 'Playgrounds'
+  title: "Playgrounds",
 };
 
-export default async function PlaygroundsPage({
-  params,
-  searchParams
-}: {
-  params: { projectId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-}) {
+export default async function PlaygroundsPage() {
   return <Playgrounds />;
 }

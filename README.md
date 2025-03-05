@@ -22,7 +22,7 @@
 - [x] Datasets
     - [x] Export production trace data to datasets.
     - [x] Run evals on hosted golden datasets.
-    - [ ] Index dataset and retrieve semantically-similar dynamic few-shot examples to improve your prompts. Coming very soon.
+    - [X] Index dataset and retrieve semantically-similar dynamic few-shot examples to improve your prompts.
 - [x] Built for scale
     - [x] Written in Rust 🦀
     - [x] Traces are sent via gRPC, ensuring the best performance and lowest overhead.
@@ -48,8 +48,8 @@ cd lmnr
 docker compose up -d
 ```
 
-This will spin up a lightweight version of the stack with Postgres, app-server, and frontend. This is good for a quickstart 
-or for lightweight usage. You can access the UI at http://localhost:3000 in your browser.
+This will spin up a lightweight version of the stack with Postgres, clickhouse, app-server, and frontend. This is good for a quickstart 
+or for lightweight usage. You can access the UI at http://localhost:5667 in your browser.
 
 For production environment, we recommend using our [managed platform](https://www.lmnr.ai/projects) or `docker compose -f docker-compose-full.yml up -d`. 
 

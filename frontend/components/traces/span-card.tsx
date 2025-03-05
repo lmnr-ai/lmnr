@@ -1,9 +1,13 @@
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
-import { getDurationString } from '@/lib/flow/utils';
+import { getDuration, getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
+import { isStringDateOld } from '@/lib/traces/utils';
+import { cn, formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
-import { Label } from '../ui/label';
+import { Skeleton } from '../ui/skeleton';
+import { NoSpanTooltip } from './no-span-tooltip';
 import SpanTypeIcon from './span-type-icon';
 
 const ROW_HEIGHT = 36;
@@ -12,12 +16,17 @@ const SQUARE_ICON_SIZE = 16;
 
 interface SpanCardProps {
   span: Span;
+  activeSpans: string[];
   parentY: number;
   childSpans: { [key: string]: Span[] };
   containerWidth: number;
   depth: number;
   selectedSpan?: Span | null;
+  collapsedSpans: Set<string>;
+  traceStartTime: string;
   onSpanSelect?: (span: Span) => void;
+  onToggleCollapse?: (spanId: string) => void;
+  onSelectTime?: (time: number) => void;
 }
 
 export function SpanCard({
@@ -27,7 +36,12 @@ export function SpanCard({
   onSpanSelect,
   containerWidth,
   depth,
-  selectedSpan
+  selectedSpan,
+  collapsedSpans,
+  onToggleCollapse,
+  traceStartTime,
+  activeSpans,
+  onSelectTime,
 }: SpanCardProps) {
   const [isSelected, setIsSelected] = useState(false);
   const [segmentHeight, setSegmentHeight] = useState(0);
@@ -35,11 +49,13 @@ export function SpanCard({
 
   const childrenSpans = childSpans[span.spanId];
 
+  const hasChildren = childrenSpans && childrenSpans.length > 0;
+
   useEffect(() => {
     if (ref.current) {
-      setSegmentHeight(ref.current.getBoundingClientRect().y - parentY);
+      setSegmentHeight(Math.max(0, ref.current.getBoundingClientRect().y - parentY));
     }
-  }, [parentY]);
+  }, [parentY, collapsedSpans]);
 
   useEffect(() => {
     setIsSelected(selectedSpan?.spanId === span.spanId);
@@ -72,52 +88,115 @@ export function SpanCard({
             containerWidth={SQUARE_SIZE}
             containerHeight={SQUARE_SIZE}
             size={SQUARE_ICON_SIZE}
+            className={span.pending ? "text-muted-foreground bg-muted" : ""}
           />
-          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[200px]">
+          <div className={cn(
+            "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]",
+            span.pending && "text-muted-foreground"
+          )}>
             {span.name}
           </div>
-          <Label className="text-secondary-foreground">
-            {getDurationString(span.startTime, span.endTime)}
-          </Label>
+          {span.pending
+            ? isStringDateOld(span.startTime) ?
+              // TODO: Fix this tooltip.
+              <NoSpanTooltip>
+                <div className='flex rounded bg-secondary p-1'>
+                  <X className="w-4 h-4 text-secondary-foreground" />
+                </div>
+              </NoSpanTooltip>
+              : <Skeleton
+                className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs"
+              />
+            : (
+              (
+                <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+                  {getDurationString(span.startTime, span.endTime)}
+                </div>
+              )
+            )
+          }
           <div
             className="z-30 top-[-px]  hover:bg-red-100/10 absolute transition-all"
             style={{
               width: containerWidth,
               height: ROW_HEIGHT,
-              left: -depth * 24 - 16
+              left: -depth * 24 - 8
             }}
-            onClick={() => {
-              onSpanSelect?.(span);
+            onClick={(e) => {
+              if (!span.pending) {
+                onSpanSelect?.(span);
+              }
             }}
           />
           {isSelected && (
             <div
-              className="absolute top-0 w-full bg-primary/20 border-l-2 border-l-primary"
+              className="absolute top-0 w-full bg-primary/25 border-l-2 border-l-primary"
               style={{
                 width: containerWidth,
                 height: ROW_HEIGHT,
-                left: -depth * 24 - 16
+                left: -depth * 24 - 8
               }}
             />
           )}
+          {hasChildren && (
+            <button
+              className="z-30 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse?.(span.spanId);
+              }}
+            >
+              {collapsedSpans.has(span.spanId) ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+          )}
+          <div className="flex-grow" />
+          <div
+            className="flex items-center z-40"
+            style={{
+              height: ROW_HEIGHT
+            }}
+            onClick={() => {
+              onSelectTime?.(getDuration(traceStartTime, span.startTime) / 1000);
+            }}
+          >
+            <div
+              className={cn(
+                'flex items-center text-xs font-mono text-muted-foreground p-1 cursor-pointer rounded-l-full px-2',
+                activeSpans.includes(span.spanId) ? 'bg-primary/80 text-white' : 'hover:bg-muted'
+              )}
+            >
+              {formatSecondsToMinutesAndSeconds(getDuration(traceStartTime, span.startTime) / 1000)}
+            </div>
+          </div>
         </div>
       </div>
-      <div className="flex flex-col">
-        {childrenSpans &&
-          childrenSpans.map((child, index) => (
-            <div className="pl-6 relative" key={index}>
-              <SpanCard
-                span={child}
-                childSpans={childSpans}
-                parentY={ref.current?.getBoundingClientRect().y || 0}
-                onSpanSelect={onSpanSelect}
-                containerWidth={containerWidth}
-                selectedSpan={selectedSpan}
-                depth={depth + 1}
-              />
-            </div>
-          ))}
-      </div>
+      {!collapsedSpans.has(span.spanId) && (
+        <div className="flex flex-col">
+          {childrenSpans &&
+            childrenSpans.map((child, index) => (
+              <div className="pl-6 relative" key={index}>
+                <SpanCard
+                  activeSpans={activeSpans}
+                  traceStartTime={traceStartTime}
+                  span={child}
+                  childSpans={childSpans}
+                  parentY={ref.current?.getBoundingClientRect().y || 0}
+                  onSpanSelect={onSpanSelect}
+                  containerWidth={containerWidth}
+                  selectedSpan={selectedSpan}
+                  collapsedSpans={collapsedSpans}
+                  onToggleCollapse={onToggleCollapse}
+                  onSelectTime={onSelectTime}
+                  depth={depth + 1}
+                />
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }

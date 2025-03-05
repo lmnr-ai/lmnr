@@ -31,14 +31,18 @@ const removeQueueItemSchema = z.object({
     }),
     reasoning: z.string().optional().nullable()
   })),
-  action: z.object({
+  action: z.null().or(z.object({
     resultId: z.string().optional(),
     datasetId: z.string().optional()
-  })
+  }))
 });
 
 // remove an item from the queue
-export async function POST(request: Request, { params }: { params: { projectId: string; queueId: string } }) {
+export async function POST(
+  request: Request,
+  props: { params: Promise<{ projectId: string; queueId: string }> }
+) {
+  const params = await props.params;
 
   const session = await getServerSession(authOptions);
   const user = session!.user;
@@ -61,16 +65,18 @@ export async function POST(request: Request, { params }: { params: { projectId: 
     labelSource: "MANUAL" as const,
   }));
 
-  const insertedLabels = await db.insert(labels).values(newLabels).onConflictDoUpdate({
-    target: [labels.spanId, labels.classId, labels.userId],
-    set: {
-      value: sql`excluded.value`,
-      labelSource: sql`excluded.label_source`,
-      reasoning: sql`COALESCE(excluded.reasoning, labels.reasoning)`,
-    }
-  }).returning();
+  const insertedLabels = newLabels.length > 0
+    ? await db.insert(labels).values(newLabels).onConflictDoUpdate({
+      target: [labels.spanId, labels.classId, labels.userId],
+      set: {
+        value: sql`excluded.value`,
+        labelSource: sql`excluded.label_source`,
+        reasoning: sql`COALESCE(excluded.reasoning, labels.reasoning)`,
+      }
+    }).returning()
+    : [];
 
-  if (action.resultId) {
+  if (action?.resultId) {
     const resultId = action.resultId;
     const userName = user.name ? ` (${user.name})` : '';
 
@@ -119,8 +125,7 @@ export async function POST(request: Request, { params }: { params: { projectId: 
     }
   }
 
-  if (action.datasetId) {
-
+  if (action?.datasetId) {
     const span = await db.query.spans.findFirst({
       where: and(eq(spans.spanId, spanId), eq(spans.projectId, params.projectId))
     });
@@ -135,7 +140,7 @@ export async function POST(request: Request, { params }: { params: { projectId: 
       metadata: {
         spanId: span.spanId,
       },
-      datasetId: action.datasetId,
+      datasetId: action?.datasetId,
     }).returning();
 
     await db.insert(datapointToSpan).values({

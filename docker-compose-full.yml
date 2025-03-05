@@ -7,18 +7,13 @@ name: lmnr
 services:
   qdrant:
     image: qdrant/qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
     volumes:
       - type: volume
         source: qdrant-data
         target: /data
-    
+
   rabbitmq:
     image: rabbitmq
-    ports:
-      - "5672:5672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -32,8 +27,6 @@ services:
     build:
       context: ./clickhouse
     container_name: clickhouse
-    ports:
-      - "8123:8123"
     volumes:
       - type: volume
         source: clickhouse-data
@@ -52,8 +45,6 @@ services:
 
   semantic-search-service:
     image: ghcr.io/lmnr-ai/semantic-search-service
-    ports:
-      - "8080:8080"
     depends_on:
       - qdrant
     environment:
@@ -65,14 +56,10 @@ services:
 
   python-executor:
     image: ghcr.io/lmnr-ai/python-executor
-    ports:
-      - "8811:8811"
     pull_policy: always
 
   postgres:
     image: postgres:16
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
@@ -80,7 +67,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      test: [ "CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}" ]
       interval: 2s
       timeout: 5s
       retries: 5
@@ -111,10 +98,11 @@ services:
       - CODE_EXECUTOR_URL=http://python-executor:8811
       - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
       - ENVIRONMENT=FULL
+      - AEAD_SECRET_KEY=${AEAD_SECRET_KEY}
   frontend:
     image: ghcr.io/lmnr-ai/frontend
     ports:
-      - "3000:3000"
+      - "5667:5667"
     pull_policy: always
     depends_on:
       postgres:
@@ -122,13 +110,13 @@ services:
       clickhouse:
         condition: service_started
     environment:
-      - PORT=3000
+      - PORT=5667
       - BACKEND_URL=http://app-server:8000
       - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_URL=http://localhost:5667
       - NEXTAUTH_SECRET=some_secret
-      - NEXT_PUBLIC_URL=http://localhost:3000
+      - NEXT_PUBLIC_URL=http://localhost:5667
       - ENVIRONMENT=FULL
       - CLICKHOUSE_URL=http://clickhouse:8123
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}

@@ -302,19 +302,6 @@ impl Node {
         .clone()
     }
 
-    // uses #[serde(tag)] instead of mapping to get the node kind
-    pub fn node_type(&self) -> String {
-        json!(&self)
-            .as_object()
-            .unwrap()
-            .get("type")
-            .unwrap()
-            .to_owned()
-            .as_str()
-            .unwrap()
-            .to_owned()
-    }
-
     // `enum_dispatch` would take care of this if this was a method, not field;
     // `dyn` implementations are too slow
     pub fn name(&self) -> String {

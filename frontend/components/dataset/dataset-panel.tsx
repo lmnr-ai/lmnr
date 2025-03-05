@@ -1,9 +1,10 @@
 import { ChevronsRight, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
-import { Datapoint } from '@/lib/dataset/types';
 import { useToast } from '@/lib/hooks/use-toast';
+import { isValidJsonObject, swrFetcher } from '@/lib/utils';
 
 import { Button } from '../ui/button';
 import Formatter from '../ui/formatter';
@@ -15,7 +16,7 @@ import { Skeleton } from '../ui/skeleton';
 interface DatasetPanelProps {
   datasetId: string;
   indexedOn: string | null;
-  datapoint: Datapoint;
+  datapointId: string;
   onClose: () => void;
 }
 
@@ -24,17 +25,21 @@ const AUTO_SAVE_TIMEOUT_MS = 750;
 export default function DatasetPanel({
   datasetId,
   indexedOn,
-  datapoint,
+  datapointId,
   onClose,
 }: DatasetPanelProps) {
   const { projectId } = useProjectContext();
-  // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
-  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint.data);
-  const [newTarget, setNewTarget] = useState<Record<string, any> | null>(
-    datapoint.target
+  const { data: datapoint, isLoading } = useSWR(
+    `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
+    swrFetcher
   );
-  const [newMetadata, setNewMetadata] = useState<Record<string, any> | null>(
-    datapoint.metadata
+  // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
+  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint?.data ?? null);
+  const [newTarget, setNewTarget] = useState<Record<string, any> | null>(
+    datapoint?.target ?? null
+  );
+  const [newMetadata, setNewMetadata] = useState<Record<string, any>>(
+    datapoint?.metadata ?? {}
   );
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
@@ -52,7 +57,7 @@ export default function DatasetPanel({
     }
     setSaving(true);
     const res = await fetch(
-      `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapoint.id}`,
+      `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
       {
         method: 'POST',
         headers: {
@@ -92,16 +97,21 @@ export default function DatasetPanel({
   }, [newData, newTarget, newMetadata]);
 
   useEffect(() => {
+    if (!datapoint) return;
     setNewData(datapoint.data);
     setNewTarget(datapoint.target);
     setNewMetadata(datapoint.metadata);
   }, [datapoint]);
 
-  return (
+  return isLoading ? (<div className='p-4 space-y-2 h-full w-full'>
+    <Skeleton className="h-8" />
+    <Skeleton className="h-8" />
+    <Skeleton className="h-8" />
+  </div>) : (
     <div className="flex flex-col h-full w-full">
       <div className="h-12 flex flex-none space-x-2 px-3 items-center border-b">
         <Button
-          variant={'ghost'}
+          variant='ghost'
           className="px-1"
           onClick={async () => {
             await saveChanges();
@@ -170,7 +180,7 @@ export default function DatasetPanel({
                   }}
                 />
                 {!isValidJsonTarget && (
-                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                  <p className="text-sm text-red-500">Invalid JSON format</p>
                 )}
               </div>
               <div className="flex flex-col space-y-2">
@@ -180,8 +190,17 @@ export default function DatasetPanel({
                   value={JSON.stringify(newMetadata, null, 2)}
                   defaultMode="json"
                   editable
-                  onChange={(s) => {
+                  onChange={(s: string) => {
                     try {
+                      if (s === '') {
+                        setNewMetadata({});
+                        setIsValidJsonMetadata(true);
+                        return;
+                      }
+                      if (!isValidJsonObject(JSON.parse(s))) {
+                        setIsValidJsonMetadata(false);
+                        return;
+                      }
                       setNewMetadata(JSON.parse(s));
                       setIsValidJsonMetadata(true);
                     } catch (e) {
@@ -190,7 +209,7 @@ export default function DatasetPanel({
                   }}
                 />
                 {!isValidJsonMetadata && (
-                  <p className="text-sm text-red-500">Invalid JSON object</p>
+                  <p className="text-sm text-red-500">Invalid JSON object. Metadata must be a JSON map.</p>
                 )}
               </div>
             </div>

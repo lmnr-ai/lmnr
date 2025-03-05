@@ -1,16 +1,16 @@
-import { and, desc, eq, getTableColumns, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 
+import { searchSpans } from '@/lib/clickhouse/spans';
+import { getTimeRange } from '@/lib/clickhouse/utils';
 import { db } from '@/lib/db/drizzle';
 import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
 import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
 import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
 import { Span } from '@/lib/traces/types';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const pastHours = req.nextUrl.searchParams.get("pastHours");
@@ -50,13 +50,17 @@ export async function GET(
       );
     });
 
-  const textSearch = req.nextUrl.searchParams.get("search");
-  const textSearchFilters = textSearch ? [
-    or(
-      sql`input::text LIKE ${`%${textSearch}%`}::text`,
-      sql`output::text LIKE ${`%${textSearch}%`}::text`
-    )!
+  let searchSpanIds = null;
+  if (req.nextUrl.searchParams.get("search")) {
+    const timeRange = getTimeRange(pastHours ?? undefined, startTime ?? undefined, endTime ?? undefined);
+    const searchResult = await searchSpans(projectId, req.nextUrl.searchParams.get("search") ?? "", timeRange);
+    searchSpanIds = Array.from(searchResult.spanIds);
+  }
+
+  const textSearchFilters = searchSpanIds ? [
+    inArray(sql`span_id`, searchSpanIds)
   ] : [];
+
 
   urlParamFilters = urlParamFilters
     // labels are handled separately above
@@ -85,6 +89,8 @@ export async function GET(
         const uppercased = filter.value.toUpperCase().trim();
         filter.value = (uppercased === 'SPAN') ? "'DEFAULT'" : `'${uppercased}'`;
         filter.castType = "span_type";
+      } else if (filter.column === 'model') {
+        filter.column = "COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')";
       }
       return filter;
     });
@@ -125,8 +131,41 @@ export async function GET(
       ...columns,
       latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
       path: sql<string>`attributes ->> 'lmnr.span.path'`.as("path"),
+      model: sql<string>`COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')`.as('model')
     }
   });
 
   return new Response(JSON.stringify(spanData), { status: 200 });
 }
+
+
+export async function DELETE(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; spanId: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const projectId = params.projectId;
+
+  const { searchParams } = new URL(req.url);
+  const spanId = searchParams.get('spanId')?.split(',');
+
+  if (!spanId) {
+    return new Response('At least one Span ID is required', { status: 400 });
+  }
+
+  try {
+    await db.delete(spans)
+      .where(
+        and(
+          inArray(spans.spanId, spanId),
+          eq(spans.projectId, projectId)
+        )
+      );
+
+    return new Response('Spans deleted successfully', { status: 200 });
+  } catch (error) {
+    return new Response('Error deleting spans', { status: 500 });
+  }
+}
+
+

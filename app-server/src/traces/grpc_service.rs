@@ -7,11 +7,11 @@ use crate::{
     cache::Cache,
     db::{project_api_keys::ProjectApiKey, DB},
     features::{is_feature_enabled, Feature},
+    mq::MessageQueue,
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
 };
-use lapin::Connection;
 use tonic::{Request, Response, Status};
 
 use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue};
@@ -19,20 +19,12 @@ use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_s
 pub struct ProcessTracesService {
     db: Arc<DB>,
     cache: Arc<Cache>,
-    rabbitmq_connection: Option<Arc<Connection>>,
+    queue: Arc<MessageQueue>,
 }
 
 impl ProcessTracesService {
-    pub fn new(
-        db: Arc<DB>,
-        cache: Arc<Cache>,
-        rabbitmq_connection: Option<Arc<Connection>>,
-    ) -> Self {
-        Self {
-            db,
-            cache,
-            rabbitmq_connection,
-        }
+    pub fn new(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<MessageQueue>) -> Self {
+        Self { db, cache, queue }
     }
 }
 
@@ -66,18 +58,12 @@ impl TraceService for ProcessTracesService {
             }
         }
 
-        let response = push_spans_to_queue(
-            request,
-            project_id,
-            self.rabbitmq_connection.clone(),
-            self.db.clone(),
-            self.cache.clone(),
-        )
-        .await
-        .map_err(|e| {
-            log::error!("Failed to process traces: {:?}", e);
-            Status::internal("Failed to process traces")
-        })?;
+        let response = push_spans_to_queue(request, project_id, self.queue.clone())
+            .await
+            .map_err(|e| {
+                log::error!("Failed to process traces: {:?}", e);
+                Status::internal("Failed to process traces")
+            })?;
 
         Ok(Response::new(response))
     }
@@ -93,7 +79,12 @@ async fn authenticate_request(
 }
 
 fn extract_bearer_token(metadata: &tonic::metadata::MetadataMap) -> anyhow::Result<String> {
-    if let Some(auth_header) = metadata.get("authorization") {
+    // Default OpenTelemetry gRPC exporter uses `"authorization"` with lowercase `a`,
+    // but users may use `"Authorization"` with uppercase `A` in custom exporters.
+    let header = metadata
+        .get("authorization")
+        .or(metadata.get("Authorization"));
+    if let Some(auth_header) = header {
         let auth_str = auth_header
             .to_str()
             .map_err(|_| Status::unauthenticated("Invalid token"))?;

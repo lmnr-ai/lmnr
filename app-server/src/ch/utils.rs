@@ -4,10 +4,7 @@ use clickhouse::Row;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
-    db::utils::validate_sql_string,
-    features::{is_feature_enabled, Feature},
-};
+use crate::db::utils::validate_sql_string;
 
 use super::modifiers::GroupByInterval;
 
@@ -99,13 +96,6 @@ async fn get_time_bounds(
     }
     if !validate_sql_string(&column_name) {
         return Err(anyhow::anyhow!("Invalid column name: {}", column_name));
-    }
-
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(TimeBounds {
-            min_time: chrono_to_nanoseconds(Utc::now() - chrono::Duration::days(1)),
-            max_time: chrono_to_nanoseconds(Utc::now()),
-        });
     }
 
     let query_string = format!(

@@ -79,7 +79,7 @@ pub mod query_response {
         #[prost(float, tag = "1")]
         pub score: f32,
         #[prost(string, tag = "2")]
-        pub content: ::prost::alloc::string::String,
+        pub datapoint_id: ::prost::alloc::string::String,
         #[prost(string, tag = "3")]
         pub datasource_id: ::prost::alloc::string::String,
         #[prost(map = "string, string", tag = "4")]
@@ -161,6 +161,7 @@ pub struct DeleteCollectionsResponse {
 pub enum Model {
     GteBase = 0,
     CohereMultilingual = 1,
+    Bm25 = 2,
 }
 impl Model {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -171,6 +172,7 @@ impl Model {
         match self {
             Self::GteBase => "GTE_BASE",
             Self::CohereMultilingual => "COHERE_MULTILINGUAL",
+            Self::Bm25 => "BM25",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -178,6 +180,7 @@ impl Model {
         match value {
             "GTE_BASE" => Some(Self::GteBase),
             "COHERE_MULTILINGUAL" => Some(Self::CohereMultilingual),
+            "BM25" => Some(Self::Bm25),
             _ => None,
         }
     }

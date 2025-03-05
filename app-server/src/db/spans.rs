@@ -4,8 +4,10 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool, Postgres};
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
+
+use super::utils::sanitize_value;
 
 const PREVIEW_CHARACTERS: usize = 50;
 
@@ -19,6 +21,7 @@ pub enum SpanType {
     EXECUTOR,
     EVALUATOR,
     EVALUATION,
+    TOOL,
 }
 
 impl FromStr for SpanType {
@@ -32,6 +35,7 @@ impl FromStr for SpanType {
             "EXECUTOR" => Ok(SpanType::EXECUTOR),
             "EVALUATOR" => Ok(SpanType::EVALUATOR),
             "EVALUATION" => Ok(SpanType::EVALUATION),
+            "TOOL" => Ok(SpanType::TOOL),
             _ => Err(anyhow::anyhow!("Invalid span type: {}", s)),
         }
     }
@@ -52,10 +56,22 @@ pub struct Span {
     pub end_time: DateTime<Utc>,
     pub events: Option<Value>,
     pub labels: Option<Value>,
+    pub input_url: Option<String>,
+    pub output_url: Option<String>,
 }
 
 pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
-    let input_preview = match &span.input {
+    let sanitized_input = match &span.input {
+        Some(v) => Some(sanitize_value(v)),
+        None => None,
+    };
+
+    let sanitized_output = match &span.output {
+        Some(v) => Some(sanitize_value(v)),
+        None => None,
+    };
+
+    let input_preview = match &sanitized_input {
         &Some(Value::String(ref s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
         &Some(ref v) => Some(
             v.to_string()
@@ -65,7 +81,7 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
         ),
         &None => None,
     };
-    let output_preview = match &span.output {
+    let output_preview = match &sanitized_output {
         &Some(Value::String(ref s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
         &Some(ref v) => Some(
             v.to_string()
@@ -75,6 +91,7 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
         ),
         &None => None,
     };
+
     sqlx::query(
         "INSERT INTO spans
             (span_id,
@@ -89,6 +106,8 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             span_type,
             input_preview,
             output_preview,
+            input_url,
+            output_url,
             project_id
         )
         VALUES(
@@ -104,7 +123,9 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             $10,
             $11,
             $12,
-            $13)
+            $13,
+            $14,
+            $15)
         ON CONFLICT (span_id, project_id) DO UPDATE SET
             trace_id = EXCLUDED.trace_id,
             parent_span_id = EXCLUDED.parent_span_id,
@@ -116,7 +137,9 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             output = EXCLUDED.output,
             span_type = EXCLUDED.span_type,
             input_preview = EXCLUDED.input_preview,
-            output_preview = EXCLUDED.output_preview
+            output_preview = EXCLUDED.output_preview,
+            input_url = EXCLUDED.input_url,
+            output_url = EXCLUDED.output_url
     ",
     )
     .bind(&span.span_id)
@@ -126,132 +149,16 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
     .bind(&span.end_time)
     .bind(&span.name)
     .bind(&span.attributes)
-    .bind(&span.input as &Option<Value>)
-    .bind(&span.output as &Option<Value>)
+    .bind(&sanitized_input as &Option<Value>)
+    .bind(&sanitized_output as &Option<Value>)
     .bind(&span.span_type as &SpanType)
     .bind(&input_preview)
     .bind(&output_preview)
+    .bind(&span.input_url as &Option<String>)
+    .bind(&span.output_url as &Option<String>)
     .bind(&project_id)
     .execute(pool)
     .await?;
 
     Ok(())
-}
-
-pub async fn get_trace_spans(
-    pool: &PgPool,
-    trace_id: Uuid,
-    project_id: Uuid,
-    search: Option<String>,
-) -> Result<Vec<Span>> {
-    let mut query = sqlx::QueryBuilder::<Postgres>::new(
-        "WITH span_events AS (
-            SELECT
-                events.span_id,
-                events.project_id,
-                jsonb_agg(
-                    jsonb_build_object(
-                        'id', events.id,
-                        'spanId', events.span_id,
-                        'timestamp', events.timestamp,
-                        'name', events.name,
-                        'attributes', events.attributes
-                    )
-                ) AS events
-            FROM events
-            GROUP BY events.span_id, events.project_id
-        ),
-        span_labels AS (
-            SELECT labels.span_id,
-            label_classes.project_id,
-            jsonb_agg(
-                jsonb_build_object(
-                    'id', labels.id,
-                    'spanId', labels.span_id,
-                    'classId', labels.class_id,
-                    'createdAt', labels.created_at,
-                    'updatedAt', labels.updated_at,
-                    'className', label_classes.name,
-                    'valueMap', label_classes.value_map,
-                    'value', labels.value,
-                    'labelSource', labels.label_source,
-                    'description', label_classes.description,
-                    'reasoning', labels.reasoning
-                )
-            ) AS labels
-            FROM labels
-            JOIN label_classes ON labels.class_id = label_classes.id
-            GROUP BY labels.span_id, label_classes.project_id
-        ),
-        spans_info AS (
-            SELECT
-                spans.span_id,
-                spans.start_time,
-                spans.end_time,
-                spans.trace_id,
-                spans.input,
-                spans.output,
-                spans.parent_span_id,
-                spans.name,
-                spans.attributes,
-                spans.span_type,
-                COALESCE(span_events.events, '[]'::jsonb) AS events,
-                COALESCE(span_labels.labels, '[]'::jsonb) AS labels
-            FROM spans
-            LEFT JOIN span_events ON spans.span_id = span_events.span_id AND span_events.project_id = spans.project_id
-            LEFT JOIN span_labels ON spans.span_id = span_labels.span_id AND span_labels.project_id = spans.project_id
-            WHERE spans.trace_id = ",
-    );
-    query.push_bind(trace_id);
-    query.push(" AND spans.project_id = ");
-    query.push_bind(project_id);
-    query.push(
-        ")
-        SELECT * FROM spans_info WHERE 1=1
-    ",
-    );
-
-    if let Some(search) = search {
-        query
-            .push(" AND (input::TEXT ILIKE ")
-            .push_bind(format!("%{search}%"))
-            .push(" OR output::TEXT ILIKE ")
-            .push_bind(format!("%{search}%"))
-            .push(" OR name::TEXT ILIKE ")
-            .push_bind(format!("%{search}%"))
-            .push(" OR attributes::TEXT ILIKE ")
-            .push_bind(format!("%{search}%"));
-    }
-
-    query.push(" ORDER BY start_time ASC");
-
-    let spans = query.build_query_as().fetch_all(pool).await?;
-
-    Ok(spans)
-}
-
-pub async fn get_span(pool: &PgPool, id: Uuid, project_id: Uuid) -> Result<Span> {
-    let span = sqlx::query_as::<_, Span>(
-        "SELECT
-            span_id,
-            start_time,
-            end_time,
-            trace_id,
-            parent_span_id,
-            name,
-            attributes,
-            input,
-            output,
-            span_type,
-            '[]'::jsonb as events,
-            '[]'::jsonb as labels
-        FROM spans
-        WHERE span_id = $1 AND project_id = $2",
-    )
-    .bind(id)
-    .bind(project_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(span)
 }

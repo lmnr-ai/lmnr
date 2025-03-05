@@ -1,0 +1,88 @@
+name: Build & publish app-server binary
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  build-and-upload:
+    name: Build and Upload
+    # This is used for HF Spaces, where we use
+    # debian:bookworm, that has GLIBC 2.36, but
+    # ubuntu-latest has GLIBC 2.38,
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust toolchain
+        run: rustup update
+
+      - name: Install additional dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libssl-dev
+
+      - name: Build Release Binary
+        run: cargo build --release
+        working-directory: ./app-server
+
+      - name: verify binary path
+        run: |
+          if [[ -f app-server/target/release/app-server ]]; then
+            echo "Binary found at app-server/target/release/app-server"
+          else
+            echo "Binary not found at app-server/target/release/app-server"
+            exit 1
+          fi
+
+      - name: Get latest release
+        id: get_latest_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const response = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            if (response.data.length === 0) {
+              core.setFailed('No releases found');
+              return;
+            }
+            const latest_release = response.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+            core.setOutput('upload_url', latest_release.upload_url);
+            core.setOutput('release_id', latest_release.id);
+
+      - name: Delete existing assets
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release_id = '${{ steps.get_latest_release.outputs.release_id }}';
+            const response = await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release_id
+            });
+
+            for (const asset of response.data) {
+              if (asset.name === 'app-server') {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: asset.id
+                });
+              }
+            }
+
+      - name: Upload to latest release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_latest_release.outputs.upload_url }}
+          asset_path: ./app-server/target/release/app-server
+          asset_name: app-server
+          asset_content_type: application/octet-stream

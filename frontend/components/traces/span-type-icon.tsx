@@ -1,4 +1,4 @@
-import { Activity, ArrowRight, Braces, Gauge, MessageCircleMore } from "lucide-react";
+import { Activity, ArrowRight, Bolt, Braces, Gauge, MessageCircleMore } from "lucide-react";
 
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
@@ -45,6 +45,9 @@ export default function SpanTypeIcon({
       )}
       {spanType === SpanType.EVALUATION && (
         <Gauge size={size} />
+      )}
+      {spanType === SpanType.TOOL && (
+        <Bolt size={size} />
       )}
     </div>
   );

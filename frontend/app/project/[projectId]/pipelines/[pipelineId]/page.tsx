@@ -40,13 +40,14 @@ const getPipelineVersion = async (
   );
 };
 
-export default async function PipelinePage({
-  params,
-  searchParams
-}: {
-  params: { projectId: string; pipelineId: string };
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
+export default async function PipelinePage(
+  props: {
+    params: Promise<{ projectId: string; pipelineId: string }>;
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const projectId = params.projectId;
   const pipelineId = params.pipelineId;
   const session = await getServerSession(authOptions);

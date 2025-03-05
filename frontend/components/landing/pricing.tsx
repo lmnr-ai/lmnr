@@ -21,13 +21,13 @@ import PricingCard from './pricing-card';
 export default function Pricing() {
   const posthog = usePostHog();
 
-  const [spanCount, setSpanCount] = useState(50);  // in thousands
-  const [teamMembers, setTeamMembers] = useState(1);
+  const [spanCount, setSpanCount] = useState(100);  // in thousands
+  const [teamMembers, setTeamMembers] = useState(3);
 
   const calculateProPrice = () => {
-    const basePrice = 25;
-    const additionalSpansCost = spanCount > 50 ? Math.floor((spanCount - 50) / 100 * 25) : 0;
-    const additionalMembersCost = (teamMembers - 1) * 25;
+    const basePrice = 49;
+    const additionalSpansCost = spanCount > 100 ? Math.floor((spanCount - 100) / 100 * 25) : 0;
+    const additionalMembersCost = (teamMembers - 3) * 25;
     return basePrice + additionalSpansCost + additionalMembersCost;
   };
 
@@ -44,8 +44,8 @@ export default function Pricing() {
             title="Free"
             price="0 / month"
             features={[
-              '10K spans / month',
-              '7 day data retention',
+              '50K spans / month',
+              '30 day data retention',
               '1 team member',
               'Community support'
             ]}
@@ -72,15 +72,15 @@ export default function Pricing() {
               title="Pro"
               price={`$${calculateProPrice()} / month`}
               features={[
-                '50k spans / month included',
-                '60 day data retention',
-                '$25 / additional team member',
+                '100k spans / month included',
+                '90 day data retention',
+                '3 team members included',
                 'Priority support'
               ]}
               subfeatures={[
                 'then $25 per 100k of additional spans',
                 null,
-                null,
+                '$25 per additional team member',
                 null
               ]}
             />
@@ -88,19 +88,19 @@ export default function Pricing() {
               <div className="space-y-2">
                 <div className="text-white">Spans per month {spanCount}k</div>
                 <Slider
-                  defaultValue={[50]}
+                  defaultValue={[100]}
                   max={1000}
-                  min={50}
-                  step={50}
+                  min={100}
+                  step={100}
                   onValueChange={(value) => setSpanCount(value[0])}
                 />
               </div>
               <div className="space-y-2">
                 <div className="text-white">Team members {teamMembers}</div>
                 <Slider
-                  defaultValue={[1]}
+                  defaultValue={[3]}
                   max={10}
-                  min={1}
+                  min={3}
                   step={1}
                   onValueChange={(value) => setTeamMembers(value[0])}
                 />
@@ -120,17 +120,17 @@ export default function Pricing() {
           <PricingCard
             className="text-secondary-foreground"
             title="Team"
-            price="$300 / month"
+            price="$399 / month"
             features={[
               '1M spans / month',
               '180 day data retention',
-              '5 team members included',
+              '10 team members included',
               'Private Slack channel'
             ]}
             subfeatures={[
+              'then $25 per 100k of additional spans',
               null,
-              null,
-              'then $25 / additional team member',
+              '$25 per additional team member',
               null
             ]}
           />

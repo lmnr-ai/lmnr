@@ -23,13 +23,14 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
     <DropdownMenu>
       <DropdownMenuTrigger>
         <div className="flex items-center gap-2">
-          <Image
+          {(imageUrl && imageUrl !== '') ? <Image
             src={imageUrl}
             alt="avatar"
             width={28}
             height={28}
             className="border rounded-full cursor-pointer"
           />
+            : <div className="w-7 h-6 bg-slate-500 rounded-full cursor-pointer" />}
           {showDetails && (
             <div className="flex flex-col max-w-[110px]">
               <span className="text-xs truncate text-muted-foreground">{email}</span>

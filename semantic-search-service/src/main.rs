@@ -49,8 +49,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut embedding_models: HashMap<Model, EmbeddingModel> = HashMap::new();
     // embedding_models.insert(Model::GteBase, onnx);
-    embedding_models.insert(Model::CohereMultilingual, EmbeddingModel::Cohere(cohere_multilingual));
-
+    embedding_models.insert(
+        Model::CohereMultilingual,
+        EmbeddingModel::Cohere(cohere_multilingual),
+    );
     let semantic_search_service = SemanticSearchService::new(embedding_models, qdrant);
 
     Server::builder()

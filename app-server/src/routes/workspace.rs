@@ -1,22 +1,17 @@
-use std::sync::Arc;
-
 use actix_web::{get, post, web, HttpResponse};
 use serde::Deserialize;
 use uuid::Uuid;
 
 use super::error::workspace_error_to_http_error;
 use crate::{
-    cache::Cache,
     db::{
         self, stats,
-        user::{get_by_email, User},
+        user::User,
         workspace::{WorkspaceError, WorkspaceWithProjects},
         DB,
     },
     features::{is_feature_enabled, Feature},
-    projects,
     routes::ResponseResult,
-    semantic_search::SemanticSearch,
 };
 
 #[get("")]
@@ -51,16 +46,11 @@ struct CreateWorkspaceRequest {
 async fn create_workspace(
     user: User,
     db: web::Data<DB>,
-    cache: web::Data<Cache>,
-    semantic_search: web::Data<Arc<dyn SemanticSearch>>,
     req: web::Json<CreateWorkspaceRequest>,
 ) -> ResponseResult {
     let req = req.into_inner();
     let name = req.name;
     let project_name = req.project_name;
-
-    let cache = cache.into_inner();
-    let semantic_search = semantic_search.into_inner().as_ref().clone();
 
     let workspace = db::workspace::create_new_workspace(&db.pool, Uuid::new_v4(), name).await?;
     log::info!(
@@ -74,15 +64,8 @@ async fn create_workspace(
     log::info!("Added owner {} to workspace: {}", user.id, workspace.id);
 
     let projects = if let Some(project_name) = project_name {
-        let project = projects::create_project(
-            &db.pool,
-            cache.clone(),
-            semantic_search.clone(),
-            &user.id,
-            &project_name,
-            workspace.id,
-        )
-        .await?;
+        let project =
+            db::projects::create_project(&db.pool, &user.id, &project_name, workspace.id).await?;
 
         vec![project]
     } else {
@@ -105,7 +88,6 @@ async fn add_user_to_workspace(
     req_user: User,
     path: web::Path<Uuid>,
     req: web::Json<AddUserRequest>,
-    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let workspace_id = path.into_inner();
     let email = req.into_inner().email;
@@ -126,42 +108,12 @@ async fn add_user_to_workspace(
         }
     }
 
-    if is_feature_enabled(Feature::UsageLimit) {
-        let limits = stats::get_workspace_stats(&db.pool, &workspace_id).await?;
-        let user_limit = limits.members_limit;
-        let num_users = limits.members;
-
-        if num_users >= user_limit {
-            return Err(workspace_error_to_http_error(
-                WorkspaceError::LimitReached {
-                    entity: "users".to_string(),
-                    limit: user_limit,
-                    usage: num_users,
-                },
-            ));
-        }
-    }
-
-    let user = get_by_email(&db.pool, &email).await?;
-    let Some(user) = user else {
-        return Err(workspace_error_to_http_error(WorkspaceError::UserNotFound(
-            email.to_string(),
-        )));
-    };
-
     let owned_workspaces = db::workspace::get_owned_workspaces(&db.pool, &req_user.id).await?;
     if !owned_workspaces.iter().any(|w| w.id == workspace_id) {
         return Err(workspace_error_to_http_error(WorkspaceError::NotAllowed));
     }
 
     db::workspace::add_user_to_workspace_by_email(&db.pool, &email, &workspace_id).await?;
-
-    // after user is added to workspace, we need to invalidate the cache
-    let remove_res = cache.remove::<User>(&user.api_key.unwrap()).await;
-    match remove_res {
-        Ok(_) => log::info!("Invalidated user cache for user: {}", user.id),
-        Err(e) => log::error!("Error removing user from cache: {}", e),
-    }
 
     Ok(HttpResponse::Ok().finish())
 }

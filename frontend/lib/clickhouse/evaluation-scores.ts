@@ -1,19 +1,15 @@
-import { ClickHouseClient } from "@clickhouse/client";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 
 import { EvaluationTimeProgression } from "../evaluation/types";
-import { Feature, isFeatureEnabled } from "../features/features";
 import { addTimeRangeToQuery, AggregationFunction, aggregationFunctionToCh, TimeRange } from "./utils";
 
 export const getEvaluationTimeProgression = async (
-  clickhouseClient: ClickHouseClient,
   projectId: string,
   groupId: string,
   timeRange: TimeRange,
   aggregationFunction: AggregationFunction,
+  ids: string[]
 ): Promise<EvaluationTimeProgression[]> => {
-  if (!isFeatureEnabled(Feature.FULL_BUILD)) {
-    return [];
-  }
   const query = `WITH base AS (
   SELECT
     evaluation_id,
@@ -21,8 +17,8 @@ export const getEvaluationTimeProgression = async (
     name,
     ${aggregationFunctionToCh(aggregationFunction)}(value) AS value
   FROM evaluation_scores
-  WHERE project_id = {projectId: UUID} AND group_id = {groupId: String}`;
-  const queryWithTimeRange = addTimeRangeToQuery(query, timeRange, 'timestamp');
+  WHERE project_id = {projectId: UUID} AND group_id = {groupId: String} and evaluation_id in {ids: Array(UUID)}`;
+  const queryWithTimeRange = addTimeRangeToQuery(query, timeRange, "timestamp");
   const finalQuery = `${queryWithTimeRange} GROUP BY evaluation_id, name, timestamp ORDER BY timestamp, name
   ) SELECT groupArray(name) names, groupArray(value) values, MIN(timestamp) timestamp, evaluation_id as evaluationId
    FROM base
@@ -30,10 +26,11 @@ export const getEvaluationTimeProgression = async (
    ORDER BY timestamp`;
   const result = await clickhouseClient.query({
     query: finalQuery,
-    format: 'JSONEachRow',
+    format: "JSONEachRow",
     query_params: {
       projectId,
       groupId,
+      ids,
     },
   });
   return await result.json();

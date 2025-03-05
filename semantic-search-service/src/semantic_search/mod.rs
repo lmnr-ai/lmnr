@@ -1,12 +1,13 @@
+use chrono::Utc;
 use log::error;
-use qdrant_client::qdrant::PointStruct;
+use qdrant_client::qdrant::DenseVector;
+use qdrant_client::qdrant::{vector::Vector as InnerVector, PointStruct, Vector};
 use qdrant_client::Payload;
 use serde_json::json;
 use simsimd::SpatialSimilarity;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
-use uuid::Uuid;
 
 use crate::embeddings::{Embed, Embedding, EmbeddingModel};
 use crate::vectordb::QdrantClient;
@@ -33,7 +34,16 @@ impl Model {
         match model {
             0 => Model::GteBase,
             1 => Model::CohereMultilingual,
+            2 => Model::Bm25,
             _ => panic!("Unknown model"),
+        }
+    }
+
+    pub fn sparse(&self) -> bool {
+        match self {
+            Model::GteBase => false,
+            Model::CohereMultilingual => false,
+            Model::Bm25 => true,
         }
     }
 }
@@ -84,16 +94,23 @@ impl SemanticSearch for SemanticSearchService {
             .zip(message.datapoints.into_iter())
             .map(|(embedding, datapoint)| {
                 let payload: Payload = json!({
-                    "content": datapoint.content,
                     "datasource_id": datapoint.datasource_id,
                     "data": datapoint.data,
                     "id": datapoint.id,
+                    // qdrant allows seconds up to 10^-6 precision, so we could
+                    // just rely on `json!` format, but it is safer to be explicit
+                    "created_at": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true)
                 })
                 .try_into()
                 .unwrap();
 
-                let point_id = Uuid::new_v4().to_string();
-                PointStruct::new(point_id, embedding, payload)
+                let vector = Vector {
+                    vector: Some(InnerVector::Dense(DenseVector {
+                        data: embedding.vector,
+                    })),
+                    ..Default::default()
+                };
+                PointStruct::new(datapoint.id, vector, payload)
             })
             .collect();
 
@@ -178,7 +195,7 @@ impl SemanticSearch for SemanticSearchService {
         let search_result = self
             .qdrant
             .search_points(
-                embedding.clone(),
+                embedding,
                 &message.collection_name,
                 &Model::from_int(message.model),
                 message.limit as u64,
@@ -194,14 +211,16 @@ impl SemanticSearch for SemanticSearchService {
             .map(|point| {
                 let payload = point.payload.clone();
 
-                let content = payload.get("content").unwrap().to_string();
+                // Note: this is our UUID v4 set by app-server. Qdrant also has point id
+                // `ScoredPoint.id` but it's not used in the response.
+                let datapoint_id = payload.get("id").unwrap().to_string();
                 let datasource_id = payload.get("datasource_id").unwrap().to_string();
                 let data = serde_json::from_value(payload.get("data").unwrap().clone().into_json())
                     .unwrap();
 
                 QueryPoint {
                     score: point.score,
-                    content,
+                    datapoint_id,
                     datasource_id,
                     data,
                 }
@@ -290,7 +309,7 @@ impl SemanticSearch for SemanticSearchService {
                 .into_iter()
                 .map(
                     |embedding_values| generate_embeddings_response::Embeddings {
-                        values: embedding_values,
+                        values: embedding_values.vector.clone(),
                     },
                 )
                 .collect(),
@@ -332,8 +351,8 @@ impl SemanticSearch for SemanticSearchService {
         let mut scores = Vec::new();
 
         for i in 0..embeddings.len() / 2 {
-            let first = &embeddings[i * 2];
-            let second = &embeddings[i * 2 + 1];
+            let first = &embeddings[i * 2].vector;
+            let second = &embeddings[i * 2 + 1].vector;
 
             // Calculate the distance with underlying SIMD implementation in C
             let score = match f32::cosine(first, second) {

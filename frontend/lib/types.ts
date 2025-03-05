@@ -22,10 +22,25 @@ export type ChatMessageImage = {
   data: string;
 };
 
+export type ChatMessageDocumentUrl = {
+  type: 'document_url';
+  mediaType: string; // e.g. "application/pdf"
+  url: string;
+};
+
+export type OpenAIImageUrl = {
+  type: 'image_url';
+  image_url: {
+    url: string;
+    detail: string | null;
+  };
+};
+
 export type ChatMessageContentPart =
   | ChatMessageText
   | ChatMessageImageUrl
-  | ChatMessageImage;
+  | ChatMessageImage
+  | ChatMessageDocumentUrl;
 
 export type ChatMessageContent = string | ChatMessageContentPart[];
 

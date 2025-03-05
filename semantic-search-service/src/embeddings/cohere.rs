@@ -1,7 +1,7 @@
-use anyhow::{Ok, Result};
+use anyhow::Result;
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use tokio::task;
-use futures::future::join_all;
 
 use super::{Embed, Embedding, Endpoint};
 
@@ -32,7 +32,7 @@ impl CohereEmbeddingModel {
 
 #[derive(Deserialize)]
 struct CohereResponse {
-    embeddings: Vec<Embedding>,
+    embeddings: Vec<Vec<f32>>,
 }
 
 impl Cohere {
@@ -65,11 +65,11 @@ impl Embed for Cohere {
                     input_type,
                     texts,
                 };
-    
+
                 let body = serde_json::to_string(&body).unwrap();
                 let res = endpoint.call::<CohereResponse>(body).await?;
 
-                Ok(res.embeddings)
+                anyhow::Ok(res.embeddings)
             });
 
             tasks.push(task);
@@ -77,7 +77,7 @@ impl Embed for Cohere {
 
         let results = join_all(tasks).await;
         for res in results {
-            embeddings.extend(res??);
+            embeddings.extend(res??.iter().map(|v| Embedding { vector: v.to_vec() }));
         }
 
         Ok(embeddings)

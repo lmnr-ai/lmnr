@@ -72,18 +72,23 @@ async function handleSubscriptionChange(
     }
 
     const lookupKey = subscriptionItem.price.lookup_key;
+    console.log(`lookupKey`, lookupKey);
     const isAdditionalSeats = isLookupKeyForAdditionalSeats(lookupKey);
-
+    console.log(`isAdditionalSeats`, isAdditionalSeats);
     if (status === 'active' && stripeCustomerId && productId) {
       console.log(`Subscription ${subscription.id} active. productId`, productId);
-      await manageSubscriptionEvent({
-        stripeCustomerId,
-        productId,
-        workspaceId,
-        subscriptionId: subscription.id,
-        quantity: subscriptionItem.quantity,
-        isAdditionalSeats
-      });
+      try {
+        await manageSubscriptionEvent({
+          stripeCustomerId,
+          productId,
+          workspaceId,
+          subscriptionId: subscription.id,
+          quantity: subscriptionItem.quantity,
+          isAdditionalSeats
+        });
+      } catch (error) {
+        console.error(`Error managing subscription event`, error);
+      }
     }
   }
 }
@@ -108,41 +113,41 @@ export async function POST(req: NextRequest): Promise<Response> {
   // Handle the event
   console.log(event.type);
   switch (event.type) {
-  case 'invoice.payment_succeeded':
-    const invoice = event.data.object;
-    const itemDescriptions = invoice.lines.data.map((line) => {
-      const productDescription = line.description ?? '';
-      const lookupKey = line.price?.lookup_key ?? 'pro_monthly_2024_09';
-      const shortDescription = LOOKUP_KEY_TO_TIER_NAME[lookupKey];
-      return {
-        productDescription,
-        quantity: line.quantity,
-        shortDescription
-      } as ItemDescription;
-    });
-    const customerEmail = invoice.customer_email;
-    if (customerEmail) {
-      await sendEmailOnInvoiceReceived(
-        itemDescriptions,
-        customerEmail
-      );
-    }
-    break;
-  case 'customer.subscription.deleted':
-    await handleSubscriptionChange(event, true);
-    break;
+    case 'invoice.payment_succeeded':
+      const invoice = event.data.object;
+      const itemDescriptions = invoice.lines.data.map((line) => {
+        const productDescription = line.description ?? '';
+        const lookupKey = line.price?.lookup_key ?? 'pro_monthly_2024_09';
+        const shortDescription = LOOKUP_KEY_TO_TIER_NAME[lookupKey];
+        return {
+          productDescription,
+          quantity: line.quantity,
+          shortDescription
+        } as ItemDescription;
+      });
+      const customerEmail = invoice.customer_email;
+      if (customerEmail) {
+        await sendEmailOnInvoiceReceived(
+          itemDescriptions,
+          customerEmail
+        );
+      }
+      break;
+    case 'customer.subscription.deleted':
+      await handleSubscriptionChange(event, true);
+      break;
     // Then define and call a method to handle the subscription deleted.
     // handleSubscriptionDeleted(subscriptionDeleted);
-  case 'customer.subscription.created':
-    handleSubscriptionChange(event);
-    break;
-  case 'customer.subscription.updated':
-    handleSubscriptionChange(event);
-    break;
-  default:
-    // Unexpected event type
-    // console.log(`Stripe Webhook. Unhandled event type ${event.type}.`);
-    break;
+    case 'customer.subscription.created':
+      handleSubscriptionChange(event);
+      break;
+    case 'customer.subscription.updated':
+      handleSubscriptionChange(event);
+      break;
+    default:
+      // Unexpected event type
+      // console.log(`Stripe Webhook. Unhandled event type ${event.type}.`);
+      break;
   }
   return new Response('Webhook received.', { status: 200 });
 }

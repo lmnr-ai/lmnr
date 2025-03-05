@@ -1,13 +1,23 @@
-import { and, eq, getTableColumns, gt, lt, SQL,sql } from "drizzle-orm";
+import { and, eq, getTableColumns, gt, lt, SQL, sql } from "drizzle-orm";
 import { PgTableWithColumns, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
 import { getServerSession } from 'next-auth';
 
 import { authOptions } from "../auth";
+import { cache } from "../cache";
 import { PaginatedResponse } from "../types";
 import { db } from "./drizzle";
 import { apiKeys, membersOfWorkspaces, projects, users } from "./migrations/schema";
 
 export const isUserMemberOfProject = async (projectId: string, apiKey: string) => {
+  const cacheKey = `project-id+user-api-key:${projectId}:${apiKey}`;
+  try {
+    const cachedResult = await cache.get(cacheKey);
+    if (cachedResult) {
+      return cachedResult;
+    }
+  } catch (e) {
+    console.error("Error getting entry from cache", e);
+  }
 
   const result = await db
     .select({ userId: users.id })
@@ -20,6 +30,12 @@ export const isUserMemberOfProject = async (projectId: string, apiKey: string) =
       eq(projects.id, projectId)
     ))
     .limit(1);
+
+  try {
+    await cache.set(cacheKey, result.length > 0);
+  } catch (e) {
+    console.error("Error setting entry in cache", e);
+  }
 
   return result.length > 0;
 };

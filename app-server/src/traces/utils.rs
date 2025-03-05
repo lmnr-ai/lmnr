@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
+use backoff::ExponentialBackoffBuilder;
+use regex::Regex;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -19,12 +21,12 @@ use super::{
     spans::{SpanAttributes, SpanUsage},
 };
 
-pub fn json_value_to_string(v: Value) -> String {
+pub fn json_value_to_string(v: &Value) -> String {
     match v {
-        Value::String(s) => s,
+        Value::String(s) => s.to_string(),
         Value::Array(a) => a
             .iter()
-            .map(|v| json_value_to_string(v.clone()))
+            .map(json_value_to_string)
             .collect::<Vec<_>>()
             .join(", "),
         _ => v.to_string(),
@@ -100,6 +102,9 @@ pub async fn record_span_to_db(
     trace_attributes.update_session_id(span_attributes.session_id());
     trace_attributes.update_trace_type(span_attributes.trace_type());
     trace_attributes.set_metadata(span_attributes.metadata());
+    if let Some(has_browser_session) = span_attributes.has_browser_session() {
+        trace_attributes.set_has_browser_session(has_browser_session);
+    }
 
     if span.span_type == SpanType::LLM {
         trace_attributes.add_input_cost(span_usage.input_cost);
@@ -113,11 +118,63 @@ pub async fn record_span_to_db(
     }
 
     span_attributes.extend_span_path(&span.name);
+    span_attributes.ids_path().map(|path| {
+        // set the parent to the second last id in the path
+        if path.len() > 1 {
+            let parent_id = path
+                .get(path.len() - 2)
+                .and_then(|id| Uuid::parse_str(id).ok());
+            if let Some(parent_id) = parent_id {
+                span.parent_span_id = Some(parent_id);
+            }
+        }
+    });
+    // Once we've set the parent span id, check if it's the top span
+    if span.parent_span_id.is_none() {
+        trace_attributes.set_top_span_id(span.span_id);
+    }
+    span_attributes.update_path();
     span.set_attributes(&span_attributes);
 
-    let update_attrs_res =
-        trace::update_trace_attributes(&db.pool, project_id, &trace_attributes).await;
-    if let Err(e) = update_attrs_res {
+    let insert_span = || async {
+        db::spans::record_span(&db.pool, &span, project_id)
+            .await
+            .map_err(|e| {
+                log::error!(
+                    "Failed attempt to record span [{}]. Will retry according to backoff policy. Error: {:?}",
+                    span.span_id,
+                    e
+                );
+                backoff::Error::Transient {
+                    err: e,
+                    retry_after: None,
+                }
+            })
+    };
+
+    // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
+    // up to 1 minute and until the total elapsed time is 5 minutes
+    // https://docs.rs/backoff/latest/backoff/default/index.html
+    let exponential_backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(std::time::Duration::from_millis(500))
+        .with_multiplier(1.5)
+        .with_randomization_factor(0.5)
+        .with_max_interval(std::time::Duration::from_secs(1 * 60))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(5 * 60)))
+        .build();
+    backoff::future::retry(exponential_backoff, insert_span)
+        .await
+        .map_err(|e| {
+            log::error!(
+                "Exhausted backoff retries for span [{}]: {:?}",
+                span.span_id,
+                e
+            );
+            e
+        })?;
+
+    // Insert or update trace only after the span has been successfully inserted
+    if let Err(e) = trace::update_trace_attributes(&db.pool, project_id, &trace_attributes).await {
         log::error!(
             "Failed to update trace attributes [{}]: {:?}",
             span.span_id,
@@ -125,12 +182,10 @@ pub async fn record_span_to_db(
         );
     }
 
-    db::spans::record_span(&db.pool, &span, project_id).await?;
-
     Ok(())
 }
 
-pub async fn record_labels_to_db(
+pub async fn record_labels_to_db_and_ch(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     span: &Span,
@@ -174,4 +229,9 @@ pub async fn record_labels_to_db(
     }
 
     Ok(())
+}
+
+pub fn skip_span_name(name: &str) -> bool {
+    let re = Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap();
+    re.is_match(name)
 }

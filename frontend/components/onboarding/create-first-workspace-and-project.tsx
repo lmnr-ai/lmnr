@@ -13,7 +13,6 @@ interface CreateFirstWorkspaceAndProjectProps {
   name?: string | null;
 }
 
-// TODO: Pass user's name, so that we can pre-fill the workspace name with "{user's name} workspace"
 export default function CreateFirstWorkspaceAndProject({
   name
 }: CreateFirstWorkspaceAndProjectProps) {

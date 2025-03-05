@@ -7,12 +7,31 @@ import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints } from '@/lib/db/migrations/schema';
 import { fetcher } from '@/lib/utils';
 
+export async function GET(
+  req: Request,
+  props: { params: Promise<{ projectId: string; datasetId: string; datapointId: string }> }
+) {
+  const params = await props.params;
+
+  const datapoint = await db.query.datasetDatapoints.findFirst({
+    where: and(
+      eq(datasetDatapoints.id, params.datapointId),
+      eq(datasetDatapoints.datasetId, params.datasetId)
+    )
+  });
+
+  if (!datapoint) {
+    return new Response('Datapoint not found', { status: 404 });
+  }
+
+  return new Response(JSON.stringify(datapoint), { status: 200 });
+}
+
 export async function POST(
   req: Request,
-  {
-    params
-  }: { params: { projectId: string; datasetId: string; datapointId: string } }
+  props: { params: Promise<{ projectId: string; datasetId: string; datapointId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
 
   const datasetId = params.datasetId;
   const datapointId = params.datapointId;
@@ -25,7 +44,7 @@ export async function POST(
   const schema = z.object({
     data: z.any(),
     target: z.any().nullable(),
-    metadata: z.any().nullable(),
+    metadata: z.record(z.string(), z.any()),
     indexedOn: z.string().nullable()
   });
 

@@ -14,7 +14,7 @@ impl Serialize for QueryPoint {
     {
         let mut state = serializer.serialize_struct("QueryPoint", 4)?;
         state.serialize_field("score", &self.score)?;
-        state.serialize_field("content", &self.content)?;
+        state.serialize_field("datapoint_id", &self.datapoint_id)?;
         state.serialize_field("datasource_id", &self.datasource_id)?;
         state.serialize_field("data", &self.data)?;
         state.end()

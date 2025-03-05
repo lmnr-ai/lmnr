@@ -5,6 +5,7 @@ package semantic_search_grpc;
 enum Model {
     GTE_BASE = 0;
     COHERE_MULTILINGUAL = 1;
+    BM25 = 2;
 }
 
 message IndexRequest {
@@ -35,6 +36,7 @@ message DeleteEmbeddingsResponse {
     string status = 1;
 }
 
+
 message RequestPayload {
     map<string, string> payload = 1;
 }
@@ -51,7 +53,7 @@ message QueryRequest {
 message QueryResponse {
     message QueryPoint {
         float score = 1;
-        string content = 2;
+        string datapoint_id = 2;
         string datasource_id = 3;
         map<string, string> data = 4;
     }

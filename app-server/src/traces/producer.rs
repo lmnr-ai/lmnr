@@ -4,66 +4,25 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use lapin::{options::BasicPublishOptions, BasicProperties, Connection};
 use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    cache::Cache,
-    db::{events::Event, spans::Span, DB},
-    features::{is_feature_enabled, Feature},
+    db::{events::Event, spans::Span},
+    mq::{MessageQueue, MessageQueueTrait},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
 };
 
-use super::{utils::record_span_to_db, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
+use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
 
 // TODO: Implement partial_success
 pub async fn push_spans_to_queue(
     request: ExportTraceServiceRequest,
     project_id: Uuid,
-    rabbitmq_connection: Option<Arc<Connection>>,
-    db: Arc<DB>,
-    cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
 ) -> Result<ExportTraceServiceResponse> {
-    if !is_feature_enabled(Feature::FullBuild) {
-        for resource_span in request.resource_spans {
-            for scope_span in resource_span.scope_spans {
-                for otel_span in scope_span.spans {
-                    let mut span = Span::from_otel_span(otel_span.clone());
-
-                    if !span.should_save() {
-                        continue;
-                    }
-
-                    let span_usage = super::utils::get_llm_usage_for_span(
-                        &mut span.get_attributes(),
-                        db.clone(),
-                        cache.clone(),
-                    )
-                    .await;
-
-                    if let Err(e) =
-                        record_span_to_db(db.clone(), &span_usage, &project_id, &mut span).await
-                    {
-                        log::error!(
-                            "Failed to record span. span_id [{}], project_id [{}]: {:?}",
-                            span.span_id,
-                            project_id,
-                            e
-                        );
-                    }
-                }
-            }
-        }
-        return Ok(ExportTraceServiceResponse {
-            partial_success: None,
-        });
-    }
-    // Safe to unwrap because we checked is_feature_enabled above
-    let channel = rabbitmq_connection.unwrap().create_channel().await?;
-
     for resource_span in request.resource_spans {
         for scope_span in resource_span.scope_spans {
             for otel_span in scope_span.spans {
@@ -94,18 +53,12 @@ pub async fn push_spans_to_queue(
                     events,
                 };
 
-                let payload = serde_json::to_string(&rabbitmq_span_message).unwrap();
-                let payload = payload.as_bytes();
-
-                channel
-                    .basic_publish(
+                queue
+                    .publish(
+                        &serde_json::to_vec(&rabbitmq_span_message).unwrap(),
                         OBSERVATIONS_EXCHANGE,
                         OBSERVATIONS_ROUTING_KEY,
-                        BasicPublishOptions::default(),
-                        payload,
-                        BasicProperties::default(),
                     )
-                    .await?
                     .await?;
             }
         }

@@ -13,6 +13,8 @@ import { AggregationFunction } from '@/lib/clickhouse/utils';
 import {
   cn,
   formatTimestamp,
+  formatTimestampFromSeconds,
+  formatTimestampFromSecondsWithInterval,
   formatTimestampWithInterval,
 } from '@/lib/utils';
 
@@ -156,7 +158,8 @@ interface ChartProps {
   keys: Set<string>,
   xAxisKey: string,
   chartConfig: ChartConfig,
-  groupByInterval: GroupByInterval
+  groupByInterval: GroupByInterval,
+  numericTimestamp?: boolean
 }
 
 function StackedBarChart({
@@ -238,7 +241,8 @@ export function DefaultLineChart({
   keys,
   xAxisKey,
   chartConfig,
-  groupByInterval
+  groupByInterval,
+  numericTimestamp
 }: ChartProps) {
   const dataMax = useMemo(() => Math.max(...data.map((d) => Object.entries(d)
     .filter(([key]) => key !== xAxisKey)
@@ -270,12 +274,15 @@ export function DefaultLineChart({
           type="category"
           domain={['dataMin', 'dataMax']}
           tickLine={false}
-          tickFormatter={(value) =>
-            formatTimestampWithInterval(
+          tickFormatter={(value) => {
+            if (numericTimestamp) {
+              return formatTimestampFromSecondsWithInterval(value, groupByInterval ?? 'hour');
+            }
+            return formatTimestampWithInterval(
               value,
               groupByInterval ?? 'hour'
-            )
-          }
+            );
+          }}
           axisLine={false}
           tickMargin={8}
           dataKey={xAxisKey}
@@ -292,7 +299,9 @@ export function DefaultLineChart({
             <ChartTooltipContent
               labelKey={xAxisKey}
               labelFormatter={(_, p) =>
-                formatTimestamp(`${p[0].payload[xAxisKey]}Z`)
+                numericTimestamp
+                  ? formatTimestampFromSeconds(p[0].payload[xAxisKey])
+                  : formatTimestamp(`${p[0].payload[xAxisKey]}Z`)
               }
             />
           }

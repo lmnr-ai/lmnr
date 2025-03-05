@@ -1,13 +1,8 @@
-import { labelClasses } from '../db/migrations/schema';
+import { labelClasses, traces } from '../db/migrations/schema';
 import { Event } from '../events/types';
 import { GraphMessagePreview } from '../pipeline/types';
 
 export type TraceMessages = { [key: string]: GraphMessagePreview };
-
-export enum LabelType {
-  CATEGORICAL = 'CATEGORICAL',
-  BOOLEAN = 'BOOLEAN'
-}
 
 export enum LabelSource {
   AUTO = 'AUTO',
@@ -51,8 +46,9 @@ export enum SpanType {
   LLM = 'LLM',
   EXECUTOR = 'EXECUTOR',
   EVALUATOR = 'EVALUATOR',
-  EVALUATION = 'EVALUATION'
-}
+  EVALUATION = 'EVALUATION',
+  TOOL = 'TOOL'
+};
 
 export type Span = {
   spanId: string;
@@ -68,23 +64,11 @@ export type Span = {
   outputPreview: string | null;
   spanType: SpanType;
   events: Event[];
-  labels: SpanLabel[];
   path: string;
-};
-
-export type TraceWithSpans = {
-  id: string;
-  startTime: string;
-  endTime: string;
-  inputTokenCount: number;
-  outputTokenCount: number;
-  totalTokenCount: number;
-  inputCost: number | null;
-  outputCost: number | null;
-  cost: number | null;
-  metadata: Record<string, string> | null;
-  projectId: string;
-  spans: Span[];
+  model?: string;
+  inputUrl: string | null;
+  outputUrl: string | null;
+  pending?: boolean;
 };
 
 export type Trace = {
@@ -99,11 +83,14 @@ export type Trace = {
   outputCost: number | null;
   cost: number | null;
   metadata: Record<string, string> | null;
+  topSpanId: string | null;
   topSpanInputPreview: any | null;
   topSpanOutputPreview: any | null;
   topSpanName: string | null;
   topSpanType: SpanType | null;
   topSpanPath: string | null;
+  hasBrowserSession: boolean | null;
+  traceType: typeof traces.$inferSelect['traceType'] | null;
   // events: TraceEvent[];
 };
 
@@ -160,3 +147,8 @@ export enum ExportableSpanColumns {
   Output = 'output',
   SpanType = 'spanType'
 }
+
+export type TraceSearchResponse = {
+  traceIds: string[];
+  spanIds: string[];
+};

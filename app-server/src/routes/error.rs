@@ -77,8 +77,11 @@ Set the target version for the pipeline in the pipeline builder."),
                 let mut short_message = message.clone();
                 let value: String = short_message.value.clone().into();
                 if value.len() > 100 {
-                    short_message.value =
-                        format!("{}... [TRUNCATED FOR BREVITY]", &value[..100]).into();
+                    short_message.value = format!(
+                        "{}... [TRUNCATED FOR BREVITY]",
+                        &value.chars().take(100).collect::<String>()
+                    )
+                    .into();
                 }
                 (node, short_message)
             })
@@ -93,13 +96,6 @@ Set the target version for the pipeline in the pipeline builder."),
         }
     }
 
-    pub fn user_not_found(email: String) -> Self {
-        Self::RequestError {
-            error_code: "api.UserNotFound".to_string(),
-            error_message: Some(Value::String(format!("User not found: {}", email))),
-        }
-    }
-
     pub fn limit_error(error_message: &str) -> Self {
         Self::RequestError {
             error_code: "api.LimitReached".to_string(),
@@ -110,7 +106,6 @@ Set the target version for the pipeline in the pipeline builder."),
 
 pub fn workspace_error_to_http_error(e: WorkspaceError) -> Error {
     match e {
-        WorkspaceError::UserNotFound(email) => Error::user_not_found(email),
         WorkspaceError::UnhandledError(e) => Error::InternalAnyhowError(e),
         WorkspaceError::LimitReached {
             entity,
@@ -181,5 +176,23 @@ impl ResponseError for Error {
             })),
             _ => HttpResponse::build(self.status_code()).finish(),
         }
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
+    }
+}
+
+impl From<clickhouse::error::Error> for Error {
+    fn from(err: clickhouse::error::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
     }
 }

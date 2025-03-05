@@ -1,4 +1,4 @@
-import { TracePreview } from '../traces/types';
+import { TracePreview } from "../traces/types";
 
 export type Evaluation = {
   id: string;
@@ -24,16 +24,25 @@ export type EvaluationDatapointPreview = {
   evaluationId: string;
   createdAt: string;
   scores?: Record<string, any>;
-  data: Record<string, any>;
-  target: Record<string, any>;
-  executorOutput: Record<string, any>;
+  data: any;
+  target: any;
+  executorOutput: any;
   traceId: string;
+  index: number;
+  startTime: string;
+  endTime: string;
+  inputCost: number;
+  outputCost: number;
 };
 
 export type EvaluationDatapointPreviewWithCompared = {
   comparedId?: string;
   comparedEvaluationId?: string;
   comparedScores?: Record<string, any>;
+  comparedStartTime?: string;
+  comparedEndTime?: string;
+  comparedInputCost?: number;
+  comparedOutputCost?: number;
 } & EvaluationDatapointPreview;
 
 export type EvaluationStats = {

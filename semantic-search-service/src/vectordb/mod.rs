@@ -5,22 +5,26 @@ use qdrant_client::{
     qdrant::{
         vectors_config::Config, Condition, CreateCollection, CreateFieldIndexCollectionBuilder,
         DeletePointsBuilder, Distance, FieldType, Filter, HnswConfigDiff, PointStruct,
-        SearchPoints, SearchResponse, UpsertPointsBuilder, VectorParams, VectorsConfig,
+        SearchPoints, SearchResponse, SparseIndexConfig, SparseVectorConfig, SparseVectorParams,
+        UpsertPointsBuilder, VectorParams, VectorsConfig,
     },
-    Qdrant,
+    Qdrant, QdrantError,
 };
 
-use crate::semantic_search::semantic_search_grpc::Model;
+use crate::{embeddings::Embedding, semantic_search::semantic_search_grpc::Model};
 
 pub struct QdrantClient {
     client: Qdrant,
 }
+
+const SPARSE_INDEX_FULL_SCAN_THRESHOLD: u64 = 500;
 
 impl Model {
     fn dimensions(&self) -> u64 {
         match self {
             Model::GteBase => 768,
             Model::CohereMultilingual => 1024,
+            Model::Bm25 => 1024,
         }
     }
 
@@ -28,6 +32,7 @@ impl Model {
         match self {
             Model::GteBase => 0,
             Model::CohereMultilingual => 1,
+            Model::Bm25 => 2,
         }
     }
 }
@@ -81,13 +86,24 @@ impl QdrantClient {
 
         let points_filter = Filter::any(payload_conditions);
 
-        self.client
+        match self
+            .client
             .delete_points(
                 DeletePointsBuilder::new(collection_id)
                     .points(points_filter)
                     .build(),
             )
-            .await?;
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(QdrantError::ResponseError { status })
+                // collection does not exist, so we can just return
+                if status.code() == tonic::Code::NotFound =>
+            {
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }?;
 
         Ok(())
     }
@@ -95,7 +111,7 @@ impl QdrantClient {
     /// Searches points for a given vector, where any of the payloads fully match
     pub async fn search_points(
         &self,
-        vector: Vec<f32>,
+        embedding: &Embedding,
         collection_name: &str,
         model: &Model,
         limit: u64,
@@ -117,10 +133,12 @@ impl QdrantClient {
             })
             .collect();
 
+        let filter = Filter::any(payload_conditions);
+
         let search_points = SearchPoints {
             collection_name: collection_id,
-            vector,
-            filter: Some(Filter::any(payload_conditions)),
+            vector: embedding.vector.clone(),
+            filter: Some(filter),
             limit: limit as u64,
             with_payload: Some(true.into()),
             score_threshold: Some(threshold),
@@ -137,6 +155,27 @@ impl QdrantClient {
 
         let collection_id = collection_id(collection_name, model);
 
+        let sparse_vectors_config = if model.sparse() {
+            Some(SparseVectorConfig {
+                map: HashMap::from([(
+                    "sparse".to_string(),
+                    SparseVectorParams {
+                        index: Some(SparseIndexConfig {
+                            on_disk: Some(true),
+                            full_scan_threshold: Some(SPARSE_INDEX_FULL_SCAN_THRESHOLD),
+                            ..Default::default()
+                        }),
+                        modifier: Some(0),
+                    },
+                )]),
+            })
+        } else {
+            None
+        };
+
+        // TODO: set on_disk to be configurable based on user tier, OR
+        // keep a separate "warm" collection for the first N 15 minutes and
+        // manage it
         self.client
             .create_collection(CreateCollection {
                 collection_name: collection_id.clone(),
@@ -144,14 +183,17 @@ impl QdrantClient {
                     config: Some(Config::Params(VectorParams {
                         size: dim,
                         distance: Distance::Cosine.into(),
+                        on_disk: Some(true),
                         ..Default::default()
                     })),
                 }),
                 hnsw_config: Some(HnswConfigDiff {
                     m: Some(0),
                     payload_m: Some(16),
+                    on_disk: Some(true),
                     ..Default::default()
                 }),
+                sparse_vectors_config,
                 ..Default::default()
             })
             .await?;
@@ -171,11 +213,10 @@ impl QdrantClient {
     }
 
     pub async fn delete_collections(&self, collection_name: &str) -> Result<()> {
-        let id = collection_id(collection_name, &Model::GteBase);
-        self.client.delete_collection(id.clone()).await?;
-
-        let id = collection_id(collection_name, &Model::CohereMultilingual);
-        self.client.delete_collection(id.clone()).await?;
+        for model in [&Model::GteBase, &Model::CohereMultilingual, &Model::Bm25] {
+            let id = collection_id(collection_name, &model);
+            self.client.delete_collection(id.clone()).await?;
+        }
 
         Ok(())
     }

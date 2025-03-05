@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::code_executor::CodeExecutorTrait;
 use crate::engine::{RunOutput, RunnableNode};
 use crate::pipeline::context::Context;
 use anyhow::Result;
@@ -8,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::utils::map_handles;
-use super::{Handle, HandleType, NodeInput};
+use super::{Handle, NodeInput};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,41 +69,6 @@ impl RunnableNode for CodeNode {
         {
             Ok(result) => Ok(RunOutput::Success((result, None))),
             Err(err) => Err(err.into()),
-        }
-    }
-}
-
-impl CodeNode {
-    pub fn from_params(
-        name: &str,
-        input_names: Vec<&str>,
-        code: String,
-        fn_name: Option<String>,
-    ) -> Self {
-        let inputs = input_names
-            .iter()
-            .map(|name| Handle {
-                id: Uuid::new_v4(),
-                name: Some(name.to_string()),
-                handle_type: HandleType::Any,
-                is_cyclic: false,
-            })
-            .collect();
-        let outputs = vec![Handle {
-            id: Uuid::new_v4(),
-            name: Some("output".to_owned()),
-            handle_type: HandleType::Any,
-            is_cyclic: false,
-        }];
-
-        Self {
-            id: Uuid::new_v4(),
-            name: name.to_string(),
-            inputs,
-            outputs,
-            inputs_mappings: HashMap::new(),
-            code,
-            fn_name: fn_name.unwrap_or("main".to_string()),
         }
     }
 }

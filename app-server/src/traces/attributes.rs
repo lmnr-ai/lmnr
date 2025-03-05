@@ -21,6 +21,8 @@ pub struct TraceAttributes {
     pub session_id: Option<String>,
     pub trace_type: Option<TraceType>,
     pub metadata: Option<HashMap<String, String>>,
+    pub has_browser_session: Option<bool>,
+    pub top_span_id: Option<Uuid>,
 }
 
 impl TraceAttributes {
@@ -76,5 +78,13 @@ impl TraceAttributes {
 
     pub fn set_metadata(&mut self, metadata: Option<HashMap<String, String>>) {
         self.metadata = metadata;
+    }
+
+    pub fn set_has_browser_session(&mut self, has_browser_session: bool) {
+        self.has_browser_session = Some(has_browser_session);
+    }
+
+    pub fn set_top_span_id(&mut self, top_span_id: Uuid) {
+        self.top_span_id = Some(top_span_id);
     }
 }

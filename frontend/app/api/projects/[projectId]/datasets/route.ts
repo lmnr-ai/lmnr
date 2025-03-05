@@ -1,14 +1,12 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
-import { datasets } from '@/lib/db/migrations/schema';
+import { datasetDatapoints,datasets } from '@/lib/db/migrations/schema';
 import { paginatedGet } from '@/lib/db/utils';
 
-export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const body = await req.json();
   const { name } = body;
@@ -31,10 +29,8 @@ export async function POST(
   return new Response(JSON.stringify(dataset), { status: 200 });
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { projectId: string } }
-): Promise<Response> {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const pageNumber =
@@ -42,12 +38,22 @@ export async function GET(
   const pageSize =
     parseInt(req.nextUrl.searchParams.get('pageSize') ?? '50') || 50;
   const filters = [eq(datasets.projectId, projectId)];
+  const { ...columns } = getTableColumns(datasets);
+
   const datasetsData = await paginatedGet({
     table: datasets,
     pageNumber,
     pageSize,
     filters,
-    orderBy: desc(datasets.createdAt)
+    orderBy: desc(datasets.createdAt),
+    columns: {
+      ...columns,
+      datapointsCount: sql<number>`COALESCE((
+        SELECT COUNT(*)
+        FROM ${datasetDatapoints} dp
+        WHERE dp.dataset_id = datasets.id
+      ), 0)::int`.as('datapointsCount')
+    }
   });
 
   return new Response(JSON.stringify(datasetsData), { status: 200 });
@@ -55,8 +61,9 @@ export async function GET(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { projectId: string; datasetId: string } }
+  props: { params: Promise<{ projectId: string; datasetId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
 
   const { searchParams } = new URL(req.url);

@@ -1,33 +1,14 @@
 use anyhow::Result;
-use sqlx::PgPool;
+use serde::{Deserialize, Serialize};
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use crate::projects::Project;
-
-pub async fn get_all_projects_for_user(pool: &PgPool, user_id: &Uuid) -> Result<Vec<Project>> {
-    let projects = sqlx::query_as::<_, Project>(
-        "SELECT
-            projects.id,
-            projects.name,
-            projects.workspace_id
-        FROM
-            projects
-            join workspaces on projects.workspace_id = workspaces.id
-        WHERE
-            projects.workspace_id in (
-            SELECT
-                workspace_id
-            FROM
-                members_of_workspaces
-            WHERE
-                user_id = $1
-            )",
-    )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(projects)
+#[derive(Deserialize, Serialize, FromRow, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Project {
+    pub id: Uuid,
+    pub name: String,
+    pub workspace_id: Uuid,
 }
 
 pub async fn get_project(pool: &PgPool, project_id: &Uuid) -> Result<Project> {

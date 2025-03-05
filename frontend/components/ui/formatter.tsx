@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, Copy, Maximize, Minimize } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import YAML from 'yaml';
 
 import { cn } from '@/lib/utils';
@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Button } from './button';
 import CodeEditor from './code-editor';
 import CopyToClipboardButton from './copy-to-clipboard';
+import CustomRenderer from './custom-renderer';
 import { DialogTitle } from './dialog';
 import { ScrollArea } from './scroll-area';
 import {
@@ -25,6 +26,7 @@ interface OutputFormatterProps {
   editable?: boolean;
   onChange?: (value: string) => void;
   collapsible?: boolean;
+  presetKey?: string | null;
 }
 
 export default function Formatter({
@@ -33,17 +35,37 @@ export default function Formatter({
   editable = false,
   onChange,
   className,
-  collapsible = false
+  collapsible = false,
+  presetKey = null
 }: OutputFormatterProps) {
-  const [mode, setMode] = useState(defaultMode);
+
+  const [renderedValue, setRenderedValue] = useState(value);
+  const [mode, setMode] = useState(() => {
+    if (presetKey) {
+      const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
+      return savedMode || defaultMode;
+    }
+    return defaultMode;
+  });
   const [expandedValue, setExpandedValue] = useState(value);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  const handleModeChange = (newMode: string) => {
+    setMode(newMode);
+    if (presetKey) {
+      localStorage.setItem(`formatter-mode-${presetKey}`, newMode);
+    }
+  };
+
+  useEffect(() => {
+    setRenderedValue(renderText(value));
+  }, [value, mode]);
+
   const renderText = (value: string) => {
-    // if mode is YAML try to parse it as YAML
+
     if (mode === 'yaml') {
       try {
-        const yamlFormatted = YAML.stringify(JSON.parse(value));
+        const yamlFormatted = YAML.stringify(YAML.parse(value));
         return yamlFormatted;
       } catch (e) {
         return value;
@@ -73,7 +95,7 @@ export default function Formatter({
           <div className="flex items-center gap-2">
             <Select
               value={mode}
-              onValueChange={(value) => setMode(value)}
+              onValueChange={handleModeChange}
             >
               <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-5">
                 <SelectValue placeholder="Select tag type" />
@@ -87,6 +109,9 @@ export default function Formatter({
                 </SelectItem>
                 <SelectItem key="JSON" value="json">
                   JSON
+                </SelectItem>
+                <SelectItem key="CUSTOM" value="custom">
+                  Custom
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -113,7 +138,7 @@ export default function Formatter({
           <div className="flex items-center gap-1">
             <CopyToClipboardButton
               className='h-7 w-7'
-              text={renderText(value)}
+              text={renderedValue}
             >
               <Copy className="h-3.5 w-3.5" />
             </CopyToClipboardButton>
@@ -125,11 +150,11 @@ export default function Formatter({
               </SheetTrigger>
               <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
                 <DialogTitle className='hidden'></DialogTitle>
-                <div className="flex-none border-b items-center flex px-4 justify-between">
+                <div className="flex-none border-b items-center flex px-2 justify-between">
                   <div className="flex justify-start">
                     <Select
                       value={mode}
-                      onValueChange={(value) => setMode(value)}
+                      onValueChange={handleModeChange}
                     >
                       <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-6">
                         <SelectValue placeholder="Select tag type" />
@@ -144,13 +169,16 @@ export default function Formatter({
                         <SelectItem key="JSON" value="json">
                           JSON
                         </SelectItem>
+                        <SelectItem key="CUSTOM" value="custom">
+                          Custom
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="flex items-center gap-1">
                     <CopyToClipboardButton
                       className='h-7 w-7'
-                      text={renderText(value)}
+                      text={renderedValue}
                     >
                       <Copy className="h-3.5 w-3.5" />
                     </CopyToClipboardButton>
@@ -163,24 +191,31 @@ export default function Formatter({
                 </div>
                 <ScrollArea className="flex-grow">
                   <div className="flex flex-col">
-                    <CodeEditor
-                      value={renderText(expandedValue)}
-                      editable={editable}
-                      language={mode}
-                      onChange={(v) => {
-                        setExpandedValue(v);
-                        if (mode === 'yaml') {
-                          try {
-                            const parsedYaml = YAML.parse(v);
-                            onChange?.(JSON.stringify(parsedYaml, null, 2));
-                          } catch (e) {
+                    {mode === 'custom' ? (
+                      <CustomRenderer
+                        data={renderText(expandedValue)}
+                        presetKey={presetKey}
+                      />
+                    ) : (
+                      <CodeEditor
+                        value={renderText(expandedValue)}
+                        editable={editable}
+                        language={mode}
+                        onChange={(v) => {
+                          setExpandedValue(v);
+                          if (mode === 'yaml') {
+                            try {
+                              const parsedYaml = YAML.parse(v);
+                              onChange?.(JSON.stringify(parsedYaml, null, 2));
+                            } catch (e) {
+                              onChange?.(v);
+                            }
+                          } else {
                             onChange?.(v);
                           }
-                        } else {
-                          onChange?.(v);
-                        }
-                      }}
-                    />
+                        }}
+                      />
+                    )}
                   </div>
                 </ScrollArea>
               </SheetContent>
@@ -188,26 +223,33 @@ export default function Formatter({
           </div>
         </div>
       </div>
-      {(!collapsible || !isCollapsed) && (
-        <div className="overflow-auto flex-1 flex bg-card">
-          <CodeEditor
-            value={renderText(value)}
-            editable={editable}
-            language={mode}
-            onChange={(v) => {
-              setExpandedValue(v);
-              if (mode === 'yaml') {
-                try {
-                  const parsedYaml = YAML.parse(v);
-                  onChange?.(JSON.stringify(parsedYaml, null, 2));
-                } catch (e) {
+      {!isCollapsed && (
+        <div className="flex-grow flex overflow-auto w-full">
+          {mode === 'custom' ? (
+            <CustomRenderer
+              data={renderedValue}
+              presetKey={presetKey}
+            />
+          ) : (
+            <CodeEditor
+              value={renderedValue}
+              editable={editable}
+              language={mode}
+              onChange={(v) => {
+                setExpandedValue(v);
+                if (mode === 'yaml') {
+                  try {
+                    const parsedYaml = YAML.parse(v);
+                    onChange?.(JSON.stringify(parsedYaml, null, 2));
+                  } catch (e) {
+                    onChange?.(v);
+                  }
+                } else {
                   onChange?.(v);
                 }
-              } else {
-                onChange?.(v);
-              }
-            }}
-          />
+              }}
+            />
+          )}
         </div>
       )}
     </div>

@@ -1,3 +1,6 @@
+// TODO: remove this in about 60 days after this comment is committed.
+// The new route is /api/projects/[projectId]/payloads/[payloadId]
+
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 const client = new S3Client({
@@ -8,12 +11,13 @@ const client = new S3Client({
   }
 });
 
-const bucket = process.env.S3_IMGS_BUCKET ?? '';
+const bucket = process.env.S3_TRACE_PAYLOADS_BUCKET ?? '';
 
 export async function GET(
   req: Request,
-  { params }: { params: { projectId: string; imageId: string } }
+  props: { params: Promise<{ projectId: string; imageId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const { projectId, imageId } = params;
   const getObjectRequest = new GetObjectCommand({
     Bucket: bucket,

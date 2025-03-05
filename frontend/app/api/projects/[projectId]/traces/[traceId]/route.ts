@@ -1,22 +1,24 @@
-import { getServerSession } from 'next-auth';
+import { and, eq } from 'drizzle-orm';
+import { NextRequest, NextResponse } from 'next/server';
 
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
+import { db } from '@/lib/db/drizzle';
+import { traces } from '@/lib/db/migrations/schema';
 
 export async function GET(
-  req: Request,
-  { params }: { params: { projectId: string; traceId: string } }
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; traceId: string }> }
 ): Promise<Response> {
+  const params = await props.params;
   const projectId = params.projectId;
   const traceId = params.traceId;
 
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
-
-  return fetcher(`/projects/${projectId}/traces/${traceId}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
-    }
+  const trace = await db.query.traces.findFirst({
+    where: and(eq(traces.id, traceId), eq(traces.projectId, projectId)),
   });
+
+  if (!trace) {
+    return NextResponse.json({ error: 'Trace not found' }, { status: 404 });
+  }
+
+  return NextResponse.json(trace);
 }

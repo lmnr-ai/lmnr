@@ -2,12 +2,12 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
     db::spans::{Span, SpanType},
-    features::{is_feature_enabled, Feature},
-    traces::spans::SpanUsage,
+    traces::{spans::SpanUsage, utils::json_value_to_string},
 };
 
 use super::{
@@ -30,11 +30,12 @@ impl Into<u8> for SpanType {
             SpanType::EXECUTOR => 3,
             SpanType::EVALUATOR => 4,
             SpanType::EVALUATION => 5,
+            SpanType::TOOL => 6,
         }
     }
 }
 
-#[derive(Row, Serialize, Deserialize)]
+#[derive(Row, Serialize, Deserialize, Debug)]
 pub struct CHSpan {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
@@ -60,11 +61,25 @@ pub struct CHSpan {
     pub user_id: String,
     // Default value is <null>  backwards compatibility or if path attribute is not present
     pub path: String,
+    pub input: String,
+    pub output: String,
 }
 
 impl CHSpan {
     pub fn from_db_span(span: &Span, usage: SpanUsage, project_id: Uuid) -> Self {
         let span_attributes = span.get_attributes();
+
+        let span_input_string = json_value_to_string(
+            span.input
+                .as_ref()
+                .unwrap_or(&Value::String(String::from(""))),
+        );
+
+        let span_output_string = json_value_to_string(
+            span.output
+                .as_ref()
+                .unwrap_or(&Value::String(String::from(""))),
+        );
 
         CHSpan {
             span_id: span.span_id,
@@ -89,15 +104,16 @@ impl CHSpan {
             trace_id: span.trace_id,
             provider: usage.provider_name.unwrap_or(String::from("<null>")),
             user_id: span_attributes.user_id().unwrap_or(String::from("<null>")),
-            path: span_attributes.path().unwrap_or(String::from("<null>")),
+            path: span_attributes
+                .flat_path()
+                .unwrap_or(String::from("<null>")),
+            input: span_input_string,
+            output: span_output_string,
         }
     }
 }
 
 pub async fn insert_span(clickhouse: clickhouse::Client, span: &CHSpan) -> Result<()> {
-    if !is_feature_enabled(Feature::FullBuild) {
-        return Ok(());
-    }
     let ch_insert = clickhouse.insert("spans");
     match ch_insert {
         Ok(mut ch_insert) => {
