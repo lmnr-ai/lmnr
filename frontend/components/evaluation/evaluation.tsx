@@ -92,11 +92,17 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
           comparedId: compared?.id,
           comparedEvaluationId: compared?.evaluationId,
           comparedScores: compared?.scores,
+          comparedTraceId: compared?.traceId,
         };
       });
     }
     return data?.results || [];
   }, [data?.results, targetData?.results, targetId]);
+
+  const selectedRow = useMemo<undefined | EvaluationDatapointPreviewWithCompared>(
+    () => tableData?.find((row) => row.id === searchParams.get("datapointId")),
+    [searchParams, tableData]
+  );
 
   const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
     setTraceId(row.traceId);
@@ -114,6 +120,13 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
       params.delete("targetId");
     }
     push(`${pathName}?${params}`);
+  };
+
+  const handleTraceChange = (id: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("traceId", id);
+    push(`${pathName}?${params}`);
+    setTraceId(id);
   };
 
   useEffect(() => {
@@ -149,6 +162,13 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
       )
       .subscribe();
   }, [supabase]);
+
+  useEffect(() => {
+    const traceId = searchParams.get("traceId");
+    if (traceId) {
+      setTraceId(traceId);
+    }
+  }, []);
 
   return (
     <div className="h-full flex flex-col relative">
@@ -230,11 +250,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
             ) : (
               <>
                 <div className="flex-none w-72">
-                  <ScoreCard
-                    scores={scores}
-                    selectedScore={selectedScore}
-                    setSelectedScore={setSelectedScore}
-                  />
+                  <ScoreCard scores={scores} selectedScore={selectedScore} setSelectedScore={setSelectedScore} />
                 </div>
                 <div className="flex-grow">
                   {targetId ? (
@@ -273,7 +289,38 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
               width: 1000,
             }}
           >
-            <div className="w-full h-full flex">
+            <div className="w-full h-full flex flex-col">
+              {targetId && (
+                <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+                  <Select value={traceId} onValueChange={handleTraceChange}>
+                    <SelectTrigger className="flex font-medium text-secondary-foreground">
+                      <SelectValue placeholder="Select evaluation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedRow?.traceId && (
+                        <SelectItem value={selectedRow.traceId}>
+                          <span>
+                            {data?.evaluation.name}
+                            <span className="text-secondary-foreground text-xs ml-2">
+                              {formatTimestamp(String(data?.evaluation.createdAt))}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      )}
+                      {selectedRow?.comparedTraceId && (
+                        <SelectItem value={selectedRow?.comparedTraceId}>
+                          <span>
+                            {targetData?.evaluation.name}
+                            <span className="text-secondary-foreground text-xs ml-2">
+                              {formatTimestamp(String(targetData?.evaluation.createdAt))}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <TraceView onClose={onClose} traceId={traceId} />
             </div>
           </Resizable>

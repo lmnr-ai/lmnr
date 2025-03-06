@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
 import { Event } from "@/lib/events/types";
-import { Span } from "@/lib/traces/types";
+import { Span, SpanType } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
 
 import Formatter from "../ui/formatter";
@@ -50,7 +50,18 @@ export function SpanView({ spanId }: SpanViewProps) {
             <div className="flex flex-col gap-1">
               <div className="flex flex-none items-center space-x-2">
                 <SpanTypeIcon spanType={span.spanType} />
-                <div className="flex-grow text-xl items-center font-medium truncate max-w-[400px]">{span.name}</div>
+                <div className="text-xl items-center font-medium truncate">{span.name}</div>
+                {span.spanType === SpanType.LLM && (
+                  <Link
+                    href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+                    passHref
+                  >
+                    <Button variant="outline">
+                      <PlayCircle className="mr-2" size={16} />
+                      Playground
+                    </Button>
+                  </Link>
+                )}
               </div>
               <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
             </div>
@@ -58,15 +69,6 @@ export function SpanView({ spanId }: SpanViewProps) {
               <AddToLabelingQueuePopover span={span} />
               <ExportSpansDialog span={span} />
               <AddLabelPopover span={span} />
-              <Link
-                href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-                passHref
-              >
-                <Button variant="outline">
-                  <PlayCircle className="mr-2" size={16} />
-                  Playground
-                </Button>
-              </Link>
             </div>
             <div className="flex py-1 gap-2">
               <StatsShields
