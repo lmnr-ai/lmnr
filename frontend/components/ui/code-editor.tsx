@@ -6,7 +6,9 @@ import { EditorView } from "@codemirror/view";
 import { githubDarkStyle } from "@uiw/codemirror-theme-github";
 import { createTheme } from "@uiw/codemirror-themes";
 import CodeMirror from "@uiw/react-codemirror";
-import { useMemo } from "react";
+import { debounce } from "lodash";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInView } from "react-intersection-observer";
 
 import { cn } from "@/lib/utils";
 
@@ -80,6 +82,39 @@ export default function CodeEditor({
   placeholder,
   lineWrapping = true,
 }: CodeEditorProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+  const { ref: inViewRef, inView } = useInView({
+    threshold: 0,
+    triggerOnce: false,
+  });
+
+  // Update dimensions when the container size changes
+  useEffect(() => {
+    if (containerRef.current && inView) {
+      const updateDimensions = () => {
+        setDimensions({
+          width: containerRef.current?.offsetWidth || 0,
+          height: containerRef.current?.offsetHeight || 0,
+        });
+      };
+
+      const resizeObserver = new ResizeObserver(debounce(updateDimensions, 100));
+      resizeObserver.observe(containerRef.current);
+
+      return () => resizeObserver.disconnect();
+    }
+  }, [inView]);
+
+  // Combine refs
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef.current = node;
+      inViewRef(node);
+    },
+    [inViewRef]
+  );
+
   // Memoize extensions to prevent recreating them on every render
   const extensions = useMemo(() => {
     const extensions = [...baseExtensions];
@@ -96,8 +131,25 @@ export default function CodeEditor({
     return extensions;
   }, [language, lineWrapping, value.length]);
 
+  // Render a placeholder with preserved dimensions when not in view
+  if (!inView) {
+    return (
+      <div
+        ref={setRefs}
+        style={
+          dimensions
+            ? {
+              width: `${dimensions.width}px`,
+              height: `${dimensions.height}px`,
+            }
+            : undefined
+        }
+      />
+    );
+  }
+
   return (
-    <div className={cn("w-full h-full bg-card text-foreground", className)}>
+    <div ref={setRefs} className={cn("w-full h-full bg-card text-foreground", className)}>
       <CodeMirror
         placeholder={placeholder}
         theme={myTheme}
