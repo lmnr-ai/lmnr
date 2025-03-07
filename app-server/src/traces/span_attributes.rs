@@ -31,6 +31,5 @@ pub const SPAN_PATH: &str = "lmnr.span.path";
 pub const SPAN_IDS_PATH: &str = "lmnr.span.ids_path";
 pub const LLM_NODE_RENDERED_PROMPT: &str = "lmnr.span.prompt";
 
-pub const GEN_AI_ANTHROPIC_CACHE_WRITE_INPUT_TOKENS: &str =
-    "gen_ai.usage.cache_creation_input_tokens";
-pub const GEN_AI_ANTHROPIC_CACHE_READ_INPUT_TOKENS: &str = "gen_ai.usage.cache_read_input_tokens";
+pub const GEN_AI_CACHE_WRITE_INPUT_TOKENS: &str = "gen_ai.usage.cache_creation_input_tokens";
+pub const GEN_AI_CACHE_READ_INPUT_TOKENS: &str = "gen_ai.usage.cache_read_input_tokens";

@@ -20,9 +20,7 @@ use crate::{
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     pipeline::{nodes::Message, trace::MetaLog},
     storage::{Storage, StorageTrait},
-    traces::span_attributes::{
-        GEN_AI_ANTHROPIC_CACHE_READ_INPUT_TOKENS, GEN_AI_ANTHROPIC_CACHE_WRITE_INPUT_TOKENS,
-    },
+    traces::span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
 };
 
 use super::{
@@ -107,12 +105,6 @@ impl SpanAttributes {
     }
 
     pub fn input_tokens(&mut self) -> InputTokens {
-        let mut input_tokens = InputTokens {
-            regular_input_tokens: 0,
-            cache_write_tokens: 0,
-            cache_read_tokens: 0,
-        };
-
         let regular_input_tokens =
             if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_INPUT_TOKENS) {
                 n.as_i64().unwrap_or(0)
@@ -129,24 +121,32 @@ impl SpanAttributes {
         if self.provider_name() == Some("anthropic".to_string()) {
             let cache_write_tokens = self
                 .attributes
-                .get(GEN_AI_ANTHROPIC_CACHE_WRITE_INPUT_TOKENS)
+                .get(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
             let cache_read_tokens = self
                 .attributes
-                .get(GEN_AI_ANTHROPIC_CACHE_READ_INPUT_TOKENS)
+                .get(GEN_AI_CACHE_READ_INPUT_TOKENS)
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
 
-            input_tokens.regular_input_tokens =
+            let regular_input_tokens =
                 regular_input_tokens - (cache_write_tokens + cache_read_tokens);
-            input_tokens.cache_write_tokens = cache_write_tokens;
-            input_tokens.cache_read_tokens = cache_read_tokens;
-        } else {
-            input_tokens.regular_input_tokens = regular_input_tokens;
-        }
+            let cache_write_tokens = cache_write_tokens;
+            let cache_read_tokens = cache_read_tokens;
 
-        input_tokens
+            InputTokens {
+                regular_input_tokens,
+                cache_write_tokens,
+                cache_read_tokens,
+            }
+        } else {
+            InputTokens {
+                regular_input_tokens,
+                cache_write_tokens: 0,
+                cache_read_tokens: 0,
+            }
+        }
     }
 
     pub fn completion_tokens(&mut self) -> i64 {
@@ -199,11 +199,7 @@ impl SpanAttributes {
             None
         };
 
-        if let Some(name) = name {
-            Some(name.to_lowercase().trim().to_string())
-        } else {
-            None
-        }
+        name.map(|name| name.to_lowercase().trim().to_string())
     }
 
     pub fn span_type(&self) -> SpanType {
