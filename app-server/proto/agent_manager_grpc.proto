@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package agent_manager_grpc;
+
+message LaminarSpanContext {
+    string trace_id = 1;
+    string span_id = 2;
+    bool is_remote = 3;
+}
+
+message RunAgentRequest {
+    string prompt = 1;
+    optional string request_api_key = 2;
+    optional LaminarSpanContext span_context = 3;
+}
+
+message RunAgentResponse {
+    string answer = 1;
+    repeated string screenshots = 2;
+}
+
+service AgentManagerService {
+    rpc RunAgent(RunAgentRequest) returns (RunAgentResponse);
+}

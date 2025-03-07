@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::pipeline::utils::get_target_pipeline_version_cache_key;
-use crate::routes::api_keys::hash_api_key;
+use crate::project_api_keys::hash_api_key;
 use crate::routes::error;
 use crate::{
     cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait},
