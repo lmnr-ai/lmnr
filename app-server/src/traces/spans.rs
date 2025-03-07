@@ -105,7 +105,7 @@ impl SpanAttributes {
     }
 
     pub fn input_tokens(&mut self) -> InputTokens {
-        let regular_input_tokens =
+        let total_input_tokens =
             if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_INPUT_TOKENS) {
                 n.as_i64().unwrap_or(0)
             } else if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_PROMPT_TOKENS) {
@@ -131,7 +131,7 @@ impl SpanAttributes {
                 .unwrap_or(0);
 
             let regular_input_tokens =
-                regular_input_tokens - (cache_write_tokens + cache_read_tokens);
+                total_input_tokens - (cache_write_tokens + cache_read_tokens);
             let cache_write_tokens = cache_write_tokens;
             let cache_read_tokens = cache_read_tokens;
 
@@ -142,7 +142,7 @@ impl SpanAttributes {
             }
         } else {
             InputTokens {
-                regular_input_tokens,
+                regular_input_tokens: total_input_tokens,
                 cache_write_tokens: 0,
                 cache_read_tokens: 0,
             }
