@@ -1,13 +1,13 @@
-import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
-import { NextRequest } from 'next/server';
+import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { NextRequest } from "next/server";
 
-import { searchSpans } from '@/lib/clickhouse/spans';
-import { getTimeRange } from '@/lib/clickhouse/utils';
-import { db } from '@/lib/db/drizzle';
-import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
-import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
-import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
-import { Span } from '@/lib/traces/types';
+import { searchSpans } from "@/lib/clickhouse/spans";
+import { getTimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { labelClasses, labels, spans, traces } from "@/lib/db/migrations/schema";
+import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
+import { getDateRangeFilters, paginatedGet } from "@/lib/db/utils";
+import { Span } from "@/lib/traces/types";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   let urlParamFilters: FilterDef[] = [];
   try {
-    urlParamFilters = JSON.parse(req.nextUrl.searchParams.get('filter') ?? '[]') as FilterDef[];
+    urlParamFilters = JSON.parse(req.nextUrl.searchParams.get("filter") ?? "[]") as FilterDef[];
   } catch (e) {
     urlParamFilters = [];
   }
@@ -30,12 +30,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   }
 
   const labelFilters = urlParamFilters
-    .filter(filter => filter.column === "labels" && filter.operator === "eq")
-    .map(filter => {
-      const [labelName, labelValue] = filter.value.split(/=(.*)/);
-      if (labelValue === undefined || labelValue === '') {
-        return sql`1=1`;
-      }
+    .filter((filter) => filter.column === "labels" && filter.operator === "eq")
+    .map((filter) => {
+      const labelName = filter.value.split(/=(.*)/)?.[0];
       return inArray(
         sql`span_id`,
         db
@@ -43,10 +40,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
           .from(spans)
           .innerJoin(labels, eq(spans.spanId, labels.spanId))
           .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-          .where(and(
-            eq(labelClasses.name, labelName),
-            eq(labels.value, sql<number>`(label_classes.value_map ->> ${labelValue})::float8`)
-          ))
+          .where(and(eq(labelClasses.name, labelName)))
       );
     });
 
@@ -57,15 +51,12 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     searchSpanIds = Array.from(searchResult.spanIds);
   }
 
-  const textSearchFilters = searchSpanIds ? [
-    inArray(sql`span_id`, searchSpanIds)
-  ] : [];
-
+  const textSearchFilters = searchSpanIds ? [inArray(sql`span_id`, searchSpanIds)] : [];
 
   urlParamFilters = urlParamFilters
     // labels are handled separately above
-    .filter(filter => filter.column !== "labels")
-    .map(filter => {
+    .filter((filter) => filter.column !== "labels")
+    .map((filter) => {
       if (filter.column === "span_id") {
         filter.value = filter.value.startsWith("00000000-0000-0000-")
           ? filter.value
@@ -87,9 +78,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       } else if (filter.column === "span_type") {
         // cast to span_type
         const uppercased = filter.value.toUpperCase().trim();
-        filter.value = (uppercased === 'SPAN') ? "'DEFAULT'" : `'${uppercased}'`;
+        filter.value = uppercased === "SPAN" ? "'DEFAULT'" : `'${uppercased}'`;
         filter.castType = "span_type";
-      } else if (filter.column === 'model') {
+      } else if (filter.column === "model") {
         filter.column = "COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')";
       }
       return filter;
@@ -105,19 +96,15 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   );
 
   const baseFilters = [
-    inArray(
-      sql`trace_id`,
-      db
-        .select({ id: traces.id })
-        .from(traces)
-        .where(
-          eq(traces.traceType, "DEFAULT"),
-        )
-    ),
-    sql`project_id = ${projectId}`
+    inArray(sql`trace_id`, db.select({ id: traces.id }).from(traces).where(eq(traces.traceType, "DEFAULT"))),
+    sql`project_id = ${projectId}`,
   ];
 
-  const filters = getDateRangeFilters(startTime, endTime, pastHours).concat(sqlFilters, labelFilters, textSearchFilters);
+  const filters = getDateRangeFilters(startTime, endTime, pastHours).concat(
+    sqlFilters,
+    labelFilters,
+    textSearchFilters
+  );
   // don't query input and output, only query previews
   const { input, output, ...columns } = getTableColumns(spans);
 
@@ -131,13 +118,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       ...columns,
       latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
       path: sql<string>`attributes ->> 'lmnr.span.path'`.as("path"),
-      model: sql<string>`COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')`.as('model')
-    }
+      model: sql<string>`COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')`.as(
+        "model"
+      ),
+    },
   });
 
   return new Response(JSON.stringify(spanData), { status: 200 });
 }
-
 
 export async function DELETE(
   req: NextRequest,
@@ -147,25 +135,17 @@ export async function DELETE(
   const projectId = params.projectId;
 
   const { searchParams } = new URL(req.url);
-  const spanId = searchParams.get('spanId')?.split(',');
+  const spanId = searchParams.get("spanId")?.split(",");
 
   if (!spanId) {
-    return new Response('At least one Span ID is required', { status: 400 });
+    return new Response("At least one Span ID is required", { status: 400 });
   }
 
   try {
-    await db.delete(spans)
-      .where(
-        and(
-          inArray(spans.spanId, spanId),
-          eq(spans.projectId, projectId)
-        )
-      );
+    await db.delete(spans).where(and(inArray(spans.spanId, spanId), eq(spans.projectId, projectId)));
 
-    return new Response('Spans deleted successfully', { status: 200 });
+    return new Response("Spans deleted successfully", { status: 200 });
   } catch (error) {
-    return new Response('Error deleting spans', { status: 500 });
+    return new Response("Error deleting spans", { status: 500 });
   }
 }
-
-

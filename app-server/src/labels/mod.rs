@@ -13,8 +13,6 @@ pub async fn insert_or_update_label(
     class_id: Uuid,
     user_email: Option<String>,
     label_name: String,
-    value_key: String,
-    value: f64,
     label_source: LabelSource,
     reasoning: Option<String>,
 ) -> Result<DBSpanLabel> {
@@ -22,7 +20,6 @@ pub async fn insert_or_update_label(
         pool,
         id,
         span_id,
-        value,
         user_email,
         class_id,
         &label_source,
@@ -37,8 +34,6 @@ pub async fn insert_or_update_label(
         id,
         label_name,
         label_source,
-        value_key,
-        value,
         span_id,
     )
     .await?;

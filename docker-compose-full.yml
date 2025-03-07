@@ -24,9 +24,10 @@ services:
       retries: 3
 
   clickhouse:
-    build:
-      context: ./clickhouse
+    image: clickhouse/clickhouse-server:latest
     container_name: clickhouse
+    ports:
+      - "8123:8123"
     volumes:
       - type: volume
         source: clickhouse-data
@@ -34,6 +35,14 @@ services:
       - type: volume
         source: clickhouse-logs
         target: /var/log/clickhouse-server/
+      - type: bind
+        source: ./clickhouse/config/users.xml
+        target: /etc/clickhouse-server/users.d/users.xml
+        read_only: true
+      - type: bind
+        source: ./clickhouse/001000-initial.sql
+        target: /docker-entrypoint-initdb.d/001000-initial.sql
+        read_only: true
     cap_add:
       - SYS_NICE
       - NET_ADMIN
@@ -42,6 +51,7 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    
 
   semantic-search-service:
     image: ghcr.io/lmnr-ai/semantic-search-service

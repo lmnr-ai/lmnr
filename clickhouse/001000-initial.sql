@@ -62,8 +62,6 @@ CREATE TABLE default.labels
     `id` UUID,
     `name` String,
     `label_source` UInt8,
-    `value_key` String,
-    `value` Float64,
     `span_id` UUID
 )
 ENGINE MergeTree

@@ -1,13 +1,12 @@
-import { useState } from 'react';
+import { useState } from "react";
 
-import { isChatMessageList } from '@/lib/flow/utils';
-import { Span } from '@/lib/traces/types';
+import { isChatMessageList } from "@/lib/flow/utils";
+import { Span } from "@/lib/traces/types";
 
-import Formatter from '../ui/formatter';
-import { ScrollArea } from '../ui/scroll-area';
-import ChatMessageListTab from './chat-message-list-tab';
-import SpanDatasets from './span-datasets';
-import SpanLabels from './span-labels';
+import Formatter from "../ui/formatter";
+import { ScrollArea } from "../ui/scroll-area";
+import ChatMessageListTab from "./chat-message-list-tab";
+import SpanDatasets from "./span-datasets";
 
 interface SpanViewSpanProps {
   span: Span;
@@ -18,22 +17,18 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
   const [spanOutput, setSpanOutput] = useState(span.output);
 
   if (span.inputUrl) {
-    const url = span.inputUrl.startsWith('/')
-      ? `${span.inputUrl}?payloadType=raw`
-      : span.inputUrl;
-    fetch(url).then(response => {
-      response.json().then(j => {
+    const url = span.inputUrl.startsWith("/") ? `${span.inputUrl}?payloadType=raw` : span.inputUrl;
+    fetch(url).then((response) => {
+      response.json().then((j) => {
         setSpanInput(j);
       });
     });
   }
 
   if (span.outputUrl) {
-    const url = span.outputUrl.startsWith('/')
-      ? `${span.outputUrl}?payloadType=raw`
-      : span.outputUrl;
-    fetch(url).then(response => {
-      response.json().then(j => {
+    const url = span.outputUrl.startsWith("/") ? `${span.outputUrl}?payloadType=raw` : span.outputUrl;
+    fetch(url).then((response) => {
+      response.json().then((j) => {
         setSpanOutput(j);
       });
     });
@@ -42,28 +37,21 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
   return (
     <ScrollArea className="h-full mt-0">
       <div className="max-h-0">
-        <div
-          className="flex flex-col gap-4 h-full p-4 w-full"
-        >
+        <div className="flex flex-col gap-4 h-full p-4 w-full">
           <div className="w-full">
-            <SpanLabels span={span} />
             <SpanDatasets spanId={span.spanId} />
             <div className="pb-2 font-medium text-lg">Input</div>
             {isChatMessageList(spanInput) ? (
               <ChatMessageListTab
                 messages={spanInput}
-                presetKey={`input-${span.attributes['lmnr.span.path'].join('.')}`}
+                presetKey={`input-${span.attributes["lmnr.span.path"].join(".")}`}
               />
             ) : (
               <Formatter
                 className="max-h-[400px]"
                 collapsible
-                value={
-                  typeof spanInput === 'string'
-                    ? spanInput
-                    : JSON.stringify(spanInput)
-                }
-                presetKey={`input-${span.attributes['lmnr.span.path'].join('.')}`}
+                value={typeof spanInput === "string" ? spanInput : JSON.stringify(spanInput)}
+                presetKey={`input-${span.attributes["lmnr.span.path"].join(".")}`}
               />
             )}
           </div>
@@ -71,12 +59,8 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
             <div className="pb-2 font-medium text-lg">Output</div>
             <Formatter
               className="max-h-[400px]"
-              value={
-                typeof spanOutput === 'string'
-                  ? spanOutput
-                  : JSON.stringify(spanOutput)
-              }
-              presetKey={`output-${span.attributes['lmnr.span.path'].join('.')}`}
+              value={typeof spanOutput === "string" ? spanOutput : JSON.stringify(spanOutput)}
+              presetKey={`output-${span.attributes["lmnr.span.path"].join(".")}`}
               collapsible
             />
           </div>

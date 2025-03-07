@@ -1,0 +1,13 @@
+<!--This is unsafely opening the default user to the public, 
+    but this is fine for local development.-->
+<clickhouse>
+    <users>
+        <default>
+            <networks>
+                <ip>::/0</ip>
+                <!-- Allow IPv4 connections too -->
+                <ip>0.0.0.0/0</ip>
+            </networks>
+        </default>
+    </users>
+</clickhouse>

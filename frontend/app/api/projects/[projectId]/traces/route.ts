@@ -1,17 +1,14 @@
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
-import { NextRequest } from 'next/server';
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { NextRequest } from "next/server";
 
-import { searchSpans } from '@/lib/clickhouse/spans';
-import { getTimeRange } from '@/lib/clickhouse/utils';
-import { db } from '@/lib/db/drizzle';
-import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
-import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
-import { getDateRangeFilters } from '@/lib/db/utils';
+import { searchSpans } from "@/lib/clickhouse/spans";
+import { getTimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { labelClasses, labels, spans, traces } from "@/lib/db/migrations/schema";
+import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
+import { getDateRangeFilters } from "@/lib/db/utils";
 
-export async function GET(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const pastHours = req.nextUrl.searchParams.get("pastHours");
   const startTime = req.nextUrl.searchParams.get("startDate");
@@ -29,7 +26,7 @@ export async function GET(
 
   let urlParamFilters: FilterDef[] = [];
   try {
-    urlParamFilters = JSON.parse(req.nextUrl.searchParams.get('filter') ?? '[]') as FilterDef[];
+    urlParamFilters = JSON.parse(req.nextUrl.searchParams.get("filter") ?? "[]") as FilterDef[];
   } catch (e) {
     urlParamFilters = [];
   }
@@ -37,57 +34,65 @@ export async function GET(
     urlParamFilters = [];
   }
 
-  const topLevelSpans = db.select({
-    inputPreview: spans.inputPreview,
-    outputPreview: spans.outputPreview,
-    path: sql<string>`attributes ->> 'lmnr.span.path'`.as('path'),
-    name: spans.name,
-    spanType: spans.spanType,
-    traceId: spans.traceId,
-  }).from(spans).where(
-    and(
-      eq(spans.projectId, projectId),
-      isNull(spans.parentSpanId),
-      ...getDateRangeFilters(startTime, endTime, pastHours)
-    )
-  ).as('top_level_spans');
-
-  const baseQuery = db.$with('traces_info').as(
-    db.select({
-      id: traces.id,
-      startTime: traces.startTime,
-      endTime: traces.endTime,
-      sessionId: traces.sessionId,
-      metadata: traces.metadata,
-      projectId: traces.projectId,
-      inputTokenCount: traces.inputTokenCount,
-      outputTokenCount: traces.outputTokenCount,
-      totalTokenCount: traces.totalTokenCount,
-      hasBrowserSession: traces.hasBrowserSession,
-      inputCost: traces.inputCost,
-      outputCost: traces.outputCost,
-      cost: traces.cost,
-      traceType: traces.traceType,
-      topSpanInputPreview: topLevelSpans.inputPreview,
-      topSpanOutputPreview: topLevelSpans.outputPreview,
-      topSpanPath: topLevelSpans.path,
-      topSpanName: topLevelSpans.name,
-      topSpanType: topLevelSpans.spanType,
-      latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
-    }).from(traces).leftJoin(
-      topLevelSpans,
-      // We could as well join on eq(traces.topSpanId, topLevelSpans.id),
-      // but this is more performant, as spans are indexed by traceId
-      eq(traces.id, topLevelSpans.traceId)
-    ).where(
+  const topLevelSpans = db
+    .select({
+      inputPreview: spans.inputPreview,
+      outputPreview: spans.outputPreview,
+      path: sql<string>`attributes ->> 'lmnr.span.path'`.as("path"),
+      name: spans.name,
+      spanType: spans.spanType,
+      traceId: spans.traceId,
+    })
+    .from(spans)
+    .where(
       and(
-        eq(traces.projectId, projectId),
-        eq(traces.traceType, 'DEFAULT'),
-        isNotNull(traces.startTime),
-        isNotNull(traces.endTime),
+        eq(spans.projectId, projectId),
+        isNull(spans.parentSpanId),
         ...getDateRangeFilters(startTime, endTime, pastHours)
       )
     )
+    .as("top_level_spans");
+
+  const baseQuery = db.$with("traces_info").as(
+    db
+      .select({
+        id: traces.id,
+        startTime: traces.startTime,
+        endTime: traces.endTime,
+        sessionId: traces.sessionId,
+        metadata: traces.metadata,
+        projectId: traces.projectId,
+        inputTokenCount: traces.inputTokenCount,
+        outputTokenCount: traces.outputTokenCount,
+        totalTokenCount: traces.totalTokenCount,
+        hasBrowserSession: traces.hasBrowserSession,
+        inputCost: traces.inputCost,
+        outputCost: traces.outputCost,
+        cost: traces.cost,
+        traceType: traces.traceType,
+        topSpanInputPreview: topLevelSpans.inputPreview,
+        topSpanOutputPreview: topLevelSpans.outputPreview,
+        topSpanPath: topLevelSpans.path,
+        topSpanName: topLevelSpans.name,
+        topSpanType: topLevelSpans.spanType,
+        latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
+      })
+      .from(traces)
+      .leftJoin(
+        topLevelSpans,
+        // We could as well join on eq(traces.topSpanId, topLevelSpans.id),
+        // but this is more performant, as spans are indexed by traceId
+        eq(traces.id, topLevelSpans.traceId)
+      )
+      .where(
+        and(
+          eq(traces.projectId, projectId),
+          eq(traces.traceType, "DEFAULT"),
+          isNotNull(traces.startTime),
+          isNotNull(traces.endTime),
+          ...getDateRangeFilters(startTime, endTime, pastHours)
+        )
+      )
   );
 
   const query = db
@@ -114,21 +119,21 @@ export async function GET(
     })
     .from(baseQuery);
 
-  const baseCountQuery = db.with(baseQuery).select({
-    totalCount: sql<number>`COUNT(DISTINCT(id))`.as("total_count")
-  }).from(baseQuery);
+  const baseCountQuery = db
+    .with(baseQuery)
+    .select({
+      totalCount: sql<number>`COUNT(DISTINCT(id))`.as("total_count"),
+    })
+    .from(baseQuery);
 
   let filters = [eq(baseQuery.projectId, projectId)];
   if (searchTraceIds) {
     filters.push(inArray(baseQuery.id, searchTraceIds));
   }
   const labelFilters = urlParamFilters
-    .filter(filter => filter.column === "labels" && filter.operator === "eq")
-    .map(filter => {
-      const [labelName, labelValue] = filter.value.split(/=(.*)/);
-      if (labelValue === undefined || labelValue === '') {
-        return sql`1=1`;
-      }
+    .filter((filter) => filter.column === "labels" && filter.operator === "eq")
+    .map((filter) => {
+      const labelName = filter.value.split(/=(.*)/)?.[0];
       return inArray(
         sql`id`,
         db
@@ -136,36 +141,29 @@ export async function GET(
           .from(spans)
           .innerJoin(labels, eq(spans.spanId, labels.spanId))
           .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-          .where(and(
-            eq(labelClasses.name, labelName),
-            eq(labels.value, sql<number>`(label_classes.value_map ->> ${labelValue})::float8`)
-          ))
+          .where(and(eq(labelClasses.name, labelName)))
       );
     });
   const metadataFilters = urlParamFilters
-    .filter(filter => filter.column === "metadata" && filter.operator === "eq")
-    .map(filter => {
+    .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
+    .map((filter) => {
       const [key, value] = filter.value.split(/=(.*)/);
       return sql`metadata @> ${JSON.stringify({ [key]: value })}`;
     });
   const otherFilters = urlParamFilters
-    .filter(filter => filter.column !== "labels" && filter.column !== "metadata")
-    .map(filter => {
+    .filter((filter) => filter.column !== "labels" && filter.column !== "metadata")
+    .map((filter) => {
       if (filter.column === "traceType") {
         filter.castType = "trace_type";
       } else if (filter.column === "spanType") {
         // cast to span_type
         const uppercased = filter.value.toUpperCase().trim();
-        filter.value = (uppercased === 'SPAN') ? "'DEFAULT'" : `'${uppercased}'`;
+        filter.value = uppercased === "SPAN" ? "'DEFAULT'" : `'${uppercased}'`;
         filter.castType = "span_type";
       }
       return filter;
     });
-  const sqlFilters = filtersToSql(
-    otherFilters,
-    [],
-    {}
-  );
+  const sqlFilters = filtersToSql(otherFilters, [], {});
 
   const traceQuery = query
     .where(and(...filters.concat(labelFilters, metadataFilters, sqlFilters)))
@@ -174,14 +172,10 @@ export async function GET(
     .offset(pageNumber * pageSize);
   const countQuery = baseCountQuery.where(and(...filters.concat(labelFilters, metadataFilters, sqlFilters)));
 
-  const [items, totalCount] = await Promise.all([
-    traceQuery,
-    countQuery
-  ]);
+  const [items, totalCount] = await Promise.all([traceQuery, countQuery]);
 
   return new Response(JSON.stringify({ items, totalCount: totalCount[0].totalCount }), { status: 200 });
 }
-
 
 export async function DELETE(
   req: NextRequest,
@@ -191,31 +185,19 @@ export async function DELETE(
   const projectId = params.projectId;
 
   const { searchParams } = new URL(req.url);
-  const traceId = searchParams.get('traceId')?.split(',');
+  const traceId = searchParams.get("traceId")?.split(",");
 
   if (!traceId) {
-    return new Response('At least one Trace ID is required', { status: 400 });
+    return new Response("At least one Trace ID is required", { status: 400 });
   }
 
   try {
-    await db.delete(traces)
-      .where(
-        and(
-          inArray(traces.id, traceId),
-          eq(traces.projectId, projectId)
-        )
-      );
+    await db.delete(traces).where(and(inArray(traces.id, traceId), eq(traces.projectId, projectId)));
 
-    await db.delete(spans)
-      .where(
-        and(
-          inArray(traces.id, traceId),
-          eq(traces.projectId, projectId)
-        )
-      );
+    await db.delete(spans).where(and(inArray(traces.id, traceId), eq(traces.projectId, projectId)));
 
-    return new Response('Traces deleted successfully', { status: 200 });
+    return new Response("Traces deleted successfully", { status: 200 });
   } catch (error) {
-    return new Response('Error deleting traces', { status: 500 });
+    return new Response("Error deleting traces", { status: 500 });
   }
 }
