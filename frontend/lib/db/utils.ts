@@ -1,5 +1,5 @@
 import { and, eq, getTableColumns, gt, lt, SQL, sql } from "drizzle-orm";
-import { PgTableWithColumns, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
+import { PgTable, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
 import { getServerSession } from 'next-auth';
 
 import { authOptions } from "../auth";
@@ -78,7 +78,7 @@ export const getDateRangeFilters = (
 };
 
 interface PaginatedGetParams<T extends TableConfig, R> {
-  table: PgTableWithColumns<T>;
+  table: PgTable<T>;
   pageNumber?: number;
   pageSize?: number;
   filters: SQL[];
