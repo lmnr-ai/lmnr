@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
 use actix_web::{post, web, HttpResponse};
+use futures::StreamExt;
 use serde::Deserialize;
-use serde_json::json;
 use uuid::Uuid;
 
-use crate::agent_manager::{AgentManager, AgentManagerTrait, LaminarSpanContext};
+use crate::agent_manager::{
+    types::{LaminarSpanContext, ModelProvider},
+    AgentManager, AgentManagerTrait,
+};
 use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
 use crate::db::project_api_keys::ProjectApiKey;
 use crate::project_api_keys::ProjectApiKeyVals;
@@ -18,12 +21,12 @@ struct RunAgentRequest {
     prompt: String,
     #[serde(default)]
     span_context: Option<LaminarSpanContext>,
-    #[serde(default = "gen_new_uuid")]
-    session_id: Uuid,
-}
-
-fn gen_new_uuid() -> Uuid {
-    Uuid::new_v4()
+    #[serde(default)]
+    model_provider: Option<ModelProvider>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    stream: bool,
 }
 
 #[post("agent")]
@@ -39,12 +42,10 @@ pub async fn run_agent_manager(
     let request_api_key_vals = ProjectApiKeyVals::new();
     let request_api_key = ProjectApiKey {
         project_id: project_api_key.project_id,
-        name: Some(format!("tmp-agent-{}", request.session_id)),
+        name: Some(format!("tmp-agent-{}", Uuid::new_v4())),
         hash: request_api_key_vals.hash,
         shorthand: request_api_key_vals.shorthand,
     };
-
-    dbg!(&request_api_key_vals.value);
 
     let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{}", request_api_key.hash);
     cache
@@ -57,16 +58,36 @@ pub async fn run_agent_manager(
         .await
         .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
 
-    let response = agent_manager
-        .run_agent(
-            request.prompt,
-            Some(request_api_key_vals.value),
-            request.span_context.map(|span_context| span_context.into()),
-        )
-        .await?;
+    if request.stream {
+        let stream = agent_manager
+            .run_agent_stream(
+                request.prompt,
+                Some(request_api_key_vals.value),
+                request.span_context.map(|span_context| span_context.into()),
+                request.model_provider,
+                request.model,
+            )
+            .await;
 
-    Ok(HttpResponse::Ok().json(json!({
-       "answer": response.answer,
-       "screenshots": response.screenshots,
-    })))
+        Ok(HttpResponse::Ok()
+            .content_type("text/event-stream")
+            .streaming(stream.map(|r| {
+                r.map(|chunk| {
+                    let data = serde_json::to_string(&chunk).unwrap();
+                    bytes::Bytes::from(format!("data: {}\n\n", data))
+                })
+            })))
+    } else {
+        let response = agent_manager
+            .run_agent(
+                request.prompt,
+                Some(request_api_key_vals.value),
+                request.span_context.map(|span_context| span_context.into()),
+                request.model_provider,
+                request.model,
+            )
+            .await?;
+
+        Ok(HttpResponse::Ok().json(response))
+    }
 }

@@ -6,7 +6,9 @@ use actix_web::{
 use actix_web_httpauth::middleware::HttpAuthentication;
 use agent_manager::{
     agent_manager_grpc::agent_manager_service_client::AgentManagerServiceClient,
-    agent_manager_impl::AgentManagerImpl, AgentManager,
+    agent_manager_impl::AgentManagerImpl,
+    worker::{AGENT_WORKER_EXCHANGE, AGENT_WORKER_QUEUE},
+    AgentManager,
 };
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
@@ -15,7 +17,7 @@ use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient
 use dashmap::DashMap;
 use features::{is_feature_enabled, Feature};
 use lapin::{
-    options::{ExchangeDeclareOptions, QueueDeclareOptions},
+    options::{ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions},
     types::FieldTable,
     Connection, ConnectionProperties, ExchangeKind,
 };
@@ -211,7 +213,9 @@ fn main() -> anyhow::Result<()> {
     };
 
     // ==== 3.2 Browser events message queue ====
-    let browser_events_message_queue: Arc<MessageQueue> = if let Some(connection) = connection {
+    let browser_events_message_queue: Arc<MessageQueue> = if let Some(connection) =
+        connection.as_ref()
+    {
         runtime_handle.block_on(async {
             let channel = connection.create_channel().await.unwrap();
 
@@ -228,6 +232,42 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     BROWSER_SESSIONS_QUEUE,
+                    QueueDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(64);
+
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
+            Arc::new(rabbit_mq.into())
+        })
+    } else {
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
+    };
+
+    // ==== 3.3 Agent worker message queue ====
+    let agent_worker_message_queue: Arc<MessageQueue> = if let Some(connection) = connection {
+        runtime_handle.block_on(async {
+            let channel = connection.create_channel().await.unwrap();
+
+            channel
+                .exchange_declare(
+                    AGENT_WORKER_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    AGENT_WORKER_QUEUE,
                     QueueDeclareOptions::default(),
                     FieldTable::default(),
                 )
@@ -493,6 +533,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(machine_manager.clone()))
                         .app_data(web::Data::new(browser_events_message_queue.clone()))
+                        .app_data(web::Data::new(agent_worker_message_queue.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
                         // Scopes with specific auth or no auth
@@ -510,6 +551,11 @@ fn main() -> anyhow::Result<()> {
                                         .wrap(project_auth.clone())
                                         .service(api::v1::browser_sessions::create_session_event),
                                 ),
+                        )
+                        .service(
+                            web::scope("api/v1/agent")
+                                .wrap(auth.clone())
+                                .service(routes::agent::run_agent_manager),
                         )
                         .service(
                             web::scope("/v1")

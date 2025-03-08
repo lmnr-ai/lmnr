@@ -3,7 +3,7 @@ use super::{
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use dashmap::DashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
@@ -62,8 +62,12 @@ impl MessageQueueTrait for TokioMpscQueue {
         message: &[u8],
         exchange: &str,
         routing_key: &str,
+        expiration_ms: Option<u32>,
     ) -> anyhow::Result<()> {
         let key = self.key(exchange, routing_key);
+        if expiration_ms.is_some() {
+            log::warn!("TokioMpscQueue does not support message expiration");
+        }
 
         let Some(senders) = self.senders.get(&key) else {
             return Err(anyhow::anyhow!(

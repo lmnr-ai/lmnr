@@ -58,6 +58,7 @@ pub async fn push_spans_to_queue(
                         &serde_json::to_vec(&rabbitmq_span_message).unwrap(),
                         OBSERVATIONS_EXCHANGE,
                         OBSERVATIONS_ROUTING_KEY,
+                        None,
                     )
                     .await?;
             }

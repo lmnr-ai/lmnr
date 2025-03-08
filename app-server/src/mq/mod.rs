@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use enum_dispatch::enum_dispatch;
 use lapin::{
     acker::Acker,
@@ -89,6 +91,7 @@ pub trait MessageQueueTrait {
         message: &[u8],
         exchange: &str,
         routing_key: &str,
+        expiration_ms: Option<u32>,
     ) -> anyhow::Result<()>;
 
     async fn get_receiver(

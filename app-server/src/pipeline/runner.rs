@@ -253,6 +253,7 @@ impl PipelineRunner {
                 &serde_json::to_vec(&parent_span_mq_message).unwrap(),
                 OBSERVATIONS_EXCHANGE,
                 OBSERVATIONS_ROUTING_KEY,
+                None,
             )
             .await?;
 
@@ -268,6 +269,7 @@ impl PipelineRunner {
                     &serde_json::to_vec(&message_span_mq_message).unwrap(),
                     OBSERVATIONS_EXCHANGE,
                     OBSERVATIONS_ROUTING_KEY,
+                    None,
                 )
                 .await?;
         }
