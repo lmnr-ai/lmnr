@@ -6,7 +6,7 @@ use actix_web::{
 use actix_web_httpauth::middleware::HttpAuthentication;
 use agent_manager::{
     agent_manager_grpc::agent_manager_service_client::AgentManagerServiceClient,
-    agent_manager_impl::AgentManagerImpl, AgentManager,
+    agent_manager_impl::AgentManagerImpl, channel::AgentManagerChannel, AgentManager,
 };
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
@@ -207,7 +207,7 @@ fn main() -> anyhow::Result<()> {
             Arc::new(rabbit_mq.into())
         })
     } else {
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new(false).into())
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
     };
 
     // ==== 3.2 Browser events message queue ====
@@ -245,12 +245,11 @@ fn main() -> anyhow::Result<()> {
             Arc::new(rabbit_mq.into())
         })
     } else {
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new(false).into())
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
     };
 
     // ==== 3.3 Agent worker message queue ====
-    let agent_worker_message_queue: Arc<MessageQueue> =
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new(true).into());
+    let agent_manager_channel = Arc::new(AgentManagerChannel::new());
 
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
@@ -499,7 +498,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(machine_manager.clone()))
                         .app_data(web::Data::new(browser_events_message_queue.clone()))
-                        .app_data(web::Data::new(agent_worker_message_queue.clone()))
+                        .app_data(web::Data::new(agent_manager_channel.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
                         // Scopes with specific auth or no auth

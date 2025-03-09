@@ -1,8 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
-
-use crate::db::agent_messages::DBAgentMessage;
 
 use super::agent_manager_grpc::{
     browser_state::{
@@ -59,6 +56,7 @@ impl ModelProvider {
 }
 
 #[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all(serialize = "camelCase"))]
 pub struct ActionResult {
     #[serde(default)]
     pub is_done: bool,
@@ -178,6 +176,8 @@ impl Into<ChatMessage> for ChatMessageGrpc {
 }
 
 #[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all(serialize = "camelCase"))]
+
 pub struct TabInfo {
     page_id: i64,
     url: String,
@@ -216,6 +216,7 @@ impl Into<Coordinates> for CoordinatesGrpc {
 }
 
 #[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all(serialize = "camelCase"))]
 pub struct InteractiveElement {
     index: i64,
     #[serde(alias = "tagName", alias = "tag_name")]
@@ -253,6 +254,7 @@ impl Into<InteractiveElement> for InteractiveElementGrpc {
     }
 }
 #[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all(serialize = "camelCase"))]
 pub struct BrowserState {
     url: String,
     tabs: Vec<TabInfo>,
@@ -283,6 +285,7 @@ impl Into<BrowserState> for BrowserStateGrpc {
 }
 
 #[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all(serialize = "camelCase"))]
 pub struct AgentState {
     messages: Vec<ChatMessage>,
     browser_state: BrowserState,
@@ -313,7 +316,10 @@ impl Into<AgentState> for AgentStateGrpc {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "chunk_type", rename_all = "snake_case")]
+#[serde(
+    tag = "chunk_type",
+    rename_all(deserialize = "snake_case", serialize = "camelCase")
+)]
 pub enum RunAgentResponseStreamChunk {
     Step(StepChunkContent),
     FinalOutput(FinalOutputChunkContent),
@@ -335,6 +341,7 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase"))]
 pub struct StepChunkContent {
     pub action_result: ActionResult,
     pub summary: String,
@@ -351,48 +358,4 @@ impl Into<StepChunkContent> for StepChunkContentGrpc {
 #[derive(Serialize, Deserialize)]
 pub struct FinalOutputChunkContent {
     pub content: AgentOutput,
-}
-
-/// This is very similar to `RunAgentResponseStreamChunk`, but it
-/// has a separate kind for the existing messages. This is used
-/// as the first chunk sent to the client. We could as well use
-/// the same enum, but this makes the code a bit cleaner and avoids
-/// recursion and boxes.
-#[derive(Serialize)]
-#[serde(tag = "chunkType", rename_all = "camelCase")]
-pub enum AgentStreamChunk {
-    Step(StepChunkContent),
-    FinalOutput(FinalOutputChunkContent),
-    ExistingMessages(ExistingMessagesChunkContent),
-}
-
-impl Into<AgentStreamChunk> for RunAgentResponseStreamChunk {
-    fn into(self) -> AgentStreamChunk {
-        match self {
-            RunAgentResponseStreamChunk::Step(s) => AgentStreamChunk::Step(s),
-            RunAgentResponseStreamChunk::FinalOutput(f) => AgentStreamChunk::FinalOutput(f),
-        }
-    }
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExistingMessagesChunkContent {
-    pub chat_id: Uuid,
-    pub message_history: Vec<MessageHistoryItem>,
-}
-
-#[derive(Serialize)]
-pub struct MessageHistoryItem {
-    pub role: String,
-    pub content: RunAgentResponseStreamChunk,
-}
-
-impl Into<MessageHistoryItem> for DBAgentMessage {
-    fn into(self) -> MessageHistoryItem {
-        MessageHistoryItem {
-            role: self.message_type,
-            content: serde_json::from_value(self.content).unwrap(),
-        }
-    }
 }

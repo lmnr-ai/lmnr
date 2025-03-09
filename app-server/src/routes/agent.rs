@@ -5,158 +5,81 @@ use futures::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::agent_manager::types::{
-    AgentStreamChunk, ExistingMessagesChunkContent, MessageHistoryItem, RunAgentResponseStreamChunk,
-};
-use crate::agent_manager::worker::{run_agent_worker, AGENT_WORKER_EXCHANGE, AGENT_WORKER_QUEUE};
-use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
-use crate::db::project_api_keys::ProjectApiKey;
+use crate::agent_manager::channel::AgentManagerChannel;
+use crate::agent_manager::types::RunAgentResponseStreamChunk;
+use crate::agent_manager::worker::run_agent_worker;
 use crate::db::user::User;
-use crate::mq::{
-    MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
-};
-use crate::project_api_keys::ProjectApiKeyVals;
 use crate::routes::types::ResponseResult;
 use crate::{
     agent_manager::{types::ModelProvider, AgentManager},
-    db::{self, DB},
+    db::DB,
 };
-
-const REQUEST_API_KEY_TTL: u64 = 60 * 60; // 1 hour
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RunAgentRequest {
     prompt: String,
-    chat_id: Option<Uuid>,
+    chat_id: Uuid,
+    #[serde(default)]
+    is_new_chat: bool,
     #[serde(default)]
     model_provider: Option<ModelProvider>,
     #[serde(default)]
     model: Option<String>,
-    #[serde(default)]
-    project_id: Option<Uuid>,
+    #[serde(default = "default_true")]
+    enable_thinking: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[post("run")]
 pub async fn run_agent_manager(
     agent_manager: web::Data<Arc<AgentManager>>,
-    cache: web::Data<Cache>,
     user: User,
     db: web::Data<DB>,
-    worker_message_queue: web::Data<Arc<MessageQueue>>,
+    worker_channel: web::Data<Arc<AgentManagerChannel>>,
     request: web::Json<RunAgentRequest>,
 ) -> ResponseResult {
     let request = request.into_inner();
 
-    let chat_id = request.chat_id.unwrap_or(Uuid::new_v4());
-    let mut receiver = worker_message_queue
-        .get_receiver(
-            AGENT_WORKER_QUEUE,
-            AGENT_WORKER_EXCHANGE,
-            &chat_id.to_string(),
-        )
-        .await
-        .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
+    let chat_id = request.chat_id;
+    let mut receiver = worker_channel.create_channel_and_get_rx(chat_id);
 
-    let first_chunk = if request.chat_id.is_some() {
-        // An existing session, this is a reconnection
-        let existing_messages = db::agent_messages::get_chat_messages(&db.pool, &chat_id, &user.id)
-            .await
-            .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
-        let existing_messages: Vec<MessageHistoryItem> =
-            existing_messages.into_iter().map(|m| m.into()).collect();
-
-        if existing_messages
-            .iter()
-            .any(|m| matches!(m.content, RunAgentResponseStreamChunk::FinalOutput(_)))
-        {
-            let chunk = AgentStreamChunk::ExistingMessages(ExistingMessagesChunkContent {
-                chat_id,
-                message_history: existing_messages,
-            });
-            return Ok(HttpResponse::Ok()
-                .content_type("text/event-stream")
-                .streaming(futures::stream::once(async move {
-                    anyhow::Ok(bytes::Bytes::from(format!(
-                        "data: {}\n\n",
-                        serde_json::to_string(&chunk).unwrap()
-                    )))
-                })));
-        }
-        AgentStreamChunk::ExistingMessages(ExistingMessagesChunkContent {
-            chat_id,
-            message_history: existing_messages,
-        })
-    } else {
-        let request_api_key_vals = ProjectApiKeyVals::new();
-        let request_api_key = ProjectApiKey {
-            project_id: request.project_id.unwrap_or(Uuid::new_v4()),
-            name: Some(format!("tmp-agent-{}", chat_id)),
-            hash: request_api_key_vals.hash,
-            shorthand: request_api_key_vals.shorthand,
-        };
-
-        let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{}", request_api_key.hash);
-        cache
-            .insert::<ProjectApiKey>(&cache_key, request_api_key.clone())
-            .await
-            .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
-
-        cache
-            .set_ttl(&cache_key, REQUEST_API_KEY_TTL)
-            .await
-            .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
-
+    if request.is_new_chat {
         // Run agent worker
         tokio::spawn(async move {
             run_agent_worker(
                 agent_manager.as_ref().clone(),
-                worker_message_queue.as_ref().clone(),
+                worker_channel.as_ref().clone(),
                 db.into_inner(),
                 chat_id,
                 user.id,
                 request.prompt,
-                request_api_key_vals.value,
+                None,
                 request.model_provider,
                 request.model,
+                request.enable_thinking,
             )
             .await;
         });
-        AgentStreamChunk::ExistingMessages(ExistingMessagesChunkContent {
-            chat_id,
-            message_history: vec![],
-        })
-    };
+    }
 
-    let stream = futures::stream::once(async move { anyhow::Ok(first_chunk) });
-
-    let receiver_stream = async_stream::stream! {
-        while let Some(delivery) = receiver.receive().await {
-            if let Err(e) = delivery {
-                log::error!("Error receiving message: {}", e);
-                continue;
-            }
-
-            let delivery = delivery.unwrap();
-            let acker = delivery.acker();
-            let chunk = serde_json::from_slice::<RunAgentResponseStreamChunk>(&delivery.data())?;
-
-            let chunk: AgentStreamChunk = chunk.into();
-            if matches!(chunk, AgentStreamChunk::FinalOutput(_)) {
-                yield anyhow::Ok(chunk);
+    let stream = async_stream::stream! {
+        while let Some(message) = receiver.recv().await {
+            if matches!(message, RunAgentResponseStreamChunk::FinalOutput(_)) {
+                yield anyhow::Ok(message);
                 break;
             }
 
-            yield anyhow::Ok(chunk);
-            acker.ack().await?;
+            yield anyhow::Ok(message);
         }
     };
 
-    let combined_stream = stream.chain(receiver_stream);
-
     Ok(HttpResponse::Ok()
         .content_type("text/event-stream")
-        .streaming(combined_stream.map(|r| {
+        .streaming(stream.map(|r| {
             r.map(|chunk| {
                 let json = serde_json::to_string(&chunk).unwrap();
                 bytes::Bytes::from(format!("data: {}\n\n", json))

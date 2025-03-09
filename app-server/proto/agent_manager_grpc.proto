@@ -15,10 +15,12 @@ enum ModelProvider {
 
 message RunAgentRequest {
     string prompt = 1;
-    optional string request_api_key = 2;
-    optional LaminarSpanContext span_context = 3;
-    optional ModelProvider model_provider = 4;
-    optional string model = 5;
+    string chat_id = 2;
+    optional string request_api_key = 3;
+    optional LaminarSpanContext span_context = 4;
+    optional ModelProvider model_provider = 5;
+    optional string model = 6;
+    optional bool enable_thinking = 7;
 }
 
 message ActionResult {

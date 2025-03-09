@@ -12,14 +12,18 @@ pub struct LaminarSpanContext {
 pub struct RunAgentRequest {
     #[prost(string, tag = "1")]
     pub prompt: ::prost::alloc::string::String,
-    #[prost(string, optional, tag = "2")]
+    #[prost(string, tag = "2")]
+    pub chat_id: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "3")]
     pub request_api_key: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "4")]
     pub span_context: ::core::option::Option<LaminarSpanContext>,
-    #[prost(enumeration = "ModelProvider", optional, tag = "4")]
+    #[prost(enumeration = "ModelProvider", optional, tag = "5")]
     pub model_provider: ::core::option::Option<i32>,
-    #[prost(string, optional, tag = "5")]
+    #[prost(string, optional, tag = "6")]
     pub model: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "7")]
+    pub enable_thinking: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ActionResult {

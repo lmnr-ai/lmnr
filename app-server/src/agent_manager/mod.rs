@@ -4,9 +4,11 @@ use async_trait::async_trait;
 use agent_manager_impl::AgentManagerImpl;
 use mock::MockAgentManager;
 use types::{AgentOutput, LaminarSpanContext, ModelProvider, RunAgentResponseStreamChunk};
+use uuid::Uuid;
 
 pub mod agent_manager_grpc;
 pub mod agent_manager_impl;
+pub mod channel;
 pub mod mock;
 pub mod types;
 pub mod worker;
@@ -25,18 +27,22 @@ pub trait AgentManagerTrait {
     async fn run_agent(
         &self,
         prompt: String,
+        chat_id: Uuid,
         request_api_key: Option<String>,
         span_context: Option<LaminarSpanContext>,
         model_provider: Option<ModelProvider>,
         model: Option<String>,
+        enable_thinking: bool,
     ) -> Result<AgentOutput>;
 
     async fn run_agent_stream(
         &self,
         prompt: String,
+        chat_id: Uuid,
         request_api_key: Option<String>,
         span_context: Option<LaminarSpanContext>,
         model_provider: Option<ModelProvider>,
         model: Option<String>,
+        enable_thinking: bool,
     ) -> Self::RunAgentStreamStream;
 }

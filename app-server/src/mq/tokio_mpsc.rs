@@ -11,9 +11,6 @@ use tokio::sync::{
 
 const CHANNEL_CAPACITY: usize = 100;
 
-// TODO: Possibly think about how to generalize the inner type with any
-// `T: Clone + Serialize + Deserialize + Send + Sync`
-// instead of manually (de)serializing into `Vec<u8>`
 pub struct TokioMpscReceiver {
     receiver: Receiver<Vec<u8>>,
 }
@@ -44,14 +41,12 @@ impl MessageQueueReceiverTrait for TokioMpscReceiver {
 
 pub struct TokioMpscQueue {
     senders: DashMap<String, Arc<Mutex<Vec<Sender<Vec<u8>>>>>>,
-    single_consumer: bool,
 }
 
 impl TokioMpscQueue {
-    pub fn new(single_consumer: bool) -> Self {
+    pub fn new() -> Self {
         Self {
             senders: DashMap::new(),
-            single_consumer,
         }
     }
 
@@ -85,11 +80,6 @@ impl MessageQueueTrait for TokioMpscQueue {
             ));
         }
 
-        if self.single_consumer {
-            senders.lock().await[0].send(message.to_vec()).await?;
-            return Ok(());
-        }
-
         // naive iteration to choose the least busy queue
         let mut max_index = 0;
         let mut max_capacity = 0;
@@ -118,16 +108,13 @@ impl MessageQueueTrait for TokioMpscQueue {
         let (sender, receiver) = mpsc::channel(CHANNEL_CAPACITY);
         let tokio_mpsc_receiver = TokioMpscReceiver { receiver };
 
-        if self.single_consumer {
-            self.senders.insert(key, Arc::new(Mutex::new(vec![sender])));
-        } else {
-            self.senders
-                .entry(key)
-                .or_default()
-                .lock()
-                .await
-                .push(sender);
-        }
+        self.senders
+            .entry(key)
+            .or_default()
+            .lock()
+            .await
+            .push(sender);
+
         Ok(tokio_mpsc_receiver.into())
     }
 }

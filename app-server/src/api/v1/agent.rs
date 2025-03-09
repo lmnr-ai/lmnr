@@ -27,6 +27,12 @@ struct RunAgentRequest {
     model: Option<String>,
     #[serde(default)]
     stream: bool,
+    #[serde(default = "default_true")]
+    enable_thinking: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[post("agent")]
@@ -39,10 +45,12 @@ pub async fn run_agent_manager(
     let request = request.into_inner();
     let agent_manager = agent_manager.as_ref().clone();
 
+    let chat_id = Uuid::new_v4();
+
     let request_api_key_vals = ProjectApiKeyVals::new();
     let request_api_key = ProjectApiKey {
         project_id: project_api_key.project_id,
-        name: Some(format!("tmp-agent-{}", Uuid::new_v4())),
+        name: Some(format!("tmp-agent-{}", chat_id)),
         hash: request_api_key_vals.hash,
         shorthand: request_api_key_vals.shorthand,
     };
@@ -62,10 +70,12 @@ pub async fn run_agent_manager(
         let stream = agent_manager
             .run_agent_stream(
                 request.prompt,
+                chat_id,
                 Some(request_api_key_vals.value),
                 request.span_context.map(|span_context| span_context.into()),
                 request.model_provider,
                 request.model,
+                request.enable_thinking,
             )
             .await;
 
@@ -81,10 +91,12 @@ pub async fn run_agent_manager(
         let response = agent_manager
             .run_agent(
                 request.prompt,
+                chat_id,
                 Some(request_api_key_vals.value),
                 request.span_context.map(|span_context| span_context.into()),
                 request.model_provider,
                 request.model,
+                request.enable_thinking,
             )
             .await?;
 
