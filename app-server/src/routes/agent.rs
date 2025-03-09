@@ -9,7 +9,8 @@ use crate::agent_manager::types::{
     AgentStreamChunk, ExistingMessagesChunkContent, MessageHistoryItem, RunAgentResponseStreamChunk,
 };
 use crate::agent_manager::worker::{run_agent_worker, AGENT_WORKER_EXCHANGE, AGENT_WORKER_QUEUE};
-// use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
+use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
+use crate::db::project_api_keys::ProjectApiKey;
 use crate::db::user::User;
 use crate::mq::{
     MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
@@ -21,7 +22,7 @@ use crate::{
     db::{self, DB},
 };
 
-// const REQUEST_API_KEY_TTL: u64 = 60 * 60; // 1 hour
+const REQUEST_API_KEY_TTL: u64 = 60 * 60; // 1 hour
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,12 +33,14 @@ struct RunAgentRequest {
     model_provider: Option<ModelProvider>,
     #[serde(default)]
     model: Option<String>,
+    #[serde(default)]
+    project_id: Option<Uuid>,
 }
 
 #[post("run")]
 pub async fn run_agent_manager(
     agent_manager: web::Data<Arc<AgentManager>>,
-    // cache: web::Data<Cache>,
+    cache: web::Data<Cache>,
     user: User,
     db: web::Data<DB>,
     worker_message_queue: web::Data<Arc<MessageQueue>>,
@@ -63,8 +66,6 @@ pub async fn run_agent_manager(
         let existing_messages: Vec<MessageHistoryItem> =
             existing_messages.into_iter().map(|m| m.into()).collect();
 
-        dbg!(&existing_messages.len());
-
         if existing_messages
             .iter()
             .any(|m| matches!(m.content, RunAgentResponseStreamChunk::FinalOutput(_)))
@@ -76,7 +77,10 @@ pub async fn run_agent_manager(
             return Ok(HttpResponse::Ok()
                 .content_type("text/event-stream")
                 .streaming(futures::stream::once(async move {
-                    anyhow::Ok(bytes::Bytes::from(serde_json::to_vec(&chunk).unwrap()))
+                    anyhow::Ok(bytes::Bytes::from(format!(
+                        "data: {}\n\n",
+                        serde_json::to_string(&chunk).unwrap()
+                    )))
                 })));
         }
         AgentStreamChunk::ExistingMessages(ExistingMessagesChunkContent {
@@ -84,27 +88,24 @@ pub async fn run_agent_manager(
             message_history: existing_messages,
         })
     } else {
-        // We don't need to pass the project_id to the agent, but currently
-        // it fails if we don't pass it.
-        // TODO: Clean this up, once the agent is updated.
         let request_api_key_vals = ProjectApiKeyVals::new();
-        // let request_api_key = ProjectApiKey {
-        //     project_id: Uuid::new_v4(),
-        //     name: Some(format!("tmp-agent-{}", chat_id)),
-        //     hash: request_api_key_vals.hash,
-        //     shorthand: request_api_key_vals.shorthand,
-        // };
+        let request_api_key = ProjectApiKey {
+            project_id: request.project_id.unwrap_or(Uuid::new_v4()),
+            name: Some(format!("tmp-agent-{}", chat_id)),
+            hash: request_api_key_vals.hash,
+            shorthand: request_api_key_vals.shorthand,
+        };
 
-        // let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{}", request_api_key.hash);
-        // cache
-        //     .insert::<ProjectApiKey>(&cache_key, request_api_key.clone())
-        //     .await
-        //     .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
+        let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{}", request_api_key.hash);
+        cache
+            .insert::<ProjectApiKey>(&cache_key, request_api_key.clone())
+            .await
+            .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
 
-        // cache
-        //     .set_ttl(&cache_key, REQUEST_API_KEY_TTL)
-        //     .await
-        //     .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
+        cache
+            .set_ttl(&cache_key, REQUEST_API_KEY_TTL)
+            .await
+            .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
 
         // Run agent worker
         tokio::spawn(async move {
