@@ -106,7 +106,6 @@ pub async fn run_agent_manager(
         //     .await
         //     .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
 
-        let chat_id = Uuid::new_v4();
         // Run agent worker
         tokio::spawn(async move {
             run_agent_worker(
@@ -148,18 +147,18 @@ pub async fn run_agent_manager(
             }
 
             yield anyhow::Ok(chunk);
-
             acker.ack().await?;
         }
     };
 
     let combined_stream = stream.chain(receiver_stream);
 
-    // TODO: should we comply with SSE eventstream?
     Ok(HttpResponse::Ok()
         .content_type("text/event-stream")
-        .streaming(
-            combined_stream
-                .map(|r| r.map(|chunk| bytes::Bytes::from(serde_json::to_vec(&chunk).unwrap()))),
-        ))
+        .streaming(combined_stream.map(|r| {
+            r.map(|chunk| {
+                let json = serde_json::to_string(&chunk).unwrap();
+                bytes::Bytes::from(format!("data: {}\n\n", json))
+            })
+        })))
 }

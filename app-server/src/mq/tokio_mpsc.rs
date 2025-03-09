@@ -3,11 +3,13 @@ use super::{
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use dashmap::DashMap;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
 };
+
+const CHANNEL_CAPACITY: usize = 100;
 
 // TODO: Possibly think about how to generalize the inner type with any
 // `T: Clone + Serialize + Deserialize + Send + Sync`
@@ -42,12 +44,14 @@ impl MessageQueueReceiverTrait for TokioMpscReceiver {
 
 pub struct TokioMpscQueue {
     senders: DashMap<String, Arc<Mutex<Vec<Sender<Vec<u8>>>>>>,
+    single_consumer: bool,
 }
 
 impl TokioMpscQueue {
-    pub fn new() -> Self {
+    pub fn new(single_consumer: bool) -> Self {
         Self {
             senders: DashMap::new(),
+            single_consumer,
         }
     }
 
@@ -62,12 +66,8 @@ impl MessageQueueTrait for TokioMpscQueue {
         message: &[u8],
         exchange: &str,
         routing_key: &str,
-        expiration_ms: Option<u32>,
     ) -> anyhow::Result<()> {
         let key = self.key(exchange, routing_key);
-        if expiration_ms.is_some() {
-            log::warn!("TokioMpscQueue does not support message expiration");
-        }
 
         let Some(senders) = self.senders.get(&key) else {
             return Err(anyhow::anyhow!(
@@ -83,6 +83,11 @@ impl MessageQueueTrait for TokioMpscQueue {
                 exchange,
                 routing_key
             ));
+        }
+
+        if self.single_consumer {
+            senders.lock().await[0].send(message.to_vec()).await?;
+            return Ok(());
         }
 
         // naive iteration to choose the least busy queue
@@ -110,14 +115,19 @@ impl MessageQueueTrait for TokioMpscQueue {
     ) -> anyhow::Result<MessageQueueReceiver> {
         let key = self.key(exchange, routing_key);
 
-        let (sender, receiver) = mpsc::channel(100);
+        let (sender, receiver) = mpsc::channel(CHANNEL_CAPACITY);
         let tokio_mpsc_receiver = TokioMpscReceiver { receiver };
-        self.senders
-            .entry(key)
-            .or_default()
-            .lock()
-            .await
-            .push(sender);
+
+        if self.single_consumer {
+            self.senders.insert(key, Arc::new(Mutex::new(vec![sender])));
+        } else {
+            self.senders
+                .entry(key)
+                .or_default()
+                .lock()
+                .await
+                .push(sender);
+        }
         Ok(tokio_mpsc_receiver.into())
     }
 }

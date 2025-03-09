@@ -73,7 +73,6 @@ async fn create_session_event(
             &serde_json::to_vec(&message).unwrap(),
             BROWSER_SESSIONS_EXCHANGE,
             BROWSER_SESSIONS_ROUTING_KEY,
-            None,
         )
         .await?;
 

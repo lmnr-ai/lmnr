@@ -3,10 +3,10 @@ use futures::StreamExt;
 use lapin::{
     acker::Acker,
     options::{BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
-    types::{FieldTable, ShortString},
+    types::FieldTable,
     BasicProperties, Channel, Connection, Consumer,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use super::{
     MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
@@ -110,7 +110,6 @@ impl MessageQueueTrait for RabbitMQ {
         message: &[u8],
         exchange: &str,
         routing_key: &str,
-        expiration_ms: Option<u32>,
     ) -> anyhow::Result<()> {
         let channel = match self.publisher_channel_pool.get().await {
             Ok(channel) => channel,
@@ -124,25 +123,13 @@ impl MessageQueueTrait for RabbitMQ {
             }
         };
 
-        // let mut headers = FieldTable::default();
-        // headers.insert(
-        //     ShortString::from("x-lmnr-routing-key"),
-        //     lapin::types::AMQPValue::ShortString(ShortString::from(routing_key)),
-        // );
-        let properties = BasicProperties::default();
-        let properties = if let Some(expiration_ms) = expiration_ms {
-            properties.with_expiration(ShortString::from(expiration_ms.to_string()))
-        } else {
-            properties
-        };
-
         channel
             .basic_publish(
                 exchange,
                 routing_key,
                 BasicPublishOptions::default(),
                 message,
-                properties,
+                BasicProperties::default(),
             )
             .await?
             .await?;

@@ -6,9 +6,7 @@ use actix_web::{
 use actix_web_httpauth::middleware::HttpAuthentication;
 use agent_manager::{
     agent_manager_grpc::agent_manager_service_client::AgentManagerServiceClient,
-    agent_manager_impl::AgentManagerImpl,
-    worker::{AGENT_WORKER_EXCHANGE, AGENT_WORKER_QUEUE},
-    AgentManager,
+    agent_manager_impl::AgentManagerImpl, AgentManager,
 };
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
@@ -17,7 +15,7 @@ use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient
 use dashmap::DashMap;
 use features::{is_feature_enabled, Feature};
 use lapin::{
-    options::{ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions},
+    options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::FieldTable,
     Connection, ConnectionProperties, ExchangeKind,
 };
@@ -209,7 +207,7 @@ fn main() -> anyhow::Result<()> {
             Arc::new(rabbit_mq.into())
         })
     } else {
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new(false).into())
     };
 
     // ==== 3.2 Browser events message queue ====
@@ -247,44 +245,12 @@ fn main() -> anyhow::Result<()> {
             Arc::new(rabbit_mq.into())
         })
     } else {
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new(false).into())
     };
 
     // ==== 3.3 Agent worker message queue ====
-    let agent_worker_message_queue: Arc<MessageQueue> = if let Some(connection) = connection {
-        runtime_handle.block_on(async {
-            let channel = connection.create_channel().await.unwrap();
-
-            channel
-                .exchange_declare(
-                    AGENT_WORKER_EXCHANGE,
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    AGENT_WORKER_QUEUE,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(64);
-
-            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection, max_channel_pool_size);
-            Arc::new(rabbit_mq.into())
-        })
-    } else {
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
-    };
+    let agent_worker_message_queue: Arc<MessageQueue> =
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new(true).into());
 
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();

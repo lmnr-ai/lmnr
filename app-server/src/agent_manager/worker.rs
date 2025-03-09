@@ -13,9 +13,6 @@ use super::{types::ModelProvider, AgentManager, AgentManagerTrait};
 pub const AGENT_WORKER_QUEUE: &str = "agent_worker_queue";
 pub const AGENT_WORKER_EXCHANGE: &str = "agent_worker_exchange";
 
-// Well above typical message read time, but far below the acknowledgement timeout
-const MESSAGE_EXPIRATION_MS: u32 = 1000 * 60 * 5; // 5 minutes
-
 pub async fn run_agent_worker(
     agent_manager: Arc<AgentManager>,
     worker_message_queue: Arc<MessageQueue>,
@@ -45,13 +42,11 @@ pub async fn run_agent_worker(
                 .await
                 .unwrap();
 
-                dbg!("publishing chunk");
                 worker_message_queue
                     .publish(
                         serde_json::to_vec(&chunk).unwrap().as_slice(),
                         AGENT_WORKER_EXCHANGE,
                         &chat_id.to_string(),
-                        Some(MESSAGE_EXPIRATION_MS),
                     )
                     .await
                     .unwrap();
