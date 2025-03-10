@@ -88,4 +88,18 @@ impl CacheTrait for RedisCache {
             Ok(())
         }
     }
+
+    async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError> {
+        if let Err(e) = self
+            .connection
+            .clone()
+            .expire::<_, ()>(String::from(key), seconds as i64)
+            .await
+        {
+            log::error!("Redis set ttl error: {}", e);
+            Err(CacheError::InternalError(anyhow::Error::from(e)))
+        } else {
+            Ok(())
+        }
+    }
 }

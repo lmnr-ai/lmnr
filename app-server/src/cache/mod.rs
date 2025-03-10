@@ -33,4 +33,5 @@ pub trait CacheTrait {
     where
         T: Serialize + Send;
     async fn remove(&self, key: &str) -> Result<(), CacheError>;
+    async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError>;
 }

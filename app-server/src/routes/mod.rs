@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod api_keys;
 pub mod auth;
 pub mod datasets;
