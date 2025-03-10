@@ -14,7 +14,7 @@ indexmap = "2.7.0"
 log = "0.4.20"
 prost = "0.13"
 qdrant-client = "1.13"
-reqwest = {version = "0.12", default-features = false, features = ["rustls-tls", "json"]}
+reqwest = {version = "0.12.12", default-features = false, features = ["rustls-tls", "json"]}
 serde = "1"
 serde_json = "1.0.105"
 simsimd = "3.9.0"
