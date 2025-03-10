@@ -47,7 +47,9 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
     return (
       data?.map(({ timestamp, evaluationId, names, values }) => {
         const extendedNames = [...names, ADDITIONAL_NAME];
-        const extendedValues = [...values, values.reduce((acc, curr) => acc + Number(curr), 0) / values.length];
+        const extendedValues = values.length > 0
+          ? [...values, values.reduce((acc, curr) => acc + Number(curr), 0) / values.length]
+          : [0];
         return {
           timestamp,
           evaluationId,
