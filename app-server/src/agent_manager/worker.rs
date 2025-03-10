@@ -37,13 +37,16 @@ pub async fn run_agent_worker(
 
     while let Some(chunk) = stream.next().await {
         match chunk {
-            Ok(chunk) => {
+            Ok(mut chunk) => {
                 let message_type = match chunk {
                     RunAgentResponseStreamChunk::Step(_) => "step",
                     RunAgentResponseStreamChunk::FinalOutput(_) => "final_output",
                 };
+                let message_id = Uuid::new_v4();
+                chunk.set_message_id(message_id);
                 db::agent_messages::insert_agent_message(
                     &db.pool,
+                    &message_id,
                     &chat_id,
                     &user_id,
                     message_type,

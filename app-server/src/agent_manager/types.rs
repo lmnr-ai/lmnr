@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 use super::agent_manager_grpc::{
     browser_state::{
@@ -325,6 +326,15 @@ pub enum RunAgentResponseStreamChunk {
     FinalOutput(FinalOutputChunkContent),
 }
 
+impl RunAgentResponseStreamChunk {
+    pub fn set_message_id(&mut self, message_id: Uuid) {
+        match self {
+            RunAgentResponseStreamChunk::Step(s) => s.message_id = message_id,
+            RunAgentResponseStreamChunk::FinalOutput(f) => f.message_id = message_id,
+        }
+    }
+}
+
 impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
     fn into(self) -> RunAgentResponseStreamChunk {
         match self.chunk_type.unwrap() {
@@ -333,6 +343,7 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
             }
             RunAgentResponseStreamChunkTypeGrpc::AgentOutput(a) => {
                 RunAgentResponseStreamChunk::FinalOutput(FinalOutputChunkContent {
+                    message_id: Uuid::nil(),
                     content: a.into(),
                 })
             }
@@ -343,6 +354,8 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase"))]
 pub struct StepChunkContent {
+    #[serde(skip_deserializing)]
+    pub message_id: Uuid,
     pub action_result: ActionResult,
     pub summary: String,
 }
@@ -350,6 +363,7 @@ pub struct StepChunkContent {
 impl Into<StepChunkContent> for StepChunkContentGrpc {
     fn into(self) -> StepChunkContent {
         StepChunkContent {
+            message_id: Uuid::nil(),
             action_result: self.action_result.unwrap().into(),
             summary: self.summary,
         }
@@ -357,5 +371,7 @@ impl Into<StepChunkContent> for StepChunkContentGrpc {
 }
 #[derive(Serialize, Deserialize, Clone)]
 pub struct FinalOutputChunkContent {
+    #[serde(skip_deserializing)]
+    pub message_id: Uuid,
     pub content: AgentOutput,
 }
