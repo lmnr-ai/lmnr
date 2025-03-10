@@ -1,12 +1,13 @@
+import { ChevronsDown, ChevronsUp } from "lucide-react";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { isChatMessageList } from "@/lib/flow/utils";
 import { Span } from "@/lib/traces/types";
 
 import Formatter from "../ui/formatter";
 import { ScrollArea } from "../ui/scroll-area";
 import ChatMessageListTab from "./chat-message-list-tab";
-import SpanDatasets from "./span-datasets";
 
 interface SpanViewSpanProps {
   span: Span;
@@ -15,6 +16,7 @@ interface SpanViewSpanProps {
 export function SpanViewSpan({ span }: SpanViewSpanProps) {
   const [spanInput, setSpanInput] = useState(span.input);
   const [spanOutput, setSpanOutput] = useState(span.output);
+  const [reversed, setReversed] = useState(false);
 
   if (span.inputUrl) {
     const url = span.inputUrl.startsWith("/") ? `${span.inputUrl}?payloadType=raw` : span.inputUrl;
@@ -39,10 +41,17 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
       <div className="max-h-0">
         <div className="flex flex-col gap-4 h-full p-4 w-full">
           <div className="w-full">
-            <SpanDatasets spanId={span.spanId} />
-            <div className="pb-2 font-medium text-lg">Input</div>
+            <div className="flex pb-2">
+              <div className="font-medium text-lg mr-auto">Input</div>
+              <Button variant="outline" onClick={() => setReversed((prev) => !prev)}>
+                Reverse
+                {reversed ? <ChevronsUp className="ml-2" size={16} /> : <ChevronsDown className="ml-2" size={16} />}
+              </Button>
+            </div>
+
             {isChatMessageList(spanInput) ? (
               <ChatMessageListTab
+                reversed={reversed}
                 messages={spanInput}
                 presetKey={`input-${span.attributes["lmnr.span.path"].join(".")}`}
               />

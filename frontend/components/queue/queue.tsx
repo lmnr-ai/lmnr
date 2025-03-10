@@ -119,7 +119,7 @@ export default function Queue({ queue }: QueueProps) {
                       <div className="w-full h-full">
                         <div className="pb-2 font-medium text-lg">Input</div>
                         {isChatMessageList(data?.[0]?.span.input) ? (
-                          <ChatMessageListTab messages={data?.[0]?.span.input} />
+                          <ChatMessageListTab reversed={false} messages={data?.[0]?.span.input} />
                         ) : (
                           <Formatter
                             className="max-h-1/3"
