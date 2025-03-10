@@ -20,7 +20,6 @@ pub struct LabelClass {
     pub created_at: DateTime<Utc>,
     pub name: String,
     pub project_id: Uuid,
-    pub value_map: Value, // HashMap<String, f64>
     pub description: Option<String>,
     pub evaluator_runnable_graph: Option<Value>,
 }
@@ -31,7 +30,6 @@ pub struct LabelClass {
 pub struct DBSpanLabel {
     pub id: Uuid,
     pub span_id: Uuid,
-    pub value: Option<f64>,
     pub class_id: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -45,14 +43,12 @@ pub struct DBSpanLabel {
 pub struct SpanLabel {
     pub id: Uuid,
     pub span_id: Uuid,
-    pub value: Option<f64>,
     pub class_id: Uuid,
     pub created_at: DateTime<Utc>,
     pub label_source: LabelSource,
     pub reasoning: Option<String>,
 
     pub class_name: String,
-    pub value_map: Value, // Vec<Value>
     pub description: Option<String>,
 
     pub updated_at: DateTime<Utc>,
@@ -81,7 +77,6 @@ pub async fn get_label_classes_by_project_id(
             created_at,
             name,
             project_id,
-            value_map,
             description,
             evaluator_runnable_graph
         FROM label_classes
@@ -131,7 +126,6 @@ pub async fn update_label_class(
             created_at,
             name,
             project_id,
-            value_map,
             description,
             evaluator_runnable_graph",
     )
@@ -156,7 +150,6 @@ pub async fn delete_span_label(
         RETURNING
             id,
             span_id,
-            value,
             class_id,
             created_at,
             updated_at,
@@ -176,7 +169,6 @@ pub async fn update_span_label(
     pool: &PgPool,
     id: Uuid,
     span_id: Uuid,
-    value: f64,
     user_email: Option<String>,
     class_id: Uuid,
     label_source: &LabelSource,
@@ -188,19 +180,17 @@ pub async fn update_span_label(
             span_id,
             class_id,
             user_id,
-            value,
             updated_at,
             label_source,
             reasoning
         )
-        VALUES ($1, $2, $3, (SELECT id FROM users WHERE email = $4 LIMIT 1), $5, now(), $6, $7)
+        VALUES ($1, $2, $3, (SELECT id FROM users WHERE email = $4 LIMIT 1), now(), $5, $6)
         ON CONFLICT (span_id, class_id, user_id)
-        DO UPDATE SET value = $5, updated_at = now(), label_source = $6,
-            reasoning = COALESCE($7, labels.reasoning)
+        DO UPDATE SET updated_at = now(), label_source = $6,
+            reasoning = COALESCE($6, labels.reasoning)
         RETURNING
             id,
             span_id,
-            value,
             class_id,
             created_at,
             updated_at,
@@ -212,7 +202,6 @@ pub async fn update_span_label(
     .bind(span_id)
     .bind(class_id)
     .bind(user_email)
-    .bind(value)
     .bind(label_source)
     .bind(reasoning)
     .fetch_one(pool)
@@ -226,7 +215,6 @@ pub async fn get_span_labels(pool: &PgPool, span_id: Uuid) -> Result<Vec<SpanLab
         "SELECT
             labels.id,
             labels.span_id,
-            labels.value,
             labels.class_id,
             labels.created_at,
             labels.updated_at,
@@ -234,7 +222,6 @@ pub async fn get_span_labels(pool: &PgPool, span_id: Uuid) -> Result<Vec<SpanLab
             labels.label_source,
             labels.reasoning,
             users.email as user_email,
-            label_classes.value_map,
             label_classes.name as class_name,
             label_classes.description
         FROM labels

@@ -8,7 +8,6 @@ import { Span } from "@/lib/traces/types";
 import Formatter from "../ui/formatter";
 import { ScrollArea } from "../ui/scroll-area";
 import ChatMessageListTab from "./chat-message-list-tab";
-import SpanLabels from "./span-labels";
 
 interface SpanViewSpanProps {
   span: Span;
@@ -42,7 +41,6 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
       <div className="max-h-0">
         <div className="flex flex-col gap-4 h-full p-4 w-full">
           <div className="w-full">
-            <SpanLabels span={span} />
             <div className="flex pb-2">
               <div className="font-medium text-lg mr-auto">Input</div>
               <Button variant="outline" onClick={() => setReversed((prev) => !prev)}>

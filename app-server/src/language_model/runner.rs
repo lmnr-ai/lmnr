@@ -10,11 +10,10 @@ use std::{
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
-use crate::{cache::Cache, db::DB, pipeline::nodes::StreamChunk};
+use crate::{cache::Cache, db::DB, pipeline::nodes::StreamChunk, traces::spans::InputTokens};
 
 use super::{
     chat_message::ChatCompletion,
-    costs::TokensKind,
     providers::{
         anthropic_bedrock::{AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY},
         openai_azure::{OPENAI_AZURE_DEPLOYMENT_NAME, OPENAI_AZURE_RESOURCE_ID},
@@ -73,13 +72,16 @@ pub trait EstimateCost {
         model: &str,
         input_tokens: u32,
     ) -> Option<f64> {
-        super::costs::estimate_cost(
+        super::costs::estimate_input_cost(
             db.clone(),
             cache.clone(),
             self.db_provider_name(),
             model,
-            input_tokens,
-            TokensKind::Input,
+            InputTokens {
+                regular_input_tokens: input_tokens as i64,
+                cache_write_tokens: 0,
+                cache_read_tokens: 0,
+            },
         )
         .await
     }
@@ -91,13 +93,12 @@ pub trait EstimateCost {
         model: &str,
         output_tokens: u32,
     ) -> Option<f64> {
-        super::costs::estimate_cost(
+        super::costs::estimate_output_cost(
             db.clone(),
             cache.clone(),
             self.db_provider_name(),
             model,
-            output_tokens,
-            TokensKind::Output,
+            output_tokens as i64,
         )
         .await
     }

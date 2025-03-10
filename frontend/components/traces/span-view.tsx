@@ -2,6 +2,8 @@ import { PlayCircle } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
 
+import LabelsContextProvider from "@/components/labels/labels-context";
+import LabelsList from "@/components/labels/labels-list";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
 import { Event } from "@/lib/events/types";
@@ -12,7 +14,6 @@ import Formatter from "../ui/formatter";
 import MonoWithCopy from "../ui/mono-with-copy";
 import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { AddLabelPopover } from "./add-label-popover";
 import AddToLabelingQueuePopover from "./add-to-labeling-queue-popover";
 import ExportSpansDialog from "./export-spans-dialog";
 import SpanTypeIcon from "./span-type-icon";
@@ -68,7 +69,6 @@ export function SpanView({ spanId }: SpanViewProps) {
             <div className="flex-wrap gap-2 flex flex-row">
               <AddToLabelingQueuePopover span={span} />
               <ExportSpansDialog span={span} />
-              <AddLabelPopover span={span} />
             </div>
             <div className="flex py-1 gap-2">
               <StatsShields
@@ -88,6 +88,9 @@ export function SpanView({ spanId }: SpanViewProps) {
                 {new Date(span.startTime).toLocaleString()}
               </div>
             </div>
+            <LabelsContextProvider>
+              <LabelsList />
+            </LabelsContextProvider>
           </div>
           <TabsList className="border-none text-sm px-4">
             <TabsTrigger value="span" className="z-50">

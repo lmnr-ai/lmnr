@@ -192,13 +192,6 @@ export const evaluationsRelations = relations(evaluations, ({one, many}) => ({
   }),
 }));
 
-export const labelsRelations = relations(labels, ({one}) => ({
-  labelClass: one(labelClasses, {
-    fields: [labels.classId],
-    references: [labelClasses.id]
-  }),
-}));
-
 export const membersOfWorkspacesRelations = relations(membersOfWorkspaces, ({one}) => ({
   user: one(users, {
     fields: [membersOfWorkspaces.userId],
@@ -221,6 +214,13 @@ export const workspaceUsageRelations = relations(workspaceUsage, ({one}) => ({
   workspace: one(workspaces, {
     fields: [workspaceUsage.workspaceId],
     references: [workspaces.id]
+  }),
+}));
+
+export const labelsRelations = relations(labels, ({one}) => ({
+  labelClass: one(labelClasses, {
+    fields: [labels.classId],
+    references: [labelClasses.id]
   }),
 }));
 

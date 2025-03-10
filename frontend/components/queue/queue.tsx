@@ -42,7 +42,6 @@ export default function Queue({ queue }: QueueProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const [addedLabels, setAddedLabels] = useState<
     Array<{
-      value: number;
       labelClass: LabelClass;
       reasoning?: string | null;
     }>
@@ -58,7 +57,6 @@ export default function Queue({ queue }: QueueProps) {
       if (data.ok) {
         const json = await data.json();
         setData(json);
-        console.log(json);
       }
     });
   };
@@ -196,9 +194,6 @@ export default function Queue({ queue }: QueueProps) {
                   {addedLabels.map((label, index) => (
                     <div key={index} className="flex flex-col p-2 border border-foreground/10 bg-muted rounded gap-2">
                       <div className="flex items-center gap-2 justify-between w-full">
-                        <span>
-                          {Object.entries(label.labelClass.valueMap).find(([key, value]) => value === label.value)?.[0]}
-                        </span>
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-muted-foreground">{label.labelClass.name}</span>
                           <Button variant="ghost" size="sm" onClick={() => removeLabel(index)} className="h-6 px-2">
@@ -247,10 +242,10 @@ export default function Queue({ queue }: QueueProps) {
           <ResizablePanel className="w-1/3 p-4 border-l" minSize={10} defaultSize={17}>
             <Labels
               span={data?.[0]?.span}
-              onAddLabel={(value, labelClass) => {
+              onAddLabel={(labelClass) => {
                 const isDuplicateClass = addedLabels.some((label) => label.labelClass.id === labelClass.id);
                 if (!isDuplicateClass) {
-                  setAddedLabels((prev) => [...prev, { value, labelClass, reasoning: null }]);
+                  setAddedLabels((prev) => [...prev, { labelClass, reasoning: null }]);
                 }
               }}
             />
