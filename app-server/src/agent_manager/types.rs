@@ -55,7 +55,7 @@ impl ModelProvider {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase"))]
 pub struct ActionResult {
     #[serde(default)]
@@ -76,29 +76,29 @@ impl Into<ActionResult> for ActionResultGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ChatMessageContentTextBlock {
     text: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ChatMessageImageUrlBlock {
     image_url: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ChatMessageImageBase64Block {
     image_b64: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum ChatMessageImageBlock {
     Url(ChatMessageImageUrlBlock),
     Base64(ChatMessageImageBase64Block),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum ChatMessageContentBlock {
     Text(ChatMessageContentTextBlock),
@@ -129,7 +129,7 @@ impl Into<ChatMessageContentBlock> for ChatMessageContentBlockGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum ChatMessageContent {
     String(String),
@@ -151,7 +151,7 @@ impl Into<ChatMessageContent> for ChatMessageContentGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ChatMessage {
     role: String,
     content: ChatMessageContent,
@@ -175,7 +175,7 @@ impl Into<ChatMessage> for ChatMessageGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase"))]
 
 pub struct TabInfo {
@@ -194,7 +194,7 @@ impl Into<TabInfo> for TabInfoGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Coordinates {
     x: i64,
     y: i64,
@@ -215,7 +215,7 @@ impl Into<Coordinates> for CoordinatesGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase"))]
 pub struct InteractiveElement {
     index: i64,
@@ -253,7 +253,7 @@ impl Into<InteractiveElement> for InteractiveElementGrpc {
         }
     }
 }
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase"))]
 pub struct BrowserState {
     url: String,
@@ -284,14 +284,14 @@ impl Into<BrowserState> for BrowserStateGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase"))]
 pub struct AgentState {
     messages: Vec<ChatMessage>,
     browser_state: BrowserState,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AgentOutput {
     pub state: AgentState,
     pub result: ActionResult,
@@ -315,7 +315,7 @@ impl Into<AgentState> for AgentStateGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(
     tag = "chunk_type",
     rename_all(deserialize = "snake_case", serialize = "camelCase")
@@ -340,7 +340,7 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase"))]
 pub struct StepChunkContent {
     pub action_result: ActionResult,
@@ -355,7 +355,7 @@ impl Into<StepChunkContent> for StepChunkContentGrpc {
         }
     }
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FinalOutputChunkContent {
     pub content: AgentOutput,
 }

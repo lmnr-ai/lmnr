@@ -26,10 +26,16 @@ impl AgentManagerChannel {
         receiver
     }
 
-    pub async fn try_publish(&self, chat_id: Uuid, chunk: RunAgentResponseStreamChunk) {
+    pub async fn try_publish(
+        &self,
+        chat_id: Uuid,
+        chunk: RunAgentResponseStreamChunk,
+    ) -> anyhow::Result<()> {
         let Some(sender) = self.channels.get(&chat_id) else {
             log::warn!("AgentManagerChannel: try_publish: chat_id not found");
-            return;
+            return Err(anyhow::anyhow!(
+                "AgentManagerChannel: try_publish: chat_id not found"
+            ));
         };
 
         sender
@@ -40,5 +46,7 @@ impl AgentManagerChannel {
                 self.channels.remove(&chat_id);
             })
             .unwrap_or_default();
+
+        Ok(())
     }
 }

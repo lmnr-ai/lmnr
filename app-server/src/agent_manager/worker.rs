@@ -52,7 +52,16 @@ pub async fn run_agent_worker(
                 .await
                 .unwrap();
 
-                worker_channel.try_publish(chat_id, chunk).await;
+                // It could be that the frontend connects right at the time when a chunk is sent.
+                // To avoid dropping the chunk, we retry sending it a couple times with a small delay.
+                let mut retry_count = 0;
+                while let Err(_) = worker_channel.try_publish(chat_id, chunk.clone()).await {
+                    retry_count += 1;
+                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                    if retry_count > 3 {
+                        break;
+                    }
+                }
             }
             Err(e) => {
                 log::error!("Error running agent: {}", e);
