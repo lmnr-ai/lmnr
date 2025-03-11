@@ -1,6 +1,7 @@
 import { Image as IconImage, X } from "lucide-react";
 import { Controller, FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
 
+import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
@@ -64,7 +65,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                       )}
                     </div>
                     {typeof value === "string" && value && (
-                      <img className="object-cover rounded-sm w-[35%]" alt="img" src={value} />
+                      <ImageWithPreview src={value} className="object-cover rounded-sm w-12 h-12" alt="img" />
                     )}
                   </div>
                 )}
