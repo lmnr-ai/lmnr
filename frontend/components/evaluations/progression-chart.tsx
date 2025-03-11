@@ -12,6 +12,8 @@ import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "
 import { Label } from "../ui/label";
 import { Skeleton } from "../ui/skeleton";
 
+const ADDITIONAL_NAME = "Total Average";
+
 interface ProgressionChartProps {
   className?: string;
   aggregationFunction: AggregationFunction;
@@ -43,19 +45,25 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
   const convertedScores = useMemo(() => {
     const map: Record<string, string> = evaluations.reduce((acc, curr) => ({ ...acc, [curr.id]: curr.name }), {});
     return (
-      data?.map(({ timestamp, evaluationId, names, values }) => ({
-        timestamp,
-        evaluationId,
-        name: map[evaluationId] || "-",
-        ...Object.fromEntries(names.map((name, index) => [name, values[index]])),
-      })) ?? []
+      data?.map(({ timestamp, evaluationId, names, values }) => {
+        const extendedNames = [...names, ADDITIONAL_NAME];
+        const extendedValues = values.length > 0
+          ? [...values, values.reduce((acc, curr) => acc + Number(curr), 0) / values.length]
+          : [0];
+        return {
+          timestamp,
+          evaluationId,
+          name: map[evaluationId] || "-",
+          ...Object.fromEntries(extendedNames.map((name, index) => [name, extendedValues[index]])),
+        };
+      }) ?? []
     );
   }, [data, evaluations]);
 
   const chartConfig = useMemo<ChartConfig>(
     () =>
       Object.fromEntries(
-        Array.from(keys).map((key, index) => [
+        [...Array.from(keys), ADDITIONAL_NAME].map((key, index) => [
           key,
           {
             color: `hsl(var(--chart-${(index % 5) + 1}))`,
@@ -107,7 +115,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
                   />
                 }
               />
-              {Array.from(keys)
+              {[...Array.from(keys), ADDITIONAL_NAME]
                 .filter((key) => scores.includes(key))
                 .map((key) => (
                   <Line
@@ -125,7 +133,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
             </LineChart>
           </ChartContainer>
           <div className="flex flex-row justify-center w-full mt-2 space-x-2 items-center">
-            {Array.from(keys).map((key) => (
+            {[...Array.from(keys), ADDITIONAL_NAME].map((key) => (
               <div
                 key={key}
                 className="flex items-center text-sm cursor-pointer decoration-dashed text-muted-foreground"

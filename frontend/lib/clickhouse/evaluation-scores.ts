@@ -13,17 +13,19 @@ export const getEvaluationTimeProgression = async (
   const query = `WITH base AS (
   SELECT
     evaluation_id,
-    timestamp,
+    min(timestamp) as timestamp,
     name,
     ${aggregationFunctionToCh(aggregationFunction)}(value) AS value
   FROM evaluation_scores
   WHERE project_id = {projectId: UUID} AND group_id = {groupId: String} and evaluation_id in {ids: Array(UUID)}`;
   const queryWithTimeRange = addTimeRangeToQuery(query, timeRange, "timestamp");
-  const finalQuery = `${queryWithTimeRange} GROUP BY evaluation_id, name, timestamp ORDER BY timestamp, name
+
+  const finalQuery = `${queryWithTimeRange} GROUP BY evaluation_id, name ORDER BY name
   ) SELECT groupArray(name) names, groupArray(value) values, MIN(timestamp) timestamp, evaluation_id as evaluationId
    FROM base
    GROUP BY evaluation_id
    ORDER BY timestamp`;
+
   const result = await clickhouseClient.query({
     query: finalQuery,
     format: "JSONEachRow",
