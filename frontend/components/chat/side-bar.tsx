@@ -48,7 +48,7 @@ export function AgentSidebar({ user }: { user: User | undefined }) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="pt-2 text-primary-foreground">
-        <div className="flex flex-row w-full">Chat history is to be implemented</div>
+        <div className="flex flex-row w-full px-4">Chat history is to be implemented</div>
       </SidebarContent>
     </Sidebar>
   );

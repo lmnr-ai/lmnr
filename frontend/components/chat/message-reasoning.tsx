@@ -1,6 +1,5 @@
 "use client";
 
-import { Message } from "@ai-sdk/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDownIcon, LoaderIcon } from "lucide-react";
 import { useState } from "react";
@@ -9,10 +8,9 @@ import { Markdown } from "./markdown";
 
 interface MessageReasoningProps {
   isLoading: boolean;
-  parts: Message["parts"];
 }
 
-export function MessageReasoning({ isLoading, reasoning }: MessageReasoningProps) {
+export function MessageReasoning({ isLoading }: MessageReasoningProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   const variants = {
@@ -68,7 +66,7 @@ export function MessageReasoning({ isLoading, reasoning }: MessageReasoningProps
             style={{ overflow: "hidden" }}
             className="pl-4 text-zinc-600 dark:text-zinc-400 border-l flex flex-col gap-4"
           >
-            <Markdown>{reasoning}</Markdown>
+            <Markdown>answer</Markdown>
           </motion.div>
         )}
       </AnimatePresence>

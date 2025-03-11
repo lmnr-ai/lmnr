@@ -20,5 +20,5 @@ export default async function ChatPage() {
 
   const user = session.user;
 
-  return <Chat id={id} initialMessages={[]} selectedChatModel={""} />;
+  return <Chat user={user} id={id} initialMessages={[]} />;
 }
