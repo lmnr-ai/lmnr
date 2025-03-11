@@ -18,20 +18,25 @@ pub struct HumanEvaluator {
 pub struct EvaluationDatapointResult {
     pub data: Value,
     #[serde(default)]
+    pub index: i32,
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
+    #[serde(default)]
     pub target: Value,
+    #[serde(default)]
     pub executor_output: Option<Value>,
     #[serde(default)]
     pub trace_id: Uuid,
+    #[serde(default)]
     pub scores: HashMap<String, f64>,
     #[serde(default)]
     pub human_evaluators: Vec<HumanEvaluator>,
     #[serde(default)]
     pub executor_span_id: Uuid,
-    #[serde(default)]
-    pub index: i32,
 }
 
 pub struct DatapointColumns {
+    pub ids: Vec<Uuid>,
     pub datas: Vec<Value>,
     pub targets: Vec<Value>,
     pub executor_outputs: Vec<Option<Value>>,
@@ -41,6 +46,7 @@ pub struct DatapointColumns {
 }
 
 pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> DatapointColumns {
+    let ids = points.iter().map(|point| point.id).collect::<Vec<_>>();
     let datas = points
         .iter()
         .map(|point| point.data.clone())
@@ -69,6 +75,7 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
     let indices = points.iter().map(|point| point.index).collect::<Vec<_>>();
 
     DatapointColumns {
+        ids,
         datas,
         targets,
         executor_outputs,
