@@ -1,20 +1,26 @@
-import { isEqual } from "lodash";
+import { isEqual, uniqueId } from "lodash";
 import { memo } from "react";
 
 import Message from "@/components/chat/message";
+import ThinkingMessage from "@/components/chat/thinking-message";
 import { ChatMessage } from "@/components/chat/types";
 import useScrollToBottom from "@/components/chat/use-scroll-to-bottom";
 
 interface MessagesProps {
   messages: ChatMessage[];
+  isLoading: boolean;
 }
 
-const PureMessages = ({ messages }: MessagesProps) => {
+const PureMessages = ({ messages, isLoading }: MessagesProps) => {
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
 
-  const abc = "";
   return (
-    <div ref={messagesContainerRef} className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4">
+    <div
+      key={uniqueId()}
+      ref={messagesContainerRef}
+      className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4"
+    >
+      {isLoading && messages?.length > 0 && <ThinkingMessage />}
       {messages.map((message) => (
         <Message key={message.id} message={message} isLoading={false} />
       ))}

@@ -4,13 +4,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDownIcon, LoaderIcon } from "lucide-react";
 import { useState } from "react";
 
+import { StepChunkContent } from "@/components/chat/types";
+
 import { Markdown } from "./markdown";
 
 interface MessageReasoningProps {
-  isLoading: boolean;
+  content: StepChunkContent;
 }
 
-export function MessageReasoning({ isLoading }: MessageReasoningProps) {
+export function MessageReasoning({ content }: MessageReasoningProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   const variants = {
@@ -30,14 +32,7 @@ export function MessageReasoning({ isLoading }: MessageReasoningProps) {
 
   return (
     <div className="flex flex-col">
-      {isLoading ? (
-        <div className="flex flex-row gap-2 items-center">
-          <div className="font-medium">Reasoning</div>
-          <div className="animate-spin">
-            <LoaderIcon />
-          </div>
-        </div>
-      ) : (
+      {content.actionResult.isDone ? (
         <div className="flex flex-row gap-2 items-center">
           <div className="font-medium">Reasoned for a few seconds</div>
           <button
@@ -50,6 +45,13 @@ export function MessageReasoning({ isLoading }: MessageReasoningProps) {
           >
             <ChevronDownIcon />
           </button>
+        </div>
+      ) : (
+        <div className="flex flex-row gap-2 items-center">
+          <div className="font-medium">Reasoning</div>
+          <div className="animate-spin">
+            <LoaderIcon />
+          </div>
         </div>
       )}
 
@@ -66,7 +68,7 @@ export function MessageReasoning({ isLoading }: MessageReasoningProps) {
             style={{ overflow: "hidden" }}
             className="pl-4 text-zinc-600 dark:text-zinc-400 border-l flex flex-col gap-4"
           >
-            <Markdown>answer</Markdown>
+            <Markdown>{content.summary}</Markdown>
           </motion.div>
         )}
       </AnimatePresence>

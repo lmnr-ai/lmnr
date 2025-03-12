@@ -1,3 +1,5 @@
+import { RunAgentResponseStreamChunk, StreamAgentRequest } from "@/components/chat/types";
+
 const streamReader = async (
   stream: ReadableStream<Uint8Array>,
   onChunk: (chunk: Uint8Array) => void | Promise<void>
@@ -18,53 +20,46 @@ const streamReader = async (
 };
 
 export function useAgentStream() {
-  const streamAgent = async (prompt: string, onChunk: (data: any) => void) => {
-    try {
-      const response = await fetch("/api/agent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt,
-          enable_thinking: true,
-          model: "claude-3-7-sonnet-latest",
-          chatId: null,
-        }),
-      });
+  const streamAgent = async (prompt: string, onChunk: (data: RunAgentResponseStreamChunk) => void) => {
+    const request: StreamAgentRequest = {
+      prompt,
+      model: "claude-3-7-sonnet-latest",
+      chatId: "0e5b4d61-7a0e-47f9-ad4b-d1203899f485",
+      isNewChat: true,
+    };
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+    const response = await fetch("/api/agent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
 
-      if (!response.body) {
-        throw new Error("No response body available");
-      }
+    const decoder = new TextDecoder();
 
-      const decoder = new TextDecoder();
+    if (!response.body) {
+      throw new Error("Response body is null");
+    }
 
-      await streamReader(response.body, (chunk) => {
-        const text = decoder.decode(chunk as unknown as Uint8Array);
-        const lines = text.split("\n");
+    await streamReader(response.body, (chunk) => {
+      const text = decoder.decode(chunk as unknown as Uint8Array);
+      const lines = text.split("\n");
 
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr) {
-              try {
-                const data = JSON.parse(jsonStr);
-                onChunk(data);
-              } catch (e) {
-                console.error("Failed to parse JSON:", e);
-              }
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr) {
+            try {
+              const data = JSON.parse(jsonStr) as RunAgentResponseStreamChunk;
+              onChunk(data);
+            } catch (e) {
+              console.error("Failed to parse JSON:", e);
             }
           }
         }
-      });
-    } catch (error) {
-      console.error("Error:", error);
-      throw error;
-    }
+      }
+    });
   };
 
   return { streamAgent };

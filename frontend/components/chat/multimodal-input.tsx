@@ -52,14 +52,7 @@ const StopButton = memo(PureStopButton);
 
 function PureSendButton({ submitForm, input }: { submitForm: () => void; input: string }) {
   return (
-    <Button
-      className="rounded-full p-2 h-fit border"
-      onClick={(event) => {
-        event.preventDefault();
-        submitForm();
-      }}
-      disabled={input.length === 0}
-    >
+    <Button className="rounded-full p-2 h-fit border" type="submit" disabled={input.length === 0}>
       <Send size={14} />
     </Button>
   );
