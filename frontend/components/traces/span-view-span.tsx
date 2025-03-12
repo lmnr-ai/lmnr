@@ -36,6 +36,9 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
     });
   }
 
+  const pathKeyVal = span.attributes?.["lmnr.span.path"] ?? [span.name];
+  const pathKey = typeof pathKeyVal === "string" ? pathKeyVal.split(".") : pathKeyVal;
+
   return (
     <ScrollArea className="h-full mt-0">
       <div className="max-h-0">
@@ -53,14 +56,14 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
               <ChatMessageListTab
                 reversed={reversed}
                 messages={spanInput}
-                presetKey={`input-${span.attributes["lmnr.span.path"].join(".")}`}
+                presetKey={`input-${pathKey.join(".")}`}
               />
             ) : (
               <Formatter
                 className="max-h-[400px]"
                 collapsible
                 value={typeof spanInput === "string" ? spanInput : JSON.stringify(spanInput)}
-                presetKey={`input-${span.attributes["lmnr.span.path"].join(".")}`}
+                presetKey={`input-${pathKey.join(".")}`}
               />
             )}
           </div>
@@ -69,7 +72,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
             <Formatter
               className="max-h-[400px]"
               value={typeof spanOutput === "string" ? spanOutput : JSON.stringify(spanOutput)}
-              presetKey={`output-${span.attributes["lmnr.span.path"].join(".")}`}
+              presetKey={`output-${pathKey.join(".")}`}
               collapsible
             />
           </div>
