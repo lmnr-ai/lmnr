@@ -1,5 +1,5 @@
 import { uniqueId } from "lodash";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
@@ -92,12 +92,12 @@ interface ChatMessageListTabProps {
   reversed: boolean;
 }
 
-export default function ChatMessageListTab({ messages, presetKey, reversed }: ChatMessageListTabProps) {
+function PureChatMessageListTab({ messages, presetKey, reversed }: ChatMessageListTabProps) {
   // Memoize messages to prevent unnecessary re-renders
   const memoizedMessages = useMemo(() => (reversed ? [...messages].reverse() : messages), [messages, reversed]);
 
   return (
-    <div className="w-full flex flex-col space-y-4">
+    <div className="w-full flex flex-col space-y-4 flex-wrap">
       {memoizedMessages.map((message, index) => (
         <div key={uniqueId()} className="flex flex-col border rounded" style={{ contain: "content" }}>
           <div className="font-medium text-sm text-secondary-foreground border-b p-2">{message.role.toUpperCase()}</div>
@@ -111,3 +111,7 @@ export default function ChatMessageListTab({ messages, presetKey, reversed }: Ch
     </div>
   );
 }
+
+const ChatMessageListTab = memo(PureChatMessageListTab);
+
+export default ChatMessageListTab;
