@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod browser_sessions;
 pub mod datasets;
 pub mod evals;
