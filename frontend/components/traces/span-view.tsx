@@ -70,7 +70,7 @@ export function SpanView({ spanId }: SpanViewProps) {
               <AddToLabelingQueuePopover span={span} />
               <ExportSpansDialog span={span} />
             </div>
-            <div className="flex py-1 gap-2">
+            <div className="flex flex-wrap py-1 gap-2">
               <StatsShields
                 startTime={span.startTime}
                 endTime={span.endTime}
