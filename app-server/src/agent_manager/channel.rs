@@ -1,3 +1,4 @@
+use anyhow::Result;
 use dashmap::DashMap;
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -6,8 +7,16 @@ use super::types::RunAgentResponseStreamChunk;
 
 const CHANNEL_CAPACITY: usize = 100;
 
+type AgentSender = mpsc::Sender<Result<RunAgentResponseStreamChunk>>;
+pub type AgentReceiver = mpsc::Receiver<Result<RunAgentResponseStreamChunk>>;
+
+struct AgentChannelState {
+    sender: AgentSender,
+    is_ended: bool,
+}
+
 pub struct AgentManagerChannel {
-    pub channels: DashMap<Uuid, mpsc::Sender<RunAgentResponseStreamChunk>>,
+    channels: DashMap<Uuid, AgentChannelState>,
 }
 
 impl AgentManagerChannel {
@@ -17,36 +26,56 @@ impl AgentManagerChannel {
         }
     }
 
-    pub fn create_channel_and_get_rx(
-        &self,
-        chat_id: Uuid,
-    ) -> mpsc::Receiver<RunAgentResponseStreamChunk> {
+    pub fn is_ended(&self, chat_id: Uuid) -> bool {
+        self.channels
+            .get(&chat_id)
+            // return true if the channel is not found
+            .map_or(true, |state| state.is_ended)
+    }
+
+    pub fn create_channel_and_get_rx(&self, chat_id: Uuid) -> AgentReceiver {
         let (sender, receiver) = mpsc::channel(CHANNEL_CAPACITY);
-        self.channels.insert(chat_id, sender);
+        self.channels.insert(
+            chat_id,
+            AgentChannelState {
+                sender,
+                is_ended: false,
+            },
+        );
         receiver
     }
 
     pub async fn try_publish(
         &self,
         chat_id: Uuid,
-        chunk: RunAgentResponseStreamChunk,
+        chunk: Result<RunAgentResponseStreamChunk>,
     ) -> anyhow::Result<()> {
-        let Some(sender) = self.channels.get(&chat_id) else {
+        let Some(state) = self.channels.get(&chat_id) else {
             log::warn!("AgentManagerChannel: try_publish: chat_id not found");
             return Err(anyhow::anyhow!(
                 "AgentManagerChannel: try_publish: chat_id not found"
             ));
         };
 
-        sender
+        state
+            .sender
             .send(chunk)
             .await
             .map_err(|e| {
                 log::debug!("AgentManagerChannel: try_publish: {}", e);
-                self.channels.remove(&chat_id);
+                let sender = self.channels.remove(&chat_id);
+                if let Some(sender) = sender {
+                    drop(sender);
+                }
             })
             .unwrap_or_default();
 
         Ok(())
+    }
+
+    pub fn end_session(&self, chat_id: Uuid) {
+        self.channels.get_mut(&chat_id).map(|mut state| {
+            state.value_mut().is_ended = true;
+        });
     }
 }

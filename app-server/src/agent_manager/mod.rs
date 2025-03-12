@@ -3,7 +3,9 @@ use async_trait::async_trait;
 
 use agent_manager_impl::AgentManagerImpl;
 use mock::MockAgentManager;
-use types::{AgentOutput, LaminarSpanContext, ModelProvider, RunAgentResponseStreamChunk};
+use types::{
+    AgentOutput, AgentState, LaminarSpanContext, ModelProvider, RunAgentResponseStreamChunk,
+};
 use uuid::Uuid;
 
 pub mod agent_manager_grpc;
@@ -33,6 +35,8 @@ pub trait AgentManagerTrait {
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        keep_session: bool,
+        continue_session: Option<AgentState>,
     ) -> Result<AgentOutput>;
 
     async fn run_agent_stream(
@@ -44,5 +48,7 @@ pub trait AgentManagerTrait {
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        keep_session: bool,
+        continue_session: Option<AgentState>,
     ) -> Self::RunAgentStreamStream;
 }

@@ -14,13 +14,18 @@ enum ModelProvider {
 }
 
 message RunAgentRequest {
+    message ContinueSessionMessage {
+        AgentState agent_state = 1;
+    }
     string prompt = 1;
     string chat_id = 2;
-    optional string request_api_key = 3;
-    optional LaminarSpanContext span_context = 4;
-    optional ModelProvider model_provider = 5;
-    optional string model = 6;
-    optional bool enable_thinking = 7;
+    bool keep_session = 3;
+    optional string request_api_key = 4;
+    optional LaminarSpanContext span_context = 5;
+    optional ModelProvider model_provider = 6;
+    optional string model = 7;
+    optional bool enable_thinking = 8;
+    optional ContinueSessionMessage continue_session = 9;
 }
 
 message ActionResult {
@@ -72,42 +77,8 @@ message AgentOutput {
     ActionResult result = 2;
 }
 
-message BrowserState {
-    message TabInfo {
-        int64 page_id = 1;
-        string url = 2;
-        string title = 3;
-    }
-    message InteractiveElement {
-        message Coordinates {
-            int64 x = 1;
-            int64 y = 2;
-            optional int64 width = 3;
-            optional int64 height = 4;
-        }
-        int64 index = 1;
-        string tag_name = 2;
-        string text = 3;
-        map<string, string> attributes = 4;
-        Coordinates viewport = 5;
-        Coordinates page = 6;
-        Coordinates center = 7;
-        int64 weight = 8;
-        string browser_agent_id = 9;
-        optional string input_type = 10;
-    }
-    string url = 1;
-    repeated TabInfo tabs = 2;
-    optional string screenshot_with_highlights = 3;
-    optional string screenshot = 4;
-    int64 pixels_above = 5;
-    int64 pixels_below = 6;
-    map<int64, InteractiveElement> interactive_elements = 7;
-}
-
 message AgentState {
     repeated ChatMessage messages = 1;
-    BrowserState browser_state = 2;
 }
 
 message RunAgentResponseStreamChunk {

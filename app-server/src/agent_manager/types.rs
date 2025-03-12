@@ -1,24 +1,20 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serde_json::Value;
 use uuid::Uuid;
 
 use super::agent_manager_grpc::{
-    browser_state::{
-        interactive_element::Coordinates as CoordinatesGrpc,
-        InteractiveElement as InteractiveElementGrpc, TabInfo as TabInfoGrpc,
-    },
     chat_message::{
         content_block::{
             image_content::ImageSource as ImageSourceGrpc,
-            Content as ChatMessageContentBlockContentGrpc,
+            Content as ChatMessageContentBlockContentGrpc, ImageContent as ImageContentGrpc,
+            TextContent as TextContentGrpc,
         },
         Content as ChatMessageContentGrpc, ContentBlock as ChatMessageContentBlockGrpc,
         ContentList as ContentListGrpc,
     },
     run_agent_response_stream_chunk::ChunkType as RunAgentResponseStreamChunkTypeGrpc,
     ActionResult as ActionResultGrpc, AgentOutput as AgentOutputGrpc, AgentState as AgentStateGrpc,
-    BrowserState as BrowserStateGrpc, ChatMessage as ChatMessageGrpc,
-    LaminarSpanContext as LaminarSpanContextGrpc,
+    ChatMessage as ChatMessageGrpc, LaminarSpanContext as LaminarSpanContextGrpc,
     RunAgentResponseStreamChunk as RunAgentResponseStreamChunkGrpc,
     StepChunkContent as StepChunkContentGrpc,
 };
@@ -106,6 +102,39 @@ pub enum ChatMessageContentBlock {
     Image(ChatMessageImageBlock),
 }
 
+impl Into<ChatMessageContentBlockGrpc> for ChatMessageContentBlock {
+    fn into(self) -> ChatMessageContentBlockGrpc {
+        match self {
+            ChatMessageContentBlock::Text(t) => ChatMessageContentBlockGrpc {
+                content: Some(ChatMessageContentBlockContentGrpc::TextContent(
+                    TextContentGrpc {
+                        text: t.text,
+                        cache_control: None,
+                    },
+                )),
+            },
+            ChatMessageContentBlock::Image(i) => match i {
+                ChatMessageImageBlock::Base64(b) => ChatMessageContentBlockGrpc {
+                    content: Some(ChatMessageContentBlockContentGrpc::ImageContent(
+                        ImageContentGrpc {
+                            image_source: Some(ImageSourceGrpc::ImageB64(b.image_b64)),
+                            cache_control: None,
+                        },
+                    )),
+                },
+                ChatMessageImageBlock::Url(u) => ChatMessageContentBlockGrpc {
+                    content: Some(ChatMessageContentBlockContentGrpc::ImageContent(
+                        ImageContentGrpc {
+                            image_source: Some(ImageSourceGrpc::ImageUrl(u.image_url)),
+                            cache_control: None,
+                        },
+                    )),
+                },
+            },
+        }
+    }
+}
+
 impl Into<ChatMessageContentBlock> for ChatMessageContentBlockGrpc {
     fn into(self) -> ChatMessageContentBlock {
         match self.content {
@@ -143,11 +172,28 @@ impl Into<Vec<ChatMessageContentBlock>> for ContentListGrpc {
     }
 }
 
+impl Into<ContentListGrpc> for Vec<ChatMessageContentBlock> {
+    fn into(self) -> ContentListGrpc {
+        ContentListGrpc {
+            content_blocks: self.into_iter().map(|c| c.into()).collect(),
+        }
+    }
+}
+
 impl Into<ChatMessageContent> for ChatMessageContentGrpc {
     fn into(self) -> ChatMessageContent {
         match self {
             ChatMessageContentGrpc::RawText(s) => ChatMessageContent::String(s),
             ChatMessageContentGrpc::ContentList(l) => ChatMessageContent::List(l.into()),
+        }
+    }
+}
+
+impl Into<ChatMessageContentGrpc> for ChatMessageContent {
+    fn into(self) -> ChatMessageContentGrpc {
+        match self {
+            ChatMessageContent::String(s) => ChatMessageContentGrpc::RawText(s),
+            ChatMessageContent::List(l) => ChatMessageContentGrpc::ContentList(l.into()),
         }
     }
 }
@@ -176,111 +222,14 @@ impl Into<ChatMessage> for ChatMessageGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
-
-pub struct TabInfo {
-    page_id: i64,
-    url: String,
-    title: String,
-}
-
-impl Into<TabInfo> for TabInfoGrpc {
-    fn into(self) -> TabInfo {
-        TabInfo {
-            page_id: self.page_id,
-            url: self.url,
-            title: self.title,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Default, Clone)]
-pub struct Coordinates {
-    x: i64,
-    y: i64,
-    #[serde(default)]
-    width: Option<i64>,
-    #[serde(default)]
-    height: Option<i64>,
-}
-
-impl Into<Coordinates> for CoordinatesGrpc {
-    fn into(self) -> Coordinates {
-        Coordinates {
-            x: self.x,
-            y: self.y,
-            width: self.width,
-            height: self.height,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Default, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
-pub struct InteractiveElement {
-    index: i64,
-    #[serde(alias = "tagName", alias = "tag_name")]
-    tag_name: String,
-    text: String,
-    attributes: HashMap<String, String>,
-    viewport: Coordinates,
-    page: Coordinates,
-    center: Coordinates,
-    weight: i64,
-    #[serde(alias = "browserAgentId", alias = "browser_agent_id")]
-    browser_agent_id: String,
-    #[serde(default, alias = "inputType", alias = "input_type")]
-    input_type: Option<String>,
-}
-
-impl Into<InteractiveElement> for InteractiveElementGrpc {
-    fn into(self) -> InteractiveElement {
-        InteractiveElement {
-            index: self.index,
-            tag_name: self.tag_name,
-            text: self.text,
-            attributes: self
-                .attributes
-                .into_iter()
-                .map(|(k, v)| (k, v.into()))
-                .collect(),
-            viewport: self.viewport.unwrap().into(),
-            page: self.page.unwrap().into(),
-            center: self.center.unwrap().into(),
-            weight: self.weight,
-            browser_agent_id: self.browser_agent_id,
-            input_type: self.input_type,
-        }
-    }
-}
-#[derive(Serialize, Deserialize, Default, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
-pub struct BrowserState {
-    url: String,
-    tabs: Vec<TabInfo>,
-    screenshot_with_highlights: Option<String>,
-    screenshot: Option<String>,
-    pixels_above: i64,
-    pixels_below: i64,
-    // TODO: change String key type to i64, once the lambda has been fixed
-    interactive_elements: HashMap<String, InteractiveElement>,
-}
-
-impl Into<BrowserState> for BrowserStateGrpc {
-    fn into(self) -> BrowserState {
-        BrowserState {
-            url: self.url,
-            tabs: self.tabs.into_iter().map(|t| t.into()).collect(),
-            screenshot_with_highlights: self.screenshot_with_highlights,
-            screenshot: self.screenshot,
-            pixels_above: self.pixels_above,
-            pixels_below: self.pixels_below,
-            interactive_elements: self
-                .interactive_elements
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v.into()))
-                .collect(),
+impl Into<ChatMessageGrpc> for ChatMessage {
+    fn into(self) -> ChatMessageGrpc {
+        ChatMessageGrpc {
+            role: self.role,
+            content: Some(self.content.into()),
+            name: self.name,
+            tool_call_id: self.tool_call_id,
+            is_state_message: Some(self.is_state_message),
         }
     }
 }
@@ -289,7 +238,7 @@ impl Into<BrowserState> for BrowserStateGrpc {
 #[serde(rename_all(serialize = "camelCase"))]
 pub struct AgentState {
     messages: Vec<ChatMessage>,
-    browser_state: BrowserState,
+    // browser_state: BrowserState,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -311,7 +260,14 @@ impl Into<AgentState> for AgentStateGrpc {
     fn into(self) -> AgentState {
         AgentState {
             messages: self.messages.into_iter().map(|c| c.into()).collect(),
-            browser_state: self.browser_state.unwrap().into(),
+        }
+    }
+}
+
+impl Into<AgentStateGrpc> for AgentState {
+    fn into(self) -> AgentStateGrpc {
+        AgentStateGrpc {
+            messages: self.messages.into_iter().map(|c| c.into()).collect(),
         }
     }
 }
@@ -331,6 +287,18 @@ impl RunAgentResponseStreamChunk {
         match self {
             RunAgentResponseStreamChunk::Step(s) => s.message_id = message_id,
             RunAgentResponseStreamChunk::FinalOutput(f) => f.message_id = message_id,
+        }
+    }
+
+    pub fn message_content(&self) -> Value {
+        match self {
+            RunAgentResponseStreamChunk::Step(step) => serde_json::json!({
+                "summary": step.summary,
+                "action_result": step.action_result,
+            }),
+            RunAgentResponseStreamChunk::FinalOutput(final_output) => serde_json::json!({
+                "text": final_output.content.result.content.clone().unwrap_or_default(),
+            }),
         }
     }
 }

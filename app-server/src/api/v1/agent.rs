@@ -76,6 +76,8 @@ pub async fn run_agent_manager(
                 request.model_provider,
                 request.model,
                 request.enable_thinking,
+                false,
+                None,
             )
             .await;
 
@@ -97,6 +99,8 @@ pub async fn run_agent_manager(
                 request.model_provider,
                 request.model,
                 request.enable_thinking,
+                false,
+                None,
             )
             .await?;
 
