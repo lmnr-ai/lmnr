@@ -139,41 +139,29 @@ pub async fn update_label_class(
     Ok(label_class)
 }
 
-pub async fn delete_span_label(
-    pool: &PgPool,
-    span_id: Uuid,
-    class_id: Uuid,
-) -> Result<DBSpanLabel> {
-    let span_label = sqlx::query_as::<_, DBSpanLabel>(
-        "DELETE FROM labels
-        WHERE span_id = $1 AND id = $2
-        RETURNING
-            id,
-            span_id,
-            class_id,
-            created_at,
-            updated_at,
-            user_id,
-            label_source,
-            reasoning",
-    )
-    .bind(span_id)
-    .bind(class_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(span_label)
-}
-
 pub async fn update_span_label(
     pool: &PgPool,
     id: Uuid,
     span_id: Uuid,
     user_email: Option<String>,
-    class_id: Uuid,
+    class_id: Option<Uuid>,
     label_source: &LabelSource,
     reasoning: Option<String>,
+    project_id: Uuid,
+    label_name: &String,
 ) -> Result<DBSpanLabel> {
+    let class_id = match class_id {
+        Some(class_id) => class_id,
+        None => {
+            sqlx::query_scalar::<_, Uuid>(
+                "INSERT INTO label_classes (project_id, name) VALUES ($1, $2) RETURNING id",
+            )
+            .bind(project_id)
+            .bind(label_name)
+            .fetch_one(pool)
+            .await?
+        }
+    };
     let span_label = sqlx::query_as::<_, DBSpanLabel>(
         "INSERT INTO labels
             (id,
@@ -185,9 +173,12 @@ pub async fn update_span_label(
             reasoning
         )
         VALUES ($1, $2, $3, (SELECT id FROM users WHERE email = $4 LIMIT 1), now(), $5, $6)
-        ON CONFLICT (span_id, class_id, user_id)
-        DO UPDATE SET updated_at = now(), label_source = $6,
-            reasoning = COALESCE($6, labels.reasoning)
+        ON CONFLICT (span_id, class_id)
+        DO UPDATE SET
+            updated_at = now(),
+            label_source = $5,
+            reasoning = COALESCE($6, labels.reasoning),
+            user_id = EXCLUDED.user_id
         RETURNING
             id,
             span_id,
@@ -208,33 +199,6 @@ pub async fn update_span_label(
     .await?;
 
     Ok(span_label)
-}
-
-pub async fn get_span_labels(pool: &PgPool, span_id: Uuid) -> Result<Vec<SpanLabel>> {
-    let span_labels = sqlx::query_as::<_, SpanLabel>(
-        "SELECT
-            labels.id,
-            labels.span_id,
-            labels.class_id,
-            labels.created_at,
-            labels.updated_at,
-            labels.user_id,
-            labels.label_source,
-            labels.reasoning,
-            users.email as user_email,
-            label_classes.name as class_name,
-            label_classes.description
-        FROM labels
-        JOIN label_classes ON labels.class_id = label_classes.id
-        LEFT JOIN users ON labels.user_id = users.id
-        WHERE span_id = $1
-        ORDER BY labels.created_at ASC",
-    )
-    .bind(span_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(span_labels)
 }
 
 pub async fn register_label_class_for_path(

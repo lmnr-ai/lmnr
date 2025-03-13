@@ -83,7 +83,7 @@ pub async fn run_evaluator(
         .clone()
         .into();
 
-    let (value, reasoning) = match serde_json::from_str::<EvaluatorResult>(&output_str) {
+    let (_value, reasoning) = match serde_json::from_str::<EvaluatorResult>(&output_str) {
         Ok(EvaluatorResult::LLM(llm_output)) => (llm_output.value, llm_output.reasoning),
         Ok(EvaluatorResult::Code(code)) => {
             // QUICK FIX
@@ -107,7 +107,7 @@ pub async fn run_evaluator(
         project_id,
         id,
         span.span_id,
-        label_class.id,
+        Some(label_class.id),
         None,
         label_class.name,
         LabelSource::AUTO,
