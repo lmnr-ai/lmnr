@@ -3,13 +3,12 @@
 import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { User } from "next-auth";
 
 import { Button } from "@/components/ui/button";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export function AgentSidebar({ user }: { user: User | undefined }) {
+export function AgentSidebar() {
   const router = useRouter();
   const { setOpenMobile } = useSidebar();
 
@@ -19,7 +18,7 @@ export function AgentSidebar({ user }: { user: User | undefined }) {
         <SidebarMenu>
           <div className="flex flex-row justify-between items-center">
             <Link
-              href="/"
+              href="/chat"
               onClick={() => {
                 setOpenMobile(false);
               }}
@@ -35,7 +34,7 @@ export function AgentSidebar({ user }: { user: User | undefined }) {
                   className="size-8 hover:bg-muted"
                   onClick={() => {
                     setOpenMobile(false);
-                    router.push("/");
+                    router.push("/chat");
                     router.refresh();
                   }}
                 >

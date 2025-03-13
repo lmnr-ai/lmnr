@@ -31,15 +31,15 @@ export type ChatMessageImageBlock = { type: "url"; imageUrl: string } | { type: 
 
 export type ChatMessageContentBlock = { type: "text"; text: string } | { type: "image"; image: ChatMessageImageBlock };
 
-export type ChatMessageContent = string | ChatMessageContentBlock[];
+export type ChatMessageContent = { summary: string; actionResult: ActionResult } | { text: string };
 
 export interface ChatMessage {
   id: string;
-  role: "assistant" | "user";
+  chatId: string;
+  userId: string;
+  messageType: 'step' | 'assistant' | 'user';
   content: ChatMessageContent;
-  name?: string;
-  toolCallId?: string;
-  isStateMessage: boolean;
+  createdAt?: string;
 }
 
 export interface TabInfo {
@@ -95,7 +95,7 @@ export interface StepChunkContent {
 }
 
 export interface FinalOutputChunkContent {
-  messageId: string; // UUID
+  message_id: string; // UUID
   content: AgentOutput;
 }
 

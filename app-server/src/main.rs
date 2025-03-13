@@ -351,7 +351,7 @@ fn main() -> anyhow::Result<()> {
                     Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
                 // == Semantic search ==
-                let semantic_search: Arc<SemanticSearch> = if false
+                let semantic_search: Arc<SemanticSearch> = if is_feature_enabled(Feature::FullBuild)
                 {
                     let semantic_search_url =
                         env::var("SEMANTIC_SEARCH_URL").expect("SEMANTIC_SEARCH_URL must be set");
@@ -372,7 +372,7 @@ fn main() -> anyhow::Result<()> {
                 };
 
                 // == Python executor ==
-                let code_executor: Arc<CodeExecutor> = if false {
+                let code_executor: Arc<CodeExecutor> = if is_feature_enabled(Feature::FullBuild) {
                     let code_executor_url =
                         env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
                     let code_executor_client = Arc::new(

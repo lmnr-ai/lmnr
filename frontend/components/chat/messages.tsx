@@ -1,4 +1,4 @@
-import { isEqual, uniqueId } from "lodash";
+import { isEqual } from "lodash";
 import { memo } from "react";
 
 import Message from "@/components/chat/message";
@@ -16,14 +16,13 @@ const PureMessages = ({ messages, isLoading }: MessagesProps) => {
 
   return (
     <div
-      key={uniqueId()}
       ref={messagesContainerRef}
       className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4"
     >
-      {isLoading && messages?.length > 0 && <ThinkingMessage />}
       {messages.map((message) => (
-        <Message key={message.id} message={message} isLoading={false} />
+        <Message key={message.id} message={message} />
       ))}
+      {isLoading && messages?.length > 0 && <ThinkingMessage />}
 
       <div ref={messagesEndRef} className="shrink-0 min-w-[24px] min-h-[24px]" />
     </div>

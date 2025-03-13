@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-function ChatHeader({ chatId }: { chatId: string }) {
+function ChatHeader() {
   const { toggleSidebar } = useSidebar();
 
   return (

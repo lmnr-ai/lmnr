@@ -1,3 +1,5 @@
+import { createParser } from "eventsource-parser";
+import {uniqueId} from "lodash";
 import { ChangeEvent, Dispatch, FormEvent, SetStateAction, useCallback, useRef, useState } from "react";
 import { v4 } from "uuid";
 
@@ -5,9 +7,10 @@ import { ActionResult, AgentState, ChatMessage, RunAgentResponseStreamChunk } fr
 
 interface UseAgentChatOptions {
   api?: string;
-  id?: string;
+  id: string;
+  userId: string;
+  model: string;
   initialMessages?: ChatMessage[];
-  onResponse?: (response: Response) => void | Promise<void>;
   onFinish?: (message: ChatMessage) => void | Promise<void>;
   onError?: (error: Error) => void | Promise<void>;
 }
@@ -17,7 +20,7 @@ interface UseAgentChatHelpers {
   agentState: AgentState | null;
   lastActionResult: ActionResult | null;
   isLoading: boolean;
-  handleSubmit: (e: FormEvent<HTMLFormElement>) => Promise<void>;
+  handleSubmit: (e?: FormEvent<HTMLFormElement>) => Promise<void>;
   handleInputChange?: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   input: string;
@@ -25,14 +28,33 @@ interface UseAgentChatHelpers {
   stop: () => void;
 }
 
+const parseStream = (onChunk: (chunk: RunAgentResponseStreamChunk) => void) => {
+  const parser = createParser((event) => {
+    if (event.type === "event" && event.data) {
+      try {
+        const chunk = JSON.parse(event.data) as RunAgentResponseStreamChunk;
+        onChunk(chunk);
+      } catch (e) {
+        console.error("Failed to parse streaming message", e);
+      }
+    }
+  });
+
+  return (chunk: Uint8Array) => {
+    const str = new TextDecoder().decode(chunk);
+    parser.feed(str);
+  };
+};
+
 export function useAgentChat({
   api = "/api/agent",
   id,
   initialMessages = [],
-  onResponse,
   onFinish,
   onError,
-}: UseAgentChatOptions = {}): UseAgentChatHelpers {
+  userId,
+  model,
+}: UseAgentChatOptions): UseAgentChatHelpers {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -45,6 +67,7 @@ export function useAgentChat({
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+      setIsLoading(false);
     }
   }, []);
 
@@ -53,8 +76,10 @@ export function useAgentChat({
   }, []);
 
   const handleSubmit = useCallback(
-    async (e: FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
+    async (e?: FormEvent<HTMLFormElement>) => {
+      if (e) {
+        e.preventDefault();
+      }
 
       if (!input.trim() || isLoading) {
         return;
@@ -64,105 +89,103 @@ export function useAgentChat({
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
+
+      window.history.replaceState({}, '', `/chat/${id}`);
+
+      const userMessage: ChatMessage = {
+        id: v4(),
+        messageType: "user",
+        content: {
+          text: input,
+        },
+        chatId: id,
+        userId,
+      };
+
+      setMessages((messages) => [...messages, userMessage]);
+      setInput("");
+
+      await fetch('/api/agent_messages', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userMessage),
+      });
+
+      const response = await fetch(api, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: input,
+          chatId: id,
+          isNewUserMessage: messages.length <= 1,
+          model,
+        }),
+        signal: abortController.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No reader available");
+      }
+
       try {
-        // Add user message to the list
-        const userMessage: ChatMessage = {
-          id: v4(),
-          role: "user",
-          content: input,
-          isStateMessage: false,
-        };
-        setMessages((messages) => [...messages, userMessage]);
-        setInput("");
-
-        const response = await fetch(api, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            prompt: input,
-            chatId: id || crypto.randomUUID(),
-            isNewChat: messages.length === 0,
-            model: "claude-3-7-sonnet-latest",
-          }),
-          signal: abortController.signal,
+        const processStream = parseStream((chunk) => {
+          if (chunk.chunk_type === "step") {
+            setLastActionResult(chunk.actionResult);
+            const stepMessage: ChatMessage = {
+              id: chunk.messageId,
+              messageType: chunk.chunk_type,
+              content: {
+                summary: chunk.summary,
+                actionResult: chunk.actionResult
+              },
+              userId,
+              chatId: id,
+            };
+            setMessages((messages) => [...messages, stepMessage]);
+          } else if (chunk.chunk_type === "finalOutput") {
+            setAgentState(chunk.content.state);
+            const finalMessage: ChatMessage = {
+              id: chunk.message_id || uniqueId(),
+              messageType: 'assistant',
+              content: {
+                text: chunk.content.result.content ?? "-",
+              },
+              userId,
+              chatId: id,
+            };
+            setMessages((messages) => [...messages, finalMessage]);
+            if (onFinish) {
+              onFinish(finalMessage);
+            }
+          }
         });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        if (onResponse) {
-          await onResponse(response);
-        }
-
-        const reader = response.body?.getReader();
-        if (!reader) {
-          throw new Error("No reader available");
-        }
-
-        const decoder = new TextDecoder();
-        let accumulatedData = "";
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
-          const text = decoder.decode(value);
-          accumulatedData += text;
-
-          const lines = accumulatedData.split("\n");
-          accumulatedData = lines.pop() || ""; // Keep the last incomplete line
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const jsonStr = line.slice(6).trim();
-              if (jsonStr) {
-                try {
-                  const chunk = JSON.parse(jsonStr) as RunAgentResponseStreamChunk;
-
-                  if (chunk.chunk_type === "step") {
-                    setLastActionResult(chunk.actionResult);
-                    // Add assistant message for the step
-                    const stepMessage: ChatMessage = {
-                      id: chunk.messageId,
-                      role: "assistant",
-                      content: chunk.summary,
-                      isStateMessage: false,
-                    };
-                    setMessages((messages) => [...messages, stepMessage]);
-                  } else if (chunk.chunk_type === "finalOutput") {
-                    setAgentState(chunk.content.state);
-                    const finalMessage: ChatMessage = {
-                      id: chunk.messageId,
-                      role: "assistant",
-                      content: chunk.content.result.content ?? "-",
-                      isStateMessage: true,
-                    };
-                    setMessages((messages) => [...messages, finalMessage]);
-                    if (onFinish) {
-                      await onFinish(finalMessage);
-                    }
-                  }
-                } catch (e) {
-                  console.error("Failed to parse JSON:", e);
-                }
-              }
-            }
-          }
+          processStream(value);
         }
+
       } catch (error) {
         if (onError && error instanceof Error) {
           await onError(error);
         }
-        console.error("Error in chat:", error);
       } finally {
+        reader.releaseLock();
         setIsLoading(false);
         abortControllerRef.current = null;
       }
     },
-    [api, id, input, isLoading, messages.length, onError, onFinish, onResponse]
+    [api, id, input, isLoading, messages.length, onError, onFinish, userId]
   );
 
   return {

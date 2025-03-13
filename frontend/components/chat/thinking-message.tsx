@@ -27,7 +27,7 @@ const ThinkingMessage = () => {
         </div>
 
         <div className="flex flex-col gap-2 w-full">
-          <div className="flex flex-col gap-4 text-muted-foreground">Thinking...</div>
+          <div className="flex flex-col gap-4 text-muted-foreground animate-pulse">Thinking...</div>
         </div>
       </div>
     </motion.div>
