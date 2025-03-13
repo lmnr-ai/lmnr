@@ -6,7 +6,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::agent_manager::{
-    types::{LaminarSpanContext, ModelProvider},
+    types::{AgentState, LaminarSpanContext, ModelProvider},
     AgentManager, AgentManagerTrait,
 };
 use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
@@ -19,6 +19,8 @@ const REQUEST_API_KEY_TTL: u64 = 60 * 60; // 1 hour
 #[derive(Deserialize)]
 struct RunAgentRequest {
     prompt: String,
+    #[serde(default)]
+    state: Option<AgentState>,
     #[serde(default)]
     span_context: Option<LaminarSpanContext>,
     #[serde(default)]
@@ -76,6 +78,8 @@ pub async fn run_agent_manager(
                 request.model_provider,
                 request.model,
                 request.enable_thinking,
+                false,
+                request.state,
             )
             .await;
 
@@ -97,6 +101,8 @@ pub async fn run_agent_manager(
                 request.model_provider,
                 request.model,
                 request.enable_thinking,
+                false,
+                request.state,
             )
             .await?;
 

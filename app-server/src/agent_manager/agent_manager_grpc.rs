@@ -14,16 +14,30 @@ pub struct RunAgentRequest {
     pub prompt: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub chat_id: ::prost::alloc::string::String,
-    #[prost(string, optional, tag = "3")]
+    #[prost(bool, tag = "3")]
+    pub keep_session: bool,
+    #[prost(string, optional, tag = "4")]
     pub request_api_key: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "4")]
+    #[prost(message, optional, tag = "5")]
     pub span_context: ::core::option::Option<LaminarSpanContext>,
-    #[prost(enumeration = "ModelProvider", optional, tag = "5")]
+    #[prost(enumeration = "ModelProvider", optional, tag = "6")]
     pub model_provider: ::core::option::Option<i32>,
-    #[prost(string, optional, tag = "6")]
+    #[prost(string, optional, tag = "7")]
     pub model: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(bool, optional, tag = "7")]
+    #[prost(bool, optional, tag = "8")]
     pub enable_thinking: ::core::option::Option<bool>,
+    #[prost(message, optional, tag = "9")]
+    pub continue_session: ::core::option::Option<
+        run_agent_request::ContinueSessionMessage,
+    >,
+}
+/// Nested message and enum types in `RunAgentRequest`.
+pub mod run_agent_request {
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct ContinueSessionMessage {
+        #[prost(message, optional, tag = "1")]
+        pub agent_state: ::core::option::Option<super::AgentState>,
+    }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ActionResult {
@@ -116,85 +130,9 @@ pub struct AgentOutput {
     pub result: ::core::option::Option<ActionResult>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BrowserState {
-    #[prost(string, tag = "1")]
-    pub url: ::prost::alloc::string::String,
-    #[prost(message, repeated, tag = "2")]
-    pub tabs: ::prost::alloc::vec::Vec<browser_state::TabInfo>,
-    #[prost(string, optional, tag = "3")]
-    pub screenshot_with_highlights: ::core::option::Option<
-        ::prost::alloc::string::String,
-    >,
-    #[prost(string, optional, tag = "4")]
-    pub screenshot: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(int64, tag = "5")]
-    pub pixels_above: i64,
-    #[prost(int64, tag = "6")]
-    pub pixels_below: i64,
-    #[prost(map = "int64, message", tag = "7")]
-    pub interactive_elements: ::std::collections::HashMap<
-        i64,
-        browser_state::InteractiveElement,
-    >,
-}
-/// Nested message and enum types in `BrowserState`.
-pub mod browser_state {
-    #[derive(Clone, PartialEq, ::prost::Message)]
-    pub struct TabInfo {
-        #[prost(int64, tag = "1")]
-        pub page_id: i64,
-        #[prost(string, tag = "2")]
-        pub url: ::prost::alloc::string::String,
-        #[prost(string, tag = "3")]
-        pub title: ::prost::alloc::string::String,
-    }
-    #[derive(Clone, PartialEq, ::prost::Message)]
-    pub struct InteractiveElement {
-        #[prost(int64, tag = "1")]
-        pub index: i64,
-        #[prost(string, tag = "2")]
-        pub tag_name: ::prost::alloc::string::String,
-        #[prost(string, tag = "3")]
-        pub text: ::prost::alloc::string::String,
-        #[prost(map = "string, string", tag = "4")]
-        pub attributes: ::std::collections::HashMap<
-            ::prost::alloc::string::String,
-            ::prost::alloc::string::String,
-        >,
-        #[prost(message, optional, tag = "5")]
-        pub viewport: ::core::option::Option<interactive_element::Coordinates>,
-        #[prost(message, optional, tag = "6")]
-        pub page: ::core::option::Option<interactive_element::Coordinates>,
-        #[prost(message, optional, tag = "7")]
-        pub center: ::core::option::Option<interactive_element::Coordinates>,
-        #[prost(int64, tag = "8")]
-        pub weight: i64,
-        #[prost(string, tag = "9")]
-        pub browser_agent_id: ::prost::alloc::string::String,
-        #[prost(string, optional, tag = "10")]
-        pub input_type: ::core::option::Option<::prost::alloc::string::String>,
-    }
-    /// Nested message and enum types in `InteractiveElement`.
-    pub mod interactive_element {
-        #[derive(Clone, Copy, PartialEq, ::prost::Message)]
-        pub struct Coordinates {
-            #[prost(int64, tag = "1")]
-            pub x: i64,
-            #[prost(int64, tag = "2")]
-            pub y: i64,
-            #[prost(int64, optional, tag = "3")]
-            pub width: ::core::option::Option<i64>,
-            #[prost(int64, optional, tag = "4")]
-            pub height: ::core::option::Option<i64>,
-        }
-    }
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AgentState {
     #[prost(message, repeated, tag = "1")]
     pub messages: ::prost::alloc::vec::Vec<ChatMessage>,
-    #[prost(message, optional, tag = "2")]
-    pub browser_state: ::core::option::Option<BrowserState>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunAgentResponseStreamChunk {

@@ -6,10 +6,13 @@ use async_trait::async_trait;
 use tonic::{transport::Channel, Request};
 use uuid::Uuid;
 
+use super::agent_manager_grpc::run_agent_request::ContinueSessionMessage;
 use super::agent_manager_grpc::{
     agent_manager_service_client::AgentManagerServiceClient, RunAgentRequest,
 };
-use super::types::{AgentOutput, LaminarSpanContext, ModelProvider, RunAgentResponseStreamChunk};
+use super::types::{
+    AgentOutput, AgentState, LaminarSpanContext, ModelProvider, RunAgentResponseStreamChunk,
+};
 use super::AgentManagerTrait;
 
 #[derive(Clone)]
@@ -42,6 +45,8 @@ impl AgentManagerTrait for AgentManagerImpl {
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        keep_session: bool,
+        continue_session: Option<AgentState>,
     ) -> Result<AgentOutput> {
         let mut client = self.client.as_ref().clone();
 
@@ -53,6 +58,10 @@ impl AgentManagerTrait for AgentManagerImpl {
             model_provider: model_provider.map(|p| p.to_i32()),
             model,
             enable_thinking: Some(enable_thinking),
+            keep_session,
+            continue_session: continue_session.map(|c| ContinueSessionMessage {
+                agent_state: Some(c.into()),
+            }),
         });
 
         let response = client.run_agent(request).await?;
@@ -69,6 +78,8 @@ impl AgentManagerTrait for AgentManagerImpl {
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        keep_session: bool,
+        continue_session: Option<AgentState>,
     ) -> Self::RunAgentStreamStream {
         let mut client = self.client.as_ref().clone();
 
@@ -80,15 +91,27 @@ impl AgentManagerTrait for AgentManagerImpl {
             model_provider: model_provider.map(|p| p.to_i32()),
             model,
             enable_thinking: Some(enable_thinking),
+            keep_session,
+            continue_session: continue_session.map(|c| ContinueSessionMessage {
+                agent_state: Some(c.into()),
+            }),
         });
 
-        let response = client.run_agent_stream(request).await.unwrap();
-        let mut stream = response.into_inner();
-
-        Box::pin(async_stream::stream! {
-            while let Some(chunk) = stream.message().await? {
-                yield Ok(chunk.into());
+        match client.run_agent_stream(request).await {
+            Ok(response) => {
+                let mut stream = response.into_inner();
+                Box::pin(async_stream::stream! {
+                    while let Some(chunk) = stream.message().await? {
+                        yield Ok(chunk.into());
+                    }
+                })
             }
-        })
+            Err(e) => {
+                log::error!("Error running agent: {}", e);
+                Box::pin(async_stream::stream! {
+                    yield Err(anyhow::anyhow!(e));
+                })
+            }
+        }
     }
 }

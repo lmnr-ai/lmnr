@@ -4,7 +4,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use uuid::Uuid;
 
-use super::types::{AgentOutput, LaminarSpanContext, ModelProvider, RunAgentResponseStreamChunk};
+use super::types::{
+    AgentOutput, AgentState, LaminarSpanContext, ModelProvider, RunAgentResponseStreamChunk,
+};
 use super::AgentManagerTrait;
 
 pub struct MockAgentManager;
@@ -28,6 +30,8 @@ impl AgentManagerTrait for MockAgentManager {
         _model_provider: Option<ModelProvider>,
         _model: Option<String>,
         _enable_thinking: bool,
+        _keep_session: bool,
+        _continue_session: Option<AgentState>,
     ) -> Result<AgentOutput> {
         Ok(AgentOutput::default())
     }
@@ -41,6 +45,8 @@ impl AgentManagerTrait for MockAgentManager {
         _model_provider: Option<ModelProvider>,
         _model: Option<String>,
         _enable_thinking: bool,
+        _keep_session: bool,
+        _continue_session: Option<AgentState>,
     ) -> Self::RunAgentStreamStream {
         Box::pin(futures::stream::empty())
     }

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerChannel;
 use crate::agent_manager::types::RunAgentResponseStreamChunk;
-use crate::agent_manager::worker::run_agent_worker;
+use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::db::user::User;
 use crate::routes::types::ResponseResult;
 use crate::{
@@ -21,13 +21,15 @@ struct RunAgentRequest {
     prompt: String,
     chat_id: Uuid,
     #[serde(default)]
-    is_new_chat: bool,
-    #[serde(default)]
     model_provider: Option<ModelProvider>,
     #[serde(default)]
     model: Option<String>,
     #[serde(default = "default_true")]
     enable_thinking: bool,
+
+    #[serde(default)]
+    /// If true, we start the agent from scratch; otherwise, we connect to the existing stream
+    is_new_user_message: bool,
 }
 
 fn default_true() -> bool {
@@ -45,10 +47,25 @@ pub async fn run_agent_manager(
     let request = request.into_inner();
 
     let chat_id = request.chat_id;
+
+    if !request.is_new_user_message && worker_channel.is_ended(chat_id) {
+        return Ok(HttpResponse::Ok()
+            .content_type("text/event-stream")
+            .streaming(tokio_stream::empty::<anyhow::Result<bytes::Bytes>>()));
+    }
+
     let mut receiver = worker_channel.create_channel_and_get_rx(chat_id);
 
-    if request.is_new_chat {
+    if request.is_new_user_message {
+        let options = RunAgentWorkerOptions {
+            request_api_key: None,
+            model_provider: request.model_provider,
+            model: request.model,
+            enable_thinking: request.enable_thinking,
+        };
         // Run agent worker
+        // TODO: we should probably remove `request_api_key` from `RunAgentWorkerOptions`
+        // and always set None inside the worker
         tokio::spawn(async move {
             run_agent_worker(
                 agent_manager.as_ref().clone(),
@@ -57,10 +74,7 @@ pub async fn run_agent_manager(
                 chat_id,
                 user.id,
                 request.prompt,
-                None,
-                request.model_provider,
-                request.model,
-                request.enable_thinking,
+                options,
             )
             .await;
         });
@@ -68,12 +82,19 @@ pub async fn run_agent_manager(
 
     let stream = async_stream::stream! {
         while let Some(message) = receiver.recv().await {
-            if matches!(message, RunAgentResponseStreamChunk::FinalOutput(_)) {
-                yield anyhow::Ok(message);
-                break;
+            match message {
+                Ok(RunAgentResponseStreamChunk::FinalOutput(_)) => {
+                    yield message;
+                    break;
+                }
+                Ok(RunAgentResponseStreamChunk::Step(_)) => {
+                    yield message;
+                }
+                Err(e) => {
+                    log::error!("Error running agent: {}", e);
+                    break;
+                }
             }
-
-            yield anyhow::Ok(message);
         }
     };
 
