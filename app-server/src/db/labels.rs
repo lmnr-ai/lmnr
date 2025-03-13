@@ -155,7 +155,7 @@ pub async fn update_span_label(
         Some(class_id) => class_id,
         None => {
             sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO label_classes (project_id, name) VALUES ($1, $2) RETURNING id",
+                "INSERT INTO label_classes (project_id, name) VALUES ($1, $2) ON CONFLICT (project_id, name) DO NOTHING RETURNING id",
             )
             .bind(project_id)
             .bind(label_name)
