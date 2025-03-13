@@ -58,7 +58,7 @@ impl AgentManagerTrait for AgentManagerImpl {
             model_provider: model_provider.map(|p| p.to_i32()),
             model,
             enable_thinking: Some(enable_thinking),
-            keep_session: keep_session,
+            keep_session,
             continue_session: continue_session.map(|c| ContinueSessionMessage {
                 agent_state: Some(c.into()),
             }),
