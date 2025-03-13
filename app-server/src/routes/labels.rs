@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use actix_web::{delete, get, post, web, HttpResponse};
 use serde::Deserialize;
 use serde_json::Value;

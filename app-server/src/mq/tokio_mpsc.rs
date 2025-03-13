@@ -9,9 +9,8 @@ use tokio::sync::{
     Mutex,
 };
 
-// TODO: Possibly think about how to generalize the inner type with any
-// `T: Clone + Serialize + Deserialize + Send + Sync`
-// instead of manually (de)serializing into `Vec<u8>`
+const CHANNEL_CAPACITY: usize = 100;
+
 pub struct TokioMpscReceiver {
     receiver: Receiver<Vec<u8>>,
 }
@@ -106,14 +105,16 @@ impl MessageQueueTrait for TokioMpscQueue {
     ) -> anyhow::Result<MessageQueueReceiver> {
         let key = self.key(exchange, routing_key);
 
-        let (sender, receiver) = mpsc::channel(100);
+        let (sender, receiver) = mpsc::channel(CHANNEL_CAPACITY);
         let tokio_mpsc_receiver = TokioMpscReceiver { receiver };
+
         self.senders
             .entry(key)
             .or_default()
             .lock()
             .await
             .push(sender);
+
         Ok(tokio_mpsc_receiver.into())
     }
 }

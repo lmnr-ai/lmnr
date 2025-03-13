@@ -10,6 +10,8 @@ pub enum Feature {
     FullBuild,
     /// Machine manager to spin up and manage machines
     MachineManager,
+    /// Browser agent
+    AgentManager,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -26,5 +28,9 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 .as_str(),
         ),
         Feature::MachineManager => env::var("MACHINE_MANAGER_URL_GRPC").is_ok(),
+        Feature::AgentManager => {
+            env::var("AGENT_MANAGER_URL").is_ok()
+            // && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
+        }
     }
 }
