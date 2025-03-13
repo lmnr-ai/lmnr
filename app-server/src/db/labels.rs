@@ -36,6 +36,7 @@ pub struct DBSpanLabel {
     pub user_id: Option<Uuid>,
     pub label_source: LabelSource,
     pub reasoning: Option<String>,
+    pub project_id: Uuid,
 }
 
 #[derive(Serialize, FromRow)]
@@ -170,9 +171,10 @@ pub async fn update_span_label(
             user_id,
             updated_at,
             label_source,
-            reasoning
+            reasoning,
+            project_id
         )
-        VALUES ($1, $2, $3, (SELECT id FROM users WHERE email = $4 LIMIT 1), now(), $5, $6)
+        VALUES ($1, $2, $3, (SELECT id FROM users WHERE email = $4 LIMIT 1), now(), $5, $6, $7)
         ON CONFLICT (span_id, class_id)
         DO UPDATE SET
             updated_at = now(),
@@ -187,7 +189,8 @@ pub async fn update_span_label(
             updated_at,
             user_id,
             label_source,
-            reasoning",
+            reasoning,
+            project_id",
     )
     .bind(id)
     .bind(span_id)
@@ -195,6 +198,7 @@ pub async fn update_span_label(
     .bind(user_email)
     .bind(label_source)
     .bind(reasoning)
+    .bind(project_id)
     .fetch_one(pool)
     .await?;
 
