@@ -104,8 +104,6 @@ pub async fn set_evaluation_results(
         AS tmp_table(id, data, target, executor_output, trace_id, index)
         ON CONFLICT (id) DO UPDATE
             SET executor_output = EXCLUDED.executor_output
-        ON CONFLICT (evaluation_id, index) DO UPDATE
-            SET executor_output = EXCLUDED.executor_output
         RETURNING id, created_at, evaluation_id, trace_id
         ",
     )
