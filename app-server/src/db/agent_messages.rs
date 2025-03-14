@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(sqlx::Type, Clone, PartialEq)]
-#[sqlx(type_name = "message_type")]
+#[sqlx(type_name = "agent_message_type")]
 pub enum MessageType {
     #[sqlx(rename = "user")]
     User,

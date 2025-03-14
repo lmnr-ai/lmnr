@@ -235,7 +235,6 @@ impl Into<ChatMessageGrpc> for ChatMessage {
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
 pub struct AgentState {
     messages: Vec<ChatMessage>,
     // browser_state: BrowserState,
@@ -273,7 +272,7 @@ impl Into<AgentStateGrpc> for AgentState {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-#[serde(tag = "chunk_type", rename_all(deserialize = "snake_case"))]
+#[serde(tag = "chunk_type", rename_all = "snake_case")]
 pub enum RunAgentResponseStreamChunk {
     Step(StepChunkContent),
     FinalOutput(FinalOutputChunkContent),
