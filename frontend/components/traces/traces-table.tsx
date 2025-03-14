@@ -188,6 +188,10 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       const insertIndex = currentTraces?.findIndex(trace => trace.startTime <= newObj.start_time);
       const newTraces = currentTraces ? [...currentTraces] : [];
       const rtEventTrace = dbTraceRowToTrace(newObj);
+      // Ignore eval traces
+      if (rtEventTrace.traceType !== 'DEFAULT') {
+        return;
+      }
       const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
       const newTrace = (rtEventTrace.topSpanType === null && rtEventTrace.topSpanId != null)
         ? {
@@ -210,6 +214,10 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
         const newTraces = [...currentTraces];
         const existingTrace = currentTraces[updateIndex];
         const rtEventTrace = dbTraceRowToTrace(newObj);
+        // Ignore eval traces
+        if (rtEventTrace.traceType !== 'DEFAULT') {
+          return;
+        }
         const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
         if (existingTrace.topSpanType === null && rtEventTrace.topSpanId != null) {
           const newTrace = {

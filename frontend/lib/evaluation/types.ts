@@ -43,6 +43,7 @@ export type EvaluationDatapointPreviewWithCompared = {
   comparedEndTime?: string;
   comparedInputCost?: number;
   comparedOutputCost?: number;
+  comparedTraceId?: string;
 } & EvaluationDatapointPreview;
 
 export type EvaluationStats = {

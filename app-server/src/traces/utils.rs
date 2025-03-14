@@ -194,24 +194,22 @@ pub async fn record_labels_to_db_and_ch(
 
     let labels = span.get_attributes().labels();
 
-    for (label_name, _) in labels {
+    for label_name in labels {
         let label_class = project_labels.iter().find(|l| l.name == label_name);
-        if let Some(label_class) = label_class {
-            let id = Uuid::new_v4();
-            crate::labels::insert_or_update_label(
-                &db.pool,
-                clickhouse.clone(),
-                *project_id,
-                id,
-                span.span_id,
-                label_class.id,
-                None,
-                label_name,
-                LabelSource::CODE,
-                None,
-            )
-            .await?;
-        }
+        let id = Uuid::new_v4();
+        crate::labels::insert_or_update_label(
+            &db.pool,
+            clickhouse.clone(),
+            *project_id,
+            id,
+            span.span_id,
+            label_class.map(|l| l.id),
+            None,
+            label_name,
+            LabelSource::CODE,
+            None,
+        )
+        .await?;
     }
 
     Ok(())
