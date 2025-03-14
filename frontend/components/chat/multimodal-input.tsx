@@ -1,9 +1,9 @@
 import { Send, StopCircleIcon } from "lucide-react";
-import { KeyboardEvent,memo } from "react";
+import { KeyboardEvent, memo } from "react";
 
+import ModelSelect from "@/components/chat/model-select";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 interface MultimodalInputProps {
   isLoading: boolean;
@@ -14,11 +14,24 @@ interface MultimodalInputProps {
   onSubmit: () => void;
   model: string;
   onModelChange: (model: string) => void;
+  enableThinking: boolean;
+  onEnableThinkingChange: (value: boolean) => void;
 }
 
-const MultimodalInput = ({ isLoading, value, onChange, className, stop, onSubmit, model, onModelChange }: MultimodalInputProps) => {
+const MultimodalInput = ({
+  isLoading,
+  value,
+  onChange,
+  className,
+  stop,
+  onSubmit,
+  model,
+  onModelChange,
+  enableThinking,
+  onEnableThinkingChange,
+}: MultimodalInputProps) => {
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (value.trim() && !isLoading) {
         onSubmit();
@@ -29,7 +42,7 @@ const MultimodalInput = ({ isLoading, value, onChange, className, stop, onSubmit
   return (
     <div className="relative w-full flex flex-col gap-4">
       <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-        {isLoading ? <StopButton stop={stop} /> : <SendButton input={value} submitForm={() => {}} />}
+        {isLoading ? <StopButton stop={stop} /> : <SendButton input={value} />}
       </div>
       <DefaultTextarea
         placeholder="Send a message..."
@@ -44,19 +57,25 @@ const MultimodalInput = ({ isLoading, value, onChange, className, stop, onSubmit
         disabled={isLoading}
       />
       <div className="absolute bottom-0 left-0 p-2 w-fit flex flex-row justify-end">
-        <Select value={model} onValueChange={onModelChange}>
-          <SelectTrigger className="w-fit border-none">
-            <SelectValue placeholder="Select a model" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="claude-3-7-sonnet-latest">
-                  claude-3-7-sonnet-latest
-            </SelectItem>
-            <SelectItem value="claude-3-7-sonnet-20250219">
-                  claude-3-7-sonnet-20250219
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        {/*<Select value={model} onValueChange={onModelChange}>*/}
+        {/*  <SelectTrigger className="w-fit border-none">*/}
+        {/*    <SelectValue placeholder="Select a model" />*/}
+        {/*  </SelectTrigger>*/}
+        {/*  <SelectContent>*/}
+        {/*    <SelectItem value="claude-3-7-sonnet-latest">*/}
+        {/*          claude-3-7-sonnet-latest*/}
+        {/*    </SelectItem>*/}
+        {/*    <SelectItem value="claude-3-7-sonnet-20250219">*/}
+        {/*          claude-3-7-sonnet-20250219*/}
+        {/*    </SelectItem>*/}
+        {/*  </SelectContent>*/}
+        {/*</Select>*/}
+        <ModelSelect
+          model={model}
+          onModelChange={onModelChange}
+          enableThinking={enableThinking}
+          onEnableThinkingChange={onEnableThinkingChange}
+        />
       </div>
     </div>
   );
@@ -81,7 +100,7 @@ function PureStopButton({ stop }: { stop: () => void }) {
 
 const StopButton = memo(PureStopButton);
 
-function PureSendButton({ submitForm, input }: { submitForm: () => void; input: string }) {
+function PureSendButton({ input }: { input: string }) {
   return (
     <Button className="rounded-full p-2 h-fit border" type="submit" disabled={input.length === 0}>
       <Send size={14} />

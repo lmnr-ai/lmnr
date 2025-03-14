@@ -1,7 +1,6 @@
 "use client";
 
-import { PlusIcon } from "lucide-react";
-import Link from "next/link";
+import { PanelRightOpen, PlusIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -10,22 +9,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 export function AgentSidebar() {
   const router = useRouter();
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, toggleSidebar } = useSidebar();
+
+  // const { data, isLoading } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
 
   return (
     <Sidebar>
       <SidebarHeader className="text-primary-foreground">
         <SidebarMenu>
           <div className="flex flex-row justify-between items-center">
-            <Link
-              href="/chat"
-              onClick={() => {
-                setOpenMobile(false);
-              }}
-              className="flex flex-row gap-3 items-center"
-            >
-              <span className="text-lg font-semibold px-2 hover:bg-muted rounded-md cursor-pointer">Chatbot</span>
-            </Link>
+            <Button variant="ghost" size="icon" className="size-8 hover:bg-muted" onClick={toggleSidebar}>
+              <PanelRightOpen size={16} />
+            </Button>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -35,7 +30,6 @@ export function AgentSidebar() {
                   onClick={() => {
                     setOpenMobile(false);
                     router.push("/chat");
-                    router.refresh();
                   }}
                 >
                   <PlusIcon size={16} />
@@ -47,7 +41,17 @@ export function AgentSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="pt-2 text-primary-foreground">
-        <div className="flex flex-row w-full px-4">Chat history is to be implemented</div>
+        <div className="flex flex-col flex-1 px-4">
+          {/*{isLoading ? (*/}
+          {/*  <Loader size={16} className="animate-spin self-center" />*/}
+          {/*) : (*/}
+          {/*  data?.map((chat) => (*/}
+          {/*    <Link href={`/chat/${chat.chatId}`} key={chat.chatId} passHref>*/}
+          {/*      <div className="p-2 hover:bg-muted rounded-md text-sm">{chat.name}</div>*/}
+          {/*    </Link>*/}
+          {/*  ))*/}
+          {/*)}*/}
+        </div>
       </SidebarContent>
     </Sidebar>
   );

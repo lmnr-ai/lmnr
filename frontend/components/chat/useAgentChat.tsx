@@ -1,15 +1,15 @@
 import { createParser } from "eventsource-parser";
-import {uniqueId} from "lodash";
+import { uniqueId } from "lodash";
 import { ChangeEvent, Dispatch, FormEvent, SetStateAction, useCallback, useRef, useState } from "react";
+import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
-import { ActionResult, AgentState, ChatMessage, RunAgentResponseStreamChunk } from "@/components/chat/types";
+import { AgentSession, ChatMessage, RunAgentResponseStreamChunk } from "@/components/chat/types";
 
 interface UseAgentChatOptions {
   api?: string;
   id: string;
   userId: string;
-  model: string;
   initialMessages?: ChatMessage[];
   onFinish?: (message: ChatMessage) => void | Promise<void>;
   onError?: (error: Error) => void | Promise<void>;
@@ -17,16 +17,16 @@ interface UseAgentChatOptions {
 
 interface UseAgentChatHelpers {
   messages: ChatMessage[];
-  agentState: AgentState | null;
-  lastActionResult: ActionResult | null;
   isLoading: boolean;
-  handleSubmit: (e?: FormEvent<HTMLFormElement>) => Promise<void>;
+  handleSubmit: (e?: FormEvent<HTMLFormElement>, options?: { model: string; enableThinking: boolean }) => Promise<void>;
   handleInputChange?: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
   stop: () => void;
 }
+
+const defaultOptions = { model: "claude-3-7-sonnet-latest", enableThinking: true };
 
 const parseStream = (onChunk: (chunk: RunAgentResponseStreamChunk) => void) => {
   const parser = createParser((event) => {
@@ -53,15 +53,16 @@ export function useAgentChat({
   onFinish,
   onError,
   userId,
-  model,
 }: UseAgentChatOptions): UseAgentChatHelpers {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [agentState, setAgentState] = useState<AgentState | null>(null);
-  const [lastActionResult, setLastActionResult] = useState<ActionResult | null>(null);
-
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { mutate } = useSWRConfig();
+
+  const handleAppendChat = async (chat: AgentSession) => {
+    await mutate("/api/agent-sessions", (sessions) => [chat, ...sessions], { revalidate: false });
+  };
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {
@@ -76,7 +77,7 @@ export function useAgentChat({
   }, []);
 
   const handleSubmit = useCallback(
-    async (e?: FormEvent<HTMLFormElement>) => {
+    async (e?: FormEvent<HTMLFormElement>, options?: { model: string; enableThinking: boolean }) => {
       if (e) {
         e.preventDefault();
       }
@@ -85,12 +86,13 @@ export function useAgentChat({
         return;
       }
 
+      const modelOptions = options ?? defaultOptions;
+
       setIsLoading(true);
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-
-      window.history.replaceState({}, '', `/chat/${id}`);
+      window.history.replaceState({}, "", `/chat/${id}`);
 
       const userMessage: ChatMessage = {
         id: v4(),
@@ -105,7 +107,7 @@ export function useAgentChat({
       setMessages((messages) => [...messages, userMessage]);
       setInput("");
 
-      await fetch('/api/agent_messages', {
+      await fetch("/api/agent-messages", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -122,7 +124,7 @@ export function useAgentChat({
           prompt: input,
           chatId: id,
           isNewUserMessage: messages.length <= 1,
-          model,
+          ...modelOptions,
         }),
         signal: abortController.signal,
       });
@@ -139,23 +141,21 @@ export function useAgentChat({
       try {
         const processStream = parseStream((chunk) => {
           if (chunk.chunk_type === "step") {
-            setLastActionResult(chunk.actionResult);
             const stepMessage: ChatMessage = {
               id: chunk.messageId,
               messageType: chunk.chunk_type,
               content: {
                 summary: chunk.summary,
-                actionResult: chunk.actionResult
+                actionResult: chunk.actionResult,
               },
               userId,
               chatId: id,
             };
             setMessages((messages) => [...messages, stepMessage]);
           } else if (chunk.chunk_type === "finalOutput") {
-            setAgentState(chunk.content.state);
             const finalMessage: ChatMessage = {
               id: chunk.message_id || uniqueId(),
-              messageType: 'assistant',
+              messageType: "assistant",
               content: {
                 text: chunk.content.result.content ?? "-",
               },
@@ -163,6 +163,14 @@ export function useAgentChat({
               chatId: id,
             };
             setMessages((messages) => [...messages, finalMessage]);
+            const optimisticChat: AgentSession = {
+              chatId: id,
+              name: chunk.content.result.content ?? "-",
+              createdAt: new Date().toISOString(),
+            };
+
+            // handleAppendChat(optimisticChat);
+
             if (onFinish) {
               onFinish(finalMessage);
             }
@@ -174,7 +182,6 @@ export function useAgentChat({
           if (done) break;
           processStream(value);
         }
-
       } catch (error) {
         if (onError && error instanceof Error) {
           await onError(error);
@@ -190,8 +197,6 @@ export function useAgentChat({
 
   return {
     messages,
-    agentState,
-    lastActionResult,
     isLoading,
     handleSubmit,
     handleInputChange,
