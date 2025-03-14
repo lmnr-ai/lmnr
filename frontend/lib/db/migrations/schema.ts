@@ -1,11 +1,26 @@
 import { sql } from "drizzle-orm";
 import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
+export const agentMachineStatus = pgEnum("agent_machine_status", ['not_started', 'running', 'paused', 'stopped']);
+export const agentMessageType = pgEnum("agent_message_type", ['user', 'assistant', 'step']);
 export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO', 'CODE']);
 export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION', 'TOOL']);
 export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION']);
 export const workspaceRole = pgEnum("workspace_role", ['member', 'owner']);
 
+
+export const userCookies = pgTable("user_cookies", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  userId: uuid("user_id").defaultRandom().notNull(),
+  cookies: text().notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.userId],
+    foreignColumns: [users.id],
+    name: "user_cookies_user_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
 
 export const renderTemplates = pgTable("render_templates", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -26,13 +41,19 @@ export const agentMessages = pgTable("agent_messages", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   chatId: uuid("chat_id").notNull(),
   userId: uuid("user_id").notNull(),
-  messageType: text("message_type").default('').notNull(),
   content: jsonb().default({}),
+  messageType: agentMessageType("message_type").notNull(),
 }, (table) => [
+  index("agent_messages_chat_id_created_at_idx").using("btree", table.chatId.asc().nullsLast().op("timestamptz_ops"), table.createdAt.asc().nullsLast().op("timestamptz_ops")),
   foreignKey({
     columns: [table.userId],
     foreignColumns: [users.id],
     name: "agent_message_to_user_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+  foreignKey({
+    columns: [table.chatId],
+    foreignColumns: [agentSessions.chatId],
+    name: "agent_messages_chat_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
@@ -42,8 +63,16 @@ export const agentSessions = pgTable("agent_sessions", {
   cdpUrl: text("cdp_url").notNull(),
   vncUrl: text("vnc_url").notNull(),
   machineId: text("machine_id"),
-  state: jsonb(),
-});
+  state: jsonb().default({}).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  chatName: text("chat_name").default('New chat').notNull(),
+  userId: uuid("user_id"),
+  status: agentMachineStatus().default('not_started').notNull(),
+}, (table) => [
+  index("agent_sessions_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
+  index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
+  index("agent_sessions_user_id_idx").using("hash", table.userId.asc().nullsLast().op("uuid_ops")),
+]);
 
 export const apiKeys = pgTable("api_keys", {
   apiKey: text("api_key").primaryKey().notNull(),

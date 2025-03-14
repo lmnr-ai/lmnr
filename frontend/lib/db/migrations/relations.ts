@@ -1,6 +1,21 @@
 import { relations } from "drizzle-orm/relations";
 
-import { agentMessages, apiKeys, datapointToSpan,datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, events, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, spans, subscriptionTiers, targetPipelineVersions, traces, users, userSubscriptionInfo, workspaces, workspaceUsage } from "./schema";
+import { agentMessages, agentSessions, apiKeys, datapointToSpan,datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, events, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, spans, subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, workspaces, workspaceUsage } from "./schema";
+
+export const userCookiesRelations = relations(userCookies, ({one}) => ({
+  user: one(users, {
+    fields: [userCookies.userId],
+    references: [users.id]
+  }),
+}));
+
+export const usersRelations = relations(users, ({many}) => ({
+  userCookies: many(userCookies),
+  agentMessages: many(agentMessages),
+  apiKeys: many(apiKeys),
+  userSubscriptionInfos: many(userSubscriptionInfo),
+  membersOfWorkspaces: many(membersOfWorkspaces),
+}));
 
 export const renderTemplatesRelations = relations(renderTemplates, ({one}) => ({
   project: one(projects, {
@@ -34,13 +49,14 @@ export const agentMessagesRelations = relations(agentMessages, ({one}) => ({
     fields: [agentMessages.userId],
     references: [users.id]
   }),
+  agentSession: one(agentSessions, {
+    fields: [agentMessages.chatId],
+    references: [agentSessions.chatId]
+  }),
 }));
 
-export const usersRelations = relations(users, ({many}) => ({
+export const agentSessionsRelations = relations(agentSessions, ({many}) => ({
   agentMessages: many(agentMessages),
-  apiKeys: many(apiKeys),
-  userSubscriptionInfos: many(userSubscriptionInfo),
-  membersOfWorkspaces: many(membersOfWorkspaces),
 }));
 
 export const apiKeysRelations = relations(apiKeys, ({one}) => ({
