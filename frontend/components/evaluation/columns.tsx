@@ -125,14 +125,24 @@ export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompa
 export const getComparedScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapointPreviewWithCompared>[] =>
   scores.map((name) => ({
     header: name,
-    cell: ({ row }) => (
-      <ComparisonCell
-        original={row.original.scores?.[name] ?? "-"}
-        comparison={row.original.comparedScores?.[name] ?? "-"}
-        originalValue={Number(row.original.scores?.[name])}
-        comparisonValue={Number(row.original.comparedScores?.[name])}
-      />
-    ),
+    cell: ({ row }) => {
+      const original = row.original.scores?.[name];
+      const comparison = row.original.comparedScores?.[name];
+      const shouldShowComparison = isValidNumber(original) && isValidNumber(comparison) && original !== comparison;
+
+      return (
+        <div className="flex items-center space-x-2">
+          <div className="text-green-300">{comparison ?? "-"}</div>
+          <ArrowRight className="font-bold min-w-3" size={12} />
+          <div className="text-blue-300">{original ?? "-"}</div>
+          {shouldShowComparison && (
+            <span className="text-secondary-foreground">
+              {original >= comparison ? "▲" : "▼"} ({original - comparison})
+            </span>
+          )}
+        </div>
+      );
+    },
   }));
 
 export const getScoreColumns = (scores: string[]): ColumnDef<EvaluationDatapointPreviewWithCompared>[] =>

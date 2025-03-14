@@ -21,16 +21,15 @@ pub async fn save_evaluation_scores(
     group_name: &String,
 ) -> Result<()> {
     let columns = get_columns_from_points(&points);
-    let ids = points.iter().map(|_| Uuid::new_v4()).collect::<Vec<_>>();
     let labeling_queues =
-        datapoints_to_labeling_queues(db.clone(), &points, &ids, &project_id).await?;
+        datapoints_to_labeling_queues(db.clone(), &points, &columns.ids, &project_id).await?;
 
     for (queue_id, entries) in labeling_queues.iter() {
         db::labeling_queues::push_to_labeling_queue(&db.pool, queue_id, &entries).await?;
     }
 
     let pool = db.pool.clone();
-    let ids_clone = ids.clone();
+    let ids_clone = columns.ids.clone();
     let db_task = tokio::spawn(async move {
         db::evaluations::set_evaluation_results(
             &pool,
@@ -51,7 +50,7 @@ pub async fn save_evaluation_scores(
     // since each datapoint can have multiple evaluators
     let ch_evaluation_scores = EvaluationScore::from_evaluation_datapoint_results(
         &points,
-        &ids,
+        &columns.ids,
         project_id,
         group_name.clone(),
         evaluation_id,

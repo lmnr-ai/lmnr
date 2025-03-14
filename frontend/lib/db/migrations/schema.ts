@@ -21,6 +21,30 @@ export const renderTemplates = pgTable("render_templates", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
+export const agentMessages = pgTable("agent_messages", {
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  chatId: uuid("chat_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  messageType: text("message_type").default('').notNull(),
+  content: jsonb().default({}),
+}, (table) => [
+  foreignKey({
+    columns: [table.userId],
+    foreignColumns: [users.id],
+    name: "agent_message_to_user_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const agentSessions = pgTable("agent_sessions", {
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  chatId: uuid("chat_id").primaryKey().notNull(),
+  cdpUrl: text("cdp_url").notNull(),
+  vncUrl: text("vnc_url").notNull(),
+  machineId: text("machine_id"),
+  state: jsonb(),
+});
+
 export const apiKeys = pgTable("api_keys", {
   apiKey: text("api_key").primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -52,6 +76,7 @@ export const labelClasses = pgTable("label_classes", {
     name: "label_classes_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
   unique("label_classes_project_id_id_key").on(table.id, table.projectId),
+  unique("label_classes_name_project_id_unique").on(table.name, table.projectId),
 ]);
 
 export const labelingQueueItems = pgTable("labeling_queue_items", {

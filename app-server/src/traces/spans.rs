@@ -345,8 +345,14 @@ impl SpanAttributes {
         );
     }
 
-    pub fn labels(&self) -> HashMap<String, Value> {
-        self.get_flattened_association_properties("label")
+    pub fn labels(&self) -> Vec<String> {
+        match self
+            .attributes
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels").as_str())
+        {
+            Some(Value::Array(arr)) => arr.iter().map(|v| json_value_to_string(v)).collect(),
+            _ => Vec::new(),
+        }
     }
 
     pub fn metadata(&self) -> Option<HashMap<String, String>> {
