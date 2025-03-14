@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package agent_manager_grpc;
+
+message LaminarSpanContext {
+    string trace_id = 1;
+    string span_id = 2;
+    bool is_remote = 3;
+}
+
+enum ModelProvider {
+    ANTHROPIC = 0;
+    BEDROCK = 1;
+}
+
+message RunAgentRequest {
+    message ContinueSessionMessage {
+        AgentState agent_state = 1;
+    }
+    string prompt = 1;
+    string chat_id = 2;
+    bool keep_session = 3;
+    optional string request_api_key = 4;
+    optional LaminarSpanContext span_context = 5;
+    optional ModelProvider model_provider = 6;
+    optional string model = 7;
+    optional bool enable_thinking = 8;
+    optional ContinueSessionMessage continue_session = 9;
+}
+
+message ActionResult {
+    optional bool is_done = 1;
+    optional string content = 2;
+    optional string error = 3;
+}
+
+message StepChunkContent {
+    ActionResult action_result = 1;
+    string summary = 2;
+}
+
+message ChatMessage {
+    message ContentBlock {
+        message TextContent {
+            string text = 1;
+            optional bool cache_control = 2;
+        }
+        
+        message ImageContent {
+            oneof image_source {
+              string image_b64 = 1;
+              string image_url = 2;
+            }
+            optional bool cache_control = 3;
+        }
+
+        oneof content {
+            TextContent text_content = 1;
+            ImageContent image_content = 2;
+        }
+    }
+    message ContentList {
+        repeated ContentBlock content_blocks = 1;
+    }
+    string role = 1;
+    oneof content {
+        string raw_text = 2;
+        ContentList content_list = 3;
+    }
+    optional string name = 4;
+    optional string tool_call_id = 5;
+    optional bool is_state_message = 6;
+}
+
+message AgentOutput {
+    AgentState agent_state = 1;
+    ActionResult result = 2;
+}
+
+message AgentState {
+    repeated ChatMessage messages = 1;
+}
+
+message RunAgentResponseStreamChunk {
+    oneof chunk_type {
+        StepChunkContent step_chunk_content = 1;
+        AgentOutput agent_output = 2;
+    }
+}
+
+service AgentManagerService {
+    rpc RunAgent(RunAgentRequest) returns (AgentOutput);
+    rpc RunAgentStream(RunAgentRequest) returns (stream RunAgentResponseStreamChunk);
+}
