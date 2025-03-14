@@ -1,12 +1,12 @@
-import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
-import { NextRequest } from 'next/server';
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { NextRequest } from "next/server";
 
-import { searchSpans } from '@/lib/clickhouse/spans';
-import { getTimeRange } from '@/lib/clickhouse/utils';
-import { db } from '@/lib/db/drizzle';
-import { labelClasses, labels, spans, traces } from '@/lib/db/migrations/schema';
-import { FilterDef, filtersToSql } from '@/lib/db/modifiers';
-import { getDateRangeFilters } from '@/lib/db/utils';
+import { searchSpans } from "@/lib/clickhouse/spans";
+import { getTimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { labelClasses, labels, spans, traces } from "@/lib/db/migrations/schema";
+import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
+import { getDateRangeFilters } from "@/lib/db/utils";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   let urlParamFilters: FilterDef[] = [];
   try {
-    urlParamFilters = JSON.parse(req.nextUrl.searchParams.get('filter') ?? '[]') as FilterDef[];
+    urlParamFilters = JSON.parse(req.nextUrl.searchParams.get("filter") ?? "[]") as FilterDef[];
   } catch (e) {
     urlParamFilters = [];
   }
@@ -35,16 +35,11 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     searchTraceIds = Array.from(searchResult.traceIds);
   }
 
-  const textSearchFilters = searchTraceIds ? [
-    inArray(sql`id`, searchTraceIds)
-  ] : [];
+  const textSearchFilters = searchTraceIds ? [inArray(sql`id`, searchTraceIds)] : [];
   const labelFilters = urlParamFilters
-    .filter(filter => filter.column === "labels" && filter.operator === "eq")
-    .map(filter => {
-      const [labelName, labelValue] = filter.value.split(/=(.*)/);
-      if (labelValue === undefined || labelValue === '') {
-        return sql`1=1`;
-      }
+    .filter((filter) => filter.column === "labels" && filter.operator === "eq")
+    .map((filter) => {
+      const labelName = filter.value.split(/=(.*)/)?.[0];
       return inArray(
         sql`trace_id`,
         db
@@ -52,38 +47,31 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
           .from(spans)
           .innerJoin(labels, eq(spans.spanId, labels.spanId))
           .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-          .where(and(
-            eq(labelClasses.name, labelName),
-            eq(labels.value, sql<number>`(label_classes.value_map ->> ${labelValue})::float8`)
-          ))
+          .where(and(eq(labelClasses.name, labelName)))
       );
     });
   const metadataFilters = urlParamFilters
-    .filter(filter => filter.column === "metadata" && filter.operator === "eq")
-    .map(filter => {
+    .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
+    .map((filter) => {
       const [key, value] = filter.value.split(/=(.*)/);
       return sql`metadata @> ${JSON.stringify({ [key]: value })}`;
     });
   const otherFilters = urlParamFilters
-    .filter(filter => filter.column !== "labels" && filter.column !== "metadata")
-    .map(filter => {
+    .filter((filter) => filter.column !== "labels" && filter.column !== "metadata")
+    .map((filter) => {
       if (filter.column === "traceType") {
         filter.castType = "trace_type";
       } else if (filter.column === "spanType") {
         // cast to span_type
         const uppercased = filter.value.toUpperCase().trim();
-        filter.value = (uppercased === 'SPAN') ? "'DEFAULT'" : `'${uppercased}'`;
+        filter.value = uppercased === "SPAN" ? "'DEFAULT'" : `'${uppercased}'`;
         filter.castType = "span_type";
       }
       return filter;
     });
-  const sqlFilters = filtersToSql(
-    otherFilters,
-    [new RegExp(/^(?:::int8|::float8)?$/)],
-    {
-      duration: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))::float8`,
-    }
-  );
+  const sqlFilters = filtersToSql(otherFilters, [new RegExp(/^(?:::int8|::float8)?$/)], {
+    duration: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))::float8`,
+  });
 
   const filters = [
     isNotNull(traces.sessionId),
@@ -116,14 +104,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     .offset(pageNumber * pageSize)
     .limit(pageSize);
 
-  const countQuery = db.select({
-    totalCount: sql<number>`COUNT(DISTINCT(id))`.as("total_count"),
-  }).from(traces).where(and(...filters));
+  const countQuery = db
+    .select({
+      totalCount: sql<number>`COUNT(DISTINCT(id))`.as("total_count"),
+    })
+    .from(traces)
+    .where(and(...filters));
 
-  const [items, totalCount] = await Promise.all([
-    query,
-    countQuery
-  ]);
+  const [items, totalCount] = await Promise.all([query, countQuery]);
 
   return new Response(JSON.stringify({ items, totalCount: totalCount[0].totalCount }), { status: 200 });
 }

@@ -133,10 +133,8 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
 
     let updatedFilters;
     if (existingFilterIndex === -1) {
-
       updatedFilters = [...activeFilters, newFilter];
     } else {
-
       updatedFilters = [...activeFilters];
     }
 
@@ -379,7 +377,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       <TextSearchFilter />
       <DataTableFilter possibleFilters={filterColumns}
         activeFilters={activeFilters}
-        updateFilters={handleUpdateFilters}/>
+        updateFilters={handleUpdateFilters} />
       <DateRangeFilter />
       <Button
         onClick={() => {

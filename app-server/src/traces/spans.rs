@@ -20,6 +20,7 @@ use crate::{
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     pipeline::{nodes::Message, trace::MetaLog},
     storage::{Storage, StorageTrait},
+    traces::span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
 };
 
 use super::{
@@ -53,6 +54,19 @@ const DEFAULT_PAYLOAD_SIZE_THRESHOLD: usize = (7 / 2) * 128_000; // approx 448KB
 enum TracingLevel {
     Off,
     MetaOnly,
+}
+
+#[derive(Copy, Clone)]
+pub struct InputTokens {
+    pub regular_input_tokens: i64,
+    pub cache_write_tokens: i64,
+    pub cache_read_tokens: i64,
+}
+
+impl InputTokens {
+    pub fn total(&self) -> i64 {
+        self.regular_input_tokens + self.cache_write_tokens + self.cache_read_tokens
+    }
 }
 
 pub struct SpanAttributes {
@@ -90,17 +104,48 @@ impl SpanAttributes {
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
-    pub fn input_tokens(&mut self) -> i64 {
-        if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_INPUT_TOKENS) {
-            n.as_i64().unwrap_or(0)
-        } else if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_PROMPT_TOKENS) {
-            // updating to the new convention
-            let n = n.as_i64().unwrap_or(0);
-            self.attributes
-                .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(n));
-            n
+    pub fn input_tokens(&mut self) -> InputTokens {
+        let total_input_tokens =
+            if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_INPUT_TOKENS) {
+                n.as_i64().unwrap_or(0)
+            } else if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_PROMPT_TOKENS) {
+                // updating to the new convention
+                let n = n.as_i64().unwrap_or(0);
+                self.attributes
+                    .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(n));
+                n
+            } else {
+                0
+            };
+
+        if self.provider_name() == Some("anthropic".to_string()) {
+            let cache_write_tokens = self
+                .attributes
+                .get(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            let cache_read_tokens = self
+                .attributes
+                .get(GEN_AI_CACHE_READ_INPUT_TOKENS)
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+
+            let regular_input_tokens =
+                total_input_tokens - (cache_write_tokens + cache_read_tokens);
+            let cache_write_tokens = cache_write_tokens;
+            let cache_read_tokens = cache_read_tokens;
+
+            InputTokens {
+                regular_input_tokens,
+                cache_write_tokens,
+                cache_read_tokens,
+            }
         } else {
-            0
+            InputTokens {
+                regular_input_tokens: total_input_tokens,
+                cache_write_tokens: 0,
+                cache_read_tokens: 0,
+            }
         }
     }
 
@@ -133,7 +178,7 @@ impl SpanAttributes {
     }
 
     pub fn provider_name(&self) -> Option<String> {
-        if let Some(Value::String(provider)) = self.attributes.get(GEN_AI_SYSTEM) {
+        let name = if let Some(Value::String(provider)) = self.attributes.get(GEN_AI_SYSTEM) {
             // Traceloop's auto-instrumentation sends the provider name as "Langchain" and the actual provider
             // name as an attribute `association_properties.ls_provider`.
             if provider == "Langchain" {
@@ -152,7 +197,9 @@ impl SpanAttributes {
             }
         } else {
             None
-        }
+        };
+
+        name.map(|name| name.to_lowercase().trim().to_string())
     }
 
     pub fn span_type(&self) -> SpanType {
@@ -277,16 +324,6 @@ impl SpanAttributes {
 
     pub fn update_path(&mut self) {
         self.attributes.insert(
-            SPAN_PATH.to_string(),
-            Value::Array(
-                self.path()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(serde_json::Value::String)
-                    .collect(),
-            ),
-        );
-        self.attributes.insert(
             SPAN_IDS_PATH.to_string(),
             Value::Array(
                 self.ids_path()
@@ -296,10 +333,26 @@ impl SpanAttributes {
                     .collect(),
             ),
         );
+        self.attributes.insert(
+            SPAN_PATH.to_string(),
+            Value::Array(
+                self.path()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(serde_json::Value::String)
+                    .collect(),
+            ),
+        );
     }
 
-    pub fn labels(&self) -> HashMap<String, Value> {
-        self.get_flattened_association_properties("label")
+    pub fn labels(&self) -> Vec<String> {
+        match self
+            .attributes
+            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels").as_str())
+        {
+            Some(Value::Array(arr)) => arr.iter().map(|v| json_value_to_string(v)).collect(),
+            _ => Vec::new(),
+        }
     }
 
     pub fn metadata(&self) -> Option<HashMap<String, String>> {
@@ -875,7 +928,7 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                         }
                         ChatMessageContent::ContentPartList(parts)
                     }
-                    Err(_) => ChatMessageContent::Text(otel_content.to_string()),
+                    Err(_) => ChatMessageContent::Text(json_value_to_string(otel_content)),
                 };
                 Ok(ChatMessage {
                     role: role.to_string(),

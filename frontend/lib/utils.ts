@@ -105,7 +105,7 @@ export function formatTimestampFromSeconds(seconds: number): string {
 }
 
 export function formatTimestampWithInterval(timestampStr: string, interval: GroupByInterval): string {
-  const date = new Date(timestampStr);
+  const date = new Date(`${timestampStr}Z`);
   return innerFormatTimestampWithInterval(date, interval);
 }
 
@@ -421,3 +421,19 @@ export const pluralize = (count: number, singular: string, plural: string) => {
 };
 
 export const isValidNumber = (value?: number): value is number => typeof value === "number" && !isNaN(value);
+
+export const streamReader = async (stream: ReadableStream<string>, onChunk: (chunk: string) => void) => {
+  const reader = stream.getReader();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      onChunk(value);
+    }
+  } catch (error) {
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+};

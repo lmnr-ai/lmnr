@@ -10,11 +10,9 @@ pub async fn insert_or_update_label(
     project_id: Uuid,
     id: Uuid,
     span_id: Uuid,
-    class_id: Uuid,
+    class_id: Option<Uuid>,
     user_email: Option<String>,
     label_name: String,
-    value_key: String,
-    value: f64,
     label_source: LabelSource,
     reasoning: Option<String>,
 ) -> Result<DBSpanLabel> {
@@ -22,13 +20,16 @@ pub async fn insert_or_update_label(
         pool,
         id,
         span_id,
-        value,
         user_email,
         class_id,
         &label_source,
         reasoning,
+        project_id,
+        &label_name,
     )
     .await?;
+
+    let class_id = class_id.unwrap_or(label.class_id);
 
     crate::ch::labels::insert_label(
         client,
@@ -37,8 +38,6 @@ pub async fn insert_or_update_label(
         id,
         label_name,
         label_source,
-        value_key,
-        value,
         span_id,
     )
     .await?;

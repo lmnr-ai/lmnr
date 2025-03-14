@@ -1,10 +1,13 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getDuration, getDurationString } from '@/lib/flow/utils';
 import { Span } from '@/lib/traces/types';
+import { isStringDateOld } from '@/lib/traces/utils';
 import { cn, formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
+import { Skeleton } from '../ui/skeleton';
+import { NoSpanTooltip } from './no-span-tooltip';
 import SpanTypeIcon from './span-type-icon';
 
 const ROW_HEIGHT = 36;
@@ -38,7 +41,7 @@ export function SpanCard({
   onToggleCollapse,
   traceStartTime,
   activeSpans,
-  onSelectTime
+  onSelectTime,
 }: SpanCardProps) {
   const [isSelected, setIsSelected] = useState(false);
   const [segmentHeight, setSegmentHeight] = useState(0);
@@ -85,13 +88,33 @@ export function SpanCard({
             containerWidth={SQUARE_SIZE}
             containerHeight={SQUARE_SIZE}
             size={SQUARE_ICON_SIZE}
+            className={span.pending ? "text-muted-foreground bg-muted" : ""}
           />
-          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]">
+          <div className={cn(
+            "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]",
+            span.pending && "text-muted-foreground"
+          )}>
             {span.name}
           </div>
-          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
-            {getDurationString(span.startTime, span.endTime)}
-          </div>
+          {span.pending
+            ? isStringDateOld(span.startTime) ?
+              // TODO: Fix this tooltip.
+              <NoSpanTooltip>
+                <div className='flex rounded bg-secondary p-1'>
+                  <X className="w-4 h-4 text-secondary-foreground" />
+                </div>
+              </NoSpanTooltip>
+              : <Skeleton
+                className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs"
+              />
+            : (
+              (
+                <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+                  {getDurationString(span.startTime, span.endTime)}
+                </div>
+              )
+            )
+          }
           <div
             className="z-30 top-[-px]  hover:bg-red-100/10 absolute transition-all"
             style={{
@@ -99,8 +122,10 @@ export function SpanCard({
               height: ROW_HEIGHT,
               left: -depth * 24 - 8
             }}
-            onClick={() => {
-              onSpanSelect?.(span);
+            onClick={(e) => {
+              if (!span.pending) {
+                onSpanSelect?.(span);
+              }
             }}
           />
           {isSelected && (

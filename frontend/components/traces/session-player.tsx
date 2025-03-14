@@ -4,9 +4,16 @@ import 'rrweb-player/dist/style.css';
 
 import { PauseIcon, PlayIcon } from '@radix-ui/react-icons';
 import { Loader2 } from 'lucide-react';
+import pako from 'pako';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import rrwebPlayer from 'rrweb-player';
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useProjectContext } from '@/contexts/project-context';
 import { formatSecondsToMinutesAndSeconds } from '@/lib/utils';
 
@@ -45,6 +52,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [startTime, setStartTime] = useState(0);
     const { projectId } = useProjectContext();
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Add resize observer effect
     useEffect(() => {
@@ -63,14 +71,15 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     }, []);
 
     const getEvents = async () => {
-      const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
+      setIsLoading(true);
       try {
+        const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
         const reader = res.body?.getReader();
         if (!reader) throw new Error('No reader available');
 
@@ -83,19 +92,47 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
         const blob = new Blob(chunks, { type: 'application/json' });
         const text = await blob.text();
-        const batchEvents = JSON.parse(text);
+
+        let batchEvents = [];
+        try {
+          batchEvents = JSON.parse(text);
+        } catch (e) {
+          console.error('Error parsing events:', e);
+          setIsLoading(false);
+          setEvents([]);
+          return;
+        }
 
         const events = batchEvents.flatMap((batch: any) => batch.map((data: any) => {
-          const event = JSON.parse(data.text);
+          const parsedEvent = JSON.parse(data.text);
+          const base64DecodedData = atob(parsedEvent.data);
+          let decompressedData = null;
+
+          try {
+            const encodedData = new Uint8Array(base64DecodedData.split('').map((c: any) => c.charCodeAt(0)));
+            decompressedData = pako.ungzip(encodedData, { to: 'string' });
+          } catch (e) {
+            // old non-compressed events
+            decompressedData = base64DecodedData;
+          }
+
+          const event = {
+            ...parsedEvent,
+            data: JSON.parse(decompressedData)
+          };
+
           return {
-            data: JSON.parse(event.data),
+            data: event.data,
             timestamp: new Date(event.timestamp).getTime(),
             type: parseInt(event.event_type)
           };
         }));
+
         setEvents(events);
       } catch (e) {
         console.error('Error processing events:', e);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -208,8 +245,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       }, 50);
     };
 
-    const toggleSpeed = () => {
-      setSpeed((currentSpeed) => (currentSpeed === 1 ? 2 : 1));
+    const handleSpeedChange = (newSpeed: number) => {
+      setSpeed(newSpeed);
     };
 
     useImperativeHandle(ref, () => ({
@@ -274,12 +311,23 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             >
               {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
             </button>
-            <button
-              onClick={toggleSpeed}
-              className="text-white py-1 px-2 rounded text-sm"
-            >
-              {speed}x
-            </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
+                {speed}x
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {[1, 2, 4, 8].map((speedOption) => (
+                  <DropdownMenuItem
+                    key={speedOption}
+                    onClick={() => handleSpeedChange(speedOption)}
+                  >
+                    {speedOption}x
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <input
               type="range"
               className="flex-grow cursor-pointer"
@@ -293,12 +341,17 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               {formatSecondsToMinutesAndSeconds(currentTime || 0)}/{formatSecondsToMinutesAndSeconds(totalDuration || 0)}
             </span>
           </div>
-          {events.length === 0 && (
+          {isLoading && (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
               <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
             </div>
           )}
-          {events.length > 0 && (
+          {!isLoading && events.length === 0 && hasBrowserSession && (
+            <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
+              No browser session was recorded. This might be due to an outdated SDK version.
+            </div>
+          )}
+          {!isLoading && events.length > 0 && (
             <div ref={playerContainerRef} />
           )}
         </div>

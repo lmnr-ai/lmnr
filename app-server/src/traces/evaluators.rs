@@ -47,9 +47,6 @@ pub async fn run_evaluator(
             .as_ref()
             .unwrap_or(&serde_json::Value::String(String::from(""))),
     );
-    let label_values_map =
-        serde_json::from_value::<HashMap<String, f64>>(label_class.value_map.clone())
-            .map_err(|e| anyhow::anyhow!("Failed to parse label values map: {}", e))?;
 
     let graph = label_class
         .evaluator_runnable_graph
@@ -86,7 +83,7 @@ pub async fn run_evaluator(
         .clone()
         .into();
 
-    let (value, reasoning) = match serde_json::from_str::<EvaluatorResult>(&output_str) {
+    let (_value, reasoning) = match serde_json::from_str::<EvaluatorResult>(&output_str) {
         Ok(EvaluatorResult::LLM(llm_output)) => (llm_output.value, llm_output.reasoning),
         Ok(EvaluatorResult::Code(code)) => {
             // QUICK FIX
@@ -102,19 +99,6 @@ pub async fn run_evaluator(
         Err(_) => (output_str, String::new()),
     };
 
-    let label_value = label_values_map.get(&value).cloned().ok_or_else(|| {
-        anyhow::anyhow!(
-            "Value {} is not a valid label value for {}. Possible values are: {}",
-            value,
-            label_class.name,
-            label_values_map
-                .keys()
-                .map(|k| k.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    })?;
-
     let id = Uuid::new_v4();
 
     crate::labels::insert_or_update_label(
@@ -123,11 +107,9 @@ pub async fn run_evaluator(
         project_id,
         id,
         span.span_id,
-        label_class.id,
+        Some(label_class.id),
         None,
         label_class.name,
-        value,
-        label_value,
         LabelSource::AUTO,
         Some(reasoning),
     )

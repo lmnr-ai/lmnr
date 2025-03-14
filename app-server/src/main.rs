@@ -192,7 +192,13 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            Arc::new(mq::rabbit::RabbitMQ::new(connection.clone()).into())
+            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(64);
+
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
+            Arc::new(rabbit_mq.into())
         })
     } else {
         Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
@@ -222,7 +228,13 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            Arc::new(mq::rabbit::RabbitMQ::new(connection).into())
+            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(64);
+
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection, max_channel_pool_size);
+            Arc::new(rabbit_mq.into())
         })
     } else {
         Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
@@ -546,9 +558,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::datasets::delete_all_datapoints)
                                 .service(routes::datasets::index_dataset)
                                 .service(routes::labels::get_label_classes)
-                                .service(routes::labels::get_span_labels)
-                                .service(routes::labels::update_span_label)
-                                .service(routes::labels::delete_span_label)
                                 .service(routes::labels::register_label_class_for_path)
                                 .service(routes::labels::remove_label_class_from_path)
                                 .service(routes::labels::get_registered_label_classes_for_path)

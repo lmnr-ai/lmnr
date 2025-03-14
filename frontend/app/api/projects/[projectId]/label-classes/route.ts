@@ -1,9 +1,7 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq } from "drizzle-orm";
 
-import { db } from '@/lib/db/drizzle';
-import { labelClasses } from '@/lib/db/migrations/schema';
-
-
+import { db } from "@/lib/db/drizzle";
+import { labelClasses } from "@/lib/db/migrations/schema";
 
 export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -24,13 +22,16 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
 
   const body = await req.json();
 
-  const res = await db.insert(labelClasses).values({
-    projectId: projectId,
-    name: body.name,
-    description: body.description,
-    evaluatorRunnableGraph: body.evaluatorRunnableGraph,
-    valueMap: body.valueMap
-  }).returning();
+  const res = await db
+    .insert(labelClasses)
+    .values({
+      projectId,
+      name: body.name,
+      description: body.description,
+      evaluatorRunnableGraph: body.evaluatorRunnableGraph,
+      color: body.color,
+    })
+    .returning();
 
   if (res.length === 0) {
     return new Response(JSON.stringify({ error: "Failed to create label class" }), { status: 500 });

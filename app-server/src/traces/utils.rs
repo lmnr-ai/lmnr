@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
 use regex::Regex;
@@ -42,7 +42,7 @@ pub async fn get_llm_usage_for_span(
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.completion_tokens();
-    let total_tokens = input_tokens + output_tokens;
+    let total_tokens = input_tokens.total() + output_tokens;
 
     let mut input_cost: f64 = 0.0;
     let mut output_cost: f64 = 0.0;
@@ -50,9 +50,7 @@ pub async fn get_llm_usage_for_span(
 
     let response_model = attributes.response_model();
     let model_name = response_model.or(attributes.request_model());
-    let provider_name = attributes
-        .provider_name()
-        .map(|name| name.to_lowercase().trim().to_string());
+    let provider_name = attributes.provider_name();
 
     if let Some(model) = model_name.as_deref() {
         if let Some(provider) = &provider_name {
@@ -61,8 +59,8 @@ pub async fn get_llm_usage_for_span(
                 cache.clone(),
                 provider,
                 model,
-                input_tokens as u32,
-                output_tokens as u32,
+                input_tokens,
+                output_tokens,
             )
             .await;
             if let Some(cost_entry) = cost_entry {
@@ -74,7 +72,7 @@ pub async fn get_llm_usage_for_span(
     }
 
     SpanUsage {
-        input_tokens,
+        input_tokens: input_tokens.total(),
         output_tokens,
         total_tokens,
         input_cost,
@@ -129,18 +127,12 @@ pub async fn record_span_to_db(
             }
         }
     });
+    // Once we've set the parent span id, check if it's the top span
+    if span.parent_span_id.is_none() {
+        trace_attributes.set_top_span_id(span.span_id);
+    }
     span_attributes.update_path();
     span.set_attributes(&span_attributes);
-
-    let update_attrs_res =
-        trace::update_trace_attributes(&db.pool, project_id, &trace_attributes).await;
-    if let Err(e) = update_attrs_res {
-        log::error!(
-            "Failed to update trace attributes [{}]: {:?}",
-            span.span_id,
-            e
-        );
-    }
 
     let insert_span = || async {
         db::spans::record_span(&db.pool, &span, project_id)
@@ -179,6 +171,15 @@ pub async fn record_span_to_db(
             e
         })?;
 
+    // Insert or update trace only after the span has been successfully inserted
+    if let Err(e) = trace::update_trace_attributes(&db.pool, project_id, &trace_attributes).await {
+        log::error!(
+            "Failed to update trace attributes [{}]: {:?}",
+            span.span_id,
+            e
+        );
+    }
+
     Ok(())
 }
 
@@ -193,36 +194,22 @@ pub async fn record_labels_to_db_and_ch(
 
     let labels = span.get_attributes().labels();
 
-    for (label_name, label_value_key) in labels {
+    for label_name in labels {
         let label_class = project_labels.iter().find(|l| l.name == label_name);
-        if let Some(label_class) = label_class {
-            let key = match label_value_key {
-                Value::String(s) => s.clone(),
-                v => v.to_string(),
-            };
-            let value_map =
-                serde_json::from_value::<HashMap<String, f64>>(label_class.value_map.clone())
-                    .unwrap_or_default();
-            let label_value = value_map.get(&key).cloned();
-            let id = Uuid::new_v4();
-            if let Some(label_value) = label_value {
-                crate::labels::insert_or_update_label(
-                    &db.pool,
-                    clickhouse.clone(),
-                    *project_id,
-                    id,
-                    span.span_id,
-                    label_class.id,
-                    None,
-                    label_name,
-                    key,
-                    label_value,
-                    LabelSource::CODE,
-                    None,
-                )
-                .await?;
-            }
-        }
+        let id = Uuid::new_v4();
+        crate::labels::insert_or_update_label(
+            &db.pool,
+            clickhouse.clone(),
+            *project_id,
+            id,
+            span.span_id,
+            label_class.map(|l| l.id),
+            None,
+            label_name,
+            LabelSource::CODE,
+            None,
+        )
+        .await?;
     }
 
     Ok(())

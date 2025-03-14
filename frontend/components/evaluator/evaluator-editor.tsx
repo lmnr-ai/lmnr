@@ -1,24 +1,24 @@
-import { Loader2, Play } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { v4 } from 'uuid';
+import { Loader2, Play } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { v4 } from "uuid";
 
-import { useProjectContext } from '@/contexts/project-context';
-import { EventType } from '@/lib/events/types';
-import { Graph } from '@/lib/flow/graph';
-import { CodeNode, LLMNode, NodeHandleType, NodeType, OutputNode } from '@/lib/flow/types';
-import { createNodeData, renderNodeInput } from '@/lib/flow/utils';
-import { toast } from '@/lib/hooks/use-toast';
-import { LanguageModel } from '@/lib/pipeline/types';
-import { LabelClass, Span } from '@/lib/traces/types';
+import { useProjectContext } from "@/contexts/project-context";
+import { EventType } from "@/lib/events/types";
+import { Graph } from "@/lib/flow/graph";
+import { CodeNode, LLMNode, NodeHandleType, NodeType, OutputNode } from "@/lib/flow/types";
+import { createNodeData, renderNodeInput } from "@/lib/flow/utils";
+import { toast } from "@/lib/hooks/use-toast";
+import { LanguageModel } from "@/lib/pipeline/types";
+import { LabelClass, Span } from "@/lib/traces/types";
 
-import LanguageModelSelect from '../pipeline/nodes/components/model-select';
-import { Button } from '../ui/button';
-import CodeEditor from '../ui/code-editor';
-import { DialogClose } from '../ui/dialog';
-import Formatter from '../ui/formatter';
-import { Label } from '../ui/label';
-import { ScrollArea } from '../ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import LanguageModelSelect from "../pipeline/nodes/components/model-select";
+import { Button } from "../ui/button";
+import CodeEditor from "../ui/code-editor";
+import { DialogClose } from "../ui/dialog";
+import Formatter from "../ui/formatter";
+import { Label } from "../ui/label";
+import { ScrollArea } from "../ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 interface AutoEvalsProps {
   span: Span;
@@ -26,15 +26,11 @@ interface AutoEvalsProps {
   onEvaluatorAdded?: (evaluatorRunnableGraph: Graph) => void;
 }
 
-export function EvaluatorEditor({
-  span,
-  labelClass,
-  onEvaluatorAdded
-}: AutoEvalsProps) {
+export function EvaluatorEditor({ span, labelClass, onEvaluatorAdded }: AutoEvalsProps) {
   const { projectId } = useProjectContext();
-  const [evalType, setEvalType] = useState<'LLM' | 'CODE'>('LLM');
-  const [inputs, setInputs] = useState<string>('');
-  const [output, setOutput] = useState<string>('');
+  const [evalType, setEvalType] = useState<"LLM" | "CODE">("LLM");
+  const [inputs, setInputs] = useState<string>("");
+  const [output, setOutput] = useState<string>("");
   const runnableGraph = useRef<Graph | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [wasTypeCast, setWasTypeCast] = useState(false);
@@ -55,53 +51,46 @@ export function EvaluatorEditor({
     runnableGraph.current = graph;
 
     if (graph) {
-      const codeNode = Array.from(graph.nodes.values()).find(
-        (node) => node.type === NodeType.CODE
-      ) as CodeNode;
+      const codeNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.CODE) as CodeNode;
       if (codeNode) {
-        setEvalType('CODE');
+        setEvalType("CODE");
       }
-      const llmNode = Array.from(graph.nodes.values()).find(
-        (node) => node.type === NodeType.LLM
-      ) as LLMNode;
+      const llmNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.LLM) as LLMNode;
       if (llmNode) {
-        setEvalType('LLM');
+        setEvalType("LLM");
       }
     }
   }, [labelClass.evaluatorRunnableGraph]);
 
   const runGraph = async () => {
-    const response = await fetch(
-      `/api/projects/${projectId}/pipelines/run/graph`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'text/event-stream'
-        },
-        body: JSON.stringify({
-          runId: v4(),
-          graph: runnableGraph.current?.toObject(),
-          inputs: JSON.parse(inputs),
-          env: {},
-          breakpointTaskIds: [],
-          pipelineVersionId: v4(),
-          devSessionIds: [],
-          stream: false
-        })
-      }
-    );
+    const response = await fetch(`/api/projects/${projectId}/pipelines/run/graph`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({
+        runId: v4(),
+        graph: runnableGraph.current?.toObject(),
+        inputs: JSON.parse(inputs),
+        env: {},
+        breakpointTaskIds: [],
+        pipelineVersionId: v4(),
+        devSessionIds: [],
+        stream: false,
+      }),
+    });
 
     if (!response.ok) {
       setIsRunning(false);
 
       const err = await response.text();
-      setOutput('');
+      setOutput("");
 
       toast({
-        title: 'Error',
+        title: "Error",
         description: err,
-        variant: 'destructive'
+        variant: "destructive",
       });
 
       return;
@@ -109,9 +98,9 @@ export function EvaluatorEditor({
 
     const res = await response.json();
 
-    let value = res['outputs']['output']['value'];
+    let value = res["outputs"]["output"]["value"];
 
-    if (typeof value !== 'string') {
+    if (typeof value !== "string") {
       setWasTypeCast(true);
       value = JSON.stringify(value);
     } else {
@@ -138,12 +127,7 @@ export function EvaluatorEditor({
             <div className="pb-2 font-medium text-lg flex-none">Input</div>
             <div className="flex-grow relative">
               <div className="absolute inset-0 overflow-auto">
-                <Formatter
-                  defaultMode="json"
-                  value={inputs}
-                  editable={true}
-                  onChange={(value) => setInputs(value)}
-                />
+                <Formatter defaultMode="json" value={inputs} editable={true} onChange={(value) => setInputs(value)} />
               </div>
             </div>
           </div>
@@ -152,7 +136,7 @@ export function EvaluatorEditor({
           <Tabs
             className="flex flex-col flex-grow"
             value={evalType}
-            onValueChange={(value) => setEvalType(value as 'LLM' | 'CODE')}
+            onValueChange={(value) => setEvalType(value as "LLM" | "CODE")}
           >
             <div className="flex-none pt-4 pr-4">
               <TabsList className="mb-4 flex-none m-0">
@@ -161,7 +145,7 @@ export function EvaluatorEditor({
               </TabsList>
             </div>
             <ScrollArea className="flex-grow">
-              <div className='max-h-0'>
+              <div className="max-h-0">
                 <div className="flex flex-col space-y-2 p-4 pl-0">
                   <TabsContent value="LLM">
                     <LLMEvaluator
@@ -182,24 +166,17 @@ export function EvaluatorEditor({
                   </TabsContent>
                   <div className="flex flex-col space-y-2">
                     <Label className="text-secondary-foreground">Expected output</Label>
-                    <div className="flex space-x-1">
-                      {Object.keys(labelClass.valueMap).map((value, index) => (
-                        <div
-                          key={index}
-                          className="border rounded-md p-0.5 px-2 text-sm"
-                        >
-                          {value}
-                        </div>
-                      ))}
-                    </div>
+                    {/*<div className="flex space-x-1">*/}
+                    {/*  {Object.keys(labelClass.valueMap).map((value, index) => (*/}
+                    {/*    <div key={index} className="border rounded-md p-0.5 px-2 text-sm">*/}
+                    {/*      {value}*/}
+                    {/*    </div>*/}
+                    {/*  ))}*/}
+                    {/*</div>*/}
                   </div>
                   <div className="flex flex-col flex-none space-y-2">
                     <div className="">
-                      <Button
-                        variant="outline"
-                        onClick={runEval}
-                        disabled={isRunning}
-                      >
+                      <Button variant="outline" onClick={runEval} disabled={isRunning}>
                         {isRunning ? (
                           <Loader2 className="w-3 h-3 mr-2 animate-spin" />
                         ) : (
@@ -208,17 +185,9 @@ export function EvaluatorEditor({
                         Run test
                       </Button>
                     </div>
-                    {wasTypeCast && (
-                      <div className="text-yellow-500 text-sm">
-                        Output was cast to string
-                      </div>
-                    )}
+                    {wasTypeCast && <div className="text-yellow-500 text-sm">Output was cast to string</div>}
                     <Label>Output</Label>
-                    <Formatter
-                      className="max-h-[200px]"
-                      defaultMode="json"
-                      value={output}
-                    />
+                    <Formatter className="max-h-[200px]" defaultMode="json" value={output} />
                   </div>
                 </div>
               </div>
@@ -250,13 +219,9 @@ interface LLMEvaluatorProps {
   labelClass: LabelClass;
 }
 
-export default function LLMEvaluator({
-  graph,
-  onGraphChanged,
-  labelClass
-}: LLMEvaluatorProps) {
-
-  const [prompt, setPrompt] = useState<string>(`You are an evaluator tasked with checking whether the output of a language model follows the given instruction. Your job is to assess if the model's response accurately addresses the task it was given.
+export default function LLMEvaluator({ graph, onGraphChanged, labelClass }: LLMEvaluatorProps) {
+  const [prompt, setPrompt] =
+    useState<string>(`You are an evaluator tasked with checking whether the output of a language model follows the given instruction. Your job is to assess if the model's response accurately addresses the task it was given.
 
 
 Review the input provided to the model and its corresponding output. Then, determine if the output follows the instruction and provides an appropriate response.
@@ -270,25 +235,23 @@ Provide your reasoning for the assessment, explaining why you believe the output
 
 <llm_output>{{span_output}}</llm_output>`);
   const [model, setModel] = useState<LanguageModel>({
-    id: 'openai:gpt-4o-mini',
-    name: 'openai:gpt-4o-mini'
+    id: "openai:gpt-4o-mini",
+    name: "openai:gpt-4o-mini",
   });
 
   const [structuredOutputSchema, setStructuredOutputSchema] = useState<string>(`class Output {
   reasoning string @description("Explanation of why the output does or does not follow the instruction")
-  value string @description("one of the following values: ${Object.keys(labelClass.valueMap).join(', ')}")
+  value string @description("one of the following values: -")
 }`);
 
   useEffect(() => {
     if (graph) {
-      const llmNode = Array.from(graph.nodes.values()).find(
-        (node) => node.type === NodeType.LLM
-      ) as LLMNode;
+      const llmNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.LLM) as LLMNode;
       if (llmNode) {
         setPrompt(llmNode.prompt);
         setModel({
-          id: llmNode.model!,
-          name: llmNode.model!
+          id: llmNode.model as LanguageModel["id"],
+          name: llmNode.model!,
         });
         setStructuredOutputSchema(llmNode.structuredOutputSchema!);
       }
@@ -301,18 +264,18 @@ Provide your reasoning for the assessment, explaining why you believe the output
     node.model = modelId;
     node.structuredOutputEnabled = true;
     node.structuredOutputSchema = structuredOutputSchema;
-    node.structuredOutputSchemaTarget = 'Output';
+    node.structuredOutputSchemaTarget = "Output";
     node.dynamicInputs = [
       {
         id: v4(),
-        name: 'span_input',
-        type: NodeHandleType.STRING
+        name: "span_input",
+        type: NodeHandleType.STRING,
       },
       {
         id: v4(),
-        name: 'span_output',
-        type: NodeHandleType.STRING
-      }
+        name: "span_output",
+        type: NodeHandleType.STRING,
+      },
     ];
 
     const graph = Graph.fromNode(node);
@@ -325,10 +288,7 @@ Provide your reasoning for the assessment, explaining why you believe the output
 
   return (
     <div className="flex flex-col space-y-2">
-      <LanguageModelSelect
-        modelId={model.id}
-        onModelChange={(value) => setModel(value)}
-      />
+      <LanguageModelSelect modelId={model.id} onModelChange={(value) => setModel(value)} />
       <Label>Prompt</Label>
       <CodeEditor
         placeholder="You are a smart evaluator..."
@@ -355,20 +315,14 @@ interface CodeEvaluatorProps {
   onGraphChanged: (graph: Graph) => void;
 }
 
-function CodeEvaluator({
-  graph,
-  onGraphChanged,
-}: CodeEvaluatorProps) {
+function CodeEvaluator({ graph, onGraphChanged }: CodeEvaluatorProps) {
   const [code, setCode] = useState<string>(
     '# has to return a string matching one of the expected values\ndef main(span_input, span_output):\n    return "correct"'
   );
 
-
   useEffect(() => {
     if (graph) {
-      const codeNode = Array.from(graph.nodes.values()).find(
-        (node) => node.type === NodeType.CODE
-      ) as CodeNode;
+      const codeNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.CODE) as CodeNode;
 
       if (codeNode) {
         setCode(codeNode.code!);
@@ -379,30 +333,28 @@ function CodeEvaluator({
   const updateGraph = (code: string) => {
     const node = createNodeData(v4(), NodeType.CODE) as CodeNode;
     node.code = code;
-    node.fnName = 'main';
+    node.fnName = "main";
     node.inputs = [
       {
         id: v4(),
-        name: 'span_input',
-        type: NodeHandleType.STRING
+        name: "span_input",
+        type: NodeHandleType.STRING,
       },
       {
         id: v4(),
-        name: 'span_output',
-        type: NodeHandleType.STRING
-      }
+        name: "span_output",
+        type: NodeHandleType.STRING,
+      },
     ];
     node.outputs = [
       {
         id: v4(),
-        type: NodeHandleType.ANY
-      }
+        type: NodeHandleType.ANY,
+      },
     ];
 
     const graph = Graph.fromNode(node);
-    const outputNode = Array.from(graph.nodes.values()).find(
-      (node) => node.type === NodeType.OUTPUT
-    ) as OutputNode;
+    const outputNode = Array.from(graph.nodes.values()).find((node) => node.type === NodeType.OUTPUT) as OutputNode;
     outputNode.outputCastType = EventType.STRING;
 
     onGraphChanged(graph);
