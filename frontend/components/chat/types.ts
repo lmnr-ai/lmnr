@@ -37,7 +37,7 @@ export interface ChatMessage {
   id: string;
   chatId: string;
   userId: string;
-  messageType: 'step' | 'assistant' | 'user';
+  messageType: "step" | "assistant" | "user";
   content: ChatMessageContent;
   createdAt?: string;
 }
@@ -109,3 +109,9 @@ export interface StreamAgentRequest {
 export type RunAgentResponseStreamChunk =
   | ({ chunk_type: "step" } & StepChunkContent)
   | ({ chunk_type: "finalOutput" } & FinalOutputChunkContent);
+
+export interface AgentSession {
+  chatId: string;
+  name: string;
+  createdAt: string;
+}

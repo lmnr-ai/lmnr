@@ -1,13 +1,13 @@
-import {asc, eq} from "drizzle-orm";
-import {redirect} from "next/navigation";
-import {getServerSession} from "next-auth";
+import { asc, eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
 
 import NotFound from "@/app/not-found";
 import Chat from "@/components/chat";
-import {ChatMessage} from "@/components/chat/types";
-import {authOptions} from "@/lib/auth";
-import {db} from "@/lib/db/drizzle";
-import {agentMessages, users} from "@/lib/db/migrations/schema";
+import { ChatMessage } from "@/components/chat/types";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db/drizzle";
+import { agentMessages, users } from "@/lib/db/migrations/schema";
 
 export default async function ChatPage(props: { params: Promise<{ chatId: string }> }) {
   const session = await getServerSession(authOptions);
@@ -19,10 +19,10 @@ export default async function ChatPage(props: { params: Promise<{ chatId: string
     redirect("/sign-in?callbackUrl=/onboarding");
   }
 
-  const messages = await db.query.agentMessages.findMany({
+  const messages = (await db.query.agentMessages.findMany({
     where: eq(agentMessages.chatId, chatId),
     orderBy: asc(agentMessages.createdAt),
-  });
+  })) as ChatMessage[];
 
   const user = session.user;
 
@@ -37,5 +37,5 @@ export default async function ChatPage(props: { params: Promise<{ chatId: string
     return <NotFound />;
   }
 
-  return <Chat chatId={chatId} userId={result.id} initialMessages={(messages as ChatMessage[])} />;
+  return <Chat chatId={chatId} userId={result.id} initialMessages={messages} />;
 }
