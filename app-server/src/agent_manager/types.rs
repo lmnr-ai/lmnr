@@ -235,7 +235,6 @@ impl Into<ChatMessageGrpc> for ChatMessage {
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
 pub struct AgentState {
     messages: Vec<ChatMessage>,
     // browser_state: BrowserState,
@@ -273,15 +272,52 @@ impl Into<AgentStateGrpc> for AgentState {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-#[serde(
-    tag = "chunk_type",
-    rename_all(deserialize = "snake_case", serialize = "camelCase")
-)]
+#[serde(tag = "chunk_type", rename_all = "snake_case")]
 pub enum RunAgentResponseStreamChunk {
     Step(StepChunkContent),
     FinalOutput(FinalOutputChunkContent),
 }
 
+// Frontend does not need the full agent output, so we have a thinner version
+// of final output for it
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(
+    tag = "chunk_type",
+    rename_all(deserialize = "snake_case", serialize = "camelCase")
+)]
+pub enum RunAgentResponseStreamChunkFrontend {
+    Step(StepChunkContent),
+    FinalOutput(FinalOutputChunkContentFrontend),
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all(serialize = "camelCase"))]
+pub struct AgentOutputFrontend {
+    pub result: ActionResult,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all(serialize = "camelCase"))]
+pub struct FinalOutputChunkContentFrontend {
+    pub message_id: Uuid,
+    pub content: AgentOutputFrontend,
+}
+
+impl Into<RunAgentResponseStreamChunkFrontend> for RunAgentResponseStreamChunk {
+    fn into(self) -> RunAgentResponseStreamChunkFrontend {
+        match self {
+            RunAgentResponseStreamChunk::Step(s) => RunAgentResponseStreamChunkFrontend::Step(s),
+            RunAgentResponseStreamChunk::FinalOutput(f) => {
+                RunAgentResponseStreamChunkFrontend::FinalOutput(FinalOutputChunkContentFrontend {
+                    message_id: f.message_id,
+                    content: AgentOutputFrontend {
+                        result: f.content.result,
+                    },
+                })
+            }
+        }
+    }
+}
 impl RunAgentResponseStreamChunk {
     pub fn set_message_id(&mut self, message_id: Uuid) {
         match self {
