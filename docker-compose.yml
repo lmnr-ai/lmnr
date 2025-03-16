@@ -24,8 +24,6 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     container_name: clickhouse
-    ports:
-      - "8123:8123"
     volumes:
       - type: volume
         source: clickhouse-data
@@ -62,7 +60,9 @@ services:
       NEXTAUTH_URL: http://localhost:5667
       NEXTAUTH_SECRET: some_secret
       NEXT_PUBLIC_URL: http://localhost:5667
-      ENVIRONMENT: LITE # this disables runtime dependency on clickhouse
+      ENVIRONMENT: LITE # this disables some runtime dependencies
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server
