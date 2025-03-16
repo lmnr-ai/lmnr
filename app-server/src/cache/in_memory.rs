@@ -45,4 +45,14 @@ impl CacheTrait for InMemoryCache {
         self.cache.remove(key).await;
         Ok(())
     }
+
+    async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError> {
+        let key = String::from(key);
+        let cache = self.cache.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
+            cache.invalidate(&key).await;
+        });
+        Ok(())
+    }
 }

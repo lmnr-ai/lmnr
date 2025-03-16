@@ -4,6 +4,10 @@ use actix_web::{
     App, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
+use agent_manager::{
+    agent_manager_grpc::agent_manager_service_client::AgentManagerServiceClient,
+    agent_manager_impl::AgentManagerImpl, channel::AgentManagerChannel, AgentManager,
+};
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
 use browser_events::process_browser_events;
@@ -50,6 +54,7 @@ use std::{
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+mod agent_manager;
 mod api;
 mod auth;
 mod browser_events;
@@ -69,6 +74,7 @@ mod mq;
 mod names;
 mod opentelemetry;
 mod pipeline;
+mod project_api_keys;
 mod provider_api_keys;
 mod routes;
 mod runtime;
@@ -205,7 +211,9 @@ fn main() -> anyhow::Result<()> {
     };
 
     // ==== 3.2 Browser events message queue ====
-    let browser_events_message_queue: Arc<MessageQueue> = if let Some(connection) = connection {
+    let browser_events_message_queue: Arc<MessageQueue> = if let Some(connection) =
+        connection.as_ref()
+    {
         runtime_handle.block_on(async {
             let channel = connection.create_channel().await.unwrap();
 
@@ -233,12 +241,15 @@ fn main() -> anyhow::Result<()> {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(64);
 
-            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection, max_channel_pool_size);
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
             Arc::new(rabbit_mq.into())
         })
     } else {
         Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
     };
+
+    // ==== 3.3 Agent worker message queue ====
+    let agent_manager_channel = Arc::new(AgentManagerChannel::new());
 
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
@@ -316,6 +327,21 @@ fn main() -> anyhow::Result<()> {
                     } else {
                         Arc::new(machine_manager::MockMachineManager {}.into())
                     };
+
+                // == Browser agent ==
+                let browser_agent: Arc<AgentManager> = if is_feature_enabled(Feature::AgentManager)
+                {
+                    let agent_manager_url =
+                        env::var("AGENT_MANAGER_URL").expect("AGENT_MANAGER_URL must be set");
+                    let agent_manager_client = Arc::new(
+                        AgentManagerServiceClient::connect(agent_manager_url)
+                            .await
+                            .unwrap(),
+                    );
+                    Arc::new(AgentManagerImpl::new(agent_manager_client).into())
+                } else {
+                    Arc::new(agent_manager::mock::MockAgentManager {}.into())
+                };
 
                 // == Name generator ==
                 let name_generator = Arc::new(NameGenerator::new());
@@ -472,7 +498,9 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(machine_manager.clone()))
                         .app_data(web::Data::new(browser_events_message_queue.clone()))
+                        .app_data(web::Data::new(agent_manager_channel.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
+                        .app_data(web::Data::new(browser_agent.clone()))
                         // Scopes with specific auth or no auth
                         .service(
                             web::scope("api/v1/auth")
@@ -490,6 +518,11 @@ fn main() -> anyhow::Result<()> {
                                 ),
                         )
                         .service(
+                            web::scope("api/v1/agent")
+                                .wrap(auth.clone())
+                                .service(routes::agent::run_agent_manager),
+                        )
+                        .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
                                 .service(api::v1::pipelines::run_pipeline_graph)
@@ -505,7 +538,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::machine_manager::execute_computer_action)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
-                                .service(api::v1::evals::save_eval_datapoints),
+                                .service(api::v1::evals::save_eval_datapoints)
+                                .service(api::v1::agent::run_agent_manager),
                         )
                         // Scopes with generic auth
                         .service(
