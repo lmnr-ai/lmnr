@@ -17,6 +17,7 @@ use crate::routes::types::ResponseResult;
 const REQUEST_API_KEY_TTL: u64 = 60 * 60; // 1 hour
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RunAgentRequest {
     prompt: String,
     #[serde(default)]

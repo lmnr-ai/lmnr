@@ -20,6 +20,7 @@ use super::agent_manager_grpc::{
 };
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LaminarSpanContext {
     pub trace_id: String,
     pub span_id: String,
@@ -271,33 +272,38 @@ impl Into<AgentStateGrpc> for AgentState {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(tag = "chunk_type", rename_all = "snake_case")]
+#[derive(Serialize, Clone)]
+#[serde(tag = "chunkType", rename_all = "camelCase")]
 pub enum RunAgentResponseStreamChunk {
     Step(StepChunkContent),
     FinalOutput(FinalOutputChunkContent),
 }
 
+impl RunAgentResponseStreamChunk {
+    pub fn message_id(&self) -> Uuid {
+        match self {
+            RunAgentResponseStreamChunk::Step(s) => s.message_id,
+            RunAgentResponseStreamChunk::FinalOutput(f) => f.message_id,
+        }
+    }
+}
 // Frontend does not need the full agent output, so we have a thinner version
 // of final output for it
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(
-    tag = "chunk_type",
-    rename_all(deserialize = "snake_case", serialize = "camelCase")
-)]
+#[derive(Serialize, Clone)]
+#[serde(tag = "chunkType", rename_all = "camelCase")]
 pub enum RunAgentResponseStreamChunkFrontend {
     Step(StepChunkContent),
     FinalOutput(FinalOutputChunkContentFrontend),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentOutputFrontend {
     pub result: ActionResult,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct FinalOutputChunkContentFrontend {
     pub message_id: Uuid,
     pub content: AgentOutputFrontend,
@@ -347,7 +353,7 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
             }
             RunAgentResponseStreamChunkTypeGrpc::AgentOutput(a) => {
                 RunAgentResponseStreamChunk::FinalOutput(FinalOutputChunkContent {
-                    message_id: Uuid::nil(),
+                    message_id: Uuid::new_v4(),
                     content: a.into(),
                 })
             }
@@ -355,10 +361,9 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct StepChunkContent {
-    #[serde(skip_deserializing)]
     pub message_id: Uuid,
     pub action_result: ActionResult,
     pub summary: String,
@@ -367,15 +372,15 @@ pub struct StepChunkContent {
 impl Into<StepChunkContent> for StepChunkContentGrpc {
     fn into(self) -> StepChunkContent {
         StepChunkContent {
-            message_id: Uuid::nil(),
+            message_id: Uuid::new_v4(),
             action_result: self.action_result.unwrap().into(),
             summary: self.summary,
         }
     }
 }
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct FinalOutputChunkContent {
-    #[serde(skip_deserializing)]
     pub message_id: Uuid,
     pub content: AgentOutput,
 }
