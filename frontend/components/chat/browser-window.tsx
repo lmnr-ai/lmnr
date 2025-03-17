@@ -9,7 +9,7 @@ const BrowserWindow = () => {
   const pathname = usePathname();
   const chatId = pathname.split("/")?.[2];
   const { data } = useSWR<{ vncUrl: string | null }>(
-    () => (chatId ? `/api/agent-session?chatId=${chatId}` : null),
+    () => (chatId ? `/api/agent-sessions/${chatId}` : null),
     swrFetcher,
     {
       refreshInterval: 1000,

@@ -95,7 +95,7 @@ export interface StepChunkContent {
 }
 
 export interface FinalOutputChunkContent {
-  message_id: string; // UUID
+  messageId: string; // UUID
   content: AgentOutput;
 }
 
@@ -107,8 +107,8 @@ export interface StreamAgentRequest {
 }
 
 export type RunAgentResponseStreamChunk =
-  | ({ chunk_type: "step" } & StepChunkContent)
-  | ({ chunk_type: "finalOutput" } & FinalOutputChunkContent);
+  | ({ chunkType: "step" } & StepChunkContent)
+  | ({ chunkType: "finalOutput" } & FinalOutputChunkContent);
 
 export interface AgentSession {
   chatId: string;

@@ -99,7 +99,7 @@ const connectToStream = async (
   }
 };
 
-const postUserMessage = async (message: ChatMessage) => {
+const createMessage = async (message: ChatMessage) => {
   try {
     await fetch("/api/agent-messages", {
       method: "POST",
@@ -107,6 +107,21 @@ const postUserMessage = async (message: ChatMessage) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(message),
+    });
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+const createChat = async (chat: AgentSession) => {
+  try {
+    const { chatId, ...rest } = chat;
+    await fetch(`/api/agent-sessions/${chatId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(rest),
     });
   } catch (e) {
     console.error(e);
@@ -199,10 +214,10 @@ export function useAgentChat({
           true,
           modelOptions,
           (chunk) => {
-            if (chunk.chunk_type === "step") {
+            if (chunk.chunkType === "step") {
               const stepMessage: ChatMessage = {
                 id: chunk.messageId,
-                messageType: chunk.chunk_type,
+                messageType: chunk.chunkType,
                 content: {
                   summary: chunk.summary,
                   actionResult: chunk.actionResult,
@@ -211,9 +226,9 @@ export function useAgentChat({
                 chatId: id,
               };
               setMessages((messages) => [...messages, stepMessage]);
-            } else if (chunk.chunk_type === "finalOutput") {
+            } else if (chunk.chunkType === "finalOutput") {
               const finalMessage: ChatMessage = {
-                id: chunk.message_id || uniqueId(),
+                id: chunk.messageId || uniqueId(),
                 messageType: "assistant",
                 content: {
                   text: chunk.content.result.content ?? "-",
@@ -236,7 +251,7 @@ export function useAgentChat({
           abortController.signal,
           input
         );
-        await postUserMessage(userMessage);
+        await createMessage(userMessage);
       } finally {
         setIsLoading(false);
         abortControllerRef.current = null;
@@ -259,10 +274,10 @@ export function useAgentChat({
         false,
         defaultOptions,
         (chunk) => {
-          if (chunk.chunk_type === "step") {
+          if (chunk.chunkType === "step") {
             const stepMessage: ChatMessage = {
               id: chunk.messageId,
-              messageType: chunk.chunk_type,
+              messageType: chunk.chunkType,
               content: {
                 summary: chunk.summary,
                 actionResult: chunk.actionResult,
@@ -271,9 +286,9 @@ export function useAgentChat({
               chatId: id,
             };
             setMessages((messages) => [...messages, stepMessage]);
-          } else if (chunk.chunk_type === "finalOutput") {
+          } else if (chunk.chunkType === "finalOutput") {
             const finalMessage: ChatMessage = {
-              id: chunk.message_id || uniqueId(),
+              id: chunk.messageId || uniqueId(),
               messageType: "assistant",
               content: {
                 text: chunk.content.result.content ?? "-",
