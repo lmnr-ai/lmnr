@@ -15,10 +15,7 @@ const PureMessages = ({ messages, isLoading }: MessagesProps) => {
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
 
   return (
-    <div
-      ref={messagesContainerRef}
-      className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4"
-    >
+    <div ref={messagesContainerRef} className="flex flex-col min-w-0 flex-1 overflow-y-scroll pt-4">
       {messages.map((message) => (
         <Message key={message.id} message={message} />
       ))}
@@ -31,6 +28,7 @@ const PureMessages = ({ messages, isLoading }: MessagesProps) => {
 
 const Messages = memo(PureMessages, (prevProps, nextProps) => {
   if (prevProps.messages.length !== nextProps.messages.length) return false;
+  if (prevProps.isLoading !== nextProps.isLoading) return false;
   return isEqual(prevProps.messages, nextProps.messages);
 });
 

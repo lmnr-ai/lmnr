@@ -112,6 +112,9 @@ export type RunAgentResponseStreamChunk =
 
 export interface AgentSession {
   chatId: string;
-  name: string;
-  createdAt: string;
+  updatedAt: string;
+  chatName: string;
+  status: "not_started" | "running" | "paused" | "stopped";
+  userId: string;
+  machineId: string;
 }

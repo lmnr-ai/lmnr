@@ -8,7 +8,8 @@ CREATE TABLE "user_cookies" (
 );
 --> statement-breakpoint
 ALTER TABLE "agent_messages" ALTER COLUMN "message_type" DROP DEFAULT;--> statement-breakpoint
-ALTER TABLE "agent_messages" ALTER COLUMN "message_type" SET DATA TYPE agent_message_type;--> statement-breakpoint
+-- ALTER TABLE "agent_messages" ALTER COLUMN "message_type" SET DATA TYPE agent_message_type;--> statement-breakpoint
+ALTER TABLE "agent_messages" ALTER COLUMN "message_type" SET DATA TYPE agent_message_type USING message_type::agent_message_type;
 ALTER TABLE "agent_sessions" ALTER COLUMN "state" SET DEFAULT '{}'::jsonb;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ALTER COLUMN "state" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ADD COLUMN "updated_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint

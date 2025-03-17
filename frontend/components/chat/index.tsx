@@ -15,8 +15,11 @@ interface ChatProps {
 }
 
 const Chat = ({ chatId, userId, initialMessages }: ChatProps) => {
-  const [model, setModel] = useState<string>("claude-3-7-sonnet-latest");
-  const [enableThinking, setEnableThinking] = useState(true);
+  const [modelState, setModelState] = useState<{ model: string; enableThinking: boolean }>({
+    model: "claude-3-7-sonnet-20250219",
+    enableThinking: true,
+  });
+
   const { messages, handleSubmit, stop, isLoading, input, setInput } = useAgentChat({
     id: chatId,
     initialMessages,
@@ -27,7 +30,7 @@ const Chat = ({ chatId, userId, initialMessages }: ChatProps) => {
     if (e) {
       e.preventDefault();
     }
-    handleSubmit(e, { model, enableThinking });
+    handleSubmit(e, modelState);
   };
 
   return (
@@ -36,10 +39,8 @@ const Chat = ({ chatId, userId, initialMessages }: ChatProps) => {
       <Messages isLoading={isLoading} messages={messages} />
       <form onSubmit={onSubmit} className="flex mx-auto px-4 bg-background pb-4 md:pb-6 gap-2 w-full md:max-w-3xl">
         <MultimodalInput
-          enableThinking={enableThinking}
-          onEnableThinkingChange={setEnableThinking}
-          model={model}
-          onModelChange={setModel}
+          modelState={modelState}
+          onModelStateChange={setModelState}
           onSubmit={() => onSubmit()}
           stop={stop}
           isLoading={isLoading}
