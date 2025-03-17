@@ -103,7 +103,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
 
-    if env::var("RUST_LOG").is_ok() {
+    if env::var("RUST_LOG").is_ok_and(|s| !s.is_empty()) {
         env_logger::init();
     } else {
         env_logger::builder()
@@ -138,7 +138,7 @@ fn main() -> anyhow::Result<()> {
     // == Stuff that is needed both for HTTP and gRPC servers ==
     // === 1. Cache ===
     let cache = if let Ok(redis_url) = env::var("REDIS_URL") {
-        log::info!("Redis cache URL: {}", redis_url);
+        log::info!("Using Redis cache");
         runtime_handle.block_on(async {
             let redis_cache = RedisCache::new(&redis_url).await.unwrap();
             Cache::Redis(redis_cache)
