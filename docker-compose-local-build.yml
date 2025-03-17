@@ -24,8 +24,6 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     container_name: clickhouse
-    ports:
-      - "8123:8123"
     volumes:
       - type: volume
         source: clickhouse-data
@@ -53,10 +51,10 @@ services:
     depends_on:
       - qdrant
     environment:
-      - PORT=8080
-      - QDRANT_URL=http://qdrant:6334
-      - COHERE_ENDPOINT=https://api.cohere.ai/v1/embed
-      - COHERE_API_KEY=${COHERE_API_KEY}
+      PORT: 8080
+      QDRANT_URL: http://qdrant:6334
+      COHERE_ENDPOINT: https://api.cohere.ai/v1/embed
+      COHERE_API_KEY: ${COHERE_API_KEY}
 
   postgres:
     image: postgres:16
@@ -98,16 +96,16 @@ services:
       python-executor:
         condition: service_started
     environment:
-      - PORT=8000
-      - GRPC_PORT=8001
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - SEMANTIC_SEARCH_URL=http://semantic-search-service:8080
-      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
-      - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
-      - CLICKHOUSE_URL=http://clickhouse:8123
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
-      - CODE_EXECUTOR_URL=http://python-executor:8811
-      - ENVIRONMENT=FULL
+      PORT: 8000
+      GRPC_PORT: 8001
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SEMANTIC_SEARCH_URL: http://semantic-search-service:8080
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
+      SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CODE_EXECUTOR_URL: http://python-executor:8811
+      ENVIRONMENT: FULL
 
   frontend:
     build:
@@ -121,13 +119,13 @@ services:
       clickhouse:
         condition: service_started
     environment:
-      - PORT=3000
-      - BACKEND_URL=http://app-server:8000
-      - SHARED_SECRET_TOKEN=${SHARED_SECRET_TOKEN}
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - ENVIRONMENT=FULL
-      - CLICKHOUSE_URL=http://clickhouse:8123
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      PORT: 3000
+      BACKEND_URL: http://app-server:8000
+      SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ENVIRONMENT: FULL
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
 
 volumes:
   qdrant-data:
