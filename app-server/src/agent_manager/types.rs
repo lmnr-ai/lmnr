@@ -80,11 +80,13 @@ pub struct ChatMessageContentTextBlock {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatMessageImageUrlBlock {
     image_url: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatMessageImageBase64Block {
     image_b64: String,
 }
@@ -200,6 +202,7 @@ impl Into<ChatMessageContentGrpc> for ChatMessageContent {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatMessage {
     role: String,
     content: ChatMessageContent,
