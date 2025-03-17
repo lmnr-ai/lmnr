@@ -12,10 +12,8 @@ interface MultimodalInputProps {
   className?: string;
   stop: () => void;
   onSubmit: () => void;
-  model: string;
-  onModelChange: (model: string) => void;
-  enableThinking: boolean;
-  onEnableThinkingChange: (value: boolean) => void;
+  modelState: { model: string; enableThinking: boolean };
+  onModelStateChange: ({ model, enableThinking }: { model: string; enableThinking: boolean }) => void;
 }
 
 const MultimodalInput = ({
@@ -25,10 +23,8 @@ const MultimodalInput = ({
   className,
   stop,
   onSubmit,
-  model,
-  onModelChange,
-  enableThinking,
-  onEnableThinkingChange,
+  modelState,
+  onModelStateChange,
 }: MultimodalInputProps) => {
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -57,25 +53,7 @@ const MultimodalInput = ({
         disabled={isLoading}
       />
       <div className="absolute bottom-0 left-0 p-2 w-fit flex flex-row justify-end">
-        {/*<Select value={model} onValueChange={onModelChange}>*/}
-        {/*  <SelectTrigger className="w-fit border-none">*/}
-        {/*    <SelectValue placeholder="Select a model" />*/}
-        {/*  </SelectTrigger>*/}
-        {/*  <SelectContent>*/}
-        {/*    <SelectItem value="claude-3-7-sonnet-latest">*/}
-        {/*          claude-3-7-sonnet-latest*/}
-        {/*    </SelectItem>*/}
-        {/*    <SelectItem value="claude-3-7-sonnet-20250219">*/}
-        {/*          claude-3-7-sonnet-20250219*/}
-        {/*    </SelectItem>*/}
-        {/*  </SelectContent>*/}
-        {/*</Select>*/}
-        <ModelSelect
-          model={model}
-          onModelChange={onModelChange}
-          enableThinking={enableThinking}
-          onEnableThinkingChange={onEnableThinkingChange}
-        />
+        <ModelSelect modelState={modelState} onModelStateChange={onModelStateChange} />
       </div>
     </div>
   );

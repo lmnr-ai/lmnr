@@ -3,17 +3,18 @@
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
 
+import { AgentSession } from "@/components/chat/types";
 import { cn, swrFetcher } from "@/lib/utils";
 
 const BrowserWindow = () => {
   const pathname = usePathname();
   const chatId = pathname.split("/")?.[2];
-  const { data } = useSWR<{ vncUrl: string | null }>(
-    () => (chatId ? `/api/agent-session?chatId=${chatId}` : null),
+  const { data } = useSWR<Pick<AgentSession, "vncUrl" | "status">>(
+    () => (chatId ? `/api/agent-sessions/${chatId}` : null),
     swrFetcher,
     {
-      refreshInterval: 1000,
-      fallbackData: { vncUrl: null },
+      refreshInterval: 1500,
+      fallbackData: { vncUrl: undefined, status: undefined },
     }
   );
 

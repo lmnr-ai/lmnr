@@ -1,17 +1,23 @@
 "use client";
 
-import { PanelRightOpen, PlusIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Loader, PanelRightOpen, PlusIcon } from "lucide-react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import React from "react";
+import useSWR from "swr";
 
+import { AgentSession } from "@/components/chat/types";
 import { Button } from "@/components/ui/button";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn, swrFetcher } from "@/lib/utils";
 
 export function AgentSidebar() {
   const router = useRouter();
+  const params = useParams();
   const { setOpenMobile, toggleSidebar } = useSidebar();
 
-  // const { data, isLoading } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
+  const { data, isLoading } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
 
   return (
     <Sidebar>
@@ -42,15 +48,22 @@ export function AgentSidebar() {
       </SidebarHeader>
       <SidebarContent className="pt-2 text-primary-foreground">
         <div className="flex flex-col flex-1 px-4">
-          {/*{isLoading ? (*/}
-          {/*  <Loader size={16} className="animate-spin self-center" />*/}
-          {/*) : (*/}
-          {/*  data?.map((chat) => (*/}
-          {/*    <Link href={`/chat/${chat.chatId}`} key={chat.chatId} passHref>*/}
-          {/*      <div className="p-2 hover:bg-muted rounded-md text-sm">{chat.name}</div>*/}
-          {/*    </Link>*/}
-          {/*  ))*/}
-          {/*)}*/}
+          {isLoading ? (
+            <Loader size={16} className="animate-spin self-center" />
+          ) : (
+            data?.map((chat) => (
+              <Link href={`/chat/${chat.chatId}`} key={chat.chatId} passHref>
+                <div
+                  title={chat.chatName}
+                  className={cn("p-2 truncate hover:bg-muted rounded-md text-sm", {
+                    "bg-muted": chat.chatId === params?.chatId,
+                  })}
+                >
+                  {chat.chatName}
+                </div>
+              </Link>
+            ))
+          )}
         </div>
       </SidebarContent>
     </Sidebar>

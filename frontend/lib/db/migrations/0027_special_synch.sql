@@ -1,0 +1,1 @@
+ALTER TABLE "agent_sessions" ADD COLUMN "status" "agent_machine_status" DEFAULT 'not_started' NOT NULL;

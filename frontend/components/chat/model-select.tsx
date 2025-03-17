@@ -1,3 +1,4 @@
+import { find } from "lodash";
 import { Check, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -5,75 +6,53 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface ModelSelectProps {
-  model: string;
-  onModelChange: (model: string) => void;
-  enableThinking: boolean;
-  onEnableThinkingChange: (value: boolean) => void;
+  modelState: { model: string; enableThinking: boolean };
+  onModelStateChange: ({ model, enableThinking }: { model: string; enableThinking: boolean }) => void;
 }
 
-const models: { value: string; name: string }[] = [
+const models: { model: string; label: string; enableThinking: boolean }[] = [
   {
-    value: "claude-3-7-sonnet-latest",
-    name: "Claude 3.7 Sonnet (Latest)",
+    model: "claude-3-7-sonnet-20250219",
+    label: "Claude 3.7 Sonnet",
+    enableThinking: false,
   },
   {
-    value: "claude-3-7-sonnet-20250219",
-    name: "Claude 3.7 Sonnet (20250219)",
-  },
-];
-
-const options: { value: boolean; name: string }[] = [
-  {
-    value: true,
-    name: "Extended",
-  },
-  {
-    value: false,
-    name: "Normal",
+    model: "claude-3-7-sonnet-20250219",
+    label: "Claude 3.7 Sonnet (thinking)",
+    enableThinking: true,
   },
 ];
 
-const ModelSelect = ({ model, onModelChange, enableThinking, onEnableThinkingChange }: ModelSelectProps) => (
+const ModelSelect = ({ modelState, onModelStateChange }: ModelSelectProps) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button className="hover:bg-zinc-700 w-64" variant="ghost">
-        <span className="flex-1 text-left truncate">{models.find((m) => m.value === model)?.name ?? "-"}</span>
+        <span className="flex-1 text-left truncate  py-0.5">
+          {find(models, { model: modelState.model, enableThinking: modelState.enableThinking })?.label ?? "-"}
+        </span>
         <ChevronDown className="text-secondary-foreground min-w-4" size={16} />
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent>
-      {models.map((m) => (
+      {models.map((model) => (
         <DropdownMenuItem
-          key={m.value}
+          className="py-2"
+          key={model.label}
           onSelect={(e) => {
             e.preventDefault();
-            onModelChange(m.value);
+            onModelStateChange({ model: model.model, enableThinking: model.enableThinking });
           }}
         >
-          <span className="flex-1">{m.name}</span>
-          <Check className={cn("invisible ml-2 text-primary", { visible: m.value === model })} size={16} />
-        </DropdownMenuItem>
-      ))}
-      <DropdownMenuSeparator />
-      <DropdownMenuLabel className="text-secondary-foreground">Thinking mode</DropdownMenuLabel>
-      {options.map((option) => (
-        <DropdownMenuItem
-          key={option.name}
-          onSelect={(e) => {
-            e.preventDefault();
-            onEnableThinkingChange(option.value);
-          }}
-        >
-          <span className="flex-1">{option.name}</span>
+          <span className="flex-1">{model.label}</span>
           <Check
-            className={cn("invisible ml-2 text-primary", { visible: option.value === enableThinking })}
+            className={cn("invisible ml-2 text-primary", {
+              visible: model.enableThinking === modelState.enableThinking,
+            })}
             size={16}
           />
         </DropdownMenuItem>

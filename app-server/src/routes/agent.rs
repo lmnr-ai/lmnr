@@ -6,7 +6,9 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerChannel;
-use crate::agent_manager::types::RunAgentResponseStreamChunk;
+use crate::agent_manager::types::{
+    RunAgentResponseStreamChunk, RunAgentResponseStreamChunkFrontend,
+};
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::db::user::User;
 use crate::routes::types::ResponseResult;
@@ -18,7 +20,8 @@ use crate::{
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RunAgentRequest {
-    prompt: String,
+    #[serde(default)]
+    prompt: Option<String>,
     chat_id: Uuid,
     #[serde(default)]
     model_provider: Option<ModelProvider>,
@@ -53,12 +56,16 @@ pub async fn run_agent_manager(
             .content_type("text/event-stream")
             .streaming(tokio_stream::empty::<anyhow::Result<bytes::Bytes>>()));
     }
+    if request.is_new_user_message && request.prompt.is_none() {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Prompt is required for new user messages"
+        })));
+    }
 
     let mut receiver = worker_channel.create_channel_and_get_rx(chat_id);
 
     if request.is_new_user_message {
         let options = RunAgentWorkerOptions {
-            request_api_key: None,
             model_provider: request.model_provider,
             model: request.model,
             enable_thinking: request.enable_thinking,
@@ -73,7 +80,7 @@ pub async fn run_agent_manager(
                 db.into_inner(),
                 chat_id,
                 user.id,
-                request.prompt,
+                request.prompt.unwrap_or_default(),
                 options,
             )
             .await;
@@ -84,11 +91,11 @@ pub async fn run_agent_manager(
         while let Some(message) = receiver.recv().await {
             match message {
                 Ok(RunAgentResponseStreamChunk::FinalOutput(_)) => {
-                    yield message;
+                    yield message.map(|m| m.into());
                     break;
                 }
                 Ok(RunAgentResponseStreamChunk::Step(_)) => {
-                    yield message;
+                    yield message.map(|m| m.into());
                 }
                 Err(e) => {
                     log::error!("Error running agent: {}", e);
@@ -102,7 +109,8 @@ pub async fn run_agent_manager(
         .content_type("text/event-stream")
         .streaming(stream.map(|r| {
             r.map(|chunk| {
-                let json = serde_json::to_string(&chunk).unwrap();
+                let json =
+                    serde_json::to_string::<RunAgentResponseStreamChunkFrontend>(&chunk).unwrap();
                 bytes::Bytes::from(format!("data: {}\n\n", json))
             })
         })))

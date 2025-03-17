@@ -1,6 +1,6 @@
 import { createParser } from "eventsource-parser";
 import { uniqueId } from "lodash";
-import { ChangeEvent, Dispatch, FormEvent, SetStateAction, useCallback, useRef, useState } from "react";
+import { ChangeEvent, Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
@@ -46,6 +46,87 @@ const parseStream = (onChunk: (chunk: RunAgentResponseStreamChunk) => void) => {
   };
 };
 
+const connectToStream = async (
+  api: string,
+  chatId: string,
+  isNewUserMessage: boolean,
+  modelOptions: { model: string; enableThinking: boolean },
+  onChunk: (chunk: RunAgentResponseStreamChunk) => void,
+  onError: (error: Error) => void,
+  signal?: AbortSignal,
+  prompt?: string
+) => {
+  const response = await fetch(api, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chatId,
+      isNewUserMessage,
+      prompt: prompt,
+      ...modelOptions,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No reader available");
+  }
+
+  try {
+    const processStream = parseStream(onChunk);
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      processStream(value);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return;
+    }
+    if (error instanceof Error) {
+      onError(error);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+};
+
+const createMessage = async (message: ChatMessage) => {
+  try {
+    await fetch("/api/agent-messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(message),
+    });
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+const createChat = async (chat: AgentSession) => {
+  try {
+    await fetch(`/api/agent-sessions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(chat),
+    });
+  } catch (e) {
+    console.error(e);
+  }
+};
+
 export function useAgentChat({
   api = "/api/agent",
   id,
@@ -61,12 +142,16 @@ export function useAgentChat({
   const { mutate } = useSWRConfig();
 
   const handleAppendChat = async (chat: AgentSession) => {
-    await mutate("/api/agent-sessions", (sessions) => [chat, ...sessions], { revalidate: false });
+    await mutate(
+      "/api/agent-sessions",
+      (sessions: AgentSession[] | undefined) => (sessions ? [chat, ...sessions] : [chat]),
+      { revalidate: false, populateCache: true, rollbackOnError: true }
+    );
   };
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+      abortControllerRef.current.abort("Chat stopped");
       abortControllerRef.current = null;
       setIsLoading(false);
     }
@@ -102,48 +187,98 @@ export function useAgentChat({
         },
         chatId: id,
         userId,
+        createdAt: new Date().toISOString(),
       };
 
       setMessages((messages) => [...messages, userMessage]);
       setInput("");
 
-      await fetch("/api/agent-messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(userMessage),
-      });
-
-      const response = await fetch(api, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: input,
-          chatId: id,
-          isNewUserMessage: messages.length <= 1,
-          ...modelOptions,
-        }),
-        signal: abortController.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No reader available");
-      }
-
       try {
-        const processStream = parseStream((chunk) => {
-          if (chunk.chunk_type === "step") {
+        if (messages.length <= 1) {
+          await createChat({ chatId: id, chatName: input, userId });
+          const optimisticChat: AgentSession = {
+            chatId: id,
+            chatName: input.substring(0, 30),
+            status: "running",
+            machineId: "",
+            userId,
+            updatedAt: new Date().toISOString(),
+          };
+          await handleAppendChat(optimisticChat);
+        }
+
+        await createMessage(userMessage);
+
+        await connectToStream(
+          api,
+          id,
+          true,
+          modelOptions,
+          (chunk) => {
+            if (chunk.chunkType === "step") {
+              const stepMessage: ChatMessage = {
+                id: chunk.messageId,
+                messageType: chunk.chunkType,
+                content: {
+                  summary: chunk.summary,
+                  actionResult: chunk.actionResult,
+                },
+                userId,
+                chatId: id,
+              };
+              setMessages((messages) => [...messages, stepMessage]);
+            } else if (chunk.chunkType === "finalOutput") {
+              const finalMessage: ChatMessage = {
+                id: chunk.messageId || uniqueId(),
+                messageType: "assistant",
+                content: {
+                  text: chunk.content.result.content ?? "-",
+                },
+                userId,
+                chatId: id,
+              };
+              setMessages((messages) => [...messages, finalMessage]);
+
+              if (onFinish) {
+                onFinish(finalMessage);
+              }
+            }
+          },
+          async (error) => {
+            if (onError) {
+              await onError(error);
+            }
+          },
+          abortController.signal,
+          input
+        );
+        await createMessage(userMessage);
+      } finally {
+        setIsLoading(false);
+        abortControllerRef.current = null;
+      }
+    },
+    [api, handleAppendChat, id, input, isLoading, messages.length, onError, onFinish, userId]
+  );
+
+  // Check for ongoing stream on mount
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (messages?.length > 1 && lastMessage?.messageType !== "assistant") {
+      setIsLoading(true);
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      connectToStream(
+        api,
+        id,
+        false,
+        defaultOptions,
+        (chunk) => {
+          if (chunk.chunkType === "step") {
             const stepMessage: ChatMessage = {
               id: chunk.messageId,
-              messageType: chunk.chunk_type,
+              messageType: chunk.chunkType,
               content: {
                 summary: chunk.summary,
                 actionResult: chunk.actionResult,
@@ -152,9 +287,9 @@ export function useAgentChat({
               chatId: id,
             };
             setMessages((messages) => [...messages, stepMessage]);
-          } else if (chunk.chunk_type === "finalOutput") {
+          } else if (chunk.chunkType === "finalOutput") {
             const finalMessage: ChatMessage = {
-              id: chunk.message_id || uniqueId(),
+              id: chunk.messageId || uniqueId(),
               messageType: "assistant",
               content: {
                 text: chunk.content.result.content ?? "-",
@@ -163,37 +298,24 @@ export function useAgentChat({
               chatId: id,
             };
             setMessages((messages) => [...messages, finalMessage]);
-            const optimisticChat: AgentSession = {
-              chatId: id,
-              name: chunk.content.result.content ?? "-",
-              createdAt: new Date().toISOString(),
-            };
-
-            // handleAppendChat(optimisticChat);
 
             if (onFinish) {
               onFinish(finalMessage);
             }
           }
-        });
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          processStream(value);
-        }
-      } catch (error) {
-        if (onError && error instanceof Error) {
-          await onError(error);
-        }
-      } finally {
-        reader.releaseLock();
+        },
+        async (error) => {
+          if (onError) {
+            await onError(error);
+          }
+        },
+        abortController.signal
+      ).finally(() => {
         setIsLoading(false);
         abortControllerRef.current = null;
-      }
-    },
-    [api, id, input, isLoading, messages.length, onError, onFinish, userId]
-  );
+      });
+    }
+  }, []);
 
   return {
     messages,

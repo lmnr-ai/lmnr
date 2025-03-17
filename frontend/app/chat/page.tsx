@@ -1,4 +1,4 @@
-import {eq} from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -6,8 +6,8 @@ import { getServerSession } from "next-auth";
 import NotFound from "@/app/not-found";
 import Chat from "@/components/chat";
 import { authOptions } from "@/lib/auth";
-import {db} from "@/lib/db/drizzle";
-import {users} from "@/lib/db/migrations/schema";
+import { db } from "@/lib/db/drizzle";
+import { users } from "@/lib/db/migrations/schema";
 
 export const metadata: Metadata = {
   title: "Agent",
@@ -27,12 +27,12 @@ export default async function ChatPage() {
     where: eq(users.email, String(user.email)),
     columns: {
       id: true,
-    }
+    },
   });
 
   if (!result) {
     return <NotFound />;
   }
 
-  return <Chat chatId={chatId} userId={result.id} initialMessages={[]} />;
+  return <Chat chatId={chatId} user={{ ...user, id: result.id }} initialMessages={[]} />;
 }
