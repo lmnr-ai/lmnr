@@ -66,7 +66,6 @@ pub async fn run_agent_manager(
 
     if request.is_new_user_message {
         let options = RunAgentWorkerOptions {
-            request_api_key: None,
             model_provider: request.model_provider,
             model: request.model,
             enable_thinking: request.enable_thinking,

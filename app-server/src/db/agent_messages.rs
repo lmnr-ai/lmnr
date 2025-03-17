@@ -86,11 +86,12 @@ pub async fn update_agent_state(
 }
 
 pub async fn get_agent_state(pool: &PgPool, chat_id: &Uuid) -> anyhow::Result<Option<Value>> {
-    let state: Option<Value> =
+    // Nested option: either the row is not found, or the state is null
+    let state: Option<Option<Value>> =
         sqlx::query_scalar("SELECT state FROM agent_sessions WHERE chat_id = $1")
             .bind(chat_id)
             .fetch_optional(pool)
             .await?;
 
-    Ok(state)
+    Ok(state.flatten())
 }
