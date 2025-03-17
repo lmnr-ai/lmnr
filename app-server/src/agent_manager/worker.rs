@@ -12,7 +12,6 @@ use super::{
 };
 
 pub struct RunAgentWorkerOptions {
-    pub request_api_key: Option<String>,
     pub model_provider: Option<ModelProvider>,
     pub model: Option<String>,
     pub enable_thinking: bool,
@@ -51,7 +50,7 @@ pub async fn run_agent_worker(
         .run_agent_stream(
             prompt,
             chat_id,
-            options.request_api_key,
+            None,
             None,
             options.model_provider,
             options.model,
