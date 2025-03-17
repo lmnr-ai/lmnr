@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use uuid::Uuid;
 
-use crate::db::{self, DB};
+use crate::db::{self, agent_messages::MessageType, DB};
 
 use super::{
     channel::AgentManagerChannel,
@@ -12,7 +12,6 @@ use super::{
 };
 
 pub struct RunAgentWorkerOptions {
-    pub request_api_key: Option<String>,
     pub model_provider: Option<ModelProvider>,
     pub model: Option<String>,
     pub enable_thinking: bool,
@@ -29,8 +28,13 @@ pub async fn run_agent_worker(
 ) {
     let agent_state = match db::agent_messages::get_agent_state(&db.pool, &chat_id).await {
         Ok(Some(agent_state_json)) => {
-            let agent_state = serde_json::from_value::<AgentState>(agent_state_json).unwrap();
-            Some(agent_state)
+            match serde_json::from_value::<AgentState>(agent_state_json) {
+                Ok(agent_state) => Some(agent_state),
+                Err(e) => {
+                    log::error!("Error parsing agent state: {}", e);
+                    None
+                }
+            }
         }
         Ok(None) => {
             log::debug!("No agent state found for chat_id: {}", chat_id);
@@ -46,7 +50,7 @@ pub async fn run_agent_worker(
         .run_agent_stream(
             prompt,
             chat_id,
-            options.request_api_key,
+            None,
             None,
             options.model_provider,
             options.model,
@@ -56,23 +60,25 @@ pub async fn run_agent_worker(
         )
         .await;
 
+    if let Err(e) = db::agent_messages::update_agent_user_id(&db.pool, &chat_id, &user_id).await {
+        log::error!("Error updating agent user id: {}", e);
+    }
+
     while let Some(chunk) = stream.next().await {
         match chunk {
-            Ok(mut chunk) => {
+            Ok(chunk) => {
                 let message_type = match chunk {
-                    RunAgentResponseStreamChunk::Step(_) => "step",
-                    RunAgentResponseStreamChunk::FinalOutput(_) => "assistant",
+                    RunAgentResponseStreamChunk::Step(_) => MessageType::Step,
+                    RunAgentResponseStreamChunk::FinalOutput(_) => MessageType::Assistant,
                 };
-                let message_id = Uuid::new_v4();
-                chunk.set_message_id(message_id);
 
                 // TODO: Run these DB tasks in parallel for the last message?
                 if let Err(e) = db::agent_messages::insert_agent_message(
                     &db.pool,
-                    &message_id,
+                    &chunk.message_id(),
                     &chat_id,
                     &user_id,
-                    message_type,
+                    &message_type,
                     &chunk.message_content(),
                 )
                 .await
@@ -85,6 +91,7 @@ pub async fn run_agent_worker(
                         &db.pool,
                         &chat_id,
                         &serde_json::to_value(&final_output.content.state).unwrap(),
+                        &user_id,
                     )
                     .await
                     {
