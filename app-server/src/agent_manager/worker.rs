@@ -67,18 +67,16 @@ pub async fn run_agent_worker(
 
     while let Some(chunk) = stream.next().await {
         match chunk {
-            Ok(mut chunk) => {
+            Ok(chunk) => {
                 let message_type = match chunk {
                     RunAgentResponseStreamChunk::Step(_) => MessageType::Step,
                     RunAgentResponseStreamChunk::FinalOutput(_) => MessageType::Assistant,
                 };
-                let message_id = Uuid::new_v4();
-                chunk.set_message_id(message_id);
 
                 // TODO: Run these DB tasks in parallel for the last message?
                 if let Err(e) = db::agent_messages::insert_agent_message(
                     &db.pool,
-                    &message_id,
+                    &chunk.message_id(),
                     &chat_id,
                     &user_id,
                     &message_type,
