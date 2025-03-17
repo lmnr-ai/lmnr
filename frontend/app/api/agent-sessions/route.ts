@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 
@@ -33,8 +33,16 @@ export async function GET(_req: NextRequest): Promise<Response> {
       updatedAt: true,
       chatName: true,
     },
-    orderBy: asc(agentSessions.createdAt),
+    orderBy: desc(agentSessions.updatedAt),
   });
 
   return new Response(JSON.stringify(data));
+}
+
+export async function POST(req: NextRequest): Promise<Response> {
+  const body = (await req.json()) as { chatName: string; chatId: string; userId: string };
+
+  await db.insert(agentSessions).values(body);
+
+  return new Response(JSON.stringify({ ok: true }));
 }

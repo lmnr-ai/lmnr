@@ -37,5 +37,5 @@ export default async function ChatPage(props: { params: Promise<{ chatId: string
     return <NotFound />;
   }
 
-  return <Chat chatId={chatId} userId={result.id} initialMessages={messages} />;
+  return <Chat chatId={chatId} user={{ ...user, id: result.id }} initialMessages={messages} />;
 }

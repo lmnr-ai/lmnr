@@ -2,7 +2,7 @@
 
 import { Loader, PanelRightOpen, PlusIcon } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import React from "react";
 import useSWR from "swr";
 
@@ -10,10 +10,11 @@ import { AgentSession } from "@/components/chat/types";
 import { Button } from "@/components/ui/button";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 export function AgentSidebar() {
   const router = useRouter();
+  const params = useParams();
   const { setOpenMobile, toggleSidebar } = useSidebar();
 
   const { data, isLoading } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
@@ -52,7 +53,12 @@ export function AgentSidebar() {
           ) : (
             data?.map((chat) => (
               <Link href={`/chat/${chat.chatId}`} key={chat.chatId} passHref>
-                <div title={chat.chatName} className="p-2 truncate hover:bg-muted rounded-md text-sm">
+                <div
+                  title={chat.chatName}
+                  className={cn("p-2 truncate hover:bg-muted rounded-md text-sm", {
+                    "bg-muted": chat.chatId === params?.chatId,
+                  })}
+                >
                   {chat.chatName}
                 </div>
               </Link>

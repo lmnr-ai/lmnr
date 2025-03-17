@@ -115,13 +115,12 @@ const createMessage = async (message: ChatMessage) => {
 
 const createChat = async (chat: AgentSession) => {
   try {
-    const { chatId, ...rest } = chat;
-    await fetch(`/api/agent-sessions/${chatId}`, {
+    await fetch(`/api/agent-sessions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(rest),
+      body: JSON.stringify(chat),
     });
   } catch (e) {
     console.error(e);
@@ -194,20 +193,22 @@ export function useAgentChat({
       setMessages((messages) => [...messages, userMessage]);
       setInput("");
 
-      if (messages.length <= 1) {
-        const optimisticChat: AgentSession = {
-          chatId: id,
-          chatName: input.substring(0, 30),
-          status: "running",
-          machineId: "",
-          userId,
-          updatedAt: new Date().toISOString(),
-        };
-
-        await handleAppendChat(optimisticChat);
-      }
-
       try {
+        if (messages.length <= 1) {
+          await createChat({ chatId: id, chatName: input, userId });
+          const optimisticChat: AgentSession = {
+            chatId: id,
+            chatName: input.substring(0, 30),
+            status: "running",
+            machineId: "",
+            userId,
+            updatedAt: new Date().toISOString(),
+          };
+          await handleAppendChat(optimisticChat);
+        }
+
+        await createMessage(userMessage);
+
         await connectToStream(
           api,
           id,

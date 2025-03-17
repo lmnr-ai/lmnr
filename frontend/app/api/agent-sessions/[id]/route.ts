@@ -22,17 +22,3 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
 
   return new Response(JSON.stringify({ vncUrl: null }));
 }
-
-// export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }): Promise<Response> {
-//   const params = await props.params;
-//   const id = params.id;
-//
-//   const body = (await req.json()) as { chatName: string; userId: string };
-//
-//   await db.insert(agentSessions).values({
-//     chatId: id,
-//     ...body,
-//   });
-//
-//   return new Response(JSON.stringify({ error: "Failed to create dataset" }));
-// }
