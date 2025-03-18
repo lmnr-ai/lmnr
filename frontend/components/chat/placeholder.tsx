@@ -10,7 +10,7 @@ const Placeholder = ({ user }: { user: User }) => (
     exit={{ opacity: 0, scale: 0.98 }}
     transition={{ delay: 0.5 }}
   >
-    <div className="rounded-xl text-xl p-6 flex flex-col leading-relaxed text-center max-w-xl">
+    <div className="rounded-xl text-3xl p-6 flex flex-col leading-relaxed text-center max-w-xl">
       <p>Hello {user.name}</p>
     </div>
   </motion.div>
