@@ -38,7 +38,10 @@ export async function POST(req: Request, props: { params: Promise<{ workspaceId:
   const workspaceId = params.workspaceId;
 
   const workspace = await db.query.workspaces.findFirst({
-    where: eq(workspaces.id, workspaceId)
+    where: eq(workspaces.id, workspaceId),
+    with: {
+      subscriptionTier: true
+    }
   });
 
   if (!workspace) {
@@ -50,7 +53,7 @@ export async function POST(req: Request, props: { params: Promise<{ workspaceId:
     .from(membersOfWorkspaces)
     .where(eq(membersOfWorkspaces.workspaceId, workspaceId));
 
-  if (membersOfWorkspace[0].count === workspace.additionalSeats + 1) {
+  if (membersOfWorkspace[0].count >= workspace.additionalSeats + workspace.subscriptionTier.membersPerWorkspace) {
     return new Response(JSON.stringify({ error: 'Workspace is full' }), { status: 400 });
   }
 
