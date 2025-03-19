@@ -32,6 +32,8 @@ struct RunAgentRequest {
     stream: bool,
     #[serde(default = "default_true")]
     enable_thinking: bool,
+    #[serde(default)]
+    cdp_url: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -81,6 +83,8 @@ pub async fn run_agent_manager(
                 request.enable_thinking,
                 false,
                 request.state,
+                request.cdp_url,
+                Vec::new(),
             )
             .await;
 
@@ -104,6 +108,8 @@ pub async fn run_agent_manager(
                 request.enable_thinking,
                 false,
                 request.state,
+                request.cdp_url,
+                Vec::new(),
             )
             .await?;
 

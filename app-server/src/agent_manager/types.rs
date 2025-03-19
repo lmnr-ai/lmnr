@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -14,7 +16,7 @@ use super::agent_manager_grpc::{
     },
     run_agent_response_stream_chunk::ChunkType as RunAgentResponseStreamChunkTypeGrpc,
     ActionResult as ActionResultGrpc, AgentOutput as AgentOutputGrpc, AgentState as AgentStateGrpc,
-    ChatMessage as ChatMessageGrpc, LaminarSpanContext as LaminarSpanContextGrpc,
+    ChatMessage as ChatMessageGrpc, Cookie, LaminarSpanContext as LaminarSpanContextGrpc,
     RunAgentResponseStreamChunk as RunAgentResponseStreamChunkGrpc,
     StepChunkContent as StepChunkContentGrpc,
 };
@@ -248,13 +250,27 @@ pub struct AgentState {
 pub struct AgentOutput {
     pub state: AgentState,
     pub result: ActionResult,
+    #[serde(skip_serializing)]
+    pub cookies: Option<Vec<HashMap<String, String>>>,
+}
+
+impl Into<Cookie> for HashMap<String, String> {
+    fn into(self) -> Cookie {
+        Cookie { cookie_data: self }
+    }
 }
 
 impl Into<AgentOutput> for AgentOutputGrpc {
     fn into(self) -> AgentOutput {
+        let cookies = self
+            .cookies
+            .into_iter()
+            .map(|c| c.cookie_data)
+            .collect::<Vec<_>>();
         AgentOutput {
             state: self.agent_state.unwrap().into(),
             result: self.result.unwrap().into(),
+            cookies: (!cookies.is_empty()).then_some(cookies),
         }
     }
 }

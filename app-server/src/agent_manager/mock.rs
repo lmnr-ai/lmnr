@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::pin::Pin;
 
 use anyhow::Result;
@@ -33,6 +34,8 @@ impl AgentManagerTrait for MockAgentManager {
         _enable_thinking: bool,
         _keep_session: bool,
         _continue_session: Option<AgentState>,
+        _cdp_url: Option<String>,
+        _cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput> {
         log::debug!("MockAgentManager::run_agent called");
         Ok(AgentOutput::default())
@@ -49,6 +52,8 @@ impl AgentManagerTrait for MockAgentManager {
         _enable_thinking: bool,
         _keep_session: bool,
         _continue_session: Option<AgentState>,
+        _cdp_url: Option<String>,
+        _cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream {
         log::debug!("MockAgentManager::run_agent_stream called");
         Box::pin(futures::stream::once(async move {

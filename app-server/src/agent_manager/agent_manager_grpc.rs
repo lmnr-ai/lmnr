@@ -30,6 +30,10 @@ pub struct RunAgentRequest {
     pub continue_session: ::core::option::Option<
         run_agent_request::ContinueSessionMessage,
     >,
+    #[prost(string, optional, tag = "10")]
+    pub cdp_url: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, repeated, tag = "11")]
+    pub cookies: ::prost::alloc::vec::Vec<Cookie>,
 }
 /// Nested message and enum types in `RunAgentRequest`.
 pub mod run_agent_request {
@@ -123,11 +127,21 @@ pub mod chat_message {
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Cookie {
+    #[prost(map = "string, string", tag = "1")]
+    pub cookie_data: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AgentOutput {
     #[prost(message, optional, tag = "1")]
     pub agent_state: ::core::option::Option<AgentState>,
     #[prost(message, optional, tag = "2")]
     pub result: ::core::option::Option<ActionResult>,
+    #[prost(message, repeated, tag = "3")]
+    pub cookies: ::prost::alloc::vec::Vec<Cookie>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AgentState {
