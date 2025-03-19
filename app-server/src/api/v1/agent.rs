@@ -38,7 +38,7 @@ fn default_true() -> bool {
     true
 }
 
-#[post("agent")]
+#[post("agent/run")]
 pub async fn run_agent_manager(
     agent_manager: web::Data<Arc<AgentManager>>,
     project_api_key: ProjectApiKey,

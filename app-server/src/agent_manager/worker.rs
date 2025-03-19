@@ -7,7 +7,7 @@ use crate::db::{self, agent_messages::MessageType, DB};
 
 use super::{
     channel::AgentManagerChannel,
-    types::{AgentState, ModelProvider, RunAgentResponseStreamChunk},
+    types::{AgentState, ModelProvider, RunAgentResponseStreamChunk, WorkerStreamChunk},
     AgentManager, AgentManagerTrait,
 };
 
@@ -65,6 +65,9 @@ pub async fn run_agent_worker(
     }
 
     while let Some(chunk) = stream.next().await {
+        if worker_channel.is_stopped(chat_id) {
+            break;
+        }
         match chunk {
             Ok(chunk) => {
                 let message_type = match chunk {
@@ -103,7 +106,7 @@ pub async fn run_agent_worker(
                 // To avoid dropping the chunk, we retry sending it a couple times with a small delay.
                 let mut retry_count = 0;
                 while worker_channel
-                    .try_publish(chat_id, Ok(chunk.clone()))
+                    .try_publish(chat_id, Ok(WorkerStreamChunk::AgentChunk(chunk.clone())))
                     .await
                     .is_err()
                 {

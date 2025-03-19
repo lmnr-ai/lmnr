@@ -275,6 +275,15 @@ impl Into<AgentStateGrpc> for AgentState {
     }
 }
 
+pub enum WorkerStreamChunk {
+    AgentChunk(RunAgentResponseStreamChunk),
+    ControlChunk(ControlChunk),
+}
+
+pub enum ControlChunk {
+    Stop,
+}
+
 #[derive(Serialize, Clone)]
 #[serde(tag = "chunkType", rename_all = "camelCase")]
 pub enum RunAgentResponseStreamChunk {
@@ -381,7 +390,7 @@ impl Into<StepChunkContent> for StepChunkContentGrpc {
         }
     }
 }
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FinalOutputChunkContent {
     pub message_id: Uuid,

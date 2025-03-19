@@ -520,7 +520,8 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             web::scope("api/v1/agent")
                                 .wrap(auth.clone())
-                                .service(routes::agent::run_agent_manager),
+                                .service(routes::agent::run_agent_manager)
+                                .service(routes::agent::stop_agent_manager),
                         )
                         .service(
                             web::scope("/v1")
