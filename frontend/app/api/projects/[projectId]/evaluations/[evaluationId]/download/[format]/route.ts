@@ -47,6 +47,7 @@ export async function GET(
   const results: Record<string, any>[] = await db
     .with(subQueryScoreCte)
     .select({
+      index: evaluationResults.index,
       id: evaluationResults.id,
       createdAt: evaluationResults.createdAt,
       data: evaluationResults.data,
@@ -61,8 +62,8 @@ export async function GET(
     )
     .where(eq(evaluationResults.evaluationId, evaluationId))
     .orderBy(
+      asc(evaluationResults.index),
       asc(evaluationResults.createdAt),
-      asc(evaluationResults.indexInBatch)
     );
 
   const flattenedResults = results.map(result => {
