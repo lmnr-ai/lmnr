@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerChannel;
 use crate::agent_manager::types::{
-    RunAgentResponseStreamChunk, RunAgentResponseStreamChunkFrontend,
+    ControlChunk, RunAgentResponseStreamChunk, RunAgentResponseStreamChunkFrontend,
+    WorkerStreamChunk,
 };
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::db::user::User;
@@ -20,9 +21,9 @@ use crate::{
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RunAgentRequest {
+    chat_id: Uuid,
     #[serde(default)]
     prompt: Option<String>,
-    chat_id: Uuid,
     #[serde(default)]
     model_provider: Option<ModelProvider>,
     #[serde(default)]
@@ -51,7 +52,9 @@ pub async fn run_agent_manager(
 
     let chat_id = request.chat_id;
 
-    if !request.is_new_user_message && worker_channel.is_ended(chat_id) {
+    if !request.is_new_user_message
+        && (worker_channel.is_ended(chat_id) || worker_channel.is_stopped(chat_id))
+    {
         return Ok(HttpResponse::Ok()
             .content_type("text/event-stream")
             .streaming(tokio_stream::empty::<anyhow::Result<bytes::Bytes>>()));
@@ -71,8 +74,6 @@ pub async fn run_agent_manager(
             enable_thinking: request.enable_thinking,
         };
         // Run agent worker
-        // TODO: we should probably remove `request_api_key` from `RunAgentWorkerOptions`
-        // and always set None inside the worker
         tokio::spawn(async move {
             run_agent_worker(
                 agent_manager.as_ref().clone(),
@@ -90,12 +91,19 @@ pub async fn run_agent_manager(
     let stream = async_stream::stream! {
         while let Some(message) = receiver.recv().await {
             match message {
-                Ok(RunAgentResponseStreamChunk::FinalOutput(_)) => {
-                    yield message.map(|m| m.into());
-                    break;
+                Ok(WorkerStreamChunk::AgentChunk(agent_chunk)) => {
+                    match agent_chunk {
+                        RunAgentResponseStreamChunk::FinalOutput(_) => {
+                            yield anyhow::Ok(agent_chunk.into());
+                            break;
+                        }
+                        RunAgentResponseStreamChunk::Step(_) => {
+                            yield anyhow::Ok(agent_chunk.into());
+                        }
+                    }
                 }
-                Ok(RunAgentResponseStreamChunk::Step(_)) => {
-                    yield message.map(|m| m.into());
+                Ok(WorkerStreamChunk::ControlChunk(ControlChunk::Stop)) => {
+                    break;
                 }
                 Err(e) => {
                     log::error!("Error running agent: {}", e);
@@ -114,4 +122,22 @@ pub async fn run_agent_manager(
                 bytes::Bytes::from(format!("data: {}\n\n", json))
             })
         })))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StopAgentRequest {
+    chat_id: Uuid,
+}
+
+#[post("stop")]
+pub async fn stop_agent_manager(
+    worker_channel: web::Data<Arc<AgentManagerChannel>>,
+    request: web::Json<StopAgentRequest>,
+) -> ResponseResult {
+    let chat_id = request.chat_id;
+    worker_channel.stop_session(chat_id).await;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "message": "Agent stopped"
+    })))
 }

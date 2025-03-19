@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -47,6 +48,8 @@ impl AgentManagerTrait for AgentManagerImpl {
         enable_thinking: bool,
         keep_session: bool,
         continue_session: Option<AgentState>,
+        cdp_url: Option<String>,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput> {
         let mut client = self.client.as_ref().clone();
 
@@ -62,6 +65,8 @@ impl AgentManagerTrait for AgentManagerImpl {
             continue_session: continue_session.map(|c| ContinueSessionMessage {
                 agent_state: Some(c.into()),
             }),
+            cdp_url,
+            cookies: cookies.into_iter().map(|c| c.into()).collect(),
         });
 
         let response = client.run_agent(request).await?;
@@ -80,6 +85,8 @@ impl AgentManagerTrait for AgentManagerImpl {
         enable_thinking: bool,
         keep_session: bool,
         continue_session: Option<AgentState>,
+        cdp_url: Option<String>,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream {
         let mut client = self.client.as_ref().clone();
 
@@ -95,6 +102,8 @@ impl AgentManagerTrait for AgentManagerImpl {
             continue_session: continue_session.map(|c| ContinueSessionMessage {
                 agent_state: Some(c.into()),
             }),
+            cdp_url,
+            cookies: cookies.into_iter().map(|c| c.into()).collect(),
         });
 
         match client.run_agent_stream(request).await {

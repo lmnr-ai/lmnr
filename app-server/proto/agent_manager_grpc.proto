@@ -26,6 +26,8 @@ message RunAgentRequest {
     optional string model = 7;
     optional bool enable_thinking = 8;
     optional ContinueSessionMessage continue_session = 9;
+    optional string cdp_url = 10;
+    repeated Cookie cookies = 11;
 }
 
 message ActionResult {
@@ -72,9 +74,14 @@ message ChatMessage {
     optional bool is_state_message = 6;
 }
 
+message Cookie {
+    map<string, string> cookie_data = 1;
+}
+
 message AgentOutput {
     AgentState agent_state = 1;
     ActionResult result = 2;
+    repeated Cookie cookies = 3;
 }
 
 message AgentState {

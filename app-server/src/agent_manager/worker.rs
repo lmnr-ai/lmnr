@@ -7,7 +7,8 @@ use crate::db::{self, agent_messages::MessageType, DB};
 
 use super::{
     channel::AgentManagerChannel,
-    types::{AgentState, ModelProvider, RunAgentResponseStreamChunk},
+    cookies,
+    types::{AgentState, ModelProvider, RunAgentResponseStreamChunk, WorkerStreamChunk},
     AgentManager, AgentManagerTrait,
 };
 
@@ -46,6 +47,14 @@ pub async fn run_agent_worker(
         }
     };
 
+    let cookies = match cookies::get_cookies(&db.pool, &user_id).await {
+        Ok(cookies) => cookies,
+        Err(e) => {
+            log::error!("Error getting cookies: {}", e);
+            vec![]
+        }
+    };
+
     let mut stream = agent_manager
         .run_agent_stream(
             prompt,
@@ -57,6 +66,8 @@ pub async fn run_agent_worker(
             options.enable_thinking,
             true,
             agent_state,
+            None,
+            cookies,
         )
         .await;
 
@@ -65,6 +76,9 @@ pub async fn run_agent_worker(
     }
 
     while let Some(chunk) = stream.next().await {
+        if worker_channel.is_stopped(chat_id) {
+            break;
+        }
         match chunk {
             Ok(chunk) => {
                 let message_type = match chunk {
@@ -87,6 +101,12 @@ pub async fn run_agent_worker(
                 }
 
                 if let RunAgentResponseStreamChunk::FinalOutput(final_output) = &chunk {
+                    if let Some(cookies) = final_output.content.cookies.as_ref() {
+                        if let Err(e) = cookies::insert_cookies(&db.pool, &user_id, &cookies).await
+                        {
+                            log::error!("Error inserting user cookies: {}", e);
+                        }
+                    }
                     if let Err(e) = db::agent_messages::update_agent_state(
                         &db.pool,
                         &chat_id,
@@ -103,7 +123,7 @@ pub async fn run_agent_worker(
                 // To avoid dropping the chunk, we retry sending it a couple times with a small delay.
                 let mut retry_count = 0;
                 while worker_channel
-                    .try_publish(chat_id, Ok(chunk.clone()))
+                    .try_publish(chat_id, Ok(WorkerStreamChunk::AgentChunk(chunk.clone())))
                     .await
                     .is_err()
                 {
