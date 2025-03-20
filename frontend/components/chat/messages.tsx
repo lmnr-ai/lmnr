@@ -15,7 +15,7 @@ const PureMessages = ({ messages, isLoading }: MessagesProps) => {
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
 
   return (
-    <div ref={messagesContainerRef} className="flex flex-col min-w-0 flex-1 overflow-y-scroll pt-4">
+    <div ref={messagesContainerRef} className="flex flex-col min-w-0 flex-1 overflow-y-scroll pt-4 no-scrollbar">
       {messages.map((message) => (
         <Message key={message.id} message={message} />
       ))}

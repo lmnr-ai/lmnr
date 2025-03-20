@@ -1,9 +1,9 @@
 "use client";
 
-import { Edit, Loader, MoreHorizontalIcon, PanelRightOpen, PlusIcon, TrashIcon } from "lucide-react";
+import { Edit, Loader, MoreHorizontalIcon, PanelRightOpen, TrashIcon } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { FocusEvent, KeyboardEventHandler, memo, useEffect, useRef, useState } from "react";
+import { FocusEvent, KeyboardEventHandler, memo, MouseEvent, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
 import { AgentSession } from "@/components/chat/types";
@@ -35,9 +35,14 @@ import { cn, swrFetcher } from "@/lib/utils";
 export function AgentSidebar() {
   const router = useRouter();
   const params = useParams();
-  const { setOpenMobile, toggleSidebar } = useSidebar();
+  const { toggleSidebar } = useSidebar();
 
   const { data, isLoading } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
+
+  const handleNewChat = () => {
+    router.push("/chat");
+    router.refresh();
+  };
 
   return (
     <Sidebar>
@@ -49,16 +54,8 @@ export function AgentSidebar() {
             </Button>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 hover:bg-muted"
-                  onClick={() => {
-                    setOpenMobile(false);
-                    router.push("/chat");
-                  }}
-                >
-                  <PlusIcon size={16} />
+                <Button variant="ghost" size="icon" className="size-8 hover:bg-muted" onClick={handleNewChat}>
+                  <Edit size={16} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent align="end">New Chat</TooltipContent>
@@ -130,7 +127,8 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (e: MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
     try {
       const response = await fetch(`/api/agent-sessions/${chat.chatId}`, {
         method: "DELETE",
@@ -160,7 +158,7 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
 
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={isActive}>
+      <SidebarMenuButton className="group overflow-hidden !pr-0" asChild isActive={isActive}>
         {isEditing ? (
           <div>
             <Input
@@ -174,38 +172,46 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
             />
           </div>
         ) : (
-          <Link className={cn({ hidden: isEditing })} href={`/chat/${chat.chatId}`} key={chat.chatId} passHref>
-            <div title={chat.chatName} className="p-2 truncate hover:bg-muted rounded-md text-sm">
+          <Link
+            className={cn("pr-2 overflow-hidden", { hidden: isEditing })}
+            href={`/chat/${chat.chatId}`}
+            key={chat.chatId}
+            passHref
+          >
+            <div title={chat.chatName} className="p-2 flex-1 truncate mr-3 hover:bg-muted rounded-md text-sm">
               {chat.chatName}
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuAction showOnHover className="mr-2 hover:bg-transparent">
+                  <MoreHorizontalIcon />
+                </SidebarMenuAction>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setIsEditing(true);
+                    }}
+                  >
+                    <div className="flex flex-row gap-2 items-center">
+                      <Edit size={16} />
+                      <span>Rename</span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDelete}>
+                    <div className="flex flex-row gap-2 items-center">
+                      <TrashIcon className="text-destructive" size={16} />
+                      <span className="text-destructive">Delete</span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </Link>
         )}
       </SidebarMenuButton>
-      {!isEditing && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuAction className="mr-2">
-              <MoreHorizontalIcon />
-            </SidebarMenuAction>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => setIsEditing(true)}>
-                <div className="flex flex-row gap-2 items-center">
-                  <Edit size={16} />
-                  <span>Edit</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDelete}>
-                <div className="flex flex-row gap-2 items-center">
-                  <TrashIcon className="text-destructive" size={16} />
-                  <span className="text-destructive">Delete</span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
     </SidebarMenuItem>
   );
 };

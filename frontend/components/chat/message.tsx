@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { GitCommitHorizontal, SparklesIcon } from "lucide-react";
+import { GitCommitHorizontal } from "lucide-react";
+import Image from "next/image";
 
+import logo from "@/assets/logo/icon.svg";
 import { Markdown } from "@/components/chat/markdown";
 import { ChatMessage } from "@/components/chat/types";
 import { cn } from "@/lib/utils";
@@ -24,13 +26,13 @@ const Message = ({ message }: MessageProps) => (
           "group-data-[type=step]/message:mb-2"
         )}
       >
-        {message.messageType === "step" && <GitCommitHorizontal className="mt-1 ml-2 mr-2" size={14} />}
+        {message.messageType === "step" && (
+          <GitCommitHorizontal className="mt-1 ml-2 mr-2 min-w-[14px] min-h-[14px]" size={14} />
+        )}
 
         {message.messageType === "assistant" && (
-          <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
-            <div className="translate-y-px">
-              <SparklesIcon size={14} />
-            </div>
+          <div className="h-fit w-fit p-2 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
+            <Image alt="logo" src={logo} width={14} priority />
           </div>
         )}
 

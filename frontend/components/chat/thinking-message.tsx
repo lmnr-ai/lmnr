@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { SparklesIcon } from "lucide-react";
+import Image from "next/image";
 
+import logo from "@/assets/logo/icon.svg";
 import { cn } from "@/lib/utils";
 
 const ThinkingMessage = () => {
@@ -22,8 +23,8 @@ const ThinkingMessage = () => {
           }
         )}
       >
-        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
-          <SparklesIcon size={14} />
+        <div className="h-fit w-fit p-2 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
+          <Image alt="logo" src={logo} width={14} priority />
         </div>
 
         <div className="flex flex-col gap-2 w-full">

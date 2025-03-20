@@ -15,15 +15,17 @@ interface ModelSelectProps {
   onModelStateChange: ({ model, enableThinking }: { model: string; enableThinking: boolean }) => void;
 }
 
-const models: { model: string; label: string; enableThinking: boolean }[] = [
+const models: { model: string; description: string; label: string; enableThinking: boolean }[] = [
   {
     model: "claude-3-7-sonnet-20250219",
     label: "Claude 3.7 Sonnet",
+    description: "Fast",
     enableThinking: false,
   },
   {
     model: "claude-3-7-sonnet-20250219",
     label: "Claude 3.7 Sonnet (thinking)",
+    description: "Slower but more reliable",
     enableThinking: true,
   },
 ];
@@ -31,7 +33,7 @@ const models: { model: string; label: string; enableThinking: boolean }[] = [
 const ModelSelect = ({ modelState, onModelStateChange }: ModelSelectProps) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <Button className="hover:bg-zinc-700 w-64" variant="ghost">
+      <Button className="bg-zinc-700 w-64" variant="ghost">
         <span className="flex-1 text-left truncate  py-0.5">
           {find(models, { model: modelState.model, enableThinking: modelState.enableThinking })?.label ?? "-"}
         </span>
@@ -43,12 +45,12 @@ const ModelSelect = ({ modelState, onModelStateChange }: ModelSelectProps) => (
         <DropdownMenuItem
           className="py-2"
           key={model.label}
-          onSelect={(e) => {
-            e.preventDefault();
-            onModelStateChange({ model: model.model, enableThinking: model.enableThinking });
-          }}
+          onSelect={() => onModelStateChange({ model: model.model, enableThinking: model.enableThinking })}
         >
-          <span className="flex-1">{model.label}</span>
+          <div className="flex flex-col flex-1 pr-2">
+            <span className="flex-1">{model.label}</span>
+            <span className="flex-1 text-xs text-secondary-foreground">{model.description}</span>
+          </div>
           <Check
             className={cn("invisible ml-2 text-primary", {
               visible: model.enableThinking === modelState.enableThinking,

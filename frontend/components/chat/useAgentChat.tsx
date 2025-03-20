@@ -177,8 +177,6 @@ export function useAgentChat({
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      window.history.replaceState({}, "", `/chat/${id}`);
-
       const userMessage: ChatMessage = {
         id: v4(),
         messageType: "user",
@@ -206,6 +204,8 @@ export function useAgentChat({
           };
           await handleAppendChat(optimisticChat);
         }
+
+        window.history.replaceState({}, "", `/chat/${id}`);
 
         await createMessage(userMessage);
 
@@ -252,13 +252,12 @@ export function useAgentChat({
           abortController.signal,
           input
         );
-        await createMessage(userMessage);
       } finally {
         setIsLoading(false);
         abortControllerRef.current = null;
       }
     },
-    [api, handleAppendChat, id, input, isLoading, messages.length, onError, onFinish, userId]
+    [api, id, input, isLoading, messages.length, onError, onFinish, userId]
   );
 
   // Check for ongoing stream on mount

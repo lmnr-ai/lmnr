@@ -6,6 +6,8 @@ import useSWR from "swr";
 import { AgentSession } from "@/components/chat/types";
 import { cn, swrFetcher } from "@/lib/utils";
 
+import { ResizablePanel } from "../ui/resizable";
+
 const BrowserWindow = () => {
   const pathname = usePathname();
   const chatId = pathname.split("/")?.[2];
@@ -19,22 +21,30 @@ const BrowserWindow = () => {
   );
 
   return (
-    <div
-      className={cn("flex relative overflow-hidden flex-1 border-l max-w-0 transition-all duration-1300 ease-in-out", {
-        "max-w-2xl px-2": data?.vncUrl,
+    <ResizablePanel
+      className={cn("flex overflow-hidden flex-1 max-w-0", {
+        "max-w-full px-4": data?.vncUrl,
       })}
+      defaultSize={40}
+      maxSize={60}
+      minSize={20}
     >
       {data?.vncUrl && (
-        <div className="relative w-[639px] h-[479px] my-auto overflow-hidden bg-background rounded-xl">
+        <div
+          className="w-full relative flex items-center justify-center my-auto overflow-hidden bg-background rounded-md"
+          style={{ aspectRatio: "4/3" }}
+        >
           <iframe
-            width={639}
-            height={479.25}
+            width="100%"
+            height="100%"
             src={data.vncUrl}
-            className="absolute m-auto aspect-3/4 -top-4 -left-4 -right-4 -bottom-14 flex-grow-1 rounded-xl animate-in fade-in zoom-in duration-500 fill-mode-forwards"
+            className="w-full h-full -pb-16 rounded-md animate-in fade-in zoom-in duration-500 fill-mode-forwards"
           />
+          <div className="absolute bottom-0 w-full h-[4%] bg-background aspect-auto" />
+          <div className="absolute z-50 w-full h-full bg-transparent" />
         </div>
       )}
-    </div>
+    </ResizablePanel>
   );
 };
 
