@@ -34,5 +34,5 @@ export default async function ChatPage() {
     return <NotFound />;
   }
 
-  return <Chat chatId={chatId} user={{ ...user, id: result.id }} initialMessages={[]} />;
+  return <Chat key={chatId} chatId={chatId} user={{ ...user, id: result.id }} initialMessages={[]} />;
 }

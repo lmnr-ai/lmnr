@@ -32,7 +32,7 @@ const Message = ({ message }: MessageProps) => (
 
         {message.messageType === "assistant" && (
           <div className="h-fit w-fit p-2 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
-            <Image alt="logo" src={logo} width={14} priority />
+            <Image className="-mr-px" alt="logo" src={logo} width={16} />
           </div>
         )}
 
@@ -48,8 +48,8 @@ const Message = ({ message }: MessageProps) => (
             </div>
           </div>
         ) : (
-          <div className="flex flex-row gap-2 items-start">
-            <div className={cn("flex flex-col gap-4 text-secondary-foreground")}>
+          <div className="flex flex-col items-start">
+            <div className="flex flex-col gap-4 text-secondary-foreground">
               <Markdown>{message.content.summary}</Markdown>
             </div>
           </div>
