@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::pin::Pin;
 
 use anyhow::Result;
@@ -5,7 +6,8 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use super::types::{
-    AgentOutput, AgentState, LaminarSpanContext, ModelProvider, RunAgentResponseStreamChunk,
+    AgentOutput, AgentState, FinalOutputChunkContent, LaminarSpanContext, ModelProvider,
+    RunAgentResponseStreamChunk,
 };
 use super::AgentManagerTrait;
 
@@ -32,7 +34,10 @@ impl AgentManagerTrait for MockAgentManager {
         _enable_thinking: bool,
         _keep_session: bool,
         _continue_session: Option<AgentState>,
+        _cdp_url: Option<String>,
+        _cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput> {
+        log::debug!("MockAgentManager::run_agent called");
         Ok(AgentOutput::default())
     }
 
@@ -47,7 +52,14 @@ impl AgentManagerTrait for MockAgentManager {
         _enable_thinking: bool,
         _keep_session: bool,
         _continue_session: Option<AgentState>,
+        _cdp_url: Option<String>,
+        _cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream {
-        Box::pin(futures::stream::empty())
+        log::debug!("MockAgentManager::run_agent_stream called");
+        Box::pin(futures::stream::once(async move {
+            Ok(RunAgentResponseStreamChunk::FinalOutput(
+                FinalOutputChunkContent::default(),
+            ))
+        }))
     }
 }

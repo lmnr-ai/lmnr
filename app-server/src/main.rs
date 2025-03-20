@@ -351,44 +351,40 @@ fn main() -> anyhow::Result<()> {
                     Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
                 // == Semantic search ==
-                let semantic_search: Arc<SemanticSearch> = if is_feature_enabled(Feature::FullBuild)
-                {
-                    let semantic_search_url =
-                        env::var("SEMANTIC_SEARCH_URL").expect("SEMANTIC_SEARCH_URL must be set");
-
-                    let semantic_search_client = Arc::new(
-                        SemanticSearchClient::connect(semantic_search_url)
-                            .await
-                            .unwrap(),
-                    );
-                    Arc::new(
-                        semantic_search::semantic_search_impl::SemanticSearchImpl::new(
-                            semantic_search_client,
+                let semantic_search: Arc<SemanticSearch> =
+                    if let Ok(semantic_search_url) = env::var("SEMANTIC_SEARCH_URL") {
+                        let semantic_search_client = Arc::new(
+                            SemanticSearchClient::connect(semantic_search_url)
+                                .await
+                                .unwrap(),
+                        );
+                        Arc::new(
+                            semantic_search::semantic_search_impl::SemanticSearchImpl::new(
+                                semantic_search_client,
+                            )
+                            .into(),
                         )
-                        .into(),
-                    )
-                } else {
-                    Arc::new(semantic_search::mock::MockSemanticSearch {}.into())
-                };
+                    } else {
+                        Arc::new(semantic_search::mock::MockSemanticSearch {}.into())
+                    };
 
                 // == Python executor ==
-                let code_executor: Arc<CodeExecutor> = if is_feature_enabled(Feature::FullBuild) {
-                    let code_executor_url =
-                        env::var("CODE_EXECUTOR_URL").expect("CODE_EXECUTOR_URL must be set");
-                    let code_executor_client = Arc::new(
-                        CodeExecutorClient::connect(code_executor_url)
-                            .await
-                            .unwrap(),
-                    );
-                    Arc::new(
-                        code_executor::code_executor_impl::CodeExecutorImpl::new(
-                            code_executor_client,
+                let code_executor: Arc<CodeExecutor> =
+                    if let Ok(code_executor_url) = env::var("CODE_EXECUTOR_URL") {
+                        let code_executor_client = Arc::new(
+                            CodeExecutorClient::connect(code_executor_url)
+                                .await
+                                .unwrap(),
+                        );
+                        Arc::new(
+                            code_executor::code_executor_impl::CodeExecutorImpl::new(
+                                code_executor_client,
+                            )
+                            .into(),
                         )
-                        .into(),
-                    )
-                } else {
-                    Arc::new(code_executor::mock::MockCodeExecutor {}.into())
-                };
+                    } else {
+                        Arc::new(code_executor::mock::MockCodeExecutor {}.into())
+                    };
 
                 // == Language models ==
                 let client = reqwest::Client::new();
@@ -520,7 +516,8 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             web::scope("api/v1/agent")
                                 .wrap(auth.clone())
-                                .service(routes::agent::run_agent_manager),
+                                .service(routes::agent::run_agent_manager)
+                                .service(routes::agent::stop_agent_manager),
                         )
                         .service(
                             web::scope("/v1")

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -11,6 +13,7 @@ use uuid::Uuid;
 pub mod agent_manager_grpc;
 pub mod agent_manager_impl;
 pub mod channel;
+mod cookies;
 pub mod mock;
 pub mod types;
 pub mod worker;
@@ -37,6 +40,8 @@ pub trait AgentManagerTrait {
         enable_thinking: bool,
         keep_session: bool,
         continue_session: Option<AgentState>,
+        cdp_url: Option<String>,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput>;
 
     async fn run_agent_stream(
@@ -50,5 +55,7 @@ pub trait AgentManagerTrait {
         enable_thinking: bool,
         keep_session: bool,
         continue_session: Option<AgentState>,
+        cdp_url: Option<String>,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream;
 }

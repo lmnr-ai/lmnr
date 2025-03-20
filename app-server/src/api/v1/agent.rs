@@ -32,13 +32,15 @@ struct RunAgentRequest {
     stream: bool,
     #[serde(default = "default_true")]
     enable_thinking: bool,
+    #[serde(default)]
+    cdp_url: Option<String>,
 }
 
 fn default_true() -> bool {
     true
 }
 
-#[post("agent")]
+#[post("agent/run")]
 pub async fn run_agent_manager(
     agent_manager: web::Data<Arc<AgentManager>>,
     project_api_key: ProjectApiKey,
@@ -81,6 +83,8 @@ pub async fn run_agent_manager(
                 request.enable_thinking,
                 false,
                 request.state,
+                request.cdp_url,
+                Vec::new(),
             )
             .await;
 
@@ -104,6 +108,8 @@ pub async fn run_agent_manager(
                 request.enable_thinking,
                 false,
                 request.state,
+                request.cdp_url,
+                Vec::new(),
             )
             .await?;
 
