@@ -21,7 +21,7 @@ interface ChatProps {
 const Chat = ({ chatId, user, initialMessages }: ChatProps) => {
   const [modelState, setModelState] = useState<{ model: string; enableThinking: boolean }>({
     model: "claude-3-7-sonnet-20250219",
-    enableThinking: true,
+    enableThinking: false,
   });
 
   const { messages, handleSubmit, stop, isLoading, input, setInput } = useAgentChat({

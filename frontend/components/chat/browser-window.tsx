@@ -26,16 +26,14 @@ const BrowserWindow = () => {
 
   const { open } = useBrowserContext();
 
-  console.log(isResizing, "resizing");
   return (
     <>
-      <ResizableHandle onDragging={(e) => setIsResizing(e)} withHandle />
+      <ResizableHandle onDragging={setIsResizing} withHandle />
       <ResizablePanel
         className={cn("flex overflow-hidden flex-1 max-w-0", {
           "max-w-full px-4": data?.vncUrl && open,
-          "transition-all duration-200 ease-linear": !isResizing,
+          "transition-all duration-300 ease-linear": !isResizing,
         })}
-        onResize={(e) => setIsResizing(true)}
         defaultSize={40}
         maxSize={60}
         minSize={20}
