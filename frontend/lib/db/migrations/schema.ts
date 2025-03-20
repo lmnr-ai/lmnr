@@ -520,8 +520,9 @@ export const agentMessages = pgTable("agent_messages", {
 export const userCookies = pgTable("user_cookies", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	userId: uuid("user_id").defaultRandom().notNull(),
+	userId: uuid("user_id").notNull(),
 	cookies: text().notNull(),
+	nonce: text().notNull(),
 }, (table) => [
 	foreignKey({
 		columns: [table.userId],
