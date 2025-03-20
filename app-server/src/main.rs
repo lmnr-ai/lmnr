@@ -103,18 +103,27 @@ fn main() -> anyhow::Result<()> {
 
     let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
 
-    std::env::set_var("RUST_LOG", "info");
-    env_logger::init();
+    if env::var("RUST_LOG").is_ok_and(|s| !s.is_empty()) {
+        env_logger::init();
+    } else {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .init();
+    }
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB
         .parse()
         .unwrap();
 
+    log::info!("HTTP payload limit: {}", http_payload_limit);
+
     let grpc_payload_limit: usize = env::var("GRPC_PAYLOAD_LIMIT")
         .unwrap_or(String::from("26214400")) // default to 25MB
         .parse()
         .unwrap();
+
+    log::info!("GRPC payload limit: {}", grpc_payload_limit);
 
     let port = env::var("PORT")
         .unwrap_or(String::from("8000"))
@@ -129,11 +138,13 @@ fn main() -> anyhow::Result<()> {
     // == Stuff that is needed both for HTTP and gRPC servers ==
     // === 1. Cache ===
     let cache = if let Ok(redis_url) = env::var("REDIS_URL") {
+        log::info!("Using Redis cache");
         runtime_handle.block_on(async {
             let redis_cache = RedisCache::new(&redis_url).await.unwrap();
             Cache::Redis(redis_cache)
         })
     } else {
+        log::info!("using in-memory cache");
         Cache::InMemory(InMemoryCache::new(None))
     };
     let cache = Arc::new(cache);
@@ -203,10 +214,13 @@ fn main() -> anyhow::Result<()> {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(64);
 
+            log::info!("RabbitMQ span channels: {}", max_channel_pool_size);
+
             let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
             Arc::new(rabbit_mq.into())
         })
     } else {
+        log::info!("Using tokio mpsc span queue");
         Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
     };
 
@@ -241,10 +255,16 @@ fn main() -> anyhow::Result<()> {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(64);
 
+            log::info!(
+                "RabbitMQ browser events channels: {}",
+                max_channel_pool_size
+            );
+
             let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
             Arc::new(rabbit_mq.into())
         })
     } else {
+        log::info!("Using tokio mpsc browser events queue");
         Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
     };
 
@@ -271,6 +291,7 @@ fn main() -> anyhow::Result<()> {
 
                 // == Storage ==
                 let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
+                    log::info!("using S3 storage");
                     let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
                     let s3_storage = storage::s3::S3Storage::new(
                         s3_client,
@@ -279,6 +300,7 @@ fn main() -> anyhow::Result<()> {
                     );
                     Arc::new(s3_storage.into())
                 } else {
+                    log::info!("using mock storage");
                     Arc::new(MockStorage {}.into())
                 };
 
@@ -318,6 +340,7 @@ fn main() -> anyhow::Result<()> {
                     if is_feature_enabled(Feature::MachineManager) {
                         let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
                             .expect("MACHINE_MANAGER_URL_GRPC must be set");
+                        log::info!("Machine manager URL: {}", machine_manager_url_grpc);
                         let machine_manager_client = Arc::new(
                             MachineManagerServiceClient::connect(machine_manager_url_grpc)
                                 .await
@@ -325,6 +348,7 @@ fn main() -> anyhow::Result<()> {
                         );
                         Arc::new(MachineManagerImpl::new(machine_manager_client).into())
                     } else {
+                        log::info!("Using mock machine manager");
                         Arc::new(machine_manager::MockMachineManager {}.into())
                     };
 
@@ -333,6 +357,7 @@ fn main() -> anyhow::Result<()> {
                 {
                     let agent_manager_url =
                         env::var("AGENT_MANAGER_URL").expect("AGENT_MANAGER_URL must be set");
+                    log::info!("Agent manager URL: {}", agent_manager_url);
                     let agent_manager_client = Arc::new(
                         AgentManagerServiceClient::connect(agent_manager_url)
                             .await
@@ -340,6 +365,7 @@ fn main() -> anyhow::Result<()> {
                     );
                     Arc::new(AgentManagerImpl::new(agent_manager_client).into())
                 } else {
+                    log::info!("Using mock agent manager");
                     Arc::new(agent_manager::mock::MockAgentManager {}.into())
                 };
 
@@ -353,6 +379,7 @@ fn main() -> anyhow::Result<()> {
                 // == Semantic search ==
                 let semantic_search: Arc<SemanticSearch> =
                     if let Ok(semantic_search_url) = env::var("SEMANTIC_SEARCH_URL") {
+                        log::info!("Semantic search URL: {}", semantic_search_url);
                         let semantic_search_client = Arc::new(
                             SemanticSearchClient::connect(semantic_search_url)
                                 .await
@@ -365,12 +392,14 @@ fn main() -> anyhow::Result<()> {
                             .into(),
                         )
                     } else {
+                        log::info!("Using mock semantic search");
                         Arc::new(semantic_search::mock::MockSemanticSearch {}.into())
                     };
 
                 // == Python executor ==
                 let code_executor: Arc<CodeExecutor> =
                     if let Ok(code_executor_url) = env::var("CODE_EXECUTOR_URL") {
+                        log::info!("Code executor URL: {}", code_executor_url);
                         let code_executor_client = Arc::new(
                             CodeExecutorClient::connect(code_executor_url)
                                 .await
@@ -383,6 +412,7 @@ fn main() -> anyhow::Result<()> {
                             .into(),
                         )
                     } else {
+                        log::info!("Using mock code executor");
                         Arc::new(code_executor::mock::MockCodeExecutor {}.into())
                     };
 
@@ -440,22 +470,28 @@ fn main() -> anyhow::Result<()> {
                     cache_for_http.clone(),
                 ));
 
+                let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
+                    .unwrap_or(String::from("4"))
+                    .parse::<u8>()
+                    .unwrap_or(4);
+
+                let num_browser_events_workers_per_thread =
+                    env::var("NUM_BROWSER_EVENTS_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("4"))
+                        .parse::<u8>()
+                        .unwrap_or(4);
+
+                log::info!(
+                    "Spans workers per thread: {}, Browser events workers per thread: {}",
+                    num_spans_workers_per_thread,
+                    num_browser_events_workers_per_thread
+                );
+
                 HttpServer::new(move || {
                     let auth = HttpAuthentication::bearer(auth::validator);
                     let project_auth = HttpAuthentication::bearer(auth::project_validator);
                     let shared_secret_auth =
                         HttpAuthentication::bearer(auth::shared_secret_validator);
-
-                    let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
-                        .unwrap_or(String::from("4"))
-                        .parse::<u8>()
-                        .unwrap_or(4);
-
-                    let num_browser_events_workers_per_thread =
-                        env::var("NUM_BROWSER_EVENTS_WORKERS_PER_THREAD")
-                            .unwrap_or(String::from("4"))
-                            .parse::<u8>()
-                            .unwrap_or(4);
 
                     for _ in 0..num_spans_workers_per_thread {
                         tokio::spawn(process_queue_spans(
