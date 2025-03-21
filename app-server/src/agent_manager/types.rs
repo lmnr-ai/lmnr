@@ -352,6 +352,7 @@ impl Into<RunAgentResponseStreamChunkFrontend> for RunAgentResponseStreamChunk {
         }
     }
 }
+
 impl RunAgentResponseStreamChunk {
     pub fn set_message_id(&mut self, message_id: Uuid) {
         match self {
@@ -406,6 +407,7 @@ impl Into<StepChunkContent> for StepChunkContentGrpc {
         }
     }
 }
+
 #[derive(Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FinalOutputChunkContent {
