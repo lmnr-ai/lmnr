@@ -1,10 +1,10 @@
-import { createParser } from "eventsource-parser";
 import { uniqueId } from "lodash";
 import { ChangeEvent, Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
-import { v4 } from "uuid";
 
-import { AgentSession, ChatMessage, RunAgentResponseStreamChunk } from "@/components/chat/types";
+import { AgentSession, ChatMessage } from "@/components/chat/types";
+import { connectToStream, initiateChat } from "@/components/chat/utils";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface UseAgentChatOptions {
   api?: string;
@@ -18,7 +18,11 @@ interface UseAgentChatOptions {
 interface UseAgentChatHelpers {
   messages: ChatMessage[];
   isLoading: boolean;
-  handleSubmit: (e?: FormEvent<HTMLFormElement>, options?: { model: string; enableThinking: boolean }) => Promise<void>;
+  handleSubmit: (
+    e?: FormEvent<HTMLFormElement>,
+    options?: { model: string; enableThinking: boolean },
+    submitInput?: string
+  ) => Promise<void>;
   handleInputChange?: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   input: string;
@@ -27,105 +31,6 @@ interface UseAgentChatHelpers {
 }
 
 const defaultOptions = { model: "claude-3-7-sonnet-latest", enableThinking: true };
-
-const parseStream = (onChunk: (chunk: RunAgentResponseStreamChunk) => void) => {
-  const parser = createParser((event) => {
-    if (event.type === "event" && event.data) {
-      try {
-        const chunk = JSON.parse(event.data) as RunAgentResponseStreamChunk;
-        onChunk(chunk);
-      } catch (e) {
-        console.error("Failed to parse streaming message", e);
-      }
-    }
-  });
-
-  return (chunk: Uint8Array) => {
-    const str = new TextDecoder().decode(chunk);
-    parser.feed(str);
-  };
-};
-
-const connectToStream = async (
-  api: string,
-  chatId: string,
-  isNewUserMessage: boolean,
-  modelOptions: { model: string; enableThinking: boolean },
-  onChunk: (chunk: RunAgentResponseStreamChunk) => void,
-  onError: (error: Error) => void,
-  signal?: AbortSignal,
-  prompt?: string
-) => {
-  const response = await fetch(api, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      chatId,
-      isNewUserMessage,
-      prompt: prompt,
-      ...modelOptions,
-    }),
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error("No reader available");
-  }
-
-  try {
-    const processStream = parseStream(onChunk);
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      processStream(value);
-    }
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      return;
-    }
-    if (error instanceof Error) {
-      onError(error);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-};
-
-const createMessage = async (message: ChatMessage) => {
-  try {
-    await fetch("/api/agent-messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(message),
-    });
-  } catch (e) {
-    console.error(e);
-  }
-};
-
-const createChat = async (chat: AgentSession) => {
-  try {
-    await fetch(`/api/agent-sessions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(chat),
-    });
-  } catch (e) {
-    console.error(e);
-  }
-};
 
 export function useAgentChat({
   api = "/api/agent",
@@ -140,14 +45,17 @@ export function useAgentChat({
   const [isLoading, setIsLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { mutate } = useSWRConfig();
-
-  const handleAppendChat = async (chat: AgentSession) => {
-    await mutate(
-      "/api/agent-sessions",
-      (sessions: AgentSession[] | undefined) => (sessions ? [chat, ...sessions] : [chat]),
-      { revalidate: false, populateCache: true, rollbackOnError: true }
-    );
-  };
+  const { toast } = useToast();
+  const handleAppendChat = useCallback(
+    async (chat: AgentSession) => {
+      await mutate(
+        "/api/agent-sessions",
+        (sessions: AgentSession[] | undefined) => (sessions ? [chat, ...sessions] : [chat]),
+        { revalidate: false, populateCache: true, rollbackOnError: true }
+      );
+    },
+    [mutate]
+  );
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {
@@ -162,53 +70,30 @@ export function useAgentChat({
   }, []);
 
   const handleSubmit = useCallback(
-    async (e?: FormEvent<HTMLFormElement>, options?: { model: string; enableThinking: boolean }) => {
+    async (
+      e?: FormEvent<HTMLFormElement>,
+      options?: { model: string; enableThinking: boolean },
+      submitInput?: string
+    ) => {
       if (e) {
         e.preventDefault();
       }
 
-      if (!input.trim() || isLoading) {
+      const textToSubmit = submitInput ?? input;
+
+      if (!textToSubmit.trim() || isLoading) {
         return;
       }
 
       const modelOptions = options ?? defaultOptions;
 
       setIsLoading(true);
+      setInput("");
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      const userMessage: ChatMessage = {
-        id: v4(),
-        messageType: "user",
-        content: {
-          text: input,
-        },
-        chatId: id,
-        userId,
-        createdAt: new Date().toISOString(),
-      };
-
-      setMessages((messages) => [...messages, userMessage]);
-      setInput("");
-
       try {
-        if (messages.length <= 1) {
-          await createChat({ chatId: id, chatName: input, userId });
-          const optimisticChat: AgentSession = {
-            chatId: id,
-            chatName: input.substring(0, 30),
-            status: "running",
-            machineId: "",
-            userId,
-            updatedAt: new Date().toISOString(),
-          };
-          await handleAppendChat(optimisticChat);
-        }
-
-        window.history.replaceState({}, "", `/chat/${id}`);
-
-        await createMessage(userMessage);
-
+        await initiateChat(messages, setMessages, handleAppendChat, textToSubmit, userId, id);
         await connectToStream(
           api,
           id,
@@ -250,7 +135,7 @@ export function useAgentChat({
             }
           },
           abortController.signal,
-          input
+          textToSubmit
         );
       } finally {
         setIsLoading(false);
@@ -307,6 +192,8 @@ export function useAgentChat({
           if (onError) {
             await onError(error);
           }
+          setIsLoading(false);
+          toast({ title: error.message, variant: "destructive" });
         },
         abortController.signal
       ).finally(() => {

@@ -1,8 +1,9 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { Edit, Loader, MoreHorizontalIcon, PanelRightOpen, TrashIcon } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { FocusEvent, KeyboardEventHandler, memo, MouseEvent, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -30,12 +31,21 @@ import {
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/utils";
 
 export function AgentSidebar() {
   const router = useRouter();
-  const params = useParams();
   const { toggleSidebar } = useSidebar();
+
+  const pathname = usePathname();
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Extract chatId from pathname
+  useEffect(() => {
+    const match = pathname.match(/\/chat\/([^\/]+)/);
+    const chatId = match ? match[1] : null;
+    setActiveId(chatId);
+  }, [pathname]);
 
   const { data, isLoading } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
 
@@ -70,9 +80,9 @@ export function AgentSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {data?.map((chat) => (
-                  <ChatItem key={chat.chatId} chat={chat} isActive={chat.chatId === params?.chatId} />
-                ))}
+                <AnimatePresence mode="popLayout">
+                  {data?.map((chat) => <ChatItem key={chat.chatId} chat={chat} isActive={chat.chatId === activeId} />)}
+                </AnimatePresence>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -160,27 +170,28 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
     <SidebarMenuItem>
       <SidebarMenuButton className="group overflow-hidden !pr-0" asChild isActive={isActive}>
         {isEditing ? (
-          <div>
+          <div className="pr-2">
             <Input
               ref={inputRef}
               type="text"
               defaultValue={chat.chatName}
               onKeyDown={handleKeyDown}
               onBlur={handleOnBlur}
-              className={cn("w-full bg-transparent border-token-border-light p-0.5 h-fit", { hidden: !isEditing })}
+              className="w-full bg-transparent border-token-border-light p-0.5 h-fit"
               onClick={(e) => e.preventDefault()}
             />
           </div>
         ) : (
-          <Link
-            className={cn("pr-2 overflow-hidden", { hidden: isEditing })}
-            href={`/chat/${chat.chatId}`}
-            key={chat.chatId}
-            passHref
-          >
-            <div title={chat.chatName} className="p-2 flex-1 truncate mr-3 hover:bg-muted rounded-md text-sm">
-              {chat.chatName}
-            </div>
+          <Link className="pr-2 overflow-hidden" href={`/chat/${chat.chatId}`} key={chat.chatId} passHref>
+            <motion.div
+              title={chat.chatName}
+              className="p-2 flex-1 truncate mr-3 hover:bg-muted rounded-md text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+            >
+              <AnimatedText animate={Boolean(chat?.isNew)} text={chat.chatName} />
+            </motion.div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuAction showOnHover className="mr-2 hover:bg-transparent">
@@ -214,6 +225,26 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
+};
+
+const AnimatedText = ({ text, animate }: { text: string; animate: boolean }) => {
+  if (animate) {
+    return (
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: "100%" }}
+        transition={{
+          duration: 1.5,
+          delay: 0.3,
+          ease: "easeOut",
+        }}
+        className="truncate"
+      >
+        {text}
+      </motion.div>
+    );
+  }
+  return text;
 };
 
 const ChatItem = memo(PureChatItem);

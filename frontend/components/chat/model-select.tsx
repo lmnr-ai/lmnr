@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface ModelSelectProps {
+  disabled: boolean;
   modelState: { model: string; enableThinking: boolean };
   onModelStateChange: ({ model, enableThinking }: { model: string; enableThinking: boolean }) => void;
 }
@@ -30,10 +31,10 @@ const models: { model: string; description: string; label: string; enableThinkin
   },
 ];
 
-const ModelSelect = ({ modelState, onModelStateChange }: ModelSelectProps) => (
+const ModelSelect = ({ modelState, onModelStateChange, disabled }: ModelSelectProps) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <Button className="bg-zinc-700 w-64" variant="ghost">
+      <Button disabled={disabled} className="bg-zinc-700 w-64" variant="ghost">
         <span className="flex-1 text-left truncate  py-0.5">
           {find(models, { model: modelState.model, enableThinking: modelState.enableThinking })?.label ?? "-"}
         </span>

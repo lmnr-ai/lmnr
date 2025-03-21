@@ -29,7 +29,7 @@ const Suggestions = ({ chatId, onSubmit }: SuggestionsProps) => {
   ];
 
   return (
-    <div className="grid sm:grid-cols-2 gap-2 w-full">
+    <div className="grid sm:grid-cols-2 gap-2 w-full mx-auto md:max-w-3xl px-4">
       {suggestions.map((suggestion, index) => (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -41,10 +41,7 @@ const Suggestions = ({ chatId, onSubmit }: SuggestionsProps) => {
           <Button
             title={suggestion.action}
             variant="ghost"
-            onClick={async () => {
-              window.history.replaceState({}, "", `/chat/${chatId}`);
-              onSubmit(suggestion.action);
-            }}
+            onClick={() => onSubmit(suggestion.action)}
             className="overflow-hidden text-left border hover:bg-muted/70 rounded-xl px-4 py-3.5 text-sm flex-1 gap-1 sm:flex-col w-full h-auto justify-start items-start"
           >
             <span className="font-medium truncate">{suggestion.title}</span>

@@ -118,4 +118,5 @@ export interface AgentSession {
   userId: string;
   machineId?: string;
   vncUrl?: string;
+  isNew?: boolean;
 }

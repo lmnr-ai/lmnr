@@ -1,10 +1,12 @@
+import { motion } from "framer-motion";
 import { Send, StopCircleIcon } from "lucide-react";
-import { KeyboardEvent, memo } from "react";
+import { KeyboardEvent, memo, useEffect, useRef } from "react";
 
 import ModelSelect from "@/components/chat/model-select";
 import { Button } from "@/components/ui/button";
-import DefaultTextarea from "@/components/ui/default-textarea";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+
 interface MultimodalInputProps {
   isLoading: boolean;
   value: string;
@@ -35,26 +37,50 @@ const MultimodalInput = ({
     }
   };
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const adjustTextareaHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  };
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [value]);
+
   return (
     <div className="relative w-full flex flex-col gap-4">
-      <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
+      <motion.div
+        className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.3 }}
+      >
         {isLoading ? <StopButton stop={stop} /> : <SendButton input={value} />}
-      </div>
-      <DefaultTextarea
+      </motion.div>
+      <Textarea
+        ref={textareaRef}
         placeholder="Send a message..."
         value={value}
         onKeyDown={handleKeyDown}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          "min-h-24 max-h-[calc(75dvh)] overflow-hidden rounded-2xl px-3 !text-base bg-muted pb-10 border border-zinc-700",
+          "min-h-24 max-h-[calc(75dvh)] rounded-2xl !text-base px-3 bg-muted pb-14 border border-zinc-700",
           className
         )}
-        autoFocus
         disabled={isLoading}
       />
-      <div className="absolute bottom-0 left-0 p-2 w-fit flex flex-row justify-end">
-        <ModelSelect modelState={modelState} onModelStateChange={onModelStateChange} />
-      </div>
+      <motion.div
+        className="absolute bottom-0 left-0 p-2 w-fit flex flex-row justify-end"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.3 }}
+      >
+        <ModelSelect disabled={isLoading} modelState={modelState} onModelStateChange={onModelStateChange} />
+      </motion.div>
     </div>
   );
 };
@@ -64,8 +90,7 @@ export default MultimodalInput;
 function PureStopButton({ stop }: { stop: () => void }) {
   return (
     <Button
-      data-testid="stop-button"
-      className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
+      className="rounded-full p-1.5 h-fit border dark:border-zinc-600 z-50"
       onClick={(event) => {
         event.preventDefault();
         stop();
