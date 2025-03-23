@@ -541,7 +541,8 @@ export const agentSessions = pgTable("agent_sessions", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	chatName: text("chat_name"),
 	userId: uuid("user_id").notNull(),
-	status: agentMachineStatus().default('not_started').notNull(),
+	machineStatus: agentMachineStatus("machine_status").default('not_started').notNull(),
+	agentStatus: text("agent_status").default('idle').notNull(),
 }, (table) => [
 	index("agent_sessions_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
 	index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
