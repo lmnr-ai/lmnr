@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Send, StopCircleIcon } from "lucide-react";
+import { ArrowUp, StopCircleIcon } from "lucide-react";
 import { KeyboardEvent, memo, useEffect, useRef } from "react";
 
 import ModelSelect from "@/components/chat/model-select";
@@ -105,8 +105,8 @@ const StopButton = memo(PureStopButton);
 
 function PureSendButton({ input }: { input: string }) {
   return (
-    <Button className="rounded-full p-2 h-fit border" type="submit" disabled={input.length === 0}>
-      <Send size={14} />
+    <Button className="rounded-full p-1 h-fit border" type="submit" disabled={input.length === 0}>
+      <ArrowUp size={18} />
     </Button>
   );
 }
