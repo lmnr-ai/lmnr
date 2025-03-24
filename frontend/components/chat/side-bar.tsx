@@ -1,12 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Edit, Loader, MoreHorizontalIcon, PanelRightOpen, TrashIcon } from "lucide-react";
+import { Edit, Loader, MoreHorizontalIcon, SidebarIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
+import { User } from "next-auth";
 import { FocusEvent, KeyboardEventHandler, memo, MouseEvent, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
+import AgentSidebarFooter from "@/components/chat/sidebar-footer";
 import { AgentSession } from "@/components/chat/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,14 +35,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
-export function AgentSidebar() {
+export function AgentSidebar({ user }: { user: User }) {
   const router = useRouter();
   const { toggleSidebar } = useSidebar();
 
   const pathname = usePathname();
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Extract chatId from pathname
   useEffect(() => {
     const match = pathname.match(/\/chat\/([^\/]+)/);
     const chatId = match ? match[1] : null;
@@ -60,7 +61,7 @@ export function AgentSidebar() {
         <SidebarMenu>
           <div className="flex flex-row justify-between items-center">
             <Button variant="ghost" size="icon" className="size-8 hover:bg-muted" onClick={toggleSidebar}>
-              <PanelRightOpen size={16} />
+              <SidebarIcon size={16} />
             </Button>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -77,7 +78,7 @@ export function AgentSidebar() {
         {isLoading ? (
           <Loader size={16} className="animate-spin self-center" />
         ) : (
-          <SidebarGroup>
+          <SidebarGroup className="p-0">
             <SidebarGroupContent>
               <SidebarMenu>
                 <AnimatePresence mode="popLayout">
@@ -88,6 +89,7 @@ export function AgentSidebar() {
           </SidebarGroup>
         )}
       </SidebarContent>
+      <AgentSidebarFooter user={user} />
     </Sidebar>
   );
 }
@@ -185,7 +187,7 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
           <Link className="pr-2 overflow-hidden" href={`/chat/${chat.chatId}`} key={chat.chatId} passHref>
             <motion.div
               title={chat.chatName}
-              className="p-2 flex-1 truncate mr-3 hover:bg-muted rounded-md text-sm"
+              className="flex-1 truncate mr-5 hover:bg-muted rounded-md text-sm"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3, delay: 0.1 }}

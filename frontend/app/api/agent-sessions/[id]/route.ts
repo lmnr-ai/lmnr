@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
     where: eq(agentSessions.chatId, id),
     columns: {
       vncUrl: true,
-      status: true,
+      machineStatus: true,
     },
   });
 
@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
   return new Response(JSON.stringify({ vncUrl: null }));
 }
 
-export async function PUT(req: NextRequest, props: { params: { id: string } }): Promise<Response> {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }): Promise<Response> {
   const params = await props.params;
   const id = params.id;
 
@@ -43,7 +43,7 @@ export async function PUT(req: NextRequest, props: { params: { id: string } }): 
   }
 }
 
-export async function DELETE(_req: NextRequest, props: { params: { id: string } }): Promise<Response> {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }): Promise<Response> {
   const params = await props.params;
   const id = params.id;
 

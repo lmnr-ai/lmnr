@@ -68,7 +68,7 @@ const MultimodalInput = ({
         onKeyDown={handleKeyDown}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          "min-h-24 max-h-[calc(75dvh)] rounded-2xl !text-base px-3 bg-muted pb-14 border border-zinc-700",
+          "min-h-24 max-h-[calc(75dvh)] rounded-xl !text-base px-3 bg-muted pb-14 border border-zinc-700 resize-none",
           className
         )}
         disabled={isLoading}

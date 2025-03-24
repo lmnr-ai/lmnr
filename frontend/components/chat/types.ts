@@ -114,7 +114,7 @@ export interface AgentSession {
   chatId: string;
   updatedAt?: string;
   chatName: string;
-  status?: "not_started" | "running" | "paused" | "stopped";
+  machineStatus?: "not_started" | "running" | "paused" | "stopped";
   userId: string;
   machineId?: string;
   vncUrl?: string;

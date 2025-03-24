@@ -15,12 +15,12 @@ const BrowserWindow = () => {
   const pathname = usePathname();
   const chatId = pathname.split("/")?.[2];
   const [isResizing, setIsResizing] = useState(false);
-  const { data } = useSWR<Pick<AgentSession, "vncUrl" | "status">>(
+  const { data } = useSWR<Pick<AgentSession, "vncUrl" | "machineStatus">>(
     () => (chatId ? `/api/agent-sessions/${chatId}` : null),
     swrFetcher,
     {
       refreshInterval: 1500,
-      fallbackData: { vncUrl: undefined, status: undefined },
+      fallbackData: { vncUrl: undefined, machineStatus: undefined },
     }
   );
 
@@ -49,7 +49,7 @@ const BrowserWindow = () => {
               src={data.vncUrl}
               className="w-full h-full rounded-md animate-in bg-transparent fade-in zoom-in duration-500 fill-mode-forwards"
             />
-            {data?.status === "paused" && (
+            {data?.machineStatus === "paused" && (
               <div className="absolute z-50 flex items-center justify-center size-full">
                 <Pause size={24} />
               </div>

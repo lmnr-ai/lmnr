@@ -34,8 +34,8 @@ const models: { model: string; description: string; label: string; enableThinkin
 const ModelSelect = ({ modelState, onModelStateChange, disabled }: ModelSelectProps) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <Button disabled={disabled} className="bg-zinc-700 w-64" variant="ghost">
-        <span className="flex-1 text-left truncate  py-0.5">
+      <Button disabled={disabled} className="bg-zinc-700" variant="ghost">
+        <span className="flex-1 text-left truncate mr-2">
           {find(models, { model: modelState.model, enableThinking: modelState.enableThinking })?.label ?? "-"}
         </span>
         <ChevronDown className="text-secondary-foreground min-w-4" size={16} />
