@@ -18,7 +18,7 @@ export default async function ChatPage() {
 
   const sessionId = crypto.randomUUID();
   if (!session) {
-    redirect("/sign-in?callbackUrl=/onboarding");
+    redirect("/sign-in?callbackUrl=/chat");
   }
 
   const user = session.user;
