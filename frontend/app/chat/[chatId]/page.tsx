@@ -30,17 +30,6 @@ export default async function ChatPage(props: { params: Promise<{ chatId: string
     return notFound();
   }
 
-  const chat = (await db.query.agentSessions.findFirst({
-    where: eq(agentSessions.sessionId, chatId),
-    columns: {
-      agentStatus: true,
-    },
-  })) as { agentStatus: AgentSession["agentStatus"] } | undefined;
-
-  if (!chat) {
-    return notFound();
-  }
-
   const messages = (await db.query.agentMessages.findMany({
     where: eq(agentMessages.sessionId, chatId),
     orderBy: asc(agentMessages.createdAt),
