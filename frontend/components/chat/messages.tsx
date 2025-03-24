@@ -6,23 +6,27 @@ import ThinkingMessage from "@/components/chat/thinking-message";
 import { ChatMessage } from "@/components/chat/types";
 import useScrollToBottom from "@/components/chat/use-scroll-to-bottom";
 
+import { ScrollArea } from "../ui/scroll-area";
+
 interface MessagesProps {
   messages: ChatMessage[];
   isLoading: boolean;
 }
 
 const PureMessages = ({ messages, isLoading }: MessagesProps) => {
-  const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
+  const [ref, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
 
   return (
-    <div ref={messagesContainerRef} className="flex flex-col min-w-0 flex-1 overflow-y-scroll pt-4">
-      {messages.map((message) => (
-        <Message key={message.id} message={message} />
-      ))}
-      {isLoading && messages?.length > 0 && <ThinkingMessage />}
+    <ScrollArea className="flex-1 pt-4">
+      <div ref={ref} className="flex flex-col min-w-0">
+        {messages.map((message) => (
+          <Message key={message.id} message={message} />
+        ))}
+        {isLoading && messages?.length > 0 && <ThinkingMessage />}
 
-      <div ref={messagesEndRef} className="shrink-0 min-w-[24px] min-h-[24px]" />
-    </div>
+        <div ref={messagesEndRef} className="shrink-0 min-w-[24px] min-h-[24px]" />
+      </div>
+    </ScrollArea>
   );
 };
 

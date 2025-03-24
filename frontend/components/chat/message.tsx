@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { GitCommitHorizontal, SparklesIcon } from "lucide-react";
+import Image from "next/image";
 
+import logo from "@/assets/logo/icon.svg";
 import { Markdown } from "@/components/chat/markdown";
 import { ChatMessage } from "@/components/chat/types";
 import { cn } from "@/lib/utils";
@@ -21,16 +22,13 @@ const Message = ({ message }: MessageProps) => (
         className={cn(
           "flex gap-4 w-full mb-6",
           "group-data-[type=user]/message:ml-auto group-data-[type=user]/message:w-fit group-data-[type=user]/message:max-w-2xl",
-          "group-data-[type=step]/message:mb-2"
+          "group-data-[type=step]/message:mb-2",
+          "group-data-[type=step]/message:ml-12"
         )}
       >
-        {message.messageType === "step" && <GitCommitHorizontal className="mt-1 ml-2 mr-2" size={14} />}
-
         {message.messageType === "assistant" && (
-          <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
-            <div className="translate-y-px">
-              <SparklesIcon size={14} />
-            </div>
+          <div className="h-fit w-fit p-2 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
+            <Image className="-mr-px" alt="logo" src={logo} width={16} />
           </div>
         )}
 
@@ -46,8 +44,8 @@ const Message = ({ message }: MessageProps) => (
             </div>
           </div>
         ) : (
-          <div className="flex flex-row gap-2 items-start">
-            <div className={cn("flex flex-col gap-4 text-secondary-foreground")}>
+          <div className="flex flex-col items-start">
+            <div className="flex flex-col gap-4 text-secondary-foreground">
               <Markdown>{message.content.summary}</Markdown>
             </div>
           </div>

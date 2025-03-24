@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-pub mod agent_messages;
+pub mod agent_manager;
 pub mod datapoints;
 pub mod datasets;
 pub mod evaluations;
@@ -18,6 +18,7 @@ pub mod spans;
 pub mod stats;
 pub mod trace;
 pub mod user;
+pub mod user_cookies;
 pub mod utils;
 pub mod workspace;
 

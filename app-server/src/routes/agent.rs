@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerChannel;
 use crate::agent_manager::types::{
-    RunAgentResponseStreamChunk, RunAgentResponseStreamChunkFrontend,
+    ControlChunk, RunAgentResponseStreamChunk, RunAgentResponseStreamChunkFrontend,
+    WorkerStreamChunk,
 };
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::db::user::User;
@@ -20,9 +21,9 @@ use crate::{
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RunAgentRequest {
+    session_id: Uuid,
     #[serde(default)]
     prompt: Option<String>,
-    chat_id: Uuid,
     #[serde(default)]
     model_provider: Option<ModelProvider>,
     #[serde(default)]
@@ -49,9 +50,11 @@ pub async fn run_agent_manager(
 ) -> ResponseResult {
     let request = request.into_inner();
 
-    let chat_id = request.chat_id;
+    let session_id = request.session_id;
 
-    if !request.is_new_user_message && worker_channel.is_ended(chat_id) {
+    if !request.is_new_user_message
+        && (worker_channel.is_ended(session_id) || worker_channel.is_stopped(session_id))
+    {
         return Ok(HttpResponse::Ok()
             .content_type("text/event-stream")
             .streaming(tokio_stream::empty::<anyhow::Result<bytes::Bytes>>()));
@@ -62,7 +65,7 @@ pub async fn run_agent_manager(
         })));
     }
 
-    let mut receiver = worker_channel.create_channel_and_get_rx(chat_id);
+    let mut receiver = worker_channel.create_channel_and_get_rx(session_id);
 
     if request.is_new_user_message {
         let options = RunAgentWorkerOptions {
@@ -71,14 +74,12 @@ pub async fn run_agent_manager(
             enable_thinking: request.enable_thinking,
         };
         // Run agent worker
-        // TODO: we should probably remove `request_api_key` from `RunAgentWorkerOptions`
-        // and always set None inside the worker
         tokio::spawn(async move {
             run_agent_worker(
                 agent_manager.as_ref().clone(),
                 worker_channel.as_ref().clone(),
                 db.into_inner(),
-                chat_id,
+                session_id,
                 user.id,
                 request.prompt.unwrap_or_default(),
                 options,
@@ -90,12 +91,19 @@ pub async fn run_agent_manager(
     let stream = async_stream::stream! {
         while let Some(message) = receiver.recv().await {
             match message {
-                Ok(RunAgentResponseStreamChunk::FinalOutput(_)) => {
-                    yield message.map(|m| m.into());
-                    break;
+                Ok(WorkerStreamChunk::AgentChunk(agent_chunk)) => {
+                    match agent_chunk {
+                        RunAgentResponseStreamChunk::FinalOutput(_) => {
+                            yield anyhow::Ok(agent_chunk.into());
+                            break;
+                        }
+                        RunAgentResponseStreamChunk::Step(_) => {
+                            yield anyhow::Ok(agent_chunk.into());
+                        }
+                    }
                 }
-                Ok(RunAgentResponseStreamChunk::Step(_)) => {
-                    yield message.map(|m| m.into());
+                Ok(WorkerStreamChunk::ControlChunk(ControlChunk::Stop)) => {
+                    break;
                 }
                 Err(e) => {
                     log::error!("Error running agent: {}", e);
@@ -114,4 +122,22 @@ pub async fn run_agent_manager(
                 bytes::Bytes::from(format!("data: {}\n\n", json))
             })
         })))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StopAgentRequest {
+    session_id: Uuid,
+}
+
+#[post("stop")]
+pub async fn stop_agent_manager(
+    worker_channel: web::Data<Arc<AgentManagerChannel>>,
+    request: web::Json<StopAgentRequest>,
+) -> ResponseResult {
+    let session_id = request.session_id;
+    worker_channel.stop_session(session_id).await;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "message": "Agent stopped"
+    })))
 }

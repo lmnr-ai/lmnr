@@ -204,6 +204,27 @@
       "when": 1742219084815,
       "tag": "0028_faulty_proudstar",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1742443991718,
+      "tag": "0029_damp_vulture",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1742570095012,
+      "tag": "0030_redundant_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1742813680826,
+      "tag": "0031_lean_johnny_blaze",
+      "breakpoints": true
     }
   ]
 }

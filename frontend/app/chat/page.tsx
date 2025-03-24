@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default async function ChatPage() {
   const session = await getServerSession(authOptions);
 
-  const chatId = crypto.randomUUID();
+  const sessionId = crypto.randomUUID();
   if (!session) {
     redirect("/sign-in?callbackUrl=/onboarding");
   }
@@ -34,5 +34,5 @@ export default async function ChatPage() {
     return <NotFound />;
   }
 
-  return <Chat chatId={chatId} user={{ ...user, id: result.id }} initialMessages={[]} />;
+  return <Chat key={sessionId} sessionId={sessionId} user={{ ...user, id: result.id }} initialMessages={[]} />;
 }

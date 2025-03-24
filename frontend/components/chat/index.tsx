@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { isEmpty } from "lodash";
 import { User } from "next-auth";
 import { FormEvent, useState } from "react";
@@ -9,25 +10,28 @@ import Messages from "@/components/chat/messages";
 import MultimodalInput from "@/components/chat/multimodal-input";
 import Placeholder from "@/components/chat/placeholder";
 import Suggestions from "@/components/chat/suggestions";
-import { ChatMessage } from "@/components/chat/types";
+import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { useAgentChat } from "@/components/chat/useAgentChat";
+import { cn } from "@/lib/utils";
 
 interface ChatProps {
-  chatId: string;
+  sessionId: string;
+  agentStatus?: AgentSession["agentStatus"];
   user: User;
   initialMessages: ChatMessage[];
 }
 
-const Chat = ({ chatId, user, initialMessages }: ChatProps) => {
+const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
   const [modelState, setModelState] = useState<{ model: string; enableThinking: boolean }>({
     model: "claude-3-7-sonnet-20250219",
-    enableThinking: true,
+    enableThinking: false,
   });
 
   const { messages, handleSubmit, stop, isLoading, input, setInput } = useAgentChat({
-    id: chatId,
+    id: sessionId,
     initialMessages,
     userId: user.id,
+    agentStatus,
   });
 
   const onSubmit = (e?: FormEvent<HTMLFormElement>) => {
@@ -37,30 +41,34 @@ const Chat = ({ chatId, user, initialMessages }: ChatProps) => {
     handleSubmit(e, modelState);
   };
 
-  const handleSubmitSuggestion = (suggestion: string, e?: FormEvent<HTMLFormElement>) => {
+  const handleSubmitSuggestion = (suggestion: string) => {
     setInput(suggestion);
-    handleSubmit(e, modelState);
+    handleSubmit(undefined, modelState, suggestion);
   };
 
   return (
     <div className="flex flex-col min-w-0 h-dvh bg-background">
       <ChatHeader />
       {isEmpty(messages) ? <Placeholder user={user} /> : <Messages isLoading={isLoading} messages={messages} />}
-      <form
-        onSubmit={onSubmit}
-        className="flex flex-col mx-auto px-4 bg-background pb-4 md:pb-6 gap-2 w-full md:max-w-3xl"
-      >
-        {isEmpty(messages) && <Suggestions chatId={chatId} onSubmit={handleSubmitSuggestion} />}
-        <MultimodalInput
-          modelState={modelState}
-          onModelStateChange={setModelState}
-          onSubmit={() => onSubmit()}
-          stop={stop}
-          isLoading={isLoading}
-          value={input}
-          onChange={setInput}
-        />
-      </form>
+      <div className={cn("w-full", isEmpty(messages) ? "flex-1 flex flex-col" : "mt-auto")}>
+        <motion.form
+          layout
+          onSubmit={onSubmit}
+          transition={{ duration: 0.2 }}
+          className="mx-auto w-full md:max-w-3xl px-4 bg-background pb-4 md:pb-6 gap-2 [&_textarea]:transition-none [&_textarea]:duration-0"
+        >
+          <MultimodalInput
+            modelState={modelState}
+            onModelStateChange={setModelState}
+            onSubmit={() => onSubmit()}
+            stop={stop}
+            isLoading={isLoading}
+            value={input}
+            onChange={setInput}
+          />
+        </motion.form>
+        {isEmpty(messages) && <Suggestions sessionId={sessionId} onSubmit={handleSubmitSuggestion} />}
+      </div>
     </div>
   );
 };
