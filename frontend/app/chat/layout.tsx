@@ -16,7 +16,7 @@ export default async function Layout({ children }: PropsWithChildren) {
   const session = await getServerSession(authOptions);
 
   if (!session) {
-    redirect("/sign-in?callbackUrl=/onboarding");
+    redirect("/sign-in?callbackUrl=/chat");
   }
 
   return (

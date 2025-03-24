@@ -16,7 +16,7 @@ export default async function ChatPage(props: { params: Promise<{ chatId: string
   const { chatId } = params;
 
   if (!session) {
-    redirect("/sign-in?callbackUrl=/onboarding");
+    redirect("/sign-in?callbackUrl=/chat/" + chatId);
   }
 
   const chat = (await db.query.agentSessions.findFirst({
