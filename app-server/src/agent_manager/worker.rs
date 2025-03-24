@@ -3,12 +3,11 @@ use std::sync::Arc;
 use futures::StreamExt;
 use uuid::Uuid;
 
-use crate::db::{self, agent_messages::MessageType, DB};
+use crate::db::{self, agent_manager::MessageType, DB};
 
 use super::{
     channel::AgentManagerChannel,
-    cookies,
-    types::{AgentState, ModelProvider, RunAgentResponseStreamChunk, WorkerStreamChunk},
+    types::{ModelProvider, RunAgentResponseStreamChunk, WorkerStreamChunk},
     AgentManager, AgentManagerTrait,
 };
 
@@ -22,23 +21,15 @@ pub async fn run_agent_worker(
     agent_manager: Arc<AgentManager>,
     worker_channel: Arc<AgentManagerChannel>,
     db: Arc<DB>,
-    chat_id: Uuid,
+    session_id: Uuid,
     user_id: Uuid,
     prompt: String,
     options: RunAgentWorkerOptions,
 ) {
-    let agent_state = match db::agent_messages::get_agent_state(&db.pool, &chat_id).await {
-        Ok(Some(agent_state_json)) => {
-            match serde_json::from_value::<AgentState>(agent_state_json) {
-                Ok(agent_state) => Some(agent_state),
-                Err(e) => {
-                    log::error!("Error parsing agent state: {}", e);
-                    None
-                }
-            }
-        }
+    let agent_state = match db::agent_manager::get_agent_state(&db.pool, &session_id).await {
+        Ok(Some(agent_state)) => Some(agent_state),
         Ok(None) => {
-            log::debug!("No agent state found for chat_id: {}", chat_id);
+            log::debug!("No agent state found for session_id: {}", session_id);
             None
         }
         Err(e) => {
@@ -47,36 +38,25 @@ pub async fn run_agent_worker(
         }
     };
 
-    let cookies = match cookies::get_cookies(&db.pool, &user_id).await {
-        Ok(cookies) => cookies,
-        Err(e) => {
-            log::error!("Error getting cookies: {}", e);
-            vec![]
-        }
-    };
-
     let mut stream = agent_manager
         .run_agent_stream(
             prompt,
-            chat_id,
+            Some(session_id),
             None,
             None,
+            agent_state,
             options.model_provider,
             options.model,
             options.enable_thinking,
-            true,
-            agent_state,
-            None,
-            cookies,
         )
         .await;
 
-    if let Err(e) = db::agent_messages::update_agent_user_id(&db.pool, &chat_id, &user_id).await {
+    if let Err(e) = db::agent_manager::update_agent_user_id(&db.pool, &session_id, &user_id).await {
         log::error!("Error updating agent user id: {}", e);
     }
 
     while let Some(chunk) = stream.next().await {
-        if worker_channel.is_stopped(chat_id) {
+        if worker_channel.is_stopped(session_id) {
             break;
         }
         match chunk {
@@ -87,10 +67,10 @@ pub async fn run_agent_worker(
                 };
 
                 // TODO: Run these DB tasks in parallel for the last message?
-                if let Err(e) = db::agent_messages::insert_agent_message(
+                if let Err(e) = db::agent_manager::insert_agent_message(
                     &db.pool,
                     &chunk.message_id(),
-                    &chat_id,
+                    &session_id,
                     &user_id,
                     &message_type,
                     &chunk.message_content(),
@@ -101,16 +81,10 @@ pub async fn run_agent_worker(
                 }
 
                 if let RunAgentResponseStreamChunk::FinalOutput(final_output) = &chunk {
-                    if let Some(cookies) = final_output.content.cookies.as_ref() {
-                        if let Err(e) = cookies::insert_cookies(&db.pool, &user_id, &cookies).await
-                        {
-                            log::error!("Error inserting user cookies: {}", e);
-                        }
-                    }
-                    if let Err(e) = db::agent_messages::update_agent_state(
+                    if let Err(e) = db::agent_manager::update_agent_state(
                         &db.pool,
-                        &chat_id,
-                        &serde_json::to_value(&final_output.content.state).unwrap(),
+                        &session_id,
+                        &final_output.content.state,
                         &user_id,
                     )
                     .await
@@ -123,7 +97,7 @@ pub async fn run_agent_worker(
                 // To avoid dropping the chunk, we retry sending it a couple times with a small delay.
                 let mut retry_count = 0;
                 while worker_channel
-                    .try_publish(chat_id, Ok(WorkerStreamChunk::AgentChunk(chunk.clone())))
+                    .try_publish(session_id, Ok(WorkerStreamChunk::AgentChunk(chunk.clone())))
                     .await
                     .is_err()
                 {
@@ -134,14 +108,14 @@ pub async fn run_agent_worker(
                     }
                 }
                 if matches!(chunk, RunAgentResponseStreamChunk::FinalOutput(_)) {
-                    worker_channel.end_session(chat_id);
+                    worker_channel.end_session(session_id);
                 }
             }
             Err(e) => {
                 log::error!("Error running agent: {}", e);
                 let mut retry_count = 0;
                 while worker_channel
-                    .try_publish(chat_id, Err(anyhow::anyhow!(e.to_string())))
+                    .try_publish(session_id, Err(anyhow::anyhow!(e.to_string())))
                     .await
                     .is_err()
                 {
@@ -151,7 +125,7 @@ pub async fn run_agent_worker(
                         break;
                     }
                 }
-                worker_channel.end_session(chat_id);
+                worker_channel.end_session(session_id);
             }
         }
     }

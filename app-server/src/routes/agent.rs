@@ -21,7 +21,7 @@ use crate::{
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RunAgentRequest {
-    chat_id: Uuid,
+    session_id: Uuid,
     #[serde(default)]
     prompt: Option<String>,
     #[serde(default)]
@@ -50,10 +50,10 @@ pub async fn run_agent_manager(
 ) -> ResponseResult {
     let request = request.into_inner();
 
-    let chat_id = request.chat_id;
+    let session_id = request.session_id;
 
     if !request.is_new_user_message
-        && (worker_channel.is_ended(chat_id) || worker_channel.is_stopped(chat_id))
+        && (worker_channel.is_ended(session_id) || worker_channel.is_stopped(session_id))
     {
         return Ok(HttpResponse::Ok()
             .content_type("text/event-stream")
@@ -65,7 +65,7 @@ pub async fn run_agent_manager(
         })));
     }
 
-    let mut receiver = worker_channel.create_channel_and_get_rx(chat_id);
+    let mut receiver = worker_channel.create_channel_and_get_rx(session_id);
 
     if request.is_new_user_message {
         let options = RunAgentWorkerOptions {
@@ -79,7 +79,7 @@ pub async fn run_agent_manager(
                 agent_manager.as_ref().clone(),
                 worker_channel.as_ref().clone(),
                 db.into_inner(),
-                chat_id,
+                session_id,
                 user.id,
                 request.prompt.unwrap_or_default(),
                 options,
@@ -127,7 +127,7 @@ pub async fn run_agent_manager(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StopAgentRequest {
-    chat_id: Uuid,
+    session_id: Uuid,
 }
 
 #[post("stop")]
@@ -135,8 +135,8 @@ pub async fn stop_agent_manager(
     worker_channel: web::Data<Arc<AgentManagerChannel>>,
     request: web::Json<StopAgentRequest>,
 ) -> ResponseResult {
-    let chat_id = request.chat_id;
-    worker_channel.stop_session(chat_id).await;
+    let session_id = request.session_id;
+    worker_channel.stop_session(session_id).await;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "Agent stopped"
     })))

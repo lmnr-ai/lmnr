@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const agentMachineStatus = pgEnum("agent_machine_status", ['not_started', 'running', 'paused', 'stopped']);
 export const agentMessageType = pgEnum("agent_message_type", ['user', 'assistant', 'step']);
@@ -496,27 +496,6 @@ export const labels = pgTable("labels", {
   unique("labels_span_id_class_id_user_id_key").on(table.classId, table.spanId, table.userId),
 ]);
 
-export const agentMessages = pgTable("agent_messages", {
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  chatId: uuid("chat_id").notNull(),
-  userId: uuid("user_id").notNull(),
-  content: jsonb().default({}),
-  messageType: agentMessageType("message_type").notNull(),
-}, (table) => [
-  index("agent_messages_chat_id_created_at_idx").using("btree", table.chatId.asc().nullsLast().op("timestamptz_ops"), table.createdAt.asc().nullsLast().op("timestamptz_ops")),
-  foreignKey({
-    columns: [table.userId],
-    foreignColumns: [users.id],
-    name: "agent_message_to_user_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-  foreignKey({
-    columns: [table.chatId],
-    foreignColumns: [agentSessions.chatId],
-    name: "agent_messages_chat_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-]);
-
 export const userCookies = pgTable("user_cookies", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -531,13 +510,34 @@ export const userCookies = pgTable("user_cookies", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
+export const agentMessages = pgTable("agent_messages", {
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  sessionId: uuid("session_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  messageType: agentMessageType("message_type").notNull(),
+  content: jsonb().default({}),
+}, (table) => [
+  index("agent_messages_session_id_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops"), table.sessionId.asc().nullsLast().op("timestamptz_ops")),
+  foreignKey({
+    columns: [table.userId],
+    foreignColumns: [users.id],
+    name: "agent_message_to_user_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+  foreignKey({
+    columns: [table.sessionId],
+    foreignColumns: [agentSessions.sessionId],
+    name: "agent_messages_session_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
+
 export const agentSessions = pgTable("agent_sessions", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  chatId: uuid("chat_id").defaultRandom().primaryKey().notNull(),
+  sessionId: uuid("session_id").defaultRandom().primaryKey().notNull(),
   cdpUrl: text("cdp_url"),
   vncUrl: text("vnc_url"),
   machineId: text("machine_id"),
-  state: jsonb(),
+  state: text(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   chatName: text("chat_name"),
   userId: uuid("user_id").notNull(),

@@ -13,10 +13,10 @@ export async function POST(req: NextRequest): Promise<Response> {
 }
 
 export async function GET(req: NextRequest): Promise<Response> {
-  const { chatId } = (await req.json()) as { chatId: string };
+  const { sessionId } = (await req.json()) as { sessionId: string };
 
   const messages = await db.query.agentMessages.findMany({
-    where: eq(agentMessages.chatId, chatId),
+    where: eq(agentMessages.sessionId, sessionId),
     orderBy: asc(agentMessages.createdAt),
   });
 

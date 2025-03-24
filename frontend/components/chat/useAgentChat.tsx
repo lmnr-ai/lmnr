@@ -3,7 +3,7 @@ import { ChangeEvent, Dispatch, FormEvent, SetStateAction, useCallback, useEffec
 import { useSWRConfig } from "swr";
 
 import { AgentSession, ChatMessage } from "@/components/chat/types";
-import { connectToStream, initiateChat } from "@/components/chat/utils";
+import { connectToStream, initiateChat, stopSession } from "@/components/chat/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface UseAgentChatOptions {
@@ -11,6 +11,7 @@ interface UseAgentChatOptions {
   id: string;
   userId: string;
   initialMessages?: ChatMessage[];
+  agentStatus?: AgentSession["agentStatus"];
   onFinish?: (message: ChatMessage) => void | Promise<void>;
   onError?: (error: Error) => void | Promise<void>;
 }
@@ -39,6 +40,7 @@ export function useAgentChat({
   onFinish,
   onError,
   userId,
+  agentStatus,
 }: UseAgentChatOptions): UseAgentChatHelpers {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -57,13 +59,14 @@ export function useAgentChat({
     [mutate]
   );
 
-  const stop = useCallback(() => {
+  const stop = useCallback(async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort("Chat stopped");
       abortControllerRef.current = null;
+      await stopSession(id);
       setIsLoading(false);
     }
-  }, []);
+  }, [id]);
 
   const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setInput(e.target.value);
@@ -109,7 +112,7 @@ export function useAgentChat({
                   actionResult: chunk.actionResult,
                 },
                 userId,
-                chatId: id,
+                sessionId: id,
               };
               setMessages((messages) => [...messages, stepMessage]);
             } else if (chunk.chunkType === "finalOutput") {
@@ -120,7 +123,7 @@ export function useAgentChat({
                   text: chunk.content.result.content ?? "-",
                 },
                 userId,
-                chatId: id,
+                sessionId: id,
               };
               setMessages((messages) => [...messages, finalMessage]);
 
@@ -147,8 +150,7 @@ export function useAgentChat({
 
   // Check for ongoing stream on mount
   useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (messages?.length > 1 && lastMessage?.messageType !== "assistant") {
+    if (messages?.length > 1 && agentStatus === "working") {
       setIsLoading(true);
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
@@ -168,7 +170,7 @@ export function useAgentChat({
                 actionResult: chunk.actionResult,
               },
               userId,
-              chatId: id,
+              sessionId: id,
             };
             setMessages((messages) => [...messages, stepMessage]);
           } else if (chunk.chunkType === "finalOutput") {
@@ -179,7 +181,7 @@ export function useAgentChat({
                 text: chunk.content.result.content ?? "-",
               },
               userId,
-              chatId: id,
+              sessionId: id,
             };
             setMessages((messages) => [...messages, finalMessage]);
 
@@ -192,8 +194,6 @@ export function useAgentChat({
           if (onError) {
             await onError(error);
           }
-          setIsLoading(false);
-          toast({ title: error.message, variant: "destructive" });
         },
         abortController.signal
       ).finally(() => {

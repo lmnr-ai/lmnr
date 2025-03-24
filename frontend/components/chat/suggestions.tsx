@@ -4,11 +4,11 @@ import { FormEvent, memo } from "react";
 import { Button } from "@/components/ui/button";
 
 interface SuggestionsProps {
-  chatId: string;
+  sessionId: string;
   onSubmit: (suggestion: string, e?: FormEvent<HTMLFormElement>) => void;
 }
 
-const Suggestions = ({ chatId, onSubmit }: SuggestionsProps) => {
+const Suggestions = ({ sessionId, onSubmit }: SuggestionsProps) => {
   const suggestions = [
     {
       title: "What is the weather in London?",

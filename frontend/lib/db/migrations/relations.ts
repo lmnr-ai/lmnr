@@ -70,8 +70,8 @@ export const usersRelations = relations(users, ({many}) => ({
   membersOfWorkspaces: many(membersOfWorkspaces),
   userSubscriptionInfos: many(userSubscriptionInfo),
   apiKeys: many(apiKeys),
-  agentMessages: many(agentMessages),
   userCookies: many(userCookies),
+  agentMessages: many(agentMessages),
   agentSessions: many(agentSessions),
 }));
 
@@ -227,14 +227,21 @@ export const labelsRelations = relations(labels, ({one}) => ({
   }),
 }));
 
+export const userCookiesRelations = relations(userCookies, ({one}) => ({
+  user: one(users, {
+    fields: [userCookies.userId],
+    references: [users.id]
+  }),
+}));
+
 export const agentMessagesRelations = relations(agentMessages, ({one}) => ({
   user: one(users, {
     fields: [agentMessages.userId],
     references: [users.id]
   }),
   agentSession: one(agentSessions, {
-    fields: [agentMessages.chatId],
-    references: [agentSessions.chatId]
+    fields: [agentMessages.sessionId],
+    references: [agentSessions.sessionId]
   }),
 }));
 
@@ -242,13 +249,6 @@ export const agentSessionsRelations = relations(agentSessions, ({one, many}) => 
   agentMessages: many(agentMessages),
   user: one(users, {
     fields: [agentSessions.userId],
-    references: [users.id]
-  }),
-}));
-
-export const userCookiesRelations = relations(userCookies, ({one}) => ({
-  user: one(users, {
-    fields: [userCookies.userId],
     references: [users.id]
   }),
 }));

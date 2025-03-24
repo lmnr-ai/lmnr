@@ -44,8 +44,8 @@ export function AgentSidebar({ user }: { user: User }) {
 
   useEffect(() => {
     const match = pathname.match(/\/chat\/([^\/]+)/);
-    const chatId = match ? match[1] : null;
-    setActiveId(chatId);
+    const sessionId = match ? match[1] : null;
+    setActiveId(sessionId);
   }, [pathname]);
 
   const { data, isLoading } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
@@ -82,7 +82,9 @@ export function AgentSidebar({ user }: { user: User }) {
             <SidebarGroupContent>
               <SidebarMenu>
                 <AnimatePresence mode="popLayout">
-                  {data?.map((chat) => <ChatItem key={chat.chatId} chat={chat} isActive={chat.chatId === activeId} />)}
+                  {data?.map((chat) => (
+                    <ChatItem key={chat.sessionId} chat={chat} isActive={chat.sessionId === activeId} />
+                  ))}
                 </AnimatePresence>
               </SidebarMenu>
             </SidebarGroupContent>
@@ -105,7 +107,7 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
   const handleEdit = async (value: string) => {
     if (value === chat.chatName) return;
     try {
-      const response = await fetch(`/api/agent-sessions/${chat.chatId}`, {
+      const response = await fetch(`/api/agent-sessions/${chat.sessionId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -117,7 +119,9 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
         await mutate(
           "/api/agent-sessions",
           (sessions?: AgentSession[]) =>
-            sessions?.map((session) => (session.chatId === chat.chatId ? { ...session, chatName: value } : session)),
+            sessions?.map((session) =>
+              session.sessionId === chat.sessionId ? { ...session, chatName: value } : session
+            ),
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );
         toast({ title: "Chat updated successfully." });
@@ -142,17 +146,17 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
   const handleDelete = async (e: MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     try {
-      const response = await fetch(`/api/agent-sessions/${chat.chatId}`, {
+      const response = await fetch(`/api/agent-sessions/${chat.sessionId}`, {
         method: "DELETE",
       });
 
       if (response.ok) {
         await mutate(
           "/api/agent-sessions",
-          (sessions?: AgentSession[]) => (sessions ? [...sessions.filter((s) => s.chatId !== chat.chatId)] : []),
+          (sessions?: AgentSession[]) => (sessions ? [...sessions.filter((s) => s.sessionId !== chat.sessionId)] : []),
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );
-        if (chat.chatId === params?.chatId) {
+        if (chat.sessionId === params?.sessionId) {
           router.push("/chat");
         }
         toast({ title: "Chat deleted successfully." });
@@ -184,7 +188,7 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
             />
           </div>
         ) : (
-          <Link className="pr-2 overflow-hidden" href={`/chat/${chat.chatId}`} key={chat.chatId} passHref>
+          <Link className="pr-2 overflow-hidden" href={`/chat/${chat.sessionId}`} key={chat.sessionId} passHref>
             <motion.div
               title={chat.chatName}
               className="flex-1 truncate mr-5 hover:bg-muted rounded-md text-sm"

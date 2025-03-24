@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { PropsWithChildren } from "react";
 
-import BrowserContextProvider from "@/components/chat/browser-context";
 import BrowserWindow from "@/components/chat/browser-window";
 import { AgentSidebar } from "@/components/chat/side-bar";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -23,14 +22,12 @@ export default async function Layout({ children }: PropsWithChildren) {
   return (
     <SidebarProvider style={sidebarRef}>
       <AgentSidebar user={session?.user} />
-      <BrowserContextProvider>
-        <ResizablePanelGroup direction="horizontal">
-          <ResizablePanel defaultSize={60} maxSize={80} minSize={40}>
-            <SidebarInset>{children}</SidebarInset>
-          </ResizablePanel>
-          <BrowserWindow />
-        </ResizablePanelGroup>
-      </BrowserContextProvider>
+      <ResizablePanelGroup direction="horizontal">
+        <ResizablePanel defaultSize={60} maxSize={80} minSize={40}>
+          <SidebarInset>{children}</SidebarInset>
+        </ResizablePanel>
+        <BrowserWindow />
+      </ResizablePanelGroup>
     </SidebarProvider>
   );
 }

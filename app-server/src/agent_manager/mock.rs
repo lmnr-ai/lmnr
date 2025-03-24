@@ -1,16 +1,11 @@
-use std::collections::HashMap;
-use std::pin::Pin;
-
-use anyhow::Result;
-use async_trait::async_trait;
-use uuid::Uuid;
-
 use super::types::{
-    AgentOutput, AgentState, FinalOutputChunkContent, LaminarSpanContext, ModelProvider,
-    RunAgentResponseStreamChunk,
+    AgentOutput, FinalOutputChunkContent, ModelProvider, RunAgentResponseStreamChunk,
 };
 use super::AgentManagerTrait;
-
+use anyhow::Result;
+use async_trait::async_trait;
+use std::pin::Pin;
+use uuid::Uuid;
 pub struct MockAgentManager;
 
 #[async_trait]
@@ -26,16 +21,13 @@ impl AgentManagerTrait for MockAgentManager {
     async fn run_agent(
         &self,
         _prompt: String,
-        _chat_id: Uuid,
+        _session_id: Option<Uuid>,
         _request_api_key: Option<String>,
-        _span_context: Option<LaminarSpanContext>,
+        _parent_span_context: Option<String>,
+        _agent_state: Option<String>,
         _model_provider: Option<ModelProvider>,
         _model: Option<String>,
         _enable_thinking: bool,
-        _keep_session: bool,
-        _continue_session: Option<AgentState>,
-        _cdp_url: Option<String>,
-        _cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput> {
         log::debug!("MockAgentManager::run_agent called");
         Ok(AgentOutput::default())
@@ -44,16 +36,13 @@ impl AgentManagerTrait for MockAgentManager {
     async fn run_agent_stream(
         &self,
         _prompt: String,
-        _chat_id: Uuid,
+        _session_id: Option<Uuid>,
         _request_api_key: Option<String>,
-        _span_context: Option<LaminarSpanContext>,
+        _parent_span_context: Option<String>,
+        _agent_state: Option<String>,
         _model_provider: Option<ModelProvider>,
         _model: Option<String>,
         _enable_thinking: bool,
-        _keep_session: bool,
-        _continue_session: Option<AgentState>,
-        _cdp_url: Option<String>,
-        _cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream {
         log::debug!("MockAgentManager::run_agent_stream called");
         Box::pin(futures::stream::once(async move {

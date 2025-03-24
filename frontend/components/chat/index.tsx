@@ -10,26 +10,28 @@ import Messages from "@/components/chat/messages";
 import MultimodalInput from "@/components/chat/multimodal-input";
 import Placeholder from "@/components/chat/placeholder";
 import Suggestions from "@/components/chat/suggestions";
-import { ChatMessage } from "@/components/chat/types";
+import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { useAgentChat } from "@/components/chat/useAgentChat";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
-  chatId: string;
+  sessionId: string;
+  agentStatus?: AgentSession["agentStatus"];
   user: User;
   initialMessages: ChatMessage[];
 }
 
-const Chat = ({ chatId, user, initialMessages }: ChatProps) => {
+const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
   const [modelState, setModelState] = useState<{ model: string; enableThinking: boolean }>({
     model: "claude-3-7-sonnet-20250219",
     enableThinking: false,
   });
 
   const { messages, handleSubmit, stop, isLoading, input, setInput } = useAgentChat({
-    id: chatId,
+    id: sessionId,
     initialMessages,
     userId: user.id,
+    agentStatus,
   });
 
   const onSubmit = (e?: FormEvent<HTMLFormElement>) => {
@@ -65,7 +67,7 @@ const Chat = ({ chatId, user, initialMessages }: ChatProps) => {
             onChange={setInput}
           />
         </motion.form>
-        {isEmpty(messages) && <Suggestions chatId={chatId} onSubmit={handleSubmitSuggestion} />}
+        {isEmpty(messages) && <Suggestions sessionId={sessionId} onSubmit={handleSubmitSuggestion} />}
       </div>
     </div>
   );
