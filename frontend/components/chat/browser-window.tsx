@@ -13,10 +13,10 @@ import { ResizableHandle, ResizablePanel } from "../ui/resizable";
 
 const BrowserWindow = () => {
   const pathname = usePathname();
-  const chatId = pathname.split("/")?.[2];
+  const sessionId = pathname.split("/")?.[2];
   const [isResizing, setIsResizing] = useState(false);
   const { data } = useSWR<Pick<AgentSession, "vncUrl" | "status">>(
-    () => (chatId ? `/api/agent-sessions/${chatId}` : null),
+    () => (sessionId ? `/api/agent-sessions/${sessionId}` : null),
     swrFetcher,
     {
       refreshInterval: 1500,

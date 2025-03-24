@@ -27,8 +27,6 @@ struct RunAgentRequest {
     stream: bool,
     #[serde(default = "default_true")]
     enable_thinking: bool,
-    #[serde(default)]
-    cdp_url: Option<String>,
 }
 
 fn default_true() -> bool {

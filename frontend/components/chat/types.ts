@@ -35,7 +35,7 @@ export type ChatMessageContent = { summary: string; actionResult: ActionResult }
 
 export interface ChatMessage {
   id: string;
-  chatId: string;
+  sessionId: string;
   userId: string;
   messageType: "step" | "assistant" | "user";
   content: ChatMessageContent;
@@ -102,7 +102,7 @@ export interface FinalOutputChunkContent {
 export interface StreamAgentRequest {
   prompt: string;
   model: string;
-  chatId: string;
+  sessionId: string;
   isNewChat: boolean;
 }
 
@@ -111,7 +111,7 @@ export type RunAgentResponseStreamChunk =
   | ({ chunkType: "finalOutput" } & FinalOutputChunkContent);
 
 export interface AgentSession {
-  chatId: string;
+  sessionId: string;
   updatedAt?: string;
   chatName: string;
   status?: "not_started" | "running" | "paused" | "stopped";

@@ -6,7 +6,7 @@ import { AgentSession, ChatMessage, RunAgentResponseStreamChunk } from "@/compon
 
 export const connectToStream = async (
   api: string,
-  chatId: string,
+  sessionId: string,
   isNewUserMessage: boolean,
   modelOptions: { model: string; enableThinking: boolean },
   onChunk: (chunk: RunAgentResponseStreamChunk) => void,
@@ -20,7 +20,7 @@ export const connectToStream = async (
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      chatId,
+      sessionId,
       isNewUserMessage,
       prompt: prompt,
       ...modelOptions,
@@ -122,7 +122,7 @@ export const initiateChat = async (
   appendChat: (chat: AgentSession) => Promise<void>,
   input: string,
   userId: string,
-  chatId: string
+  sessionId: string
 ) => {
   const userMessage: ChatMessage = {
     id: v4(),
@@ -130,7 +130,7 @@ export const initiateChat = async (
     content: {
       text: input,
     },
-    chatId,
+    sessionId,
     userId,
     createdAt: new Date().toISOString(),
   };
@@ -139,18 +139,18 @@ export const initiateChat = async (
 
   if (messages.length <= 1) {
     const name = await generateChatName(input);
-    await createChat({ chatId, chatName: name, userId });
+    await createChat({ sessionId: sessionId, chatName: name, userId });
     const optimisticChat: AgentSession = {
       updatedAt: new Date().toISOString(),
       chatName: name,
       userId,
-      chatId,
+      sessionId: sessionId,
       isNew: true,
     };
     await appendChat(optimisticChat);
   }
 
-  window.history.replaceState({}, "", `/chat/${chatId}`);
+  window.history.replaceState({}, "", `/chat/${sessionId}`);
 
   await createMessage(userMessage);
 };

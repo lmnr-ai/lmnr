@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use uuid::Uuid;
 
-use crate::db::{self, agent_messages::MessageType, DB};
+use crate::db::{self, agent_manager::MessageType, DB};
 
 use super::{
     channel::AgentManagerChannel,
@@ -26,7 +26,7 @@ pub async fn run_agent_worker(
     prompt: String,
     options: RunAgentWorkerOptions,
 ) {
-    let agent_state = match db::agent_messages::get_agent_state(&db.pool, &session_id).await {
+    let agent_state = match db::agent_manager::get_agent_state(&db.pool, &session_id).await {
         Ok(Some(agent_state)) => Some(agent_state),
         Ok(None) => {
             log::debug!("No agent state found for session_id: {}", session_id);
@@ -51,8 +51,7 @@ pub async fn run_agent_worker(
         )
         .await;
 
-    if let Err(e) = db::agent_messages::update_agent_user_id(&db.pool, &session_id, &user_id).await
-    {
+    if let Err(e) = db::agent_manager::update_agent_user_id(&db.pool, &session_id, &user_id).await {
         log::error!("Error updating agent user id: {}", e);
     }
 
@@ -68,7 +67,7 @@ pub async fn run_agent_worker(
                 };
 
                 // TODO: Run these DB tasks in parallel for the last message?
-                if let Err(e) = db::agent_messages::insert_agent_message(
+                if let Err(e) = db::agent_manager::insert_agent_message(
                     &db.pool,
                     &chunk.message_id(),
                     &session_id,
@@ -82,7 +81,7 @@ pub async fn run_agent_worker(
                 }
 
                 if let RunAgentResponseStreamChunk::FinalOutput(final_output) = &chunk {
-                    if let Err(e) = db::agent_messages::update_agent_state(
+                    if let Err(e) = db::agent_manager::update_agent_state(
                         &db.pool,
                         &session_id,
                         &final_output.content.state,

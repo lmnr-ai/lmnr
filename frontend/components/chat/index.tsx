@@ -15,19 +15,19 @@ import { useAgentChat } from "@/components/chat/useAgentChat";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
-  chatId: string;
+  sessionId: string;
   user: User;
   initialMessages: ChatMessage[];
 }
 
-const Chat = ({ chatId, user, initialMessages }: ChatProps) => {
+const Chat = ({ sessionId, user, initialMessages }: ChatProps) => {
   const [modelState, setModelState] = useState<{ model: string; enableThinking: boolean }>({
     model: "claude-3-7-sonnet-20250219",
     enableThinking: false,
   });
 
   const { messages, handleSubmit, stop, isLoading, input, setInput } = useAgentChat({
-    id: chatId,
+    id: sessionId,
     initialMessages,
     userId: user.id,
   });
@@ -65,7 +65,7 @@ const Chat = ({ chatId, user, initialMessages }: ChatProps) => {
             onChange={setInput}
           />
         </motion.form>
-        {isEmpty(messages) && <Suggestions chatId={chatId} onSubmit={handleSubmitSuggestion} />}
+        {isEmpty(messages) && <Suggestions sessionId={sessionId} onSubmit={handleSubmitSuggestion} />}
       </div>
     </div>
   );

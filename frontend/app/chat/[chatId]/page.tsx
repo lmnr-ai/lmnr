@@ -20,7 +20,7 @@ export default async function ChatPage(props: { params: Promise<{ chatId: string
   }
 
   const messages = (await db.query.agentMessages.findMany({
-    where: eq(agentMessages.chatId, chatId),
+    where: eq(agentMessages.sessionId, chatId),
     orderBy: asc(agentMessages.createdAt),
   })) as ChatMessage[];
 
@@ -37,5 +37,5 @@ export default async function ChatPage(props: { params: Promise<{ chatId: string
     return <NotFound />;
   }
 
-  return <Chat chatId={chatId} user={{ ...user, id: result.id }} initialMessages={messages} />;
+  return <Chat sessionId={chatId} user={{ ...user, id: result.id }} initialMessages={messages} />;
 }

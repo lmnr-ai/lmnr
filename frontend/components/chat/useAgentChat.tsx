@@ -109,7 +109,7 @@ export function useAgentChat({
                   actionResult: chunk.actionResult,
                 },
                 userId,
-                chatId: id,
+                sessionId: id,
               };
               setMessages((messages) => [...messages, stepMessage]);
             } else if (chunk.chunkType === "finalOutput") {
@@ -120,7 +120,7 @@ export function useAgentChat({
                   text: chunk.content.result.content ?? "-",
                 },
                 userId,
-                chatId: id,
+                sessionId: id,
               };
               setMessages((messages) => [...messages, finalMessage]);
 
@@ -168,7 +168,7 @@ export function useAgentChat({
                 actionResult: chunk.actionResult,
               },
               userId,
-              chatId: id,
+              sessionId: id,
             };
             setMessages((messages) => [...messages, stepMessage]);
           } else if (chunk.chunkType === "finalOutput") {
@@ -179,7 +179,7 @@ export function useAgentChat({
                 text: chunk.content.result.content ?? "-",
               },
               userId,
-              chatId: id,
+              sessionId: id,
             };
             setMessages((messages) => [...messages, finalMessage]);
 

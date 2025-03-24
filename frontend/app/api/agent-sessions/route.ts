@@ -29,7 +29,7 @@ export async function GET(_req: NextRequest): Promise<Response> {
   const data = await db.query.agentSessions.findMany({
     where: eq(agentSessions.userId, result.id),
     columns: {
-      chatId: true,
+      sessionId: true,
       updatedAt: true,
       chatName: true,
     },
@@ -40,7 +40,7 @@ export async function GET(_req: NextRequest): Promise<Response> {
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
-  const body = (await req.json()) as { chatName: string; chatId: string; userId: string };
+  const body = (await req.json()) as { chatName: string; sessionId: string; userId: string };
 
   await db.insert(agentSessions).values(body);
 
