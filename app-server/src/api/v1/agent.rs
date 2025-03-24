@@ -5,10 +5,7 @@ use futures::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::agent_manager::{
-    types::{AgentState, LaminarSpanContext, ModelProvider},
-    AgentManager, AgentManagerTrait,
-};
+use crate::agent_manager::{types::ModelProvider, AgentManager, AgentManagerTrait};
 use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
 use crate::db::project_api_keys::ProjectApiKey;
 use crate::project_api_keys::ProjectApiKeyVals;
@@ -21,9 +18,7 @@ const REQUEST_API_KEY_TTL: u64 = 60 * 60; // 1 hour
 struct RunAgentRequest {
     prompt: String,
     #[serde(default)]
-    state: Option<AgentState>,
-    #[serde(default)]
-    span_context: Option<LaminarSpanContext>,
+    parent_span_context: Option<String>,
     #[serde(default)]
     model_provider: Option<ModelProvider>,
     #[serde(default)]
@@ -50,12 +45,10 @@ pub async fn run_agent_manager(
     let request = request.into_inner();
     let agent_manager = agent_manager.as_ref().clone();
 
-    let chat_id = Uuid::new_v4();
-
     let request_api_key_vals = ProjectApiKeyVals::new();
     let request_api_key = ProjectApiKey {
         project_id: project_api_key.project_id,
-        name: Some(format!("tmp-agent-{}", chat_id)),
+        name: Some(format!("tmp-agent-{}", Uuid::new_v4())),
         hash: request_api_key_vals.hash,
         shorthand: request_api_key_vals.shorthand,
     };
@@ -75,16 +68,13 @@ pub async fn run_agent_manager(
         let stream = agent_manager
             .run_agent_stream(
                 request.prompt,
-                chat_id,
+                None,
                 Some(request_api_key_vals.value),
-                request.span_context.map(|span_context| span_context.into()),
+                request.parent_span_context,
+                None,
                 request.model_provider,
                 request.model,
                 request.enable_thinking,
-                false,
-                request.state,
-                request.cdp_url,
-                Vec::new(),
             )
             .await;
 
@@ -100,16 +90,13 @@ pub async fn run_agent_manager(
         let response = agent_manager
             .run_agent(
                 request.prompt,
-                chat_id,
+                None,
                 Some(request_api_key_vals.value),
-                request.span_context.map(|span_context| span_context.into()),
+                request.parent_span_context,
+                None,
                 request.model_provider,
                 request.model,
                 request.enable_thinking,
-                false,
-                request.state,
-                request.cdp_url,
-                Vec::new(),
             )
             .await?;
 
