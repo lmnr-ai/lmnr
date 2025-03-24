@@ -177,6 +177,7 @@ impl Into<StepChunkContent> for StepChunkContentGrpc {
         }
     }
 }
+
 #[derive(Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FinalOutputChunkContent {
