@@ -1,5 +1,4 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { GitCommitHorizontal } from "lucide-react";
 import Image from "next/image";
 
 import logo from "@/assets/logo/icon.svg";
@@ -23,13 +22,10 @@ const Message = ({ message }: MessageProps) => (
         className={cn(
           "flex gap-4 w-full mb-6",
           "group-data-[type=user]/message:ml-auto group-data-[type=user]/message:w-fit group-data-[type=user]/message:max-w-2xl",
-          "group-data-[type=step]/message:mb-2"
+          "group-data-[type=step]/message:mb-2",
+          "group-data-[type=step]/message:ml-12"
         )}
       >
-        {message.messageType === "step" && (
-          <GitCommitHorizontal className="mt-1 ml-2 mr-2 min-w-[14px] min-h-[14px]" size={14} />
-        )}
-
         {message.messageType === "assistant" && (
           <div className="h-fit w-fit p-2 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
             <Image className="-mr-px" alt="logo" src={logo} width={16} />
