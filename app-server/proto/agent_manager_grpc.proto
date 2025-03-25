@@ -22,6 +22,7 @@ message ActionResult {
     optional bool is_done = 1;
     optional string content = 2;
     optional string error = 3;
+    optional bool give_control = 4;
 }
 
 message StepChunkContent {

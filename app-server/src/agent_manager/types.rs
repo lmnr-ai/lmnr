@@ -34,6 +34,8 @@ pub struct ActionResult {
     pub content: Option<String>,
     #[serde(default)]
     pub error: Option<String>,
+    #[serde(default)]
+    pub give_control: bool,
 }
 
 impl Into<ActionResult> for ActionResultGrpc {
@@ -42,6 +44,7 @@ impl Into<ActionResult> for ActionResultGrpc {
             is_done: self.is_done.unwrap_or_default(),
             content: self.content,
             error: self.error,
+            give_control: self.give_control.unwrap_or_default(),
         }
     }
 }
@@ -104,6 +107,7 @@ pub struct AgentOutputFrontend {
 #[serde(rename_all = "camelCase")]
 pub struct FinalOutputChunkContentFrontend {
     pub message_id: Uuid,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub content: AgentOutputFrontend,
 }
 
@@ -114,6 +118,7 @@ impl Into<RunAgentResponseStreamChunkFrontend> for RunAgentResponseStreamChunk {
             RunAgentResponseStreamChunk::FinalOutput(f) => {
                 RunAgentResponseStreamChunkFrontend::FinalOutput(FinalOutputChunkContentFrontend {
                     message_id: f.message_id,
+                    created_at: chrono::Utc::now(),
                     content: AgentOutputFrontend {
                         result: f.content.result,
                     },
@@ -153,6 +158,7 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
             RunAgentResponseStreamChunkTypeGrpc::AgentOutput(a) => {
                 RunAgentResponseStreamChunk::FinalOutput(FinalOutputChunkContent {
                     message_id: Uuid::new_v4(),
+                    created_at: chrono::Utc::now(),
                     content: a.into(),
                 })
             }
@@ -163,6 +169,7 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct StepChunkContent {
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub message_id: Uuid,
     pub action_result: ActionResult,
     pub summary: String,
@@ -171,6 +178,7 @@ pub struct StepChunkContent {
 impl Into<StepChunkContent> for StepChunkContentGrpc {
     fn into(self) -> StepChunkContent {
         StepChunkContent {
+            created_at: chrono::Utc::now(),
             message_id: Uuid::new_v4(),
             action_result: self.action_result.unwrap().into(),
             summary: self.summary,
@@ -182,5 +190,6 @@ impl Into<StepChunkContent> for StepChunkContentGrpc {
 #[serde(rename_all = "camelCase")]
 pub struct FinalOutputChunkContent {
     pub message_id: Uuid,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub content: AgentOutput,
 }
