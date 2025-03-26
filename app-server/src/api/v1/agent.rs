@@ -73,6 +73,7 @@ pub async fn run_agent_manager(
                 request.model_provider,
                 request.model,
                 request.enable_thinking,
+                Vec::new(),
             )
             .await;
 
@@ -95,6 +96,7 @@ pub async fn run_agent_manager(
                 request.model_provider,
                 request.model,
                 request.enable_thinking,
+                Vec::new(),
             )
             .await?;
 

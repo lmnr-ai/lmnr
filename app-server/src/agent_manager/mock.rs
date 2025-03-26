@@ -4,6 +4,7 @@ use super::types::{
 use super::AgentManagerTrait;
 use anyhow::Result;
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::pin::Pin;
 use uuid::Uuid;
 pub struct MockAgentManager;
@@ -28,6 +29,7 @@ impl AgentManagerTrait for MockAgentManager {
         _model_provider: Option<ModelProvider>,
         _model: Option<String>,
         _enable_thinking: bool,
+        _cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput> {
         log::debug!("MockAgentManager::run_agent called");
         Ok(AgentOutput::default())
@@ -43,6 +45,7 @@ impl AgentManagerTrait for MockAgentManager {
         _model_provider: Option<ModelProvider>,
         _model: Option<String>,
         _enable_thinking: bool,
+        _cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream {
         log::debug!("MockAgentManager::run_agent_stream called");
         Box::pin(futures::stream::once(async move {

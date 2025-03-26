@@ -7,6 +7,7 @@ use crate::db::{self, agent_manager::MessageType, DB};
 
 use super::{
     channel::AgentManagerChannel,
+    cookies,
     types::{ModelProvider, RunAgentResponseStreamChunk, WorkerStreamChunk},
     AgentManager, AgentManagerTrait,
 };
@@ -38,6 +39,14 @@ pub async fn run_agent_worker(
         }
     };
 
+    let cookies = match cookies::get_cookies(&db.pool, &user_id).await {
+        Ok(cookies) => cookies,
+        Err(e) => {
+            log::error!("Error getting cookies: {}", e);
+            Vec::new()
+        }
+    };
+
     let mut stream = agent_manager
         .run_agent_stream(
             prompt,
@@ -48,6 +57,7 @@ pub async fn run_agent_worker(
             options.model_provider,
             options.model,
             options.enable_thinking,
+            cookies,
         )
         .await;
 
@@ -74,6 +84,7 @@ pub async fn run_agent_worker(
                     &user_id,
                     &message_type,
                     &chunk.message_content(),
+                    &chunk.created_at(),
                 )
                 .await
                 {
@@ -81,6 +92,13 @@ pub async fn run_agent_worker(
                 }
 
                 if let RunAgentResponseStreamChunk::FinalOutput(final_output) = &chunk {
+                    if let Some(cookies) = final_output.content.cookies.as_ref() {
+                        if let Err(e) = cookies::insert_cookies(&db.pool, &user_id, &cookies).await
+                        {
+                            log::error!("Error inserting cookies: {}", e);
+                        }
+                    }
+
                     if let Err(e) = db::agent_manager::update_agent_state(
                         &db.pool,
                         &session_id,

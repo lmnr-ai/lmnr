@@ -6,6 +6,9 @@ enum ModelProvider {
     ANTHROPIC = 0;
     BEDROCK = 1;
 }
+message Cookie {
+    map<string, string> cookie_data = 1;
+}
 
 message RunAgentRequest {
     string prompt = 1;
@@ -16,6 +19,7 @@ message RunAgentRequest {
     optional ModelProvider model_provider = 6;
     optional string model = 7;
     optional bool enable_thinking = 8;
+    repeated Cookie cookies = 9;
 }
 
 message ActionResult {
@@ -33,6 +37,7 @@ message StepChunkContent {
 message AgentOutput {
     string agent_state = 1;
     ActionResult result = 2;
+    repeated Cookie cookies = 3;
 }
 
 message RunAgentResponseStreamChunk {

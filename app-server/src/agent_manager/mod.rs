@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use agent_manager_impl::AgentManagerImpl;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -34,6 +36,7 @@ pub trait AgentManagerTrait {
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput>;
 
     async fn run_agent_stream(
@@ -46,5 +49,6 @@ pub trait AgentManagerTrait {
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream;
 }

@@ -20,6 +20,7 @@ pub async fn insert_agent_message(
     user_id: &Uuid,
     message_type: &MessageType,
     content: &Value,
+    created_at: &chrono::DateTime<chrono::Utc>,
 ) -> anyhow::Result<()> {
     sqlx::query(
         "INSERT INTO agent_messages (
@@ -27,14 +28,16 @@ pub async fn insert_agent_message(
         session_id,
         user_id,
         message_type,
-        content
-    ) VALUES ($1, $2, $3, $4, $5)",
+        content,
+        created_at
+    ) VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(id)
     .bind(session_id)
     .bind(user_id)
     .bind(message_type)
     .bind(content)
+    .bind(created_at)
     .execute(pool)
     .await?;
 

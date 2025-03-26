@@ -6,10 +6,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerChannel;
-use crate::agent_manager::types::{
-    ControlChunk, RunAgentResponseStreamChunk, RunAgentResponseStreamChunkFrontend,
-    WorkerStreamChunk,
-};
+use crate::agent_manager::types::{ControlChunk, RunAgentResponseStreamChunk, WorkerStreamChunk};
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::db::user::User;
 use crate::routes::types::ResponseResult;
@@ -117,8 +114,7 @@ pub async fn run_agent_manager(
         .content_type("text/event-stream")
         .streaming(stream.map(|r| {
             r.map(|chunk| {
-                let json =
-                    serde_json::to_string::<RunAgentResponseStreamChunkFrontend>(&chunk).unwrap();
+                let json = serde_json::to_string::<RunAgentResponseStreamChunk>(&chunk).unwrap();
                 bytes::Bytes::from(format!("data: {}\n\n", json))
             })
         })))

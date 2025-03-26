@@ -5,6 +5,7 @@ use super::types::{AgentOutput, ModelProvider, RunAgentResponseStreamChunk};
 use super::AgentManagerTrait;
 use anyhow::Result;
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use tonic::{transport::Channel, Request};
@@ -41,6 +42,7 @@ impl AgentManagerTrait for AgentManagerImpl {
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput> {
         let mut client = self.client.as_ref().clone();
 
@@ -53,6 +55,7 @@ impl AgentManagerTrait for AgentManagerImpl {
             model_provider: model_provider.map(|p| p.to_i32()),
             model,
             enable_thinking: Some(enable_thinking),
+            cookies: cookies.into_iter().map(|c| c.into()).collect(),
         });
 
         let response = client.run_agent(request).await?;
@@ -70,6 +73,7 @@ impl AgentManagerTrait for AgentManagerImpl {
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream {
         let mut client = self.client.as_ref().clone();
 
@@ -82,6 +86,7 @@ impl AgentManagerTrait for AgentManagerImpl {
             model_provider: model_provider.map(|p| p.to_i32()),
             model,
             enable_thinking: Some(enable_thinking),
+            cookies: cookies.into_iter().map(|c| c.into()).collect(),
         });
 
         match client.run_agent_stream(request).await {
