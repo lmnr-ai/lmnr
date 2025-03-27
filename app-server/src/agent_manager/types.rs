@@ -139,6 +139,7 @@ impl RunAgentResponseStreamChunk {
             }),
             RunAgentResponseStreamChunk::FinalOutput(final_output) => serde_json::json!({
                 "text": final_output.content.result.content.clone().unwrap_or_default(),
+                "action_result": final_output.content.result,
             }),
         }
     }
