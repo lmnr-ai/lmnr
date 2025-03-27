@@ -135,11 +135,11 @@ impl RunAgentResponseStreamChunk {
         match self {
             RunAgentResponseStreamChunk::Step(step) => serde_json::json!({
                 "summary": step.summary,
-                "action_result": step.action_result,
+                "actionResult": step.action_result,
             }),
             RunAgentResponseStreamChunk::FinalOutput(final_output) => serde_json::json!({
                 "text": final_output.content.result.content.clone().unwrap_or_default(),
-                "action_result": final_output.content.result,
+                "actionResult": final_output.content.result,
             }),
         }
     }
