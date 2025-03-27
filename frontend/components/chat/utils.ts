@@ -143,6 +143,9 @@ export const initiateChat = async (
     messageType: "user",
     content: {
       text: input,
+      actionResult: {
+        isDone: false,
+      },
     },
     sessionId,
     userId,
