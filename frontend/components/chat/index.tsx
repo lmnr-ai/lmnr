@@ -13,7 +13,7 @@ import Placeholder from "@/components/chat/placeholder";
 import Suggestions from "@/components/chat/suggestions";
 import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { useAgentChat } from "@/components/chat/useAgentChat";
-import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
@@ -29,6 +29,7 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
     enableThinking: false,
   });
 
+  const { setOpen } = useSidebar();
   const { messages, handleSubmit, stop, isLoading, input, setInput, isControlled, setIsControlled } = useAgentChat({
     id: sessionId,
     initialMessages,
@@ -50,46 +51,46 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
       e.preventDefault();
     }
     handleSubmit(e, modelState);
+    setOpen(false);
   };
 
   const handleSubmitWithInput = (input: string) => {
     setInput(input);
     handleSubmit(undefined, modelState, input);
+    setOpen(false);
   };
 
   return (
-    <ResizablePanelGroup direction="horizontal">
-      <ResizablePanel defaultSize={60} maxSize={80} minSize={40}>
-        <div className="flex flex-col min-w-0 h-dvh bg-background">
-          <ChatHeader />
-          {isEmpty(messages) ? (
-            <Placeholder user={user} />
-          ) : (
-            <Messages onControl={handleControl} isLoading={isLoading} messages={messages} />
-          )}
-          <div className={cn("w-full", isEmpty(messages) ? "flex-1 flex flex-col" : "mt-auto")}>
-            <motion.form
-              layout
-              onSubmit={onSubmit}
-              transition={{ duration: 0.2 }}
-              className="mx-auto w-full md:max-w-3xl px-4 bg-background pb-4 md:pb-6 gap-2 [&_textarea]:transition-none [&_textarea]:duration-0"
-            >
-              <MultimodalInput
-                modelState={modelState}
-                onModelStateChange={setModelState}
-                onSubmit={() => onSubmit()}
-                stop={stop}
-                isLoading={isLoading}
-                value={input}
-                onChange={setInput}
-              />
-            </motion.form>
-            {isEmpty(messages) && <Suggestions sessionId={sessionId} onSubmit={handleSubmitWithInput} />}
-          </div>
+    <div className="flex max-h-dvh">
+      <div className="flex flex-col flex-1 min-w-0 h-dvh bg-background">
+        <ChatHeader />
+        {isEmpty(messages) ? (
+          <Placeholder user={user} />
+        ) : (
+          <Messages onControl={handleControl} isLoading={isLoading} messages={messages} />
+        )}
+        <div className={cn("w-full", isEmpty(messages) ? "flex-1 flex flex-col" : "mt-auto")}>
+          <motion.form
+            layout
+            onSubmit={onSubmit}
+            transition={{ duration: 0.2 }}
+            className="mx-auto w-full md:max-w-3xl px-4 bg-background pb-4 md:pb-6 gap-2 [&_textarea]:transition-none [&_textarea]:duration-0"
+          >
+            <MultimodalInput
+              modelState={modelState}
+              onModelStateChange={setModelState}
+              onSubmit={() => onSubmit()}
+              stop={stop}
+              isLoading={isLoading}
+              value={input}
+              onChange={setInput}
+            />
+          </motion.form>
+          {isEmpty(messages) && <Suggestions sessionId={sessionId} onSubmit={handleSubmitWithInput} />}
         </div>
-      </ResizablePanel>
+      </div>
       <BrowserWindow isControlled={isControlled} onControl={handleControl} />
-    </ResizablePanelGroup>
+    </div>
   );
 };
 

@@ -29,7 +29,7 @@ const PureMessages = ({ messages, isLoading, onControl }: MessagesProps) => {
         {isLoading && messages?.length > 0 && <ThinkingMessage />}
         {lastMessage?.messageType === "assistant" && lastMessage?.content.actionResult?.giveControl && (
           <div className="mx-auto max-w-3xl w-full -mt-2 px-4">
-            <Button onClick={onControl} className="ml-12" variant="outline">
+            <Button onClick={onControl} className="ml-12">
               Take Control
             </Button>
           </div>
