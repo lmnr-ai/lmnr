@@ -30,10 +30,17 @@ impl AgentManagerChannel {
     }
 
     pub fn is_ended(&self, session_id: Uuid) -> bool {
-        self.channels
-            .get(&session_id)
-            // return true if the channel is not found
-            .map_or(true, |state| state.is_ended)
+        let channel_state = self.channels.remove(&session_id);
+
+        if let Some(state) = channel_state {
+            let is_ended = state.1.is_ended;
+            if !is_ended {
+                self.channels.insert(session_id, state.1);
+            }
+            is_ended
+        } else {
+            false
+        }
     }
 
     pub fn is_stopped(&self, session_id: Uuid) -> bool {
@@ -60,25 +67,20 @@ impl AgentManagerChannel {
         session_id: Uuid,
         chunk: Result<WorkerStreamChunk>,
     ) -> Result<()> {
-        let Some(state) = self.channels.get(&session_id) else {
-            log::warn!("AgentManagerChannel: try_publish: session_id not found");
+        // Completely remove the state first to avoid deadlocks
+        let Some(state) = self.channels.remove(&session_id) else {
+            log::debug!("AgentManagerChannel: try_publish: session_id not found");
             return Err(anyhow::anyhow!(
                 "AgentManagerChannel: try_publish: session_id not found"
             ));
         };
 
-        state
-            .sender
-            .send(chunk)
-            .await
-            .map_err(|e| {
-                log::debug!("AgentManagerChannel: try_publish: {}", e);
-                let sender = self.channels.remove(&session_id);
-                if let Some(sender) = sender {
-                    drop(sender);
-                }
-            })
-            .unwrap_or_default();
+        // Insert the state back into the map if the send was successful
+        if state.1.sender.send(chunk).await.is_ok() {
+            self.channels.insert(session_id, state.1);
+        } else {
+            log::debug!("AgentManagerChannel: client is disconnected");
+        }
 
         Ok(())
     }
