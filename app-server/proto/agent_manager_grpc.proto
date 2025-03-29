@@ -15,11 +15,10 @@ message RunAgentRequest {
     optional string session_id = 2;
     optional string request_api_key = 3;
     optional string parent_span_context = 4;
-    optional string agent_state = 5;
-    optional ModelProvider model_provider = 6;
-    optional string model = 7;
-    optional bool enable_thinking = 8;
-    repeated Cookie cookies = 9;
+    optional ModelProvider model_provider = 5;
+    optional string model = 6;
+    optional bool enable_thinking = 7;
+    repeated Cookie cookies = 8;
 }
 
 message ActionResult {
@@ -32,12 +31,13 @@ message ActionResult {
 message StepChunkContent {
     ActionResult action_result = 1;
     string summary = 2;
+    string trace_id = 3;
 }
 
 message AgentOutput {
-    string agent_state = 1;
-    ActionResult result = 2;
-    repeated Cookie cookies = 3;
+    ActionResult result = 1;
+    repeated Cookie cookies = 2;
+    string trace_id = 3;
 }
 
 message RunAgentResponseStreamChunk {

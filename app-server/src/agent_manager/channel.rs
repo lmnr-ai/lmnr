@@ -75,11 +75,17 @@ impl AgentManagerChannel {
             ));
         };
 
+        let is_err = chunk.is_err();
+
         // Insert the state back into the map if the send was successful
         if state.1.sender.send(chunk).await.is_ok() {
             self.channels.insert(session_id, state.1);
         } else {
             log::debug!("AgentManagerChannel: client is disconnected");
+        }
+
+        if is_err {
+            self.end_session(session_id);
         }
 
         Ok(())

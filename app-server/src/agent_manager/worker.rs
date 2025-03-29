@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use uuid::Uuid;
 
-use crate::db::{self, agent_manager::MessageType, DB};
+use crate::db::{self, agent_messages::MessageType, DB};
 
 use super::{
     channel::AgentManagerChannel,
@@ -27,18 +27,6 @@ pub async fn run_agent_worker(
     prompt: String,
     options: RunAgentWorkerOptions,
 ) {
-    let agent_state = match db::agent_manager::get_agent_state(&db.pool, &session_id).await {
-        Ok(Some(agent_state)) => Some(agent_state),
-        Ok(None) => {
-            log::debug!("No agent state found for session_id: {}", session_id);
-            None
-        }
-        Err(e) => {
-            log::error!("Error getting agent state: {}", e);
-            return;
-        }
-    };
-
     let cookies = match cookies::get_cookies(&db.pool, &user_id).await {
         Ok(cookies) => cookies,
         Err(e) => {
@@ -53,17 +41,12 @@ pub async fn run_agent_worker(
             Some(session_id),
             None,
             None,
-            agent_state,
             options.model_provider,
             options.model,
             options.enable_thinking,
             cookies,
         )
         .await;
-
-    if let Err(e) = db::agent_manager::update_agent_user_id(&db.pool, &session_id, &user_id).await {
-        log::error!("Error updating agent user id: {}", e);
-    }
 
     while let Some(chunk) = stream.next().await {
         if worker_channel.is_stopped(session_id) {
@@ -77,11 +60,12 @@ pub async fn run_agent_worker(
                 };
 
                 // TODO: Run these DB tasks in parallel for the last message?
-                if let Err(e) = db::agent_manager::insert_agent_message(
+                if let Err(e) = db::agent_messages::insert_agent_message(
                     &db.pool,
                     &chunk.message_id(),
                     &session_id,
                     &user_id,
+                    &chunk.trace_id(),
                     &message_type,
                     &chunk.message_content(),
                     &chunk.created_at(),
@@ -97,17 +81,6 @@ pub async fn run_agent_worker(
                         {
                             log::error!("Error inserting cookies: {}", e);
                         }
-                    }
-
-                    if let Err(e) = db::agent_manager::update_agent_state(
-                        &db.pool,
-                        &session_id,
-                        &final_output.content.state,
-                        &user_id,
-                    )
-                    .await
-                    {
-                        log::error!("Error updating agent state: {}", e);
                     }
                 }
 

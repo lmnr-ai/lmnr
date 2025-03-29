@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-pub mod agent_manager;
+pub mod agent_messages;
 pub mod datapoints;
 pub mod datasets;
 pub mod evaluations;
