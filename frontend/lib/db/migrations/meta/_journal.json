@@ -225,6 +225,13 @@
       "when": 1742813680826,
       "tag": "0031_lean_johnny_blaze",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1743245047404,
+      "tag": "0032_lame_mandarin",
+      "breakpoints": true
     }
   ]
 }

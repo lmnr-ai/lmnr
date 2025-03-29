@@ -66,7 +66,8 @@ pub async fn run_agent_manager(
         let stream = agent_manager
             .run_agent_stream(
                 request.prompt,
-                None,
+                Uuid::new_v4(),
+                false,
                 Some(request_api_key_vals.value),
                 request.parent_span_context,
                 request.model_provider,
@@ -88,7 +89,8 @@ pub async fn run_agent_manager(
         let response = agent_manager
             .run_agent(
                 request.prompt,
-                None,
+                Uuid::new_v4(),
+                false,
                 Some(request_api_key_vals.value),
                 request.parent_span_context,
                 request.model_provider,

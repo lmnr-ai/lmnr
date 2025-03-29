@@ -12,13 +12,15 @@ message Cookie {
 
 message RunAgentRequest {
     string prompt = 1;
-    optional string session_id = 2;
-    optional string request_api_key = 3;
-    optional string parent_span_context = 4;
-    optional ModelProvider model_provider = 5;
-    optional string model = 6;
-    optional bool enable_thinking = 7;
-    repeated Cookie cookies = 8;
+    string session_id = 2;
+    // control flag to distinguish frontend requests
+    bool is_chat_request = 3;
+    optional string request_api_key = 4;
+    optional string parent_span_context = 5;
+    optional ModelProvider model_provider = 6;
+    optional string model = 7;
+    optional bool enable_thinking = 8;
+    repeated Cookie cookies = 9;
 }
 
 message ActionResult {

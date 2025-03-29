@@ -29,7 +29,8 @@ pub trait AgentManagerTrait {
     async fn run_agent(
         &self,
         prompt: String,
-        session_id: Option<Uuid>,
+        session_id: Uuid,
+        is_chat_request: bool,
         request_api_key: Option<String>,
         parent_span_context: Option<String>,
         model_provider: Option<ModelProvider>,
@@ -41,7 +42,8 @@ pub trait AgentManagerTrait {
     async fn run_agent_stream(
         &self,
         prompt: String,
-        session_id: Option<Uuid>,
+        session_id: Uuid,
+        is_chat_request: bool,
         request_api_key: Option<String>,
         parent_span_context: Option<String>,
         model_provider: Option<ModelProvider>,

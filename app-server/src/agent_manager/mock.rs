@@ -22,7 +22,8 @@ impl AgentManagerTrait for MockAgentManager {
     async fn run_agent(
         &self,
         _prompt: String,
-        _session_id: Option<Uuid>,
+        _session_id: Uuid,
+        _is_chat_request: bool,
         _request_api_key: Option<String>,
         _parent_span_context: Option<String>,
         _model_provider: Option<ModelProvider>,
@@ -37,7 +38,8 @@ impl AgentManagerTrait for MockAgentManager {
     async fn run_agent_stream(
         &self,
         _prompt: String,
-        _session_id: Option<Uuid>,
+        _session_id: Uuid,
+        _is_chat_request: bool,
         _request_api_key: Option<String>,
         _parent_span_context: Option<String>,
         _model_provider: Option<ModelProvider>,

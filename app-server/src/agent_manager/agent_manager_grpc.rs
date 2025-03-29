@@ -11,19 +11,22 @@ pub struct Cookie {
 pub struct RunAgentRequest {
     #[prost(string, tag = "1")]
     pub prompt: ::prost::alloc::string::String,
-    #[prost(string, optional, tag = "2")]
-    pub session_id: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "3")]
-    pub request_api_key: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "2")]
+    pub session_id: ::prost::alloc::string::String,
+    /// control flag to distinguish frontend requests
+    #[prost(bool, tag = "3")]
+    pub is_chat_request: bool,
     #[prost(string, optional, tag = "4")]
+    pub request_api_key: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
     pub parent_span_context: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(enumeration = "ModelProvider", optional, tag = "5")]
+    #[prost(enumeration = "ModelProvider", optional, tag = "6")]
     pub model_provider: ::core::option::Option<i32>,
-    #[prost(string, optional, tag = "6")]
+    #[prost(string, optional, tag = "7")]
     pub model: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(bool, optional, tag = "7")]
+    #[prost(bool, optional, tag = "8")]
     pub enable_thinking: ::core::option::Option<bool>,
-    #[prost(message, repeated, tag = "8")]
+    #[prost(message, repeated, tag = "9")]
     pub cookies: ::prost::alloc::vec::Vec<Cookie>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]

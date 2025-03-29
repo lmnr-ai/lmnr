@@ -38,7 +38,8 @@ pub async fn run_agent_worker(
     let mut stream = agent_manager
         .run_agent_stream(
             prompt,
-            Some(session_id),
+            session_id,
+            true,
             None,
             None,
             options.model_provider,
