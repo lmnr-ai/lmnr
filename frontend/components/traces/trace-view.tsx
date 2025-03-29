@@ -12,6 +12,7 @@ import MonoWithCopy from '../ui/mono-with-copy';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
 import { ScrollArea, ScrollBar } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
+import { AgentSessionButton } from './agent-session-button';
 import SessionPlayer, { SessionPlayerHandle } from './session-player';
 import { SpanCard } from './span-card';
 import { SpanView } from './span-view';
@@ -315,6 +316,10 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
               <Disc size={16} className="mr-2" />
               {showBrowserSession ? 'Hide browser session' : 'Show browser session'}
             </Button>
+          )}
+
+          {trace?.agentSessionId && (
+            <AgentSessionButton traceId={traceId} />
           )}
         </div>
       </div>

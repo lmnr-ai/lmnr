@@ -73,7 +73,7 @@ export type Trace = {
   topSpanPath: string | null;
   hasBrowserSession: boolean | null;
   traceType: (typeof traces.$inferSelect)["traceType"] | null;
-  // events: TraceEvent[];
+  agentSessionId: string | null;
 };
 
 export type TraceEvent = {
