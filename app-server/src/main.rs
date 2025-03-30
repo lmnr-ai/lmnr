@@ -515,7 +515,6 @@ fn main() -> anyhow::Result<()> {
                         )
                         .service(
                             web::scope("api/v1/agent")
-                                .wrap(auth.clone())
                                 .service(routes::agent::run_agent_manager)
                                 .service(routes::agent::stop_agent_manager),
                         )
@@ -530,9 +529,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::semantic_search::semantic_search)
                                 .service(api::v1::queues::push_to_queue)
-                                .service(api::v1::machine_manager::start_machine)
-                                .service(api::v1::machine_manager::terminate_machine)
-                                .service(api::v1::machine_manager::execute_computer_action)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
                                 .service(api::v1::evals::save_eval_datapoints)

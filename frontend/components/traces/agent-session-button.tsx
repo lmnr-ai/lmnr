@@ -1,62 +1,53 @@
-import { Disc, Pause } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Pause } from 'lucide-react';
+import { useState } from 'react';
 
 import { useProjectContext } from '@/contexts/project-context';
 import { Button } from '../ui/button';
+import useSWR from 'swr';
+import { swrFetcher } from '@/lib/utils';
 
 interface AgentSessionButtonProps {
-    traceId: string;
+  sessionId: string;
 }
 
-export function AgentSessionButton({ traceId }: AgentSessionButtonProps) {
-    const [isActive, setIsActive] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const { projectId } = useProjectContext();
+export function AgentSessionButton({ sessionId }: AgentSessionButtonProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const { projectId } = useProjectContext();
 
-    useEffect(() => {
-        const checkSessionStatus = async () => {
-            try {
-                const response = await fetch(`/api/projects/${projectId}/agent-session`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setIsActive(data.isActive);
-                }
-            } catch (error) {
-                console.error('Error checking agent session status:', error);
-            }
-        };
+  const { data: agentSession } = useSWR(`/api/projects/${projectId}/agent-session/${sessionId}`, swrFetcher);
 
-        checkSessionStatus();
-        // Poll for updates every 5 seconds
-        const intervalId = setInterval(checkSessionStatus, 5000);
-        return () => clearInterval(intervalId);
-    }, [projectId, traceId]);
+  const isActive = agentSession?.status !== 'idle';
 
-    const handleCancelAgentRun = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch(`/api/projects/${projectId}/agent-session`, {
-                method: 'DELETE',
-            });
+  if (!isActive) {
+    return null;
+  }
 
-            if (response.ok) {
-                setIsActive(false);
-            }
-        } catch (error) {
-            console.error('Error canceling agent run:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  const handleCancelAgentRun = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/agent-session/stop`, {
+        method: 'POST',
+        body: JSON.stringify({ sessionId }),
+      });
 
-    return (
-        <Button
-            variant="secondary"
-            onClick={handleCancelAgentRun}
-            disabled={isLoading}
-        >
-            <Pause size={16} className="mr-2" />
-            Cancel agent run
-        </Button>
-    );
+      if (response.ok) {
+
+      }
+    } catch (error) {
+      console.error('Error canceling agent run:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="secondary"
+      onClick={handleCancelAgentRun}
+      disabled={isLoading || !isActive}
+    >
+      <Pause size={16} className="mr-2" />
+      Cancel agent run
+    </Button>
+  );
 } 

@@ -319,7 +319,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           )}
 
           {trace?.agentSessionId && (
-            <AgentSessionButton traceId={traceId} />
+            <AgentSessionButton sessionId={trace.agentSessionId} />
           )}
         </div>
       </div>
