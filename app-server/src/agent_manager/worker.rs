@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::db::{self, agent_messages::MessageType, DB};
 
 use super::{
-    channel::AgentManagerChannel,
+    channel::AgentManagerWorkers,
     cookies,
     types::{ModelProvider, RunAgentResponseStreamChunk, WorkerStreamChunk},
     AgentManager, AgentManagerTrait,
@@ -20,26 +20,31 @@ pub struct RunAgentWorkerOptions {
 
 pub async fn run_agent_worker(
     agent_manager: Arc<AgentManager>,
-    worker_channel: Arc<AgentManagerChannel>,
+    worker_channel: Arc<AgentManagerWorkers>,
     db: Arc<DB>,
     session_id: Uuid,
-    user_id: Uuid,
+    // If user_id is Some, we are running the agent in Chat mode,
+    user_id: Option<Uuid>,
     prompt: String,
     options: RunAgentWorkerOptions,
 ) {
-    let cookies = match cookies::get_cookies(&db.pool, &user_id).await {
-        Ok(cookies) => cookies,
-        Err(e) => {
-            log::error!("Error getting cookies: {}", e);
-            Vec::new()
+    let cookies = if let Some(user_id) = user_id {
+        match cookies::get_cookies(&db.pool, &user_id).await {
+            Ok(cookies) => cookies,
+            Err(e) => {
+                log::error!("Error getting cookies: {}", e);
+                Vec::new()
+            }
         }
+    } else {
+        Vec::new()
     };
 
     let mut stream = agent_manager
         .run_agent_stream(
             prompt,
             session_id,
-            true,
+            user_id.is_some(),
             None,
             None,
             options.model_provider,
@@ -60,27 +65,31 @@ pub async fn run_agent_worker(
                     RunAgentResponseStreamChunk::FinalOutput(_) => MessageType::Assistant,
                 };
 
-                // TODO: Run these DB tasks in parallel for the last message?
-                if let Err(e) = db::agent_messages::insert_agent_message(
-                    &db.pool,
-                    &chunk.message_id(),
-                    &session_id,
-                    &user_id,
-                    &chunk.trace_id(),
-                    &message_type,
-                    &chunk.message_content(),
-                    &chunk.created_at(),
-                )
-                .await
-                {
-                    log::error!("Error inserting agent message: {}", e);
+                if let Some(user_id) = user_id {
+                    if let Err(e) = db::agent_messages::insert_agent_message(
+                        &db.pool,
+                        &chunk.message_id(),
+                        &session_id,
+                        &user_id,
+                        &chunk.trace_id(),
+                        &message_type,
+                        &chunk.message_content(),
+                        &chunk.created_at(),
+                    )
+                    .await
+                    {
+                        log::error!("Error inserting agent message: {}", e);
+                    }
                 }
 
                 if let RunAgentResponseStreamChunk::FinalOutput(final_output) = &chunk {
                     if let Some(cookies) = final_output.content.cookies.as_ref() {
-                        if let Err(e) = cookies::insert_cookies(&db.pool, &user_id, &cookies).await
-                        {
-                            log::error!("Error inserting cookies: {}", e);
+                        if let Some(user_id) = user_id {
+                            if let Err(e) =
+                                cookies::insert_cookies(&db.pool, &user_id, &cookies).await
+                            {
+                                log::error!("Error inserting cookies: {}", e);
+                            }
                         }
                     }
                 }
