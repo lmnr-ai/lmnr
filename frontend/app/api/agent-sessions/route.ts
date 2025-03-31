@@ -41,13 +41,15 @@ export async function GET(_req: NextRequest): Promise<Response> {
   });
 
   // Flatten the data to the AgentSession type
-  const flattenedData = data.map((session) => ({
-    sessionId: session.sessionId,
-    updatedAt: session.updatedAt,
-    chatName: session.agentChats[0].chatName,
-    machineStatus: session.agentChats[0].machineStatus,
-    userId: session.agentChats[0].userId,
-  } as AgentSession));
+  const flattenedData = data.flatMap((session) => (
+    session.agentChats.map((chat) => ({
+      sessionId: session.sessionId,
+      updatedAt: session.updatedAt,
+      chatName: chat.chatName,
+      machineStatus: chat.machineStatus,
+      userId: chat.userId,
+    }))
+  ));
 
   return new Response(JSON.stringify(flattenedData));
 }
