@@ -112,7 +112,6 @@ export function useAgentChat({
                   summary: chunk.summary,
                   actionResult: chunk.actionResult,
                 },
-                userId,
                 sessionId: id,
               };
               setMessages((messages) => [...messages, stepMessage]);
@@ -124,7 +123,6 @@ export function useAgentChat({
                   text: chunk.content.result.content ?? "-",
                   actionResult: chunk.content.result,
                 },
-                userId,
                 sessionId: id,
               };
               setMessages((messages) => [...messages, finalMessage]);
@@ -171,7 +169,6 @@ export function useAgentChat({
                 summary: chunk.summary,
                 actionResult: chunk.actionResult,
               },
-              userId,
               sessionId: id,
             };
             setMessages((messages) => [...messages, stepMessage]);
@@ -183,7 +180,6 @@ export function useAgentChat({
                 text: chunk.content.result.content ?? "-",
                 actionResult: chunk.content.result,
               },
-              userId,
               sessionId: id,
             };
             setMessages((messages) => [...messages, finalMessage]);

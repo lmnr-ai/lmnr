@@ -35,10 +35,10 @@ impl AgentManagerTrait for AgentManagerImpl {
     async fn run_agent(
         &self,
         prompt: String,
-        session_id: Option<Uuid>,
+        session_id: Uuid,
+        is_chat_request: bool,
         request_api_key: Option<String>,
         parent_span_context: Option<String>,
-        agent_state: Option<String>,
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
@@ -48,10 +48,10 @@ impl AgentManagerTrait for AgentManagerImpl {
 
         let request = Request::new(RunAgentRequest {
             prompt,
-            session_id: session_id.map(|id| id.to_string()),
+            session_id: session_id.to_string(),
+            is_chat_request,
             request_api_key,
             parent_span_context,
-            agent_state,
             model_provider: model_provider.map(|p| p.to_i32()),
             model,
             enable_thinking: Some(enable_thinking),
@@ -66,10 +66,10 @@ impl AgentManagerTrait for AgentManagerImpl {
     async fn run_agent_stream(
         &self,
         prompt: String,
-        session_id: Option<Uuid>,
+        session_id: Uuid,
+        is_chat_request: bool,
         request_api_key: Option<String>,
         parent_span_context: Option<String>,
-        agent_state: Option<String>,
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
@@ -79,10 +79,10 @@ impl AgentManagerTrait for AgentManagerImpl {
 
         let request = Request::new(RunAgentRequest {
             prompt,
-            session_id: session_id.map(|id| id.to_string()),
+            session_id: session_id.to_string(),
+            is_chat_request,
             request_api_key,
             parent_span_context,
-            agent_state,
             model_provider: model_provider.map(|p| p.to_i32()),
             model,
             enable_thinking: Some(enable_thinking),

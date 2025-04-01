@@ -36,7 +36,8 @@ interface ManageSubscriptionEventArgs {
   isAdditionalSeats?: boolean;
 }
 
-export async function getUserSubscriptionInfo(email: string): Promise<typeof userSubscriptionInfo.$inferSelect | undefined> {
+export async function getUserSubscriptionInfo(email: string):
+  Promise<typeof userSubscriptionInfo.$inferSelect | undefined> {
   const existingStripeCustomers = await db.select()
     .from(userSubscriptionInfo)
     .innerJoin(users, eq(userSubscriptionInfo.userId, users.id))
@@ -93,9 +94,7 @@ export const manageSubscriptionEvent = async ({
   if (currentTier.tierId === 1) {
     await db.update(workspaceUsage).set({
       prevSpanCount: workspaceUsage.spanCount,
-      prevEventCount: workspaceUsage.eventCount,
       spanCountSinceReset: 0,
-      eventCountSinceReset: 0,
       resetTime: sql`now()`,
       resetReason: 'subscription_change'
     }).where(eq(workspaceUsage.workspaceId, workspaceId));
@@ -127,7 +126,9 @@ const updateUsageCacheForWorkspace = async (workspaceId: string) => {
     db.select({
       tierName: subscriptionTiers.name,
       spansLimit: subscriptionTiers.spans,
-      spansThisMonth: workspaceUsage.spanCount
+      stepsLimit: subscriptionTiers.steps,
+      spansThisMonth: workspaceUsage.spanCount,
+      stepsThisMonth: workspaceUsage.stepCount
     }).from(workspaces)
       .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
       .innerJoin(workspaceUsage, eq(workspaces.id, workspaceUsage.workspaceId))
@@ -135,10 +136,14 @@ const updateUsageCacheForWorkspace = async (workspaceId: string) => {
   );
 
   const limitExceededRows = await db.with(baseQuery).select({
-    result: sql`span_count >= spans AND LOWER(TRIM(name)) = 'free'`
+    spans: sql`span_count >= spans AND LOWER(TRIM(name)) = 'free'`,
+    steps: sql`step_count >= steps AND LOWER(TRIM(name)) = 'free'`
   }).from(baseQuery);
 
-  const limitExceeded = limitExceededRows.length > 0 && !!limitExceededRows[0].result;
+  const limitExceeded = {
+    spans: limitExceededRows.length > 0 && !!limitExceededRows[0].spans,
+    steps: limitExceededRows.length > 0 && !!limitExceededRows[0].steps
+  };
 
   await cache.set(cacheKey, limitExceeded);
 };

@@ -54,11 +54,10 @@ impl Into<ActionResult> for ActionResultGrpc {
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AgentOutput {
     pub result: ActionResult,
-    // For now, we don't return the state to neither the frontend nor API
-    #[serde(skip_serializing)]
-    pub state: String,
     #[serde(skip_serializing)]
     pub cookies: Option<Vec<HashMap<String, String>>>,
+    // pub state: String,
+    pub step_count: Option<u64>,
 }
 
 impl Into<Cookie> for HashMap<String, String> {
@@ -76,9 +75,9 @@ impl Into<AgentOutput> for AgentOutputGrpc {
             .collect::<Vec<_>>();
 
         AgentOutput {
-            state: self.agent_state,
             result: self.result.unwrap().into(),
             cookies: (!cookies.is_empty()).then_some(cookies),
+            step_count: self.step_count,
         }
     }
 }
@@ -113,6 +112,13 @@ impl RunAgentResponseStreamChunk {
             RunAgentResponseStreamChunk::FinalOutput(f) => f.created_at,
         }
     }
+
+    pub fn trace_id(&self) -> Uuid {
+        match self {
+            RunAgentResponseStreamChunk::Step(s) => s.trace_id,
+            RunAgentResponseStreamChunk::FinalOutput(f) => f.trace_id,
+        }
+    }
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -121,6 +127,7 @@ pub struct FinalOutputChunkContent {
     pub message_id: Uuid,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub content: AgentOutput,
+    pub trace_id: Uuid,
 }
 
 impl RunAgentResponseStreamChunk {
@@ -152,9 +159,13 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
                 RunAgentResponseStreamChunk::Step(s.into())
             }
             RunAgentResponseStreamChunkTypeGrpc::AgentOutput(a) => {
+                let output_trace_id = a.trace_id.clone();
                 RunAgentResponseStreamChunk::FinalOutput(FinalOutputChunkContent {
                     message_id: Uuid::new_v4(),
                     created_at: chrono::Utc::now(),
+                    trace_id: output_trace_id
+                        .and_then(|id| Uuid::parse_str(&id).ok())
+                        .unwrap_or(Uuid::new_v4()),
                     content: a.into(),
                 })
             }
@@ -169,6 +180,7 @@ pub struct StepChunkContent {
     pub message_id: Uuid,
     pub action_result: ActionResult,
     pub summary: String,
+    pub trace_id: Uuid,
 }
 
 impl Into<StepChunkContent> for StepChunkContentGrpc {
@@ -178,6 +190,7 @@ impl Into<StepChunkContent> for StepChunkContentGrpc {
             message_id: Uuid::new_v4(),
             action_result: self.action_result.unwrap().into(),
             summary: self.summary,
+            trace_id: Uuid::parse_str(&self.trace_id).unwrap_or(Uuid::new_v4()),
         }
     }
 }

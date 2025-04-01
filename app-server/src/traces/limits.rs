@@ -1,3 +1,5 @@
+// TODO: move this from the traces module
+
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -16,9 +18,9 @@ pub async fn get_workspace_limit_exceeded_by_project_id(
     cache: Arc<Cache>,
     project_id: Uuid,
 ) -> Result<WorkspaceLimitsExceeded> {
-    let cache_key = format!("{WORKSPACE_LIMITS_CACHE_KEY}:{project_id}");
     let workspace_id =
         get_workspace_id_for_project_id(db.clone(), cache.clone(), project_id).await?;
+    let cache_key = format!("{WORKSPACE_LIMITS_CACHE_KEY}:{workspace_id}");
     let cache_res = cache.get::<WorkspaceLimitsExceeded>(&cache_key).await;
     match cache_res {
         Ok(Some(workspace_limits_exceeded)) => Ok(workspace_limits_exceeded),

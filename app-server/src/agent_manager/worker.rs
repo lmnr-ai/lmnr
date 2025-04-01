@@ -3,10 +3,10 @@ use std::sync::Arc;
 use futures::StreamExt;
 use uuid::Uuid;
 
-use crate::db::{self, agent_manager::MessageType, DB};
+use crate::db::{self, agent_messages::MessageType, DB};
 
 use super::{
-    channel::AgentManagerChannel,
+    channel::AgentManagerWorkers,
     cookies,
     types::{ModelProvider, RunAgentResponseStreamChunk, WorkerStreamChunk},
     AgentManager, AgentManagerTrait,
@@ -20,50 +20,39 @@ pub struct RunAgentWorkerOptions {
 
 pub async fn run_agent_worker(
     agent_manager: Arc<AgentManager>,
-    worker_channel: Arc<AgentManagerChannel>,
+    worker_channel: Arc<AgentManagerWorkers>,
     db: Arc<DB>,
     session_id: Uuid,
-    user_id: Uuid,
+    // If user_id is Some, we are running the agent in Chat mode,
+    user_id: Option<Uuid>,
     prompt: String,
     options: RunAgentWorkerOptions,
 ) {
-    let agent_state = match db::agent_manager::get_agent_state(&db.pool, &session_id).await {
-        Ok(Some(agent_state)) => Some(agent_state),
-        Ok(None) => {
-            log::debug!("No agent state found for session_id: {}", session_id);
-            None
+    let cookies = if let Some(user_id) = user_id {
+        match cookies::get_cookies(&db.pool, &user_id).await {
+            Ok(cookies) => cookies,
+            Err(e) => {
+                log::error!("Error getting cookies: {}", e);
+                Vec::new()
+            }
         }
-        Err(e) => {
-            log::error!("Error getting agent state: {}", e);
-            return;
-        }
-    };
-
-    let cookies = match cookies::get_cookies(&db.pool, &user_id).await {
-        Ok(cookies) => cookies,
-        Err(e) => {
-            log::error!("Error getting cookies: {}", e);
-            Vec::new()
-        }
+    } else {
+        Vec::new()
     };
 
     let mut stream = agent_manager
         .run_agent_stream(
             prompt,
-            Some(session_id),
+            session_id,
+            user_id.is_some(),
             None,
             None,
-            agent_state,
             options.model_provider,
             options.model,
             options.enable_thinking,
             cookies,
         )
         .await;
-
-    if let Err(e) = db::agent_manager::update_agent_user_id(&db.pool, &session_id, &user_id).await {
-        log::error!("Error updating agent user id: {}", e);
-    }
 
     while let Some(chunk) = stream.next().await {
         if worker_channel.is_stopped(session_id) {
@@ -76,38 +65,31 @@ pub async fn run_agent_worker(
                     RunAgentResponseStreamChunk::FinalOutput(_) => MessageType::Assistant,
                 };
 
-                // TODO: Run these DB tasks in parallel for the last message?
-                if let Err(e) = db::agent_manager::insert_agent_message(
-                    &db.pool,
-                    &chunk.message_id(),
-                    &session_id,
-                    &user_id,
-                    &message_type,
-                    &chunk.message_content(),
-                    &chunk.created_at(),
-                )
-                .await
-                {
-                    log::error!("Error inserting agent message: {}", e);
+                if user_id.is_some() {
+                    if let Err(e) = db::agent_messages::insert_agent_message(
+                        &db.pool,
+                        &chunk.message_id(),
+                        &session_id,
+                        &chunk.trace_id(),
+                        &message_type,
+                        &chunk.message_content(),
+                        &chunk.created_at(),
+                    )
+                    .await
+                    {
+                        log::error!("Error inserting agent message: {}", e);
+                    }
                 }
 
                 if let RunAgentResponseStreamChunk::FinalOutput(final_output) = &chunk {
                     if let Some(cookies) = final_output.content.cookies.as_ref() {
-                        if let Err(e) = cookies::insert_cookies(&db.pool, &user_id, &cookies).await
-                        {
-                            log::error!("Error inserting cookies: {}", e);
+                        if let Some(user_id) = user_id {
+                            if let Err(e) =
+                                cookies::insert_cookies(&db.pool, &user_id, &cookies).await
+                            {
+                                log::error!("Error inserting cookies: {}", e);
+                            }
                         }
-                    }
-
-                    if let Err(e) = db::agent_manager::update_agent_state(
-                        &db.pool,
-                        &session_id,
-                        &final_output.content.state,
-                        &user_id,
-                    )
-                    .await
-                    {
-                        log::error!("Error updating agent state: {}", e);
                     }
                 }
 

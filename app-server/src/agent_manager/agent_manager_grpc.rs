@@ -11,14 +11,15 @@ pub struct Cookie {
 pub struct RunAgentRequest {
     #[prost(string, tag = "1")]
     pub prompt: ::prost::alloc::string::String,
-    #[prost(string, optional, tag = "2")]
-    pub session_id: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "3")]
-    pub request_api_key: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "2")]
+    pub session_id: ::prost::alloc::string::String,
+    /// control flag to distinguish frontend requests
+    #[prost(bool, tag = "3")]
+    pub is_chat_request: bool,
     #[prost(string, optional, tag = "4")]
-    pub parent_span_context: ::core::option::Option<::prost::alloc::string::String>,
+    pub request_api_key: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "5")]
-    pub agent_state: ::core::option::Option<::prost::alloc::string::String>,
+    pub parent_span_context: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(enumeration = "ModelProvider", optional, tag = "6")]
     pub model_provider: ::core::option::Option<i32>,
     #[prost(string, optional, tag = "7")]
@@ -45,15 +46,19 @@ pub struct StepChunkContent {
     pub action_result: ::core::option::Option<ActionResult>,
     #[prost(string, tag = "2")]
     pub summary: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub trace_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AgentOutput {
-    #[prost(string, tag = "1")]
-    pub agent_state: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "2")]
+    #[prost(message, optional, tag = "1")]
     pub result: ::core::option::Option<ActionResult>,
-    #[prost(message, repeated, tag = "3")]
+    #[prost(message, repeated, tag = "2")]
     pub cookies: ::prost::alloc::vec::Vec<Cookie>,
+    #[prost(string, optional, tag = "3")]
+    pub trace_id: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(uint64, optional, tag = "4")]
+    pub step_count: ::core::option::Option<u64>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunAgentResponseStreamChunk {

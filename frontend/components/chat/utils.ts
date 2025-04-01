@@ -148,7 +148,6 @@ export const initiateChat = async (
       },
     },
     sessionId,
-    userId,
     createdAt: new Date().toISOString(),
   };
 

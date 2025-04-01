@@ -5,10 +5,9 @@ use futures::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::agent_manager::channel::AgentManagerChannel;
+use crate::agent_manager::channel::AgentManagerWorkers;
 use crate::agent_manager::types::{ControlChunk, RunAgentResponseStreamChunk, WorkerStreamChunk};
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
-use crate::db::user::User;
 use crate::routes::types::ResponseResult;
 use crate::{
     agent_manager::{types::ModelProvider, AgentManager},
@@ -19,6 +18,7 @@ use crate::{
 #[serde(rename_all = "camelCase")]
 struct RunAgentRequest {
     session_id: Uuid,
+    user_id: Uuid,
     #[serde(default)]
     prompt: Option<String>,
     #[serde(default)]
@@ -40,9 +40,8 @@ fn default_true() -> bool {
 #[post("run")]
 pub async fn run_agent_manager(
     agent_manager: web::Data<Arc<AgentManager>>,
-    user: User,
     db: web::Data<DB>,
-    worker_channel: web::Data<Arc<AgentManagerChannel>>,
+    worker_channel: web::Data<Arc<AgentManagerWorkers>>,
     request: web::Json<RunAgentRequest>,
 ) -> ResponseResult {
     let request = request.into_inner();
@@ -77,7 +76,7 @@ pub async fn run_agent_manager(
                 worker_channel.as_ref().clone(),
                 db.into_inner(),
                 session_id,
-                user.id,
+                Some(request.user_id),
                 request.prompt.unwrap_or_default(),
                 options,
             )
@@ -128,7 +127,7 @@ struct StopAgentRequest {
 
 #[post("stop")]
 pub async fn stop_agent_manager(
-    worker_channel: web::Data<Arc<AgentManagerChannel>>,
+    worker_channel: web::Data<Arc<AgentManagerWorkers>>,
     request: web::Json<StopAgentRequest>,
 ) -> ResponseResult {
     let session_id = request.session_id;
