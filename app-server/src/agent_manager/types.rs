@@ -159,10 +159,13 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
                 RunAgentResponseStreamChunk::Step(s.into())
             }
             RunAgentResponseStreamChunkTypeGrpc::AgentOutput(a) => {
+                let output_trace_id = a.trace_id.clone();
                 RunAgentResponseStreamChunk::FinalOutput(FinalOutputChunkContent {
                     message_id: Uuid::new_v4(),
                     created_at: chrono::Utc::now(),
-                    trace_id: Uuid::parse_str(&a.trace_id).unwrap_or(Uuid::new_v4()),
+                    trace_id: output_trace_id
+                        .and_then(|id| Uuid::parse_str(&id).ok())
+                        .unwrap_or(Uuid::new_v4()),
                     content: a.into(),
                 })
             }
