@@ -15,8 +15,3 @@ export type WorkspaceStats = {
 export type StorageStats = {
   storageMib?: number; // total storage used in MiB
 };
-
-export type UserWorkspacesCount = {
-  numWorkspaces: number;
-  workspacesLimit: number;
-};

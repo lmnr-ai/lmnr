@@ -11,7 +11,7 @@ import MultimodalInput from "@/components/chat/multimodal-input";
 import Placeholder from "@/components/chat/placeholder";
 import Suggestions from "@/components/chat/suggestions";
 import { AgentSession, ChatMessage } from "@/components/chat/types";
-import { useAgentChat } from "@/components/chat/useAgentChat";
+import { useAgentChat } from "@/components/chat/use-agent-chat";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
@@ -24,7 +24,7 @@ interface ChatProps {
 const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
   const [modelState, setModelState] = useState<{ model: string; enableThinking: boolean }>({
     model: "claude-3-7-sonnet-20250219",
-    enableThinking: false,
+    enableThinking: true,
   });
 
   const { messages, handleSubmit, stop, isLoading, input, setInput } = useAgentChat({

@@ -1,10 +1,12 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 use super::agent_manager_grpc::{
     run_agent_response_stream_chunk::ChunkType as RunAgentResponseStreamChunkTypeGrpc,
-    ActionResult as ActionResultGrpc, AgentOutput as AgentOutputGrpc,
+    ActionResult as ActionResultGrpc, AgentOutput as AgentOutputGrpc, Cookie,
     RunAgentResponseStreamChunk as RunAgentResponseStreamChunkGrpc,
     StepChunkContent as StepChunkContentGrpc,
 };
@@ -34,6 +36,8 @@ pub struct ActionResult {
     pub content: Option<String>,
     #[serde(default)]
     pub error: Option<String>,
+    #[serde(default)]
+    pub give_control: bool,
 }
 
 impl Into<ActionResult> for ActionResultGrpc {
@@ -42,21 +46,38 @@ impl Into<ActionResult> for ActionResultGrpc {
             is_done: self.is_done.unwrap_or_default(),
             content: self.content,
             error: self.error,
+            give_control: self.give_control.unwrap_or_default(),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AgentOutput {
-    pub state: String,
     pub result: ActionResult,
+    #[serde(skip_serializing)]
+    pub cookies: Option<Vec<HashMap<String, String>>>,
+    // pub state: String,
+    pub step_count: Option<u64>,
+}
+
+impl Into<Cookie> for HashMap<String, String> {
+    fn into(self) -> Cookie {
+        Cookie { cookie_data: self }
+    }
 }
 
 impl Into<AgentOutput> for AgentOutputGrpc {
     fn into(self) -> AgentOutput {
+        let cookies = self
+            .cookies
+            .into_iter()
+            .map(|c| c.cookie_data)
+            .collect::<Vec<_>>();
+
         AgentOutput {
-            state: self.agent_state,
             result: self.result.unwrap().into(),
+            cookies: (!cookies.is_empty()).then_some(cookies),
+            step_count: self.step_count,
         }
     }
 }
@@ -84,43 +105,29 @@ impl RunAgentResponseStreamChunk {
             RunAgentResponseStreamChunk::FinalOutput(f) => f.message_id,
         }
     }
-}
-// Frontend does not need the full agent output, so we have a thinner version
-// of final output for it
-#[derive(Serialize, Clone)]
-#[serde(tag = "chunkType", rename_all = "camelCase")]
-pub enum RunAgentResponseStreamChunkFrontend {
-    Step(StepChunkContent),
-    FinalOutput(FinalOutputChunkContentFrontend),
-}
 
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentOutputFrontend {
-    pub result: ActionResult,
-}
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct FinalOutputChunkContentFrontend {
-    pub message_id: Uuid,
-    pub content: AgentOutputFrontend,
-}
-
-impl Into<RunAgentResponseStreamChunkFrontend> for RunAgentResponseStreamChunk {
-    fn into(self) -> RunAgentResponseStreamChunkFrontend {
+    pub fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
         match self {
-            RunAgentResponseStreamChunk::Step(s) => RunAgentResponseStreamChunkFrontend::Step(s),
-            RunAgentResponseStreamChunk::FinalOutput(f) => {
-                RunAgentResponseStreamChunkFrontend::FinalOutput(FinalOutputChunkContentFrontend {
-                    message_id: f.message_id,
-                    content: AgentOutputFrontend {
-                        result: f.content.result,
-                    },
-                })
-            }
+            RunAgentResponseStreamChunk::Step(s) => s.created_at,
+            RunAgentResponseStreamChunk::FinalOutput(f) => f.created_at,
         }
     }
+
+    pub fn trace_id(&self) -> Uuid {
+        match self {
+            RunAgentResponseStreamChunk::Step(s) => s.trace_id,
+            RunAgentResponseStreamChunk::FinalOutput(f) => f.trace_id,
+        }
+    }
+}
+
+#[derive(Serialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FinalOutputChunkContent {
+    pub message_id: Uuid,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub content: AgentOutput,
+    pub trace_id: Uuid,
 }
 
 impl RunAgentResponseStreamChunk {
@@ -135,10 +142,11 @@ impl RunAgentResponseStreamChunk {
         match self {
             RunAgentResponseStreamChunk::Step(step) => serde_json::json!({
                 "summary": step.summary,
-                "action_result": step.action_result,
+                "actionResult": step.action_result,
             }),
             RunAgentResponseStreamChunk::FinalOutput(final_output) => serde_json::json!({
                 "text": final_output.content.result.content.clone().unwrap_or_default(),
+                "actionResult": final_output.content.result,
             }),
         }
     }
@@ -151,8 +159,13 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
                 RunAgentResponseStreamChunk::Step(s.into())
             }
             RunAgentResponseStreamChunkTypeGrpc::AgentOutput(a) => {
+                let output_trace_id = a.trace_id.clone();
                 RunAgentResponseStreamChunk::FinalOutput(FinalOutputChunkContent {
                     message_id: Uuid::new_v4(),
+                    created_at: chrono::Utc::now(),
+                    trace_id: output_trace_id
+                        .and_then(|id| Uuid::parse_str(&id).ok())
+                        .unwrap_or(Uuid::new_v4()),
                     content: a.into(),
                 })
             }
@@ -163,24 +176,21 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct StepChunkContent {
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub message_id: Uuid,
     pub action_result: ActionResult,
     pub summary: String,
+    pub trace_id: Uuid,
 }
 
 impl Into<StepChunkContent> for StepChunkContentGrpc {
     fn into(self) -> StepChunkContent {
         StepChunkContent {
+            created_at: chrono::Utc::now(),
             message_id: Uuid::new_v4(),
             action_result: self.action_result.unwrap().into(),
             summary: self.summary,
+            trace_id: Uuid::parse_str(&self.trace_id).unwrap_or(Uuid::new_v4()),
         }
     }
-}
-
-#[derive(Serialize, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct FinalOutputChunkContent {
-    pub message_id: Uuid,
-    pub content: AgentOutput,
 }

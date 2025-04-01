@@ -7,7 +7,7 @@ use crate::{
     ch::{self, spans::CHSpan},
     db::{
         events::Event, labels::get_registered_label_classes_for_path, spans::Span,
-        stats::add_spans_and_events_to_project_usage_stats, DB,
+        stats::add_spans_to_project_usage_stats, DB,
     },
     mq::MessageQueueAcker,
     pipeline::runner::PipelineRunner,
@@ -66,11 +66,7 @@ pub async fn process_spans_and_events(
         }
     }
 
-    let events_count = events.len() as i64;
-
-    if let Err(e) =
-        add_spans_and_events_to_project_usage_stats(&db.pool, &project_id, 1, events_count).await
-    {
+    if let Err(e) = add_spans_to_project_usage_stats(&db.pool, &project_id, 1).await {
         log::error!(
             "Failed to add spans and events to project usage stats: {:?}",
             e
