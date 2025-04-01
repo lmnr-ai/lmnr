@@ -2,7 +2,6 @@ import { desc, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 
-import { AgentSession } from "@/components/chat/types";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { agentChats, agentSessions, users } from "@/lib/db/migrations/schema";

@@ -6,8 +6,9 @@ import { agentSessions } from '@/lib/db/migrations/schema';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  props: { params: Promise<{ sessionId: string }> }
 ) {
+  const params = await props.params;
   const sessionId = params.sessionId;
   try {
 

@@ -37,7 +37,6 @@ export type ChatMessageContent = { summary: string; actionResult: ActionResult }
 export interface ChatMessage {
   id: string;
   sessionId: string;
-  userId: string;
   messageType: "step" | "assistant" | "user";
   content: ChatMessageContent;
   createdAt?: string;

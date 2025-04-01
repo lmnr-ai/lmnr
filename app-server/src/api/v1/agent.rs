@@ -174,17 +174,17 @@ pub async fn run_agent_manager(
 
         match fut.await {
             Ok(response) => {
-                // TODO: hard-coded 1 for now, but we should get the actual number of steps from the response
+                let response = response?;
                 if let Err(e) = db::stats::add_agent_steps_to_project_usage_stats(
                     &db.pool,
                     &project_api_key.project_id,
-                    1,
+                    response.step_count.unwrap_or(0) as i64,
                 )
                 .await
                 {
                     log::error!("Error adding agent steps to project usage stats: {}", e);
                 }
-                Ok(HttpResponse::Ok().json(response?))
+                Ok(HttpResponse::Ok().json(response))
             }
             Err(e) if e.is_cancelled() => Ok(HttpResponse::NoContent().finish()),
             Err(e) => {

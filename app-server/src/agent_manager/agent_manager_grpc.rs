@@ -57,6 +57,8 @@ pub struct AgentOutput {
     pub cookies: ::prost::alloc::vec::Vec<Cookie>,
     #[prost(string, tag = "3")]
     pub trace_id: ::prost::alloc::string::String,
+    #[prost(uint64, optional, tag = "4")]
+    pub step_count: ::core::option::Option<u64>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunAgentResponseStreamChunk {

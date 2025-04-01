@@ -36,7 +36,8 @@ interface ManageSubscriptionEventArgs {
   isAdditionalSeats?: boolean;
 }
 
-export async function getUserSubscriptionInfo(email: string): Promise<typeof userSubscriptionInfo.$inferSelect | undefined> {
+export async function getUserSubscriptionInfo(email: string):
+  Promise<typeof userSubscriptionInfo.$inferSelect | undefined> {
   const existingStripeCustomers = await db.select()
     .from(userSubscriptionInfo)
     .innerJoin(users, eq(userSubscriptionInfo.userId, users.id))

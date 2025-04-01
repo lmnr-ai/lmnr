@@ -145,7 +145,6 @@ export const initiateChat = async (
       text: input,
     },
     sessionId,
-    userId,
     createdAt: new Date().toISOString(),
   };
 

@@ -57,6 +57,7 @@ pub struct AgentOutput {
     #[serde(skip_serializing)]
     pub cookies: Option<Vec<HashMap<String, String>>>,
     // pub state: String,
+    pub step_count: Option<u64>,
 }
 
 impl Into<Cookie> for HashMap<String, String> {
@@ -76,6 +77,7 @@ impl Into<AgentOutput> for AgentOutputGrpc {
         AgentOutput {
             result: self.result.unwrap().into(),
             cookies: (!cookies.is_empty()).then_some(cookies),
+            step_count: self.step_count,
         }
     }
 }

@@ -40,6 +40,7 @@ message AgentOutput {
     ActionResult result = 1;
     repeated Cookie cookies = 2;
     string trace_id = 3;
+    optional uint64 step_count = 4;
 }
 
 message RunAgentResponseStreamChunk {
