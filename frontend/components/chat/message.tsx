@@ -20,7 +20,7 @@ const Message = ({ message }: MessageProps) => (
     >
       <div
         className={cn(
-          "flex gap-4 w-full mb-6",
+          "flex gap-4 mb-6",
           "group-data-[type=user]/message:ml-auto group-data-[type=user]/message:w-fit group-data-[type=user]/message:max-w-2xl",
           "group-data-[type=step]/message:mb-2",
           "group-data-[type=step]/message:ml-12"
@@ -33,7 +33,7 @@ const Message = ({ message }: MessageProps) => (
         )}
 
         {"text" in message.content ? (
-          <div className="flex flex-row gap-2 items-start">
+          <div className="flex flex-col gap-2 items-start">
             <div
               className={cn("flex flex-col gap-4", {
                 "text-primary-foreground px-3 py-2 rounded-l-xl rounded-tr-xl bg-secondary":
@@ -44,10 +44,8 @@ const Message = ({ message }: MessageProps) => (
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-start">
-            <div className="flex flex-col gap-4 text-secondary-foreground">
-              <Markdown>{message.content.summary}</Markdown>
-            </div>
+          <div className="flex flex-col gap-4 text-secondary-foreground">
+            <Markdown>{message.content.summary}</Markdown>
           </div>
         )}
       </div>

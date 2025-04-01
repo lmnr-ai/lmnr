@@ -1,19 +1,22 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import useSWR from "swr";
 
 import { AgentSession } from "@/components/chat/types";
+import { Button } from "@/components/ui/button";
+import { useSidebar } from "@/components/ui/sidebar";
 import { cn, swrFetcher } from "@/lib/utils";
 
-import { ResizableHandle, ResizablePanel } from "../ui/resizable";
+interface BrowserWindowProps {
+  onControl: () => void;
+  isControlled: boolean;
+}
 
-const BrowserWindow = () => {
+const BrowserWindow = ({ onControl, isControlled }: BrowserWindowProps) => {
   const pathname = usePathname();
   const sessionId = pathname.split("/")?.[2];
-  const [isResizing, setIsResizing] = useState(false);
-
+  const { setOpen } = useSidebar();
   const { data } = useSWR<Pick<AgentSession, "vncUrl" | "machineStatus">>(
     () => (sessionId ? `/api/agent-sessions/${sessionId}` : null),
     swrFetcher,
@@ -27,31 +30,39 @@ const BrowserWindow = () => {
 
   return (
     <>
-      <ResizableHandle onDragging={setIsResizing} withHandle />
-      <ResizablePanel
-        className={cn("flex overflow-hidden flex-1 max-w-0", {
-          "max-w-full px-4": isBrowserActive,
-          "transition-all duration-300 ease-linear": !isResizing,
-        })}
-        defaultSize={40}
-        maxSize={60}
-        minSize={20}
+      <div
+        className={cn(
+          "z-50 bg-background rounded-lg w-full flex flex-col transition-all duration-300 aspect-[4/3]",
+          isBrowserActive ? "max-w-md sm:max-w-sm md:max-w-md xl:max-w-4xl p-4" : "max-w-0",
+          {
+            "!max-w-full left-0 right-0 top-0 bottom-0 p-4": isControlled,
+          }
+        )}
       >
-        {isBrowserActive && (
-          <div
-            className="w-full relative flex items-center justify-center my-auto overflow-hidden bg-background rounded-md"
-            style={{ aspectRatio: "4/3" }}
-          >
-            <iframe
-              width="100%"
-              height="100%"
-              src={data.vncUrl}
-              className="w-full h-full rounded-md animate-in bg-transparent fade-in zoom-in duration-500 fill-mode-forwards"
-            />
-            <div className="absolute z-50 w-full h-full bg-transparent" />
+        <div
+          className={cn(
+            "relative flex items-center justify-center rounded-md overflow-hidden aspect-[4/3]",
+            isControlled ? "mx-auto h-full" : "w-full my-auto"
+          )}
+        >
+          <iframe src={data?.vncUrl} className="w-full h-full rounded-md bg-transparent aspect-[4/3]" />
+          {!isControlled && <div className="absolute z-50 w-full h-full bg-transparent" />}
+        </div>
+        {isControlled && (
+          <div className="mx-auto mt-4">
+            <Button
+              className="w-fit mx-auto"
+              onClick={() => {
+                onControl();
+                setOpen(false);
+              }}
+            >
+              {" "}
+              Give control back
+            </Button>
           </div>
         )}
-      </ResizablePanel>
+      </div>
     </>
   );
 };
