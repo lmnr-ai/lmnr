@@ -52,6 +52,8 @@ pub async fn run_agent_manager(
     let agent_manager = agent_manager.as_ref().clone();
     let db = db.into_inner();
     let cache = cache.into_inner();
+    let (drop_sender, drop_guard) = tokio::sync::oneshot::channel::<()>();
+    let worker_states = worker_states.into_inner();
 
     if is_feature_enabled(Feature::UsageLimit) {
         match get_workspace_limit_exceeded_by_project_id(
@@ -92,6 +94,12 @@ pub async fn run_agent_manager(
         .await
         .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
 
+    let worker_states_clone = worker_states.clone();
+    tokio::spawn(async move {
+        let _ = drop_guard.await;
+        worker_states_clone.stop_session(session_id).await;
+    });
+
     if request.stream {
         let mut receiver = worker_states.create_channel_and_get_rx(session_id);
         let options = RunAgentWorkerOptions {
@@ -113,6 +121,7 @@ pub async fn run_agent_manager(
             .await;
         });
         let stream = async_stream::stream! {
+            let _drop_guard = drop_sender;
             while let Some(message) = receiver.recv().await {
                 match message {
                     Ok(WorkerStreamChunk::AgentChunk(agent_chunk)) => {
