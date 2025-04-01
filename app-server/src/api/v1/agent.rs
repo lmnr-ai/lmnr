@@ -11,9 +11,11 @@ use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::agent_manager::{types::ModelProvider, AgentManager, AgentManagerTrait};
 use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
 use crate::db::project_api_keys::ProjectApiKey;
-use crate::db::DB;
+use crate::db::{self, DB};
+use crate::features::{is_feature_enabled, Feature};
 use crate::project_api_keys::ProjectApiKeyVals;
 use crate::routes::types::ResponseResult;
+use crate::traces::limits::get_workspace_limit_exceeded_by_project_id;
 
 const REQUEST_API_KEY_TTL: u64 = 60 * 60; // 1 hour
 
@@ -48,7 +50,27 @@ pub async fn run_agent_manager(
 ) -> ResponseResult {
     let request = request.into_inner();
     let agent_manager = agent_manager.as_ref().clone();
+    let db = db.into_inner();
+    let cache = cache.into_inner();
 
+    if is_feature_enabled(Feature::UsageLimit) {
+        match get_workspace_limit_exceeded_by_project_id(
+            db.clone(),
+            cache.clone(),
+            project_api_key.project_id,
+        )
+        .await
+        {
+            Ok(limits_exceeded) => {
+                if limits_exceeded.steps {
+                    return Ok(HttpResponse::Forbidden().json("Workspace step limit exceeded"));
+                }
+            }
+            Err(e) => {
+                log::error!("Error getting workspace limit exceeded: {}", e);
+            }
+        }
+    }
     let request_api_key_vals = ProjectApiKeyVals::new();
     let request_api_key = ProjectApiKey {
         project_id: project_api_key.project_id,
@@ -77,11 +99,12 @@ pub async fn run_agent_manager(
             model: request.model,
             enable_thinking: request.enable_thinking,
         };
+        let pool = db.pool.clone();
         tokio::spawn(async move {
             run_agent_worker(
                 agent_manager.clone(),
                 worker_states.as_ref().clone(),
-                db.into_inner(),
+                db.clone(),
                 session_id,
                 None,
                 request.prompt,
@@ -93,6 +116,13 @@ pub async fn run_agent_manager(
             while let Some(message) = receiver.recv().await {
                 match message {
                     Ok(WorkerStreamChunk::AgentChunk(agent_chunk)) => {
+                        if let Err(e) =
+                            db::stats::add_agent_steps_to_project_usage_stats(&pool, &project_api_key.project_id, 1)
+                                .await
+                        {
+                            log::error!("Error adding agent steps to project usage stats: {}", e);
+                        }
+
                         match agent_chunk {
                             RunAgentResponseStreamChunk::FinalOutput(_) => {
                                 yield anyhow::Ok(agent_chunk.into());
@@ -143,7 +173,19 @@ pub async fn run_agent_manager(
         worker_states.insert_abort_handle(session_id, fut.abort_handle());
 
         match fut.await {
-            Ok(response) => Ok(HttpResponse::Ok().json(response?)),
+            Ok(response) => {
+                // TODO: hard-coded 1 for now, but we should get the actual number of steps from the response
+                if let Err(e) = db::stats::add_agent_steps_to_project_usage_stats(
+                    &db.pool,
+                    &project_api_key.project_id,
+                    1,
+                )
+                .await
+                {
+                    log::error!("Error adding agent steps to project usage stats: {}", e);
+                }
+                Ok(HttpResponse::Ok().json(response?))
+            }
             Err(e) if e.is_cancelled() => Ok(HttpResponse::NoContent().finish()),
             Err(e) => {
                 log::error!("Error running agent: {}", e);

@@ -1,7 +1,8 @@
-import { NextRequest } from 'next/server';
-import { agentSessions } from '@/lib/db/migrations/schema';
 import { eq } from 'drizzle-orm';
+import { NextRequest } from 'next/server';
+
 import { db } from '@/lib/db/drizzle';
+import { agentSessions } from '@/lib/db/migrations/schema';
 
 export async function GET(
   request: NextRequest,

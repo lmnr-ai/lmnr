@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+
 import { fetcher } from '@/lib/utils';
 
 export async function POST(
@@ -28,4 +29,4 @@ export async function POST(
       headers: { 'Content-Type': 'application/json' }
     });
   }
-} 
+}

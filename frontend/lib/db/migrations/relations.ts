@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { projects, datasets, datasetDatapoints, workspaces, labelClassesForPath, users, membersOfWorkspaces, subscriptionTiers, pipelines, projectApiKeys, providerApiKeys, targetPipelineVersions, pipelineVersions, userSubscriptionInfo, workspaceUsage, labelingQueues, labelingQueueItems, apiKeys, evaluations, playgrounds, evaluationResults, evaluationScores, spans, events, renderTemplates, labelClasses, labels, userCookies, agentMessages, agentSessions, traces, agentChats, machines, datapointToSpan } from "./schema";
+import { projects, datasets, datasetDatapoints, workspaces, labelClassesForPath, users, membersOfWorkspaces, subscriptionTiers, pipelines, projectApiKeys, providerApiKeys, targetPipelineVersions, pipelineVersions, userSubscriptionInfo, workspaceUsage, labelingQueues, labelingQueueItems, apiKeys, evaluations, playgrounds, evaluationResults, evaluationScores, spans, events, renderTemplates, labelClasses, labels, userCookies, agentSessions, agentMessages, traces, agentChats, machines, datapointToSpan } from "./schema";
 
 export const datasetsRelations = relations(datasets, ({one, many}) => ({
 	project: one(projects, {
@@ -70,7 +70,6 @@ export const usersRelations = relations(users, ({many}) => ({
 	userSubscriptionInfos: many(userSubscriptionInfo),
 	apiKeys: many(apiKeys),
 	userCookies: many(userCookies),
-	agentMessages: many(agentMessages),
 	agentChats: many(agentChats),
 }));
 
@@ -227,10 +226,6 @@ export const userCookiesRelations = relations(userCookies, ({one}) => ({
 }));
 
 export const agentMessagesRelations = relations(agentMessages, ({one}) => ({
-	user: one(users, {
-		fields: [agentMessages.userId],
-		references: [users.id]
-	}),
 	agentSession: one(agentSessions, {
 		fields: [agentMessages.sessionId],
 		references: [agentSessions.sessionId]

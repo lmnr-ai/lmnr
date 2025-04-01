@@ -226,11 +226,11 @@ export const workspaceUsage = pgTable("workspace_usage", {
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	prevSpanCount: bigint("prev_span_count", { mode: "number" }).default(sql`'0'`).notNull(),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	eventCount: bigint("event_count", { mode: "number" }).default(sql`'0'`).notNull(),
+	stepCount: bigint("step_count", { mode: "number" }).default(sql`'0'`).notNull(),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	eventCountSinceReset: bigint("event_count_since_reset", { mode: "number" }).default(sql`'0'`).notNull(),
+	stepCountSinceReset: bigint("step_count_since_reset", { mode: "number" }).default(sql`'0'`).notNull(),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	prevEventCount: bigint("prev_event_count", { mode: "number" }).default(sql`'0'`).notNull(),
+	prevStepCount: bigint("prev_step_count", { mode: "number" }).default(sql`'0'`).notNull(),
 	resetTime: timestamp("reset_time", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	resetReason: text("reset_reason").default('signup').notNull(),
 }, (table) => [
@@ -253,15 +253,13 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
 	logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	membersPerWorkspace: bigint("members_per_workspace", { mode: "number" }).default(sql`'-1'`).notNull(),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	numWorkspaces: bigint("num_workspaces", { mode: "number" }).default(sql`'-1'`).notNull(),
 	stripeProductId: text("stripe_product_id").default('').notNull(),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	events: bigint({ mode: "number" }).default(sql`'0'`).notNull(),
+	steps: bigint({ mode: "number" }).default(sql`'0'`).notNull(),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	spans: bigint({ mode: "number" }).default(sql`'0'`).notNull(),
 	extraSpanPrice: doublePrecision("extra_span_price").default(sql`'0'`).notNull(),
-	extraEventPrice: doublePrecision("extra_event_price").default(sql`'0'`).notNull(),
+	extraStepPrice: doublePrecision("extra_step_price").default(sql`'0'`).notNull(),
 });
 
 export const labelingQueues = pgTable("labeling_queues", {
@@ -480,17 +478,11 @@ export const agentMessages = pgTable("agent_messages", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	sessionId: uuid("session_id").notNull(),
-	userId: uuid("user_id").notNull(),
 	messageType: agentMessageType("message_type").notNull(),
 	content: jsonb().default({}),
 	traceId: uuid("trace_id"),
 }, (table) => [
 	index("agent_messages_session_id_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops"), table.sessionId.asc().nullsLast().op("timestamptz_ops")),
-	foreignKey({
-		columns: [table.userId],
-		foreignColumns: [users.id],
-		name: "agent_message_to_user_fkey"
-	}).onUpdate("cascade").onDelete("cascade"),
 	foreignKey({
 		columns: [table.sessionId],
 		foreignColumns: [agentSessions.sessionId],

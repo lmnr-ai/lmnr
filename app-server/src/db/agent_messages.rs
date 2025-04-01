@@ -17,7 +17,6 @@ pub async fn insert_agent_message(
     pool: &PgPool,
     id: &Uuid,
     session_id: &Uuid,
-    user_id: &Uuid,
     trace_id: &Uuid,
     message_type: &MessageType,
     content: &Value,
@@ -27,16 +26,14 @@ pub async fn insert_agent_message(
         "INSERT INTO agent_messages (
         id,
         session_id,
-        user_id,
         trace_id,
         message_type,
         content,
         created_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    ) VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(id)
     .bind(session_id)
-    .bind(user_id)
     .bind(trace_id)
     .bind(message_type)
     .bind(content)

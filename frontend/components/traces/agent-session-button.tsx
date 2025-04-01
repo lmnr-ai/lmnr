@@ -1,10 +1,11 @@
 import { Pause } from 'lucide-react';
 import { useState } from 'react';
+import useSWR from 'swr';
 
 import { useProjectContext } from '@/contexts/project-context';
-import { Button } from '../ui/button';
-import useSWR from 'swr';
 import { swrFetcher } from '@/lib/utils';
+
+import { Button } from '../ui/button';
 
 interface AgentSessionButtonProps {
   sessionId: string;
@@ -50,4 +51,4 @@ export function AgentSessionButton({ sessionId }: AgentSessionButtonProps) {
       Cancel agent run
     </Button>
   );
-} 
+}

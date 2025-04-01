@@ -65,12 +65,11 @@ pub async fn run_agent_worker(
                     RunAgentResponseStreamChunk::FinalOutput(_) => MessageType::Assistant,
                 };
 
-                if let Some(user_id) = user_id {
+                if user_id.is_some() {
                     if let Err(e) = db::agent_messages::insert_agent_message(
                         &db.pool,
                         &chunk.message_id(),
                         &session_id,
-                        &user_id,
                         &chunk.trace_id(),
                         &message_type,
                         &chunk.message_content(),
