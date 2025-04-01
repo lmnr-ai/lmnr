@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use agent_manager_impl::AgentManagerImpl;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -27,24 +29,26 @@ pub trait AgentManagerTrait {
     async fn run_agent(
         &self,
         prompt: String,
-        session_id: Option<Uuid>,
+        session_id: Uuid,
+        is_chat_request: bool,
         request_api_key: Option<String>,
         parent_span_context: Option<String>,
-        agent_state: Option<String>,
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput>;
 
     async fn run_agent_stream(
         &self,
         prompt: String,
-        session_id: Option<Uuid>,
+        session_id: Uuid,
+        is_chat_request: bool,
         request_api_key: Option<String>,
         parent_span_context: Option<String>,
-        agent_state: Option<String>,
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream;
 }

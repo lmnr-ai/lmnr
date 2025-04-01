@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { agentSessions, users } from "@/lib/db/migrations/schema";
+import { agentChats, agentSessions, users } from "@/lib/db/migrations/schema";
 
 export async function GET(_req: NextRequest): Promise<Response> {
   const session = await getServerSession(authOptions);
@@ -27,22 +27,37 @@ export async function GET(_req: NextRequest): Promise<Response> {
   }
 
   const data = await db.query.agentSessions.findMany({
-    where: eq(agentSessions.userId, result.id),
+    with: {
+      agentChats: {
+        where: eq(agentChats.userId, result.id),
+      },
+    },
     columns: {
       sessionId: true,
       updatedAt: true,
-      chatName: true,
     },
     orderBy: desc(agentSessions.updatedAt),
   });
 
-  return new Response(JSON.stringify(data));
+  // Flatten the data to the AgentSession type
+  const flattenedData = data.flatMap((session) => (
+    session.agentChats.map((chat) => ({
+      sessionId: session.sessionId,
+      updatedAt: session.updatedAt,
+      chatName: chat.chatName,
+      machineStatus: chat.machineStatus,
+      userId: chat.userId,
+    }))
+  ));
+
+  return new Response(JSON.stringify(flattenedData));
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
   const body = (await req.json()) as { chatName: string; sessionId: string; userId: string };
 
-  await db.insert(agentSessions).values(body);
+  await db.insert(agentSessions).values({ sessionId: body.sessionId });
+  await db.insert(agentChats).values(body);
 
   return new Response(JSON.stringify({ ok: true }));
 }

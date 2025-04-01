@@ -4,7 +4,6 @@ import { useSWRConfig } from "swr";
 
 import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { connectToStream, initiateChat, stopSession } from "@/components/chat/utils";
-import { useToast } from "@/lib/hooks/use-toast";
 
 interface UseAgentChatOptions {
   api?: string;
@@ -29,6 +28,8 @@ interface UseAgentChatHelpers {
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
   stop: () => void;
+  isControlled: boolean;
+  setIsControlled: (isControlled: boolean) => void;
 }
 
 const defaultOptions = { model: "claude-3-7-sonnet-latest", enableThinking: true };
@@ -45,9 +46,9 @@ export function useAgentChat({
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isControlled, setIsControlled] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { mutate } = useSWRConfig();
-  const { toast } = useToast();
   const handleAppendChat = useCallback(
     async (chat: AgentSession) => {
       await mutate(
@@ -111,7 +112,6 @@ export function useAgentChat({
                   summary: chunk.summary,
                   actionResult: chunk.actionResult,
                 },
-                userId,
                 sessionId: id,
               };
               setMessages((messages) => [...messages, stepMessage]);
@@ -121,8 +121,8 @@ export function useAgentChat({
                 messageType: "assistant",
                 content: {
                   text: chunk.content.result.content ?? "-",
+                  actionResult: chunk.content.result,
                 },
-                userId,
                 sessionId: id,
               };
               setMessages((messages) => [...messages, finalMessage]);
@@ -169,7 +169,6 @@ export function useAgentChat({
                 summary: chunk.summary,
                 actionResult: chunk.actionResult,
               },
-              userId,
               sessionId: id,
             };
             setMessages((messages) => [...messages, stepMessage]);
@@ -179,8 +178,8 @@ export function useAgentChat({
               messageType: "assistant",
               content: {
                 text: chunk.content.result.content ?? "-",
+                actionResult: chunk.content.result,
               },
-              userId,
               sessionId: id,
             };
             setMessages((messages) => [...messages, finalMessage]);
@@ -212,5 +211,7 @@ export function useAgentChat({
     input,
     setInput,
     stop,
+    isControlled,
+    setIsControlled,
   };
 }

@@ -226,11 +226,11 @@ export const workspaceUsage = pgTable("workspace_usage", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   prevSpanCount: bigint("prev_span_count", { mode: "number" }).default(sql`'0'`).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  eventCount: bigint("event_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  stepCount: bigint("step_count", { mode: "number" }).default(sql`'0'`).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  eventCountSinceReset: bigint("event_count_since_reset", { mode: "number" }).default(sql`'0'`).notNull(),
+  stepCountSinceReset: bigint("step_count_since_reset", { mode: "number" }).default(sql`'0'`).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  prevEventCount: bigint("prev_event_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  prevStepCount: bigint("prev_step_count", { mode: "number" }).default(sql`'0'`).notNull(),
   resetTime: timestamp("reset_time", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   resetReason: text("reset_reason").default('signup').notNull(),
 }, (table) => [
@@ -253,15 +253,13 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   membersPerWorkspace: bigint("members_per_workspace", { mode: "number" }).default(sql`'-1'`).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  numWorkspaces: bigint("num_workspaces", { mode: "number" }).default(sql`'-1'`).notNull(),
   stripeProductId: text("stripe_product_id").default('').notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  events: bigint({ mode: "number" }).default(sql`'0'`).notNull(),
+  steps: bigint({ mode: "number" }).default(sql`'0'`).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   spans: bigint({ mode: "number" }).default(sql`'0'`).notNull(),
   extraSpanPrice: doublePrecision("extra_span_price").default(sql`'0'`).notNull(),
-  extraEventPrice: doublePrecision("extra_event_price").default(sql`'0'`).notNull(),
+  extraStepPrice: doublePrecision("extra_step_price").default(sql`'0'`).notNull(),
 });
 
 export const labelingQueues = pgTable("labeling_queues", {
@@ -423,40 +421,6 @@ export const evaluationResults = pgTable("evaluation_results", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
-export const traces = pgTable("traces", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  sessionId: text("session_id"),
-  metadata: jsonb(),
-  projectId: uuid("project_id").notNull(),
-  endTime: timestamp("end_time", { withTimezone: true, mode: 'string' }),
-  startTime: timestamp("start_time", { withTimezone: true, mode: 'string' }),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  totalTokenCount: bigint("total_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
-  cost: doublePrecision().default(sql`'0'`).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  traceType: traceType("trace_type").default('DEFAULT').notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  inputTokenCount: bigint("input_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  outputTokenCount: bigint("output_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
-  inputCost: doublePrecision("input_cost").default(sql`'0'`).notNull(),
-  outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
-  hasBrowserSession: boolean("has_browser_session"),
-  topSpanId: uuid("top_span_id"),
-}, (table) => [
-  index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast().op("jsonb_ops")),
-  index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast().op("timestamptz_ops"), table.projectId.asc().nullsLast().op("uuid_ops"), table.startTime.desc().nullsFirst().op("timestamptz_ops")).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
-  index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
-  index("traces_project_id_trace_type_start_time_end_time_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("uuid_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")).where(sql`((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
-  index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("text_ops")),
-  index("traces_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")),
-  foreignKey({
-    columns: [table.projectId],
-    foreignColumns: [projects.id],
-    name: "new_traces_project_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-]);
-
 export const labelClasses = pgTable("label_classes", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -514,20 +478,50 @@ export const agentMessages = pgTable("agent_messages", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   id: uuid().defaultRandom().primaryKey().notNull(),
   sessionId: uuid("session_id").notNull(),
-  userId: uuid("user_id").notNull(),
   messageType: agentMessageType("message_type").notNull(),
   content: jsonb().default({}),
+  traceId: uuid("trace_id"),
 }, (table) => [
   index("agent_messages_session_id_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops"), table.sessionId.asc().nullsLast().op("timestamptz_ops")),
-  foreignKey({
-    columns: [table.userId],
-    foreignColumns: [users.id],
-    name: "agent_message_to_user_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
   foreignKey({
     columns: [table.sessionId],
     foreignColumns: [agentSessions.sessionId],
     name: "agent_messages_session_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const traces = pgTable("traces", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  sessionId: text("session_id"),
+  metadata: jsonb(),
+  projectId: uuid("project_id").notNull(),
+  endTime: timestamp("end_time", { withTimezone: true, mode: 'string' }),
+  startTime: timestamp("start_time", { withTimezone: true, mode: 'string' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  totalTokenCount: bigint("total_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  cost: doublePrecision().default(sql`'0'`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  traceType: traceType("trace_type").default('DEFAULT').notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  inputTokenCount: bigint("input_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  outputTokenCount: bigint("output_token_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  inputCost: doublePrecision("input_cost").default(sql`'0'`).notNull(),
+  outputCost: doublePrecision("output_cost").default(sql`'0'`).notNull(),
+  hasBrowserSession: boolean("has_browser_session"),
+  topSpanId: uuid("top_span_id"),
+  agentSessionId: uuid("agent_session_id"),
+}, (table) => [
+  index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast().op("jsonb_ops")),
+  index("traces_id_project_id_start_time_times_not_null_idx").using("btree", table.id.asc().nullsLast().op("timestamptz_ops"), table.projectId.asc().nullsLast().op("uuid_ops"), table.startTime.desc().nullsFirst().op("timestamptz_ops")).where(sql`((start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
+  index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+  index("traces_project_id_trace_type_start_time_end_time_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("uuid_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")).where(sql`((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL))`),
+  index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("text_ops")),
+  index("traces_start_time_end_time_idx").using("btree", table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops")),
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "new_traces_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
@@ -539,18 +533,32 @@ export const agentSessions = pgTable("agent_sessions", {
   machineId: text("machine_id"),
   state: text(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  chatName: text("chat_name"),
-  userId: uuid("user_id").notNull(),
-  machineStatus: agentMachineStatus("machine_status").default('not_started').notNull(),
   agentStatus: text("agent_status").default('idle').notNull(),
 }, (table) => [
   index("agent_sessions_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
   index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
-  index("agent_sessions_user_id_idx").using("hash", table.userId.asc().nullsLast().op("uuid_ops")),
+]);
+
+export const agentChats = pgTable("agent_chats", {
+  sessionId: uuid("session_id").defaultRandom().primaryKey().notNull(),
+  chatName: text("chat_name").default('New chat').notNull(),
+  userId: uuid("user_id").notNull(),
+  machineStatus: agentMachineStatus("machine_status").default('not_started'),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+  index("agent_chats_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
+  index("agent_chats_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
+  index("agent_chats_user_id_idx").using("hash", table.userId.asc().nullsLast().op("uuid_ops")),
   foreignKey({
     columns: [table.userId],
     foreignColumns: [users.id],
-    name: "agent_sessions_user_id_fkey"
+    name: "agent_chats_user_id_fkey"
+  }),
+  foreignKey({
+    columns: [table.sessionId],
+    foreignColumns: [agentSessions.sessionId],
+    name: "agent_chats_session_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 

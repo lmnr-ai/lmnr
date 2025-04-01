@@ -1,3 +1,4 @@
+
 export interface LaminarSpanContext {
   traceId: string;
   spanId: string;
@@ -13,6 +14,7 @@ export interface ActionResult {
   isDone: boolean;
   content?: string;
   error?: string;
+  giveControl?: boolean;
 }
 
 export interface ChatMessageContentTextBlock {
@@ -31,12 +33,13 @@ export type ChatMessageImageBlock = { type: "url"; imageUrl: string } | { type: 
 
 export type ChatMessageContentBlock = { type: "text"; text: string } | { type: "image"; image: ChatMessageImageBlock };
 
-export type ChatMessageContent = { summary: string; actionResult: ActionResult } | { text: string };
+export type ChatMessageContent =
+  | { summary: string; actionResult: ActionResult }
+  | { text: string; actionResult: ActionResult };
 
 export interface ChatMessage {
   id: string;
   sessionId: string;
-  userId: string;
   messageType: "step" | "assistant" | "user";
   content: ChatMessageContent;
   createdAt?: string;

@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -142,7 +142,7 @@
     "@typescript-eslint/eslint-plugin": "^8.26.1",
     "@typescript-eslint/parser": "^8.26.1",
     "autoprefixer": "^10.4.21",
-    "drizzle-kit": "^0.30.5",
+    "drizzle-kit": "^0.30.6",
     "eslint": "^9.22.0",
     "eslint-config-love": "^112.0.0",
     "eslint-config-next": "^15.2.1",

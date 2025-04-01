@@ -9,17 +9,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
 const AgentSidebarFooter = ({ user }: { user: User }) => {
-  const abcc = "";
+  const { state } = useSidebar();
   return (
     <SidebarFooter>
       <SidebarMenu>
         <SidebarMenuItem>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <SidebarMenuButton className="bg-secondary h-10 w-[223px]">
+              <SidebarMenuButton
+                className={cn("w-[223px] flex items-center", {
+                  "mx-0 ml-[2px]": state === "collapsed",
+                })}
+              >
                 {user.image && (
                   <Image
                     src={user.image}

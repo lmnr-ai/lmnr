@@ -65,13 +65,8 @@ async fn push_to_queue(
 
     let mut span_ids = Vec::with_capacity(request_items.len());
     let num_spans = request_items.len();
-    crate::db::stats::add_spans_and_events_to_project_usage_stats(
-        &db.pool,
-        &project_id,
-        num_spans as i64,
-        0,
-    )
-    .await?;
+    crate::db::stats::add_spans_to_project_usage_stats(&db.pool, &project_id, num_spans as i64)
+        .await?;
     if is_feature_enabled(Feature::UsageLimit) {
         if let Ok(limits_exceeded) =
             crate::traces::limits::update_workspace_limit_exceeded_by_project_id(

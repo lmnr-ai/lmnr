@@ -10,7 +10,6 @@ import useSWR, { useSWRConfig } from "swr";
 
 import AgentSidebarFooter from "@/components/chat/sidebar-footer";
 import { AgentSession } from "@/components/chat/types";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,13 +30,12 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 export function AgentSidebar({ user }: { user: User }) {
   const router = useRouter();
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, state } = useSidebar();
 
   const pathname = usePathname();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -56,27 +54,25 @@ export function AgentSidebar({ user }: { user: User }) {
   };
 
   return (
-    <Sidebar>
-      <SidebarHeader className="text-primary-foreground">
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
         <SidebarMenu>
-          <div className="flex flex-row justify-between items-center">
-            <Button variant="ghost" size="icon" className="size-8 hover:bg-muted" onClick={toggleSidebar}>
+          <SidebarMenuItem>
+            <SidebarMenuButton className="mx-0" onClick={toggleSidebar}>
               <SidebarIcon size={16} />
-            </Button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-8 hover:bg-muted" onClick={handleNewChat}>
-                  <Edit size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent align="end">New Chat</TooltipContent>
-            </Tooltip>
-          </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="New Chat" onClick={handleNewChat} className="w-full font-medium text-primary mx-0 hover:text-primary">
+              <Edit size={16} />
+              <span>New Chat</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="pt-2 text-primary-foreground">
+      <SidebarContent className={cn("pt-2 text-primary-foreground", { invisible: state === "collapsed" })}>
         {isLoading ? (
-          <Loader size={16} className="animate-spin self-center" />
+          <Loader size={20} className="animate-spin self-center" />
         ) : (
           <SidebarGroup className="p-0">
             <SidebarGroupContent>
