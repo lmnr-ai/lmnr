@@ -63,7 +63,7 @@ export function AgentSidebar({ user }: { user: User }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="New Chat" onClick={handleNewChat}>
+            <SidebarMenuButton tooltip="New Chat" onClick={handleNewChat} className="w-full font-medium text-primary mx-0 hover:text-primary">
               <Edit size={16} />
               <span>New Chat</span>
             </SidebarMenuButton>
