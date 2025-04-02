@@ -25,6 +25,7 @@ pub async fn run_agent_worker(
     session_id: Uuid,
     // If user_id is Some, we are running the agent in Chat mode,
     user_id: Option<Uuid>,
+    project_api_key: Option<String>,
     prompt: String,
     options: RunAgentWorkerOptions,
 ) {
@@ -45,7 +46,7 @@ pub async fn run_agent_worker(
             prompt,
             session_id,
             user_id.is_some(),
-            None,
+            project_api_key,
             None,
             options.model_provider,
             options.model,

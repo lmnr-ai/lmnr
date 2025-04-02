@@ -34,7 +34,7 @@ impl FromRequest for ProjectApiKey {
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         match req.extensions().get::<Self>().cloned() {
-            Some(user) => return ready(Ok(user)),
+            Some(key) => return ready(Ok(key)),
             None => return ready(Err(actix_web::error::ParseError::Incomplete.into())),
         };
     }
@@ -93,7 +93,8 @@ pub async fn project_validator(
 
     match get_api_key_from_raw_value(&db.pool, cache, credentials.token().to_string()).await {
         Ok(api_key) => {
-            req.extensions_mut().insert(api_key);
+            req.extensions_mut()
+                .insert(api_key.into_with_raw(credentials.token().to_string()));
             Ok(req)
         }
         Err(e) => {

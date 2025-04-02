@@ -77,6 +77,7 @@ pub async fn run_agent_manager(
                 db.into_inner(),
                 session_id,
                 Some(request.user_id),
+                None,
                 request.prompt.unwrap_or_default(),
                 options,
             )

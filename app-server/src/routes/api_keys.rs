@@ -1,5 +1,5 @@
 use crate::{
-    db::{self, project_api_keys::ProjectApiKey, DB},
+    db::{self, project_api_keys::DBProjectApiKey, DB},
     project_api_keys::ProjectApiKeyVals,
 };
 use actix_web::{delete, get, post, web, HttpResponse};
@@ -49,7 +49,9 @@ async fn create_project_api_key(
     .await?;
 
     let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{hash}");
-    let _ = cache.insert::<ProjectApiKey>(&cache_key, key.clone()).await;
+    let _ = cache
+        .insert::<DBProjectApiKey>(&cache_key, key.clone())
+        .await;
 
     let response = CreateProjectApiKeyResponse {
         value,
