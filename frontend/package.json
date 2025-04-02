@@ -35,7 +35,7 @@
     "@lezer/highlight": "^1.2.1",
     "@monaco-editor/react": "^4.7.0",
     "@mux/mux-player-react": "^2.9.1",
-    "@novnc/novnc": "^1.6.0",
+    "@novnc/novnc": "^1.5.0",
     "@oneidentity/zstd-js": "^1.0.3",
     "@pnpm/types": "^9.4.2",
     "@radix-ui/react-accordion": "^1.2.3",
