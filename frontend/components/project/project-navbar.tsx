@@ -83,12 +83,6 @@ export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
       current: false
     },
     {
-      name: 'pipelines',
-      href: `/project/${projectId}/pipelines`,
-      icon: Cable,
-      current: false
-    },
-    {
       name: 'settings',
       href: `/project/${projectId}/settings`,
       icon: Settings,
@@ -139,7 +133,7 @@ export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
               <X size={16} />
             </button>
             <p className="text-xs text-muted-foreground mb-2">
-                  Laminar is fully open source
+              Laminar is fully open source
             </p>
             <a
               href="https://github.com/lmnr-ai/lmnr"
@@ -147,7 +141,7 @@ export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
               rel="noopener noreferrer"
               className="text-xs text-foreground hover:underline"
             >
-                  ⭐ Star it on GitHub
+              ⭐ Star it on GitHub
             </a>
           </div>
         )}

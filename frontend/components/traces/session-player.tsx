@@ -123,7 +123,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
           return {
             data: event.data,
-            timestamp: new Date(event.timestamp).getTime(),
+            timestamp: (new Date(event.timestamp + 'Z')).getTime(),
             type: parseInt(event.event_type)
           };
         }));
