@@ -79,8 +79,23 @@ services:
       timeout: 5s
       retries: 5
 
+  agent-manager:
+    # TODO: Once we've merged this to main and built the image to ghcr, pull instead of building
+    # image: ghcr.io/lmnr-ai/agent-manager
+    # pull_policy: always
+    build:
+      context: ./agent-manager
+      dockerfile: Dockerfile
+    ports:
+      - "8901:8901"
+    environment:
+      PORT: 8901
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SCRAPYBARA_API_KEY: ${SCRAPYBARA_API_KEY}
+
   app-server:
     image: ghcr.io/lmnr-ai/app-server
+    pull_policy: always
     ports:
       - "8000:8000"
       - "8001:8001"
@@ -93,7 +108,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
-    pull_policy: always
+      agent-manager:
+        condition: service_started
     environment:
       PORT: 8000
       GRPC_PORT: 8001
@@ -106,7 +122,7 @@ services:
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
-
+      AGENT_MANAGER_URL: http://agent-manager:8901
   frontend:
     image: ghcr.io/lmnr-ai/frontend
     ports:

@@ -1,3 +1,4 @@
+use std::env;
 use std::sync::Arc;
 
 use actix_web::{post, web, HttpResponse};
@@ -77,6 +78,7 @@ pub async fn run_agent_manager(
                 db.into_inner(),
                 session_id,
                 Some(request.user_id),
+                env::var("LMNR_INDEX_PROJECT_API_KEY").ok(),
                 request.prompt.unwrap_or_default(),
                 options,
             )

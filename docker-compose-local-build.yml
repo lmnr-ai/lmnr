@@ -75,6 +75,17 @@ services:
       context: ./python-executor
     container_name: python-executor
 
+  agent-manager:
+    build:
+      context: ./agent-manager
+      dockerfile: Dockerfile
+    ports:
+      - "8901:8901"
+    environment:
+      PORT: 8901
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SCRAPYBARA_API_KEY: ${SCRAPYBARA_API_KEY}
+
   app-server:
     ports:
       - "8000:8000"
@@ -95,6 +106,8 @@ services:
         condition: service_started
       python-executor:
         condition: service_started
+      agent-manager:
+        condition: service_started
     environment:
       PORT: 8000
       GRPC_PORT: 8001
@@ -106,7 +119,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CODE_EXECUTOR_URL: http://python-executor:8811
       ENVIRONMENT: FULL
-
+      AGENT_MANAGER_URL: http://agent-manager:8901
   frontend:
     build:
       context: ./frontend

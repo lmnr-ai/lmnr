@@ -64,6 +64,20 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
 
+  agent-manager:
+    # TODO: Once we've merged this to main and built the image to ghcr, pull instead of building
+    # image: ghcr.io/lmnr-ai/agent-manager
+    # pull_policy: always
+    build:
+      context: ./agent-manager
+      dockerfile: Dockerfile
+    ports:
+      - "8901:8901"
+    environment:
+      PORT: 8901
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SCRAPYBARA_API_KEY: ${SCRAPYBARA_API_KEY}
+
   app-server:
     image: ghcr.io/lmnr-ai/app-server
     pull_policy: always
@@ -75,9 +89,12 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
+      agent-manager:
+        condition: service_started
     environment:
       PORT: 8000
       GRPC_PORT: 8001
+      AGENT_MANAGER_URL: http://agent-manager:8901
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       CLICKHOUSE_URL: http://clickhouse:8123

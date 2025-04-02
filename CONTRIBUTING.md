@@ -28,7 +28,7 @@ Don't get overwhelmed by the number of docker-compose files. Here's a quick over
 for self-hosting.
 - `docker-compose-local-dev-full.yml` full file for local development. To be used when you make changes
   to the backend. It will only run the dependency services (postgres, qdrant, clickhouse, rabbitmq).
-  You will need to run `cargo r`, `pnpm run dev`, and `python server.py` manually.
+  You will need to run `cargo r`, `pnpm run dev`, `python main.py`, and `python server.py` manually.
 - `docker-compose-local-dev.yml` is the one you want to use for local development. It will only
   run postgres, clickhouse, and app-server. Good for frontend changes.
 - `docker-compose-local-build.yml` will build the services from the source and run them in production mode. This is good for self-hosting with your own changes,
@@ -123,13 +123,26 @@ poetry shell # or another virtual env, such as python venv or uv venv activation
 python server.py
 ```
 
-### 4. Run app server in development mode
+### 4. Run agent manager in development mode
+
+Set environment variables in agent-manager/.env using the example in agent-manager/.env.example.
+
+Then,
+
+```sh
+cd agent-manager
+uv venv
+source .venv/bin/activate
+uv lock && uv sync
+python src/main.py
+```
+
+### 5. Run app server in development mode
 
 Note, it is important to start semantic search service and python executor _before_ running
 app server, because it tries to connect to them before starting the server
 
 ```sh
-# app-server
 cd app-server
 cargo r
 ```
@@ -137,15 +150,14 @@ cargo r
 Rust is compiled and not hot-reloadable, so you will need to rerun `cargo r` every time you want
 to test a change.
 
-### 5. Run frontend in development mode
+### 6. Run frontend in development mode
 
 ```sh
-# frontend
 cd frontend
 pnpm run dev
 ```
 
-### 6. After finishing your changes
+### 7. After finishing your changes
 
 Make sure everything runs well in integration in dockers.
 
