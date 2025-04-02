@@ -9,15 +9,12 @@ use crate::agent_manager::channel::AgentManagerWorkers;
 use crate::agent_manager::types::{ControlChunk, RunAgentResponseStreamChunk, WorkerStreamChunk};
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::agent_manager::{types::ModelProvider, AgentManager, AgentManagerTrait};
-use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
+use crate::cache::Cache;
 use crate::db::project_api_keys::ProjectApiKey;
 use crate::db::{self, DB};
 use crate::features::{is_feature_enabled, Feature};
-use crate::project_api_keys::ProjectApiKeyVals;
 use crate::routes::types::ResponseResult;
 use crate::traces::limits::get_workspace_limit_exceeded_by_project_id;
-
-const REQUEST_API_KEY_TTL: u64 = 60 * 60; // 1 hour
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,26 +70,8 @@ pub async fn run_agent_manager(
             }
         }
     }
-    let request_api_key_vals = ProjectApiKeyVals::new();
-    let request_api_key = ProjectApiKey {
-        project_id: project_api_key.project_id,
-        name: Some(format!("tmp-agent-{}", Uuid::new_v4())),
-        hash: request_api_key_vals.hash,
-        shorthand: request_api_key_vals.shorthand,
-    };
 
     let session_id = Uuid::new_v4();
-
-    let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{}", request_api_key.hash);
-    cache
-        .insert::<ProjectApiKey>(&cache_key, request_api_key.clone())
-        .await
-        .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
-
-    cache
-        .set_ttl(&cache_key, REQUEST_API_KEY_TTL)
-        .await
-        .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
 
     let worker_states_clone = worker_states.clone();
     tokio::spawn(async move {
@@ -115,6 +94,7 @@ pub async fn run_agent_manager(
                 db.clone(),
                 session_id,
                 None,
+                Some(project_api_key.raw),
                 request.prompt,
                 options,
             )
@@ -169,7 +149,7 @@ pub async fn run_agent_manager(
                     request.prompt,
                     session_id,
                     false,
-                    Some(request_api_key_vals.value),
+                    Some(project_api_key.raw),
                     request.parent_span_context.clone(),
                     request.model_provider,
                     request.model.clone(),

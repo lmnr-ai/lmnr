@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use crate::{
     api::utils::get_api_key_from_raw_value,
     cache::Cache,
-    db::{project_api_keys::ProjectApiKey, DB},
+    db::{project_api_keys::DBProjectApiKey, DB},
     features::{is_feature_enabled, Feature},
     mq::MessageQueue,
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
@@ -73,7 +73,7 @@ async fn authenticate_request(
     metadata: &tonic::metadata::MetadataMap,
     pool: &PgPool,
     cache: Arc<Cache>,
-) -> anyhow::Result<ProjectApiKey> {
+) -> anyhow::Result<DBProjectApiKey> {
     let token = extract_bearer_token(metadata)?;
     get_api_key_from_raw_value(pool, cache, token).await
 }
