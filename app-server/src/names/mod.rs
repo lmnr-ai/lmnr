@@ -27,7 +27,7 @@ impl NameGenerator {
     pub fn new() -> Self {
         let adjectives = read_lines("data/adjectives.txt").unwrap();
         let nouns = read_lines("data/nouns.txt").unwrap();
-        let rng = RwLock::new(StdRng::from_entropy());
+        let rng = RwLock::new(StdRng::from_os_rng());
         Self {
             adjectives,
             nouns,
@@ -36,8 +36,12 @@ impl NameGenerator {
     }
 
     pub async fn next(&self) -> String {
-        let adj_index = self.rng.write().await.gen_range(0..self.adjectives.len());
-        let noun_index = self.rng.write().await.gen_range(0..self.nouns.len());
+        let adj_index = self
+            .rng
+            .write()
+            .await
+            .random_range(0..self.adjectives.len());
+        let noun_index = self.rng.write().await.random_range(0..self.nouns.len());
         format!("{}-{}", self.adjectives[adj_index], self.nouns[noun_index])
     }
 }

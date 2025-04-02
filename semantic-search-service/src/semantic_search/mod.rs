@@ -368,6 +368,8 @@ impl SemanticSearch for SemanticSearchService {
             scores.push(1.0 - score);
         }
 
-        return Ok(Response::new(CalculateSimilarityScoresResponse { scores }));
+        return Ok(Response::new(CalculateSimilarityScoresResponse {
+            scores: scores.into_iter().map(|s| s as f32).collect(),
+        }));
     }
 }

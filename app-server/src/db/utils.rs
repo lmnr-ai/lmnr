@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
-use rand::distributions::{Alphanumeric, DistString};
+use rand::distr::{Alphanumeric, SampleString};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::opentelemetry::opentelemetry_proto_common_v1;
 
 pub fn generate_random_key() -> String {
-    Alphanumeric.sample_string(&mut rand::thread_rng(), 64)
+    Alphanumeric.sample_string(&mut rand::rng(), 64)
 }
 
 pub fn convert_any_value_to_json_value(

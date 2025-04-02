@@ -23,11 +23,12 @@ pub async fn read_multipart_file(mut payload: Multipart) -> Result<ParsedFile, E
     while let Some(item) = payload.next().await {
         let mut field = item?;
         let content = field.content_disposition();
-        let name = content.get_name().unwrap();
+        let name = content.unwrap().get_name().unwrap();
 
         if name == "file" {
             // This does not handle filename_ext ("filename*")
             filename = content
+                .unwrap()
                 .get_filename()
                 .context("filename not found")?
                 .to_owned();
