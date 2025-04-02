@@ -1,40 +1,15 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 use super::agent_manager_grpc::{
-    chat_message::{
-        content_block::{
-            image_content::ImageSource as ImageSourceGrpc,
-            Content as ChatMessageContentBlockContentGrpc, ImageContent as ImageContentGrpc,
-            TextContent as TextContentGrpc,
-        },
-        Content as ChatMessageContentGrpc, ContentBlock as ChatMessageContentBlockGrpc,
-        ContentList as ContentListGrpc,
-    },
     run_agent_response_stream_chunk::ChunkType as RunAgentResponseStreamChunkTypeGrpc,
-    ActionResult as ActionResultGrpc, AgentOutput as AgentOutputGrpc, AgentState as AgentStateGrpc,
-    ChatMessage as ChatMessageGrpc, LaminarSpanContext as LaminarSpanContextGrpc,
+    ActionResult as ActionResultGrpc, AgentOutput as AgentOutputGrpc, Cookie,
     RunAgentResponseStreamChunk as RunAgentResponseStreamChunkGrpc,
     StepChunkContent as StepChunkContentGrpc,
 };
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct LaminarSpanContext {
-    pub trace_id: String,
-    pub span_id: String,
-    pub is_remote: bool,
-}
-
-impl Into<LaminarSpanContextGrpc> for LaminarSpanContext {
-    fn into(self) -> LaminarSpanContextGrpc {
-        LaminarSpanContextGrpc {
-            trace_id: self.trace_id,
-            span_id: self.span_id,
-            is_remote: self.is_remote,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -61,6 +36,8 @@ pub struct ActionResult {
     pub content: Option<String>,
     #[serde(default)]
     pub error: Option<String>,
+    #[serde(default)]
+    pub give_control: bool,
 }
 
 impl Into<ActionResult> for ActionResultGrpc {
@@ -69,217 +46,88 @@ impl Into<ActionResult> for ActionResultGrpc {
             is_done: self.is_done.unwrap_or_default(),
             content: self.content,
             error: self.error,
+            give_control: self.give_control.unwrap_or_default(),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct ChatMessageContentTextBlock {
-    text: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct ChatMessageImageUrlBlock {
-    image_url: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct ChatMessageImageBase64Block {
-    image_b64: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(untagged)]
-pub enum ChatMessageImageBlock {
-    Url(ChatMessageImageUrlBlock),
-    Base64(ChatMessageImageBase64Block),
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum ChatMessageContentBlock {
-    Text(ChatMessageContentTextBlock),
-    Image(ChatMessageImageBlock),
-}
-
-impl Into<ChatMessageContentBlockGrpc> for ChatMessageContentBlock {
-    fn into(self) -> ChatMessageContentBlockGrpc {
-        match self {
-            ChatMessageContentBlock::Text(t) => ChatMessageContentBlockGrpc {
-                content: Some(ChatMessageContentBlockContentGrpc::TextContent(
-                    TextContentGrpc {
-                        text: t.text,
-                        cache_control: None,
-                    },
-                )),
-            },
-            ChatMessageContentBlock::Image(i) => match i {
-                ChatMessageImageBlock::Base64(b) => ChatMessageContentBlockGrpc {
-                    content: Some(ChatMessageContentBlockContentGrpc::ImageContent(
-                        ImageContentGrpc {
-                            image_source: Some(ImageSourceGrpc::ImageB64(b.image_b64)),
-                            cache_control: None,
-                        },
-                    )),
-                },
-                ChatMessageImageBlock::Url(u) => ChatMessageContentBlockGrpc {
-                    content: Some(ChatMessageContentBlockContentGrpc::ImageContent(
-                        ImageContentGrpc {
-                            image_source: Some(ImageSourceGrpc::ImageUrl(u.image_url)),
-                            cache_control: None,
-                        },
-                    )),
-                },
-            },
-        }
-    }
-}
-
-impl Into<ChatMessageContentBlock> for ChatMessageContentBlockGrpc {
-    fn into(self) -> ChatMessageContentBlock {
-        match self.content {
-            Some(ChatMessageContentBlockContentGrpc::TextContent(t)) => {
-                ChatMessageContentBlock::Text(ChatMessageContentTextBlock { text: t.text })
-            }
-            Some(ChatMessageContentBlockContentGrpc::ImageContent(i)) => match i.image_source {
-                Some(ImageSourceGrpc::ImageB64(b64)) => ChatMessageContentBlock::Image(
-                    ChatMessageImageBlock::Base64(ChatMessageImageBase64Block { image_b64: b64 }),
-                ),
-                Some(ImageSourceGrpc::ImageUrl(url)) => ChatMessageContentBlock::Image(
-                    ChatMessageImageBlock::Url(ChatMessageImageUrlBlock { image_url: url }),
-                ),
-                None => ChatMessageContentBlock::Text(ChatMessageContentTextBlock {
-                    text: String::new(),
-                }),
-            },
-            None => ChatMessageContentBlock::Text(ChatMessageContentTextBlock {
-                text: String::new(),
-            }),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(untagged)]
-pub enum ChatMessageContent {
-    String(String),
-    List(Vec<ChatMessageContentBlock>),
-}
-
-impl Into<Vec<ChatMessageContentBlock>> for ContentListGrpc {
-    fn into(self) -> Vec<ChatMessageContentBlock> {
-        self.content_blocks.into_iter().map(|c| c.into()).collect()
-    }
-}
-
-impl Into<ContentListGrpc> for Vec<ChatMessageContentBlock> {
-    fn into(self) -> ContentListGrpc {
-        ContentListGrpc {
-            content_blocks: self.into_iter().map(|c| c.into()).collect(),
-        }
-    }
-}
-
-impl Into<ChatMessageContent> for ChatMessageContentGrpc {
-    fn into(self) -> ChatMessageContent {
-        match self {
-            ChatMessageContentGrpc::RawText(s) => ChatMessageContent::String(s),
-            ChatMessageContentGrpc::ContentList(l) => ChatMessageContent::List(l.into()),
-        }
-    }
-}
-
-impl Into<ChatMessageContentGrpc> for ChatMessageContent {
-    fn into(self) -> ChatMessageContentGrpc {
-        match self {
-            ChatMessageContent::String(s) => ChatMessageContentGrpc::RawText(s),
-            ChatMessageContent::List(l) => ChatMessageContentGrpc::ContentList(l.into()),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct ChatMessage {
-    role: String,
-    content: ChatMessageContent,
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    tool_call_id: Option<String>,
-    #[serde(default)]
-    is_state_message: bool,
-}
-
-impl Into<ChatMessage> for ChatMessageGrpc {
-    fn into(self) -> ChatMessage {
-        ChatMessage {
-            role: self.role,
-            content: self.content.unwrap().into(),
-            name: self.name,
-            tool_call_id: self.tool_call_id,
-            is_state_message: self.is_state_message.unwrap_or_default(),
-        }
-    }
-}
-
-impl Into<ChatMessageGrpc> for ChatMessage {
-    fn into(self) -> ChatMessageGrpc {
-        ChatMessageGrpc {
-            role: self.role,
-            content: Some(self.content.into()),
-            name: self.name,
-            tool_call_id: self.tool_call_id,
-            is_state_message: Some(self.is_state_message),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Default, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
-pub struct AgentState {
-    messages: Vec<ChatMessage>,
-    // browser_state: BrowserState,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AgentOutput {
-    pub state: AgentState,
     pub result: ActionResult,
+    #[serde(skip_serializing)]
+    pub cookies: Option<Vec<HashMap<String, String>>>,
+    // pub state: String,
+    pub step_count: Option<u64>,
+}
+
+impl Into<Cookie> for HashMap<String, String> {
+    fn into(self) -> Cookie {
+        Cookie { cookie_data: self }
+    }
 }
 
 impl Into<AgentOutput> for AgentOutputGrpc {
     fn into(self) -> AgentOutput {
+        let cookies = self
+            .cookies
+            .into_iter()
+            .map(|c| c.cookie_data)
+            .collect::<Vec<_>>();
+
         AgentOutput {
-            state: self.agent_state.unwrap().into(),
             result: self.result.unwrap().into(),
+            cookies: (!cookies.is_empty()).then_some(cookies),
+            step_count: self.step_count,
         }
     }
 }
 
-impl Into<AgentState> for AgentStateGrpc {
-    fn into(self) -> AgentState {
-        AgentState {
-            messages: self.messages.into_iter().map(|c| c.into()).collect(),
-        }
-    }
+pub enum WorkerStreamChunk {
+    AgentChunk(RunAgentResponseStreamChunk),
+    ControlChunk(ControlChunk),
 }
 
-impl Into<AgentStateGrpc> for AgentState {
-    fn into(self) -> AgentStateGrpc {
-        AgentStateGrpc {
-            messages: self.messages.into_iter().map(|c| c.into()).collect(),
-        }
-    }
+pub enum ControlChunk {
+    Stop,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(
-    tag = "chunk_type",
-    rename_all(deserialize = "snake_case", serialize = "camelCase")
-)]
+#[derive(Serialize, Clone)]
+#[serde(tag = "chunkType", rename_all = "camelCase")]
 pub enum RunAgentResponseStreamChunk {
     Step(StepChunkContent),
     FinalOutput(FinalOutputChunkContent),
+}
+
+impl RunAgentResponseStreamChunk {
+    pub fn message_id(&self) -> Uuid {
+        match self {
+            RunAgentResponseStreamChunk::Step(s) => s.message_id,
+            RunAgentResponseStreamChunk::FinalOutput(f) => f.message_id,
+        }
+    }
+
+    pub fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
+        match self {
+            RunAgentResponseStreamChunk::Step(s) => s.created_at,
+            RunAgentResponseStreamChunk::FinalOutput(f) => f.created_at,
+        }
+    }
+
+    pub fn trace_id(&self) -> Uuid {
+        match self {
+            RunAgentResponseStreamChunk::Step(s) => s.trace_id,
+            RunAgentResponseStreamChunk::FinalOutput(f) => f.trace_id,
+        }
+    }
+}
+
+#[derive(Serialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FinalOutputChunkContent {
+    pub message_id: Uuid,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub content: AgentOutput,
+    pub trace_id: Uuid,
 }
 
 impl RunAgentResponseStreamChunk {
@@ -294,10 +142,11 @@ impl RunAgentResponseStreamChunk {
         match self {
             RunAgentResponseStreamChunk::Step(step) => serde_json::json!({
                 "summary": step.summary,
-                "action_result": step.action_result,
+                "actionResult": step.action_result,
             }),
             RunAgentResponseStreamChunk::FinalOutput(final_output) => serde_json::json!({
                 "text": final_output.content.result.content.clone().unwrap_or_default(),
+                "actionResult": final_output.content.result,
             }),
         }
     }
@@ -310,8 +159,13 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
                 RunAgentResponseStreamChunk::Step(s.into())
             }
             RunAgentResponseStreamChunkTypeGrpc::AgentOutput(a) => {
+                let output_trace_id = a.trace_id.clone();
                 RunAgentResponseStreamChunk::FinalOutput(FinalOutputChunkContent {
-                    message_id: Uuid::nil(),
+                    message_id: Uuid::new_v4(),
+                    created_at: chrono::Utc::now(),
+                    trace_id: output_trace_id
+                        .and_then(|id| Uuid::parse_str(&id).ok())
+                        .unwrap_or(Uuid::new_v4()),
                     content: a.into(),
                 })
             }
@@ -319,27 +173,24 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all(serialize = "camelCase"))]
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct StepChunkContent {
-    #[serde(skip_deserializing)]
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub message_id: Uuid,
     pub action_result: ActionResult,
     pub summary: String,
+    pub trace_id: Uuid,
 }
 
 impl Into<StepChunkContent> for StepChunkContentGrpc {
     fn into(self) -> StepChunkContent {
         StepChunkContent {
-            message_id: Uuid::nil(),
+            created_at: chrono::Utc::now(),
+            message_id: Uuid::new_v4(),
             action_result: self.action_result.unwrap().into(),
             summary: self.summary,
+            trace_id: Uuid::parse_str(&self.trace_id).unwrap_or(Uuid::new_v4()),
         }
     }
-}
-#[derive(Serialize, Deserialize, Clone)]
-pub struct FinalOutputChunkContent {
-    #[serde(skip_deserializing)]
-    pub message_id: Uuid,
-    pub content: AgentOutput,
 }

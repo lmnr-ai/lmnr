@@ -4,11 +4,43 @@ use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct DBProjectApiKey {
+    pub project_id: Uuid,
+    pub name: Option<String>,
+    pub hash: String,
+    pub shorthand: String,
+}
+
+impl DBProjectApiKey {
+    pub fn into_with_raw(self, raw: String) -> ProjectApiKey {
+        ProjectApiKey {
+            project_id: self.project_id,
+            name: self.name,
+            hash: self.hash,
+            shorthand: self.shorthand,
+            raw,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct ProjectApiKey {
     pub project_id: Uuid,
     pub name: Option<String>,
     pub hash: String,
     pub shorthand: String,
+    pub raw: String,
+}
+
+impl Into<DBProjectApiKey> for ProjectApiKey {
+    fn into(self) -> DBProjectApiKey {
+        DBProjectApiKey {
+            project_id: self.project_id,
+            name: self.name,
+            hash: self.hash,
+            shorthand: self.shorthand,
+        }
+    }
 }
 
 #[derive(Serialize, FromRow)]
@@ -25,8 +57,8 @@ pub async fn create_project_api_key(
     name: &Option<String>,
     hash: &String,
     shorthand: &String,
-) -> Result<ProjectApiKey> {
-    let key_info = sqlx::query_as::<_, ProjectApiKey>(
+) -> Result<DBProjectApiKey> {
+    let key_info = sqlx::query_as::<_, DBProjectApiKey>(
         "INSERT
         INTO project_api_keys (shorthand, project_id, name, hash)
         VALUES ($1, $2, $3, $4)
@@ -64,8 +96,8 @@ pub async fn get_api_keys_for_project(
     Ok(api_keys)
 }
 
-pub async fn get_api_key(pool: &PgPool, hash: &String) -> Result<ProjectApiKey> {
-    let api_key = match sqlx::query_as::<_, ProjectApiKey>(
+pub async fn get_api_key(pool: &PgPool, hash: &String) -> Result<DBProjectApiKey> {
+    let api_key = match sqlx::query_as::<_, DBProjectApiKey>(
         "SELECT
             project_api_keys.hash,
             project_api_keys.project_id,

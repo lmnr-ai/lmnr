@@ -1,16 +1,16 @@
-use anyhow::Result;
-use async_trait::async_trait;
+use std::collections::HashMap;
 
 use agent_manager_impl::AgentManagerImpl;
+use anyhow::Result;
+use async_trait::async_trait;
 use mock::MockAgentManager;
-use types::{
-    AgentOutput, AgentState, LaminarSpanContext, ModelProvider, RunAgentResponseStreamChunk,
-};
+use types::{AgentOutput, ModelProvider, RunAgentResponseStreamChunk};
 use uuid::Uuid;
 
 pub mod agent_manager_grpc;
 pub mod agent_manager_impl;
 pub mod channel;
+mod cookies;
 pub mod mock;
 pub mod types;
 pub mod worker;
@@ -29,26 +29,26 @@ pub trait AgentManagerTrait {
     async fn run_agent(
         &self,
         prompt: String,
-        chat_id: Uuid,
+        session_id: Uuid,
+        is_chat_request: bool,
         request_api_key: Option<String>,
-        span_context: Option<LaminarSpanContext>,
+        parent_span_context: Option<String>,
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
-        keep_session: bool,
-        continue_session: Option<AgentState>,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Result<AgentOutput>;
 
     async fn run_agent_stream(
         &self,
         prompt: String,
-        chat_id: Uuid,
+        session_id: Uuid,
+        is_chat_request: bool,
         request_api_key: Option<String>,
-        span_context: Option<LaminarSpanContext>,
+        parent_span_context: Option<String>,
         model_provider: Option<ModelProvider>,
         model: Option<String>,
         enable_thinking: bool,
-        keep_session: bool,
-        continue_session: Option<AgentState>,
+        cookies: Vec<HashMap<String, String>>,
     ) -> Self::RunAgentStreamStream;
 }

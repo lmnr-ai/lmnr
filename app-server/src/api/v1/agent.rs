@@ -5,24 +5,23 @@ use futures::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::agent_manager::{
-    types::{AgentState, LaminarSpanContext, ModelProvider},
-    AgentManager, AgentManagerTrait,
-};
-use crate::cache::{keys::PROJECT_API_KEY_CACHE_KEY, Cache, CacheTrait};
+use crate::agent_manager::channel::AgentManagerWorkers;
+use crate::agent_manager::types::{ControlChunk, RunAgentResponseStreamChunk, WorkerStreamChunk};
+use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
+use crate::agent_manager::{types::ModelProvider, AgentManager, AgentManagerTrait};
+use crate::cache::Cache;
 use crate::db::project_api_keys::ProjectApiKey;
-use crate::project_api_keys::ProjectApiKeyVals;
+use crate::db::{self, DB};
+use crate::features::{is_feature_enabled, Feature};
 use crate::routes::types::ResponseResult;
-
-const REQUEST_API_KEY_TTL: u64 = 60 * 60; // 1 hour
+use crate::traces::limits::get_workspace_limit_exceeded_by_project_id;
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RunAgentRequest {
     prompt: String,
     #[serde(default)]
-    state: Option<AgentState>,
-    #[serde(default)]
-    span_context: Option<LaminarSpanContext>,
+    parent_span_context: Option<String>,
     #[serde(default)]
     model_provider: Option<ModelProvider>,
     #[serde(default)]
@@ -37,75 +36,150 @@ fn default_true() -> bool {
     true
 }
 
-#[post("agent")]
+#[post("agent/run")]
 pub async fn run_agent_manager(
     agent_manager: web::Data<Arc<AgentManager>>,
+    worker_states: web::Data<Arc<AgentManagerWorkers>>,
+    db: web::Data<DB>,
     project_api_key: ProjectApiKey,
     cache: web::Data<Cache>,
     request: web::Json<RunAgentRequest>,
 ) -> ResponseResult {
     let request = request.into_inner();
     let agent_manager = agent_manager.as_ref().clone();
+    let db = db.into_inner();
+    let cache = cache.into_inner();
+    let (drop_sender, drop_guard) = tokio::sync::oneshot::channel::<()>();
+    let worker_states = worker_states.into_inner();
 
-    let chat_id = Uuid::new_v4();
-
-    let request_api_key_vals = ProjectApiKeyVals::new();
-    let request_api_key = ProjectApiKey {
-        project_id: project_api_key.project_id,
-        name: Some(format!("tmp-agent-{}", chat_id)),
-        hash: request_api_key_vals.hash,
-        shorthand: request_api_key_vals.shorthand,
-    };
-
-    let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{}", request_api_key.hash);
-    cache
-        .insert::<ProjectApiKey>(&cache_key, request_api_key.clone())
+    if is_feature_enabled(Feature::UsageLimit) {
+        match get_workspace_limit_exceeded_by_project_id(
+            db.clone(),
+            cache.clone(),
+            project_api_key.project_id,
+        )
         .await
-        .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
+        {
+            Ok(limits_exceeded) => {
+                if limits_exceeded.steps {
+                    return Ok(HttpResponse::Forbidden().json("Workspace step limit exceeded"));
+                }
+            }
+            Err(e) => {
+                log::error!("Error getting workspace limit exceeded: {}", e);
+            }
+        }
+    }
 
-    cache
-        .set_ttl(&cache_key, REQUEST_API_KEY_TTL)
-        .await
-        .map_err(|e| crate::routes::error::Error::InternalAnyhowError(e.into()))?;
+    let session_id = Uuid::new_v4();
+
+    let worker_states_clone = worker_states.clone();
+    tokio::spawn(async move {
+        let _ = drop_guard.await;
+        worker_states_clone.stop_session(session_id).await;
+    });
 
     if request.stream {
-        let stream = agent_manager
-            .run_agent_stream(
+        let mut receiver = worker_states.create_channel_and_get_rx(session_id);
+        let options = RunAgentWorkerOptions {
+            model_provider: request.model_provider,
+            model: request.model,
+            enable_thinking: request.enable_thinking,
+        };
+        let pool = db.pool.clone();
+        tokio::spawn(async move {
+            run_agent_worker(
+                agent_manager.clone(),
+                worker_states.as_ref().clone(),
+                db.clone(),
+                session_id,
+                None,
+                Some(project_api_key.raw),
                 request.prompt,
-                chat_id,
-                Some(request_api_key_vals.value),
-                request.span_context.map(|span_context| span_context.into()),
-                request.model_provider,
-                request.model,
-                request.enable_thinking,
-                false,
-                request.state,
+                options,
             )
             .await;
+        });
+        let stream = async_stream::stream! {
+            let _drop_guard = drop_sender;
+            while let Some(message) = receiver.recv().await {
+                match message {
+                    Ok(WorkerStreamChunk::AgentChunk(agent_chunk)) => {
+                        if let Err(e) =
+                            db::stats::add_agent_steps_to_project_usage_stats(&pool, &project_api_key.project_id, 1)
+                                .await
+                        {
+                            log::error!("Error adding agent steps to project usage stats: {}", e);
+                        }
+
+                        match agent_chunk {
+                            RunAgentResponseStreamChunk::FinalOutput(_) => {
+                                yield anyhow::Ok(agent_chunk.into());
+                                break;
+                            }
+                            RunAgentResponseStreamChunk::Step(_) => {
+                                yield anyhow::Ok(agent_chunk.into());
+                            }
+                        }
+                    }
+                    Ok(WorkerStreamChunk::ControlChunk(ControlChunk::Stop)) => {
+                        break;
+                    }
+                    Err(e) => {
+                        log::error!("Error running agent: {}", e);
+                        break;
+                    }
+                }
+            }
+        };
 
         Ok(HttpResponse::Ok()
             .content_type("text/event-stream")
             .streaming(stream.map(|r| {
                 r.map(|chunk| {
-                    let data = serde_json::to_string(&chunk).unwrap();
+                    let data =
+                        serde_json::to_string::<RunAgentResponseStreamChunk>(&chunk).unwrap();
                     bytes::Bytes::from(format!("data: {}\n\n", data))
                 })
             })))
     } else {
-        let response = agent_manager
-            .run_agent(
-                request.prompt,
-                chat_id,
-                Some(request_api_key_vals.value),
-                request.span_context.map(|span_context| span_context.into()),
-                request.model_provider,
-                request.model,
-                request.enable_thinking,
-                false,
-                request.state,
-            )
-            .await?;
+        let fut = tokio::spawn(async move {
+            agent_manager
+                .run_agent(
+                    request.prompt,
+                    session_id,
+                    false,
+                    Some(project_api_key.raw),
+                    request.parent_span_context.clone(),
+                    request.model_provider,
+                    request.model.clone(),
+                    request.enable_thinking,
+                    Vec::new(),
+                )
+                .await
+        });
 
-        Ok(HttpResponse::Ok().json(response))
+        worker_states.insert_abort_handle(session_id, fut.abort_handle());
+
+        match fut.await {
+            Ok(response) => {
+                let response = response?;
+                if let Err(e) = db::stats::add_agent_steps_to_project_usage_stats(
+                    &db.pool,
+                    &project_api_key.project_id,
+                    response.step_count.unwrap_or(0) as i64,
+                )
+                .await
+                {
+                    log::error!("Error adding agent steps to project usage stats: {}", e);
+                }
+                Ok(HttpResponse::Ok().json(response))
+            }
+            Err(e) if e.is_cancelled() => Ok(HttpResponse::NoContent().finish()),
+            Err(e) => {
+                log::error!("Error running agent: {}", e);
+                Ok(HttpResponse::InternalServerError().finish())
+            }
+        }
     }
 }

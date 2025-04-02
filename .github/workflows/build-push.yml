@@ -26,6 +26,9 @@ jobs:
           - dockerfile: ./python-executor/Dockerfile
             context: ./python-executor
             image: ghcr.io/lmnr-ai/python-executor
+          - dockerfile: ./agent-manager/Dockerfile
+            context: ./agent-manager
+            image: ghcr.io/lmnr-ai/agent-manager
     permissions:
       contents: read
       packages: write

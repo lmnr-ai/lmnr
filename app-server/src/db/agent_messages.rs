@@ -2,54 +2,61 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+#[derive(sqlx::Type, Clone, PartialEq)]
+#[sqlx(type_name = "agent_message_type")]
+pub enum MessageType {
+    #[sqlx(rename = "user")]
+    User,
+    #[sqlx(rename = "step")]
+    Step,
+    #[sqlx(rename = "assistant")]
+    Assistant,
+}
+
 pub async fn insert_agent_message(
     pool: &PgPool,
     id: &Uuid,
-    chat_id: &Uuid,
-    user_id: &Uuid,
-    message_type: &str,
+    session_id: &Uuid,
+    trace_id: &Uuid,
+    message_type: &MessageType,
     content: &Value,
+    created_at: &chrono::DateTime<chrono::Utc>,
 ) -> anyhow::Result<()> {
     sqlx::query(
         "INSERT INTO agent_messages (
         id,
-        chat_id,
-        user_id,
+        session_id,
+        trace_id,
         message_type,
-        content
-    ) VALUES ($1, $2, $3, $4, $5)",
+        content,
+        created_at
+    ) VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(id)
-    .bind(chat_id)
-    .bind(user_id)
+    .bind(session_id)
+    .bind(trace_id)
     .bind(message_type)
     .bind(content)
+    .bind(created_at)
     .execute(pool)
     .await?;
 
-    Ok(())
-}
-
-pub async fn update_agent_state(
-    pool: &PgPool,
-    chat_id: &Uuid,
-    state: &Value,
-) -> anyhow::Result<()> {
-    sqlx::query("UPDATE agent_sessions SET state = $2 WHERE chat_id = $1")
-        .bind(chat_id)
-        .bind(state)
+    // TODO: Run these DB tasks in parallel or drop updated_at in one of the tables
+    if let Err(e) =
+        sqlx::query("UPDATE agent_sessions SET updated_at = now() WHERE session_id = $1")
+            .bind(session_id)
+            .execute(pool)
+            .await
+    {
+        log::error!("Error updating agent session: {}", e);
+    }
+    if let Err(e) = sqlx::query("UPDATE agent_chats SET updated_at = now() WHERE session_id = $1")
+        .bind(session_id)
         .execute(pool)
-        .await?;
+        .await
+    {
+        log::error!("Error updating agent session: {}", e);
+    }
 
     Ok(())
-}
-
-pub async fn get_agent_state(pool: &PgPool, chat_id: &Uuid) -> anyhow::Result<Option<Value>> {
-    let state: Option<Option<Value>> =
-        sqlx::query_scalar("SELECT state FROM agent_sessions WHERE chat_id = $1")
-            .bind(chat_id)
-            .fetch_optional(pool)
-            .await?;
-
-    Ok(state.flatten())
 }
