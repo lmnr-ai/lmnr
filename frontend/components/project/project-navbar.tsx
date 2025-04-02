@@ -2,7 +2,6 @@
 
 import {
   Book,
-  Cable,
   Database,
   FlaskConical,
   LayoutGrid,
