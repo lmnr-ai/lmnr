@@ -64,6 +64,14 @@ For production environment, we recommend using our [managed platform](https://ww
 - postgres – Postgres database for all the application data
 - clickhouse – columnar OLAP database for more efficient trace and label analytics
 
+### Self-hosting with Kubernetes
+
+For a more scalable and production-ready deployment, we recommend using [ai-charts](https://github.com/magicsong/ai-charts) as a Kubernetes deployment solution. 
+
+[ai-charts](https://github.com/magicsong/ai-charts) provides Helm charts for deploying AI services on Kubernetes. It simplifies the deployment process and offers benefits such as scalability, high availability, and easy management of resources.
+
+For more details, visit the [ai-charts repository](https://github.com/magicsong/ai-charts).
+
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,
