@@ -1,9 +1,140 @@
 {
-  "id": "7a676b9e-5ebc-436e-95a8-b846915c1207",
+  "id": "73211182-b09d-450f-87d5-e57c1ff228e6",
   "prevId": "977be700-ad48-4a8c-acb0-3a4c76169d35",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.agent_chats": {
+      "name": "agent_chats",
+      "schema": "",
+      "columns": {
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "chat_name": {
+          "name": "chat_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'New chat'"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "machine_status": {
+          "name": "machine_status",
+          "type": "agent_machine_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'not_started'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agent_chats_created_at_idx": {
+          "name": "agent_chats_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "timestamptz_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_chats_updated_at_idx": {
+          "name": "agent_chats_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "timestamptz_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_chats_user_id_idx": {
+          "name": "agent_chats_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hash",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_chats_user_id_fkey": {
+          "name": "agent_chats_user_id_fkey",
+          "tableFrom": "agent_chats",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "agent_chats_session_id_fkey": {
+          "name": "agent_chats_session_id_fkey",
+          "tableFrom": "agent_chats",
+          "tableTo": "agent_sessions",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "session_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.agent_messages": {
       "name": "agent_messages",
       "schema": "",
@@ -22,15 +153,16 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "chat_id": {
-          "name": "chat_id",
+        "session_id": {
+          "name": "session_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
+        "message_type": {
+          "name": "message_type",
+          "type": "agent_message_type",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -41,27 +173,26 @@
           "notNull": false,
           "default": "'{}'::jsonb"
         },
-        "message_type": {
-          "name": "message_type",
-          "type": "agent_message_type",
-          "typeSchema": "public",
+        "trace_id": {
+          "name": "trace_id",
+          "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         }
       },
       "indexes": {
-        "agent_messages_chat_id_created_at_idx": {
-          "name": "agent_messages_chat_id_created_at_idx",
+        "agent_messages_session_id_created_at_idx": {
+          "name": "agent_messages_session_id_created_at_idx",
           "columns": [
             {
-              "expression": "chat_id",
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last",
               "opclass": "timestamptz_ops"
             },
             {
-              "expression": "created_at",
+              "expression": "session_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last",
@@ -75,28 +206,15 @@
         }
       },
       "foreignKeys": {
-        "agent_message_to_user_fkey": {
-          "name": "agent_message_to_user_fkey",
-          "tableFrom": "agent_messages",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        },
-        "agent_messages_chat_id_fkey": {
-          "name": "agent_messages_chat_id_fkey",
+        "agent_messages_session_id_fkey": {
+          "name": "agent_messages_session_id_fkey",
           "tableFrom": "agent_messages",
           "tableTo": "agent_sessions",
           "columnsFrom": [
-            "chat_id"
+            "session_id"
           ],
           "columnsTo": [
-            "chat_id"
+            "session_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "cascade"
@@ -119,23 +237,24 @@
           "notNull": true,
           "default": "now()"
         },
-        "chat_id": {
-          "name": "chat_id",
+        "session_id": {
+          "name": "session_id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "cdp_url": {
           "name": "cdp_url",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "vnc_url": {
           "name": "vnc_url",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "machine_id": {
           "name": "machine_id",
@@ -145,10 +264,9 @@
         },
         "state": {
           "name": "state",
-          "type": "jsonb",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
+          "notNull": false
         },
         "updated_at": {
           "name": "updated_at",
@@ -157,18 +275,12 @@
           "notNull": true,
           "default": "now()"
         },
-        "chat_name": {
-          "name": "chat_name",
+        "agent_status": {
+          "name": "agent_status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'New chat'"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "default": "'idle'"
         }
       },
       "indexes": {
@@ -202,22 +314,6 @@
           "isUnique": false,
           "concurrently": false,
           "method": "btree",
-          "with": {}
-        },
-        "agent_sessions_user_id_idx": {
-          "name": "agent_sessions_user_id_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "uuid_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "hash",
           "with": {}
         }
       },
@@ -294,18 +390,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "Enable insert for authenticated users only": {
-          "name": "Enable insert for authenticated users only",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "service_role"
-          ],
-          "using": "true",
-          "withCheck": "true"
-        }
-      },
+      "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -639,18 +724,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "select_by_next_api_key": {
-          "name": "select_by_next_api_key",
-          "as": "PERMISSIVE",
-          "for": "SELECT",
-          "to": [
-            "anon",
-            "authenticated"
-          ],
-          "using": "is_evaluation_id_accessible_for_api_key(api_key(), evaluation_id)"
-        }
-      },
+      "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -820,18 +894,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "select_by_next_api_key": {
-          "name": "select_by_next_api_key",
-          "as": "PERMISSIVE",
-          "for": "SELECT",
-          "to": [
-            "anon",
-            "authenticated"
-          ],
-          "using": "is_evaluation_id_accessible_for_api_key(api_key(), id)"
-        }
-      },
+      "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -853,6 +916,12 @@
           "notNull": true,
           "default": "now()"
         },
+        "span_id": {
+          "name": "span_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "timestamp": {
           "name": "timestamp",
           "type": "timestamp with time zone",
@@ -871,12 +940,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::jsonb"
-        },
-        "span_id": {
-          "name": "span_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
         },
         "project_id": {
           "name": "project_id",
@@ -1296,6 +1359,14 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "labels_span_id_class_id_key": {
+          "name": "labels_span_id_class_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "class_id",
+            "span_id"
+          ]
+        },
         "labels_span_id_class_id_user_id_key": {
           "name": "labels_span_id_class_id_user_id_key",
           "nullsNotDistinct": false,
@@ -1303,14 +1374,6 @@
             "class_id",
             "span_id",
             "user_id"
-          ]
-        },
-        "labels_span_id_class_id_key": {
-          "name": "labels_span_id_class_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "class_id",
-            "span_id"
           ]
         }
       },
@@ -1672,18 +1735,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "all_actions_by_next_api_key": {
-          "name": "all_actions_by_next_api_key",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "anon",
-            "authenticated"
-          ],
-          "using": "is_pipeline_id_accessible_for_api_key(api_key(), pipeline_id)"
-        }
-      },
+      "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -2306,7 +2358,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "uuid_ops"
             },
             {
               "expression": "trace_id",
@@ -2320,7 +2372,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "uuid_ops"
             }
           ],
           "isUnique": false,
@@ -2350,14 +2402,14 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "uuid_ops"
             },
             {
               "expression": "trace_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "uuid_ops"
+              "opclass": "timestamptz_ops"
             }
           ],
           "isUnique": false,
@@ -2463,17 +2515,7 @@
           ]
         }
       },
-      "policies": {
-        "select_by_next_api_key": {
-          "name": "select_by_next_api_key",
-          "as": "PERMISSIVE",
-          "for": "SELECT",
-          "to": [
-            "public"
-          ],
-          "using": "is_project_id_accessible_for_api_key(api_key(), project_id)"
-        }
-      },
+      "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -2493,7 +2535,7 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "9223372036854776000",
+            "maxValue": "9223372036854775000",
             "cache": "1",
             "cycle": false
           }
@@ -2530,13 +2572,6 @@
           "notNull": true,
           "default": "'-1'"
         },
-        "num_workspaces": {
-          "name": "num_workspaces",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'-1'"
-        },
         "stripe_product_id": {
           "name": "stripe_product_id",
           "type": "text",
@@ -2544,8 +2579,8 @@
           "notNull": true,
           "default": "''"
         },
-        "events": {
-          "name": "events",
+        "steps": {
+          "name": "steps",
           "type": "bigint",
           "primaryKey": false,
           "notNull": true,
@@ -2565,8 +2600,8 @@
           "notNull": true,
           "default": "'0'"
         },
-        "extra_event_price": {
-          "name": "extra_event_price",
+        "extra_step_price": {
+          "name": "extra_step_price",
           "type": "double precision",
           "primaryKey": false,
           "notNull": true,
@@ -2764,6 +2799,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "agent_session_id": {
+          "name": "agent_session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -2798,14 +2839,14 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "uuid_ops"
             },
             {
               "expression": "start_time",
               "isExpression": false,
               "asc": false,
               "nulls": "first",
-              "opclass": "uuid_ops"
+              "opclass": "timestamptz_ops"
             }
           ],
           "isUnique": false,
@@ -2845,7 +2886,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "uuid_ops"
             },
             {
               "expression": "end_time",
@@ -2918,18 +2959,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {
-        "select_by_next_api_key": {
-          "name": "select_by_next_api_key",
-          "as": "PERMISSIVE",
-          "for": "SELECT",
-          "to": [
-            "anon",
-            "authenticated"
-          ],
-          "using": "is_project_id_accessible_for_api_key(api_key(), project_id)"
-        }
-      },
+      "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -2955,11 +2985,16 @@
           "name": "user_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "cookies": {
           "name": "cookies",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nonce": {
+          "name": "nonce",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -3101,17 +3136,7 @@
           ]
         }
       },
-      "policies": {
-        "Enable insert for authenticated users only": {
-          "name": "Enable insert for authenticated users only",
-          "as": "PERMISSIVE",
-          "for": "INSERT",
-          "to": [
-            "service_role"
-          ],
-          "withCheck": "true"
-        }
-      },
+      "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -3147,22 +3172,22 @@
           "notNull": true,
           "default": "'0'"
         },
-        "event_count": {
-          "name": "event_count",
+        "step_count": {
+          "name": "step_count",
           "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "default": "'0'"
         },
-        "event_count_since_reset": {
-          "name": "event_count_since_reset",
+        "step_count_since_reset": {
+          "name": "step_count_since_reset",
           "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "default": "'0'"
         },
-        "prev_event_count": {
-          "name": "prev_event_count",
+        "prev_step_count": {
+          "name": "prev_step_count",
           "type": "bigint",
           "primaryKey": false,
           "notNull": true,
