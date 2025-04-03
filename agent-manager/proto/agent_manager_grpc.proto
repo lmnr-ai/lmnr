@@ -20,7 +20,8 @@ message RunAgentRequest {
     optional ModelProvider model_provider = 6;
     optional string model = 7;
     optional bool enable_thinking = 8;
-    repeated Cookie cookies = 9;
+    optional bool return_screenshots = 9;
+    repeated Cookie cookies = 10;
 }
 
 message ActionResult {
@@ -34,6 +35,7 @@ message StepChunkContent {
     ActionResult action_result = 1;
     string summary = 2;
     string trace_id = 3;
+    optional string screenshot = 4;
 }
 
 message AgentOutput {

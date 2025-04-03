@@ -27,7 +27,7 @@ class Cookie(_message.Message):
     def __init__(self, cookie_data: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class RunAgentRequest(_message.Message):
-    __slots__ = ("prompt", "session_id", "is_chat_request", "request_api_key", "parent_span_context", "model_provider", "model", "enable_thinking", "cookies")
+    __slots__ = ("prompt", "session_id", "is_chat_request", "request_api_key", "parent_span_context", "model_provider", "model", "enable_thinking", "return_screenshots", "cookies")
     PROMPT_FIELD_NUMBER: _ClassVar[int]
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     IS_CHAT_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -36,6 +36,7 @@ class RunAgentRequest(_message.Message):
     MODEL_PROVIDER_FIELD_NUMBER: _ClassVar[int]
     MODEL_FIELD_NUMBER: _ClassVar[int]
     ENABLE_THINKING_FIELD_NUMBER: _ClassVar[int]
+    RETURN_SCREENSHOTS_FIELD_NUMBER: _ClassVar[int]
     COOKIES_FIELD_NUMBER: _ClassVar[int]
     prompt: str
     session_id: str
@@ -45,8 +46,9 @@ class RunAgentRequest(_message.Message):
     model_provider: ModelProvider
     model: str
     enable_thinking: bool
+    return_screenshots: bool
     cookies: _containers.RepeatedCompositeFieldContainer[Cookie]
-    def __init__(self, prompt: _Optional[str] = ..., session_id: _Optional[str] = ..., is_chat_request: bool = ..., request_api_key: _Optional[str] = ..., parent_span_context: _Optional[str] = ..., model_provider: _Optional[_Union[ModelProvider, str]] = ..., model: _Optional[str] = ..., enable_thinking: bool = ..., cookies: _Optional[_Iterable[_Union[Cookie, _Mapping]]] = ...) -> None: ...
+    def __init__(self, prompt: _Optional[str] = ..., session_id: _Optional[str] = ..., is_chat_request: bool = ..., request_api_key: _Optional[str] = ..., parent_span_context: _Optional[str] = ..., model_provider: _Optional[_Union[ModelProvider, str]] = ..., model: _Optional[str] = ..., enable_thinking: bool = ..., return_screenshots: bool = ..., cookies: _Optional[_Iterable[_Union[Cookie, _Mapping]]] = ...) -> None: ...
 
 class ActionResult(_message.Message):
     __slots__ = ("is_done", "content", "error", "give_control")
@@ -61,14 +63,16 @@ class ActionResult(_message.Message):
     def __init__(self, is_done: bool = ..., content: _Optional[str] = ..., error: _Optional[str] = ..., give_control: bool = ...) -> None: ...
 
 class StepChunkContent(_message.Message):
-    __slots__ = ("action_result", "summary", "trace_id")
+    __slots__ = ("action_result", "summary", "trace_id", "screenshot")
     ACTION_RESULT_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
     TRACE_ID_FIELD_NUMBER: _ClassVar[int]
+    SCREENSHOT_FIELD_NUMBER: _ClassVar[int]
     action_result: ActionResult
     summary: str
     trace_id: str
-    def __init__(self, action_result: _Optional[_Union[ActionResult, _Mapping]] = ..., summary: _Optional[str] = ..., trace_id: _Optional[str] = ...) -> None: ...
+    screenshot: str
+    def __init__(self, action_result: _Optional[_Union[ActionResult, _Mapping]] = ..., summary: _Optional[str] = ..., trace_id: _Optional[str] = ..., screenshot: _Optional[str] = ...) -> None: ...
 
 class AgentOutput(_message.Message):
     __slots__ = ("result", "cookies", "trace_id", "step_count")
