@@ -37,7 +37,6 @@ ALTER TABLE "agent_messages" ALTER COLUMN "message_type" DROP DEFAULT; --> state
 ALTER TABLE "agent_messages" ALTER COLUMN "message_type" SET DATA TYPE agent_message_type USING "message_type"::agent_message_type;--> statement-breakpoint
 -- end of manual changes
 
-ALTER TABLE "agent_messages" ALTER COLUMN "message_type" DROP DEFAULT;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ALTER COLUMN "cdp_url" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ALTER COLUMN "vnc_url" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ALTER COLUMN "state" SET DATA TYPE text;--> statement-breakpoint
