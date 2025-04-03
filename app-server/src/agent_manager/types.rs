@@ -181,6 +181,7 @@ pub struct StepChunkContent {
     pub action_result: ActionResult,
     pub summary: String,
     pub trace_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub screenshot: Option<String>,
 }
 
