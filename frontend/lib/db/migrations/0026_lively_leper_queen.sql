@@ -30,12 +30,17 @@ DROP INDEX "spans_project_id_trace_id_start_time_idx";--> statement-breakpoint
 DROP INDEX "spans_root_project_id_start_time_end_time_trace_id_idx";--> statement-breakpoint
 DROP INDEX "traces_id_project_id_start_time_times_not_null_idx";--> statement-breakpoint
 DROP INDEX "traces_project_id_trace_type_start_time_end_time_idx";--> statement-breakpoint
-ALTER TABLE "agent_messages" ALTER COLUMN "message_type" SET DATA TYPE agent_message_type;--> statement-breakpoint
+
+-- manual changes so migration doesn't fail
+UPDATE "agent_messages" SET "message_type" = 'assistant' WHERE "message_type" NOT IN ('user', 'assistant', 'step'); --> statement-breakpoint
+ALTER TABLE "agent_messages" ALTER COLUMN "message_type" DROP DEFAULT; --> statement-breakpoint
+ALTER TABLE "agent_messages" ALTER COLUMN "message_type" SET DATA TYPE agent_message_type USING "message_type"::agent_message_type;--> statement-breakpoint
+-- end of manual changes
+
 ALTER TABLE "agent_messages" ALTER COLUMN "message_type" DROP DEFAULT;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ALTER COLUMN "cdp_url" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ALTER COLUMN "vnc_url" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ALTER COLUMN "state" SET DATA TYPE text;--> statement-breakpoint
-ALTER TABLE "subscription_tiers" ALTER COLUMN "id" SET MAXVALUE 9223372036854775000;--> statement-breakpoint
 ALTER TABLE "agent_messages" ADD COLUMN "trace_id" uuid;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ADD COLUMN "updated_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ADD COLUMN "agent_status" text DEFAULT 'idle' NOT NULL;--> statement-breakpoint
