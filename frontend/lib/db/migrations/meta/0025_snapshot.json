@@ -39,7 +39,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "''"
+          "default": "'assistant'"
         },
         "content": {
           "name": "content",
