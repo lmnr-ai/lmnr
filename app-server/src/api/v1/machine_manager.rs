@@ -190,10 +190,10 @@ pub async fn vnc_stream(
                     tokio_tungstenite::tungstenite::Message::Text(text.to_string().into())
                 }
                 actix_ws::Message::Binary(bytes) => {
-                    tokio_tungstenite::tungstenite::Message::Binary(bytes.to_vec())
+                    tokio_tungstenite::tungstenite::Message::Binary(bytes)
                 }
                 actix_ws::Message::Ping(bytes) => {
-                    tokio_tungstenite::tungstenite::Message::Ping(bytes.to_vec())
+                    tokio_tungstenite::tungstenite::Message::Ping(bytes)
                 }
                 actix_ws::Message::Close(_) => tokio_tungstenite::tungstenite::Message::Close(None),
                 _ => continue,

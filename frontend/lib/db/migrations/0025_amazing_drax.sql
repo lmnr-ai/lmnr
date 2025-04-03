@@ -3,7 +3,7 @@ CREATE TABLE "agent_messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"chat_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
-	"message_type" text DEFAULT '' NOT NULL,
+	"message_type" text DEFAULT 'assistant' NOT NULL,
 	"content" jsonb DEFAULT '{}'::jsonb
 );
 --> statement-breakpoint
