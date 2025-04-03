@@ -151,7 +151,7 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 step_span_context=None,
                 timeout=None,
                 session_id=request.session_id,
-                # TODO: add return_screenshots here
+                return_screenshots=request.return_screenshots
             ):
                 if isinstance(chunk, StepChunk):
                     logger.info(f"Step chunk summary: {chunk.content.summary}")
@@ -167,8 +167,7 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                             ),
                             summary=chunk.content.summary,
                             trace_id=chunk.content.trace_id,
-                            # TODO: add screenshot here
-                            screenshot=None
+                            screenshot=chunk.content.screenshot
                         )
                     )
                     yield response
@@ -197,9 +196,6 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                             response.agent_output.cookies.append(proto_cookie)
                     
                     yield response
-                
-                # NOTE: TimeoutChunk and StepChunkError are not fully implemented as they'd need
-                # to be added to the proto definition first
             
         except Exception as e:
             logger.error(f"Error in RunAgentStream: {e}")
@@ -257,7 +253,6 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
         agent_state: Optional[str] = None,
         close_context: bool = False,
         session_id: Optional[str] = None,
-        return_screenshots: bool = False
     ) -> Dict:
         """Run the agent in synchronous mode and return the complete result"""
         # Run agent and get complete result
@@ -267,8 +262,7 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
             parent_span_context=parent_span_context, 
             agent_state=agent_state,
             close_context=close_context,
-            session_id=session_id
-            # TODO: add return_screenshots here
+            session_id=session_id,
         )
         
         return {
