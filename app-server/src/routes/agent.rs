@@ -69,6 +69,7 @@ pub async fn run_agent_manager(
             model_provider: request.model_provider,
             model: request.model,
             enable_thinking: request.enable_thinking,
+            return_screenshots: false,
         };
         // Run agent worker
         tokio::spawn(async move {

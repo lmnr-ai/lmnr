@@ -37,6 +37,7 @@ pub trait AgentManagerTrait {
         model: Option<String>,
         enable_thinking: bool,
         cookies: Vec<HashMap<String, String>>,
+        return_screenshots: bool,
     ) -> Result<AgentOutput>;
 
     async fn run_agent_stream(
@@ -50,5 +51,6 @@ pub trait AgentManagerTrait {
         model: Option<String>,
         enable_thinking: bool,
         cookies: Vec<HashMap<String, String>>,
+        return_screenshots: bool,
     ) -> Self::RunAgentStreamStream;
 }

@@ -30,6 +30,8 @@ struct RunAgentRequest {
     stream: bool,
     #[serde(default = "default_true")]
     enable_thinking: bool,
+    #[serde(default)]
+    return_screenshots: bool,
 }
 
 fn default_true() -> bool {
@@ -85,6 +87,7 @@ pub async fn run_agent_manager(
             model_provider: request.model_provider,
             model: request.model,
             enable_thinking: request.enable_thinking,
+            return_screenshots: request.return_screenshots,
         };
         let pool = db.pool.clone();
         tokio::spawn(async move {
@@ -155,6 +158,7 @@ pub async fn run_agent_manager(
                     request.model.clone(),
                     request.enable_thinking,
                     Vec::new(),
+                    request.return_screenshots,
                 )
                 .await
         });
