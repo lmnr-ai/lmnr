@@ -30,6 +30,7 @@ impl AgentManagerTrait for MockAgentManager {
         _model: Option<String>,
         _enable_thinking: bool,
         _cookies: Vec<HashMap<String, String>>,
+        _return_screenshots: bool,
     ) -> Result<AgentOutput> {
         log::debug!("MockAgentManager::run_agent called");
         Ok(AgentOutput::default())
@@ -46,6 +47,7 @@ impl AgentManagerTrait for MockAgentManager {
         _model: Option<String>,
         _enable_thinking: bool,
         _cookies: Vec<HashMap<String, String>>,
+        _return_screenshots: bool,
     ) -> Self::RunAgentStreamStream {
         log::debug!("MockAgentManager::run_agent_stream called");
         Box::pin(futures::stream::once(async move {
