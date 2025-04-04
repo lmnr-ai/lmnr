@@ -43,6 +43,7 @@ impl AgentManagerTrait for AgentManagerImpl {
         model: Option<String>,
         enable_thinking: bool,
         cookies: Vec<HashMap<String, String>>,
+        return_screenshots: bool,
     ) -> Result<AgentOutput> {
         let mut client = self.client.as_ref().clone();
 
@@ -56,6 +57,7 @@ impl AgentManagerTrait for AgentManagerImpl {
             model,
             enable_thinking: Some(enable_thinking),
             cookies: cookies.into_iter().map(|c| c.into()).collect(),
+            return_screenshots: Some(return_screenshots),
         });
 
         let response = client.run_agent(request).await?;
@@ -74,6 +76,7 @@ impl AgentManagerTrait for AgentManagerImpl {
         model: Option<String>,
         enable_thinking: bool,
         cookies: Vec<HashMap<String, String>>,
+        return_screenshots: bool,
     ) -> Self::RunAgentStreamStream {
         let mut client = self.client.as_ref().clone();
 
@@ -87,6 +90,7 @@ impl AgentManagerTrait for AgentManagerImpl {
             model,
             enable_thinking: Some(enable_thinking),
             cookies: cookies.into_iter().map(|c| c.into()).collect(),
+            return_screenshots: Some(return_screenshots),
         });
 
         match client.run_agent_stream(request).await {

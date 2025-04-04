@@ -16,6 +16,7 @@ pub struct RunAgentWorkerOptions {
     pub model_provider: Option<ModelProvider>,
     pub model: Option<String>,
     pub enable_thinking: bool,
+    pub return_screenshots: bool,
 }
 
 pub async fn run_agent_worker(
@@ -52,6 +53,7 @@ pub async fn run_agent_worker(
             options.model,
             options.enable_thinking,
             cookies,
+            options.return_screenshots,
         )
         .await;
 

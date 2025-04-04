@@ -26,7 +26,9 @@ pub struct RunAgentRequest {
     pub model: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "8")]
     pub enable_thinking: ::core::option::Option<bool>,
-    #[prost(message, repeated, tag = "9")]
+    #[prost(bool, optional, tag = "9")]
+    pub return_screenshots: ::core::option::Option<bool>,
+    #[prost(message, repeated, tag = "10")]
     pub cookies: ::prost::alloc::vec::Vec<Cookie>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -48,6 +50,8 @@ pub struct StepChunkContent {
     pub summary: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub trace_id: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "4")]
+    pub screenshot: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AgentOutput {
