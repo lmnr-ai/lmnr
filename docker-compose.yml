@@ -65,11 +65,8 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
 
   agent-manager:
-    # image: ghcr.io/lmnr-ai/agent-manager
-    # pull_policy: always
-    build:
-      context: ./agent-manager
-      dockerfile: Dockerfile
+    image: ghcr.io/lmnr-ai/agent-manager
+    pull_policy: always
     ports:
       - "8901:8901"
     environment:
