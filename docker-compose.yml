@@ -65,7 +65,6 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
 
   agent-manager:
-    # TODO: Once we've merged this to main and built the image to ghcr, pull instead of building
     # image: ghcr.io/lmnr-ai/agent-manager
     # pull_policy: always
     build:
@@ -77,6 +76,9 @@ services:
       PORT: 8901
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SCRAPYBARA_API_KEY: ${SCRAPYBARA_API_KEY}
+      BACKEND_URL: http://app-server
+      BACKEND_HTTP_PORT: 8000
+      BACKEND_GRPC_PORT: 8001
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server

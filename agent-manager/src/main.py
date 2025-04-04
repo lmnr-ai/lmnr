@@ -49,9 +49,13 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
             parent_span_context = None
             if request.parent_span_context:
                 parent_span_context = Laminar.deserialize_span_context(request.parent_span_context)
-            
-            if request.request_api_key:
-                Laminar.initialize(project_api_key=request.request_api_key)
+            # if request.request_api_key:
+            #     Laminar.initialize(
+            #         project_api_key=request.request_api_key,
+            #         base_url=os.environ.get("BACKEND_URL"),
+            #         http_port=os.environ.get("BACKEND_HTTP_PORT"),
+            #         grpc_port=os.environ.get("BACKEND_GRPC_PORT")
+            #     )
             
             # Initialize agent
             agent = self._init_agent(
@@ -124,8 +128,13 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
             if request.parent_span_context:
                 parent_span_context = Laminar.deserialize_span_context(request.parent_span_context)
             
-            if request.request_api_key:
-                Laminar.initialize(project_api_key=request.request_api_key)
+            # if request.request_api_key:
+            #     Laminar.initialize(
+            #         project_api_key=request.request_api_key,
+            #         base_url=os.environ.get("BACKEND_URL"),
+            #         http_port=os.environ.get("BACKEND_HTTP_PORT"),
+            #         grpc_port=os.environ.get("BACKEND_GRPC_PORT")
+            #     )
             
             # Initialize agent
             agent = self._init_agent(
