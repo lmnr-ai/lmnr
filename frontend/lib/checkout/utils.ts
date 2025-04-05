@@ -124,7 +124,7 @@ export const manageUserSubscriptionEvent = async ({
     stripeCustomerId,
     activated: true
   }).where(eq(userSubscriptionInfo.stripeCustomerId, stripeCustomerId));
-  console.log(productId)
+  console.log(productId);
 
   await db.update(users).set({
     tierId: sql`CASE
@@ -140,10 +140,10 @@ export const manageUserSubscriptionEvent = async ({
 
   const currentTier = (await db.select({
     tierId: users.tierId
-  }).from(users).where(eq(users.id, userId)))[0];
+  }).from(users).where(eq(users.id, userId)))?.[0];
 
   // If the workspace is upgrading from the free tier, reset the usage
-  if (currentTier.tierId === 1) {
+  if (currentTier?.tierId === 1) {
     await db.update(userUsage).set({
       prevIndexChatMessageCount: userUsage.indexChatMessageCount,
       indexChatMessageCountSinceReset: 0,

@@ -190,6 +190,13 @@
       "when": 1743598572231,
       "tag": "0026_lively_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1743853103073,
+      "tag": "0027_massive_hawkeye",
+      "breakpoints": true
     }
   ]
 }

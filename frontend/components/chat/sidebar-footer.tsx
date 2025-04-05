@@ -12,6 +12,9 @@ import {
 import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "../ui/dialog";
+import ChatPricing from "./chat-pricing";
+
 const AgentSidebarFooter = ({ user }: { user: User }) => {
   const { state } = useSidebar();
   return (
@@ -41,6 +44,21 @@ const AgentSidebarFooter = ({ user }: { user: User }) => {
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
+              <DropdownMenuItem asChild>
+                <Dialog>
+                  <div className="flex items-center gap-2 text-sm px-2 py-1 hover:bg-accent">
+                    <DialogTrigger>
+                      Billing
+                    </DialogTrigger>
+                  </div>
+                  <DialogContent>
+                    <DialogTitle>
+                      Billing
+                    </DialogTitle>
+                    <ChatPricing />
+                  </DialogContent>
+                </Dialog>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <button
                   type="button"

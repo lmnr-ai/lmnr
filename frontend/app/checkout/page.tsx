@@ -21,7 +21,6 @@ export default async function CheckoutPage(
     );
   const workspaceId = searchParams?.workspaceId as string | undefined;
   const workspaceName = searchParams?.workspaceName as string | undefined;
-  const userIdParam = searchParams?.userId as string | undefined;
 
   const userSession = await getServerSession(authOptions);
   if (!userSession) {
@@ -44,7 +43,7 @@ export default async function CheckoutPage(
       })
     ).id;
 
-  const userId = existingStripeCustomer?.userId ?? userIdParam ??
+  const userId = existingStripeCustomer?.userId ??
     (await db.query.users.findFirst({
       where: eq(users.email, userSession!.user.email!)
     }))?.id;
@@ -85,11 +84,11 @@ export default async function CheckoutPage(
 
   const successUrl = typeParam === 'workspace' ?
     `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${workspaceName}&lookupKey=${lookupKey}` :
-    `${process.env.NEXT_PUBLIC_URL}/chat/pricing?sessionId={CHECKOUT_SESSION_ID}&userId=${userId}&lookupKey=${lookupKey}`;
+    `${process.env.NEXT_PUBLIC_URL}/chat?sessionId={CHECKOUT_SESSION_ID}&userId=${userId}&lookupKey=${lookupKey}`;
 
   const cancelUrl = typeParam === 'workspace' ?
     `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}` :
-    `${process.env.NEXT_PUBLIC_URL}/chat/pricing`;
+    `${process.env.NEXT_PUBLIC_URL}/chat`;
 
   const session = await s.checkout.sessions.create({
     customer: customerId,
@@ -107,8 +106,6 @@ export default async function CheckoutPage(
     cancel_url: cancelUrl,
     allow_promotion_codes: true,
   });
-
-  console.log(session.url!);
 
   redirect(session.url!);
 }

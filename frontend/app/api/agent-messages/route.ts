@@ -1,12 +1,12 @@
-import { sql, asc, eq } from "drizzle-orm";
-import { NextResponse, type NextRequest } from "next/server";
+import { asc, eq, sql } from "drizzle-orm";
+import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 
 import { ChatMessage } from "@/components/chat/types";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { agentMessages, apiKeys, users, userUsage } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { authOptions } from "@/lib/auth";
-import { getServerSession } from "next-auth";
 
 export async function POST(req: NextRequest): Promise<Response> {
   const body = (await req.json()) as ChatMessage;
@@ -40,12 +40,26 @@ export async function POST(req: NextRequest): Promise<Response> {
       const usage = usageAndLimits?.userUsages?.[0]?.indexChatMessageCountSinceReset ?? 0;
       const limit = usageAndLimits?.userSubscriptionTier?.indexChatMessages ?? 1;
       if (usage >= limit && usageAndLimits?.userSubscriptionTier?.name?.trim().toLowerCase() === "free") {
-        return new NextResponse("You have reached your limit of index chat messages. Upgrade to a paid plan to continue.", { status: 402 });
+        return new NextResponse(
+          "You have reached your limit of index chat messages. Upgrade to a paid plan to continue.",
+          { status: 402 }
+        );
       }
     }
-    await db.update(userUsage).set({
-      indexChatMessageCountSinceReset: sql`${userUsage.indexChatMessageCountSinceReset} + 1`,
-    }).where(eq(userUsage.userId, dbUser.userId));
+    await db
+      .insert(userUsage)
+      .values({
+        indexChatMessageCountSinceReset: 1,
+        indexChatMessageCount: 1,
+        userId: dbUser.userId,
+      })
+      .onConflictDoUpdate({
+        target: [userUsage.userId],
+        set: {
+          indexChatMessageCountSinceReset: sql`${userUsage.indexChatMessageCountSinceReset} + 1`,
+          indexChatMessageCount: sql`${userUsage.indexChatMessageCount} + 1`,
+        },
+      });
   }
 
   await db.insert(agentMessages).values(body);
@@ -54,7 +68,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 }
 
 export async function GET(req: NextRequest): Promise<Response> {
-  const { sessionId } = (await req.json()) as { sessionId: string };
+  const sessionId = req.nextUrl.searchParams.get('sessionId')!;
 
   const messages = await db.query.agentMessages.findMany({
     where: eq(agentMessages.sessionId, sessionId),

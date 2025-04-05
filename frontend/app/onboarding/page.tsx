@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
@@ -8,7 +9,6 @@ import { UserContextProvider } from '@/contexts/user-context';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { users, userUsage } from '@/lib/db/migrations/schema';
-import { eq } from 'drizzle-orm';
 
 export const metadata: Metadata = {
   title: 'Create workspace and project'
