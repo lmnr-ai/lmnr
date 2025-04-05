@@ -89,16 +89,15 @@ const parseStream = (onChunk: (chunk: RunAgentResponseStreamChunk) => void) => {
 };
 
 export const createMessage = async (message: ChatMessage) => {
-  try {
-    await fetch("/api/agent-messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(message),
-    });
-  } catch (e) {
-    console.error(e);
+  const response = await fetch("/api/agent-messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(message),
+  });
+  if (!response.ok) {
+    throw new Error(await response.text());
   }
 };
 
