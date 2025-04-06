@@ -69,12 +69,20 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
           </div>
           <div className="">
             <div className="pb-2 font-medium text-lg">Output</div>
-            <Formatter
-              className="max-h-[400px]"
-              value={typeof spanOutput === "string" ? spanOutput : JSON.stringify(spanOutput)}
-              presetKey={`output-${spanPathArray.join(".")}`}
-              collapsible
-            />
+            {isChatMessageList(spanOutput) ? (
+              <ChatMessageListTab
+                reversed={reversed}
+                messages={spanOutput}
+                presetKey={`output-${spanPathArray.join(".")}`}
+              />
+            ) : (
+              <Formatter
+                className="max-h-[400px]"
+                collapsible
+                value={typeof spanOutput === "string" ? spanOutput : JSON.stringify(spanOutput)}
+                presetKey={`output-${spanPathArray.join(".")}`}
+              />
+            )}
           </div>
         </div>
       </div>

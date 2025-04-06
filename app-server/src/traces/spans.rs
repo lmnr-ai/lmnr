@@ -469,19 +469,15 @@ impl Span {
 
         span.span_type = span.get_attributes().span_type();
 
-        // to handle Traceloop's prompt/completion messages
+        // to handle OpenLLMetry's prompt/completion messages
         if span.span_type == SpanType::LLM {
             if attributes.get("gen_ai.prompt.0.content").is_some() {
                 let input_messages =
                     input_chat_messages_from_prompt_content(&attributes, "gen_ai.prompt");
 
                 span.input = Some(json!(input_messages));
-                span.output = output_from_completion_content(
-                    &attributes,
-                    "gen_ai.completion",
-                    "tool_calls",
-                    true,
-                );
+                span.output =
+                    output_from_completion_content(&attributes, "gen_ai.completion", "tool_calls");
             } else if attributes.get("ai.prompt.messages").is_some() {
                 // handling the Vercel's AI SDK auto-instrumentation
                 if let Ok(input_messages) = serde_json::from_str::<Vec<ChatMessage>>(
@@ -504,23 +500,6 @@ impl Span {
                             .unwrap_or(serde_json::Value::String(s.clone())),
                     );
                 }
-            } else if attributes
-                .get("SpanAttributes.LLM_PROMPTS.0.content")
-                .is_some()
-            {
-                // handling the LiteLLM auto-instrumentation
-                let input_messages = input_chat_messages_from_prompt_content(
-                    &attributes,
-                    "SpanAttributes.LLM_PROMPTS",
-                );
-                span.input = Some(json!(input_messages));
-
-                span.output = output_from_completion_content(
-                    &attributes,
-                    "SpanAttributes.LLM_COMPLETIONS",
-                    "function_call",
-                    false,
-                );
             }
         }
 
@@ -957,64 +936,59 @@ struct TextBlock {
     content_block_type: String,
 }
 
-fn tool_call_attribute(
-    prefix: &str,
-    tool_call_attribute_name: &str,
-    use_index_in_tools: bool,
-    index: usize,
-    attribute: &str,
-) -> String {
-    if use_index_in_tools {
-        format!("{prefix}.0.{tool_call_attribute_name}.{index}.{attribute}")
-    } else {
-        format!("{prefix}.0.{tool_call_attribute_name}.{attribute}")
-    }
-}
-
 fn output_from_completion_content(
     attributes: &serde_json::Map<String, serde_json::Value>,
     prefix: &str,
     tool_call_attribute_name: &str,
-    use_index_in_tools: bool,
 ) -> Option<serde_json::Value> {
-    let text_msg = attributes.get(format!("{prefix}.0.content").as_str());
+    let mut out_vec = Vec::new();
+    let mut i = 0;
+
+    while attributes
+        .keys()
+        .any(|k| k.starts_with(format!("{prefix}.{i}.").as_str()))
+    {
+        let message_output = output_message_from_completion_content(
+            attributes,
+            &format!("{prefix}.{i}"),
+            tool_call_attribute_name,
+        );
+        if let Some(message_output) = message_output {
+            out_vec.push(message_output);
+        }
+        i += 1;
+    }
+    if out_vec.is_empty() {
+        None
+    } else {
+        Some(serde_json::Value::Array(out_vec))
+    }
+}
+
+fn output_message_from_completion_content(
+    attributes: &serde_json::Map<String, serde_json::Value>,
+    prefix: &str,
+    tool_call_attribute_name: &str,
+) -> Option<serde_json::Value> {
+    let msg_content = attributes.get(format!("{prefix}.content").as_str());
+    let msg_role = attributes
+        .get(format!("{prefix}.role").as_str())
+        .map(|v| json_value_to_string(v))
+        .unwrap_or("assistant".to_string());
 
     let mut tool_calls = Vec::new();
     let mut i = 0;
 
-    while let Some(serde_json::Value::String(tool_call_name)) = attributes.get(
-        tool_call_attribute(
-            prefix,
-            tool_call_attribute_name,
-            use_index_in_tools,
-            i,
-            "name",
-        )
-        .as_str(),
-    ) {
+    while let Some(serde_json::Value::String(tool_call_name)) =
+        attributes.get(&format!("{prefix}.{tool_call_attribute_name}.{i}.name"))
+    {
         let tool_call_id = attributes
-            .get(
-                tool_call_attribute(
-                    prefix,
-                    tool_call_attribute_name,
-                    use_index_in_tools,
-                    i,
-                    "id",
-                )
-                .as_str(),
-            )
+            .get(&format!("{prefix}.{tool_call_attribute_name}.{i}.id"))
             .and_then(|id| id.as_str())
             .map(String::from);
-        let tool_call_arguments_raw = attributes.get(
-            tool_call_attribute(
-                prefix,
-                tool_call_attribute_name,
-                use_index_in_tools,
-                i,
-                "arguments",
-            )
-            .as_str(),
-        );
+        let tool_call_arguments_raw = attributes.get(&format!(
+            "{prefix}.{tool_call_attribute_name}.{i}.arguments"
+        ));
         let tool_call_arguments = match tool_call_arguments_raw {
             Some(serde_json::Value::String(s)) => {
                 let parsed = serde_json::from_str::<HashMap<String, Value>>(s);
@@ -1034,19 +1008,22 @@ fn output_from_completion_content(
         };
         tool_calls.push(serde_json::to_value(tool_call).unwrap());
         i += 1;
-        if !use_index_in_tools {
-            break;
-        }
     }
 
     if tool_calls.is_empty() {
-        if let Some(Value::String(s)) = text_msg {
-            Some(serde_json::Value::String(s.clone()))
+        if let Some(Value::String(s)) = msg_content {
+            Some(
+                serde_json::to_value(HashMap::from([
+                    ("role".to_string(), msg_role),
+                    ("content".to_string(), s.clone()),
+                ]))
+                .unwrap(),
+            )
         } else {
             None
         }
     } else {
-        let mut out_vec = if let Some(Value::String(s)) = text_msg {
+        let mut out_vec = if let Some(Value::String(s)) = msg_content {
             let text_block = TextBlock {
                 content: s.clone(),
                 content_block_type: "text".to_string(),
