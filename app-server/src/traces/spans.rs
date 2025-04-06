@@ -476,8 +476,7 @@ impl Span {
                     input_chat_messages_from_prompt_content(&attributes, "gen_ai.prompt");
 
                 span.input = Some(json!(input_messages));
-                span.output =
-                    output_from_completion_content(&attributes, "gen_ai.completion", "tool_calls");
+                span.output = output_from_completion_content(&attributes);
             } else if attributes.get("ai.prompt.messages").is_some() {
                 // handling the Vercel's AI SDK auto-instrumentation
                 if let Ok(input_messages) = serde_json::from_str::<Vec<ChatMessage>>(
@@ -938,25 +937,26 @@ struct TextBlock {
 
 fn output_from_completion_content(
     attributes: &serde_json::Map<String, serde_json::Value>,
-    prefix: &str,
-    tool_call_attribute_name: &str,
 ) -> Option<serde_json::Value> {
     let mut out_vec = Vec::new();
-    let mut i = 0;
+    let mut completion_message_count = 0;
+    let completion_regex = Regex::new(r"^gen_ai\.completion\.(\d+)").unwrap();
+    attributes.keys().for_each(|k| {
+        let m = completion_regex.captures(k);
+        if let Some(m) = m {
+            let index = m[1].parse::<usize>().unwrap();
+            if index > completion_message_count {
+                completion_message_count = index;
+            }
+        }
+    });
 
-    while attributes
-        .keys()
-        .any(|k| k.starts_with(format!("{prefix}.{i}.").as_str()))
-    {
-        let message_output = output_message_from_completion_content(
-            attributes,
-            &format!("{prefix}.{i}"),
-            tool_call_attribute_name,
-        );
+    for i in 0..=completion_message_count {
+        let message_output =
+            output_message_from_completion_content(attributes, &format!("gen_ai.completion.{i}"));
         if let Some(message_output) = message_output {
             out_vec.push(message_output);
         }
-        i += 1;
     }
     if out_vec.is_empty() {
         None
@@ -968,7 +968,6 @@ fn output_from_completion_content(
 fn output_message_from_completion_content(
     attributes: &serde_json::Map<String, serde_json::Value>,
     prefix: &str,
-    tool_call_attribute_name: &str,
 ) -> Option<serde_json::Value> {
     let msg_content = attributes.get(format!("{prefix}.content").as_str());
     let msg_role = attributes
@@ -980,15 +979,13 @@ fn output_message_from_completion_content(
     let mut i = 0;
 
     while let Some(serde_json::Value::String(tool_call_name)) =
-        attributes.get(&format!("{prefix}.{tool_call_attribute_name}.{i}.name"))
+        attributes.get(&format!("{prefix}.tool_calls.{i}.name"))
     {
         let tool_call_id = attributes
-            .get(&format!("{prefix}.{tool_call_attribute_name}.{i}.id"))
+            .get(&format!("{prefix}.tool_calls.{i}.id"))
             .and_then(|id| id.as_str())
             .map(String::from);
-        let tool_call_arguments_raw = attributes.get(&format!(
-            "{prefix}.{tool_call_attribute_name}.{i}.arguments"
-        ));
+        let tool_call_arguments_raw = attributes.get(&format!("{prefix}.tool_calls.{i}.arguments"));
         let tool_call_arguments = match tool_call_arguments_raw {
             Some(serde_json::Value::String(s)) => {
                 let parsed = serde_json::from_str::<HashMap<String, Value>>(s);
