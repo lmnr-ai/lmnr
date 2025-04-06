@@ -939,17 +939,16 @@ fn output_from_completion_content(
     attributes: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<serde_json::Value> {
     let mut out_vec = Vec::new();
-    let mut completion_message_count = 0;
     let completion_regex = Regex::new(r"^gen_ai\.completion\.(\d+)").unwrap();
-    attributes.keys().for_each(|k| {
-        let m = completion_regex.captures(k);
-        if let Some(m) = m {
-            let index = m[1].parse::<usize>().unwrap();
-            if index > completion_message_count {
-                completion_message_count = index;
-            }
-        }
-    });
+    let completion_message_count = attributes
+        .keys()
+        .filter_map(|k| {
+            completion_regex
+                .captures(k)
+                .and_then(|m| m.get(1).and_then(|s| s.as_str().parse::<usize>().ok()))
+        })
+        .max()
+        .unwrap_or(0);
 
     for i in 0..=completion_message_count {
         let message_output =
