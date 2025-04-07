@@ -1,8 +1,7 @@
 # This compose file is a lightweight version of docker-compose-full.yml.
 # It is intended to be used for local quickstarts.
-# It does not include ClickHouse,
-# Qdrant, Semantic Search, Python executor, and RabbitMQ.
-# It only includes frontend, postgres, and app-server.
+# It does not include Qdrant, Semantic Search, Python executor, and RabbitMQ.
+# It only includes frontend, clickhouse, postgres, and app-server.
 
 name: lmnr
 
