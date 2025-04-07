@@ -51,12 +51,12 @@ CREATE INDEX "agent_chats_created_at_idx" ON "agent_chats" USING btree ("created
 CREATE INDEX "agent_chats_updated_at_idx" ON "agent_chats" USING btree ("updated_at" timestamptz_ops);--> statement-breakpoint
 CREATE INDEX "agent_chats_user_id_idx" ON "agent_chats" USING hash ("user_id" uuid_ops);--> statement-breakpoint
 ALTER TABLE "agent_messages" ADD CONSTRAINT "agent_messages_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "public"."agent_sessions"("session_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-CREATE INDEX "agent_messages_session_id_created_at_idx" ON "agent_messages" USING btree ("created_at" timestamptz_ops,"session_id" timestamptz_ops);--> statement-breakpoint
+CREATE INDEX "agent_messages_session_id_created_at_idx" ON "agent_messages" USING btree ("created_at" timestamptz_ops,"session_id" uuid_ops);--> statement-breakpoint
 CREATE INDEX "agent_sessions_created_at_idx" ON "agent_sessions" USING btree ("created_at" timestamptz_ops);--> statement-breakpoint
 CREATE INDEX "agent_sessions_updated_at_idx" ON "agent_sessions" USING btree ("updated_at" timestamptz_ops);--> statement-breakpoint
-CREATE INDEX "spans_project_id_trace_id_start_time_idx" ON "spans" USING btree ("project_id" uuid_ops,"trace_id" uuid_ops,"start_time" uuid_ops);--> statement-breakpoint
-CREATE INDEX "spans_root_project_id_start_time_end_time_trace_id_idx" ON "spans" USING btree ("project_id" uuid_ops,"start_time" timestamptz_ops,"end_time" uuid_ops,"trace_id" timestamptz_ops) WHERE (parent_span_id IS NULL);--> statement-breakpoint
-CREATE INDEX "traces_id_project_id_start_time_times_not_null_idx" ON "traces" USING btree ("id" timestamptz_ops,"project_id" uuid_ops,"start_time" timestamptz_ops) WHERE ((start_time IS NOT NULL) AND (end_time IS NOT NULL));--> statement-breakpoint
-CREATE INDEX "traces_project_id_trace_type_start_time_end_time_idx" ON "traces" USING btree ("project_id" timestamptz_ops,"start_time" uuid_ops,"end_time" timestamptz_ops) WHERE ((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL));--> statement-breakpoint
+CREATE INDEX "spans_project_id_trace_id_start_time_idx" ON "spans" USING btree ("project_id" uuid_ops,"trace_id" uuid_ops,"start_time" timestamptz_ops);--> statement-breakpoint
+CREATE INDEX "spans_root_project_id_start_time_end_time_trace_id_idx" ON "spans" USING btree ("project_id" uuid_ops,"start_time" timestamptz_ops,"end_time" timestamptz_ops,"trace_id" uuid_ops) WHERE (parent_span_id IS NULL);--> statement-breakpoint
+CREATE INDEX "traces_id_project_id_start_time_times_not_null_idx" ON "traces" USING btree ("id" uuid_ops,"project_id" uuid_ops,"start_time" timestamptz_ops) WHERE ((start_time IS NOT NULL) AND (end_time IS NOT NULL));--> statement-breakpoint
+CREATE INDEX "traces_project_id_trace_type_start_time_end_time_idx" ON "traces" USING btree ("project_id" uuid_ops,"start_time" timestamptz_ops,"end_time" timestamptz_ops) WHERE ((trace_type = 'DEFAULT'::trace_type) AND (start_time IS NOT NULL) AND (end_time IS NOT NULL));--> statement-breakpoint
 ALTER TABLE "agent_messages" DROP COLUMN "user_id";--> statement-breakpoint
 ALTER TABLE "subscription_tiers" DROP COLUMN "num_workspaces";--> statement-breakpoint
