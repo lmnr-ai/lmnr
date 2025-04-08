@@ -64,6 +64,10 @@ export const generateChatName = async (input: string) => {
       prompt: `Summarize the following message into a brief 3-5 word title, focusing on the main topic or question: "${input}"`,
     }),
   });
+  if (!response.ok) {
+    // Fallback if we couldn't call the language model
+    return input.slice(0, 50).trim().replace(/["\n]/g, "");
+  }
 
   const result = (await response.json()) as { text: string };
 

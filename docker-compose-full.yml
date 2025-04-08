@@ -95,6 +95,11 @@ services:
       BACKEND_HTTP_PORT: 8000
       BACKEND_GRPC_PORT: 8001
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD", "sleep", "5"]
+      interval: 10s
+      timeout: 5s
+      retries: 1
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server
@@ -112,7 +117,7 @@ services:
       clickhouse:
         condition: service_started
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     environment:
       PORT: 8000
       GRPC_PORT: 8001
@@ -126,6 +131,7 @@ services:
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       AGENT_MANAGER_URL: http://agent-manager:8901
+
   frontend:
     image: ghcr.io/lmnr-ai/frontend
     ports:
@@ -147,6 +153,7 @@ services:
       ENVIRONMENT: FULL
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
 
 volumes:
   qdrant-data:
