@@ -66,6 +66,25 @@ For production environment, we recommend using our [managed platform](https://ww
 - postgres – Postgres database for all the application data
 - clickhouse – columnar OLAP database for more efficient trace and label analytics
 
+## Laminar Index
+
+Laminar Index is a flexible and powerful state-of-the-art browser automation agent. It uses VLM (vision-language models ) The main interface to access the agent is simply a prompt, and the agent can return either the final output or a stream of its thoughts/actions.
+
+Laminar Index is available in different ways:
+- As a cloud API at lmnr.ai. Read the [API reference](https://docs.lmnr.ai/api-reference/agent/agent_run) to get started.
+- It powers the Chat UI behind [lmnr.ai/chat](https://lmnr.ai/chat)
+    - Chat UI is also self-hostable. Read the self-hosting guide below and access the UI at `<YOUR-SELF-HOST-URL>:5667/chat`
+- As a separate Python package. (Coming soon)
+
+### Spinning up Laminar Index locally
+
+Currently local version of Laminar Index connects to browsers hosted on Scrapybara, and its reasoning is powered by Anthropic's Claude models. You will need API keys for both of these services.
+
+1. Get an Anthropic API key. https://console.anthropic.com/settings/keys
+1. Get a Scrapybara API key. https://scrapybara.com/dashboard
+1. Update both `ANTHROPIC_API_KEY` and `SCRAPYBARA_API_KEY` values in `.env` in the root of `lmnr`
+1. Laminar index agent manager will spin up as part of the default `docker-compose up`.
+
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,
