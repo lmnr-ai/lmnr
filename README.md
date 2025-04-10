@@ -68,7 +68,9 @@ For production environment, we recommend using our [managed platform](https://ww
 
 ## Laminar Index
 
-Laminar Index is a flexible and powerful state-of-the-art browser automation agent. It uses VLM (vision-language models ) The main interface to access the agent is simply a prompt, and the agent can return either the final output or a stream of its thoughts/actions.
+Laminar Index is a flexible and powerful state-of-the-art browser automation agent. It uses VLM (vision-language models) to analyze the visual contents of web pages and LLMs for reasoning and planning.
+
+Laminar Index accepts one required parameter, an instruction prompt. For example, "Book a table for two at Quince for this Friday". Laminar Index can work in streaming and non-streaming modes, similar to many LLM APIs. In streaming mode, it streams summaries of its intermediate steps and thoughts before returning the final output.
 
 Laminar Index is available in different ways:
 - As a cloud API at lmnr.ai. Read the [API reference](https://docs.lmnr.ai/api-reference/agent/agent_run) to get started.
