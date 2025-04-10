@@ -1,8 +1,7 @@
 # This compose file is a lightweight version of docker-compose-full.yml.
 # It is intended to be used for local quickstarts.
-# It does not include ClickHouse,
-# Qdrant, Semantic Search, Python executor, and RabbitMQ.
-# It only includes frontend, postgres, and app-server.
+# It does not include Qdrant, Semantic Search, Python executor, and RabbitMQ.
+# It only includes frontend, clickhouse, postgres, and app-server.
 
 name: lmnr
 
@@ -63,12 +62,16 @@ services:
       ENVIRONMENT: LITE # this disables some runtime dependencies
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
 
   agent-manager:
     image: ghcr.io/lmnr-ai/agent-manager
     pull_policy: always
     ports:
       - "8901:8901"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       PORT: 8901
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
@@ -76,6 +79,13 @@ services:
       BACKEND_URL: http://app-server
       BACKEND_HTTP_PORT: 8000
       BACKEND_GRPC_PORT: 8001
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    healthcheck:
+      # naive sleep to ensure agent-manager is ready
+      test: ["CMD", "sleep", "3"]
+      interval: 3s
+      timeout: 5s
+      retries: 1
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server
@@ -89,7 +99,7 @@ services:
       clickhouse:
         condition: service_started
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     environment:
       PORT: 8000
       GRPC_PORT: 8001

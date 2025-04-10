@@ -1,5 +1,6 @@
 [project]
 dependencies = [
+  "asyncpg>=0.30.0",
   "grpcio>=1.67.0",
   "lmnr-index",
   "python-dotenv>=1.1.0",

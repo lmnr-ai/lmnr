@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Edit, Loader, MoreHorizontalIcon, SidebarIcon, TrashIcon } from "lucide-react";
+import { Edit, Loader, MoreHorizontalIcon, Plus, SidebarIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { FocusEvent, KeyboardEventHandler, memo, MouseEvent, useEffect, useRef, useState } from "react";
@@ -63,7 +63,9 @@ export function AgentSidebar({ user }: { user: ChatUser }) {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="New Chat" onClick={handleNewChat} className="w-full font-medium text-primary mx-0 hover:text-primary">
-              <Edit size={16} />
+              <div className="rounded-full bg-primary text-primary-foreground p-1">
+                <Plus size={14} />
+              </div>
               <span>New Chat</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

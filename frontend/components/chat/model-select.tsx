@@ -17,16 +17,16 @@ interface ModelSelectProps {
 }
 
 const models: { model: string; description: string; label: string; enableThinking: boolean }[] = [
-  {
-    model: "claude-3-7-sonnet-20250219",
-    label: "Claude 3.7 Sonnet",
-    description: "Fast",
-    enableThinking: false,
-  },
+  // {
+  //   model: "claude-3-7-sonnet-20250219",
+  //   label: "Claude 3.7 Sonnet",
+  //   description: "Fast",
+  //   enableThinking: false,
+  // },
   {
     model: "claude-3-7-sonnet-20250219",
     label: "Claude 3.7 Sonnet (thinking)",
-    description: "Slower but more reliable",
+    description: "",
     enableThinking: true,
   },
 ];
