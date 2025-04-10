@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 
 import { cache } from '../cache';
 import { db } from '../db/drizzle';
-import { subscriptionTiers, users, userSubscriptionInfo, workspaces, workspaceUsage } from '../db/migrations/schema';
+import { subscriptionTiers, users, userSubscriptionInfo, userUsage, workspaces, workspaceUsage } from '../db/migrations/schema';
 
 // This cache key MUST match the key in the app-server
 const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
@@ -12,7 +12,8 @@ export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
   pro_monthly_2025_02: 'Laminar Pro tier',
   team_monthly_2024_11: 'Laminar Team tier',
   team_monthly_2025_02: 'Laminar Team tier',
-  additional_seat_2024_11: 'Additional seat'
+  additional_seat_2024_11: 'Additional seat',
+  index_pro_monthly_2025_04: 'Laminar Index Pro tier'
 };
 
 export function isLookupKeyForAdditionalSeats(lookupKey: string | null): boolean {
@@ -26,7 +27,7 @@ export interface ItemDescription {
 }
 
 
-interface ManageSubscriptionEventArgs {
+interface ManageWorkspaceSubscriptionEventArgs {
   stripeCustomerId: string;
   productId: string;
   workspaceId: string;
@@ -34,6 +35,14 @@ interface ManageSubscriptionEventArgs {
   quantity?: number;
   cancel?: boolean;
   isAdditionalSeats?: boolean;
+}
+
+interface ManageUserSubscriptionEventArgs {
+  stripeCustomerId: string;
+  productId: string;
+  userId: string;
+  subscriptionId: string;
+  cancel?: boolean;
 }
 
 export async function getUserSubscriptionInfo(email: string):
@@ -48,7 +57,7 @@ export async function getUserSubscriptionInfo(email: string):
     : undefined;
 }
 
-export const manageSubscriptionEvent = async ({
+export const manageWorkspaceSubscriptionEvent = async ({
   stripeCustomerId,
   productId,
   subscriptionId,
@@ -56,7 +65,7 @@ export const manageSubscriptionEvent = async ({
   quantity,
   cancel,
   isAdditionalSeats
-}: ManageSubscriptionEventArgs) => {
+}: ManageWorkspaceSubscriptionEventArgs) => {
   const newQuantity = quantity ?? 0;
 
   // Activate the stripe customer
@@ -101,6 +110,47 @@ export const manageSubscriptionEvent = async ({
   }
 
   await updateUsageCacheForWorkspace(workspaceId);
+};
+
+export const manageUserSubscriptionEvent = async ({
+  stripeCustomerId,
+  productId,
+  subscriptionId,
+  userId,
+  cancel,
+}: ManageUserSubscriptionEventArgs) => {
+  // Activate the stripe customer
+  await db.update(userSubscriptionInfo).set({
+    stripeCustomerId,
+    activated: true
+  }).where(eq(userSubscriptionInfo.stripeCustomerId, stripeCustomerId));
+  console.log(productId);
+
+  await db.update(users).set({
+    tierId: sql`CASE
+      WHEN ${cancel ?? false} THEN 1 
+      ELSE (
+        SELECT id
+        FROM user_subscription_tiers
+        WHERE stripe_product_id = ${productId})
+      END
+    `
+  }).where(eq(users.id, userId));
+
+
+  const currentTier = (await db.select({
+    tierId: users.tierId
+  }).from(users).where(eq(users.id, userId)))?.[0];
+
+  // If the workspace is upgrading from the free tier, reset the usage
+  if (currentTier?.tierId === 1) {
+    await db.update(userUsage).set({
+      prevIndexChatMessageCount: userUsage.indexChatMessageCount,
+      indexChatMessageCountSinceReset: 0,
+      resetTime: sql`now()`,
+      resetReason: 'subscription_change'
+    }).where(eq(userUsage.userId, userId));
+  }
 };
 
 export const getIdFromStripeObject = (

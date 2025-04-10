@@ -123,7 +123,7 @@ export const workspaces = pgTable("workspaces", {
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   tierId: bigint("tier_id", { mode: "number" }).default(sql`'1'`).notNull(),
-  subscriptionId: text("subscription_id").default('').notNull(),
+  subscriptionId: text("subscription_id"),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   additionalSeats: bigint("additional_seats", { mode: "number" }).default(sql`'0'`).notNull(),
 }, (table) => [
@@ -289,6 +289,23 @@ export const labelingQueueItems = pgTable("labeling_queue_items", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
+export const users = pgTable("users", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  name: text().notNull(),
+  email: text().notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  tierId: bigint("tier_id", { mode: "number" }).default(sql`'1'`).notNull(),
+  subscriptionId: text("subscription_id"),
+}, (table) => [
+  foreignKey({
+    columns: [table.tierId],
+    foreignColumns: [userSubscriptionTiers.id],
+    name: "users_tier_id_fkey"
+  }),
+  unique("users_email_key").on(table.email),
+]);
+
 export const apiKeys = pgTable("api_keys", {
   apiKey: text("api_key").primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -327,15 +344,6 @@ export const pipelineVersions = pgTable("pipeline_versions", {
   pipelineType: text("pipeline_type").notNull(),
   name: text().notNull(),
 });
-
-export const users = pgTable("users", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  name: text().notNull(),
-  email: text().notNull(),
-}, (table) => [
-  unique("users_email_key").on(table.email),
-]);
 
 export const playgrounds = pgTable("playgrounds", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -474,22 +482,6 @@ export const userCookies = pgTable("user_cookies", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
-export const agentMessages = pgTable("agent_messages", {
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  sessionId: uuid("session_id").notNull(),
-  messageType: agentMessageType("message_type").notNull(),
-  content: jsonb().default({}),
-  traceId: uuid("trace_id"),
-}, (table) => [
-  index("agent_messages_session_id_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops"), table.sessionId.asc().nullsLast().op("timestamptz_ops")),
-  foreignKey({
-    columns: [table.sessionId],
-    foreignColumns: [agentSessions.sessionId],
-    name: "agent_messages_session_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-]);
-
 export const traces = pgTable("traces", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   sessionId: text("session_id"),
@@ -539,6 +531,22 @@ export const agentSessions = pgTable("agent_sessions", {
   index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
 ]);
 
+export const agentMessages = pgTable("agent_messages", {
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  sessionId: uuid("session_id").notNull(),
+  messageType: agentMessageType("message_type").notNull(),
+  content: jsonb().default({}),
+  traceId: uuid("trace_id"),
+}, (table) => [
+  index("agent_messages_session_id_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops"), table.sessionId.asc().nullsLast().op("timestamptz_ops")),
+  foreignKey({
+    columns: [table.sessionId],
+    foreignColumns: [agentSessions.sessionId],
+    name: "agent_messages_session_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
+
 export const agentChats = pgTable("agent_chats", {
   sessionId: uuid("session_id").defaultRandom().primaryKey().notNull(),
   chatName: text("chat_name").default('New chat').notNull(),
@@ -561,6 +569,34 @@ export const agentChats = pgTable("agent_chats", {
     name: "agent_chats_session_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
+
+export const userUsage = pgTable("user_usage", {
+  userId: uuid("user_id").defaultRandom().primaryKey().notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  indexChatMessageCount: bigint("index_chat_message_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  indexChatMessageCountSinceReset: bigint("index_chat_message_count_since_reset", { mode: "number" }).default(sql`'0'`).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  prevIndexChatMessageCount: bigint("prev_index_chat_message_count", { mode: "number" }).default(sql`'0'`).notNull(),
+  resetTime: timestamp("reset_time", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  resetReason: text("reset_reason").default('signup').notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.userId],
+    foreignColumns: [users.id],
+    name: "user_usage_user_id_fkey"
+  }),
+]);
+
+export const userSubscriptionTiers = pgTable("user_subscription_tiers", {
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "user_subscription_tiers_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  name: text().notNull(),
+  stripeProductId: text("stripe_product_id").default('').notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  indexChatMessages: bigint("index_chat_messages", { mode: "number" }).default(sql`'0'`),
+});
 
 export const machines = pgTable("machines", {
   id: uuid().defaultRandom().notNull(),

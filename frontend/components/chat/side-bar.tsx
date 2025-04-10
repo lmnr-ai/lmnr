@@ -4,12 +4,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Edit, Loader, MoreHorizontalIcon, Plus, SidebarIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { User } from "next-auth";
 import { FocusEvent, KeyboardEventHandler, memo, MouseEvent, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
 import AgentSidebarFooter from "@/components/chat/sidebar-footer";
-import { AgentSession } from "@/components/chat/types";
+import { AgentSession, ChatUser } from "@/components/chat/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +32,7 @@ import {
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
-export function AgentSidebar({ user }: { user: User }) {
+export function AgentSidebar({ user }: { user: ChatUser }) {
   const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
 

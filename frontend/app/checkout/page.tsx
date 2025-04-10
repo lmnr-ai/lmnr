@@ -14,23 +14,24 @@ export default async function CheckoutPage(
   }
 ) {
   const searchParams = await props.searchParams;
+  const typeParam = searchParams?.type ?? 'workspace' as 'workspace' | 'user';
   const lookupKey =
-    (searchParams?.lookupKey as string) ?? 'pro_monthly_2025_02';
-  const workspaceId = searchParams?.workspaceId as string;
-  const workspaceName = searchParams?.workspaceName as string;
+    (searchParams?.lookupKey as string) ?? (
+      typeParam === 'workspace' ? 'pro_monthly_2025_02' : 'index_pro_monthly_2025_04'
+    );
+  const workspaceId = searchParams?.workspaceId as string | undefined;
+  const workspaceName = searchParams?.workspaceName as string | undefined;
+
   const userSession = await getServerSession(authOptions);
   if (!userSession) {
-    redirect(`/sign-in?callbackUrl=/workspace/${workspaceId}`);
+    if (workspaceId) {
+      redirect(`/sign-in?callbackUrl=/workspace/${workspaceId}`);
+    } else {
+      redirect(`/sign-in`);
+    }
   }
 
-  const existingStripeCustomer = await getUserSubscriptionInfo(userSession.user.email!);
-
-  if (
-    existingStripeCustomer?.stripeCustomerId &&
-    existingStripeCustomer?.activated
-  ) {
-    redirect('/checkout/portal');
-  }
+  const existingStripeCustomer = await getUserSubscriptionInfo(userSession!.user.email!);
 
   const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -38,13 +39,13 @@ export default async function CheckoutPage(
     existingStripeCustomer?.stripeCustomerId ??
     (
       await s.customers.create({
-        email: userSession.user.email!
+        email: userSession!.user.email!
       })
     ).id;
 
   const userId = existingStripeCustomer?.userId ??
     (await db.query.users.findFirst({
-      where: eq(users.email, userSession.user.email!)
+      where: eq(users.email, userSession!.user.email!)
     }))?.id;
 
   if (!userId) {
@@ -69,6 +70,26 @@ export default async function CheckoutPage(
     expand: ['data.product']
   });
 
+  const metadata = typeParam === 'workspace' ? {
+    workspaceId: workspaceId!,
+    workspaceName: workspaceName!,
+    userId: userId!,
+    type: 'workspace'
+  } : {
+    userId: userId!,
+    workspaceId: null,
+    workspaceName: null,
+    type: 'user'
+  };
+
+  const successUrl = typeParam === 'workspace' ?
+    `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${workspaceName}&lookupKey=${lookupKey}` :
+    `${process.env.NEXT_PUBLIC_URL}/chat?sessionId={CHECKOUT_SESSION_ID}&userId=${userId}&lookupKey=${lookupKey}`;
+
+  const cancelUrl = typeParam === 'workspace' ?
+    `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}` :
+    `${process.env.NEXT_PUBLIC_URL}/chat`;
+
   const session = await s.checkout.sessions.create({
     customer: customerId,
     line_items: [
@@ -79,16 +100,12 @@ export default async function CheckoutPage(
     ],
     mode: 'subscription',
     subscription_data: {
-      metadata: {
-        workspaceId: workspaceId,
-        workspaceName: workspaceName
-      }
+      metadata
     },
-
-    success_url: `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${workspaceName}&lookupKey=${lookupKey}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}`,
-    allow_promotion_codes: true
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    allow_promotion_codes: true,
   });
 
-  return redirect(session.url!);
+  redirect(session.url!);
 }

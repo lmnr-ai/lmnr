@@ -40,12 +40,12 @@ export default function WorkspaceUsage({
       <div className="flex flex-row space-x-2">
         <div>
           {isOwner &&
-            (workspaceStats.tierName === 'Free' ? (
+            (workspaceStats.tierName.toLowerCase().trim() === 'free' ? (
               <Button
                 variant="default"
                 onClick={() =>
                   router.push(
-                    `/checkout?workspaceId=${workspace.id}&workspaceName=${workspace.name}`
+                    `/checkout?type=workspace&workspaceId=${workspace.id}&workspaceName=${workspace.name}`
                   )
                 }
               >
@@ -56,7 +56,7 @@ export default function WorkspaceUsage({
                 variant="secondary"
                 onClick={() =>
                   router.push(
-                    `/checkout/portal?callbackUrl=/workspace/${workspace.id}`
+                    `/checkout/portal?type=workspace&callbackUrl=/workspace/${workspace.id}`
                   )
                 }
               >

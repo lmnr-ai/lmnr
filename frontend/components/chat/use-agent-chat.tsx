@@ -4,6 +4,7 @@ import { useSWRConfig } from "swr";
 
 import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { connectToStream, initiateChat, stopSession } from "@/components/chat/utils";
+import { toast } from "@/lib/hooks/use-toast";
 
 interface UseAgentChatOptions {
   api?: string;
@@ -140,6 +141,12 @@ export function useAgentChat({
           abortController.signal,
           textToSubmit
         );
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "An error occurred",
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
         abortControllerRef.current = null;

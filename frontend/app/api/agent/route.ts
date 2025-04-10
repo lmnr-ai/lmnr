@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { apiKeys } from "@/lib/db/migrations/schema";
+import { users } from "@/lib/db/migrations/schema";
 import { fetcher } from "@/lib/utils";
 
 export async function POST(req: Request) {
@@ -12,21 +12,14 @@ export async function POST(req: Request) {
   const user = session!.user;
 
   // Quick fix to get the user id from the api key
-  const dbUser = await db.query.apiKeys.findFirst({
-    where: eq(apiKeys.apiKey, user.apiKey),
-    with: {
-      user: {
-        columns: {
-          id: true,
-        }
-      },
-    },
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.email, user.email!),
   });
   if (!dbUser) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const userId = dbUser.user.id;
+  const userId = dbUser.id;
 
   const response = await fetcher("/agent/run", {
     method: "POST",
