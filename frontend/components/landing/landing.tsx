@@ -1,28 +1,22 @@
 "use client";
 
-import { ArrowUpRight, X } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import Image, { StaticImageData } from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import GitHubButton from "react-github-btn";
 import { useInView } from 'react-intersection-observer';
 
+import browserAgentObservability from "@/assets/landing/browser-agent-observability.png";
+import browserSession from "@/assets/landing/browser-session.png";
 import clarum from "@/assets/landing/companies/clarum.png";
 import remo from "@/assets/landing/companies/remo.avif";
 import saturn from "@/assets/landing/companies/saturn.png";
-import dataset from "@/assets/landing/dataset.png";
 import evals from "@/assets/landing/evals.png";
-import labels from "@/assets/landing/labels.png";
-import moa from "@/assets/landing/MoA.png";
-import onlineEvals from "@/assets/landing/online-evals.png";
-import smallTrace from "@/assets/landing/small-trace.png";
+import index from "@/assets/landing/index.png";
 import traces from "@/assets/landing/traces.png";
 import yc from "@/assets/landing/yc.svg";
-import browserSession from "@/assets/landing/browser-session.png";
-import index from "@/assets/landing/index.png";
+
 import { Button } from "../ui/button";
-import CodeEditor from "../ui/code-editor";
-import browserAgentObservability from "@/assets/landing/browser-agent-observability.png";
 import CodeHighlighter from "../ui/code-highlighter";
 import Footer from "./footer";
 
@@ -207,7 +201,7 @@ export default function Landing() {
                   className={`border border-white/20 h-8 px-3 rounded transition-colors duration-200 items-center flex ${selectedSection.id === section.id
                     ? "bg-white/90 text-black border-b-2"
                     : "text-white/80 hover:bg-white/10 "
-                    }`}
+                  }`}
                 >
                   {section.title}
                   {section.isNew && <span className="text-primary pl-2 mb-0.5 text-sm">new</span>}
@@ -453,14 +447,14 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
         <button
           onClick={() => setSelectedLang("typescript")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
-            }`}
+          }`}
         >
           TypeScript
         </button>
         <button
           onClick={() => setSelectedLang("python")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
-            }`}
+          }`}
         >
           Python
         </button>

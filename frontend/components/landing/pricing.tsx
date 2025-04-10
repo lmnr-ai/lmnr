@@ -1,11 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePostHog } from 'posthog-js/react';
 import { useState } from "react";
 
-import noise from '@/assets/landing/noise1.jpeg';
 import Footer from '@/components/landing/footer';
 import {
   Accordion,

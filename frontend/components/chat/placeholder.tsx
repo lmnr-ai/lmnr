@@ -1,8 +1,6 @@
 import { motion } from "framer-motion";
-import Image from "next/image";
 import { User } from "next-auth";
 
-import logo from "@/assets/logo/icon.svg";
 
 const Placeholder = ({ user }: { user: User }) => (
   <motion.div
