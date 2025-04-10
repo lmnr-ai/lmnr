@@ -14,9 +14,11 @@ import { cn } from "@/lib/utils";
 
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "../ui/dialog";
 import ChatPricing from "./chat-pricing";
+import { useState } from "react";
 
 const AgentSidebarFooter = ({ user }: { user: User }) => {
   const { state } = useSidebar();
+  const [isBillingDialogOpen, setIsBillingDialogOpen] = useState(false);
   return (
     <SidebarFooter>
       <SidebarMenu>
@@ -45,19 +47,9 @@ const AgentSidebarFooter = ({ user }: { user: User }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
               <DropdownMenuItem asChild>
-                <Dialog>
-                  <div className="flex items-center gap-2 text-sm px-2 py-1 hover:bg-accent">
-                    <DialogTrigger>
-                      Billing
-                    </DialogTrigger>
-                  </div>
-                  <DialogContent>
-                    <DialogTitle>
-                      Billing
-                    </DialogTitle>
-                    <ChatPricing />
-                  </DialogContent>
-                </Dialog>
+                <button type="button" className="w-full cursor-pointer" onClick={() => setIsBillingDialogOpen(true)}>
+                  Billing
+                </button>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <button
@@ -74,6 +66,14 @@ const AgentSidebarFooter = ({ user }: { user: User }) => {
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
+      <Dialog open={isBillingDialogOpen} onOpenChange={setIsBillingDialogOpen}>
+        <DialogContent>
+          <DialogTitle>
+            Billing
+          </DialogTitle>
+          <ChatPricing />
+        </DialogContent>
+      </Dialog>
     </SidebarFooter>
   );
 };
