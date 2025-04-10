@@ -43,6 +43,7 @@ export default function CodeHighlighter({
           }
         }}
         useInlineStyles={true}
+        wrapLongLines
         customStyle={{
           backgroundColor: 'transparent',
           padding: '0',

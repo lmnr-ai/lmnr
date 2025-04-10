@@ -11,20 +11,20 @@ interface SuggestionsProps {
 const Suggestions = ({ sessionId, onSubmit }: SuggestionsProps) => {
   const suggestions = [
     {
-      title: "What is the weather in London?",
-      action: "What is the weather in London?",
+      title: "Research NVIDIA stock",
+      action: "Research NVIDIA stock",
     },
     {
-      title: "Tell me about Laminar Pro plan.",
-      action: `Go to https://www.lmnr.ai. Tell me what is the price of their Pro tier?`,
+      title: "Create a spreadsheet from YC companies",
+      action: `Go to ycombinator.com and search for first 3 companies in X25 batch. Create a spreadsheet with the companies and their descriptions.`,
     },
     {
       title: "Find me cheapest tickets from Seoul to London",
       action: `Find me cheapest tickets from Seoul to London`,
     },
     {
-      title: "Summarize current news.",
-      action: "Summarize me current news.",
+      title: "Organize a trip to Sicily",
+      action: "Organize a 7 day trip to Sicily in about a month from now. Find affordable hotels and flights. Plan for 2 people.",
     },
   ];
 
