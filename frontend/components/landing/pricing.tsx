@@ -40,7 +40,7 @@ export default function Pricing() {
     {
       id: 'span',
       question: 'What is a span?',
-      answer: 'A span represents a unit of work or operation in you application. In the context of tracing, single LLM call or function tool call is a span. In case of evaluations, executor run and evaluator run are spans.'
+      answer: 'A span represents a unit of work or operation in your application. In the context of tracing, single LLM call or function tool call is a span. In case of evaluations, executor run and evaluator run are spans.'
     },
     {
       id: 'agent-steps',

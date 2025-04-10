@@ -46,7 +46,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
               isMenuOpen ? '' : 'hidden'
             )}
           >
-            <Link href="/chat" target="_blank">
+            <Link href="/chat">
               <Button variant="ghost">
                 Index - Browser Agent
               </Button>

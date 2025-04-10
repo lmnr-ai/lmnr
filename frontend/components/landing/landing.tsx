@@ -284,13 +284,13 @@ export default function Landing() {
                   title="LLM observability with 1 line of code"
                   description="By initializing Laminar, you automatically trace all LLM frameworks and SDKs."
                   animationOrder={0}
-                  className="border-r border-b"
+                  className="border-b"
                 />
                 <InfoCard
                   title="Real-time traces"
                   description="Laminar's tracing engine allows you to debug your AI app faster with real-time traces."
                   animationOrder={1}
-                  className="border-r border-b"
+                  className="border-l border-b"
                 />
               </div>
               <InfoCard
@@ -308,13 +308,12 @@ export default function Landing() {
                     title="LLM playground"
                     description="Open LLM spans in the playground to experiment with prompts and models."
                     animationOrder={0}
-                    className="border-r border-b"
+                    className="border-b"
                   />
                   <InfoCard
                     title="Datasets"
                     description="Build datasets from span data for evals, fine-tuning and prompt engineering."
                     animationOrder={1}
-                    className="border-r"
                   />
                 </div>
                 <div className="grid grid-cols-1">
@@ -322,12 +321,13 @@ export default function Landing() {
                     title="Labels"
                     description="Label your spans with custom tags to make them more informative."
                     animationOrder={4}
-                    className="border-b"
+                    className="border-l border-b"
                   />
                   <InfoCard
                     title="Open-Source and easy to self-host"
                     description="Laminar is fully open-source and easy to self-host."
                     animationOrder={5}
+                    className="border-l"
                   >
                   </InfoCard>
                 </div>
