@@ -14,7 +14,7 @@ import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSide
 import { cn } from "@/lib/utils";
 
 import { Button } from "../ui/button";
-import { Dialog, DialogContent } from "../ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import ChatPricing from "./chat-pricing";
 import { ChatUser } from "./types";
 
@@ -89,6 +89,7 @@ const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
         </SidebarMenuItem>
       </SidebarMenu>
       <Dialog open={isBillingDialogOpen} onOpenChange={setIsBillingDialogOpen}>
+        <DialogTitle className="hidden">Upgrade your plan</DialogTitle>
         <DialogContent className="max-w-[60vw] min-h-[80vh]">
           <ChatPricing />
         </DialogContent>

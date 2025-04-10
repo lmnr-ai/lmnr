@@ -18,7 +18,7 @@ export default function ChatPricing() {
           <PricingCard
             className="text-secondary-foreground"
             title="Free"
-            price="0 / month"
+            price="$0/month"
             features={[
               '10 messages / month',
               'Community support'
@@ -30,13 +30,13 @@ export default function ChatPricing() {
           <PricingCard
             className="text-white z-20"
             title="Pro"
-            price={`$25 / month`}
+            price={`$25/month`}
             features={[
               'Unlimited messages',
               'Priority support'
             ]}
           />
-          <div className="space-y-4 z-20 flex flex-col">
+          <div className="space-y-4 z-20 flex flex-col mt-16">
             <Button
               className="h-10 text-base bg-white/90 text-primary border-none hover:bg-white/70 w-full"
               variant="outline"
