@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+
 import PricingCard from '@/components/landing/pricing-card';
 import { Button } from '@/components/ui/button';
 

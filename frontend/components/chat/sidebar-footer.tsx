@@ -1,6 +1,8 @@
 import { ChevronUp } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { useState } from "react";
 
 import {
   DropdownMenu,
@@ -9,15 +11,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
+import { Button } from "../ui/button";
 import { Dialog, DialogContent } from "../ui/dialog";
 import ChatPricing from "./chat-pricing";
-import { useState } from "react";
-import useSWR from "swr";
 import { ChatUser } from "./types";
-import { Button } from "../ui/button";
-import Link from "next/link";
 
 const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
   const { state } = useSidebar();
