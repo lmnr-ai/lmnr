@@ -313,20 +313,20 @@ export default function Landing() {
                   <InfoCard
                     title="Datasets"
                     description="Build datasets from span data for evals, fine-tuning and prompt engineering."
-                    animationOrder={1}
+                    animationOrder={2}
                   />
                 </div>
                 <div className="grid grid-cols-1">
                   <InfoCard
                     title="Labels"
                     description="Label your spans with custom tags to make them more informative."
-                    animationOrder={4}
+                    animationOrder={1}
                     className="border-l border-b"
                   />
                   <InfoCard
                     title="Open-Source and easy to self-host"
                     description="Laminar is fully open-source and easy to self-host."
-                    animationOrder={5}
+                    animationOrder={3}
                     className="border-l"
                   >
                   </InfoCard>
