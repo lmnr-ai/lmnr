@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import { ChatMessage } from "@/components/chat/types";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { agentMessages, apiKeys, users, userUsage } from "@/lib/db/migrations/schema";
+import { agentMessages, users, userUsage } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export async function POST(req: NextRequest): Promise<Response> {
@@ -14,15 +14,8 @@ export async function POST(req: NextRequest): Promise<Response> {
   const user = session!.user;
 
   // Quick fix to get the user id from the api key
-  const dbUser = await db.query.apiKeys.findFirst({
-    where: eq(apiKeys.apiKey, user.apiKey),
-    with: {
-      user: {
-        columns: {
-          id: true,
-        }
-      },
-    },
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.email, user.email!),
   });
   if (!dbUser) {
     return new Response("Unauthorized", { status: 401 });
@@ -31,7 +24,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (isFeatureEnabled(Feature.SUBSCRIPTION)) {
     if (body.messageType === "user") {
       const usageAndLimits = await db.query.users.findFirst({
-        where: eq(users.id, dbUser.userId),
+        where: eq(users.id, dbUser.id),
         with: {
           userUsages: true,
           userSubscriptionTier: true,
@@ -51,7 +44,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       .values({
         indexChatMessageCountSinceReset: 1,
         indexChatMessageCount: 1,
-        userId: dbUser.userId,
+        userId: dbUser.id,
       })
       .onConflictDoUpdate({
         target: [userUsage.userId],
