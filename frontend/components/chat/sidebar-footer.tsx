@@ -17,6 +17,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { ChatUser } from "./types";
 import { Button } from "../ui/button";
+import Link from "next/link";
 
 const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
   const { state } = useSidebar();
@@ -24,7 +25,7 @@ const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
 
   return (
     <SidebarFooter>
-      {user.userSubscriptionTier === "free" && (
+      {user.userSubscriptionTier.trim().toLowerCase() === "free" && (
         <div className="flex items-center justify-center w-full h-full px-2">
           <Button
             className="w-full"
@@ -66,6 +67,13 @@ const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
+              {user.userSubscriptionTier.trim().toLowerCase() !== "free" && (
+                <DropdownMenuItem>
+                  <Link href="/checkout/portal" className="w-full cursor-pointer">
+                    Manage billing
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
                 <button
                   type="button"
