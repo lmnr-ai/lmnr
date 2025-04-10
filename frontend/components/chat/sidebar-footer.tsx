@@ -24,7 +24,7 @@ const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
 
   return (
     <SidebarFooter>
-      {user.userSubscriptionTier.trim().toLowerCase() === "free" && (
+      {(user.userSubscriptionTier.trim().toLowerCase() === "free") && state === "expanded" && (
         <div className="flex items-center justify-center w-full h-full px-2">
           <Button
             className="w-full"
