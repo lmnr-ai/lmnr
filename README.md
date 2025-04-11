@@ -2,34 +2,35 @@
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
 <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
-![Frame 28 (1)](https://github.com/user-attachments/assets/217a00a1-1281-44ec-a619-15d3f2c4e994)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./images/logo_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="./images/logo_light.png">
+  <img alt="Laminar logo" src="./images/logo_light.png"  width="full">
+</picture>
+
 
 # Laminar
 
-[Laminar](https://www.lmnr.ai) is an all-in-one open-source platform for engineering AI products. Trace, evaluate, label, and analyze LLM data.
+[Laminar](https://www.lmnr.ai) is the open-source platform for tracing and evaluating AI applications.
 
 - [x] Tracing
-    - [x] OpenTelemetry-based automatic tracing of common AI frameworks and SDKs (LangChain, OpenAI, Anthropic ...) with just 2 lines of code. (powered by amazing [OpenLLMetry](https://github.com/traceloop/openllmetry)).
+    - [x] OpenTelemetry-based automatic tracing of common AI frameworks and SDKs (LangChain, OpenAI, Anthropic ...) with just 2 lines of code. (powered by [OpenLLMetry](https://github.com/traceloop/openllmetry)).
     - [x] Trace input/output, latency, cost, token count.
     - [x] Function tracing with `observe` decorator/wrapper.
     - [x] Image tracing.
-    - [ ] Audio tracing coming soon.
-- [x] Evaluations
-    - [x] Local offline evaluations. Run from code, terminal or as part of CI/CD.
-    - [x] Online evaluations. Trigger hosted LLM-as-a-judge or Python script evaluators for each trace.
-- [x] Labels
-    - [x] Simple UI for fast data labeling.
+- [x] Evals
+    - [x] Run evals in parallel with a simple SDK
 - [x] Datasets
     - [x] Export production trace data to datasets.
-    - [x] Run evals on hosted golden datasets.
-    - [X] Index dataset and retrieve semantically-similar dynamic few-shot examples to improve your prompts.
+    - [x] Run evals on hosted datasets.
 - [x] Built for scale
     - [x] Written in Rust 🦀
     - [x] Traces are sent via gRPC, ensuring the best performance and lowest overhead.
 - [x] Modern Open-Source stack
-    - [x] RabbitMQ for message queue, Postgres for data, Clickhouse for analytics. Qdrant for semantic similarity search and hybrid search.
-- [x] Fast and beautiful dashboards for traces / evaluations / labels.
-<img width="1506" alt="traces-2" src="https://github.com/user-attachments/assets/14d6eec9-cd0e-4c3e-b601-3d64c4c0c875">
+    - [x] RabbitMQ for message queue, Postgres for data, Clickhouse for analytics.
+- [x] Dashboards for statistics / traces / evaluations / labels.
+
+<img width="1506" alt="traces" src="./images/traces.png">
 
 ## Documentation
 
@@ -65,6 +66,27 @@ For production environment, we recommend using our [managed platform](https://ww
 - python-executor – gRPC service with lightweight Python sandbox that can run arbitrary code.
 - postgres – Postgres database for all the application data
 - clickhouse – columnar OLAP database for more efficient trace and label analytics
+
+## Index - SOTA browser agent
+
+<img alt="index" src="./images/index.png">
+
+Index is a state-of-the-art open-source browser agent. It can autonomously perform complex tasks on the web.
+
+You can use Index:
+- As an [open-source package](https://github.com/lmnr-ai/index)
+- As a cloud API at lmnr.ai. Read the [API reference](https://docs.lmnr.ai/api-reference/agent/agent_run) to get started.
+- It powers the Chat UI behind [lmnr.ai/chat](https://lmnr.ai/chat)
+    - Chat UI is also self-hostable. Read the self-hosting guide below and access the UI at `<YOUR-SELF-HOST-URL>:5667/chat`
+
+### Spinning up Index UI locally
+
+Currently local version of Laminar Index connects to browsers hosted on Scrapybara, and its reasoning is powered by Anthropic's Claude models. You will need API keys for both of these services.
+
+1. Get an [Anthropic API key](https://console.anthropic.com/settings/keys)
+1. Get a [Scrapybara API key](https://scrapybara.com/dashboard)
+1. Update both `ANTHROPIC_API_KEY` and `SCRAPYBARA_API_KEY` values in `.env` in the root of `lmnr`
+1. Laminar index agent manager will spin up as part of the default `docker-compose up`.
 
 ## Contributing
 
