@@ -122,7 +122,7 @@ response = client.agent.run(
     description: `Index - our SOTA open-source browser agent is available as a chat interface on Laminar platform.
     Index can autonomously perform complex tasks on the web. In the chat interface, you can see the agent's steps, leave agent to work in the background and take control of the browser when you need to.`,
     image: index,
-    docsLink: "https://lmnr.ai/chat",
+    docsLink: "/chat",
     callToAction: "Use Index via chat",
     isNew: true,
   }

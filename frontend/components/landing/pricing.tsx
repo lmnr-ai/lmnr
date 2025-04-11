@@ -84,7 +84,8 @@ export default function Pricing() {
             subfeatures={[
               'then $5 per 100k of additional spans',
               null,
-              null
+              null,
+              'then $10 per 1k steps'
             ]}
           />
           <Link href="/projects">
@@ -109,7 +110,7 @@ export default function Pricing() {
               'then $5 per 100k of additional spans',
               null,
               '$25 per additional team member',
-              null
+              'then $10 per 1k steps'
             ]}
           />
           <div className="space-y-4 z-20 flex flex-col">
