@@ -56,8 +56,6 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
 
   const handleSubmitWithInput = (input: string) => {
     setInput(input);
-    handleSubmit(undefined, modelState, input);
-    setOpen(false);
   };
 
   return (
