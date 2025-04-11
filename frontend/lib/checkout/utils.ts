@@ -8,10 +8,9 @@ import { subscriptionTiers, users, userSubscriptionInfo, userUsage, workspaces, 
 const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
 
 export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
-  pro_monthly_2024_09: 'Laminar Pro tier',
+  hobby_monthly_2025_04: 'Laminar Hobby tier',
   pro_monthly_2025_02: 'Laminar Pro tier',
-  team_monthly_2024_11: 'Laminar Team tier',
-  team_monthly_2025_02: 'Laminar Team tier',
+  pro_monthly_2025_04: 'Laminar Pro tier',
   additional_seat_2024_11: 'Additional seat',
   index_pro_monthly_2025_04: 'Laminar Index Pro tier'
 };
