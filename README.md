@@ -5,7 +5,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./images/logo_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="./images/logo_light.png">
-  <img alt="Laminar logo" src="./images/logo_light.png"  width="full">
+  <img alt="Laminar logo" src="./images/logo_light.png">
 </picture>
 
 
@@ -30,7 +30,7 @@
     - [x] RabbitMQ for message queue, Postgres for data, Clickhouse for analytics.
 - [x] Dashboards for statistics / traces / evaluations / labels.
 
-<img width="1506" alt="traces" src="./images/traces.png">
+<img alt="traces" src="./images/traces.png">
 
 ## Documentation
 
