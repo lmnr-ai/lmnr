@@ -95,7 +95,7 @@ services:
     healthcheck:
       test: ["CMD", "sleep", "5"]
       interval: 10s
-      timeout: 5s
+      timeout: 6s
       retries: 1
 
   app-server:

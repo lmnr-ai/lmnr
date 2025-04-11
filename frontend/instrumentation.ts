@@ -8,7 +8,7 @@ export async function register() {
     const { Feature, isFeatureEnabled } = await import("lib/features/features");
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-      const { llmPrices, pipelineTemplates, subscriptionTiers } = await import("lib/db/migrations/schema");
+      const { llmPrices, pipelineTemplates, subscriptionTiers, userSubscriptionTiers } = await import("lib/db/migrations/schema");
       const { db } = await import("lib/db/drizzle");
 
       const initializeData = async () => {
@@ -19,6 +19,7 @@ export async function register() {
             subscription_tiers: subscriptionTiers,
             pipeline_templates: pipelineTemplates,
             llm_prices: llmPrices,
+            user_subscription_tiers: userSubscriptionTiers,
           };
           const table = tables[tableName];
           const rows: Record<string, unknown>[] = entry.data.map((row: Record<string, unknown>) =>

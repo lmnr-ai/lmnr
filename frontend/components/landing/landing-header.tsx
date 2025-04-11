@@ -46,6 +46,11 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
               isMenuOpen ? '' : 'hidden'
             )}
           >
+            <Link href="/chat">
+              <Button variant="ghost">
+                Index - Browser Agent
+              </Button>
+            </Link>
             <Link href="https://docs.lmnr.ai" target="_blank">
               <Button variant="ghost">
                 Docs
@@ -61,14 +66,14 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
               <Button variant="ghost">Discord</Button>
             </Link>
             <GitHubButton href="https://github.com/lmnr-ai/lmnr" data-color-scheme="no-preference: dark; light: dark; dark: dark;" data-size="large" data-show-count="true" aria-label="Star lmnr-ai/lmnr on GitHub">Star</GitHubButton>
-            <Link target="_blank" href="https://cal.com/robert-lmnr/demo">
+            {/* <Link target="_blank" href="https://cal.com/robert-lmnr/demo">
               <Button
                 variant={'outline'}
                 className="bg-transparent border-white/60 hover:bg-white/10"
               >
                 Book a demo
               </Button>
-            </Link>
+            </Link> */}
             <div className="hidden md:block">
               {hasSession ? (
                 <Link href="/projects">

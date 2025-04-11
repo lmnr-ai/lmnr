@@ -124,3 +124,10 @@ export interface AgentSession {
   isNew?: boolean;
   agentStatus?: "idle" | "working";
 }
+
+export interface ChatUser {
+  email: string;
+  name: string;
+  image: string;
+  userSubscriptionTier: string;
+}

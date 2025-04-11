@@ -1,15 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Edit, Loader, MoreHorizontalIcon, SidebarIcon, TrashIcon } from "lucide-react";
+import { Edit, Loader, MoreHorizontalIcon, Plus, SidebarIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { User } from "next-auth";
 import { FocusEvent, KeyboardEventHandler, memo, MouseEvent, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
 import AgentSidebarFooter from "@/components/chat/sidebar-footer";
-import { AgentSession } from "@/components/chat/types";
+import { AgentSession, ChatUser } from "@/components/chat/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +32,7 @@ import {
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
-export function AgentSidebar({ user }: { user: User }) {
+export function AgentSidebar({ user }: { user: ChatUser }) {
   const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
 
@@ -64,7 +63,9 @@ export function AgentSidebar({ user }: { user: User }) {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="New Chat" onClick={handleNewChat} className="w-full font-medium text-primary mx-0 hover:text-primary">
-              <Edit size={16} />
+              <div className="rounded-full bg-primary text-primary-foreground p-1">
+                <Plus size={14} />
+              </div>
               <span>New Chat</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

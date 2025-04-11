@@ -6,7 +6,8 @@ import {
   isLookupKeyForAdditionalSeats,
   ItemDescription,
   LOOKUP_KEY_TO_TIER_NAME,
-  manageSubscriptionEvent
+  manageUserSubscriptionEvent,
+  manageWorkspaceSubscriptionEvent
 } from '@/lib/checkout/utils';
 import { sendOnPaymentReceivedEmail } from '@/lib/emails/utils';
 
@@ -46,7 +47,10 @@ async function handleSubscriptionChange(
     }
     const stripeCustomerId = getIdFromStripeObject(subscription.customer);
     const productId = getIdFromStripeObject(subscriptionItem.plan.product);
-    const workspaceId = subscription.metadata.workspaceId;
+    const subscriptionType = subscription.metadata?.type ?? 'workspace';
+    const workspaceId = subscription.metadata?.workspaceId;
+    const userId = subscription.metadata?.userId;
+
     if (!stripeCustomerId) {
       console.log(`subscription updated event. No stripeCustomerId found.`);
       continue;
@@ -60,14 +64,24 @@ async function handleSubscriptionChange(
         `Subscription ${subscription.id} canceled. productId`,
         productId
       );
-      await manageSubscriptionEvent({
-        stripeCustomerId,
-        productId,
-        workspaceId,
-        subscriptionId: subscription.id,
-        quantity: subscriptionItem.quantity,
-        cancel: true
-      });
+      if (subscriptionType === 'workspace') {
+        await manageWorkspaceSubscriptionEvent({
+          stripeCustomerId,
+          productId,
+          workspaceId,
+          subscriptionId: subscription.id,
+          quantity: subscriptionItem.quantity,
+          cancel: true
+        });
+      } else {
+        await manageUserSubscriptionEvent({
+          stripeCustomerId,
+          productId,
+          userId,
+          subscriptionId: subscription.id,
+          cancel: true
+        });
+      }
       return;
     }
 
@@ -78,16 +92,27 @@ async function handleSubscriptionChange(
     if (status === 'active' && stripeCustomerId && productId) {
       console.log(`Subscription ${subscription.id} active. productId`, productId);
       try {
-        await manageSubscriptionEvent({
-          stripeCustomerId,
-          productId,
-          workspaceId,
-          subscriptionId: subscription.id,
-          quantity: subscriptionItem.quantity,
-          isAdditionalSeats
-        });
+        if (subscriptionType === 'workspace') {
+          await manageWorkspaceSubscriptionEvent({
+            stripeCustomerId,
+            productId,
+            workspaceId,
+            subscriptionId: subscription.id,
+            quantity: subscriptionItem.quantity,
+            isAdditionalSeats
+          });
+        } else {
+          await manageUserSubscriptionEvent({
+            stripeCustomerId,
+            productId,
+            userId,
+            subscriptionId: subscription.id,
+          });
+        }
       } catch (error) {
         console.error(`Error managing subscription event`, error);
+        // Rethrow, so that the webhook is not marked as successful
+        throw error;
       }
     }
   }
@@ -136,8 +161,6 @@ export async function POST(req: NextRequest): Promise<Response> {
     case 'customer.subscription.deleted':
       await handleSubscriptionChange(event, true);
       break;
-    // Then define and call a method to handle the subscription deleted.
-    // handleSubscriptionDeleted(subscriptionDeleted);
     case 'customer.subscription.created':
       handleSubscriptionChange(event);
       break;
