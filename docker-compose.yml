@@ -84,7 +84,7 @@ services:
       # naive sleep to ensure agent-manager is ready
       test: ["CMD", "sleep", "3"]
       interval: 3s
-      timeout: 5s
+      timeout: 6s
       retries: 1
 
   app-server:
