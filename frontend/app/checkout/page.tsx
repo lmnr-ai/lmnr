@@ -17,7 +17,7 @@ export default async function CheckoutPage(
   const typeParam = searchParams?.type ?? 'workspace' as 'workspace' | 'user';
   const lookupKey =
     (searchParams?.lookupKey as string) ?? (
-      typeParam === 'workspace' ? 'pro_monthly_2025_02' : 'index_pro_monthly_2025_04'
+      typeParam === 'workspace' ? 'hobby_monthly_2025_04' : 'index_pro_monthly_2025_04'
     );
   const workspaceId = searchParams?.workspaceId as string | undefined;
   const workspaceName = searchParams?.workspaceName as string | undefined;

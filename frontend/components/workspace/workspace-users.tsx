@@ -93,7 +93,7 @@ export default function WorkspaceUsers({
         <Label>You have {workspaceStats.membersLimit} seat{workspaceStats.membersLimit > 1 ? 's' : ''} in this workspace</Label>
         {isOwner && (
           <div className="flex flex-row gap-4">
-            {workspace.tierName.trim() === 'Pro' && (
+            {workspace.tierName.trim().toLowerCase() === 'pro' && (
               <PurchaseSeatsDialog
                 workspaceId={workspace.id}
                 currentQuantity={workspaceStats.membersLimit}
@@ -103,7 +103,7 @@ export default function WorkspaceUsers({
                 }}
               />
             )}
-            {users.length == workspaceStats.membersLimit ? (
+            {users.length >= workspaceStats.membersLimit ? (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>

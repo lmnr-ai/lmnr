@@ -7,6 +7,8 @@ import { Workspace } from '@/lib/workspaces/types';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Button } from '../ui/button';
+import { Dialog, DialogContent, DialogTitle,DialogTrigger } from '../ui/dialog';
+import PricingDialog from './pricing-dialog';
 
 interface WorkspaceUsageProps {
   workspace: Workspace;
@@ -40,29 +42,21 @@ export default function WorkspaceUsage({
       <div className="flex flex-row space-x-2">
         <div>
           {isOwner &&
-            (workspaceStats.tierName.toLowerCase().trim() === 'free' ? (
-              <Button
-                variant="default"
-                onClick={() =>
-                  router.push(
-                    `/checkout?type=workspace&workspaceId=${workspace.id}&workspaceName=${workspace.name}`
-                  )
-                }
-              >
-                Upgrade
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  router.push(
-                    `/checkout/portal?type=workspace&callbackUrl=/workspace/${workspace.id}`
-                  )
-                }
-              >
-                Manage billing
-              </Button>
-            ))}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="secondary">
+                  {workspaceStats.tierName.toLowerCase().trim() === 'free'
+                    ? 'Upgrade'
+                    : 'Manage billing'
+                  }
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-5xl">
+                <DialogTitle>Manage billing</DialogTitle>
+                <PricingDialog workspaceTier={workspaceStats.tierName} workspaceId={workspace.id} workspaceName={workspace.name} />
+              </DialogContent>
+            </Dialog>
+          }
         </div>
       </div>
 
