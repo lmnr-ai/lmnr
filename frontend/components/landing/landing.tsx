@@ -158,12 +158,9 @@ export default function Landing() {
         <div className="flex flex-col md:w-[1200px] space-y-8">
           <div className="flex flex-col">
             <div className="flex flex-col items-center py-8 text-center relative">
-              {/* <div className="inset-0 absolute z-10 overflow-hidden md:rounded-lg">
-                <Image src={noise} alt="" className="w-full h-full" priority quality={100} />
-              </div> */}
               <div className="z-20 flex flex-col items-center gap-6">
-                <p className="text-5xl md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500">
-                  How developers <span className="text-primary">build reliable AI products.</span>
+                <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500">
+                  How developers <br className="md:hidden" /> <span className="text-primary">build reliable AI products.</span>
                 </p>
                 <p className="text-2xl text-white/80 font-medium">
                   The open-source platform for tracing and evaluating AI applications.
@@ -193,7 +190,7 @@ export default function Landing() {
         </div>
         <div className="flex flex-col md:items-center md:w-[1200px] border">
           <div className="flex flex-col w-full relative md:pb-0">
-            <div className="flex border-none gap-4 font-medium col-span-1 p-8 pb-0">
+            <div className="flex flex-wrap border-none gap-4 font-medium col-span-1 p-8 pb-0">
               {sections.map((section, i) => (
                 <button
                   key={i}
@@ -233,13 +230,13 @@ export default function Landing() {
             </div>
             <div
               key={selectedSection.id}
-              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block hidden border bg-primary p-8 pb-0 pt-16"
+              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary p-8 pb-0 md:pt-16"
             >
               <Image
                 alt={selectedSection.title}
                 src={selectedSection.image}
                 priority
-                className="rounded-t-lg w-full object-cover object-top h-[550px]"
+                className="rounded-t-lg w-full object-cover object-top md:h-[550px]"
               />
             </div>
           </div>
@@ -252,6 +249,7 @@ export default function Landing() {
               role="CTO"
               company="Clarum"
               logo={clarum}
+              className="border-b pb-8 md:border-r md:border-b-0"
             />
             <TestimonialCard
               quote={`Laminar's evals help us maintain high accuracy while moving fast, and their team is incredibly responsive. We now use them for every LLM based feature we build.`}
@@ -259,6 +257,7 @@ export default function Landing() {
               role="CTO"
               company="Remo"
               logo={remo}
+              className="border-b pb-8 md:border-r md:border-b-0"
             />
             <TestimonialCard
               quote={`Laminar's tracing is genuinely great. So much better than the others I${"'"}ve tried.`}
@@ -284,7 +283,7 @@ export default function Landing() {
                   title="Real-time traces"
                   description="Laminar's tracing engine allows you to debug your AI app faster with real-time traces."
                   animationOrder={1}
-                  className="border-l border-b"
+                  className="md:border-l border-b"
                 />
               </div>
               <InfoCard
@@ -308,6 +307,7 @@ export default function Landing() {
                     title="Datasets"
                     description="Build datasets from span data for evals, fine-tuning and prompt engineering."
                     animationOrder={2}
+                    className="border-b md:border-b-0"
                   />
                 </div>
                 <div className="grid grid-cols-1">
@@ -315,13 +315,13 @@ export default function Landing() {
                     title="Labels"
                     description="Label your spans with custom tags to make them more informative."
                     animationOrder={1}
-                    className="border-l border-b"
+                    className="md:border-l border-b"
                   />
                   <InfoCard
                     title="Open-Source and easy to self-host"
                     description="Laminar is fully open-source and easy to self-host."
                     animationOrder={3}
-                    className="border-l"
+                    className="md:border-l"
                   >
                   </InfoCard>
                 </div>
@@ -365,8 +365,8 @@ function InfoCard({
   return (
     <div
       ref={ref}
-      className={`flex transition-all
-        relative overflow-hidden group ${className} grid
+      className={`flex flex-col md:flex-row transition-all
+        relative overflow-hidden group ${className}
         ${image ? "grid-cols-2" : ""}
       `}
       style={{
@@ -425,7 +425,7 @@ function InfoCard({
           transform: inView ? 'translateY(0)' : 'translateY(20px)',
           transition: `opacity 700ms ease ${baseDelay + 500}ms, transform 700ms ease ${baseDelay + 500}ms`
         }}>
-          <div className="border-l">
+          <div className="md:border-l md:border-t-0 border-t">
             <Image
               src={image}
               alt={title}
@@ -498,7 +498,7 @@ function TestimonialCard({
   className?: string;
 }) {
   return (
-    <div className={`p-6 flex flex-col h-full gap-8 border-r ${className}`}>
+    <div className={`p-6 flex flex-col h-full gap-8 ${className}`}>
       <div className="flex items-center gap-4 mt-6 text-sm md:text-base justify-between">
         <div>
           <p className="text-white font-medium">{author}</p>
