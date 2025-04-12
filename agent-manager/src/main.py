@@ -15,7 +15,7 @@ from scrapybara import Scrapybara
 import agent_manager_grpc_pb2 as pb2
 import agent_manager_grpc_pb2_grpc as pb2_grpc
 
-from index import Agent, AnthropicProvider, Browser, BrowserConfig
+from index import Agent, AnthropicProvider, BrowserConfig
 from index.agent.agent import (
     FinalOutputChunk,
     StepChunk,
@@ -272,13 +272,13 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                         )
                     )
                     
-                    # Convert cookies
-                    if chunk.content.cookies:
-                        for cookie in chunk.content.cookies:
-                            proto_cookie = pb2.Cookie()
-                            for key, value in cookie.items():
-                                proto_cookie.cookie_data[key] = str(value)
-                            response.agent_output.cookies.append(proto_cookie)
+                    # # Convert cookies
+                    # if chunk.content.cookies:
+                    #     for cookie in chunk.content.cookies:
+                    #         proto_cookie = pb2.Cookie()
+                    #         for key, value in cookie.items():
+                    #             proto_cookie.cookie_data[key] = str(value)
+                    #         response.agent_output.cookies.append(proto_cookie)
                     
 
 
@@ -332,13 +332,10 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
 
         browser_config = BrowserConfig(
             cdp_url=cdp_url,
-            cookies=cookies,
+            # cookies=cookies,
             cv_model_endpoint=cv_model_endpoint
         )
 
-        browser = Browser(
-            config=browser_config,
-        )
         
         # Select the appropriate provider
         if provider.lower() == "anthropic":
@@ -349,7 +346,7 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
             raise ValueError(f"Unsupported provider: {provider}")
 
         agent = Agent(
-            browser=browser,
+            browser_config=browser_config,
             llm=llm_provider,
         )
 
