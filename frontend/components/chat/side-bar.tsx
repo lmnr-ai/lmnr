@@ -178,7 +178,7 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
 
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton className="group overflow-hidden !pr-0" asChild isActive={isActive}>
+      <SidebarMenuButton className="group !pr-0" asChild isActive={isActive}>
         {isEditing ? (
           <div className="pr-2">
             <Input
@@ -192,69 +192,68 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
             />
           </div>
         ) : (
-          <Link className="pr-2 overflow-hidden" href={`/chat/${chat.sessionId}`} key={chat.sessionId} passHref>
-            <motion.div
-              title={chat.chatName}
-              className="flex-1 truncate mr-5 hover:bg-muted rounded-md text-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-            >
-              <AnimatedText animate={Boolean(chat?.isNew)} text={chat.chatName} />
-            </motion.div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuAction showOnHover className="mr-2 hover:bg-transparent">
-                  <MoreHorizontalIcon />
-                </SidebarMenuAction>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuGroup>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setIsEditing(true);
-                    }}
-                  >
-                    <div className="flex flex-row gap-2 items-center">
-                      <Edit size={16} />
-                      <span>Rename</span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDelete}>
-                    <div className="flex flex-row gap-2 items-center">
-                      <TrashIcon className="text-destructive" size={16} />
-                      <span className="text-destructive">Delete</span>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <Link className="overflow-hidden" href={`/chat/${chat.sessionId}`} key={chat.sessionId} passHref>
+            <AnimatedText animate={Boolean(chat?.isNew)} text={`${chat.chatName} ${chat.chatName}`} />
           </Link>
         )}
       </SidebarMenuButton>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuAction showOnHover className="mr-2 hover:bg-transparent">
+            <MoreHorizontalIcon />
+          </SidebarMenuAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.preventDefault();
+                setIsEditing(true);
+              }}
+            >
+              <div className="flex flex-row gap-2 items-center">
+                <Edit size={16} />
+                <span>Rename</span>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleDelete}>
+              <div className="flex flex-row gap-2 items-center">
+                <TrashIcon className="text-destructive" size={16} />
+                <span className="text-destructive">Delete</span>
+              </div>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </SidebarMenuItem>
   );
 };
+
+const wrapperClassName =
+  "flex w-fit items-center justify-center whitespace-nowrap [&>span]:inline-block [&>span]:w-[calc(var(--sidebar-width)-theme(spacing.12))] [&>span]:truncate";
 
 const AnimatedText = ({ text, animate }: { text: string; animate: boolean }) => {
   if (animate) {
     return (
       <motion.div
         initial={{ width: 0 }}
-        animate={{ width: "100%" }}
+        animate={{ width: "fit-content" }}
         transition={{
           duration: 1.5,
           delay: 0.3,
           ease: "easeOut",
         }}
-        className="truncate"
+        className={wrapperClassName}
       >
-        {text}
+        <span title={text}>{text}</span>
       </motion.div>
     );
   }
-  return text;
+  return (
+    <span className={wrapperClassName}>
+      <span title={text}>{text}</span>
+    </span>
+  );
 };
 
 const ChatItem = memo(PureChatItem);

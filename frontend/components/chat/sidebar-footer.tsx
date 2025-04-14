@@ -25,7 +25,7 @@ const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
         <SidebarMenuButton
           size="sm"
           className={cn(
-            "bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border-white/20 border hover:border-white/50",
+            "bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border-white/20 border hover:border-white/50 active:bg-primary",
             {
               hidden: state === "collapsed" || user.userSubscriptionTier.trim().toLowerCase() !== "free",
             }
@@ -40,7 +40,7 @@ const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
               <SidebarMenuButton
                 size="lg"
                 className={cn(
-                  "transition-all size-full group-data-[collapsible=icon]:!size-8",
+                  "transition-all size-full group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mb-1",
                   state === "collapsed" ? "mx-[5px]" : "mx-0"
                 )}
               >

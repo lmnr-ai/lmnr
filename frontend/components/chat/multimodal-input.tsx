@@ -74,7 +74,7 @@ const MultimodalInput = ({
     <div className="relative w-full gap-4">
       <div className={cn("peer relative rounded-t-xl bg-zinc-700", { hidden: isHidden || isPro })}>
         <div className="banner flex items-center justify-between pl-3 pr-2 text-sm">
-          <span>Need more messages? Get higher limits with Pro.</span>
+          <span className="text-secondary-foreground">Get unlimited messages with Pro.</span>
           <div className="flex items-center gap-1">
             <Button
               onClick={(e) => {
@@ -84,9 +84,9 @@ const MultimodalInput = ({
               variant="ghost"
               className="text-primary hover:text-primary hover:underline px-0"
             >
-              Update to Pro
+              Upgrade to Pro
             </Button>
-            <Button onClick={handleClose} className="p-1" variant="ghost">
+            <Button onClick={handleClose} className="p-1 text-secondary-foreground" variant="ghost">
               <X size={12} className="size-3" />
             </Button>
           </div>

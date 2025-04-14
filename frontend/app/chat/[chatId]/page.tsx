@@ -1,4 +1,5 @@
 import { asc, eq } from "drizzle-orm";
+import { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
@@ -8,6 +9,10 @@ import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { agentMessages, agentSessions, users } from "@/lib/db/migrations/schema";
+
+export const metadata: Metadata = {
+  title: "Index",
+};
 
 export default async function ChatPage(props: { params: Promise<{ chatId: string }> }) {
   const session = await getServerSession(authOptions);
