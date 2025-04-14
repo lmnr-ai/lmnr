@@ -193,7 +193,7 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
           </div>
         ) : (
           <Link className="overflow-hidden" href={`/chat/${chat.sessionId}`} key={chat.sessionId} passHref>
-            <AnimatedText animate={Boolean(chat?.isNew)} text={`${chat.chatName} ${chat.chatName}`} />
+            <AnimatedText animate={Boolean(chat?.isNew)} text={chat.chatName} />
           </Link>
         )}
       </SidebarMenuButton>
