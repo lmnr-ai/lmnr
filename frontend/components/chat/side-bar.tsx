@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,
   SidebarContent,
@@ -57,13 +58,17 @@ export function AgentSidebar({ user }: { user: ChatUser }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton className="mx-0" onClick={toggleSidebar}>
-              <SidebarIcon size={16} />
+            <SidebarMenuButton tooltip="Toggle sidebar" className="mx-[2px]" onClick={toggleSidebar}>
+              <SidebarIcon className="min-w-5" />
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="New Chat" onClick={handleNewChat} className="w-full font-medium text-primary mx-0 hover:text-primary">
-              <div className="rounded-full bg-primary text-primary-foreground p-1">
+            <SidebarMenuButton
+              tooltip="New Chat"
+              onClick={handleNewChat}
+              className="w-full font-medium text-primary hover:text-primary mx-[2px]"
+            >
+              <div className="rounded-full bg-primary text-primary-foreground p-1 -ml-px">
                 <Plus size={14} />
               </div>
               <span>New Chat</span>
@@ -72,21 +77,23 @@ export function AgentSidebar({ user }: { user: ChatUser }) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className={cn("pt-2 text-primary-foreground", { invisible: state === "collapsed" })}>
-        {isLoading ? (
-          <Loader size={20} className="animate-spin self-center" />
-        ) : (
-          <SidebarGroup className="p-0">
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <AnimatePresence mode="popLayout">
-                  {data?.map((chat) => (
-                    <ChatItem key={chat.sessionId} chat={chat} isActive={chat.sessionId === activeId} />
-                  ))}
-                </AnimatePresence>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        <ScrollArea>
+          {isLoading ? (
+            <Loader size={20} className="animate-spin self-center mx-auto" />
+          ) : (
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <AnimatePresence mode="popLayout">
+                    {data?.map((chat) => (
+                      <ChatItem key={chat.sessionId} chat={chat} isActive={chat.sessionId === activeId} />
+                    ))}
+                  </AnimatePresence>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+        </ScrollArea>
       </SidebarContent>
       <AgentSidebarFooter user={user} />
     </Sidebar>

@@ -6,7 +6,6 @@ import { User } from "next-auth";
 import { FormEvent, useState } from "react";
 
 import BrowserWindow from "@/components/chat/browser-window";
-import ChatHeader from "@/components/chat/header";
 import Messages from "@/components/chat/messages";
 import MultimodalInput from "@/components/chat/multimodal-input";
 import Placeholder from "@/components/chat/placeholder";
@@ -50,8 +49,7 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
     if (e) {
       e.preventDefault();
     }
-    handleSubmit(e, modelState);
-    setOpen(false);
+    handleSubmit(e, modelState).then(() => setOpen(false));
   };
 
   const handleSubmitWithInput = (input: string) => {
@@ -61,7 +59,6 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
   return (
     <div className="flex max-h-dvh">
       <div className="flex flex-col flex-1 min-w-0 h-dvh bg-background">
-        <ChatHeader />
         {isEmpty(messages) ? (
           <Placeholder user={user} />
         ) : (
