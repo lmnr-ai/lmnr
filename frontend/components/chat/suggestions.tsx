@@ -16,7 +16,7 @@ const Suggestions = ({ sessionId, onSubmit }: SuggestionsProps) => {
     },
     {
       title: "Create a spreadsheet from YC companies",
-      action: `Go to ycombinator.com and search for first 3 companies in X25 batch. Create a spreadsheet with the companies and their descriptions.`,
+      action: `Go to ycombinator.com and search for first 3 companies in X25 batch. Create a google spreadsheet with company names and their descriptions.`,
     },
     {
       title: "Find me cheapest tickets from Seoul to London",
