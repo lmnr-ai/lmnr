@@ -1,9 +1,9 @@
-import { ChevronUp } from "lucide-react";
-import Image from "next/image";
+import { ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { useState } from "react";
 
+import { usePricingContext } from "@/components/chat/pricing-context";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,56 +13,53 @@ import {
 import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
-import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
-import ChatPricing from "./chat-pricing";
 import { ChatUser } from "./types";
 
 const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
   const { state } = useSidebar();
-  const [isBillingDialogOpen, setIsBillingDialogOpen] = useState(false);
 
+  const { handleOpen } = usePricingContext();
   return (
     <SidebarFooter>
-      {(user.userSubscriptionTier.trim().toLowerCase() === "free") && state === "expanded" && (
-        <div className="flex items-center justify-center w-full h-full px-2">
-          <Button
-            className="w-full"
-            onClick={() => {
-              setIsBillingDialogOpen(true);
-            }}
-          >
-            Upgrade to Pro
-          </Button>
-        </div>
-      )}
-      <SidebarMenu>
+      <SidebarMenu className="overflow-hidden">
+        <SidebarMenuButton
+          size="sm"
+          className={cn(
+            "bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border-white/20 border hover:border-white/50 active:bg-primary",
+            {
+              hidden: state === "collapsed" || user.userSubscriptionTier.trim().toLowerCase() !== "free",
+            }
+          )}
+          onClick={() => handleOpen(true)}
+        >
+          <span className="mx-auto">Upgrade to Pro</span>
+        </SidebarMenuButton>
         <SidebarMenuItem>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
-                className={cn("w-[223px] flex items-center", {
-                  "mx-0 ml-[2px]": state === "collapsed",
-                })}
-              >
-                {user.image && (
-                  <Image
-                    src={user.image}
-                    alt="user-image"
-                    width={24}
-                    height={24}
-                    className="rounded-full object-cover"
-                  />
+                size="lg"
+                className={cn(
+                  "transition-all size-full group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mb-1",
+                  state === "collapsed" ? "mx-[5px]" : "mx-0"
                 )}
-                <div className="flex flex-col">
-                  <div className="text-xs text-muted-foreground">
-                    {user.userSubscriptionTier === "free" ? "Free" : <span className="text-primary">Pro</span>}
-                  </div>
-                  <span className="truncate">
-                    {user.email}
+              >
+                <Avatar className="h-8 w-8 rounded-lg">
+                  <AvatarImage src={user.image} alt="user-image" />
+                  <AvatarFallback className="rounded-lg">{user.name?.[0] ?? "L"}</AvatarFallback>
+                </Avatar>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span
+                    className={cn(
+                      "text-xs truncate text-muted-foreground",
+                      user.userSubscriptionTier === "free" ? "text-muted-foreground" : "text-primary"
+                    )}
+                  >
+                    {user.userSubscriptionTier === "free" ? "Free" : "Pro"}
                   </span>
+                  <span className="truncate">{user.email}</span>
                 </div>
-                <ChevronUp className="ml-auto" />
+                <ChevronsUpDown className="ml-auto size-4" />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
@@ -88,12 +85,6 @@ const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
-      <Dialog open={isBillingDialogOpen} onOpenChange={setIsBillingDialogOpen}>
-        <DialogTitle className="hidden">Upgrade your plan</DialogTitle>
-        <DialogContent className="max-w-[60vw] min-h-[80vh]">
-          <ChatPricing />
-        </DialogContent>
-      </Dialog>
     </SidebarFooter>
   );
 };

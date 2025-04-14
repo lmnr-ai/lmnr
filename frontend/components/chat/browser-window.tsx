@@ -33,7 +33,9 @@ const BrowserWindow = ({ onControl, isControlled }: BrowserWindowProps) => {
       <div
         className={cn(
           "z-50 bg-background rounded-lg w-full flex flex-col transition-all duration-300 aspect-[4/3]",
-          isBrowserActive ? "max-w-md sm:max-w-sm md:max-w-md xl:max-w-4xl p-4" : "max-w-0",
+          isBrowserActive
+            ? "max-w-md sm:max-w-sm md:max-w-md xl:max-w-4xl 2xl:max-w-[60%] sm:px-4 md:px-8 lg:px-12"
+            : "max-w-0",
           {
             "!max-w-full left-0 right-0 top-0 bottom-0 p-4": isControlled,
           }
