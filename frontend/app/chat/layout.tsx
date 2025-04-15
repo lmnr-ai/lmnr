@@ -34,16 +34,18 @@ export default async function Layout({ children }: PropsWithChildren) {
   }
 
   const chatUser: ChatUser = {
+    id: user.id,
     email: user.email,
     name: user.name,
     image: session.user.image || "",
     userSubscriptionTier: user.userSubscriptionTier.name,
+    supabaseAccessToken: session.supabaseAccessToken,
   };
 
   return (
     <SidebarProvider style={sidebarRef}>
       <PricingProvider user={chatUser}>
-        <AgentSidebar user={chatUser} />
+        <AgentSidebar />
         <SidebarInset>{children}</SidebarInset>
       </PricingProvider>
     </SidebarProvider>

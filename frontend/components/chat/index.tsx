@@ -12,7 +12,6 @@ import Placeholder from "@/components/chat/placeholder";
 import Suggestions from "@/components/chat/suggestions";
 import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { useAgentChat } from "@/components/chat/use-agent-chat";
-import { useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
@@ -28,7 +27,6 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
     enableThinking: true,
   });
 
-  const { setOpen } = useSidebar();
   const { messages, handleSubmit, stop, isLoading, input, setInput, isControlled, setIsControlled } = useAgentChat({
     id: sessionId,
     initialMessages,
@@ -49,7 +47,7 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
     if (e) {
       e.preventDefault();
     }
-    handleSubmit(e, modelState).then(() => setOpen(false));
+    handleSubmit(e, modelState);
   };
 
   const handleSubmitWithInput = (input: string) => {

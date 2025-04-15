@@ -165,7 +165,7 @@ export const initiateChat = async (
       userId,
       sessionId: sessionId,
       isNew: true,
-      agentStatus: "working",
+      agentStatus: "idle",
     };
     await appendChat(optimisticChat);
   }

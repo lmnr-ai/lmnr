@@ -69,13 +69,13 @@ export const membersOfWorkspacesRelations = relations(membersOfWorkspaces, ({one
 export const usersRelations = relations(users, ({one, many}) => ({
   membersOfWorkspaces: many(membersOfWorkspaces),
   userSubscriptionInfos: many(userSubscriptionInfo),
+  apiKeys: many(apiKeys),
+  agentChats: many(agentChats),
+  userCookies: many(userCookies),
   userSubscriptionTier: one(userSubscriptionTiers, {
     fields: [users.tierId],
     references: [userSubscriptionTiers.id]
   }),
-  apiKeys: many(apiKeys),
-  userCookies: many(userCookies),
-  agentChats: many(agentChats),
   userUsages: many(userUsage),
 }));
 
@@ -147,10 +147,6 @@ export const labelingQueueItemsRelations = relations(labelingQueueItems, ({one})
     fields: [labelingQueueItems.queueId],
     references: [labelingQueues.id]
   }),
-}));
-
-export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
-  users: many(users),
 }));
 
 export const apiKeysRelations = relations(apiKeys, ({one}) => ({
@@ -228,10 +224,26 @@ export const labelsRelations = relations(labels, ({one}) => ({
   }),
 }));
 
-export const userCookiesRelations = relations(userCookies, ({one}) => ({
+export const agentChatsRelations = relations(agentChats, ({one}) => ({
   user: one(users, {
-    fields: [userCookies.userId],
+    fields: [agentChats.userId],
     references: [users.id]
+  }),
+  agentSession: one(agentSessions, {
+    fields: [agentChats.sessionId],
+    references: [agentSessions.sessionId]
+  }),
+}));
+
+export const agentSessionsRelations = relations(agentSessions, ({many}) => ({
+  agentChats: many(agentChats),
+  agentMessages: many(agentMessages),
+}));
+
+export const agentMessagesRelations = relations(agentMessages, ({one}) => ({
+  agentSession: one(agentSessions, {
+    fields: [agentMessages.sessionId],
+    references: [agentSessions.sessionId]
   }),
 }));
 
@@ -242,27 +254,15 @@ export const tracesRelations = relations(traces, ({one}) => ({
   }),
 }));
 
-export const agentMessagesRelations = relations(agentMessages, ({one}) => ({
-  agentSession: one(agentSessions, {
-    fields: [agentMessages.sessionId],
-    references: [agentSessions.sessionId]
-  }),
-}));
-
-export const agentSessionsRelations = relations(agentSessions, ({many}) => ({
-  agentMessages: many(agentMessages),
-  agentChats: many(agentChats),
-}));
-
-export const agentChatsRelations = relations(agentChats, ({one}) => ({
+export const userCookiesRelations = relations(userCookies, ({one}) => ({
   user: one(users, {
-    fields: [agentChats.userId],
+    fields: [userCookies.userId],
     references: [users.id]
   }),
-  agentSession: one(agentSessions, {
-    fields: [agentChats.sessionId],
-    references: [agentSessions.sessionId]
-  }),
+}));
+
+export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
+  users: many(users),
 }));
 
 export const userUsageRelations = relations(userUsage, ({one}) => ({
