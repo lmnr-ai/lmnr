@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     return new Response(JSON.stringify({ error: "Failed to fetch events." }), {
-      status: 400,
+      status: 500,
     });
   }
 }

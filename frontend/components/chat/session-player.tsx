@@ -3,9 +3,10 @@
 import "rrweb-player/dist/style.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
+import { round } from "lodash";
 import { Loader2 } from "lucide-react";
 import pako from "pako";
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import rrwebPlayer from "rrweb-player";
 
 import {
@@ -45,7 +46,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(({ tra
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Add resize observer effect
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -61,7 +61,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(({ tra
     return () => resizeObserver.disconnect();
   }, []);
 
-  const getEvents = async () => {
+  const getEvents = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch(`/api/browser-sessions/events?traceId=${traceId}`, {
@@ -131,7 +131,15 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(({ tra
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [traceId]);
+
+  useEffect(() => {
+    const isTimeExceedingDuration = totalDuration > 0 && round(currentTime) > round(totalDuration);
+
+    if (isTimeExceedingDuration) {
+      getEvents();
+    }
+  }, [currentTime, totalDuration, startTime, getEvents]);
 
   useEffect(() => {
     if (traceId) {
