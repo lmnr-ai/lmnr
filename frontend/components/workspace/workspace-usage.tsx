@@ -78,10 +78,10 @@ export default function WorkspaceUsage({
                   }
                 </Button>
               </DialogTrigger>
-              <DialogTitle className="hidden">Manage billing</DialogTitle>
+              <DialogTitle className="sr-only">Manage billing</DialogTitle>
               <DialogContent className="max-w-[80vw] min-h-[80vh]">
                 <PricingDialog
-                  workspaceTier={workspaceStats.tierName}
+                  workspaceTier={workspaceStats.tierName.toLowerCase().trim()}
                   workspaceId={workspace.id}
                   workspaceName={workspace.name}
                 />
