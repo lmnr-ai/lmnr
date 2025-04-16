@@ -15,7 +15,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      test:
+        ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
       interval: 2s
       timeout: 5s
       retries: 5
@@ -47,7 +48,7 @@ services:
     image: ghcr.io/lmnr-ai/frontend
     pull_policy: always
     ports:
-      - "5667:5667"
+      - "${FRONTEND_HOST_PORT:-5667}:5667"
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,7 +69,7 @@ services:
     image: ghcr.io/lmnr-ai/agent-manager
     pull_policy: always
     ports:
-      - "8901:8901"
+      - "${AGENT_MANAGER_HOST_PORT:-8901}:8901"
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,8 +92,8 @@ services:
     image: ghcr.io/lmnr-ai/app-server
     pull_policy: always
     ports:
-      - "8000:8000"
-      - "8001:8001"
+      - "${APP_SERVER_HOST_PORT:-8000}:8000"
+      - "${APP_SERVER_GRPC_HOST_PORT:-8001}:8001"
     depends_on:
       postgres:
         condition: service_healthy
