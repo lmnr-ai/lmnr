@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-pub async fn update_agent_chat(
+pub async fn update_agent_chat_status(
     pool: &PgPool,
     agent_status: &str,
     updated_at: chrono::DateTime<chrono::Utc>,

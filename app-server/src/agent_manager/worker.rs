@@ -57,7 +57,7 @@ pub async fn run_agent_worker(
         )
         .await;
 
-    if let Err(e) = db::agent_chats::update_agent_chat(&db.pool, "working", Utc::now(), &session_id).await {
+    if let Err(e) = db::agent_chats::update_agent_chat_status(&db.pool, "working", Utc::now(), &session_id).await {
         log::error!("Error updating agent chat: {}", e);
     }
 
@@ -137,7 +137,7 @@ pub async fn run_agent_worker(
         }
     }
 
-    if let Err(e) = db::agent_chats::update_agent_chat(&db.pool, "idle", Utc::now(), &session_id).await {
+    if let Err(e) = db::agent_chats::update_agent_chat_status(&db.pool, "idle", Utc::now(), &session_id).await {
         log::error!("Error updating agent chat: {}", e);
     }
 }
