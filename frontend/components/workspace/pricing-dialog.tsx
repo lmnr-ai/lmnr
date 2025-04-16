@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import PricingCard from '../landing/pricing-card';
 
 const TIER_LINKS = {
-  free: '/projects',
   hobby: '/checkout?type=workspace&lookupKey=hobby_monthly_2025_04',
   pro: '/checkout?type=workspace&lookupKey=pro_monthly_2025_04',
 };
@@ -37,11 +36,6 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
               'Community support',
             ]}
           />
-          <Link href={TIER_LINKS.free}>
-            <Button variant="secondary" className="w-full h-10">
-              Get started
-            </Button>
-          </Link>
         </div>
         <div className="p-8 border rounded-lg flex flex-col space-y-4">
           <PricingCard
@@ -63,7 +57,7 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
           />
           <Link href={workspaceTier === 'hobby' ? '/checkout/portal' : addWorkspaceToLink(TIER_LINKS.hobby)}>
             <Button variant="secondary" className="w-full h-10">
-              {workspaceTier === 'hobby' ? 'Manage billing' : 'Get started'}
+              {workspaceTier === 'hobby' ? 'Manage billing' : 'Upgrade to Hobby'}
             </Button>
           </Link>
         </div>
@@ -93,8 +87,8 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
                 variant="outline"
               >
                 {isTierPaid(workspaceTier) ?
-                  (workspaceTier === 'hobby' ? 'Upgrade' : 'Manage billing')
-                  : 'Get started'}
+                  (workspaceTier === 'hobby' ? 'Manage billing' : 'Upgrade to Pro')
+                  : 'Upgrade to Pro'}
               </Button>
             </Link>
           </div>

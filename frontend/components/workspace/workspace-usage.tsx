@@ -71,7 +71,7 @@ export default function WorkspaceUsage({
           {isOwner &&
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="secondary">
+                <Button variant="default">
                   {workspaceStats.tierName.toLowerCase().trim() === 'free'
                     ? 'Upgrade'
                     : 'Manage billing'
