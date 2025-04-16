@@ -197,6 +197,13 @@
       "when": 1743853103073,
       "tag": "0027_massive_hawkeye",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1744730518944,
+      "tag": "0028_futuristic_blonde_phantom",
+      "breakpoints": true
     }
   ]
 }

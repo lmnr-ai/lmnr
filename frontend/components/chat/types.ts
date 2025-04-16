@@ -1,4 +1,3 @@
-
 export interface LaminarSpanContext {
   traceId: string;
   spanId: string;
@@ -126,8 +125,10 @@ export interface AgentSession {
 }
 
 export interface ChatUser {
+  id: string;
   email: string;
   name: string;
   image: string;
   userSubscriptionTier: string;
+  supabaseAccessToken: string;
 }

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 import { ChatUser } from "./types";
 
-const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
+const AgentSidebarFooter = ({ user }: { user?: ChatUser }) => {
   const { state } = useSidebar();
 
   const { handleOpen } = usePricingContext();
@@ -27,7 +27,7 @@ const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
           className={cn(
             "bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border-white/20 border hover:border-white/50 active:bg-primary",
             {
-              hidden: state === "collapsed" || user.userSubscriptionTier.trim().toLowerCase() !== "free",
+              hidden: state === "collapsed" || user?.userSubscriptionTier.trim().toLowerCase() !== "free",
             }
           )}
           onClick={() => handleOpen(true)}
@@ -45,25 +45,25 @@ const AgentSidebarFooter = ({ user }: { user: ChatUser }) => {
                 )}
               >
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.image} alt="user-image" />
-                  <AvatarFallback className="rounded-lg">{user.name?.[0] ?? "L"}</AvatarFallback>
+                  <AvatarImage src={user?.image} alt="user-image" />
+                  <AvatarFallback className="rounded-lg">{user?.name?.[0] ?? "L"}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span
                     className={cn(
                       "text-xs truncate text-muted-foreground",
-                      user.userSubscriptionTier === "free" ? "text-muted-foreground" : "text-primary"
+                      user?.userSubscriptionTier === "free" ? "text-muted-foreground" : "text-primary"
                     )}
                   >
-                    {user.userSubscriptionTier === "free" ? "Free" : "Pro"}
+                    {user?.userSubscriptionTier === "free" ? "Free" : "Pro"}
                   </span>
-                  <span className="truncate">{user.email}</span>
+                  <span className="truncate">{user?.email}</span>
                 </div>
                 <ChevronsUpDown className="ml-auto size-4" />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
-              {user.userSubscriptionTier.trim().toLowerCase() !== "free" && (
+              {user?.userSubscriptionTier.trim().toLowerCase() !== "free" && (
                 <DropdownMenuItem>
                   <Link href="/checkout/portal" className="w-full cursor-pointer">
                     Manage billing

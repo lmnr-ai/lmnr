@@ -74,7 +74,9 @@ const MultimodalInput = ({
     <div className="relative w-full gap-4">
       <div className={cn("peer relative rounded-t-xl bg-zinc-700", { hidden: isHidden || isPro })}>
         <div className="banner flex items-center justify-between pl-3 pr-2 text-sm">
-          <span className="text-secondary-foreground">Get unlimited messages with Pro.</span>
+          <span title="Get unlimited messages with Pro." className="text-secondary-foreground truncate">
+            Get unlimited messages with Pro.
+          </span>
           <div className="flex items-center gap-1">
             <Button
               onClick={(e) => {
@@ -98,6 +100,7 @@ const MultimodalInput = ({
         })}
       >
         <Textarea
+          autoFocus
           ref={textareaRef}
           placeholder="Send a message..."
           value={value}

@@ -1,14 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Edit, Loader, MoreHorizontalIcon, Plus, SidebarIcon, TrashIcon } from "lucide-react";
+import { Edit, Loader, Loader2, MoreHorizontalIcon, Plus, SidebarIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { FocusEvent, KeyboardEventHandler, memo, MouseEvent, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
+import { usePricingContext } from "@/components/chat/pricing-context";
 import AgentSidebarFooter from "@/components/chat/sidebar-footer";
-import { AgentSession, ChatUser } from "@/components/chat/types";
+import { AgentSession } from "@/components/chat/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,25 +34,58 @@ import {
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
-export function AgentSidebar({ user }: { user: ChatUser }) {
+export function AgentSidebar() {
   const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
-
+  const { user, supabaseClient } = usePricingContext();
   const pathname = usePathname();
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     const match = pathname.match(/\/chat\/([^\/]+)/);
-    const sessionId = match ? match[1] : null;
-    setActiveId(sessionId);
+    const sessionParam = match ? match[1] : null;
+    setSessionId(sessionParam);
   }, [pathname]);
 
-  const { data, isLoading } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
+  const { data, isLoading, mutate } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
 
   const handleNewChat = () => {
     router.push("/chat");
     router.refresh();
   };
+
+  useEffect(() => {
+    if (supabaseClient && user?.id) {
+      const channel = supabaseClient
+        .channel("table-db-changes")
+        .on<{ agent_status: AgentSession["agentStatus"]; session_id: string }>(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "agent_chats",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const sessionId = payload.new.session_id;
+            mutate(
+              data?.map((item) =>
+                item.sessionId === sessionId ? { ...item, agentStatus: payload.new.agent_status } : item
+              ) || [],
+              {
+                revalidate: false,
+                rollbackOnError: true,
+              }
+            );
+          }
+        )
+        .subscribe();
+
+      return () => {
+        channel.unsubscribe();
+      };
+    }
+  }, [data, mutate, supabaseClient, user?.id]);
 
   return (
     <Sidebar collapsible="icon">
@@ -86,7 +120,7 @@ export function AgentSidebar({ user }: { user: ChatUser }) {
                 <SidebarMenu>
                   <AnimatePresence mode="popLayout">
                     {data?.map((chat) => (
-                      <ChatItem key={chat.sessionId} chat={chat} isActive={chat.sessionId === activeId} />
+                      <ChatItem key={chat.sessionId} chat={chat} isActive={chat.sessionId === sessionId} />
                     ))}
                   </AnimatePresence>
                 </SidebarMenu>
@@ -194,43 +228,46 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
         ) : (
           <Link className="overflow-hidden" href={`/chat/${chat.sessionId}`} key={chat.sessionId} passHref>
             <AnimatedText animate={Boolean(chat?.isNew)} text={chat.chatName} />
+            {chat.agentStatus === "working" && <Loader2 className="animate-spin duration-[3000ms]" />}
           </Link>
         )}
       </SidebarMenuButton>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <SidebarMenuAction showOnHover className="mr-2 hover:bg-transparent">
-            <MoreHorizontalIcon />
-          </SidebarMenuAction>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuGroup>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                setIsEditing(true);
-              }}
-            >
-              <div className="flex flex-row gap-2 items-center">
-                <Edit size={16} />
-                <span>Rename</span>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleDelete}>
-              <div className="flex flex-row gap-2 items-center">
-                <TrashIcon className="text-destructive" size={16} />
-                <span className="text-destructive">Delete</span>
-              </div>
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {!isEditing && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuAction className="mr-2 hover:bg-transparent">
+              <MoreHorizontalIcon />
+            </SidebarMenuAction>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIsEditing(true);
+                }}
+              >
+                <div className="flex flex-row gap-2 items-center">
+                  <Edit size={16} />
+                  <span>Rename</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDelete}>
+                <div className="flex flex-row gap-2 items-center">
+                  <TrashIcon className="text-destructive" size={16} />
+                  <span className="text-destructive">Delete</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </SidebarMenuItem>
   );
 };
 
 const wrapperClassName =
-  "flex w-fit items-center justify-center whitespace-nowrap [&>span]:inline-block [&>span]:w-[calc(var(--sidebar-width)-theme(spacing.12))] [&>span]:truncate";
+  "flex w-fit items-center justify-center whitespace-nowrap [&>span]:inline-block [&>span]:w-[calc(var(--sidebar-width)-theme(spacing.20))] [&>span]:truncate";
 
 const AnimatedText = ({ text, animate }: { text: string; animate: boolean }) => {
   if (animate) {

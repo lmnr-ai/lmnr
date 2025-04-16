@@ -4,7 +4,7 @@ use futures::StreamExt;
 use uuid::Uuid;
 
 use crate::db::{self, agent_messages::MessageType, DB};
-
+use chrono::Utc;
 use super::{
     channel::AgentManagerWorkers,
     cookies,
@@ -56,6 +56,10 @@ pub async fn run_agent_worker(
             options.return_screenshots,
         )
         .await;
+
+    if let Err(e) = db::agent_chats::update_agent_chat_status(&db.pool, "working", Utc::now(), &session_id).await {
+        log::error!("Error updating agent chat: {}", e);
+    }
 
     while let Some(chunk) = stream.next().await {
         if worker_channel.is_stopped(session_id) {
@@ -131,5 +135,9 @@ pub async fn run_agent_worker(
                 worker_channel.end_session(session_id);
             }
         }
+    }
+
+    if let Err(e) = db::agent_chats::update_agent_chat_status(&db.pool, "idle", Utc::now(), &session_id).await {
+        log::error!("Error updating agent chat: {}", e);
     }
 }
