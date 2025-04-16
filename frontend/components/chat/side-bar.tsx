@@ -37,7 +37,7 @@ import { cn, swrFetcher } from "@/lib/utils";
 export function AgentSidebar() {
   const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
-  const { user, supabaseClient } = usePricingContext();
+  const { user, supabaseClient, handleTraceId } = usePricingContext();
   const pathname = usePathname();
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -50,6 +50,7 @@ export function AgentSidebar() {
   const { data, isLoading, mutate } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
 
   const handleNewChat = () => {
+    handleTraceId(undefined);
     router.push("/chat");
     router.refresh();
   };
@@ -120,7 +121,12 @@ export function AgentSidebar() {
                 <SidebarMenu>
                   <AnimatePresence mode="popLayout">
                     {data?.map((chat) => (
-                      <ChatItem key={chat.sessionId} chat={chat} isActive={chat.sessionId === sessionId} />
+                      <ChatItem
+                        handleTraceId={handleTraceId}
+                        key={chat.sessionId}
+                        chat={chat}
+                        isActive={chat.sessionId === sessionId}
+                      />
                     ))}
                   </AnimatePresence>
                 </SidebarMenu>
@@ -134,7 +140,15 @@ export function AgentSidebar() {
   );
 }
 
-const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolean }) => {
+const PureChatItem = ({
+  chat,
+  isActive,
+  handleTraceId,
+}: {
+  chat: AgentSession;
+  handleTraceId: (id?: string) => void;
+  isActive: boolean;
+}) => {
   const [isEditing, setIsEditing] = useState(false);
   const router = useRouter();
   const params = useParams();
@@ -211,7 +225,12 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
   }, [isEditing]);
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem
+      onClick={(e) => {
+        e.stopPropagation();
+        handleTraceId(undefined);
+      }}
+    >
       <SidebarMenuButton className="group !pr-0" asChild isActive={isActive}>
         {isEditing ? (
           <div className="pr-2">
@@ -235,7 +254,7 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
       {!isEditing && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuAction className="mr-2 hover:bg-transparent">
+            <SidebarMenuAction showOnHover className="mr-2 hover:bg-transparent">
               <MoreHorizontalIcon />
             </SidebarMenuAction>
           </DropdownMenuTrigger>

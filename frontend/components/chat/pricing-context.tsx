@@ -1,9 +1,10 @@
 "use client";
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import { createContext, PropsWithChildren, useContext, useMemo, useState } from "react";
+import { createContext, PropsWithChildren, RefObject, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import ChatPricing from "@/components/chat/chat-pricing";
+import { SessionPlayerHandle } from "@/components/chat/session-player";
 import { ChatUser } from "@/components/chat/types";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { createSupabaseClient } from "@/lib/supabase";
@@ -13,6 +14,9 @@ type PricingContextType = {
   handleOpen: (open: boolean) => void;
   user?: ChatUser;
   supabaseClient?: SupabaseClient;
+  traceId?: string;
+  handleTraceId: (id?: string) => void;
+  browserSessionRef: RefObject<SessionPlayerHandle | null>;
 };
 
 const PricingContext = createContext<PricingContextType>({
@@ -20,14 +24,18 @@ const PricingContext = createContext<PricingContextType>({
   handleOpen: () => {},
   user: undefined,
   supabaseClient: undefined,
+  traceId: undefined,
+  handleTraceId: () => {},
+  browserSessionRef: { current: null },
 });
 
 export const usePricingContext = () => useContext(PricingContext);
 
 const PricingProvider = ({ children, user }: PropsWithChildren<{ user: ChatUser }>) => {
   const [open, setOpen] = useState(false);
-
+  const [traceId, setTraceId] = useState<string | undefined>(undefined);
   const client = createSupabaseClient(user.supabaseAccessToken);
+  const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
   const value = useMemo<PricingContextType>(
     () => ({
@@ -35,10 +43,16 @@ const PricingProvider = ({ children, user }: PropsWithChildren<{ user: ChatUser 
       handleOpen: setOpen,
       user,
       supabaseClient: client,
+      traceId,
+      handleTraceId: setTraceId,
+      browserSessionRef,
     }),
-    [client, open, user]
+    [client, open, traceId, user]
   );
 
+  useEffect(() => {
+    setTraceId(undefined);
+  }, []);
   return (
     <PricingContext.Provider value={value}>
       <Dialog open={open} onOpenChange={setOpen}>
