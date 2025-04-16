@@ -1,7 +1,7 @@
 "use client";
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import { createContext, PropsWithChildren, RefObject, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, PropsWithChildren, RefObject, useContext, useMemo, useRef, useState } from "react";
 
 import ChatPricing from "@/components/chat/chat-pricing";
 import { SessionPlayerHandle } from "@/components/chat/session-player";
@@ -50,9 +50,6 @@ const PricingProvider = ({ children, user }: PropsWithChildren<{ user: ChatUser 
     [client, open, traceId, user]
   );
 
-  useEffect(() => {
-    setTraceId(undefined);
-  }, []);
   return (
     <PricingContext.Provider value={value}>
       <Dialog open={open} onOpenChange={setOpen}>

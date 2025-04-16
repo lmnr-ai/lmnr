@@ -71,6 +71,10 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(({ tra
         },
       });
 
+      if (!res.ok) {
+        return;
+      }
+
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No reader available");
 
@@ -277,7 +281,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(({ tra
         .rr-controller {
           background-color: transparent !important;
           color: white !important;
-          text-color: white !important;
         }
 
         /* Using the provided cursor SVG with white outline */
@@ -338,6 +341,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(({ tra
           </DropdownMenu>
 
           <input
+            aria-label="Timeline slider"
             type="range"
             className="flex-grow cursor-pointer"
             min="0"

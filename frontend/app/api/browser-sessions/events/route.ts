@@ -14,8 +14,9 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const res = await clickhouseClient.query({
-    query: `
+  try {
+    const res = await clickhouseClient.query({
+      query: `
       SELECT 
         trace_id,
         timestamp,
@@ -24,39 +25,44 @@ export async function GET(request: NextRequest) {
       FROM browser_session_events
       WHERE trace_id = {traceId: UUID}
       ORDER BY timestamp ASC`,
-    format: "JSONEachRow",
-    query_params: {
-      traceId: traceId,
-    },
-  });
+      format: "JSONEachRow",
+      query_params: {
+        traceId: traceId,
+      },
+    });
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      controller.enqueue("["); // Start JSON array
+    const stream = new ReadableStream({
+      async start(controller) {
+        controller.enqueue("["); // Start JSON array
 
-      let isFirst = true;
-      const resultStream = res.stream();
+        let isFirst = true;
+        const resultStream = res.stream();
 
-      try {
-        for await (const row of resultStream) {
-          if (!isFirst) {
-            controller.enqueue(",");
+        try {
+          for await (const row of resultStream) {
+            if (!isFirst) {
+              controller.enqueue(",");
+            }
+            controller.enqueue(JSON.stringify(row));
+            isFirst = false;
           }
-          controller.enqueue(JSON.stringify(row));
-          isFirst = false;
+
+          controller.enqueue("]"); // End JSON array
+          controller.close();
+        } catch (error) {
+          controller.error(error);
         }
+      },
+    });
 
-        controller.enqueue("]"); // End JSON array
-        controller.close();
-      } catch (error) {
-        controller.error(error);
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: "Failed to fetch events." }), {
+      status: 400,
+    });
+  }
 }
