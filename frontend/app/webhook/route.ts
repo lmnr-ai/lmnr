@@ -142,7 +142,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       const invoice = event.data.object;
       const itemDescriptions = invoice.lines.data.map((line) => {
         const productDescription = line.description ?? '';
-        const lookupKey = line.price?.lookup_key ?? 'pro_monthly_2024_09';
+        const lookupKey = line.price?.lookup_key ?? 'hobby_monthly_2025_04';
         const shortDescription = LOOKUP_KEY_TO_TIER_NAME[lookupKey];
         return {
           productDescription,

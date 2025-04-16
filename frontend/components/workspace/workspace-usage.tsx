@@ -7,12 +7,32 @@ import { Workspace } from '@/lib/workspaces/types';
 
 import ClientTimestampFormatter from '../client-timestamp-formatter';
 import { Button } from '../ui/button';
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '../ui/dialog';
+import PricingDialog from './pricing-dialog';
 
 interface WorkspaceUsageProps {
   workspace: Workspace;
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
 }
+
+const TIER_SPAN_HINTS = {
+  free: {
+    spans: '50k',
+    steps: '100',
+    isOverageAllowed: false,
+  },
+  hobby: {
+    spans: '100k',
+    steps: '1000',
+    isOverageAllowed: true,
+  },
+  pro: {
+    spans: '200k',
+    steps: '3000',
+    isOverageAllowed: true,
+  },
+};
 
 export default function WorkspaceUsage({
   workspace,
@@ -24,6 +44,15 @@ export default function WorkspaceUsage({
   const spansThisMonth = workspaceStats?.spansThisMonth ?? 0;
   const spansLimit = workspaceStats?.spansLimit ?? 1;
   const resetTime = workspaceStats.resetTime;
+
+  const tierHintInfo = TIER_SPAN_HINTS[workspaceStats.tierName.toLowerCase().trim() as keyof typeof TIER_SPAN_HINTS];
+  const tierHint = `${workspaceStats.tierName} tier comes with ${tierHintInfo.spans} spans and ` +
+    `${tierHintInfo.steps} agent steps included per month.`;
+
+  const tierHintOverages = 'If you exceed this limit, '
+    + (tierHintInfo.isOverageAllowed
+      ? 'you will be charged for overages.'
+      : 'you won\'t be able to send any more spans during current billing cycle.');
 
   return (
     <div className="p-4 flex flex-col space-y-2">
@@ -40,48 +69,34 @@ export default function WorkspaceUsage({
       <div className="flex flex-row space-x-2">
         <div>
           {isOwner &&
-            (workspaceStats.tierName.toLowerCase().trim() === 'free' ? (
-              <Button
-                variant="default"
-                onClick={() =>
-                  router.push(
-                    `/checkout?type=workspace&workspaceId=${workspace.id}&workspaceName=${workspace.name}`
-                  )
-                }
-              >
-                Upgrade
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  router.push(
-                    `/checkout/portal?type=workspace&callbackUrl=/workspace/${workspace.id}`
-                  )
-                }
-              >
-                Manage billing
-              </Button>
-            ))}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="default">
+                  {workspaceStats.tierName.toLowerCase().trim() === 'free'
+                    ? 'Upgrade'
+                    : 'Manage billing'
+                  }
+                </Button>
+              </DialogTrigger>
+              <DialogTitle className="sr-only">Manage billing</DialogTitle>
+              <DialogContent className="max-w-[80vw] min-h-[80vh]">
+                <PricingDialog
+                  workspaceTier={workspaceStats.tierName.toLowerCase().trim()}
+                  workspaceId={workspace.id}
+                  workspaceName={workspace.name}
+                />
+              </DialogContent>
+            </Dialog>
+          }
         </div>
       </div>
 
       <div className="flex flex-col space-y-1">
-        {workspaceStats.tierName === 'Pro' && (
-          <p className="text-secondary-foreground text-sm mb-2">
-            Pro tier comes with 100K spans included per month. <br />
-            If you exceed this limit, you will be charged for overages.
-          </p>
-        )}
-        {
-          workspaceStats.tierName === 'Free' && (
-            <p className="text-secondary-foreground text-sm mb-2">
-              Free tier comes with 50K spans included per month. <br />
-              If you exceed this limit, you won{"'"}t be able to send <br />
-              any more spans during current billing cycle.
-            </p>
-          )
-        }
+        <p className="text-secondary-foreground text-sm mb-2">
+          {tierHint} <br />
+          {tierHintOverages}
+        </p>
+
         <Label className="mt-2 text-secondary-foreground text-sm">
           Spans used during this billing cycle
         </Label>
