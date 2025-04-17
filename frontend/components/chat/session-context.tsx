@@ -61,7 +61,7 @@ const SessionProvider = ({ children, user }: PropsWithChildren<{ user: ChatUser 
     <SessionContext.Provider value={value}>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTitle className="hidden">Upgrade your plan</DialogTitle>
-        <DialogContent className="max-w-[60vw] min-h-[80vh]">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <ChatPricing />
         </DialogContent>
       </Dialog>

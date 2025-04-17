@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Edit, Loader, Loader2, MoreHorizontalIcon, Plus, SidebarIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { FocusEvent, KeyboardEventHandler, memo, MouseEvent, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -151,7 +151,6 @@ const PureChatItem = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const router = useRouter();
-  const params = useParams();
   const { mutate } = useSWRConfig();
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -208,7 +207,7 @@ const PureChatItem = ({
           (sessions?: AgentSession[]) => (sessions ? [...sessions.filter((s) => s.sessionId !== chat.sessionId)] : []),
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );
-        if (chat.sessionId === params?.sessionId) {
+        if (isActive) {
           router.push("/chat");
         }
         toast({ title: "Chat deleted successfully." });
