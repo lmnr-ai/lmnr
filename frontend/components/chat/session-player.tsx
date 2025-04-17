@@ -149,7 +149,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(({ tra
       setTotalDuration(0);
       setSpeed(1);
       if (playerRef.current) {
-        playerRef.current.destroy();
+        playerRef.current.$destroy();
         playerRef.current = null;
       }
       getEvents();
@@ -197,7 +197,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(({ tra
 
     return () => {
       if (playerRef.current) {
-        playerRef.current.destroy();
+        playerRef.current.$destroy();
         playerRef.current = null;
       }
     };
