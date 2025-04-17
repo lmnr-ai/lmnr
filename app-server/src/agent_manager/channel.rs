@@ -4,7 +4,7 @@ use dashmap::DashMap;
 use tokio::{sync::mpsc, task::AbortHandle};
 use uuid::Uuid;
 
-use super::types::{ControlChunk, WorkerStreamChunk};
+use super::types::WorkerStreamChunk;
 
 const CHANNEL_CAPACITY: usize = 100;
 
@@ -17,6 +17,7 @@ struct AgentChannelState {
     is_ended: bool,
     /// whether the frontend explicitly stopped the agent
     is_stopped: bool,
+    abort_handle: Option<AbortHandle>,
 }
 
 impl AgentChannelState {
@@ -25,6 +26,7 @@ impl AgentChannelState {
             sender: self.sender,
             is_ended: self.is_ended,
             is_stopped: true,
+            abort_handle: self.abort_handle,
         }
     }
 }
@@ -91,6 +93,7 @@ impl AgentManagerWorkers {
                 sender,
                 is_ended: false,
                 is_stopped: false,
+                abort_handle: None,
             }),
         );
         receiver
@@ -98,7 +101,14 @@ impl AgentManagerWorkers {
 
     pub fn insert_abort_handle(&self, session_id: Uuid, abort_handle: AbortHandle) {
         self.workers
-            .insert(session_id, WorkerState::Future(abort_handle));
+            .entry(session_id)
+            .and_modify(|state| match state {
+                WorkerState::StreamingChannel(streaming_state) => {
+                    streaming_state.abort_handle = Some(abort_handle.clone());
+                }
+                WorkerState::Future(_) => {}
+            })
+            .or_insert(WorkerState::Future(abort_handle));
     }
 
     pub async fn try_publish(
@@ -131,6 +141,9 @@ impl AgentManagerWorkers {
             self.workers.insert(session_id, state.1);
         } else {
             log::debug!("AgentManagerChannel: client is disconnected");
+            return Err(anyhow::anyhow!(
+                "AgentManagerChannel: client is disconnected"
+            ));
         }
 
         if is_err {
@@ -154,6 +167,9 @@ impl AgentManagerWorkers {
             .map(|mut state| match state.value_mut() {
                 WorkerState::StreamingChannel(streaming_state) => {
                     streaming_state.is_ended = true;
+                    if let Some(abort_handle) = &streaming_state.abort_handle {
+                        abort_handle.abort();
+                    }
                 }
                 WorkerState::Future(_) => {}
             });
@@ -163,11 +179,9 @@ impl AgentManagerWorkers {
         if let Some((_, state)) = self.workers.remove(&session_id) {
             match state {
                 WorkerState::StreamingChannel(streaming_state) => {
-                    streaming_state
-                        .sender
-                        .send(Ok(WorkerStreamChunk::ControlChunk(ControlChunk::Stop)))
-                        .await
-                        .unwrap_or_default();
+                    if let Some(abort_handle) = &streaming_state.abort_handle {
+                        abort_handle.abort();
+                    }
                     self.workers.insert(
                         session_id,
                         WorkerState::StreamingChannel(streaming_state.into_stopped()),

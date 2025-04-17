@@ -7,8 +7,9 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerWorkers;
-use crate::agent_manager::types::{ControlChunk, RunAgentResponseStreamChunk, WorkerStreamChunk};
+use crate::agent_manager::types::{RunAgentResponseStreamChunk, WorkerStreamChunk};
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
+use crate::db;
 use crate::routes::types::ResponseResult;
 use crate::{
     agent_manager::{types::ModelProvider, AgentManager},
@@ -72,10 +73,11 @@ pub async fn run_agent_manager(
             return_screenshots: false,
         };
         // Run agent worker
-        tokio::spawn(async move {
+        let worker_channel_clone = worker_channel.clone();
+        let handle = tokio::spawn(async move {
             run_agent_worker(
                 agent_manager.as_ref().clone(),
-                worker_channel.as_ref().clone(),
+                worker_channel_clone.as_ref().clone(),
                 db.into_inner(),
                 session_id,
                 Some(request.user_id),
@@ -85,6 +87,7 @@ pub async fn run_agent_manager(
             )
             .await;
         });
+        worker_channel.insert_abort_handle(session_id, handle.abort_handle());
     }
 
     let stream = async_stream::stream! {
@@ -100,9 +103,6 @@ pub async fn run_agent_manager(
                             yield anyhow::Ok(agent_chunk.into());
                         }
                     }
-                }
-                Ok(WorkerStreamChunk::ControlChunk(ControlChunk::Stop)) => {
-                    break;
                 }
                 Err(e) => {
                     log::error!("Error running agent: {}", e);
@@ -132,9 +132,13 @@ struct StopAgentRequest {
 pub async fn stop_agent_manager(
     worker_channel: web::Data<Arc<AgentManagerWorkers>>,
     request: web::Json<StopAgentRequest>,
+    db: web::Data<DB>,
 ) -> ResponseResult {
     let session_id = request.session_id;
     worker_channel.stop_session(session_id).await;
+    if let Err(e) = db::agent_chats::update_agent_chat_status(&db.pool, "idle", &session_id).await {
+        log::error!("Error updating agent chat: {}", e);
+    }
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "Agent stopped"
     })))
