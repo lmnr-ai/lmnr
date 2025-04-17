@@ -2,7 +2,7 @@ import { ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 
-import { usePricingContext } from "@/components/chat/pricing-context";
+import { useSessionContext } from "@/components/chat/session-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import { ChatUser } from "./types";
 const AgentSidebarFooter = ({ user }: { user?: ChatUser }) => {
   const { state } = useSidebar();
 
-  const { handleOpen } = usePricingContext();
+  const { handleOpen } = useSessionContext();
   return (
     <SidebarFooter>
       <SidebarMenu className="overflow-hidden">

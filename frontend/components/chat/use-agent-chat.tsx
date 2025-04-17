@@ -113,7 +113,9 @@ export function useAgentChat({
                   summary: chunk.summary,
                   actionResult: chunk.actionResult,
                 },
+                traceId: chunk.traceId,
                 sessionId: id,
+                createdAt: chunk.createdAt,
               };
               setMessages((messages) => [...messages, stepMessage]);
             } else if (chunk.chunkType === "finalOutput") {
@@ -124,7 +126,9 @@ export function useAgentChat({
                   text: chunk.content.result.content ?? "-",
                   actionResult: chunk.content.result,
                 },
+                traceId: chunk.traceId,
                 sessionId: id,
+                createdAt: chunk.createdAt,
               };
               setMessages((messages) => [...messages, finalMessage]);
 
@@ -177,6 +181,8 @@ export function useAgentChat({
                 actionResult: chunk.actionResult,
               },
               sessionId: id,
+              traceId: chunk.traceId,
+              createdAt: chunk.createdAt,
             };
             setMessages((messages) => [...messages, stepMessage]);
           } else if (chunk.chunkType === "finalOutput") {
@@ -188,6 +194,8 @@ export function useAgentChat({
                 actionResult: chunk.content.result,
               },
               sessionId: id,
+              traceId: chunk.traceId,
+              createdAt: chunk.createdAt,
             };
             setMessages((messages) => [...messages, finalMessage]);
 

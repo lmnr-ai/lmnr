@@ -3,7 +3,7 @@ import { ArrowUp, StopCircleIcon, X } from "lucide-react";
 import { KeyboardEvent, memo, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import ModelSelect from "@/components/chat/model-select";
-import { usePricingContext } from "@/components/chat/pricing-context";
+import { useSessionContext } from "@/components/chat/session-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ const MultimodalInput = ({
   onModelStateChange,
 }: MultimodalInputProps) => {
   const [isHidden, setIsHidden] = useState(true);
-  const { handleOpen, user } = usePricingContext();
+  const { handleOpen, user } = useSessionContext();
 
   const isPro = useMemo(() => user?.userSubscriptionTier.trim().toLowerCase() !== "free", [user]);
 

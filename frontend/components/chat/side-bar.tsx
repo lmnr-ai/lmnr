@@ -7,7 +7,7 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { FocusEvent, KeyboardEventHandler, memo, MouseEvent, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
-import { usePricingContext } from "@/components/chat/pricing-context";
+import { useSessionContext } from "@/components/chat/session-context";
 import AgentSidebarFooter from "@/components/chat/sidebar-footer";
 import { AgentSession } from "@/components/chat/types";
 import {
@@ -37,7 +37,7 @@ import { cn, swrFetcher } from "@/lib/utils";
 export function AgentSidebar() {
   const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
-  const { user, supabaseClient } = usePricingContext();
+  const { user, supabaseClient, handleTraceId } = useSessionContext();
   const pathname = usePathname();
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -50,6 +50,7 @@ export function AgentSidebar() {
   const { data, isLoading, mutate } = useSWR<AgentSession[]>("/api/agent-sessions", swrFetcher, { fallbackData: [] });
 
   const handleNewChat = () => {
+    handleTraceId(undefined);
     router.push("/chat");
     router.refresh();
   };
@@ -120,7 +121,12 @@ export function AgentSidebar() {
                 <SidebarMenu>
                   <AnimatePresence mode="popLayout">
                     {data?.map((chat) => (
-                      <ChatItem key={chat.sessionId} chat={chat} isActive={chat.sessionId === sessionId} />
+                      <ChatItem
+                        handleTraceId={handleTraceId}
+                        key={chat.sessionId}
+                        chat={chat}
+                        isActive={chat.sessionId === sessionId}
+                      />
                     ))}
                   </AnimatePresence>
                 </SidebarMenu>
@@ -134,7 +140,15 @@ export function AgentSidebar() {
   );
 }
 
-const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolean }) => {
+const PureChatItem = ({
+  chat,
+  isActive,
+  handleTraceId,
+}: {
+  chat: AgentSession;
+  handleTraceId: (id?: string) => void;
+  isActive: boolean;
+}) => {
   const [isEditing, setIsEditing] = useState(false);
   const router = useRouter();
   const params = useParams();
@@ -211,7 +225,12 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
   }, [isEditing]);
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem
+      onClick={(e) => {
+        e.stopPropagation();
+        handleTraceId(undefined);
+      }}
+    >
       <SidebarMenuButton className="group !pr-0" asChild isActive={isActive}>
         {isEditing ? (
           <div className="pr-2">
@@ -227,7 +246,11 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
           </div>
         ) : (
           <Link className="overflow-hidden" href={`/chat/${chat.sessionId}`} key={chat.sessionId} passHref>
-            <AnimatedText animate={Boolean(chat?.isNew)} text={chat.chatName} />
+            <AnimatedText
+              loading={chat.agentStatus === "working"}
+              animate={Boolean(chat?.isNew)}
+              text={chat.chatName}
+            />
             {chat.agentStatus === "working" && <Loader2 className="animate-spin duration-[3000ms]" />}
           </Link>
         )}
@@ -235,7 +258,7 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
       {!isEditing && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuAction className="mr-2 hover:bg-transparent">
+            <SidebarMenuAction showOnHover className="mr-2 hover:bg-transparent">
               <MoreHorizontalIcon />
             </SidebarMenuAction>
           </DropdownMenuTrigger>
@@ -267,9 +290,9 @@ const PureChatItem = ({ chat, isActive }: { chat: AgentSession; isActive: boolea
 };
 
 const wrapperClassName =
-  "flex w-fit items-center justify-center whitespace-nowrap [&>span]:inline-block [&>span]:w-[calc(var(--sidebar-width)-theme(spacing.20))] [&>span]:truncate";
+  "flex w-fit items-center justify-center whitespace-nowrap [&>span]:inline-block [&>span]:truncate [&>span]:w-[calc(var(--sidebar-width)-theme(spacing.12))]";
 
-const AnimatedText = ({ text, animate }: { text: string; animate: boolean }) => {
+const AnimatedText = ({ text, animate, loading }: { text: string; animate: boolean; loading: boolean }) => {
   if (animate) {
     return (
       <motion.div
@@ -280,14 +303,20 @@ const AnimatedText = ({ text, animate }: { text: string; animate: boolean }) => 
           delay: 0.3,
           ease: "easeOut",
         }}
-        className={wrapperClassName}
+        className={cn(wrapperClassName, {
+          "[&>span]:w-[calc(var(--sidebar-width)-theme(spacing.20))]": loading,
+        })}
       >
         <span title={text}>{text}</span>
       </motion.div>
     );
   }
   return (
-    <span className={wrapperClassName}>
+    <span
+      className={cn(wrapperClassName, {
+        "[&>span]:w-[calc(var(--sidebar-width)-theme(spacing.20))]": loading,
+      })}
+    >
       <span title={text}>{text}</span>
     </span>
   );

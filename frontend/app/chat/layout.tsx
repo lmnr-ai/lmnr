@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { PropsWithChildren } from "react";
 
-import PricingProvider from "@/components/chat/pricing-context";
+import SessionProvider from "@/components/chat/session-context";
 import { AgentSidebar } from "@/components/chat/side-bar";
 import { ChatUser } from "@/components/chat/types";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -44,10 +44,10 @@ export default async function Layout({ children }: PropsWithChildren) {
 
   return (
     <SidebarProvider style={sidebarRef}>
-      <PricingProvider user={chatUser}>
+      <SessionProvider user={chatUser}>
         <AgentSidebar />
         <SidebarInset>{children}</SidebarInset>
-      </PricingProvider>
+      </SessionProvider>
     </SidebarProvider>
   );
 }
