@@ -9,35 +9,40 @@ import { ChatUser } from "@/components/chat/types";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { createSupabaseClient } from "@/lib/supabase";
 
-type PricingContextType = {
+type SessionContextType = {
   open: boolean;
   handleOpen: (open: boolean) => void;
   user?: ChatUser;
+  currentTime?: number;
+  handleCurrentTime: (time?: number) => void;
   supabaseClient?: SupabaseClient;
   traceId?: string;
   handleTraceId: (id?: string) => void;
   browserSessionRef: RefObject<SessionPlayerHandle | null>;
 };
 
-const PricingContext = createContext<PricingContextType>({
+const SessionContext = createContext<SessionContextType>({
   open: false,
   handleOpen: () => {},
   user: undefined,
+  currentTime: undefined,
+  handleCurrentTime: () => {},
   supabaseClient: undefined,
   traceId: undefined,
   handleTraceId: () => {},
   browserSessionRef: { current: null },
 });
 
-export const usePricingContext = () => useContext(PricingContext);
+export const useSessionContext = () => useContext(SessionContext);
 
-const PricingProvider = ({ children, user }: PropsWithChildren<{ user: ChatUser }>) => {
+const SessionProvider = ({ children, user }: PropsWithChildren<{ user: ChatUser }>) => {
   const [open, setOpen] = useState(false);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
+  const [currentTime, setCurrentTime] = useState<number | undefined>(undefined);
   const client = createSupabaseClient(user.supabaseAccessToken);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
-  const value = useMemo<PricingContextType>(
+  const value = useMemo<SessionContextType>(
     () => ({
       open,
       handleOpen: setOpen,
@@ -46,12 +51,14 @@ const PricingProvider = ({ children, user }: PropsWithChildren<{ user: ChatUser 
       traceId,
       handleTraceId: setTraceId,
       browserSessionRef,
+      currentTime,
+      handleCurrentTime: setCurrentTime,
     }),
-    [client, open, traceId, user]
+    [client, currentTime, open, traceId, user]
   );
 
   return (
-    <PricingContext.Provider value={value}>
+    <SessionContext.Provider value={value}>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTitle className="hidden">Upgrade your plan</DialogTitle>
         <DialogContent className="max-w-[60vw] min-h-[80vh]">
@@ -59,8 +66,8 @@ const PricingProvider = ({ children, user }: PropsWithChildren<{ user: ChatUser 
         </DialogContent>
       </Dialog>
       {children}
-    </PricingContext.Provider>
+    </SessionContext.Provider>
   );
 };
 
-export default PricingProvider;
+export default SessionProvider;

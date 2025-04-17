@@ -4,7 +4,7 @@ import { ChevronLeft } from "lucide-react";
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
 
-import { usePricingContext } from "@/components/chat/pricing-context";
+import { useSessionContext } from "@/components/chat/session-context";
 import SessionPlayer from "@/components/chat/session-player";
 import { AgentSession } from "@/components/chat/types";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ const BrowserWindow = ({ onControl, isControlled }: BrowserWindowProps) => {
   const pathname = usePathname();
   const sessionId = pathname.split("/")?.[2];
   const { setOpen } = useSidebar();
-  const { traceId, handleTraceId, browserSessionRef } = usePricingContext();
+  const { traceId, handleTraceId, browserSessionRef, currentTime } = useSessionContext();
 
   const { data } = useSWR<Pick<AgentSession, "vncUrl" | "machineStatus">>(
     () => (sessionId ? `/api/agent-sessions/${sessionId}` : null),
@@ -48,7 +48,12 @@ const BrowserWindow = ({ onControl, isControlled }: BrowserWindowProps) => {
           </Button>
 
           <div className="my-auto">
-            <SessionPlayer ref={browserSessionRef} traceId={traceId} onTimelineChange={() => {}} />
+            <SessionPlayer
+              defaultTime={currentTime}
+              ref={browserSessionRef}
+              traceId={traceId}
+              onTimelineChange={() => {}}
+            />
           </div>
         </div>
       ) : (

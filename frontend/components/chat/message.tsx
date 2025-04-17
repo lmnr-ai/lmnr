@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import logo from "@/assets/logo/icon.svg";
 import { Markdown } from "@/components/chat/markdown";
-import { usePricingContext } from "@/components/chat/pricing-context";
+import { useSessionContext } from "@/components/chat/session-context";
 import { ChatMessage } from "@/components/chat/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ interface MessageProps {
 }
 
 const Message = ({ message }: MessageProps) => {
-  const { handleTraceId, browserSessionRef } = usePricingContext();
+  const { handleTraceId, browserSessionRef, handleCurrentTime } = useSessionContext();
   return (
     <AnimatePresence>
       <motion.div
@@ -58,8 +58,9 @@ const Message = ({ message }: MessageProps) => {
               onClick={() => {
                 handleTraceId(message.traceId);
                 if (message.messageType === "assistant") {
-                  browserSessionRef.current?.goto(0, true);
+                  handleCurrentTime(0);
                 } else {
+                  handleCurrentTime(new Date(message.createdAt).getTime());
                   browserSessionRef.current?.goto(new Date(message.createdAt).getTime(), false);
                 }
               }}
