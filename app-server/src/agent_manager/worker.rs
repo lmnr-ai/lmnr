@@ -3,14 +3,13 @@ use std::sync::Arc;
 use futures::StreamExt;
 use uuid::Uuid;
 
-use crate::db::{self, agent_messages::MessageType, DB};
-use chrono::Utc;
 use super::{
     channel::AgentManagerWorkers,
     cookies,
-    types::{ModelProvider, RunAgentResponseStreamChunk, WorkerStreamChunk},
+    types::{ModelProvider, RunAgentResponseStreamChunk},
     AgentManager, AgentManagerTrait,
 };
+use crate::db::{self, agent_messages::MessageType, DB};
 
 pub struct RunAgentWorkerOptions {
     pub model_provider: Option<ModelProvider>,
@@ -57,7 +56,9 @@ pub async fn run_agent_worker(
         )
         .await;
 
-    if let Err(e) = db::agent_chats::update_agent_chat_status(&db.pool, "working", Utc::now(), &session_id).await {
+    if let Err(e) =
+        db::agent_chats::update_agent_chat_status(&db.pool, "working", &session_id).await
+    {
         log::error!("Error updating agent chat: {}", e);
     }
 
@@ -104,7 +105,7 @@ pub async fn run_agent_worker(
                 // To avoid dropping the chunk, we retry sending it a couple times with a small delay.
                 let mut retry_count = 0;
                 while worker_channel
-                    .try_publish(session_id, Ok(WorkerStreamChunk::AgentChunk(chunk.clone())))
+                    .try_publish(session_id, Ok(chunk.clone()))
                     .await
                     .is_err()
                 {
@@ -115,12 +116,24 @@ pub async fn run_agent_worker(
                     }
                 }
                 if matches!(chunk, RunAgentResponseStreamChunk::FinalOutput(_)) {
+                    if let Err(e) =
+                        db::agent_chats::update_agent_chat_status(&db.pool, "idle", &session_id)
+                            .await
+                    {
+                        log::error!("Error updating agent chat: {}", e);
+                    }
                     worker_channel.end_session(session_id);
+                    break;
                 }
             }
             Err(e) => {
                 log::error!("Error running agent: {}", e);
                 let mut retry_count = 0;
+                if let Err(e) =
+                    db::agent_chats::update_agent_chat_status(&db.pool, "idle", &session_id).await
+                {
+                    log::error!("Error updating agent chat: {}", e);
+                }
                 while worker_channel
                     .try_publish(session_id, Err(anyhow::anyhow!(e.to_string())))
                     .await
@@ -135,9 +148,5 @@ pub async fn run_agent_worker(
                 worker_channel.end_session(session_id);
             }
         }
-    }
-
-    if let Err(e) = db::agent_chats::update_agent_chat_status(&db.pool, "idle", Utc::now(), &session_id).await {
-        log::error!("Error updating agent chat: {}", e);
     }
 }

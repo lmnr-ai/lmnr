@@ -6,7 +6,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerWorkers;
-use crate::agent_manager::types::{ControlChunk, RunAgentResponseStreamChunk, WorkerStreamChunk};
+use crate::agent_manager::types::RunAgentResponseStreamChunk;
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::agent_manager::{types::ModelProvider, AgentManager, AgentManagerTrait};
 use crate::cache::Cache;
@@ -76,8 +76,14 @@ pub async fn run_agent_manager(
     let session_id = Uuid::new_v4();
 
     let worker_states_clone = worker_states.clone();
+    let pool = db.pool.clone();
     tokio::spawn(async move {
         let _ = drop_guard.await;
+
+        if let Err(e) = db::agent_chats::update_agent_chat_status(&pool, "idle", &session_id).await
+        {
+            log::error!("Error updating agent chat: {}", e);
+        }
         worker_states_clone.stop_session(session_id).await;
     });
 
@@ -90,10 +96,11 @@ pub async fn run_agent_manager(
             return_screenshots: request.return_screenshots,
         };
         let pool = db.pool.clone();
-        tokio::spawn(async move {
+        let worker_states_clone = worker_states.clone();
+        let handle = tokio::spawn(async move {
             run_agent_worker(
                 agent_manager.clone(),
-                worker_states.as_ref().clone(),
+                worker_states_clone.as_ref().clone(),
                 db.clone(),
                 session_id,
                 None,
@@ -103,11 +110,12 @@ pub async fn run_agent_manager(
             )
             .await;
         });
+        worker_states.insert_abort_handle(session_id, handle.abort_handle());
         let stream = async_stream::stream! {
             let _drop_guard = drop_sender;
             while let Some(message) = receiver.recv().await {
                 match message {
-                    Ok(WorkerStreamChunk::AgentChunk(agent_chunk)) => {
+                    Ok(agent_chunk) => {
                         if let Err(e) =
                             db::stats::add_agent_steps_to_project_usage_stats(&pool, &project_api_key.project_id, 1)
                                 .await
@@ -124,9 +132,6 @@ pub async fn run_agent_manager(
                                 yield anyhow::Ok(agent_chunk.into());
                             }
                         }
-                    }
-                    Ok(WorkerStreamChunk::ControlChunk(ControlChunk::Stop)) => {
-                        break;
                     }
                     Err(e) => {
                         log::error!("Error running agent: {}", e);
