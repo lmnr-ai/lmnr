@@ -71,6 +71,14 @@ pub async fn run_agent_manager(
             model: request.model,
             enable_thinking: request.enable_thinking,
             return_screenshots: false,
+            agent_state: None,
+            storage_state: None,
+            timeout: None,
+            return_agent_state: true,
+            return_storage_state: true,
+            cdp_url: None,
+            max_steps: None,
+            thinking_token_budget: None,
         };
         // Run agent worker
         let worker_channel_clone = worker_channel.clone();
@@ -101,6 +109,14 @@ pub async fn run_agent_manager(
                         }
                         RunAgentResponseStreamChunk::Step(_) => {
                             yield anyhow::Ok(agent_chunk.into());
+                        }
+                        RunAgentResponseStreamChunk::Error(_) => {
+                            yield anyhow::Ok(agent_chunk.into());
+                            break;
+                        }
+                        RunAgentResponseStreamChunk::Timeout(_) => {
+                            yield anyhow::Ok(agent_chunk.into());
+                            break;
                         }
                     }
                 }

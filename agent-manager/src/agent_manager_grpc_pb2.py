@@ -24,31 +24,27 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x18\x61gent_manager_grpc.proto\x12\x12\x61gent_manager_grpc\"|\n\x06\x43ookie\x12?\n\x0b\x63ookie_data\x18\x01 \x03(\x0b\x32*.agent_manager_grpc.Cookie.CookieDataEntry\x1a\x31\n\x0f\x43ookieDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xc2\x03\n\x0fRunAgentRequest\x12\x0e\n\x06prompt\x18\x01 \x01(\t\x12\x12\n\nsession_id\x18\x02 \x01(\t\x12\x17\n\x0fis_chat_request\x18\x03 \x01(\x08\x12\x1c\n\x0frequest_api_key\x18\x04 \x01(\tH\x00\x88\x01\x01\x12 \n\x13parent_span_context\x18\x05 \x01(\tH\x01\x88\x01\x01\x12>\n\x0emodel_provider\x18\x06 \x01(\x0e\x32!.agent_manager_grpc.ModelProviderH\x02\x88\x01\x01\x12\x12\n\x05model\x18\x07 \x01(\tH\x03\x88\x01\x01\x12\x1c\n\x0f\x65nable_thinking\x18\x08 \x01(\x08H\x04\x88\x01\x01\x12\x1f\n\x12return_screenshots\x18\t \x01(\x08H\x05\x88\x01\x01\x12+\n\x07\x63ookies\x18\n \x03(\x0b\x32\x1a.agent_manager_grpc.CookieB\x12\n\x10_request_api_keyB\x16\n\x14_parent_span_contextB\x11\n\x0f_model_providerB\x08\n\x06_modelB\x12\n\x10_enable_thinkingB\x15\n\x13_return_screenshots\"\x9c\x01\n\x0c\x41\x63tionResult\x12\x14\n\x07is_done\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x14\n\x07\x63ontent\x18\x02 \x01(\tH\x01\x88\x01\x01\x12\x12\n\x05\x65rror\x18\x03 \x01(\tH\x02\x88\x01\x01\x12\x19\n\x0cgive_control\x18\x04 \x01(\x08H\x03\x88\x01\x01\x42\n\n\x08_is_doneB\n\n\x08_contentB\x08\n\x06_errorB\x0f\n\r_give_control\"\x96\x01\n\x10StepChunkContent\x12\x37\n\raction_result\x18\x01 \x01(\x0b\x32 .agent_manager_grpc.ActionResult\x12\x0f\n\x07summary\x18\x02 \x01(\t\x12\x10\n\x08trace_id\x18\x03 \x01(\t\x12\x17\n\nscreenshot\x18\x04 \x01(\tH\x00\x88\x01\x01\x42\r\n\x0b_screenshot\"\xb8\x01\n\x0b\x41gentOutput\x12\x30\n\x06result\x18\x01 \x01(\x0b\x32 .agent_manager_grpc.ActionResult\x12+\n\x07\x63ookies\x18\x02 \x03(\x0b\x32\x1a.agent_manager_grpc.Cookie\x12\x15\n\x08trace_id\x18\x03 \x01(\tH\x00\x88\x01\x01\x12\x17\n\nstep_count\x18\x04 \x01(\x04H\x01\x88\x01\x01\x42\x0b\n\t_trace_idB\r\n\x0b_step_count\"\xa8\x01\n\x1bRunAgentResponseStreamChunk\x12\x42\n\x12step_chunk_content\x18\x01 \x01(\x0b\x32$.agent_manager_grpc.StepChunkContentH\x00\x12\x37\n\x0c\x61gent_output\x18\x02 \x01(\x0b\x32\x1f.agent_manager_grpc.AgentOutputH\x00\x42\x0c\n\nchunk_type*+\n\rModelProvider\x12\r\n\tANTHROPIC\x10\x00\x12\x0b\n\x07\x42\x45\x44ROCK\x10\x01\x32\xd1\x01\n\x13\x41gentManagerService\x12P\n\x08RunAgent\x12#.agent_manager_grpc.RunAgentRequest\x1a\x1f.agent_manager_grpc.AgentOutput\x12h\n\x0eRunAgentStream\x12#.agent_manager_grpc.RunAgentRequest\x1a/.agent_manager_grpc.RunAgentResponseStreamChunk0\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x18\x61gent_manager_grpc.proto\x12\x12\x61gent_manager_grpc\"\x89\x06\n\x0fRunAgentRequest\x12\x0e\n\x06prompt\x18\x01 \x01(\t\x12\x12\n\nsession_id\x18\x02 \x01(\t\x12\x17\n\x0fis_chat_request\x18\x03 \x01(\x08\x12\x1c\n\x0frequest_api_key\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x14\n\x07\x63\x64p_url\x18\x05 \x01(\tH\x01\x88\x01\x01\x12 \n\x13parent_span_context\x18\x06 \x01(\tH\x02\x88\x01\x01\x12>\n\x0emodel_provider\x18\x07 \x01(\x0e\x32!.agent_manager_grpc.ModelProviderH\x03\x88\x01\x01\x12\x12\n\x05model\x18\x08 \x01(\tH\x04\x88\x01\x01\x12\x1c\n\x0f\x65nable_thinking\x18\t \x01(\x08H\x05\x88\x01\x01\x12\x1f\n\x12return_screenshots\x18\n \x01(\x08H\x06\x88\x01\x01\x12\x1f\n\x12return_agent_state\x18\x0b \x01(\x08H\x07\x88\x01\x01\x12!\n\x14return_storage_state\x18\x0c \x01(\x08H\x08\x88\x01\x01\x12\x1a\n\rstorage_state\x18\r \x01(\tH\t\x88\x01\x01\x12\x18\n\x0b\x61gent_state\x18\x0e \x01(\tH\n\x88\x01\x01\x12\x14\n\x07timeout\x18\x0f \x01(\x04H\x0b\x88\x01\x01\x12\x16\n\tmax_steps\x18\x10 \x01(\x04H\x0c\x88\x01\x01\x12\"\n\x15thinking_token_budget\x18\x11 \x01(\x04H\r\x88\x01\x01\x42\x12\n\x10_request_api_keyB\n\n\x08_cdp_urlB\x16\n\x14_parent_span_contextB\x11\n\x0f_model_providerB\x08\n\x06_modelB\x12\n\x10_enable_thinkingB\x15\n\x13_return_screenshotsB\x15\n\x13_return_agent_stateB\x17\n\x15_return_storage_stateB\x10\n\x0e_storage_stateB\x0e\n\x0c_agent_stateB\n\n\x08_timeoutB\x0c\n\n_max_stepsB\x18\n\x16_thinking_token_budget\"\x9c\x01\n\x0c\x41\x63tionResult\x12\x14\n\x07is_done\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x14\n\x07\x63ontent\x18\x02 \x01(\tH\x01\x88\x01\x01\x12\x12\n\x05\x65rror\x18\x03 \x01(\tH\x02\x88\x01\x01\x12\x19\n\x0cgive_control\x18\x04 \x01(\x08H\x03\x88\x01\x01\x42\n\n\x08_is_doneB\n\n\x08_contentB\x08\n\x06_errorB\x0f\n\r_give_control\"\x96\x01\n\x10StepChunkContent\x12\x37\n\raction_result\x18\x01 \x01(\x0b\x32 .agent_manager_grpc.ActionResult\x12\x0f\n\x07summary\x18\x02 \x01(\t\x12\x10\n\x08trace_id\x18\x03 \x01(\t\x12\x17\n\nscreenshot\x18\x04 \x01(\tH\x00\x88\x01\x01\x42\r\n\x0b_screenshot\"\xe3\x01\n\x0b\x41gentOutput\x12\x30\n\x06result\x18\x01 \x01(\x0b\x32 .agent_manager_grpc.ActionResult\x12\x15\n\x08trace_id\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\x17\n\nstep_count\x18\x03 \x01(\x04H\x01\x88\x01\x01\x12\x1a\n\rstorage_state\x18\x04 \x01(\tH\x02\x88\x01\x01\x12\x18\n\x0b\x61gent_state\x18\x05 \x01(\tH\x03\x88\x01\x01\x42\x0b\n\t_trace_idB\r\n\x0b_step_countB\x10\n\x0e_storage_stateB\x0e\n\x0c_agent_state\"$\n\x11\x45rrorChunkContent\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\t\"\xb5\x02\n\x1bRunAgentResponseStreamChunk\x12\x42\n\x12step_chunk_content\x18\x01 \x01(\x0b\x32$.agent_manager_grpc.StepChunkContentH\x00\x12\x37\n\x0c\x61gent_output\x18\x02 \x01(\x0b\x32\x1f.agent_manager_grpc.AgentOutputH\x00\x12\x44\n\x13\x65rror_chunk_content\x18\x03 \x01(\x0b\x32%.agent_manager_grpc.ErrorChunkContentH\x00\x12\x45\n\x15timeout_chunk_content\x18\x04 \x01(\x0b\x32$.agent_manager_grpc.StepChunkContentH\x00\x42\x0c\n\nchunk_type*+\n\rModelProvider\x12\r\n\tANTHROPIC\x10\x00\x12\x0b\n\x07\x42\x45\x44ROCK\x10\x01\x32\xd1\x01\n\x13\x41gentManagerService\x12P\n\x08RunAgent\x12#.agent_manager_grpc.RunAgentRequest\x1a\x1f.agent_manager_grpc.AgentOutput\x12h\n\x0eRunAgentStream\x12#.agent_manager_grpc.RunAgentRequest\x1a/.agent_manager_grpc.RunAgentResponseStreamChunk0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'agent_manager_grpc_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_COOKIE_COOKIEDATAENTRY']._loaded_options = None
-  _globals['_COOKIE_COOKIEDATAENTRY']._serialized_options = b'8\001'
-  _globals['_MODELPROVIDER']._serialized_start=1297
-  _globals['_MODELPROVIDER']._serialized_end=1340
-  _globals['_COOKIE']._serialized_start=48
-  _globals['_COOKIE']._serialized_end=172
-  _globals['_COOKIE_COOKIEDATAENTRY']._serialized_start=123
-  _globals['_COOKIE_COOKIEDATAENTRY']._serialized_end=172
-  _globals['_RUNAGENTREQUEST']._serialized_start=175
-  _globals['_RUNAGENTREQUEST']._serialized_end=625
-  _globals['_ACTIONRESULT']._serialized_start=628
-  _globals['_ACTIONRESULT']._serialized_end=784
-  _globals['_STEPCHUNKCONTENT']._serialized_start=787
-  _globals['_STEPCHUNKCONTENT']._serialized_end=937
-  _globals['_AGENTOUTPUT']._serialized_start=940
-  _globals['_AGENTOUTPUT']._serialized_end=1124
-  _globals['_RUNAGENTRESPONSESTREAMCHUNK']._serialized_start=1127
-  _globals['_RUNAGENTRESPONSESTREAMCHUNK']._serialized_end=1295
-  _globals['_AGENTMANAGERSERVICE']._serialized_start=1343
-  _globals['_AGENTMANAGERSERVICE']._serialized_end=1552
+  _globals['_MODELPROVIDER']._serialized_start=1720
+  _globals['_MODELPROVIDER']._serialized_end=1763
+  _globals['_RUNAGENTREQUEST']._serialized_start=49
+  _globals['_RUNAGENTREQUEST']._serialized_end=826
+  _globals['_ACTIONRESULT']._serialized_start=829
+  _globals['_ACTIONRESULT']._serialized_end=985
+  _globals['_STEPCHUNKCONTENT']._serialized_start=988
+  _globals['_STEPCHUNKCONTENT']._serialized_end=1138
+  _globals['_AGENTOUTPUT']._serialized_start=1141
+  _globals['_AGENTOUTPUT']._serialized_end=1368
+  _globals['_ERRORCHUNKCONTENT']._serialized_start=1370
+  _globals['_ERRORCHUNKCONTENT']._serialized_end=1406
+  _globals['_RUNAGENTRESPONSESTREAMCHUNK']._serialized_start=1409
+  _globals['_RUNAGENTRESPONSESTREAMCHUNK']._serialized_end=1718
+  _globals['_AGENTMANAGERSERVICE']._serialized_start=1766
+  _globals['_AGENTMANAGERSERVICE']._serialized_end=1975
 # @@protoc_insertion_point(module_scope)
