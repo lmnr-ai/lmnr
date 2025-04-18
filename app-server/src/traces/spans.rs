@@ -129,9 +129,8 @@ impl SpanAttributes {
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
 
-        let regular_input_tokens = (total_input_tokens - (cache_write_tokens + cache_read_tokens)).max(0);
-        let cache_write_tokens = cache_write_tokens;
-        let cache_read_tokens = cache_read_tokens;
+        let regular_input_tokens =
+            (total_input_tokens - (cache_write_tokens + cache_read_tokens)).max(0);
 
         InputTokens {
             regular_input_tokens,
