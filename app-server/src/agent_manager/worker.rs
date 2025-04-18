@@ -6,7 +6,7 @@ use uuid::Uuid;
 use super::{
     channel::AgentManagerWorkers,
     cookies,
-    types::{ModelProvider, RunAgentResponseStreamChunk, WorkerStreamChunk},
+    types::{ModelProvider, RunAgentResponseStreamChunk},
     AgentManager, AgentManagerTrait,
 };
 use crate::db::{self, agent_messages::MessageType, DB};
@@ -105,7 +105,7 @@ pub async fn run_agent_worker(
                 // To avoid dropping the chunk, we retry sending it a couple times with a small delay.
                 let mut retry_count = 0;
                 while worker_channel
-                    .try_publish(session_id, Ok(WorkerStreamChunk::AgentChunk(chunk.clone())))
+                    .try_publish(session_id, Ok(chunk.clone()))
                     .await
                     .is_err()
                 {

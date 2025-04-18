@@ -82,10 +82,6 @@ impl Into<AgentOutput> for AgentOutputGrpc {
     }
 }
 
-pub enum WorkerStreamChunk {
-    AgentChunk(RunAgentResponseStreamChunk),
-}
-
 #[derive(Serialize, Clone)]
 #[serde(tag = "chunkType", rename_all = "camelCase")]
 pub enum RunAgentResponseStreamChunk {

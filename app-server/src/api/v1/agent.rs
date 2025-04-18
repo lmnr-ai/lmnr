@@ -6,7 +6,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerWorkers;
-use crate::agent_manager::types::{RunAgentResponseStreamChunk, WorkerStreamChunk};
+use crate::agent_manager::types::RunAgentResponseStreamChunk;
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::agent_manager::{types::ModelProvider, AgentManager, AgentManagerTrait};
 use crate::cache::Cache;
@@ -115,7 +115,7 @@ pub async fn run_agent_manager(
             let _drop_guard = drop_sender;
             while let Some(message) = receiver.recv().await {
                 match message {
-                    Ok(WorkerStreamChunk::AgentChunk(agent_chunk)) => {
+                    Ok(agent_chunk) => {
                         if let Err(e) =
                             db::stats::add_agent_steps_to_project_usage_stats(&pool, &project_api_key.project_id, 1)
                                 .await

@@ -7,7 +7,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerWorkers;
-use crate::agent_manager::types::{RunAgentResponseStreamChunk, WorkerStreamChunk};
+use crate::agent_manager::types::RunAgentResponseStreamChunk;
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
 use crate::db;
 use crate::routes::types::ResponseResult;
@@ -93,7 +93,7 @@ pub async fn run_agent_manager(
     let stream = async_stream::stream! {
         while let Some(message) = receiver.recv().await {
             match message {
-                Ok(WorkerStreamChunk::AgentChunk(agent_chunk)) => {
+                Ok(agent_chunk) => {
                     match agent_chunk {
                         RunAgentResponseStreamChunk::FinalOutput(_) => {
                             yield anyhow::Ok(agent_chunk.into());

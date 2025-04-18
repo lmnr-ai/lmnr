@@ -4,12 +4,12 @@ use dashmap::DashMap;
 use tokio::{sync::mpsc, task::AbortHandle};
 use uuid::Uuid;
 
-use super::types::WorkerStreamChunk;
+use super::types::RunAgentResponseStreamChunk;
 
 const CHANNEL_CAPACITY: usize = 100;
 
-type AgentSender = mpsc::Sender<Result<WorkerStreamChunk>>;
-pub type AgentReceiver = mpsc::Receiver<Result<WorkerStreamChunk>>;
+type AgentSender = mpsc::Sender<Result<RunAgentResponseStreamChunk>>;
+pub type AgentReceiver = mpsc::Receiver<Result<RunAgentResponseStreamChunk>>;
 
 struct AgentChannelState {
     sender: AgentSender,
@@ -114,7 +114,7 @@ impl AgentManagerWorkers {
     pub async fn try_publish(
         &self,
         session_id: Uuid,
-        chunk: Result<WorkerStreamChunk>,
+        chunk: Result<RunAgentResponseStreamChunk>,
     ) -> Result<()> {
         // Completely remove the state first to avoid deadlocks
         let Some(state) = self.workers.remove(&session_id) else {
