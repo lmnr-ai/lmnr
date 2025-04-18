@@ -116,7 +116,6 @@ pub async fn run_agent_worker(
                     }
                 }
                 if matches!(chunk, RunAgentResponseStreamChunk::FinalOutput(_)) {
-                    dbg!("ending session");
                     if let Err(e) =
                         db::agent_chats::update_agent_chat_status(&db.pool, "idle", &session_id)
                             .await
