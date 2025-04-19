@@ -118,34 +118,24 @@ impl SpanAttributes {
                 0
             };
 
-        if self.provider_name() == Some("anthropic".to_string()) {
-            let cache_write_tokens = self
-                .attributes
-                .get(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
-            let cache_read_tokens = self
-                .attributes
-                .get(GEN_AI_CACHE_READ_INPUT_TOKENS)
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
+        let cache_write_tokens = self
+            .attributes
+            .get(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let cache_read_tokens = self
+            .attributes
+            .get(GEN_AI_CACHE_READ_INPUT_TOKENS)
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
 
-            let regular_input_tokens =
-                total_input_tokens - (cache_write_tokens + cache_read_tokens);
-            let cache_write_tokens = cache_write_tokens;
-            let cache_read_tokens = cache_read_tokens;
+        let regular_input_tokens =
+            (total_input_tokens - (cache_write_tokens + cache_read_tokens)).max(0);
 
-            InputTokens {
-                regular_input_tokens,
-                cache_write_tokens,
-                cache_read_tokens,
-            }
-        } else {
-            InputTokens {
-                regular_input_tokens: total_input_tokens,
-                cache_write_tokens: 0,
-                cache_read_tokens: 0,
-            }
+        InputTokens {
+            regular_input_tokens,
+            cache_write_tokens,
+            cache_read_tokens,
         }
     }
 
