@@ -130,7 +130,7 @@ pub async fn run_agent_worker(
                             )
                             .await
                             {
-                                log::error!("Error inserting cookies: {}", e);
+                                log::error!("Error inserting storage state: {}", e);
                             }
                         }
                     }
