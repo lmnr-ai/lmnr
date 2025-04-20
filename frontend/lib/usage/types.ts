@@ -9,6 +9,10 @@ export type WorkspaceStats = {
   members: number;
   membersLimit: number;
   resetTime: string;
+  stepsLimit: number;
+  stepsOverLimit: number;
+  stepsOverLimitCost: number;
+  stepsThisMonth: number;
   // storageLimit: number; // in MiB
 };
 

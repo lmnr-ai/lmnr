@@ -1,23 +1,20 @@
-'use client';
+"use client";
 
-import { WorkspaceStats } from '@/lib/usage/types';
-import { WorkspaceWithUsers } from '@/lib/workspaces/types';
+import { WorkspaceStats } from "@/lib/usage/types";
+import { WorkspaceInvitation, WorkspaceWithUsers } from "@/lib/workspaces/types";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import WorkspaceUsage from './workspace-usage';
-import WorkspaceUsers from './workspace-users';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import WorkspaceUsage from "./workspace-usage";
+import WorkspaceUsers from "./workspace-users";
 
 interface WorkspaceProps {
+  invitations: WorkspaceInvitation[];
   workspace: WorkspaceWithUsers;
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
 }
 
-export default function WorkspaceComponent({
-  workspace,
-  workspaceStats,
-  isOwner
-}: WorkspaceProps) {
+export default function WorkspaceComponent({ invitations, workspace, workspaceStats, isOwner }: WorkspaceProps) {
   return (
     <div className="flex flex-col">
       <Tabs defaultValue="usage">
@@ -27,14 +24,11 @@ export default function WorkspaceComponent({
         </TabsList>
         <div className="flex flex-col space-y-4">
           <TabsContent value="usage">
-            <WorkspaceUsage
-              workspace={workspace}
-              workspaceStats={workspaceStats}
-              isOwner={isOwner}
-            />
+            <WorkspaceUsage workspace={workspace} workspaceStats={workspaceStats} isOwner={isOwner} />
           </TabsContent>
           <TabsContent value="users">
             <WorkspaceUsers
+              invitations={invitations}
               workspace={workspace}
               workspaceStats={workspaceStats}
               isOwner={isOwner}
