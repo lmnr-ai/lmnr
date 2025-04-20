@@ -72,7 +72,7 @@ importers:
         specifier: ^2.9.1
         version: 2.9.1(@types/react-dom@19.1.2(@types/react@19.1.2))(@types/react@19.1.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@novnc/novnc':
-        specifier: 1.5.0
+        specifier: ^1.5.0
         version: 1.5.0
       '@oneidentity/zstd-js':
         specifier: ^1.0.3
