@@ -27,8 +27,8 @@ export default async function SignInPage(props: {
     <div className="flex flex-col h-full">
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center relative rounded-lg">
-          <div className="z-20 flex flex-col items-center p-8 w-[400px]">
-            <Image alt="Logo" src={logo} width={200} className="mb-16" />
+          <div className="z-20 flex flex-col items-center p-8 w-[380px] rounded-lg pt-20 pb-16">
+            <Image alt="Logo" src={logo} width={210} className="mb-20" />
 
             {isFeatureEnabled(Feature.EMAIL_AUTH) && <EmailSignInButton callbackUrl={callbackUrl} />}
             {isFeatureEnabled(Feature.GOOGLE_AUTH) && (
