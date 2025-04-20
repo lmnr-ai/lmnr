@@ -72,8 +72,8 @@ importers:
         specifier: ^2.9.1
         version: 2.9.1(@types/react-dom@19.1.2(@types/react@19.1.2))(@types/react@19.1.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@novnc/novnc':
-        specifier: ^1.6.0
-        version: 1.6.0
+        specifier: 1.5.0
+        version: 1.5.0
       '@oneidentity/zstd-js':
         specifier: ^1.0.3
         version: 1.0.3
@@ -1567,8 +1567,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@novnc/novnc@1.6.0':
-    resolution: {integrity: sha512-CJrmdSe9Yt2ZbLsJpVFoVkEu0KICEvnr3njW25Nz0jodaiFJtg8AYLGZogRYy0/N5HUWkGUsCmegKXYBSqwygw==}
+  '@novnc/novnc@1.5.0':
+    resolution: {integrity: sha512-4yGHOtUCnEJUCsgEt/L78eeJu00kthurLBWXFiaXfonNx0pzbs6R/3gJb1byZe6iAE8V9MF0syQb0xIL8MSOtQ==}
 
   '@oneidentity/zstd-js@1.0.3':
     resolution: {integrity: sha512-Jm6sawqxLzBrjC4sg2BeXToa33yPzUmq20CKsehKY2++D/gHb/oSwVjNgT+RH4vys+r8FynrgcNzGwhZWMLzfQ==}
@@ -7459,7 +7459,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@novnc/novnc@1.6.0': {}
+  '@novnc/novnc@1.5.0': {}
 
   '@oneidentity/zstd-js@1.0.3':
     dependencies:
