@@ -56,7 +56,7 @@ const LeaveWorkspaceDialog = ({ open, onOpenChange, workspace, user }: LeaveWork
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle title="Remove User">Leave workspace</DialogTitle>
+          <DialogTitle title="Leave workspace">Leave workspace</DialogTitle>
           <DialogDescription>Are you sure you want to leave this workspace?</DialogDescription>
         </DialogHeader>
         <DialogFooter>

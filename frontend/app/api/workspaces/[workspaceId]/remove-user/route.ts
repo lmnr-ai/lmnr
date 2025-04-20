@@ -9,7 +9,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ worksp
   const userId = req.nextUrl.searchParams.get("id");
 
   if (!userId) {
-    return new Response("No user id was provided", { status: 500 });
+    return new Response("No user id was provided", { status: 400 });
   }
 
   await db

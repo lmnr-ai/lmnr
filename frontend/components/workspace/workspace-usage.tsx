@@ -38,7 +38,7 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
   const spansThisMonth = workspaceStats?.spansThisMonth ?? 0;
   const spansLimit = workspaceStats?.spansLimit ?? 1;
   const stepsThisMonth = workspaceStats?.stepsThisMonth ?? 0;
-  const stepsLimit = workspaceStats?.stepsLimit ?? 0;
+  const stepsLimit = workspaceStats?.stepsLimit ?? 1;
   const resetTime = workspaceStats.resetTime;
 
   const formatter = new Intl.NumberFormat("en-US", {
@@ -112,7 +112,7 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
                 {spansThisMonth} / {spansLimit} ({formatter.format(spansThisMonth / spansLimit)})
               </span>
             </div>
-            <UsageProgressBar
+            <UsageProgressDisc
               data={[{ fill: "hsl(var(--chart-1))", spans: spansThisMonth }]}
               dataKey="spans"
               value={spansThisMonth}
@@ -126,7 +126,7 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
                 {stepsThisMonth} / {stepsLimit} ({formatter.format(stepsThisMonth / stepsLimit)})
               </span>
             </div>
-            <UsageProgressBar
+            <UsageProgressDisc
               data={[{ fill: "hsl(var(--chart-1))", steps: stepsThisMonth }]}
               dataKey="steps"
               value={stepsThisMonth}
@@ -139,19 +139,20 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
   );
 }
 
-interface UsageProgressBarProps {
+interface UsageProgressDiscProps {
   value: number;
   maxValue: number;
   data: any[];
   dataKey: string;
 }
 
-const UsageProgressBar = ({ maxValue, value, data, dataKey }: UsageProgressBarProps) => {
-  const endAngle = 90 + (value / maxValue) * 360;
+const UsageProgressDisc = ({ maxValue, value, data, dataKey }: UsageProgressDiscProps) => {
+  const endAngle = -90;
+  const startAngle = endAngle + (Math.min(value, maxValue) / maxValue) * 360;
 
   return (
     <ChartContainer config={{}} className="aspect-square h-16 w-16">
-      <RadialBarChart data={data} innerRadius={24} outerRadius={36} startAngle={90} endAngle={endAngle}>
+      <RadialBarChart data={data} innerRadius={24} outerRadius={36} startAngle={startAngle} endAngle={endAngle}>
         <PolarGrid
           gridType="circle"
           radialLines={false}

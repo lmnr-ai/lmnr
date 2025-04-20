@@ -43,7 +43,8 @@ export default function WorkspacesNavbar() {
             ))}
         </div>
       </div>
-      <div className="pb-8 mt-auto w-full p-4">
+      <div className="flex-1" />
+      <div className="p-4 h-14">
         <AvatarMenu showDetails />
       </div>
     </div>

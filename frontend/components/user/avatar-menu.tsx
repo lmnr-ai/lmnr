@@ -21,7 +21,7 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
           {imageUrl && imageUrl !== "" ? (
             <Image src={imageUrl} alt="avatar" width={28} height={28} className="border rounded-full cursor-pointer" />
           ) : (
-            <div className="w-7 h-6 bg-slate-500 rounded-full cursor-pointer" />
+            <div className="w-6 h-6 bg-slate-500 rounded-full cursor-pointer" />
           )}
           {showDetails && <span className="text-xs truncate text-muted-foreground">{email}</span>}
         </div>

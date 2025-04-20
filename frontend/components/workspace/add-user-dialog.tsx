@@ -72,6 +72,7 @@ const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats }: AddUse
     }
   };
 
+  console.log("stats", workspaceStats);
   return (
     <Dialog
       open={open}

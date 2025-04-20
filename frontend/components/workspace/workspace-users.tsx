@@ -1,5 +1,6 @@
 "use client";
 
+import { isEmpty } from "lodash";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
@@ -40,6 +41,8 @@ export default function WorkspaceUsers({ invitations, workspace, workspaceStats,
 
   const isDeletable = useMemo(() => isOwner && workspace.users?.length > 1, [isOwner, workspace.users?.length]);
 
+  const hasLeavePermission = useMemo(() => !isOwner && workspace.users?.length > 1, [isOwner, workspace.users?.length]);
+
   return (
     <div className="p-4">
       <div className="flex flex-col items-start gap-4 w-2/3">
@@ -69,17 +72,12 @@ export default function WorkspaceUsers({ invitations, workspace, workspaceStats,
             </div>
           )}
           {!isOwner && (
-            <>
-              <Button onClick={() => setIsLeaveWorkspaceDialogOpen(true)} variant="outline" className="ml-auto">
-                Leave workspace
-              </Button>
-              <LeaveWorkspaceDialog
-                user={workspace.users?.find((user) => user.email === email)}
-                workspace={workspace}
-                open={isLeaveWorkspaceDialogOpen}
-                onOpenChange={setIsLeaveWorkspaceDialogOpen}
-              />
-            </>
+            <LeaveWorkspaceDialog
+              user={workspace.users?.find((user) => user.email === email)}
+              workspace={workspace}
+              open={isLeaveWorkspaceDialogOpen}
+              onOpenChange={setIsLeaveWorkspaceDialogOpen}
+            />
           )}
         </div>
         <Table>
@@ -89,11 +87,12 @@ export default function WorkspaceUsers({ invitations, workspace, workspaceStats,
               <TableHead className="p-2">Role</TableHead>
               <TableHead className="p-2">Added</TableHead>
               {isDeletable && <TableHead className="p-2" />}
+              {hasLeavePermission && <TableHead className="p-2" />}
             </TableRow>
           </TableHeader>
           <TableBody>
             {workspace.users.map((user, i) => (
-              <TableRow key={i} className="h-14">
+              <TableRow key={user.id} className="h-14">
                 <TableCell>{user.email}</TableCell>
                 <TableCell>{user.role}</TableCell>
                 <TableCell>{formatTimestamp(user.createdAt)}</TableCell>
@@ -104,11 +103,18 @@ export default function WorkspaceUsers({ invitations, workspace, workspaceStats,
                     </Button>
                   </TableCell>
                 )}
+                {hasLeavePermission && email === user.email && (
+                  <TableCell align="center">
+                    <Button onClick={() => setIsLeaveWorkspaceDialogOpen(true)} variant="outline" className="ml-auto">
+                      Leave workspace
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
         </Table>
-        <InvitationsTable workspaceId={workspace.id} invitations={invitations} />
+        {isOwner && !isEmpty(invitations) && <InvitationsTable workspaceId={workspace.id} invitations={invitations} />}
       </div>
       <RemoveUserDialog
         workspace={workspace}
