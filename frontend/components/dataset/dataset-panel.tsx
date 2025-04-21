@@ -15,7 +15,6 @@ import { Skeleton } from '../ui/skeleton';
 
 interface DatasetPanelProps {
   datasetId: string;
-  indexedOn: string | null;
   datapointId: string;
   onClose: () => void;
 }
@@ -24,7 +23,6 @@ const AUTO_SAVE_TIMEOUT_MS = 750;
 
 export default function DatasetPanel({
   datasetId,
-  indexedOn,
   datapointId,
   onClose,
 }: DatasetPanelProps) {
@@ -67,7 +65,6 @@ export default function DatasetPanel({
           data: newData,
           target: newTarget,
           metadata: newMetadata,
-          indexedOn
         })
       }
     );

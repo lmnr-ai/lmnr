@@ -7,7 +7,6 @@ use uuid::Uuid;
 use crate::{
     engine::{RunOutput, RunnableNode},
     pipeline::context::Context,
-    semantic_search::SemanticSearchTrait,
 };
 
 use super::{utils::map_handles, Handle, NodeInput};
@@ -47,23 +46,9 @@ impl RunnableNode for SemanticSimilarityNode {
 
     async fn run(
         &self,
-        inputs: HashMap<String, NodeInput>,
-        context: Arc<Context>,
+        _inputs: HashMap<String, NodeInput>,
+        _context: Arc<Context>,
     ) -> Result<RunOutput> {
-        let first: String = inputs.get("first").unwrap().clone().try_into()?;
-        let second: String = inputs.get("second").unwrap().clone().try_into()?;
-
-        let resp = context
-            .semantic_search
-            .calculate_similarity_scores(vec![first], vec![second])
-            .await;
-
-        match resp {
-            Ok(response) => {
-                let score = response.scores.get(0).unwrap().clone();
-                Ok(RunOutput::Success((NodeInput::Float(score as f64), None)))
-            }
-            Err(e) => Err(anyhow::anyhow!("Failed to call semantic search {}", e)),
-        }
+        unimplemented!()
     }
 }

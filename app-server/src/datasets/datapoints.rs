@@ -10,15 +10,7 @@ use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
-    db::{self, datapoints::DBDatapoint, DB},
-    pipeline::nodes::NodeInput,
-    semantic_search::{
-        semantic_search_grpc::index_request::Datapoint as VectorDBDatapoint,
-        utils::merge_chat_messages,
-    },
-    traces::utils::json_value_to_string,
-};
+use crate::db::{self, datapoints::DBDatapoint, DB};
 
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -77,34 +69,6 @@ impl Datapoint {
                 target: None,
                 metadata: HashMap::new(),
             }),
-        }
-    }
-
-    /// Turns a datapoint into protobuf datapoint for indexing in semantic search service
-    ///
-    /// Assumes column_name is there in `data`, so it unwraps the field
-    ///
-    /// Data is a `HashMap<String, String>` and cannot have nested values
-    pub fn into_vector_db_datapoint(&self, index_column: &String) -> VectorDBDatapoint {
-        let data_map =
-            serde_json::from_value::<HashMap<String, NodeInput>>(self.data.to_owned()).unwrap();
-
-        let metadata_map = self
-            .metadata
-            .iter()
-            .map(|(k, v)| (k.to_owned(), json_value_to_string(v)))
-            .collect::<HashMap<String, String>>();
-
-        let content: String = match data_map.get(index_column).unwrap() {
-            NodeInput::ChatMessageList(messages) => merge_chat_messages(messages),
-            _ => data_map.get(index_column).unwrap().clone().into(), // just use from already serialized data
-        };
-
-        VectorDBDatapoint {
-            content,
-            datasource_id: self.dataset_id.to_string(),
-            data: metadata_map,
-            id: self.id.to_string(),
         }
     }
 }

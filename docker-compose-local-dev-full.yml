@@ -4,16 +4,6 @@
 name: lmnr
 
 services:
-  qdrant:
-    image: qdrant/qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - type: volume
-        source: qdrant-data
-        target: /data
-
   rabbitmq:
     image: rabbitmq
     ports:
@@ -73,7 +63,6 @@ services:
       retries: 5
 
 volumes:
-  qdrant-data:
   clickhouse-data:
   clickhouse-logs:
   postgres-data:

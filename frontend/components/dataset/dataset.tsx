@@ -20,7 +20,6 @@ import Header from '../ui/header';
 import MonoWithCopy from '../ui/mono-with-copy';
 import AddDatapointsDialog from './add-datapoints-dialog';
 import DatasetPanel from './dataset-panel';
-import IndexDatasetDialog from './index-dataset-dialog';
 import ManualAddDatapoint from './manual-add-datapoint-dialog';
 
 interface DatasetProps {
@@ -105,8 +104,7 @@ export default function Dataset({ dataset }: DatasetProps) {
   const handleDeleteDatapoints = async (datapointIds: string[]) => {
     const response = await fetch(
       `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` +
-      `?datapointIds=${datapointIds.join(',')}` +
-      (dataset.indexedOn ? `&indexedOn=${dataset.indexedOn}` : ''),
+      `?datapointIds=${datapointIds.join(',')}`,
       {
         method: 'DELETE',
         headers: {
@@ -162,14 +160,6 @@ export default function Dataset({ dataset }: DatasetProps) {
           <h1 className="text-2xl font-medium">{dataset.name}</h1>
           <MonoWithCopy className="text-secondary-foreground pt-1">{dataset.id}</MonoWithCopy>
         </div>
-        <IndexDatasetDialog
-          datasetId={dataset.id}
-          defaultDataset={dataset}
-          onUpdate={() => {
-            mutate();
-            router.refresh();
-          }}
-        />
         <DownloadButton
           uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
           supportedFormats={['csv', 'json']}
@@ -236,7 +226,6 @@ export default function Dataset({ dataset }: DatasetProps) {
                   handleDatapointSelect(null);
                   mutate();
                 }}
-                indexedOn={dataset.indexedOn}
               />
             </div>
           </Resizable>

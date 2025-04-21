@@ -3,7 +3,6 @@ use std::{collections::HashSet, sync::Arc};
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    code_executor::CodeExecutor,
     db::{
         spans::Span,
         trace::{CurrentTraceAndSpan, TraceType},
@@ -20,7 +19,7 @@ use serde::Serialize;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
-use crate::{language_model::LanguageModelRunner, semantic_search::SemanticSearch};
+use crate::language_model::LanguageModelRunner;
 
 use super::{
     context::Context,
@@ -94,9 +93,7 @@ impl Serialize for PipelineRunnerError {
 #[derive(Clone)]
 pub struct PipelineRunner {
     language_model: Arc<LanguageModelRunner>,
-    semantic_search: Arc<SemanticSearch>,
     queue: Arc<MessageQueue>,
-    code_executor: Arc<CodeExecutor>,
     db: Arc<DB>,
     cache: Arc<Cache>,
 }
@@ -104,17 +101,13 @@ pub struct PipelineRunner {
 impl PipelineRunner {
     pub fn new(
         language_model: Arc<LanguageModelRunner>,
-        semantic_search: Arc<SemanticSearch>,
         queue: Arc<MessageQueue>,
-        code_executor: Arc<CodeExecutor>,
         db: Arc<DB>,
         cache: Arc<Cache>,
     ) -> Self {
         Self {
             language_model,
-            semantic_search,
             queue,
-            code_executor,
             db,
             cache,
         }
@@ -136,14 +129,12 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
-            semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
             metadata: graph.metadata.clone(),
             run_type: graph.run_type.clone(),
             pipeline_runner: self.clone(),
             baml_schemas: validated_schemas,
-            code_executor: self.code_executor.clone(),
             db: self.db.clone(),
             cache: self.cache.clone(),
         };
@@ -180,14 +171,12 @@ impl PipelineRunner {
 
         let context = Context {
             language_model: self.language_model.clone(),
-            semantic_search: self.semantic_search.clone(),
             env: graph.env.clone(),
             tx: stream_send.clone(),
             metadata: graph.metadata.clone(),
             run_type: graph.run_type.clone(),
             pipeline_runner: self.clone(),
             baml_schemas: validated_schemas,
-            code_executor: self.code_executor.clone(),
             db: self.db.clone(),
             cache: self.cache.clone(),
         };

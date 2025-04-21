@@ -11,7 +11,6 @@ use agent_manager::{
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
 use browser_events::process_browser_events;
-use code_executor::{code_executor_grpc::code_executor_client::CodeExecutorClient, CodeExecutor};
 use dashmap::DashMap;
 use features::{is_feature_enabled, Feature};
 use lapin::{
@@ -34,15 +33,8 @@ use traces::{
 };
 
 use cache::{in_memory::InMemoryCache, redis::RedisCache, Cache};
-use chunk::{
-    character_split::CharacterSplitChunker,
-    runner::{Chunker, ChunkerRunner, ChunkerType},
-};
 use language_model::{LanguageModelProvider, LanguageModelProviderName};
 use routes::pipelines::GraphInterruptMessage;
-use semantic_search::{
-    semantic_search_grpc::semantic_search_client::SemanticSearchClient, SemanticSearch,
-};
 use sodiumoxide;
 use std::{
     collections::HashMap,
@@ -60,8 +52,6 @@ mod auth;
 mod browser_events;
 mod cache;
 mod ch;
-mod chunk;
-mod code_executor;
 mod datasets;
 mod db;
 mod engine;
@@ -78,7 +68,6 @@ mod project_api_keys;
 mod provider_api_keys;
 mod routes;
 mod runtime;
-mod semantic_search;
 mod storage;
 mod traces;
 
@@ -304,16 +293,6 @@ fn main() -> anyhow::Result<()> {
                     Arc::new(MockStorage {}.into())
                 };
 
-                // == Chunkers ==
-                // TODO: either add chunkers back to the datasets or remove them from code
-                let mut chunkers = HashMap::new();
-                let character_split_chunker = CharacterSplitChunker {};
-                chunkers.insert(
-                    ChunkerType::CharacterSplit,
-                    Chunker::CharacterSplit(character_split_chunker),
-                );
-                let chunker_runner = Arc::new(ChunkerRunner::new(chunkers));
-
                 // == Clickhouse ==
                 let clickhouse_url =
                     env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
@@ -376,46 +355,6 @@ fn main() -> anyhow::Result<()> {
                 let interrupt_senders =
                     Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
 
-                // == Semantic search ==
-                let semantic_search: Arc<SemanticSearch> =
-                    if let Ok(semantic_search_url) = env::var("SEMANTIC_SEARCH_URL") {
-                        log::info!("Semantic search URL: {}", semantic_search_url);
-                        let semantic_search_client = Arc::new(
-                            SemanticSearchClient::connect(semantic_search_url)
-                                .await
-                                .unwrap(),
-                        );
-                        Arc::new(
-                            semantic_search::semantic_search_impl::SemanticSearchImpl::new(
-                                semantic_search_client,
-                            )
-                            .into(),
-                        )
-                    } else {
-                        log::info!("Using mock semantic search");
-                        Arc::new(semantic_search::mock::MockSemanticSearch {}.into())
-                    };
-
-                // == Python executor ==
-                let code_executor: Arc<CodeExecutor> =
-                    if let Ok(code_executor_url) = env::var("CODE_EXECUTOR_URL") {
-                        log::info!("Code executor URL: {}", code_executor_url);
-                        let code_executor_client = Arc::new(
-                            CodeExecutorClient::connect(code_executor_url)
-                                .await
-                                .unwrap(),
-                        );
-                        Arc::new(
-                            code_executor::code_executor_impl::CodeExecutorImpl::new(
-                                code_executor_client,
-                            )
-                            .into(),
-                        )
-                    } else {
-                        log::info!("Using mock code executor");
-                        Arc::new(code_executor::mock::MockCodeExecutor {}.into())
-                    };
-
                 // == Language models ==
                 let client = reqwest::Client::new();
                 let anthropic = language_model::Anthropic::new(client.clone());
@@ -463,9 +402,7 @@ fn main() -> anyhow::Result<()> {
                 // == Pipeline runner ==
                 let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
                     language_model_runner.clone(),
-                    semantic_search.clone(),
                     spans_mq_for_http.clone(),
-                    code_executor.clone(),
                     db_for_http.clone(),
                     cache_for_http.clone(),
                 ));
@@ -519,14 +456,11 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::from(cache_for_http.clone()))
                         .app_data(web::Data::from(db_for_http.clone()))
                         .app_data(web::Data::new(pipeline_runner.clone()))
-                        .app_data(web::Data::new(semantic_search.clone()))
                         .app_data(web::Data::new(interrupt_senders.clone()))
                         .app_data(web::Data::new(language_model_runner.clone()))
                         .app_data(web::Data::new(spans_mq_for_http.clone()))
                         .app_data(web::Data::new(clickhouse.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
-                        .app_data(web::Data::new(semantic_search.clone()))
-                        .app_data(web::Data::new(chunker_runner.clone()))
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(machine_manager.clone()))
                         .app_data(web::Data::new(browser_events_message_queue.clone()))
@@ -563,7 +497,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
-                                .service(api::v1::semantic_search::semantic_search)
                                 .service(api::v1::queues::push_to_queue)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
@@ -613,13 +546,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::api_keys::revoke_project_api_key)
                                 .service(routes::evaluations::get_evaluation_score_stats)
                                 .service(routes::evaluations::get_evaluation_score_distribution)
-                                .service(routes::datasets::delete_dataset)
                                 .service(routes::datasets::upload_datapoint_file)
-                                .service(routes::datasets::create_datapoint_embeddings)
-                                .service(routes::datasets::update_datapoint_embeddings)
-                                .service(routes::datasets::delete_datapoint_embeddings)
-                                .service(routes::datasets::delete_all_datapoints)
-                                .service(routes::datasets::index_dataset)
                                 .service(routes::labels::get_label_classes)
                                 .service(routes::labels::register_label_class_for_path)
                                 .service(routes::labels::remove_label_class_from_path)

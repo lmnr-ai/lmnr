@@ -1,11 +1,8 @@
 import { and, eq } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 
-import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints } from '@/lib/db/migrations/schema';
-import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: Request,
@@ -45,7 +42,6 @@ export async function POST(
     data: z.any(),
     target: z.any().nullable(),
     metadata: z.record(z.string(), z.any()),
-    indexedOn: z.string().nullable()
   });
 
   const result = schema.safeParse(body);
@@ -54,10 +50,10 @@ export async function POST(
     return new Response('Invalid request body', { status: 400 });
   }
 
-  const { data, target, metadata, indexedOn } = result.data;
+  const { data, target, metadata } = result.data;
 
   try {
-    const updatedDatapoint = await db
+    const [updatedDatapoint] = await db
       .update(datasetDatapoints)
       .set({
         data,
@@ -72,32 +68,11 @@ export async function POST(
       )
       .returning();
 
-    if (updatedDatapoint.length === 0) {
+    if (!updatedDatapoint) {
       return new Response('Datapoint not found', { status: 404 });
     }
 
-    if (indexedOn != null) {
-      const session = await getServerSession(authOptions);
-      const user = session!.user;
-      await fetcher(
-        `/projects/${params.projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${user.apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            data: updatedDatapoint[0].data,
-            target: updatedDatapoint[0].target,
-            metadata: updatedDatapoint[0].metadata,
-            indexedOn
-          })
-        }
-      );
-    }
-
-    return new Response(JSON.stringify(updatedDatapoint[0]), {
+    return new Response(JSON.stringify(updatedDatapoint), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
