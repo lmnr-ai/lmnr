@@ -7,6 +7,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { Feature, isFeatureEnabled } = await import("lib/features/features");
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
+      const { sql } = await import("drizzle-orm");
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
       const { llmPrices, pipelineTemplates, subscriptionTiers, userSubscriptionTiers } = await import("lib/db/migrations/schema");
       const { db } = await import("lib/db/drizzle");
@@ -17,7 +18,6 @@ export async function register() {
           const tableName: string = entry.table;
           const tables: Record<string, any> = {
             subscription_tiers: subscriptionTiers,
-            pipeline_templates: pipelineTemplates,
             llm_prices: llmPrices,
             user_subscription_tiers: userSubscriptionTiers,
           };
@@ -31,8 +31,12 @@ export async function register() {
             )
           );
 
-          // TODO: figure out do update here
-          await db.insert(table).values(rows).onConflictDoNothing();
+          await db.insert(table).values(rows).onConflictDoUpdate({
+            target: table.id,
+            set: Object.fromEntries(
+              Object.keys(entry.data[0]).map(key => [key, sql.raw(`excluded.${key}`)])
+            )
+          });
         }
       };
 
