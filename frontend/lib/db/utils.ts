@@ -82,7 +82,7 @@ interface PaginatedGetParams<T extends TableConfig, R> {
   pageNumber?: number;
   pageSize?: number;
   filters: SQL[];
-  orderBy: SQL;
+  orderBy: SQL[];
   /**
    * If provided, only these columns will be selected.
    * Useful to remove columns that are too heavy to query, or
@@ -107,13 +107,13 @@ export const paginatedGet = async<T extends TableConfig, R>(
       .select(columns ?? getTableColumns(table))
       .from(table)
       .where(and(...filters))
-      .orderBy(orderBy)
+      .orderBy(...orderBy)
       .limit(pageSize).offset(pageNumber * pageSize)
     : db
       .select(columns ?? getTableColumns(table))
       .from(table)
       .where(and(...filters))
-      .orderBy(orderBy);
+      .orderBy(...orderBy);
 
   const countQuery = async () =>
     db.select({ count: sql<number>`COUNT(*)` })

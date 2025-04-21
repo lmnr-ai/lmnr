@@ -2,7 +2,7 @@ import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
-import { datasetDatapoints,datasets } from '@/lib/db/migrations/schema';
+import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
 import { paginatedGet } from '@/lib/db/utils';
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     pageNumber,
     pageSize,
     filters,
-    orderBy: desc(datasets.createdAt),
+    orderBy: [desc(datasets.createdAt)],
     columns: {
       ...columns,
       datapointsCount: sql<number>`COALESCE((

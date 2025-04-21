@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     pageNumber,
     pageSize,
     filters,
-    orderBy: desc(labelingQueues.createdAt),
+    orderBy: [desc(labelingQueues.createdAt)],
   });
 
   return new Response(JSON.stringify(queuesData), { status: 200 });

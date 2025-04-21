@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     filters,
     pageSize,
     pageNumber,
-    orderBy: desc(evaluations.createdAt),
+    orderBy: [desc(evaluations.createdAt)],
   });
 
   return Response.json(result);
