@@ -113,7 +113,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     pageNumber,
     pageSize,
     filters: baseFilters.concat(filters),
-    orderBy: desc(spans.startTime),
+    orderBy: [desc(spans.startTime)],
     columns: {
       ...columns,
       latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
