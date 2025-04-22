@@ -70,15 +70,16 @@ pub async fn run_agent_manager(
             model_provider: request.model_provider,
             model: request.model,
             enable_thinking: request.enable_thinking,
-            return_screenshots: false,
             agent_state: None,
             storage_state: None,
             timeout: None,
-            return_agent_state: true,
-            return_storage_state: true,
             cdp_url: None,
             max_steps: None,
             thinking_token_budget: None,
+            start_url: None,
+            return_agent_state: true,
+            return_storage_state: true,
+            return_screenshots: false,
         };
         // Run agent worker
         let worker_channel_clone = worker_channel.clone();

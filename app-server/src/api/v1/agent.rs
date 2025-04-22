@@ -49,6 +49,8 @@ struct RunAgentRequest {
     max_steps: Option<u64>,
     #[serde(default)]
     thinking_token_budget: Option<u64>,
+    #[serde(default)]
+    start_url: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -115,15 +117,16 @@ pub async fn run_agent_manager(
             model_provider: request.model_provider,
             model: request.model,
             enable_thinking: request.enable_thinking,
-            return_screenshots: request.return_screenshots,
             agent_state: request.agent_state,
             storage_state: request.storage_state,
             timeout: request.timeout,
-            return_agent_state: request.return_agent_state,
-            return_storage_state: request.return_storage_state,
             cdp_url: request.cdp_url,
             max_steps: request.max_steps,
             thinking_token_budget: request.thinking_token_budget,
+            start_url: request.start_url,
+            return_screenshots: request.return_screenshots,
+            return_agent_state: request.return_agent_state,
+            return_storage_state: request.return_storage_state,
         };
         let pool = db.pool.clone();
         let worker_states_clone = worker_states.clone();
@@ -202,13 +205,14 @@ pub async fn run_agent_manager(
                     enable_thinking: request.enable_thinking,
                     storage_state: request.storage_state,
                     agent_state: request.agent_state,
-                    return_screenshots: request.return_screenshots,
                     timeout: request.timeout,
-                    return_agent_state: request.return_agent_state,
-                    return_storage_state: request.return_storage_state,
                     cdp_url: request.cdp_url,
                     max_steps: request.max_steps,
                     thinking_token_budget: request.thinking_token_budget,
+                    start_url: request.start_url,
+                    return_agent_state: request.return_agent_state,
+                    return_storage_state: request.return_storage_state,
+                    return_screenshots: request.return_screenshots,
                 })
                 .await
         });

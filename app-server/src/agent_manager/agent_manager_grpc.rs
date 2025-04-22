@@ -36,6 +36,8 @@ pub struct RunAgentRequest {
     pub max_steps: ::core::option::Option<u64>,
     #[prost(uint64, optional, tag = "17")]
     pub thinking_token_budget: ::core::option::Option<u64>,
+    #[prost(string, optional, tag = "18")]
+    pub start_url: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ActionResult {

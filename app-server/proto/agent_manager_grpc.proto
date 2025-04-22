@@ -26,6 +26,7 @@ message RunAgentRequest {
     optional uint64 timeout = 15;
     optional uint64 max_steps = 16;
     optional uint64 thinking_token_budget = 17;
+    optional string start_url = 18;
 }
 
 message ActionResult {

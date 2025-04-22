@@ -55,6 +55,7 @@ impl AgentManagerTrait for AgentManagerImpl {
             cdp_url: params.cdp_url,
             max_steps: params.max_steps,
             thinking_token_budget: params.thinking_token_budget,
+            start_url: params.start_url,
         });
 
         let response = client.run_agent(request).await?;
@@ -83,6 +84,7 @@ impl AgentManagerTrait for AgentManagerImpl {
             cdp_url: params.cdp_url,
             max_steps: params.max_steps,
             thinking_token_budget: params.thinking_token_budget,
+            start_url: params.start_url,
         });
 
         match client.run_agent_stream(request).await {

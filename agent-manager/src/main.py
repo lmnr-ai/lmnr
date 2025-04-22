@@ -105,6 +105,10 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 session_id=request.session_id,
                 max_steps=request.max_steps,
                 thinking_token_budget=request.thinking_token_budget,
+                start_url=request.start_url,
+                return_agent_state=request.return_agent_state,
+                return_storage_state=request.return_storage_state,
+                return_screenshots=request.return_screenshots,
             )
 
             await self._update_agent_status(
@@ -233,9 +237,12 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 # timeout in seconds
                 timeout=request.timeout,
                 session_id=request.session_id,
-                return_screenshots=request.return_screenshots,
                 max_steps=request.max_steps,
-                thinking_token_budget=request.thinking_token_budget
+                thinking_token_budget=request.thinking_token_budget,
+                start_url=request.start_url,
+                return_screenshots=request.return_screenshots,
+                return_agent_state=request.return_agent_state,
+                return_storage_state=request.return_storage_state,
             ):
                 if isinstance(chunk, StepChunk):
                     logger.info(f"Step chunk summary: {chunk.content.summary}")
@@ -524,6 +531,10 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
         session_id: Optional[str] = None,
         max_steps: Optional[int] = 100,
         thinking_token_budget: Optional[int] = 8192,
+        start_url: Optional[str] = None,
+        return_agent_state: bool = False,
+        return_storage_state: bool = False,
+        return_screenshots: bool = False,
     ) -> Dict:
         """Run the agent in synchronous mode and return the complete result"""
         # Run agent and get complete result
@@ -535,6 +546,10 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
             close_context=close_context,
             session_id=session_id,
             thinking_token_budget=thinking_token_budget,
+            start_url=start_url,
+            return_agent_state=return_agent_state,
+            return_storage_state=return_storage_state,
+            return_screenshots=return_screenshots,
         )
         
         return {

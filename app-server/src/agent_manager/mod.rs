@@ -37,6 +37,7 @@ pub struct RunAgentParams {
     pub cdp_url: Option<String>,
     pub max_steps: Option<u64>,
     pub thinking_token_budget: Option<u64>,
+    pub start_url: Option<String>,
 }
 
 #[async_trait]

@@ -15,15 +15,16 @@ pub struct RunAgentWorkerOptions {
     pub model_provider: Option<ModelProvider>,
     pub model: Option<String>,
     pub enable_thinking: bool,
-    pub return_screenshots: bool,
     pub agent_state: Option<String>,
     pub timeout: Option<u64>,
     pub storage_state: Option<String>,
-    pub return_agent_state: bool,
-    pub return_storage_state: bool,
     pub cdp_url: Option<String>,
     pub max_steps: Option<u64>,
     pub thinking_token_budget: Option<u64>,
+    pub start_url: Option<String>,
+    pub return_agent_state: bool,
+    pub return_storage_state: bool,
+    pub return_screenshots: bool,
 }
 
 pub async fn run_agent_worker(
@@ -75,13 +76,14 @@ pub async fn run_agent_worker(
             enable_thinking: options.enable_thinking,
             storage_state,
             agent_state: options.agent_state,
-            return_screenshots: options.return_screenshots,
             timeout: options.timeout,
-            return_agent_state: options.return_agent_state,
-            return_storage_state: options.return_storage_state,
             cdp_url: options.cdp_url,
             max_steps: options.max_steps,
             thinking_token_budget: options.thinking_token_budget,
+            start_url: options.start_url,
+            return_agent_state: options.return_agent_state,
+            return_screenshots: options.return_screenshots,
+            return_storage_state: options.return_storage_state,
         })
         .await;
 
