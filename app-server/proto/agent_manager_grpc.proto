@@ -5,6 +5,8 @@ package agent_manager_grpc;
 enum ModelProvider {
     ANTHROPIC = 0;
     BEDROCK = 1;
+    OPENAI = 2;
+    GEMINI = 3;
 }
 
 message RunAgentRequest {
