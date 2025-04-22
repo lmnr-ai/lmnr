@@ -7,15 +7,15 @@ import { traces } from "@/lib/db/migrations/schema";
 export async function GET(_request: Request, props: { params: Promise<{ traceId: string }> }) {
   const params = await props.params;
   try {
-    const trace = (await db.query.traces.findFirst({
+    const trace = await db.query.traces.findFirst({
       where: eq(traces.id, params.traceId),
       columns: {
         visibility: true,
       },
-    })) as undefined | { visibility: "public" | "private" };
+    });
 
     if (!trace) {
-      return "private";
+      return NextResponse.json({ visibility: "private" });
     }
 
     return NextResponse.json({ visibility: trace.visibility });

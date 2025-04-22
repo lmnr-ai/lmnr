@@ -218,45 +218,6 @@ export const searchSpans = async (
   return { traceIds, spanIds };
 };
 
-export const sharedSearchSpans = async (
-  searchQuery: string,
-  timeRange: TimeRange,
-  traceId?: string
-): Promise<{
-  spanIds: Set<string>;
-  traceIds: Set<string>;
-}> => {
-  const baseQuery = `
-    SELECT span_id spanId, trace_id traceId FROM spans
-    WHERE 
-      (
-        input_lower LIKE {query: String} 
-        OR
-        output_lower LIKE {query: String}
-        ${traceId ? `OR trace_id = {traceId: String}` : ""}
-      )`;
-
-  const query = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
-
-  const response = await clickhouseClient.query({
-    query: `${query} LIMIT ${DEFAULT_LIMIT}`,
-    format: "JSONEachRow",
-    query_params: {
-      query: `%${searchQuery.toLowerCase()}%`,
-      traceId,
-    },
-  });
-
-  const result = (await response.json()) as { spanId: string; traceId: string }[];
-  const traceIds = new Set<string>();
-  const spanIds = new Set<string>();
-  result.forEach((r) => {
-    traceIds.add(r.traceId);
-    spanIds.add(r.spanId);
-  });
-  return { traceIds, spanIds };
-};
-
 export const getLabelMetricsOverTime = async (
   projectId: string,
   groupByInterval: GroupByInterval,

@@ -61,7 +61,7 @@ const ShareTraceButton = ({ trace, projectId }: { trace: Pick<Trace, "id" | "vis
         <PopoverContent className="flex flex-col gap-4 w-96" align="end">
           <div>
             <h2 className="text-lg">Share Trace</h2>
-            <span className="text-sm text-secondary-foreground mt-2">Configure who has access to this chat.</span>
+            <span className="text-sm text-secondary-foreground mt-2">Configure who has access to this trace.</span>
           </div>
           <div className="flex items-center space-x-2">
             <Select value={trace.visibility || "private"} onValueChange={handleChangeVisibility}>

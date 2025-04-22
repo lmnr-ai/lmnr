@@ -43,7 +43,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const searchParams = useSearchParams();
   const params = useParams();
   const targetId = searchParams.get("targetId");
-  const [showBrowserSession, setShowBrowserSession] = useState(false);
   const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(
     `/api/projects/${params?.projectId}/evaluations/${evaluationId}`,
     swrFetcher

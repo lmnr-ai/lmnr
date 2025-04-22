@@ -12,13 +12,14 @@ export async function GET(
   const traceId = params.traceId;
   const spanId = params.spanId;
 
-  const span = await db
-    .select()
-    .from(spans)
-    .where(and(eq(spans.spanId, spanId), eq(spans.traceId, traceId)))
-    .limit(1);
+  const span = await db.query.spans.findFirst({
+    where: and(eq(spans.spanId, spanId), eq(spans.traceId, traceId)),
+    columns: {
+      spanId: true,
+    },
+  });
 
-  if (span.length === 0) {
+  if (!span) {
     return new Response(JSON.stringify({ error: "Span not found or does not belong to the given trace" }), {
       status: 404,
     });

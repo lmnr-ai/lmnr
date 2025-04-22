@@ -441,10 +441,10 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                                           });
                                         }}
                                         onSpanSelect={(span) => {
-                                          searchParams.set("spanId", span.spanId);
-                                          router.push(`${pathName}?${searchParams.toString()}`);
                                           setSelectedSpan(span);
                                           setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
+                                          searchParams.set("spanId", span.spanId);
+                                          router.push(`${pathName}?${searchParams.toString()}`);
                                         }}
                                         onSelectTime={(time) => {
                                           browserSessionRef.current?.goto(time);

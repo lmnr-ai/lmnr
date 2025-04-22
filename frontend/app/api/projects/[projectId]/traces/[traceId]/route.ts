@@ -43,8 +43,8 @@ export async function PUT(
       })
       .where(and(eq(traces.projectId, projectId), eq(traces.id, traceId)));
 
-    return new Response("Updated trace privacy successfully.");
+    return new Response("Updated trace visibility successfully.");
   } catch (e) {
-    return new Response("Error updating privacy. Please try again.", { status: 500 });
+    return new Response("Error updating visibility. Please try again.", { status: 500 });
   }
 }
