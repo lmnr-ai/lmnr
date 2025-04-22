@@ -1,3 +1,4 @@
+import { differenceInHours } from "date-fns";
 import { and, eq } from "drizzle-orm";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { revalidatePath } from "next/cache";
@@ -88,6 +89,12 @@ export default async function SignInPage(props: {
     return notFound();
   }
 
+  const invitation = await db.query.workspaceInvitations.findFirst({
+    where: eq(workspaceInvitations.id, decoded.id),
+  });
+
+  const isExpired = !invitation || differenceInHours(new Date(), new Date(invitation?.createdAt)) > 48;
+
   async function acceptInvitation() {
     "use server";
     return handleInvitation("accept", decoded.id, decoded.workspaceId, user!.apiKey);
@@ -100,24 +107,30 @@ export default async function SignInPage(props: {
 
   return (
     <div className="flex h-full items-center justify-center">
-      <div className="flex flex-col items-center relative bg-primary rounded-lg">
+      <div className="flex flex-col justify-center items-center relative bg-primary rounded-lg flex-1 min-h-64 max-w-lg">
         <div className="z-20 flex flex-col items-center p-16 px-8">
-          <Image alt="" src={logo} width={220} className="my-16" />
-          <h2 className="text-lg font-medium mb-8">
-            You are invited to join <b>{workspace.name}</b>
-          </h2>
-          <div className="flex gap-4">
-            <form action={acceptInvitation}>
-              <Button type="submit" variant="light" size="lg">
-                Accept
-              </Button>
-            </form>
-            <form action={declineInvitation}>
-              <Button type="submit" variant="lightSecondary" size="lg">
-                Decline
-              </Button>
-            </form>
-          </div>
+          {isExpired ? (
+            <span className="text-lg font-medium">Invitation is expired</span>
+          ) : (
+            <>
+              <Image alt="logo" src={logo} width={220} className="my-16" />
+              <h2 className="text-lg font-medium mb-8 text-center">
+                You are invited to join <b>{workspace.name}</b>
+              </h2>
+              <div className="flex gap-4">
+                <form action={acceptInvitation}>
+                  <Button type="submit" variant="light" size="lg">
+                    Accept
+                  </Button>
+                </form>
+                <form action={declineInvitation}>
+                  <Button type="submit" variant="lightSecondary" size="lg">
+                    Decline
+                  </Button>
+                </form>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
