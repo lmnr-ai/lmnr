@@ -1,6 +1,5 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import * as Y from "yjs";
 
 import { GroupByInterval } from "./clickhouse/modifiers";
 import { ChatMessageContentPart, DatatableFilter } from "./types";
@@ -227,28 +226,6 @@ function deepArray<T extends any[]>(collection: T): any {
   return collection.map((value) => deep(value));
 }
 
-export function toYjsObject(obj: any): any {
-  if (obj === null || obj === undefined || typeof obj !== "object") {
-    throw new Error(`Unsupported type: ${typeof obj}`);
-  }
-
-  const ymap = new Y.Map();
-
-  for (let key of Object.keys(obj)) {
-    const value = obj[key];
-    if (value === null || value === undefined) {
-      ymap.set(key, new Y.Text());
-    } else if (typeof value === "string") {
-      const ytext = new Y.Text();
-      ytext.insert(0, value);
-      ymap.set(key, ytext);
-    } else {
-      ymap.set(key, value);
-    }
-  }
-
-  return ymap;
-}
 
 export const getFilterFromUrlParams = (filter: string): DatatableFilter[] | undefined => {
   const filters = JSON.parse(filter);
