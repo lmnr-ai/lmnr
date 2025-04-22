@@ -1,11 +1,13 @@
+use crate::agent_manager::types::ErrorChunkContent;
+
 use super::agent_manager_grpc::{
     agent_manager_service_client::AgentManagerServiceClient, RunAgentRequest,
 };
-use super::types::{AgentOutput, ModelProvider, RunAgentResponseStreamChunk};
+use super::types::{AgentOutput, RunAgentResponseStreamChunk};
 use super::AgentManagerTrait;
 use anyhow::Result;
 use async_trait::async_trait;
-use std::collections::HashMap;
+use chrono::Utc;
 use std::pin::Pin;
 use std::sync::Arc;
 use tonic::{transport::Channel, Request};
@@ -32,32 +34,28 @@ impl AgentManagerTrait for AgentManagerImpl {
         >,
     >;
 
-    async fn run_agent(
-        &self,
-        prompt: String,
-        session_id: Uuid,
-        is_chat_request: bool,
-        request_api_key: Option<String>,
-        parent_span_context: Option<String>,
-        model_provider: Option<ModelProvider>,
-        model: Option<String>,
-        enable_thinking: bool,
-        cookies: Vec<HashMap<String, String>>,
-        return_screenshots: bool,
-    ) -> Result<AgentOutput> {
+    async fn run_agent(&self, params: super::RunAgentParams) -> Result<AgentOutput> {
         let mut client = self.client.as_ref().clone();
 
         let request = Request::new(RunAgentRequest {
-            prompt,
-            session_id: session_id.to_string(),
-            is_chat_request,
-            request_api_key,
-            parent_span_context,
-            model_provider: model_provider.map(|p| p.to_i32()),
-            model,
-            enable_thinking: Some(enable_thinking),
-            cookies: cookies.into_iter().map(|c| c.into()).collect(),
-            return_screenshots: Some(return_screenshots),
+            prompt: params.prompt,
+            session_id: params.session_id.to_string(),
+            is_chat_request: params.is_chat_request,
+            request_api_key: params.request_api_key,
+            parent_span_context: params.parent_span_context,
+            model_provider: params.model_provider.map(|p| p.to_i32()),
+            model: params.model,
+            enable_thinking: Some(params.enable_thinking),
+            storage_state: params.storage_state,
+            agent_state: params.agent_state,
+            return_screenshots: Some(params.return_screenshots),
+            timeout: params.timeout,
+            return_agent_state: Some(params.return_agent_state),
+            return_storage_state: Some(params.return_storage_state),
+            cdp_url: params.cdp_url,
+            max_steps: params.max_steps,
+            thinking_token_budget: params.thinking_token_budget,
+            start_url: params.start_url,
         });
 
         let response = client.run_agent(request).await?;
@@ -65,32 +63,28 @@ impl AgentManagerTrait for AgentManagerImpl {
         Ok(response.into_inner().into())
     }
 
-    async fn run_agent_stream(
-        &self,
-        prompt: String,
-        session_id: Uuid,
-        is_chat_request: bool,
-        request_api_key: Option<String>,
-        parent_span_context: Option<String>,
-        model_provider: Option<ModelProvider>,
-        model: Option<String>,
-        enable_thinking: bool,
-        cookies: Vec<HashMap<String, String>>,
-        return_screenshots: bool,
-    ) -> Self::RunAgentStreamStream {
+    async fn run_agent_stream(&self, params: super::RunAgentParams) -> Self::RunAgentStreamStream {
         let mut client = self.client.as_ref().clone();
 
         let request = Request::new(RunAgentRequest {
-            prompt,
-            session_id: session_id.to_string(),
-            is_chat_request,
-            request_api_key,
-            parent_span_context,
-            model_provider: model_provider.map(|p| p.to_i32()),
-            model,
-            enable_thinking: Some(enable_thinking),
-            cookies: cookies.into_iter().map(|c| c.into()).collect(),
-            return_screenshots: Some(return_screenshots),
+            prompt: params.prompt,
+            session_id: params.session_id.to_string(),
+            is_chat_request: params.is_chat_request,
+            request_api_key: params.request_api_key,
+            parent_span_context: params.parent_span_context,
+            model_provider: params.model_provider.map(|p| p.to_i32()),
+            model: params.model,
+            enable_thinking: Some(params.enable_thinking),
+            storage_state: params.storage_state,
+            agent_state: params.agent_state,
+            return_screenshots: Some(params.return_screenshots),
+            timeout: params.timeout,
+            return_agent_state: Some(params.return_agent_state),
+            return_storage_state: Some(params.return_storage_state),
+            cdp_url: params.cdp_url,
+            max_steps: params.max_steps,
+            thinking_token_budget: params.thinking_token_budget,
+            start_url: params.start_url,
         });
 
         match client.run_agent_stream(request).await {
@@ -104,9 +98,13 @@ impl AgentManagerTrait for AgentManagerImpl {
             }
             Err(e) => {
                 log::error!("Error running agent: {}", e);
-                Box::pin(async_stream::stream! {
-                    yield Err(anyhow::anyhow!(e));
-                })
+                Box::pin(futures::stream::once(async move {
+                    Ok(RunAgentResponseStreamChunk::Error(ErrorChunkContent {
+                        created_at: Utc::now(),
+                        message_id: Uuid::new_v4(),
+                        error: e.to_string(),
+                    }))
+                }))
             }
         }
     }

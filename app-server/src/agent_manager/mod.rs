@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use agent_manager_impl::AgentManagerImpl;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -10,8 +8,8 @@ use uuid::Uuid;
 pub mod agent_manager_grpc;
 pub mod agent_manager_impl;
 pub mod channel;
-mod cookies;
 pub mod mock;
+mod storage_state;
 pub mod types;
 pub mod worker;
 
@@ -21,36 +19,33 @@ pub enum AgentManager {
     Mock(MockAgentManager),
 }
 
+pub struct RunAgentParams {
+    pub prompt: String,
+    pub session_id: Uuid,
+    pub is_chat_request: bool,
+    pub request_api_key: Option<String>,
+    pub parent_span_context: Option<String>,
+    pub model_provider: Option<ModelProvider>,
+    pub model: Option<String>,
+    pub enable_thinking: bool,
+    pub storage_state: Option<String>,
+    pub agent_state: Option<String>,
+    pub return_screenshots: bool,
+    pub return_agent_state: bool,
+    pub return_storage_state: bool,
+    pub timeout: Option<u64>,
+    pub cdp_url: Option<String>,
+    pub max_steps: Option<u64>,
+    pub thinking_token_budget: Option<u64>,
+    pub start_url: Option<String>,
+}
+
 #[async_trait]
 #[enum_delegate::register]
 pub trait AgentManagerTrait {
     type RunAgentStreamStream: futures::stream::Stream<Item = Result<RunAgentResponseStreamChunk>>;
 
-    async fn run_agent(
-        &self,
-        prompt: String,
-        session_id: Uuid,
-        is_chat_request: bool,
-        request_api_key: Option<String>,
-        parent_span_context: Option<String>,
-        model_provider: Option<ModelProvider>,
-        model: Option<String>,
-        enable_thinking: bool,
-        cookies: Vec<HashMap<String, String>>,
-        return_screenshots: bool,
-    ) -> Result<AgentOutput>;
+    async fn run_agent(&self, params: RunAgentParams) -> Result<AgentOutput>;
 
-    async fn run_agent_stream(
-        &self,
-        prompt: String,
-        session_id: Uuid,
-        is_chat_request: bool,
-        request_api_key: Option<String>,
-        parent_span_context: Option<String>,
-        model_provider: Option<ModelProvider>,
-        model: Option<String>,
-        enable_thinking: bool,
-        cookies: Vec<HashMap<String, String>>,
-        return_screenshots: bool,
-    ) -> Self::RunAgentStreamStream;
+    async fn run_agent_stream(&self, params: RunAgentParams) -> Self::RunAgentStreamStream;
 }

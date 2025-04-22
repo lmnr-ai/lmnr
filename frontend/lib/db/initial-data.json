@@ -22,2167 +22,6 @@
     ]
   },
   {
-    "table": "pipeline_templates",
-    "data": [
-      {
-        "id": "4c9306c9-866e-4c7e-a598-3cdd9e98a783",
-        "created_at": "2024-09-02 06:08:55.321721+00",
-        "runnable_graph": {
-          "pred": {
-            "<node_0_id>": [
-              "<node_1_id>"
-            ],
-            "<node_2_id>": [
-              "<node_0_id>"
-            ]
-          },
-          "nodes": {
-            "<node_0_id>": {
-              "id": "<node_0_id>",
-              "name": "LLM",
-              "type": "LLM",
-              "model": "openai:gpt-4o-mini",
-              "inputs": [],
-              "prompt": "{{instruction}}",
-              "stream": false,
-              "outputs": [
-                {
-                  "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
-                  "type": "String"
-                }
-              ],
-              "modelParams": null,
-              "dynamicInputs": [
-                {
-                  "id": "84affc19-cc1d-4e36-a60f-730cc66dc6ac",
-                  "name": "instruction",
-                  "type": "String"
-                }
-              ],
-              "inputsMappings": {
-                "84affc19-cc1d-4e36-a60f-730cc66dc6ac": "e97a603a-66cf-4a56-84b5-d34458d681a4"
-              }
-            },
-            "<node_1_id>": {
-              "id": "<node_1_id>",
-              "name": "instruction",
-              "type": "Input",
-              "input": "",
-              "inputs": [],
-              "outputs": [
-                {
-                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                  "type": "String"
-                }
-              ],
-              "inputType": "String",
-              "inputsMappings": {}
-            },
-            "<node_2_id>": {
-              "id": "<node_2_id>",
-              "name": "output",
-              "type": "Output",
-              "inputs": [
-                {
-                  "id": "3916a6b5-9347-44fa-a2fc-322248e928e2",
-                  "name": "output",
-                  "type": "Any"
-                }
-              ],
-              "outputs": [],
-              "version": 1,
-              "inputType": "String",
-              "inputsMappings": {
-                "3916a6b5-9347-44fa-a2fc-322248e928e2": "38f4049f-c231-4a4e-98e5-eb7bbfeec881"
-              },
-              "outputCastType": null
-            }
-          }
-        },
-        "displayable_graph": {
-          "edges": [
-            {
-              "id": "reactflow__edge-<node_1_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_0_id>_00f9ef0b-5649-4aab-9469-bb34011868ec84affc19-cc1d-4e36-a60f-730cc66dc6ac",
-              "source": "<node_1_id>",
-              "target": "<node_0_id>",
-              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-              "targetHandle": "84affc19-cc1d-4e36-a60f-730cc66dc6ac"
-            },
-            {
-              "id": "reactflow__edge-<node_0_id>38f4049f-c231-4a4e-98e5-eb7bbfeec881-<node_2_id>3916a6b5-9347-44fa-a2fc-322248e928e2",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_0_id>",
-              "target": "<node_2_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
-              "targetHandle": "3916a6b5-9347-44fa-a2fc-322248e928e2"
-            }
-          ],
-          "nodes": [
-            {
-              "id": "<node_1_id>",
-              "data": {
-                "id": "<node_1_id>",
-                "name": "instruction",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                    "type": "String"
-                  }
-                ],
-                "inputType": "String",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": -86.31880118386391,
-                "y": 414.30399097867263
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": -86.31880118386391,
-                "y": 414.30399097867263
-              }
-            },
-            {
-              "id": "<node_2_id>",
-              "data": {
-                "id": "<node_2_id>",
-                "name": "output",
-                "type": "Output",
-                "inputs": [
-                  {
-                    "id": "3916a6b5-9347-44fa-a2fc-322248e928e2",
-                    "name": "output",
-                    "type": "Any"
-                  }
-                ],
-                "outputs": [],
-                "version": 1,
-                "inputType": "String",
-                "inputsMappings": {},
-                "outputCastType": null
-              },
-              "type": "Output",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": 820.7501151171692,
-                "y": 431.00693983450697
-              },
-              "selected": true,
-              "positionAbsolute": {
-                "x": 820.7501151171692,
-                "y": 431.00693983450697
-              }
-            },
-            {
-              "id": "<node_0_id>",
-              "data": {
-                "id": "<node_0_id>",
-                "name": "LLM",
-                "type": "LLM",
-                "model": "openai:gpt-4o-mini",
-                "inputs": [],
-                "prompt": "{{instruction}}",
-                "stream": false,
-                "outputs": [
-                  {
-                    "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
-                    "type": "String"
-                  }
-                ],
-                "modelParams": null,
-                "dynamicInputs": [
-                  {
-                    "id": "84affc19-cc1d-4e36-a60f-730cc66dc6ac",
-                    "name": "instruction",
-                    "type": "String"
-                  }
-                ],
-                "inputsMappings": {}
-              },
-              "type": "LLM",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 347.7456977977364,
-                "y": 440.43477265876913
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 347.7456977977364,
-                "y": 440.43477265876913
-              }
-            }
-          ]
-        },
-        "number_of_nodes": 3,
-        "name": "LLM call \u2013 instruction",
-        "description": "Calls an LLM with a templated prompt based on a dynamic user input",
-        "display_group": "build",
-        "ordinal": 110
-      },
-      {
-        "id": "ab337a71-7cb8-48b8-a398-67f94dbbe327",
-        "created_at": "2024-09-02 06:10:54.95769+00",
-        "runnable_graph": {
-          "pred": {
-            "<node_0_id>": [
-              "<node_2_id>"
-            ],
-            "<node_2_id>": [
-              "<node_1_id>"
-            ]
-          },
-          "nodes": {
-            "<node_0_id>": {
-              "id": "<node_0_id>",
-              "name": "output",
-              "type": "Output",
-              "inputs": [
-                {
-                  "id": "f199a82e-02a3-46fe-a7b2-2069df210388",
-                  "name": "output",
-                  "type": "Any"
-                }
-              ],
-              "outputs": [],
-              "version": 1,
-              "inputType": "String",
-              "inputsMappings": {
-                "f199a82e-02a3-46fe-a7b2-2069df210388": "38f4049f-c231-4a4e-98e5-eb7bbfeec881"
-              },
-              "outputCastType": null
-            },
-            "<node_1_id>": {
-              "id": "<node_1_id>",
-              "name": "chat_messages",
-              "type": "Input",
-              "input": "",
-              "inputs": [],
-              "outputs": [
-                {
-                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                  "type": "ChatMessageList"
-                }
-              ],
-              "inputType": "ChatMessageList",
-              "inputsMappings": {}
-            },
-            "<node_2_id>": {
-              "id": "<node_2_id>",
-              "name": "LLM",
-              "type": "LLM",
-              "model": "openai:gpt-4o-mini",
-              "inputs": [
-                {
-                  "id": "23fce76d-2061-4fea-b5cb-c307d7eab811",
-                  "name": "chat_messages",
-                  "type": "ChatMessageList"
-                }
-              ],
-              "prompt": "",
-              "stream": false,
-              "outputs": [
-                {
-                  "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
-                  "type": "String"
-                }
-              ],
-              "modelParams": null,
-              "dynamicInputs": [],
-              "inputsMappings": {
-                "23fce76d-2061-4fea-b5cb-c307d7eab811": "e97a603a-66cf-4a56-84b5-d34458d681a4"
-              }
-            }
-          }
-        },
-        "displayable_graph": {
-          "edges": [
-            {
-              "id": "reactflow__edge-<node_1_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_2_id>_00f9ef0b-5649-4aab-9469-bb34011868ec23fce76d-2061-4fea-b5cb-c307d7eab811",
-              "source": "<node_1_id>",
-              "target": "<node_2_id>",
-              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-              "targetHandle": "23fce76d-2061-4fea-b5cb-c307d7eab811"
-            },
-            {
-              "id": "reactflow__edge-<node_2_id>38f4049f-c231-4a4e-98e5-eb7bbfeec881-<node_0_id>f199a82e-02a3-46fe-a7b2-2069df210388",
-              "type": "custom",
-              "source": "<node_2_id>",
-              "target": "<node_0_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
-              "targetHandle": "f199a82e-02a3-46fe-a7b2-2069df210388"
-            }
-          ],
-          "nodes": [
-            {
-              "id": "<node_1_id>",
-              "data": {
-                "id": "<node_1_id>",
-                "name": "chat_messages",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                    "type": "ChatMessageList"
-                  }
-                ],
-                "inputType": "ChatMessageList",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": -87.79697227166275,
-                "y": 389.1750824860928
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": -87.79697227166275,
-                "y": 389.1750824860928
-              }
-            },
-            {
-              "id": "<node_0_id>",
-              "data": {
-                "id": "<node_0_id>",
-                "name": "output",
-                "type": "Output",
-                "inputs": [
-                  {
-                    "id": "f199a82e-02a3-46fe-a7b2-2069df210388",
-                    "name": "output",
-                    "type": "Any"
-                  }
-                ],
-                "outputs": [],
-                "version": 1,
-                "inputType": "String",
-                "inputsMappings": {},
-                "outputCastType": null
-              },
-              "type": "Output",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": 820.7501151171692,
-                "y": 431.00693983450697
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 820.7501151171692,
-                "y": 431.00693983450697
-              }
-            },
-            {
-              "id": "<node_2_id>",
-              "data": {
-                "id": "<node_2_id>",
-                "name": "LLM",
-                "type": "LLM",
-                "model": "openai:gpt-4o-mini",
-                "inputs": [
-                  {
-                    "id": "23fce76d-2061-4fea-b5cb-c307d7eab811",
-                    "name": "chat_messages",
-                    "type": "ChatMessageList"
-                  }
-                ],
-                "prompt": "",
-                "stream": false,
-                "outputs": [
-                  {
-                    "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
-                    "type": "String"
-                  }
-                ],
-                "modelParams": null,
-                "dynamicInputs": [],
-                "inputsMappings": {}
-              },
-              "type": "LLM",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 361.04923758792563,
-                "y": 430.0875750441775
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 361.04923758792563,
-                "y": 430.0875750441775
-              }
-            }
-          ]
-        },
-        "number_of_nodes": 3,
-        "name": "LLM call \u2013 chat messages",
-        "description": "Calls an LLM with a pre-defined system prompt and dynamic chat messages as an input",
-        "display_group": "build",
-        "ordinal": 120
-      },
-      {
-        "id": "688be3a0-dac0-47ec-8e2b-843f22ab7b1b",
-        "created_at": "2024-06-30 17:38:56.569741+00",
-        "runnable_graph": {
-          "pred": {
-            "<node_0_id>": [
-              "<node_1_id>"
-            ],
-            "<node_1_id>": [
-              "<node_2_id>"
-            ]
-          },
-          "nodes": {
-            "<node_0_id>": {
-              "id": "<node_0_id>",
-              "name": "output",
-              "type": "Output",
-              "inputs": [
-                {
-                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
-                  "name": "output",
-                  "type": "Any"
-                }
-              ],
-              "outputs": [],
-              "version": 1,
-              "inputType": "String",
-              "inputsMappings": {
-                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "38f4049f-c231-4a4e-98e5-eb7bbfeec881"
-              }
-            },
-            "<node_1_id>": {
-              "id": "<node_1_id>",
-              "name": "LLM",
-              "type": "LLM",
-              "model": "openai:gpt-4o-mini",
-              "inputs": [],
-              "prompt": "{{input_data}}",
-              "stream": false,
-              "outputs": [
-                {
-                  "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
-                  "type": "String"
-                }
-              ],
-              "modelParams": null,
-              "dynamicInputs": [
-                {
-                  "id": "23e20769-e0d1-4857-b25f-d79e926d140e",
-                  "name": "input_data",
-                  "type": "String"
-                }
-              ],
-              "inputsMappings": {
-                "23e20769-e0d1-4857-b25f-d79e926d140e": "e97a603a-66cf-4a56-84b5-d34458d681a4"
-              },
-              "structuredOutputSchema": "class User {\n  id int\n  name string\n  contact_info ContactInfo\n  contact_preference ContactPreference\n  notes string?\n}\n\nclass ContactInfo {\n  telephone string\n  email_addresses string[]\n}\n\nenum ContactPreference {\n  EMAIL\n  TELEPHONE\n}\n",
-              "structuredOutputEnabled": true,
-              "structuredOutputMaxRetries": 3,
-              "structuredOutputSchemaTarget": "User"
-            },
-            "<node_2_id>": {
-              "id": "<node_2_id>",
-              "name": "input_data",
-              "type": "Input",
-              "input": "",
-              "inputs": [],
-              "outputs": [
-                {
-                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                  "type": "String"
-                }
-              ],
-              "inputType": "String",
-              "inputsMappings": {}
-            }
-          }
-        },
-        "displayable_graph": {
-          "edges": [
-            {
-              "id": "reactflow__edge-<node_1_id>_00f9ef0b-5649-4aab-9469-bb34011868ec38f4049f-c231-4a4e-98e5-eb7bbfeec881-<node_0_id>f202a0a5-931b-40aa-8d06-fc5e3795224d",
-              "source": "<node_1_id>",
-              "target": "<node_0_id>",
-              "sourceHandle": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
-              "targetHandle": "f202a0a5-931b-40aa-8d06-fc5e3795224d"
-            },
-            {
-              "id": "reactflow__edge-<node_2_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_1_id>23e20769-e0d1-4857-b25f-d79e926d140e",
-              "source": "<node_2_id>",
-              "target": "<node_1_id>",
-              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-              "targetHandle": "23e20769-e0d1-4857-b25f-d79e926d140e"
-            }
-          ],
-          "nodes": [
-            {
-              "id": "<node_2_id>",
-              "data": {
-                "id": "<node_2_id>",
-                "name": "input_data",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                    "type": "String"
-                  }
-                ],
-                "inputType": "String",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": -86.31880118386391,
-                "y": 414.30399097867263
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": -86.31880118386391,
-                "y": 414.30399097867263
-              }
-            },
-            {
-              "id": "<node_0_id>",
-              "data": {
-                "id": "<node_0_id>",
-                "name": "output",
-                "type": "Output",
-                "inputs": [
-                  {
-                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
-                    "name": "output",
-                    "type": "Any"
-                  }
-                ],
-                "outputs": [],
-                "version": 1,
-                "inputType": "String",
-                "inputsMappings": {},
-                "outputCastType": null
-              },
-              "type": "Output",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 820.7501151171692,
-                "y": 431.00693983450697
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 820.7501151171692,
-                "y": 431.00693983450697
-              }
-            },
-            {
-              "id": "<node_1_id>",
-              "data": {
-                "id": "<node_1_id>",
-                "name": "LLM",
-                "type": "LLM",
-                "model": "openai:gpt-4o-mini",
-                "inputs": [],
-                "prompt": "{{input_data}}",
-                "stream": false,
-                "outputs": [
-                  {
-                    "id": "38f4049f-c231-4a4e-98e5-eb7bbfeec881",
-                    "type": "String"
-                  }
-                ],
-                "modelParams": null,
-                "dynamicInputs": [
-                  {
-                    "id": "23e20769-e0d1-4857-b25f-d79e926d140e",
-                    "name": "input_data",
-                    "type": "String"
-                  }
-                ],
-                "inputsMappings": {},
-                "structuredOutputSchema": "class User {\n  id int\n  name string\n  contact_info ContactInfo\n  contact_preference ContactPreference\n  notes string?\n}\n\nclass ContactInfo {\n  telephone string\n  email_addresses string[]\n}\n\nenum ContactPreference {\n  EMAIL\n  TELEPHONE\n}\n",
-                "structuredOutputEnabled": true,
-                "structuredOutputMaxRetries": 3,
-                "structuredOutputSchemaTarget": "User"
-              },
-              "type": "LLM",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 347.7456977977364,
-                "y": 438.9676138067879
-              },
-              "selected": true,
-              "positionAbsolute": {
-                "x": 347.7456977977364,
-                "y": 438.9676138067879
-              }
-            }
-          ]
-        },
-        "number_of_nodes": 3,
-        "name": "Structured output",
-        "description": "Enforce structured JSON format based on a custom schema",
-        "display_group": "build",
-        "ordinal": 140
-      },
-      {
-        "id": "69888370-2177-4c0c-8149-25c3b1076d45",
-        "created_at": "2024-07-06 21:48:15.873353+00",
-        "runnable_graph": {
-          "pred": {
-            "<node_0_id>": [
-              "<node_4_id>"
-            ],
-            "<node_1_id>": [
-              "<node_6_id>"
-            ],
-            "<node_2_id>": [
-              "<node_6_id>"
-            ],
-            "<node_3_id>": [
-              "<node_1_id>",
-              "<node_5_id>",
-              "<node_2_id>",
-              "<node_6_id>"
-            ],
-            "<node_4_id>": [
-              "<node_3_id>",
-              "<node_6_id>",
-              "<node_1_id>",
-              "<node_5_id>",
-              "<node_2_id>"
-            ],
-            "<node_5_id>": [
-              "<node_6_id>"
-            ]
-          },
-          "nodes": {
-            "<node_0_id>": {
-              "id": "<node_0_id>",
-              "name": "output",
-              "type": "Output",
-              "inputs": [
-                {
-                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
-                  "name": "output",
-                  "type": "Any"
-                }
-              ],
-              "outputs": [],
-              "version": 1,
-              "inputType": "String",
-              "inputsMappings": {
-                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "8017f840-25d8-4579-8cb1-99ca046c3ce4"
-              }
-            },
-            "<node_1_id>": {
-              "id": "<node_1_id>",
-              "name": "candidate_1",
-              "type": "LLM",
-              "model": "openai:gpt-4o-mini",
-              "inputs": [],
-              "prompt": "{{prompt}}",
-              "stream": false,
-              "outputs": [
-                {
-                  "id": "6bfbac14-6728-4b70-a37e-6305364db920",
-                  "type": "String"
-                }
-              ],
-              "modelParams": "{\n  \"temperature\": 1\n}",
-              "dynamicInputs": [
-                {
-                  "id": "6e90ae8b-5f46-45df-a2ef-42a2abd31575",
-                  "name": "prompt",
-                  "type": "String"
-                }
-              ],
-              "inputsMappings": {
-                "6e90ae8b-5f46-45df-a2ef-42a2abd31575": "601fb170-468b-4765-96e5-25bec1b27864"
-              }
-            },
-            "<node_2_id>": {
-              "id": "<node_2_id>",
-              "name": "candidate_3",
-              "type": "LLM",
-              "model": "openai:gpt-4o-mini",
-              "inputs": [],
-              "prompt": "{{prompt}}",
-              "stream": false,
-              "outputs": [
-                {
-                  "id": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
-                  "type": "String"
-                }
-              ],
-              "modelParams": "{\n  \"temperature\": 1\n}",
-              "dynamicInputs": [
-                {
-                  "id": "b7b67147-77ce-4cdd-a125-616b83d05710",
-                  "name": "prompt",
-                  "type": "String"
-                }
-              ],
-              "inputsMappings": {
-                "b7b67147-77ce-4cdd-a125-616b83d05710": "601fb170-468b-4765-96e5-25bec1b27864"
-              }
-            },
-            "<node_3_id>": {
-              "id": "<node_3_id>",
-              "name": "Evaluator",
-              "type": "LLM",
-              "model": "openai:gpt-4o-mini",
-              "inputs": [],
-              "prompt": "You will be given a prompt and 3 outputs of Large Language Models in response to this prompt. Your goal is to produce strengths and weaknesses of each response.\n\n---\n\nPrompt:\n{{prompt}}\n\nCandidate 1:\n{{cand_1}}\n\nCandidate 2:\n{{cand_2}}\n\nCandidate 3:\n{{cand_3}}",
-              "stream": false,
-              "outputs": [
-                {
-                  "id": "a0dea378-f54a-40cf-a766-4d917e9e4c1c",
-                  "type": "String"
-                }
-              ],
-              "modelParams": null,
-              "dynamicInputs": [
-                {
-                  "id": "149dcab7-0dbb-4a77-9066-199e0eb4b320",
-                  "name": "prompt",
-                  "type": "String"
-                },
-                {
-                  "id": "c92560cf-6594-49fe-9c80-e1dbb604e502",
-                  "name": "cand_1",
-                  "type": "String"
-                },
-                {
-                  "id": "b5123524-32f6-4210-8c9d-793084d092d3",
-                  "name": "cand_2",
-                  "type": "String"
-                },
-                {
-                  "id": "3e627791-2ccb-4b8f-9fa2-f7b9265858b9",
-                  "name": "cand_3",
-                  "type": "String"
-                }
-              ],
-              "inputsMappings": {
-                "149dcab7-0dbb-4a77-9066-199e0eb4b320": "601fb170-468b-4765-96e5-25bec1b27864",
-                "3e627791-2ccb-4b8f-9fa2-f7b9265858b9": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
-                "b5123524-32f6-4210-8c9d-793084d092d3": "5b438805-6271-4573-9a97-23ccf9316c8e",
-                "c92560cf-6594-49fe-9c80-e1dbb604e502": "6bfbac14-6728-4b70-a37e-6305364db920"
-              }
-            },
-            "<node_4_id>": {
-              "id": "<node_4_id>",
-              "name": "final_LLM",
-              "type": "LLM",
-              "model": "openai:gpt-4o-mini",
-              "inputs": [],
-              "prompt": "You will be given a prompt, 3 candidate responses and strengths and weaknesses of each of responses. Your goal is to produce the best overall response which incorporates strengths and weaknesses of each candidate.\n\nPay close attention to highlighted strengths and weaknesses. Solve weaknesses and keep strengths.\n\nprompt:\n{{prompt}}\n\n\u0421andidate 1:\n{{cand_1}}\n\n\u0421andidate 2:\n{{cand_2}}\n\n\u0421andidate 3:\n{{cand_3}}\n\n---\nStrengths and Weaknesses:\n{{reasoning}}",
-              "stream": false,
-              "outputs": [
-                {
-                  "id": "8017f840-25d8-4579-8cb1-99ca046c3ce4",
-                  "type": "String"
-                }
-              ],
-              "modelParams": null,
-              "dynamicInputs": [
-                {
-                  "id": "a62b8cf4-4096-48b2-93f6-8c3640e7d350",
-                  "name": "prompt",
-                  "type": "String"
-                },
-                {
-                  "id": "b95905f0-3cf2-4af0-ba3e-142df7662876",
-                  "name": "cand_1",
-                  "type": "String"
-                },
-                {
-                  "id": "4b5bbd1c-777d-4cba-a309-598024888681",
-                  "name": "cand_2",
-                  "type": "String"
-                },
-                {
-                  "id": "69276f15-7232-4eed-8b14-223fc0ef54c8",
-                  "name": "cand_3",
-                  "type": "String"
-                },
-                {
-                  "id": "fd8e93e5-3ab9-48ce-8ab9-66c214db7f92",
-                  "name": "reasoning",
-                  "type": "String"
-                }
-              ],
-              "inputsMappings": {
-                "4b5bbd1c-777d-4cba-a309-598024888681": "5b438805-6271-4573-9a97-23ccf9316c8e",
-                "69276f15-7232-4eed-8b14-223fc0ef54c8": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
-                "a62b8cf4-4096-48b2-93f6-8c3640e7d350": "601fb170-468b-4765-96e5-25bec1b27864",
-                "b95905f0-3cf2-4af0-ba3e-142df7662876": "6bfbac14-6728-4b70-a37e-6305364db920",
-                "fd8e93e5-3ab9-48ce-8ab9-66c214db7f92": "a0dea378-f54a-40cf-a766-4d917e9e4c1c"
-              }
-            },
-            "<node_5_id>": {
-              "id": "<node_5_id>",
-              "name": "candidate_2",
-              "type": "LLM",
-              "model": "openai:gpt-4o-mini",
-              "inputs": [],
-              "prompt": "{{prompt}}",
-              "stream": false,
-              "outputs": [
-                {
-                  "id": "5b438805-6271-4573-9a97-23ccf9316c8e",
-                  "type": "String"
-                }
-              ],
-              "modelParams": "{\n  \"temperature\": 1\n}",
-              "dynamicInputs": [
-                {
-                  "id": "bebeba38-0102-4f45-9e5a-1f34c50a372a",
-                  "name": "prompt",
-                  "type": "String"
-                }
-              ],
-              "inputsMappings": {
-                "bebeba38-0102-4f45-9e5a-1f34c50a372a": "601fb170-468b-4765-96e5-25bec1b27864"
-              }
-            },
-            "<node_6_id>": {
-              "id": "<node_6_id>",
-              "name": "prompt",
-              "type": "Input",
-              "input": "",
-              "inputs": [],
-              "outputs": [
-                {
-                  "id": "601fb170-468b-4765-96e5-25bec1b27864",
-                  "name": "output",
-                  "type": "String"
-                }
-              ],
-              "inputType": "String",
-              "inputsMappings": {}
-            }
-          }
-        },
-        "displayable_graph": {
-          "edges": [
-            {
-              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_1_id>6e90ae8b-5f46-45df-a2ef-42a2abd31575",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_6_id>",
-              "target": "<node_1_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
-              "targetHandle": "6e90ae8b-5f46-45df-a2ef-42a2abd31575"
-            },
-            {
-              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_5_id>bebeba38-0102-4f45-9e5a-1f34c50a372a",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_6_id>",
-              "target": "<node_5_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
-              "targetHandle": "bebeba38-0102-4f45-9e5a-1f34c50a372a"
-            },
-            {
-              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_2_id>b7b67147-77ce-4cdd-a125-616b83d05710",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_6_id>",
-              "target": "<node_2_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
-              "targetHandle": "b7b67147-77ce-4cdd-a125-616b83d05710"
-            },
-            {
-              "id": "reactflow__edge-<node_4_id>8017f840-25d8-4579-8cb1-99ca046c3ce4-<node_0_id>f202a0a5-931b-40aa-8d06-fc5e3795224d",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_4_id>",
-              "target": "<node_0_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "8017f840-25d8-4579-8cb1-99ca046c3ce4",
-              "targetHandle": "f202a0a5-931b-40aa-8d06-fc5e3795224d"
-            },
-            {
-              "id": "reactflow__edge-<node_3_id>a0dea378-f54a-40cf-a766-4d917e9e4c1c-<node_4_id>fd8e93e5-3ab9-48ce-8ab9-66c214db7f92",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_3_id>",
-              "target": "<node_4_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "a0dea378-f54a-40cf-a766-4d917e9e4c1c",
-              "targetHandle": "fd8e93e5-3ab9-48ce-8ab9-66c214db7f92"
-            },
-            {
-              "id": "reactflow__edge-<node_1_id>6bfbac14-6728-4b70-a37e-6305364db920-<node_3_id>c92560cf-6594-49fe-9c80-e1dbb604e502",
-              "data": {
-                "isHover": false
-              },
-              "source": "<node_1_id>",
-              "target": "<node_3_id>",
-              "sourceHandle": "6bfbac14-6728-4b70-a37e-6305364db920",
-              "targetHandle": "c92560cf-6594-49fe-9c80-e1dbb604e502"
-            },
-            {
-              "id": "reactflow__edge-<node_5_id>5b438805-6271-4573-9a97-23ccf9316c8e-<node_3_id>b5123524-32f6-4210-8c9d-793084d092d3",
-              "data": {
-                "isHover": false
-              },
-              "source": "<node_5_id>",
-              "target": "<node_3_id>",
-              "sourceHandle": "5b438805-6271-4573-9a97-23ccf9316c8e",
-              "targetHandle": "b5123524-32f6-4210-8c9d-793084d092d3"
-            },
-            {
-              "id": "reactflow__edge-<node_2_id>6b33445b-d105-44e3-a3fd-7c8f30e64c87-<node_3_id>3e627791-2ccb-4b8f-9fa2-f7b9265858b9",
-              "data": {
-                "isHover": false
-              },
-              "source": "<node_2_id>",
-              "target": "<node_3_id>",
-              "sourceHandle": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
-              "targetHandle": "3e627791-2ccb-4b8f-9fa2-f7b9265858b9"
-            },
-            {
-              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_3_id>149dcab7-0dbb-4a77-9066-199e0eb4b320",
-              "data": {
-                "isHover": false
-              },
-              "source": "<node_6_id>",
-              "target": "<node_3_id>",
-              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
-              "targetHandle": "149dcab7-0dbb-4a77-9066-199e0eb4b320"
-            },
-            {
-              "id": "reactflow__edge-<node_6_id>601fb170-468b-4765-96e5-25bec1b27864-<node_4_id>a62b8cf4-4096-48b2-93f6-8c3640e7d350",
-              "data": {
-                "isHover": false
-              },
-              "source": "<node_6_id>",
-              "target": "<node_4_id>",
-              "sourceHandle": "601fb170-468b-4765-96e5-25bec1b27864",
-              "targetHandle": "a62b8cf4-4096-48b2-93f6-8c3640e7d350"
-            },
-            {
-              "id": "reactflow__edge-<node_1_id>6bfbac14-6728-4b70-a37e-6305364db920-<node_4_id>b95905f0-3cf2-4af0-ba3e-142df7662876",
-              "data": {
-                "isHover": false
-              },
-              "source": "<node_1_id>",
-              "target": "<node_4_id>",
-              "sourceHandle": "6bfbac14-6728-4b70-a37e-6305364db920",
-              "targetHandle": "b95905f0-3cf2-4af0-ba3e-142df7662876"
-            },
-            {
-              "id": "reactflow__edge-<node_5_id>5b438805-6271-4573-9a97-23ccf9316c8e-<node_4_id>4b5bbd1c-777d-4cba-a309-598024888681",
-              "data": {
-                "isHover": false
-              },
-              "source": "<node_5_id>",
-              "target": "<node_4_id>",
-              "sourceHandle": "5b438805-6271-4573-9a97-23ccf9316c8e",
-              "targetHandle": "4b5bbd1c-777d-4cba-a309-598024888681"
-            },
-            {
-              "id": "reactflow__edge-<node_2_id>6b33445b-d105-44e3-a3fd-7c8f30e64c87-<node_4_id>69276f15-7232-4eed-8b14-223fc0ef54c8",
-              "data": {
-                "isHover": false
-              },
-              "source": "<node_2_id>",
-              "target": "<node_4_id>",
-              "sourceHandle": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
-              "targetHandle": "69276f15-7232-4eed-8b14-223fc0ef54c8"
-            }
-          ],
-          "nodes": [
-            {
-              "id": "<node_0_id>",
-              "data": {
-                "id": "<node_0_id>",
-                "name": "output",
-                "type": "Output",
-                "inputs": [
-                  {
-                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
-                    "name": "output",
-                    "type": "Any"
-                  }
-                ],
-                "outputs": [],
-                "version": 1,
-                "inputType": "String",
-                "inputsMappings": {},
-                "outputCastType": null
-              },
-              "type": "Output",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 1835.5456716018464,
-                "y": 809.0479506567649
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 1835.5456716018464,
-                "y": 809.0479506567649
-              }
-            },
-            {
-              "id": "<node_1_id>",
-              "data": {
-                "id": "<node_1_id>",
-                "name": "candidate_1",
-                "type": "LLM",
-                "model": "openai:gpt-4o-mini",
-                "inputs": [],
-                "prompt": "{{prompt}}",
-                "stream": false,
-                "outputs": [
-                  {
-                    "id": "6bfbac14-6728-4b70-a37e-6305364db920",
-                    "type": "String"
-                  }
-                ],
-                "modelParams": "{\n  \"temperature\": 1\n}",
-                "dynamicInputs": [
-                  {
-                    "id": "6e90ae8b-5f46-45df-a2ef-42a2abd31575",
-                    "name": "prompt",
-                    "type": "String"
-                  }
-                ],
-                "inputsMappings": {}
-              },
-              "type": "LLM",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 395.252818173846,
-                "y": 297.13777714325
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 395.252818173846,
-                "y": 297.13777714325
-              }
-            },
-            {
-              "id": "<node_5_id>",
-              "data": {
-                "id": "<node_5_id>",
-                "name": "candidate_2",
-                "type": "LLM",
-                "model": "openai:gpt-4o-mini",
-                "inputs": [],
-                "prompt": "{{prompt}}",
-                "stream": false,
-                "outputs": [
-                  {
-                    "id": "5b438805-6271-4573-9a97-23ccf9316c8e",
-                    "type": "String"
-                  }
-                ],
-                "modelParams": "{\n  \"temperature\": 1\n}",
-                "dynamicInputs": [
-                  {
-                    "id": "bebeba38-0102-4f45-9e5a-1f34c50a372a",
-                    "name": "prompt",
-                    "type": "String"
-                  }
-                ],
-                "inputsMappings": {}
-              },
-              "type": "LLM",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 393.2471947585384,
-                "y": 508.4275195980431
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 393.2471947585384,
-                "y": 508.4275195980431
-              }
-            },
-            {
-              "id": "<node_2_id>",
-              "data": {
-                "id": "<node_2_id>",
-                "name": "candidate_3",
-                "type": "LLM",
-                "model": "openai:gpt-4o-mini",
-                "inputs": [],
-                "prompt": "{{prompt}}",
-                "stream": false,
-                "outputs": [
-                  {
-                    "id": "6b33445b-d105-44e3-a3fd-7c8f30e64c87",
-                    "type": "String"
-                  }
-                ],
-                "modelParams": "{\n  \"temperature\": 1\n}",
-                "dynamicInputs": [
-                  {
-                    "id": "b7b67147-77ce-4cdd-a125-616b83d05710",
-                    "name": "prompt",
-                    "type": "String"
-                  }
-                ],
-                "inputsMappings": {}
-              },
-              "type": "LLM",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 397.81368508617993,
-                "y": 730.7825171789636
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 397.81368508617993,
-                "y": 730.7825171789636
-              }
-            },
-            {
-              "id": "<node_3_id>",
-              "data": {
-                "id": "<node_3_id>",
-                "name": "Evaluator",
-                "type": "LLM",
-                "model": "openai:gpt-4o-mini",
-                "inputs": [],
-                "prompt": "You will be given a prompt and 3 outputs of Large Language Models in response to this prompt. Your goal is to produce strengths and weaknesses of each response.\n\n---\n\nPrompt:\n{{prompt}}\n\nCandidate 1:\n{{cand_1}}\n\nCandidate 2:\n{{cand_2}}\n\nCandidate 3:\n{{cand_3}}",
-                "stream": false,
-                "outputs": [
-                  {
-                    "id": "a0dea378-f54a-40cf-a766-4d917e9e4c1c",
-                    "type": "String"
-                  }
-                ],
-                "modelParams": null,
-                "dynamicInputs": [
-                  {
-                    "id": "149dcab7-0dbb-4a77-9066-199e0eb4b320",
-                    "name": "prompt",
-                    "type": "String"
-                  },
-                  {
-                    "id": "c92560cf-6594-49fe-9c80-e1dbb604e502",
-                    "name": "cand_1",
-                    "type": "String"
-                  },
-                  {
-                    "id": "b5123524-32f6-4210-8c9d-793084d092d3",
-                    "name": "cand_2",
-                    "type": "String"
-                  },
-                  {
-                    "id": "3e627791-2ccb-4b8f-9fa2-f7b9265858b9",
-                    "name": "cand_3",
-                    "type": "String"
-                  }
-                ],
-                "inputsMappings": {}
-              },
-              "type": "LLM",
-              "width": 292,
-              "height": 281,
-              "dragging": false,
-              "position": {
-                "x": 958.2831914185404,
-                "y": 523.5401701325111
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 958.2831914185404,
-                "y": 523.5401701325111
-              }
-            },
-            {
-              "id": "<node_6_id>",
-              "data": {
-                "id": "<node_6_id>",
-                "name": "prompt",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "601fb170-468b-4765-96e5-25bec1b27864",
-                    "name": "output",
-                    "type": "String"
-                  }
-                ],
-                "inputType": "String",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": -248.3946933138168,
-                "y": 934.1404576129252
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": -248.3946933138168,
-                "y": 934.1404576129252
-              }
-            },
-            {
-              "id": "<node_4_id>",
-              "data": {
-                "id": "<node_4_id>",
-                "name": "final_LLM",
-                "type": "LLM",
-                "model": "openai:gpt-4o-mini",
-                "inputs": [],
-                "prompt": "You will be given a prompt, 3 candidate responses and strengths and weaknesses of each of responses. Your goal is to produce the best overall response which incorporates strengths and weaknesses of each candidate.\n\nPay close attention to highlighted strengths and weaknesses. Solve weaknesses and keep strengths.\n\nprompt:\n{{prompt}}\n\n\u0421andidate 1:\n{{cand_1}}\n\n\u0421andidate 2:\n{{cand_2}}\n\n\u0421andidate 3:\n{{cand_3}}\n\n---\nStrengths and Weaknesses:\n{{reasoning}}",
-                "stream": false,
-                "outputs": [
-                  {
-                    "id": "8017f840-25d8-4579-8cb1-99ca046c3ce4",
-                    "type": "String"
-                  }
-                ],
-                "modelParams": null,
-                "dynamicInputs": [
-                  {
-                    "id": "a62b8cf4-4096-48b2-93f6-8c3640e7d350",
-                    "name": "prompt",
-                    "type": "String"
-                  },
-                  {
-                    "id": "b95905f0-3cf2-4af0-ba3e-142df7662876",
-                    "name": "cand_1",
-                    "type": "String"
-                  },
-                  {
-                    "id": "4b5bbd1c-777d-4cba-a309-598024888681",
-                    "name": "cand_2",
-                    "type": "String"
-                  },
-                  {
-                    "id": "69276f15-7232-4eed-8b14-223fc0ef54c8",
-                    "name": "cand_3",
-                    "type": "String"
-                  },
-                  {
-                    "id": "fd8e93e5-3ab9-48ce-8ab9-66c214db7f92",
-                    "name": "reasoning",
-                    "type": "String"
-                  }
-                ],
-                "inputsMappings": {}
-              },
-              "type": "LLM",
-              "width": 292,
-              "height": 321,
-              "dragging": false,
-              "position": {
-                "x": 1455.5352845994153,
-                "y": 731.4826639025965
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 1455.5352845994153,
-                "y": 731.4826639025965
-              }
-            }
-          ]
-        },
-        "number_of_nodes": 7,
-        "name": "Mixture of Agents",
-        "description": "Implementation of Mixture of Agents paper",
-        "display_group": "build",
-        "ordinal": 150
-      },
-      {
-        "id": "db6d1708-9836-42f2-a3ea-732ca7709039",
-        "created_at": "2024-07-01 20:34:14.509437+00",
-        "runnable_graph": {
-          "pred": {},
-          "nodes": {
-            "<node_1_id>": {
-              "id": "<node_1_id>",
-              "name": "output",
-              "type": "Output",
-              "inputs": [
-                {
-                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
-                  "name": "output",
-                  "type": "Any"
-                }
-              ],
-              "outputs": [],
-              "inputType": "String",
-              "inputsMappings": {
-                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "52e5f640-3bd1-44be-bcb5-f51d22d2b3db"
-              }
-            }
-          }
-        },
-        "displayable_graph": {
-          "edges": [],
-          "nodes": [
-            {
-              "id": "<node_0_id>",
-              "data": {
-                "id": "<node_0_id>",
-                "name": "input",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                    "type": "String"
-                  }
-                ],
-                "inputType": "String",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 256,
-              "height": 182,
-              "dragging": false,
-              "position": {
-                "x": 27.97454698145555,
-                "y": 414.29813235419795
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 27.97454698145555,
-                "y": 414.29813235419795
-              }
-            },
-            {
-              "id": "<node_1_id>",
-              "data": {
-                "id": "<node_1_id>",
-                "name": "output",
-                "type": "Output",
-                "inputs": [
-                  {
-                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
-                    "name": "output",
-                    "type": "Any"
-                  }
-                ],
-                "outputs": [],
-                "version": 1,
-                "inputType": "String",
-                "inputsMappings": {},
-                "outputCastType": null
-              },
-              "type": "Output",
-              "width": 269,
-              "height": 182,
-              "dragging": false,
-              "position": {
-                "x": 946.7645510845663,
-                "y": 413.71769299909084
-              },
-              "selected": true,
-              "positionAbsolute": {
-                "x": 946.7645510845663,
-                "y": 413.71769299909084
-              }
-            }
-          ]
-        },
-        "number_of_nodes": 2,
-        "name": "Blank template",
-        "description": "An input node and an output node - default blank template",
-        "display_group": "build",
-        "ordinal": 170
-      },
-      {
-        "id": "e3d0894b-2b6c-46a6-a40c-c6d9717a7f07",
-        "created_at": "2024-07-30 18:52:04.753573+00",
-        "runnable_graph": {
-          "pred": {
-            "<node_1_id>": [
-              "<node_3_id>"
-            ],
-            "<node_3_id>": [
-              "<node_0_id>",
-              "<node_2_id>"
-            ]
-          },
-          "nodes": {
-            "<node_0_id>": {
-              "id": "<node_0_id>",
-              "name": "predict_output",
-              "type": "Input",
-              "input": "",
-              "inputs": [],
-              "outputs": [
-                {
-                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                  "type": "String"
-                }
-              ],
-              "inputType": "String",
-              "inputsMappings": {}
-            },
-            "<node_1_id>": {
-              "id": "<node_1_id>",
-              "name": "score",
-              "type": "Output",
-              "inputs": [
-                {
-                  "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
-                  "name": "output",
-                  "type": "Any"
-                }
-              ],
-              "outputs": [],
-              "version": 1,
-              "inputType": "String",
-              "inputsMappings": {
-                "f202a0a5-931b-40aa-8d06-fc5e3795224d": "c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9"
-              }
-            },
-            "<node_2_id>": {
-              "id": "<node_2_id>",
-              "name": "target_output",
-              "type": "Input",
-              "input": "",
-              "inputs": [],
-              "outputs": [
-                {
-                  "id": "dd9fc3ff-7c14-4849-84f6-6a15be6b78e2",
-                  "name": "output",
-                  "type": "String"
-                }
-              ],
-              "inputType": "String",
-              "inputsMappings": {}
-            },
-            "<node_3_id>": {
-              "id": "<node_3_id>",
-              "name": "Semantic_Similarity",
-              "type": "SemanticSimilarity",
-              "inputs": [
-                {
-                  "id": "6511df42-4452-408e-9934-7c4a7ac068df",
-                  "name": "first",
-                  "type": "String"
-                },
-                {
-                  "id": "318217fe-50b5-4eb5-bf19-cf367b2ecf9d",
-                  "name": "second",
-                  "type": "String"
-                }
-              ],
-              "outputs": [
-                {
-                  "id": "c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9",
-                  "name": "output",
-                  "type": "Float"
-                }
-              ],
-              "inputsMappings": {
-                "318217fe-50b5-4eb5-bf19-cf367b2ecf9d": "dd9fc3ff-7c14-4849-84f6-6a15be6b78e2",
-                "6511df42-4452-408e-9934-7c4a7ac068df": "e97a603a-66cf-4a56-84b5-d34458d681a4"
-              }
-            }
-          }
-        },
-        "displayable_graph": {
-          "edges": [
-            {
-              "id": "reactflow__edge-<node_0_id>e97a603a-66cf-4a56-84b5-d34458d681a4-<node_3_id>6511df42-4452-408e-9934-7c4a7ac068df",
-              "type": "custom",
-              "source": "<node_0_id>",
-              "target": "<node_3_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-              "targetHandle": "6511df42-4452-408e-9934-7c4a7ac068df"
-            },
-            {
-              "id": "reactflow__edge-<node_2_id>dd9fc3ff-7c14-4849-84f6-6a15be6b78e2-<node_3_id>318217fe-50b5-4eb5-bf19-cf367b2ecf9d",
-              "type": "custom",
-              "source": "<node_2_id>",
-              "target": "<node_3_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "dd9fc3ff-7c14-4849-84f6-6a15be6b78e2",
-              "targetHandle": "318217fe-50b5-4eb5-bf19-cf367b2ecf9d"
-            },
-            {
-              "id": "reactflow__edge-<node_3_id>c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9-<node_1_id>f202a0a5-931b-40aa-8d06-fc5e3795224d",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_3_id>",
-              "target": "<node_1_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9",
-              "targetHandle": "f202a0a5-931b-40aa-8d06-fc5e3795224d"
-            }
-          ],
-          "nodes": [
-            {
-              "id": "<node_0_id>",
-              "data": {
-                "id": "<node_0_id>",
-                "name": "predict_output",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                    "type": "String"
-                  }
-                ],
-                "inputType": "String",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": 3.886708617626823,
-                "y": 370.05392652904584
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 3.886708617626823,
-                "y": 370.05392652904584
-              }
-            },
-            {
-              "id": "<node_1_id>",
-              "data": {
-                "id": "<node_1_id>",
-                "name": "score",
-                "type": "Output",
-                "inputs": [
-                  {
-                    "id": "f202a0a5-931b-40aa-8d06-fc5e3795224d",
-                    "name": "output",
-                    "type": "Any"
-                  }
-                ],
-                "outputs": [],
-                "version": 1,
-                "inputType": "String",
-                "inputsMappings": {},
-                "outputCastType": null
-              },
-              "type": "Output",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 978.2262487712728,
-                "y": 494.5182573643439
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 978.2262487712728,
-                "y": 494.5182573643439
-              }
-            },
-            {
-              "id": "<node_2_id>",
-              "data": {
-                "id": "<node_2_id>",
-                "name": "target_output",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "dd9fc3ff-7c14-4849-84f6-6a15be6b78e2",
-                    "name": "output",
-                    "type": "String"
-                  }
-                ],
-                "inputType": "String",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": 5.408583191657613,
-                "y": 641.0752837637555
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 5.408583191657613,
-                "y": 641.0752837637555
-              }
-            },
-            {
-              "id": "<node_3_id>",
-              "data": {
-                "id": "<node_3_id>",
-                "name": "Semantic_Similarity",
-                "type": "SemanticSimilarity",
-                "inputs": [
-                  {
-                    "id": "6511df42-4452-408e-9934-7c4a7ac068df",
-                    "name": "first",
-                    "type": "String"
-                  },
-                  {
-                    "id": "318217fe-50b5-4eb5-bf19-cf367b2ecf9d",
-                    "name": "second",
-                    "type": "String"
-                  }
-                ],
-                "outputs": [
-                  {
-                    "id": "c4b6c9ef-4d87-4cf1-b940-ece99f0c32f9",
-                    "name": "output",
-                    "type": "Float"
-                  }
-                ],
-                "inputsMappings": {}
-              },
-              "type": "SemanticSimilarity",
-              "width": 292,
-              "height": 201,
-              "dragging": false,
-              "position": {
-                "x": 491.0928699512041,
-                "y": 485.30912135350667
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 491.0928699512041,
-                "y": 485.30912135350667
-              }
-            }
-          ]
-        },
-        "number_of_nodes": 4,
-        "name": "Semantic similarity evaluator",
-        "description": "Check how semantically similar two outputs are.",
-        "display_group": "eval",
-        "ordinal": 210
-      },
-      {
-        "id": "2606d430-262a-4181-8951-6db0c685ce2e",
-        "created_at": "2024-09-01 20:57:57.941673+00",
-        "runnable_graph": {
-          "pred": {
-            "<node_0_id>": [
-              "<node_4_id>"
-            ],
-            "<node_2_id>": [
-              "<node_1_id>",
-              "<node_5_id>",
-              "<node_3_id>"
-            ],
-            "<node_4_id>": [
-              "<node_2_id>"
-            ]
-          },
-          "nodes": {
-            "<node_0_id>": {
-              "id": "<node_0_id>",
-              "name": "output",
-              "type": "Output",
-              "inputs": [
-                {
-                  "id": "c33ce947-5659-4dcd-a0ad-c6d717a91178",
-                  "name": "output",
-                  "type": "Any"
-                }
-              ],
-              "outputs": [],
-              "version": 1,
-              "inputType": "String",
-              "inputsMappings": {
-                "c33ce947-5659-4dcd-a0ad-c6d717a91178": "e02231ce-b816-48f4-a081-e3caa5376129"
-              },
-              "outputCastType": "NUMBER"
-            },
-            "<node_1_id>": {
-              "id": "<node_1_id>",
-              "name": "answer",
-              "type": "Input",
-              "input": "",
-              "inputs": [],
-              "outputs": [
-                {
-                  "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                  "type": "String"
-                }
-              ],
-              "inputType": "String",
-              "inputsMappings": {}
-            },
-            "<node_2_id>": {
-              "id": "<node_2_id>",
-              "name": "LLM",
-              "type": "LLM",
-              "model": "openai:gpt-4o",
-              "inputs": [],
-              "prompt": "You are given a question, context and answer. Your goal is to evaluate on the scale from 1 to 5 how relevant is the answer to the question and whether answer is grounded in the context. The score represents the fraction of claims in the output that are relevant to the question over total claims in the output. A high score means most retrieved content directly answers the question. A low score indicates excess or irrelevant information.\n\nIf answer seems correct, but it does not have any relevance to the context, grade it with a low score\n\nIf the context does not contain information related to the question, and the answer correctly acknowledges it, then give higher score.\n\nQuestion:\n{{question}}\n\nAnswer:\n{{answer}}\n\nContext:\n{{context}}",
-              "stream": false,
-              "outputs": [
-                {
-                  "id": "57aaf77e-7efc-4824-8f91-14b279cf6865",
-                  "type": "String"
-                }
-              ],
-              "modelParams": null,
-              "dynamicInputs": [
-                {
-                  "id": "ea5f1ac2-c843-4e81-8803-6088fb0aeb83",
-                  "name": "answer",
-                  "type": "String"
-                },
-                {
-                  "id": "95e9c92c-160a-4339-8484-546c59909689",
-                  "name": "context",
-                  "type": "String"
-                },
-                {
-                  "id": "12d8a53f-0002-4d3d-9e5e-cab28252bd20",
-                  "name": "question",
-                  "type": "String"
-                }
-              ],
-              "inputsMappings": {
-                "12d8a53f-0002-4d3d-9e5e-cab28252bd20": "4e2bff2f-894e-4ade-96be-71080c09d123",
-                "95e9c92c-160a-4339-8484-546c59909689": "6dc25aff-4004-4135-bac1-803cd177e96d",
-                "ea5f1ac2-c843-4e81-8803-6088fb0aeb83": "e97a603a-66cf-4a56-84b5-d34458d681a4"
-              },
-              "structuredOutputSchema": "class Evaluation {\n  reasoning string\n  score int @description(\"score from 1 to 5\")\n}\n",
-              "structuredOutputEnabled": true,
-              "structuredOutputMaxRetries": 3,
-              "structuredOutputSchemaTarget": "Evaluation"
-            },
-            "<node_3_id>": {
-              "id": "<node_3_id>",
-              "name": "question",
-              "type": "Input",
-              "input": "",
-              "inputs": [],
-              "outputs": [
-                {
-                  "id": "4e2bff2f-894e-4ade-96be-71080c09d123",
-                  "type": "String"
-                }
-              ],
-              "inputType": "String",
-              "inputsMappings": {}
-            },
-            "<node_4_id>": {
-              "id": "<node_4_id>",
-              "name": "JSON Extractor",
-              "type": "JsonExtractor",
-              "inputs": [
-                {
-                  "id": "caa44272-857c-4c24-81f4-ca1c3bcdb9f5",
-                  "name": "input",
-                  "type": "String"
-                }
-              ],
-              "outputs": [
-                {
-                  "id": "e02231ce-b816-48f4-a081-e3caa5376129",
-                  "type": "String"
-                }
-              ],
-              "template": "{{score}}",
-              "inputsMappings": {
-                "caa44272-857c-4c24-81f4-ca1c3bcdb9f5": "57aaf77e-7efc-4824-8f91-14b279cf6865"
-              }
-            },
-            "<node_5_id>": {
-              "id": "<node_5_id>",
-              "name": "context",
-              "type": "Input",
-              "input": "",
-              "inputs": [],
-              "outputs": [
-                {
-                  "id": "6dc25aff-4004-4135-bac1-803cd177e96d",
-                  "type": "String"
-                }
-              ],
-              "inputType": "String",
-              "inputsMappings": {}
-            }
-          }
-        },
-        "displayable_graph": {
-          "edges": [
-            {
-              "id": "reactflow__edge-<node_1_id>_a14558fc-3347-4663-b016-9ed1a31bf105e97a603a-66cf-4a56-84b5-d34458d681a4-<node_2_id>_a14558fc-3347-4663-b016-9ed1a31bf105ea5f1ac2-c843-4e81-8803-6088fb0aeb83",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_1_id>",
-              "target": "<node_2_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-              "targetHandle": "ea5f1ac2-c843-4e81-8803-6088fb0aeb83"
-            },
-            {
-              "id": "reactflow__edge-<node_5_id>_a14558fc-3347-4663-b016-9ed1a31bf1056dc25aff-4004-4135-bac1-803cd177e96d-<node_2_id>_a14558fc-3347-4663-b016-9ed1a31bf10595e9c92c-160a-4339-8484-546c59909689",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_5_id>",
-              "target": "<node_2_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "6dc25aff-4004-4135-bac1-803cd177e96d",
-              "targetHandle": "95e9c92c-160a-4339-8484-546c59909689"
-            },
-            {
-              "id": "reactflow__edge-<node_3_id>_a14558fc-3347-4663-b016-9ed1a31bf1054e2bff2f-894e-4ade-96be-71080c09d123-<node_2_id>_a14558fc-3347-4663-b016-9ed1a31bf10512d8a53f-0002-4d3d-9e5e-cab28252bd20",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_3_id>",
-              "target": "<node_2_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "4e2bff2f-894e-4ade-96be-71080c09d123",
-              "targetHandle": "12d8a53f-0002-4d3d-9e5e-cab28252bd20"
-            },
-            {
-              "id": "reactflow__edge-<node_2_id>57aaf77e-7efc-4824-8f91-14b279cf6865-<node_4_id>caa44272-857c-4c24-81f4-ca1c3bcdb9f5",
-              "data": {
-                "isHover": false
-              },
-              "type": "custom",
-              "source": "<node_2_id>",
-              "target": "<node_4_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "57aaf77e-7efc-4824-8f91-14b279cf6865",
-              "targetHandle": "caa44272-857c-4c24-81f4-ca1c3bcdb9f5"
-            },
-            {
-              "id": "reactflow__edge-<node_4_id>e02231ce-b816-48f4-a081-e3caa5376129-<node_0_id>c33ce947-5659-4dcd-a0ad-c6d717a91178",
-              "type": "custom",
-              "source": "<node_4_id>",
-              "target": "<node_0_id>",
-              "markerEnd": {
-                "type": "arrowclosed"
-              },
-              "sourceHandle": "e02231ce-b816-48f4-a081-e3caa5376129",
-              "targetHandle": "c33ce947-5659-4dcd-a0ad-c6d717a91178"
-            }
-          ],
-          "nodes": [
-            {
-              "id": "<node_1_id>",
-              "data": {
-                "id": "<node_1_id>",
-                "name": "answer",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "e97a603a-66cf-4a56-84b5-d34458d681a4",
-                    "type": "String"
-                  }
-                ],
-                "inputType": "String",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": -6.826952018993438,
-                "y": 145.2281388521993
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": -6.826952018993438,
-                "y": 145.2281388521993
-              }
-            },
-            {
-              "id": "<node_0_id>",
-              "data": {
-                "id": "<node_0_id>",
-                "name": "output",
-                "type": "Output",
-                "inputs": [
-                  {
-                    "id": "c33ce947-5659-4dcd-a0ad-c6d717a91178",
-                    "name": "output",
-                    "type": "Any"
-                  }
-                ],
-                "outputs": [],
-                "version": 1,
-                "inputType": "String",
-                "inputsMappings": {},
-                "outputCastType": "NUMBER"
-              },
-              "type": "Output",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": 1266.9713278115541,
-                "y": 356.371354618274
-              },
-              "selected": true,
-              "positionAbsolute": {
-                "x": 1266.9713278115541,
-                "y": 356.371354618274
-              }
-            },
-            {
-              "id": "<node_2_id>",
-              "data": {
-                "id": "<node_2_id>",
-                "name": "LLM",
-                "type": "LLM",
-                "model": "openai:gpt-4o",
-                "inputs": [],
-                "prompt": "You are given a question, context and answer. Your goal is to evaluate on the scale from 1 to 5 how relevant is the answer to the question and whether answer is grounded in the context. The score represents the fraction of claims in the output that are relevant to the question over total claims in the output. A high score means most retrieved content directly answers the question. A low score indicates excess or irrelevant information.\n\nIf answer seems correct, but it does not have any relevance to the context, grade it with a low score\n\nIf the context does not contain information related to the question, and the answer correctly acknowledges it, then give higher score.\n\nQuestion:\n{{question}}\n\nAnswer:\n{{answer}}\n\nContext:\n{{context}}",
-                "stream": false,
-                "outputs": [
-                  {
-                    "id": "57aaf77e-7efc-4824-8f91-14b279cf6865",
-                    "type": "String"
-                  }
-                ],
-                "modelParams": null,
-                "dynamicInputs": [
-                  {
-                    "id": "ea5f1ac2-c843-4e81-8803-6088fb0aeb83",
-                    "name": "answer",
-                    "type": "String"
-                  },
-                  {
-                    "id": "95e9c92c-160a-4339-8484-546c59909689",
-                    "name": "context",
-                    "type": "String"
-                  },
-                  {
-                    "id": "12d8a53f-0002-4d3d-9e5e-cab28252bd20",
-                    "name": "question",
-                    "type": "String"
-                  }
-                ],
-                "inputsMappings": {},
-                "structuredOutputSchema": "class Evaluation {\n  reasoning string\n  score int @description(\"score from 1 to 5\")\n}\n",
-                "structuredOutputEnabled": true,
-                "structuredOutputMaxRetries": 3,
-                "structuredOutputSchemaTarget": "Evaluation"
-              },
-              "type": "LLM",
-              "width": 292,
-              "height": 241,
-              "dragging": false,
-              "position": {
-                "x": 431.06590507021747,
-                "y": 374.28125843032547
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 431.06590507021747,
-                "y": 374.28125843032547
-              }
-            },
-            {
-              "id": "<node_5_id>",
-              "data": {
-                "id": "<node_5_id>",
-                "name": "context",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "6dc25aff-4004-4135-bac1-803cd177e96d",
-                    "type": "String"
-                  }
-                ],
-                "inputType": "String",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": -17.696888872450586,
-                "y": 382.02253062732666
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": -17.696888872450586,
-                "y": 382.02253062732666
-              }
-            },
-            {
-              "id": "<node_3_id>",
-              "data": {
-                "id": "<node_3_id>",
-                "name": "question",
-                "type": "Input",
-                "input": "",
-                "inputs": [],
-                "outputs": [
-                  {
-                    "id": "4e2bff2f-894e-4ade-96be-71080c09d123",
-                    "type": "String"
-                  }
-                ],
-                "inputType": "String",
-                "inputsMappings": {}
-              },
-              "type": "Input",
-              "width": 292,
-              "height": 223,
-              "dragging": false,
-              "position": {
-                "x": -17.042680955876335,
-                "y": 628.3925343244507
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": -17.042680955876335,
-                "y": 628.3925343244507
-              }
-            },
-            {
-              "id": "<node_4_id>",
-              "data": {
-                "id": "<node_4_id>",
-                "name": "JSON Extractor",
-                "type": "JsonExtractor",
-                "inputs": [
-                  {
-                    "id": "caa44272-857c-4c24-81f4-ca1c3bcdb9f5",
-                    "name": "input",
-                    "type": "String"
-                  }
-                ],
-                "outputs": [
-                  {
-                    "id": "e02231ce-b816-48f4-a081-e3caa5376129",
-                    "type": "String"
-                  }
-                ],
-                "template": "{{score}}",
-                "inputsMappings": {}
-              },
-              "type": "JsonExtractor",
-              "width": 292,
-              "height": 161,
-              "dragging": false,
-              "position": {
-                "x": 813.7413749177759,
-                "y": 383.3964703047172
-              },
-              "selected": false,
-              "positionAbsolute": {
-                "x": 813.7413749177759,
-                "y": 383.3964703047172
-              }
-            }
-          ]
-        },
-        "number_of_nodes": 6,
-        "name": "RAG relevance evaluator",
-        "description": "Use an LLM to evaluate the relevance of RAG response..",
-        "display_group": "eval",
-        "ordinal": 220
-      }
-    ]
-  },
-  {
     "table": "llm_prices",
     "data": [
       {
@@ -2219,6 +58,17 @@
         "additional_prices": {}
       },
       {
+        "id": "64ac4ea2-e503-4775-ae64-c536cc28aa0d",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-haiku-20241022-v1:0",
+        "input_price_per_million": 1.0,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "a4d8e406-5c4a-415e-a092-fba2fe859377",
         "created_at": "2024-11-07 23:10:50.192319+00",
         "updated_at": "2024-11-07 23:10:50.192319+00",
@@ -2239,7 +89,7 @@
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": 0.3,
         "additional_prices": {
-          "input_caching_write_price_per_million": 3.75
+          "input_cache_write_price_per_million": 3.75
         }
       },
       {
@@ -2252,7 +102,20 @@
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": 0.3,
         "additional_prices": {
-          "input_caching_write_price_per_million": 3.75
+          "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "31496f84-c7bb-4283-8330-5cd5032cb363",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-20240620-v1:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
         }
       },
       {
@@ -2265,7 +128,20 @@
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": 0.3,
         "additional_prices": {
-          "input_caching_write_price_per_million": 3.75
+          "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "1ae55a6f-b852-439b-b50e-fc4db324f143",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-20241022-v2:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
         }
       },
       {
@@ -2278,7 +154,46 @@
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": 0.3,
         "additional_prices": {
-          "input_caching_write_price_per_million": 3.75
+          "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "b0d2726f-6636-4dc7-9042-af159783f13f",
+        "created_at": "2025-04-21 13:12:30.919789+00",
+        "updated_at": "2025-04-21 13:12:30.919789+00",
+        "provider": "anthropic",
+        "model": "claude-3-7-sonnet",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "6845c1fc-4323-44cc-997e-e08d2b3fe69c",
+        "created_at": "2025-02-25 11:10:02.921559+00",
+        "updated_at": "2025-02-25 11:10:02.921559+00",
+        "provider": "anthropic",
+        "model": "claude-3-7-sonnet-20250219",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "77be974b-87a0-4d76-83c3-14a299542589",
+        "created_at": "2025-04-21 13:13:16.073483+00",
+        "updated_at": "2025-04-21 13:13:16.073483+00",
+        "provider": "anthropic",
+        "model": "claude-3-7-sonnet-latest",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
         }
       },
       {
@@ -2291,7 +206,7 @@
         "output_price_per_million": 1.25,
         "input_cached_price_per_million": 0.03,
         "additional_prices": {
-          "input_caching_write_price_per_million": 0.3
+          "input_cache_write_price_per_million": 0.3
         }
       },
       {
@@ -2304,7 +219,20 @@
         "output_price_per_million": 1.25,
         "input_cached_price_per_million": 0.03,
         "additional_prices": {
-          "input_caching_write_price_per_million": 0.3
+          "input_cache_write_price_per_million": 0.3
+        }
+      },
+      {
+        "id": "2621499c-70dc-4426-a1d3-7257691deff5",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-haiku-20240307-v1:0",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 1.25,
+        "input_cached_price_per_million": 0.03,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 0.3
         }
       },
       {
@@ -2317,7 +245,7 @@
         "output_price_per_million": 75.0,
         "input_cached_price_per_million": 1.5,
         "additional_prices": {
-          "input_caching_write_price_per_million": 18.75
+          "input_cache_write_price_per_million": 18.75
         }
       },
       {
@@ -2330,7 +258,20 @@
         "output_price_per_million": 75.0,
         "input_cached_price_per_million": 1.5,
         "additional_prices": {
-          "input_caching_write_price_per_million": 18.75
+          "input_cache_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "fa414f72-b29a-4b24-bb30-acc10ba0c341",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-opus-20240229-v1:0",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 18.75
         }
       },
       {
@@ -2343,7 +284,7 @@
         "output_price_per_million": 75.0,
         "input_cached_price_per_million": 1.5,
         "additional_prices": {
-          "input_caching_write_price_per_million": 18.75
+          "input_cache_write_price_per_million": 18.75
         }
       },
       {
@@ -2369,6 +310,17 @@
         "additional_prices": {}
       },
       {
+        "id": "dd46cc51-83c3-421d-91d4-0f3f3c9c3d03",
+        "created_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "provider": "anthropic",
+        "model": "claude-3-sonnet-20240229-v1:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "e40c2c10-6f84-414e-b15d-3a6bd406aea1",
         "created_at": "2024-10-16 17:36:24.312254+00",
         "updated_at": "2024-10-16 17:36:24.312254+00",
@@ -2387,80 +339,6 @@
         "model": "claude-instant-1.2",
         "input_price_per_million": 0.8,
         "output_price_per_million": 2.4,
-        "input_cached_price_per_million": null,
-        "additional_prices": {}
-      },
-      {
-        "id": "64ac4ea2-e503-4775-ae64-c536cc28aa0d",
-        "created_at": "2024-12-03 22:51:39.444574+00",
-        "updated_at": "2024-12-03 22:51:39.444574+00",
-        "provider": "anthropic",
-        "model": "claude-3-5-haiku-20241022-v1:0",
-        "input_price_per_million": 1.0,
-        "output_price_per_million": 5.0,
-        "input_cached_price_per_million": null,
-        "additional_prices": {}
-      },
-      {
-        "id": "31496f84-c7bb-4283-8330-5cd5032cb363",
-        "created_at": "2024-12-03 22:51:39.444574+00",
-        "updated_at": "2024-12-03 22:51:39.444574+00",
-        "provider": "anthropic",
-        "model": "claude-3-5-sonnet-20240620-v1:0",
-        "input_price_per_million": 3.0,
-        "output_price_per_million": 15.0,
-        "input_cached_price_per_million": 0.3,
-        "additional_prices": {
-          "input_caching_write_price_per_million": 3.75
-        }
-      },
-      {
-        "id": "1ae55a6f-b852-439b-b50e-fc4db324f143",
-        "created_at": "2024-12-03 22:51:39.444574+00",
-        "updated_at": "2024-12-03 22:51:39.444574+00",
-        "provider": "anthropic",
-        "model": "claude-3-5-sonnet-20241022-v2:0",
-        "input_price_per_million": 3.0,
-        "output_price_per_million": 15.0,
-        "input_cached_price_per_million": 0.3,
-        "additional_prices": {
-          "input_caching_write_price_per_million": 3.75
-        }
-      },
-      {
-        "id": "2621499c-70dc-4426-a1d3-7257691deff5",
-        "created_at": "2024-12-03 22:51:39.444574+00",
-        "updated_at": "2024-12-03 22:51:39.444574+00",
-        "provider": "anthropic",
-        "model": "claude-3-haiku-20240307-v1:0",
-        "input_price_per_million": 0.25,
-        "output_price_per_million": 1.25,
-        "input_cached_price_per_million": 0.03,
-        "additional_prices": {
-          "input_caching_write_price_per_million": 0.3
-        }
-      },
-      {
-        "id": "fa414f72-b29a-4b24-bb30-acc10ba0c341",
-        "created_at": "2024-12-03 22:51:39.444574+00",
-        "updated_at": "2024-12-03 22:51:39.444574+00",
-        "provider": "anthropic",
-        "model": "claude-3-opus-20240229-v1:0",
-        "input_price_per_million": 15.0,
-        "output_price_per_million": 75.0,
-        "input_cached_price_per_million": 1.5,
-        "additional_prices": {
-          "input_caching_write_price_per_million": 18.75
-        }
-      },
-      {
-        "id": "dd46cc51-83c3-421d-91d4-0f3f3c9c3d03",
-        "created_at": "2024-12-03 22:51:39.444574+00",
-        "updated_at": "2024-12-03 22:51:39.444574+00",
-        "provider": "anthropic",
-        "model": "claude-3-sonnet-20240229-v1:0",
-        "input_price_per_million": 3.0,
-        "output_price_per_million": 15.0,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -2494,6 +372,17 @@
         "model": "babbage-002",
         "input_price_per_million": 0.4,
         "output_price_per_million": 0.4,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "010dd4ea-0a5b-4712-be8f-817c61debdd5",
+        "created_at": "2025-04-21 14:10:11.499025+00",
+        "updated_at": "2025-04-21 14:10:11.499025+00",
+        "provider": "azure-openai",
+        "model": "computer-use-preview",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 12.0,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -2663,6 +552,28 @@
         "additional_prices": {}
       },
       {
+        "id": "e85873ee-8e6d-4e61-8071-44c0e903650a",
+        "created_at": "2025-04-21 13:28:57.378243+00",
+        "updated_at": "2025-04-21 13:28:57.378243+00",
+        "provider": "azure-openai",
+        "model": "gpt-4.5-preview",
+        "input_price_per_million": 75.0,
+        "output_price_per_million": 150.0,
+        "input_cached_price_per_million": 37.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "b5664271-4558-474d-8ed4-7f45b3c8a197",
+        "created_at": "2025-04-21 13:29:35.001408+00",
+        "updated_at": "2025-04-21 13:29:35.001408+00",
+        "provider": "azure-openai",
+        "model": "gpt-4.5-preview-2025-02-27",
+        "input_price_per_million": 75.0,
+        "output_price_per_million": 150.0,
+        "input_cached_price_per_million": 37.5,
+        "additional_prices": {}
+      },
+      {
         "id": "b055a7af-53bd-4fc6-8e47-9ac696c56e51",
         "created_at": "2024-10-16 18:13:22.875838+00",
         "updated_at": "2024-10-16 18:13:22.875838+00",
@@ -2740,53 +651,97 @@
         "additional_prices": {}
       },
       {
+        "id": "7a384670-09a4-449a-9fa0-80fd13152340",
+        "created_at": "2025-04-21 13:19:43.056423+00",
+        "updated_at": "2025-04-21 13:19:43.056423+00",
+        "provider": "azure-openai",
+        "model": "o1",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": 7.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "2941492d-e611-4d04-a773-f16cf014e527",
+        "created_at": "2025-04-21 13:23:00.811361+00",
+        "updated_at": "2025-04-21 13:23:00.811361+00",
+        "provider": "azure-openai",
+        "model": "o1-2024-12-17",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": 7.5,
+        "additional_prices": {}
+      },
+      {
         "id": "813db11c-4339-437c-858a-577b012c2416",
         "created_at": "2024-10-16 18:13:22.875838+00",
-        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2025-04-21 13:22:13+00",
         "provider": "azure-openai",
         "model": "o1-mini",
-        "input_price_per_million": 3.0,
-        "output_price_per_million": 12.0,
-        "input_cached_price_per_million": null,
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.55,
         "additional_prices": {}
       },
       {
         "id": "f462d279-9532-45cb-9d7c-fc1a173095cf",
         "created_at": "2024-10-16 18:13:22.875838+00",
-        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2025-04-21 13:22:14+00",
         "provider": "azure-openai",
         "model": "o1-mini-2024-09-12",
-        "input_price_per_million": 3.0,
-        "output_price_per_million": 12.0,
-        "input_cached_price_per_million": null,
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.55,
         "additional_prices": {}
       },
       {
         "id": "ade309bd-d7e2-4f5b-9f3e-95d88d18bcef",
         "created_at": "2024-10-16 18:13:22.875838+00",
-        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2025-04-21 13:20:56+00",
         "provider": "azure-openai",
         "model": "o1-preview",
         "input_price_per_million": 15.0,
         "output_price_per_million": 60.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 7.5,
         "additional_prices": {}
       },
       {
         "id": "f50553f1-51ea-422f-b1fd-e9ebc799a883",
         "created_at": "2024-10-16 18:13:22.875838+00",
-        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2025-04-21 13:20:58+00",
         "provider": "azure-openai",
         "model": "o1-preview-2024-09-12",
         "input_price_per_million": 15.0,
         "output_price_per_million": 60.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 7.5,
         "additional_prices": {}
       },
       {
-        "id": "2ffda02a-7eed-4dea-a43e-5d11c65f121b",
-        "created_at": "2024-10-16 18:18:37.490753+00",
-        "updated_at": "2024-10-16 18:18:37.490753+00",
+        "id": "30f3f183-aae3-46da-8fc9-ff05e3e38a98",
+        "created_at": "2025-04-21 13:25:21.978809+00",
+        "updated_at": "2025-04-21 13:25:21.978809+00",
+        "provider": "azure-openai",
+        "model": "o3-mini",
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.55,
+        "additional_prices": {}
+      },
+      {
+        "id": "c8e51d02-150e-4fb2-b6ff-d355dce9d8a7",
+        "created_at": "2025-04-21 13:25:56.101153+00",
+        "updated_at": "2025-04-21 13:25:56.101153+00",
+        "provider": "azure-openai",
+        "model": "o3-mini-2025-01-31",
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.55,
+        "additional_prices": {}
+      },
+      {
+        "id": "f4a0effb-29c0-4b42-adf1-d216d61a5241",
+        "created_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2024-10-16 18:13:22.875838+00",
         "provider": "azure-openai",
         "model": "text-embedding-3-large",
         "input_price_per_million": 0.13,
@@ -2795,9 +750,9 @@
         "additional_prices": {}
       },
       {
-        "id": "f4a0effb-29c0-4b42-adf1-d216d61a5241",
-        "created_at": "2024-10-16 18:13:22.875838+00",
-        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "id": "2ffda02a-7eed-4dea-a43e-5d11c65f121b",
+        "created_at": "2024-10-16 18:18:37.490753+00",
+        "updated_at": "2024-10-16 18:18:37.490753+00",
         "provider": "azure-openai",
         "model": "text-embedding-3-large",
         "input_price_per_million": 0.13,
@@ -2870,7 +825,7 @@
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": 0.3,
         "additional_prices": {
-          "input_caching_write_price_per_million": 3.75
+          "input_cache_write_price_per_million": 3.75
         }
       },
       {
@@ -2883,7 +838,7 @@
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": 0.3,
         "additional_prices": {
-          "input_caching_write_price_per_million": 3.75
+          "input_cache_write_price_per_million": 3.75
         }
       },
       {
@@ -2896,7 +851,20 @@
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": 0.3,
         "additional_prices": {
-          "input_caching_write_price_per_million": 3.75
+          "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "f30c084d-2009-4ac2-8cc4-89f358829675",
+        "created_at": "2025-04-21 13:36:07.338169+00",
+        "updated_at": "2025-04-21 13:36:07.338169+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-3-7-sonnet-20250219-v1:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
         }
       },
       {
@@ -2909,7 +877,7 @@
         "output_price_per_million": 1.25,
         "input_cached_price_per_million": 0.03,
         "additional_prices": {
-          "input_caching_write_price_per_million": 0.3
+          "input_cache_write_price_per_million": 0.3
         }
       },
       {
@@ -2922,7 +890,7 @@
         "output_price_per_million": 1.25,
         "input_cached_price_per_million": 0.03,
         "additional_prices": {
-          "input_caching_write_price_per_million": 0.3
+          "input_cache_write_price_per_million": 0.3
         }
       },
       {
@@ -2935,7 +903,7 @@
         "output_price_per_million": 75.0,
         "input_cached_price_per_million": 1.5,
         "additional_prices": {
-          "input_caching_write_price_per_million": 18.75
+          "input_cache_write_price_per_million": 18.75
         }
       },
       {
@@ -2948,7 +916,7 @@
         "output_price_per_million": 75.0,
         "input_cached_price_per_million": 1.5,
         "additional_prices": {
-          "input_caching_write_price_per_million": 18.75
+          "input_cache_write_price_per_million": 18.75
         }
       },
       {
@@ -2992,6 +960,265 @@
         "model": "claude-instant-1.2",
         "input_price_per_million": 0.8,
         "output_price_per_million": 2.4,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "e0b915d8-5b18-4ea8-8351-42cfa09f3558",
+        "created_at": "2024-10-16 17:54:35.25255+00",
+        "updated_at": "2024-10-16 17:54:35.25255+00",
+        "provider": "gemini",
+        "model": "gemini-1.0-pro",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "617ed77b-1e20-4e4b-badb-dd333127c96e",
+        "created_at": "2024-10-16 17:47:10.663951+00",
+        "updated_at": "2024-10-16 17:47:10.663951+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-flash",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "3fd165af-b55d-4c12-9e9b-3ee00bfb0812",
+        "created_at": "2024-10-16 17:48:12.168376+00",
+        "updated_at": "2024-10-16 17:48:12.168376+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-flash--long-context",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "db6db298-45ba-4b1c-99c9-f5cd097c1e9e",
+        "created_at": "2024-10-16 17:49:59.928943+00",
+        "updated_at": "2024-10-16 17:49:59.928943+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-flash-8b",
+        "input_price_per_million": 0.0375,
+        "output_price_per_million": 0.15,
+        "input_cached_price_per_million": 0.01,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "949d2c35-81b9-442c-87cd-bf1a98d12ae6",
+        "created_at": "2024-10-16 17:51:05.527007+00",
+        "updated_at": "2024-10-16 17:51:05.527007+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-flash-8b--long-context",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.02,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "66276930-843c-4fd8-9fdc-dff5c04d05ef",
+        "created_at": "2024-10-16 17:52:47.980902+00",
+        "updated_at": "2024-10-16 17:52:47.980902+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-pro",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": 0.3125,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "4d2240ad-0107-4b7b-a261-75caf4e64103",
+        "created_at": "2024-10-16 17:53:40.150074+00",
+        "updated_at": "2024-10-16 17:53:40.150074+00",
+        "provider": "gemini",
+        "model": "gemini-1.5-pro--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.625,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "e60513d8-4b58-46e2-8ac5-6a6eb2ecb346",
+        "created_at": "2025-02-24 05:01:02.564727+00",
+        "updated_at": "2025-02-24 05:01:02.564727+00",
+        "provider": "gemini",
+        "model": "gemini-2.0-flash",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "6884a324-2bcf-4ddb-83ae-6a60e08dd189",
+        "created_at": "2025-02-24 05:01:02.564727+00",
+        "updated_at": "2025-02-24 05:01:02.564727+00",
+        "provider": "gemini",
+        "model": "gemini-2.0-flash-exp",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "49c09368-3d95-4bfe-b157-6b2e7087ae7c",
+        "created_at": "2025-02-24 05:05:05.173049+00",
+        "updated_at": "2025-02-24 05:05:05.173049+00",
+        "provider": "gemini",
+        "model": "gemini-2.0-flash-lite",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "adfb6183-c610-410c-8168-77aef0d138c8",
+        "created_at": "2025-02-24 05:05:05.173049+00",
+        "updated_at": "2025-02-24 05:05:05.173049+00",
+        "provider": "gemini",
+        "model": "gemini-2.0-flash-lite-exp",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "24a482fc-5f5e-4f42-8485-76cea4a1fa81",
+        "created_at": "2025-02-24 05:05:05.173049+00",
+        "updated_at": "2025-02-24 05:05:05.173049+00",
+        "provider": "gemini",
+        "model": "gemini-2.0-flash-lite-exp-01-21",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "e0668d3d-cf04-432a-a9db-bfd5c5fe93bc",
+        "created_at": "2025-03-26 12:50:34.975519+00",
+        "updated_at": "2025-03-26 12:50:34.975519+00",
+        "provider": "gemini",
+        "model": "gemini-2.0-flash-lite-preview-02-05",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "e2b60e7e-5fae-45ff-a015-d0e63a33fb5d",
+        "created_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-flash-preview",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "27c278df-26e0-4b02-a447-b2f664ead28e",
+        "created_at": "2025-04-21 13:49:50.069719+00",
+        "updated_at": "2025-04-21 13:49:50.069719+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-flash-preview-04-17",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "f1b194fa-1aac-400e-bb5c-6c36d5c32a60",
+        "created_at": "2025-04-21 13:43:28.840993+00",
+        "updated_at": "2025-04-21 13:43:28.840993+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-exp-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "5f86da0f-284a-499a-807f-a065ce7ab0ad",
+        "created_at": "2025-04-21 13:44:29.827557+00",
+        "updated_at": "2025-04-21 13:44:29.827557+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-exp-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "331e3752-9f6d-464f-b299-a25e911e85f3",
+        "created_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-preview",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "d622ad1f-bce7-4d78-9866-ab12b2ed08ed",
+        "created_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-preview--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "3c50c0fd-1e23-44e9-ad71-2d85aa35248a",
+        "created_at": "2025-04-21 13:45:15.494032+00",
+        "updated_at": "2025-04-21 13:45:15.494032+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-preview-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "9deced75-a41e-4100-9fe7-560cebc53be1",
+        "created_at": "2025-04-21 13:45:49.1859+00",
+        "updated_at": "2025-04-21 13:45:49.1859+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-preview-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -3085,6 +1312,1234 @@
         }
       },
       {
+        "id": "8b1525d6-17ed-43e1-b033-109511029d50",
+        "created_at": "2025-02-24 05:01:02.564727+00",
+        "updated_at": "2025-02-24 05:01:02.564727+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.0-flash",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "c661a396-39d4-4a72-ba04-85cdccd1485d",
+        "created_at": "2025-02-24 05:01:02.564727+00",
+        "updated_at": "2025-02-24 05:01:02.564727+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.0-flash-exp",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "211c0a3d-dba3-4ba5-a33f-3c5effb8e73a",
+        "created_at": "2025-02-24 05:05:05.173049+00",
+        "updated_at": "2025-02-24 05:05:05.173049+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.0-flash-lite",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "b84c6619-9695-4666-a433-6904fd874e42",
+        "created_at": "2025-02-24 05:05:05.173049+00",
+        "updated_at": "2025-02-24 05:05:05.173049+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.0-flash-lite-exp",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "5f67b55c-087e-40f0-a5b2-61c97a654802",
+        "created_at": "2025-02-24 05:05:05.173049+00",
+        "updated_at": "2025-02-24 05:05:05.173049+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.0-flash-lite-exp-01-21",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "688f6ffe-59b0-4570-b9b5-dae42c4787d4",
+        "created_at": "2025-03-26 12:50:34.975519+00",
+        "updated_at": "2025-03-26 12:50:34.975519+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.0-flash-lite-preview-02-05",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "70678c85-f752-4fc3-ab16-9aa01bf0ccc4",
+        "created_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-flash-preview",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "b6acec76-0251-49fa-b37f-bb67e31b2d54",
+        "created_at": "2025-04-21 13:49:50.069719+00",
+        "updated_at": "2025-04-21 13:49:50.069719+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-flash-preview-04-17",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "d37419ea-441b-4365-99cb-0964716c2f7a",
+        "created_at": "2025-04-21 13:43:28.840993+00",
+        "updated_at": "2025-04-21 13:43:28.840993+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-exp-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "55c92f73-ce8e-4e4c-ac41-c911a3a889f1",
+        "created_at": "2025-04-21 13:44:29.827557+00",
+        "updated_at": "2025-04-21 13:44:29.827557+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-exp-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "1a28c961-1cfd-4f12-92e0-ef1cc9c15caa",
+        "created_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-preview",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "81ca44a2-eaea-4122-ba26-052542dabf4a",
+        "created_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-preview--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "5679fd41-8a17-4428-bebb-c1f5d7d8e03f",
+        "created_at": "2025-04-21 13:45:15.494032+00",
+        "updated_at": "2025-04-21 13:45:15.494032+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-preview-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "7d48af6c-4c33-4f64-bd4b-cc9def408c37",
+        "created_at": "2025-04-21 13:45:49.1859+00",
+        "updated_at": "2025-04-21 13:45:49.1859+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-preview-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "d7f85885-05ee-4209-9894-eb4b66a50d65",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-1.0-pro",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "613ebec2-cfb6-4fdf-88f4-d12f3c585c9d",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-1.5-flash",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "bf26de30-b523-4b2a-a575-7ea6f2395a17",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-1.5-flash--long-context",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "2532adc6-fb68-4c70-81de-38b7f5b3bc4f",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-1.5-flash-8b",
+        "input_price_per_million": 0.0375,
+        "output_price_per_million": 0.15,
+        "input_cached_price_per_million": 0.01,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "86439654-9aa3-4263-9e08-803b287b0606",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-1.5-flash-8b--long-context",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.02,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "9e8e6f26-179b-4b11-bb32-9271187fd063",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-1.5-pro",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": 0.3125,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "bf8617e1-bf37-4484-830d-9f65ac751c83",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-1.5-pro--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.625,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "43cc50eb-1d83-4897-984f-1b7a52293ad9",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-2.0-flash",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "69b91ad7-f9e8-40dc-9a4a-f0e32a0743db",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-2.0-flash-exp",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "f35b06f8-bffc-476b-88f6-eb4d45c1742d",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-2.0-flash-lite",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "6bdd876f-df09-4b03-b1d7-49a193264201",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-2.0-flash-lite-exp",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "f5404b77-53fb-435e-bad7-3b63839090c2",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "gemini-2.0-flash-lite-exp-01-21",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "65edfd20-404a-4354-a89b-1b9567b54aca",
+        "created_at": "2025-03-26 12:48:12.976356+00",
+        "updated_at": "2025-03-26 12:48:12.976356+00",
+        "provider": "google",
+        "model": "gemini-2.0-flash-lite-preview-02-05",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "abac95fe-84e4-4c92-9f5f-43692f6765b1",
+        "created_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "provider": "google",
+        "model": "gemini-2.5-flash-preview",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "9b3217f9-aed6-4990-bf85-4208962c537f",
+        "created_at": "2025-04-21 13:49:50.069719+00",
+        "updated_at": "2025-04-21 13:49:50.069719+00",
+        "provider": "google",
+        "model": "gemini-2.5-flash-preview-04-17",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "6ddd8538-7fe7-4a9c-8bb8-7b00411c3968",
+        "created_at": "2025-04-21 13:43:28.840993+00",
+        "updated_at": "2025-04-21 13:43:28.840993+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-exp-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "e7fe0160-733e-4941-9c1e-9dc5c4644fca",
+        "created_at": "2025-04-21 13:44:29.827557+00",
+        "updated_at": "2025-04-21 13:44:29.827557+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-exp-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "e7fc06ff-b706-4fc3-a36b-0779cac825b0",
+        "created_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-preview",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8314b54b-8cdb-4a2c-82d8-f66f3b3ad341",
+        "created_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-preview--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "a0cdee2b-7a65-4f27-a3c6-c44d77f27a56",
+        "created_at": "2025-04-21 13:45:15.494032+00",
+        "updated_at": "2025-04-21 13:45:15.494032+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-preview-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "a9b53177-441c-49ee-8959-9eaa3ba0a970",
+        "created_at": "2025-04-21 13:45:49.1859+00",
+        "updated_at": "2025-04-21 13:45:49.1859+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-preview-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "212e3dd9-4dde-467e-9fba-a54e09738c88",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-1.0-pro",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "e1b806b9-cb48-4098-8dde-34ded9ec2c38",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-1.5-flash",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "6d21d282-8966-4ddf-98df-62199b054098",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-1.5-flash--long-context",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "02bb2f9e-7fa9-4fd5-a558-ebf805668bab",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-1.5-flash-8b",
+        "input_price_per_million": 0.0375,
+        "output_price_per_million": 0.15,
+        "input_cached_price_per_million": 0.01,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "c34f6197-b21b-4b30-89f2-e8959fc77c7f",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-1.5-flash-8b--long-context",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.02,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "470fe749-fe22-4d80-bbce-915bb6146f59",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-1.5-pro",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": 0.3125,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "4cc3abb0-145d-49b1-b5f3-ec9db8991a29",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-1.5-pro--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.625,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "04e11206-fad4-4465-bd57-09cbbf9b5054",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-2.0-flash",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "ff77b79d-e075-4907-8342-d16ba84ef0bf",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-2.0-flash-exp",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "204981e8-c29c-4a60-bd5d-f29a91699308",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-2.0-flash-lite",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "5108bac8-dad2-449c-8812-10b7fd27ccc6",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-2.0-flash-lite-exp",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "0b08ec16-1407-494c-b446-b5a64d3fd7e0",
+        "created_at": "2025-03-26 12:35:02.937791+00",
+        "updated_at": "2025-03-26 12:35:02.937791+00",
+        "provider": "google",
+        "model": "models/gemini-2.0-flash-lite-exp-01-21",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "96f71ea8-746f-45b9-9710-f98261d383c9",
+        "created_at": "2025-03-26 12:48:12.976356+00",
+        "updated_at": "2025-03-26 12:48:12.976356+00",
+        "provider": "google",
+        "model": "models/gemini-2.0-flash-lite-preview-02-05",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "5cdf1388-0e1b-47c5-8ead-a6cf5278c2e0",
+        "created_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-flash-preview",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "303da308-4205-49ea-865b-91f91f00700a",
+        "created_at": "2025-04-21 13:49:50.069719+00",
+        "updated_at": "2025-04-21 13:49:50.069719+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-flash-preview-04-17",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "7a5aea9e-504c-4fa7-b2b7-f39133945a05",
+        "created_at": "2025-04-21 13:43:28.840993+00",
+        "updated_at": "2025-04-21 13:43:28.840993+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-exp-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b53df9e0-284f-4cf7-8e68-a0e67e6a3413",
+        "created_at": "2025-04-21 13:44:29.827557+00",
+        "updated_at": "2025-04-21 13:44:29.827557+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-exp-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "592608c4-ac26-4e18-aab4-322dfcd5972c",
+        "created_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-preview",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "ecf3553b-fa5a-4b8e-8071-9cf7986a15ba",
+        "created_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-preview--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "c1f2fad3-4050-4f9a-9f1d-1f95281d5490",
+        "created_at": "2025-04-21 13:45:15.494032+00",
+        "updated_at": "2025-04-21 13:45:15.494032+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-preview-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "fef42a65-08cd-40a8-8730-892bee4a6750",
+        "created_at": "2025-04-21 13:45:49.1859+00",
+        "updated_at": "2025-04-21 13:45:49.1859+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-preview-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "7b30ace1-0d9a-47b1-a19c-c3f32afc520d",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "gemini-1.0-pro",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "9efe7f6d-157e-4062-a363-b84c509cdecc",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "gemini-1.5-flash",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "e6cce4b4-0464-4aea-b8c8-9f5fc35c1778",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "gemini-1.5-flash--long-context",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "63771ed7-5e61-4056-a5d0-63ed534aedd3",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "gemini-1.5-flash-8b",
+        "input_price_per_million": 0.0375,
+        "output_price_per_million": 0.15,
+        "input_cached_price_per_million": 0.01,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "5019f039-4694-4f30-9678-9fca47eba752",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "gemini-1.5-flash-8b--long-context",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.02,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "1de72c58-5072-45cc-a036-7e5f69407705",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "gemini-1.5-pro",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": 0.3125,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "5f99dfc9-498b-46b3-b03b-19e0609c68cb",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "gemini-1.5-pro--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.625,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "8c89e9f0-196c-4f19-b6f5-539300dd5a5b",
+        "created_at": "2025-02-12 20:49:34.620323+00",
+        "updated_at": "2025-02-12 20:49:34.620323+00",
+        "provider": "google_genai",
+        "model": "gemini-2.0-flash",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "2321ab2e-bc86-451b-bb38-f6c4a9a8da19",
+        "created_at": "2025-02-09 19:53:53.633955+00",
+        "updated_at": "2025-02-09 19:53:53.633955+00",
+        "provider": "google_genai",
+        "model": "gemini-2.0-flash-exp",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "f95dd661-ad8f-47f9-9966-ea39ac0f302e",
+        "created_at": "2025-02-24 05:02:21.355899+00",
+        "updated_at": "2025-02-24 05:02:21.355899+00",
+        "provider": "google_genai",
+        "model": "gemini-2.0-flash-lite",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "21fb66ec-37cb-4ef2-b898-ab4d6122259f",
+        "created_at": "2025-02-24 05:04:14.503159+00",
+        "updated_at": "2025-02-24 05:04:14.503159+00",
+        "provider": "google_genai",
+        "model": "gemini-2.0-flash-lite-exp",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "21936e6d-7795-4f92-9349-247810ac6c74",
+        "created_at": "2025-02-24 05:04:34.641405+00",
+        "updated_at": "2025-02-24 05:04:34.641405+00",
+        "provider": "google_genai",
+        "model": "gemini-2.0-flash-lite-exp-01-21",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "aee38391-fc31-4e2a-9da8-451799dbc14d",
+        "created_at": "2025-03-26 12:50:31.199068+00",
+        "updated_at": "2025-03-26 12:50:31.199068+00",
+        "provider": "google_genai",
+        "model": "gemini-2.0-flash-lite-preview-02-05",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "94a97e12-be34-4182-b0c1-4ea6525ca7ac",
+        "created_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-flash-preview",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "fe0386b8-eb3b-45ab-971e-0101938b2d88",
+        "created_at": "2025-04-21 13:49:50.069719+00",
+        "updated_at": "2025-04-21 13:49:50.069719+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-flash-preview-04-17",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "0a7cb7f0-48ec-4c55-9e1e-48a04cec48c9",
+        "created_at": "2025-04-21 13:43:28.840993+00",
+        "updated_at": "2025-04-21 13:43:28.840993+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-exp-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b18dc047-4a10-43cb-ba18-04cb805d0652",
+        "created_at": "2025-04-21 13:44:29.827557+00",
+        "updated_at": "2025-04-21 13:44:29.827557+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-exp-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "3ea57ef8-e5ac-4990-aa7c-dca3d2aaab0b",
+        "created_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-preview",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "c4bd7701-3d64-426e-a5b0-8430d5e27d29",
+        "created_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-preview--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b26c34d1-c734-41c1-80c9-26e1ea021cb7",
+        "created_at": "2025-04-21 13:45:15.494032+00",
+        "updated_at": "2025-04-21 13:45:15.494032+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-preview-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8668fa23-28d4-4b95-bc9f-b1f3c016994b",
+        "created_at": "2025-04-21 13:45:49.1859+00",
+        "updated_at": "2025-04-21 13:45:49.1859+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-preview-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "48f962c4-8d37-4bf6-a569-09c13ef2b324",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "models/gemini-1.0-pro",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "4194a00b-ea9a-4354-a05c-85f90a76ba89",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "models/gemini-1.5-flash",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "2d870f3f-83b5-4ceb-b6f0-45955db54aa2",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "models/gemini-1.5-flash--long-context",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "858af9cd-eee9-4499-91ea-97ad70dfd545",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "models/gemini-1.5-flash-8b",
+        "input_price_per_million": 0.0375,
+        "output_price_per_million": 0.15,
+        "input_cached_price_per_million": 0.01,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "91c452fb-e448-429e-a6c5-258fd7ce2e7d",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "models/gemini-1.5-flash-8b--long-context",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.02,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 0.25
+        }
+      },
+      {
+        "id": "b9d4019f-5515-42b9-a941-e7d62a71c78f",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "models/gemini-1.5-pro",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": 0.3125,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "3ff6df88-844f-4a16-abe2-c4bfda2588c5",
+        "created_at": "2024-12-25 15:19:23.65862+00",
+        "updated_at": "2024-12-25 15:19:23.65862+00",
+        "provider": "google_genai",
+        "model": "models/gemini-1.5-pro--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.625,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 4.5
+        }
+      },
+      {
+        "id": "4b09d161-62f7-4e63-9673-e28479d1fec7",
+        "created_at": "2025-02-12 20:49:34.620323+00",
+        "updated_at": "2025-02-12 20:49:34.620323+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.0-flash",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "6d00098d-f449-42b4-b412-3ef83429a877",
+        "created_at": "2025-02-09 19:53:53.633955+00",
+        "updated_at": "2025-02-09 19:53:53.633955+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.0-flash-exp",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "c27a4969-09a2-453a-bf0e-c8d296bccf24",
+        "created_at": "2025-02-24 05:02:21.355899+00",
+        "updated_at": "2025-02-24 05:02:21.355899+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.0-flash-lite",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "270feae3-17b6-4838-90f2-f29ecd5e7337",
+        "created_at": "2025-02-24 05:04:14.503159+00",
+        "updated_at": "2025-02-24 05:04:14.503159+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.0-flash-lite-exp",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "7d3490fe-9dc4-476a-b532-6d358dc6f52f",
+        "created_at": "2025-02-24 05:04:34.641405+00",
+        "updated_at": "2025-02-24 05:04:34.641405+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.0-flash-lite-exp-01-21",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "f3b66679-7e31-4c3f-879b-815a1a9a0b68",
+        "created_at": "2025-03-26 12:50:31.199068+00",
+        "updated_at": "2025-03-26 12:50:31.199068+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.0-flash-lite-preview-02-05",
+        "input_price_per_million": 0.075,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": 0.01875,
+        "additional_prices": {
+          "input_caching_storage_price_per_million_per_hour": 1
+        }
+      },
+      {
+        "id": "1ff8f517-3eea-4bf2-a943-df66a6a4d3eb",
+        "created_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-flash-preview",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "d8f771d1-0b3a-4d08-8c44-d2856e41cb93",
+        "created_at": "2025-04-21 13:49:50.069719+00",
+        "updated_at": "2025-04-21 13:49:50.069719+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-flash-preview-04-17",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "df5e42f4-42da-4094-90c3-0a243b16fca3",
+        "created_at": "2025-04-21 13:43:28.840993+00",
+        "updated_at": "2025-04-21 13:43:28.840993+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-exp-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8a69b165-f848-4c97-8008-2e428f227953",
+        "created_at": "2025-04-21 13:44:29.827557+00",
+        "updated_at": "2025-04-21 13:44:29.827557+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-exp-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "5e76b5d0-ea45-4524-b1ca-0ab3ab0d3473",
+        "created_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-preview",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "37756036-5ae9-4f17-b997-89feeea1f1fc",
+        "created_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-preview--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "6d71f87d-9704-4e64-9adf-b3836d73b552",
+        "created_at": "2025-04-21 13:45:15.494032+00",
+        "updated_at": "2025-04-21 13:45:15.494032+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-preview-03-25",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b9f19ac6-dae7-4292-a058-004c48643a5f",
+        "created_at": "2025-04-21 13:45:49.1859+00",
+        "updated_at": "2025-04-21 13:45:49.1859+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-preview-03-25--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "2e950e43-a9d4-42b9-a3c6-6a4a20d0d491",
+        "created_at": "2025-02-09 20:29:52.870535+00",
+        "updated_at": "2025-02-09 20:29:52.870535+00",
+        "provider": "groq",
+        "model": "DeepSeek-R1-Distill-Llama-70b",
+        "input_price_per_million": 0.75,
+        "output_price_per_million": 0.99,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "9ae4577e-9394-4319-885e-32bf4944fab6",
+        "created_at": "2025-04-21 14:01:31.027969+00",
+        "updated_at": "2025-04-21 14:01:31.027969+00",
+        "provider": "groq",
+        "model": "deepseek-r1-distill-llama-70b",
+        "input_price_per_million": 0.75,
+        "output_price_per_million": 0.99,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "361a008c-02b0-415a-9e1c-c9280822ae15",
         "created_at": "2024-10-16 18:44:31.011134+00",
         "updated_at": "2024-10-16 18:44:31.011134+00",
@@ -3151,6 +2606,39 @@
         "additional_prices": {}
       },
       {
+        "id": "c9d30775-0abe-48b6-b908-c76d2adc0220",
+        "created_at": "2025-02-09 21:11:54.338616+00",
+        "updated_at": "2025-02-09 21:11:54.338616+00",
+        "provider": "groq",
+        "model": "llama-3.3-70b-versatile",
+        "input_price_per_million": 0.59,
+        "output_price_per_million": 0.79,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8caefeec-c3a1-4cea-888d-a9115eca8cb4",
+        "created_at": "2025-04-21 14:02:18.564999+00",
+        "updated_at": "2025-04-21 14:02:18.564999+00",
+        "provider": "groq",
+        "model": "llama-4-maverick-17b-128e-instruct",
+        "input_price_per_million": 0.2,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "77568584-fe62-4681-ba77-c6d536703f66",
+        "created_at": "2025-04-21 14:03:10.051906+00",
+        "updated_at": "2025-04-21 14:03:10.051906+00",
+        "provider": "groq",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "input_price_per_million": 0.11,
+        "output_price_per_million": 0.34,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "1a4f290a-b6f5-4893-b5c9-64147dd09fd0",
         "created_at": "2024-10-16 18:54:11.048926+00",
         "updated_at": "2024-10-16 18:54:11.048926+00",
@@ -3206,6 +2694,17 @@
         "additional_prices": {}
       },
       {
+        "id": "e63b09dd-c19f-407e-be00-8fa9d67876ff",
+        "created_at": "2025-04-21 13:59:49.171394+00",
+        "updated_at": "2025-04-21 13:59:49.171394+00",
+        "provider": "groq",
+        "model": "mistral-saba-24b",
+        "input_price_per_million": 0.79,
+        "output_price_per_million": 0.79,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "7ad54044-d424-4034-8712-3c24fc2c82e2",
         "created_at": "2024-10-16 18:57:51.271805+00",
         "updated_at": "2024-10-16 18:57:51.271805+00",
@@ -3217,6 +2716,17 @@
         "additional_prices": {}
       },
       {
+        "id": "342f455b-956b-408d-8945-7d071dd62380",
+        "created_at": "2025-04-21 14:00:41.67763+00",
+        "updated_at": "2025-04-21 14:00:41.67763+00",
+        "provider": "groq",
+        "model": "qwen-qwq-32b",
+        "input_price_per_million": 0.29,
+        "output_price_per_million": 0.39,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "3fa2eca0-0791-42a6-9ccb-97db77db12a9",
         "created_at": "2024-10-16 19:09:18.494467+00",
         "updated_at": "2024-10-16 19:09:18.494467+00",
@@ -3224,6 +2734,17 @@
         "model": "codestral-2405",
         "input_price_per_million": 0.2,
         "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "f02b70a3-43a8-4606-ab98-9f990d21a53e",
+        "created_at": "2025-04-21 14:05:39.608684+00",
+        "updated_at": "2025-04-21 14:05:39.608684+00",
+        "provider": "mistral",
+        "model": "codestral-latest",
+        "input_price_per_million": 0.3,
+        "output_price_per_million": 0.9,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -3272,6 +2793,17 @@
         "additional_prices": {}
       },
       {
+        "id": "3a148144-f7a4-42ef-892c-4f00f0239771",
+        "created_at": "2025-04-21 14:07:29.711175+00",
+        "updated_at": "2025-04-21 14:07:29.711175+00",
+        "provider": "mistral",
+        "model": "mistral-large-latest",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 6.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "b8e1c733-daee-48ea-844e-e934e123bba0",
         "created_at": "2024-10-16 19:13:15.189109+00",
         "updated_at": "2024-10-16 19:13:15.189109+00",
@@ -3279,6 +2811,17 @@
         "model": "mistral-nemo",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.15,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8db8e5c2-a50a-4df5-896b-6cdb4683b738",
+        "created_at": "2025-04-21 14:06:15.579352+00",
+        "updated_at": "2025-04-21 14:06:15.579352+00",
+        "provider": "mistral",
+        "model": "mistral-saba-latest",
+        "input_price_per_million": 0.2,
+        "output_price_per_million": 0.6,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -3338,6 +2881,17 @@
         "additional_prices": {}
       },
       {
+        "id": "cea8ae1a-8901-412b-af08-70bbafb1637e",
+        "created_at": "2025-04-21 14:07:02.085068+00",
+        "updated_at": "2025-04-21 14:07:02.085068+00",
+        "provider": "mistral",
+        "model": "pixtral-large-latest",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 6.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "0fbf1ca3-ac2c-41f7-bbfe-5cefcfc0be20",
         "created_at": "2024-10-16 00:21:15.924666+00",
         "updated_at": "2024-10-16 00:21:15.924666+00",
@@ -3378,6 +2932,17 @@
         "model": "chatgpt-4o-latest",
         "input_price_per_million": 5.0,
         "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "59791c80-ac74-4f5e-b5e4-ca9fb910ebbf",
+        "created_at": "2025-04-21 14:10:28.36875+00",
+        "updated_at": "2025-04-21 14:10:28.36875+00",
+        "provider": "openai",
+        "model": "computer-use-preview",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 12.0,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -3536,6 +3101,94 @@
         "additional_prices": {}
       },
       {
+        "id": "3c33b3c8-f11a-4023-8ca1-add5c2f4a865",
+        "created_at": "2025-04-21 14:31:41.931926+00",
+        "updated_at": "2025-04-21 14:31:41.931926+00",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 8.0,
+        "input_cached_price_per_million": 0.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "f36317ae-ad4a-403d-ae7f-f39eb64d8d23",
+        "created_at": "2025-04-21 14:31:24.228312+00",
+        "updated_at": "2025-04-21 14:31:24.228312+00",
+        "provider": "openai",
+        "model": "gpt-4.1-2025-04-14",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 8.0,
+        "input_cached_price_per_million": 0.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "d2e5c9e0-6856-43fc-9ea8-73326868b88b",
+        "created_at": "2025-04-21 14:32:42.648956+00",
+        "updated_at": "2025-04-21 14:32:42.648956+00",
+        "provider": "openai",
+        "model": "gpt-4.1-mini",
+        "input_price_per_million": 0.4,
+        "output_price_per_million": 1.6,
+        "input_cached_price_per_million": 0.1,
+        "additional_prices": {}
+      },
+      {
+        "id": "f03c0118-9166-4581-b205-0ad27c979c38",
+        "created_at": "2025-04-21 14:32:21.356889+00",
+        "updated_at": "2025-04-21 14:32:21.356889+00",
+        "provider": "openai",
+        "model": "gpt-4.1-mini-2025-04-14",
+        "input_price_per_million": 0.4,
+        "output_price_per_million": 1.6,
+        "input_cached_price_per_million": 0.1,
+        "additional_prices": {}
+      },
+      {
+        "id": "0e965dec-e0eb-40cc-bf24-c1294209e304",
+        "created_at": "2025-04-21 14:33:57.476489+00",
+        "updated_at": "2025-04-21 14:33:57.476489+00",
+        "provider": "openai",
+        "model": "gpt-4.1-nano",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {}
+      },
+      {
+        "id": "9d4cdbf4-3609-4291-a2f5-b971429eb6d9",
+        "created_at": "2025-04-21 14:33:28.309474+00",
+        "updated_at": "2025-04-21 14:33:28.309474+00",
+        "provider": "openai",
+        "model": "gpt-4.1-nano-2025-04-14",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {}
+      },
+      {
+        "id": "530c445d-fb61-4167-a80f-9f99812c87a9",
+        "created_at": "2025-04-21 14:29:44.302636+00",
+        "updated_at": "2025-04-21 14:29:44.302636+00",
+        "provider": "openai",
+        "model": "gpt-4.5-preview",
+        "input_price_per_million": 75.0,
+        "output_price_per_million": 150.0,
+        "input_cached_price_per_million": 37.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "3f423afb-4c1e-4398-aa69-59dbefcc4435",
+        "created_at": "2025-04-21 14:29:17.441888+00",
+        "updated_at": "2025-04-21 14:29:17.441888+00",
+        "provider": "openai",
+        "model": "gpt-4.5-preview-2025-02-27",
+        "input_price_per_million": 75.0,
+        "output_price_per_million": 150.0,
+        "input_cached_price_per_million": 37.5,
+        "additional_prices": {}
+      },
+      {
         "id": "36ed7c5d-436e-4a80-ad0d-c801ca857866",
         "created_at": "2024-10-16 00:14:35.615513+00",
         "updated_at": "2024-10-16 00:14:35.615513+00",
@@ -3575,7 +3228,7 @@
         "provider": "openai",
         "model": "gpt-4o-2024-11-20",
         "input_price_per_million": 2.5,
-        "output_price_per_million": 10,
+        "output_price_per_million": 10.0,
         "input_cached_price_per_million": 1.25,
         "additional_prices": {}
       },
@@ -3586,7 +3239,7 @@
         "provider": "openai",
         "model": "gpt-4o-audio-preview",
         "input_price_per_million": 2.5,
-        "output_price_per_million": 10,
+        "output_price_per_million": 10.0,
         "input_cached_price_per_million": null,
         "additional_prices": {
           "audio_input_price_per_million": 100,
@@ -3600,12 +3253,23 @@
         "provider": "openai",
         "model": "gpt-4o-audio-preview-2024-10-01",
         "input_price_per_million": 2.5,
-        "output_price_per_million": 10,
+        "output_price_per_million": 10.0,
         "input_cached_price_per_million": null,
         "additional_prices": {
           "audio_input_price_per_million": 100,
           "audio_output_price_per_million": 200
         }
+      },
+      {
+        "id": "8f531752-35d5-46d4-aae7-b01a31b38d8d",
+        "created_at": "2025-04-21 14:13:57.872631+00",
+        "updated_at": "2025-04-21 14:13:57.872631+00",
+        "provider": "openai",
+        "model": "gpt-4o-audio-preview-2024-12-17",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
       },
       {
         "id": "599c13b7-3fe8-44a4-bca9-54c3414100e5",
@@ -3630,14 +3294,58 @@
         "additional_prices": {}
       },
       {
+        "id": "a61a00a7-3750-4f62-969b-7880cba96b7d",
+        "created_at": "2025-04-21 14:18:06.150582+00",
+        "updated_at": "2025-04-21 14:18:06.150582+00",
+        "provider": "openai",
+        "model": "gpt-4o-mini-audio-preview",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "77b5be08-2d0c-416a-a08b-324cfcb4126b",
+        "created_at": "2025-04-21 14:19:30.783461+00",
+        "updated_at": "2025-04-21 14:19:30.783461+00",
+        "provider": "openai",
+        "model": "gpt-4o-mini-audio-preview-2024-12-17",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "3c58e95d-3632-40c4-8e55-c06a98e6cce0",
+        "created_at": "2025-04-21 14:20:39.68912+00",
+        "updated_at": "2025-04-21 14:20:39.68912+00",
+        "provider": "openai",
+        "model": "gpt-4o-mini-realtime-preview",
+        "input_price_per_million": 0.6,
+        "output_price_per_million": 2.4,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {}
+      },
+      {
+        "id": "e61bf004-a62a-469d-90f2-bad6ba2ffef9",
+        "created_at": "2025-04-21 14:20:13.316732+00",
+        "updated_at": "2025-04-21 14:20:13.316732+00",
+        "provider": "openai",
+        "model": "gpt-4o-mini-realtime-preview-2024-12-17",
+        "input_price_per_million": 0.6,
+        "output_price_per_million": 2.4,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {}
+      },
+      {
         "id": "7a4e1b6a-31b4-483a-b9af-2229003a65b2",
         "created_at": "2024-10-16 00:23:16.217913+00",
-        "updated_at": "2024-10-16 00:23:16.217913+00",
+        "updated_at": "2025-04-21 14:12:25+00",
         "provider": "openai",
         "model": "gpt-4o-realtime-preview",
         "input_price_per_million": 5.0,
         "output_price_per_million": 20.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 2.5,
         "additional_prices": {
           "audio_input_price_per_million": 100,
           "audio_output_price_per_million": 200
@@ -3658,25 +3366,58 @@
         }
       },
       {
+        "id": "f3f183ab-2092-46a9-8bf2-b81c1123d090",
+        "created_at": "2025-04-21 14:14:38.778687+00",
+        "updated_at": "2025-04-21 14:14:38.778687+00",
+        "provider": "openai",
+        "model": "gpt-4o-realtime-preview-2024-12-17",
+        "input_price_per_million": 5.0,
+        "output_price_per_million": 20.0,
+        "input_cached_price_per_million": 2.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "35062067-41ef-4270-9eaa-d9ffc4c2cdc9",
+        "created_at": "2025-04-21 14:23:38.578984+00",
+        "updated_at": "2025-04-21 14:23:38.578984+00",
+        "provider": "openai",
+        "model": "o1",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": 7.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "9e8c6544-e784-44c2-8e79-aea333536c0c",
+        "created_at": "2025-02-04 11:16:23.589371+00",
+        "updated_at": "2025-02-04 11:16:23.589371+00",
+        "provider": "openai",
+        "model": "o1-2024-12-17",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 60.0,
+        "input_cached_price_per_million": 7.5,
+        "additional_prices": {}
+      },
+      {
         "id": "c6a1ef05-2507-467a-ab23-09ab57e7ff5f",
         "created_at": "2024-10-16 00:19:31.238933+00",
-        "updated_at": "2024-10-16 00:19:31.238933+00",
+        "updated_at": "2025-04-21 14:22:21+00",
         "provider": "openai",
         "model": "o1-mini",
-        "input_price_per_million": 3.0,
-        "output_price_per_million": 12.0,
-        "input_cached_price_per_million": 1.5,
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.55,
         "additional_prices": {}
       },
       {
         "id": "0882a4b9-ccc5-4129-8988-8919a18a3fc4",
         "created_at": "2024-10-16 00:19:58.743199+00",
-        "updated_at": "2024-10-16 00:19:58.743199+00",
+        "updated_at": "2025-04-21 14:22:23+00",
         "provider": "openai",
         "model": "o1-mini-2024-09-12",
-        "input_price_per_million": 3.0,
-        "output_price_per_million": 12.0,
-        "input_cached_price_per_million": 1.5,
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.55,
         "additional_prices": {}
       },
       {
@@ -3699,6 +3440,94 @@
         "input_price_per_million": 15.0,
         "output_price_per_million": 60.0,
         "input_cached_price_per_million": 7.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "fc5e244b-5154-4ece-8498-56892e3bf1fe",
+        "created_at": "2025-04-21 14:24:55.035436+00",
+        "updated_at": "2025-04-21 14:24:55.035436+00",
+        "provider": "openai",
+        "model": "o1-pro",
+        "input_price_per_million": 150.0,
+        "output_price_per_million": 600.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "7d366da8-52d3-4b0a-a1a9-102c646e007c",
+        "created_at": "2025-04-21 14:24:42.867497+00",
+        "updated_at": "2025-04-21 14:24:42.867497+00",
+        "provider": "openai",
+        "model": "o1-pro-2025-03-19",
+        "input_price_per_million": 150.0,
+        "output_price_per_million": 600.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "edb86818-b8da-4f42-b3b6-7a81cff412e7",
+        "created_at": "2025-04-21 14:28:11.041659+00",
+        "updated_at": "2025-04-21 14:28:11.041659+00",
+        "provider": "openai",
+        "model": "o3",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 40.0,
+        "input_cached_price_per_million": 2.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "eeb5cadf-8699-45c3-94b9-d0439fa2517a",
+        "created_at": "2025-04-21 14:27:46.938844+00",
+        "updated_at": "2025-04-21 14:27:46.938844+00",
+        "provider": "openai",
+        "model": "o3-2025-04-16",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 40.0,
+        "input_cached_price_per_million": 2.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "2a7e9b8f-17d0-4cf7-94c1-9ba6733740ab",
+        "created_at": "2025-04-21 14:25:45.910453+00",
+        "updated_at": "2025-04-21 14:25:45.910453+00",
+        "provider": "openai",
+        "model": "o3-mini",
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.55,
+        "additional_prices": {}
+      },
+      {
+        "id": "e611274d-16af-44bd-92f3-1bcfa49a47f8",
+        "created_at": "2025-02-04 19:30:56.61235+00",
+        "updated_at": "2025-02-04 19:30:56.61235+00",
+        "provider": "openai",
+        "model": "o3-mini-2025-01-31",
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.55,
+        "additional_prices": {}
+      },
+      {
+        "id": "22e8952b-8974-4573-92be-082ed60c929c",
+        "created_at": "2025-04-21 14:26:28.349604+00",
+        "updated_at": "2025-04-21 14:26:28.349604+00",
+        "provider": "openai",
+        "model": "o4-mini",
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.275,
+        "additional_prices": {}
+      },
+      {
+        "id": "7a9759d8-b4db-4158-922f-05ad1da3b250",
+        "created_at": "2025-04-17 12:53:58.316019+00",
+        "updated_at": "2025-04-17 12:53:58.316019+00",
+        "provider": "openai",
+        "model": "o4-mini-2025-04-16",
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.275,
         "additional_prices": {}
       },
       {

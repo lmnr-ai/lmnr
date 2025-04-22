@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::agent_manager::channel::AgentManagerWorkers;
 use crate::agent_manager::types::RunAgentResponseStreamChunk;
 use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
+use crate::agent_manager::RunAgentParams;
 use crate::agent_manager::{types::ModelProvider, AgentManager, AgentManagerTrait};
 use crate::cache::Cache;
 use crate::db::project_api_keys::ProjectApiKey;
@@ -32,6 +33,24 @@ struct RunAgentRequest {
     enable_thinking: bool,
     #[serde(default)]
     return_screenshots: bool,
+    #[serde(default)]
+    return_agent_state: bool,
+    #[serde(default)]
+    return_storage_state: bool,
+    #[serde(default)]
+    agent_state: Option<String>,
+    #[serde(default)]
+    storage_state: Option<String>,
+    #[serde(default)]
+    timeout: Option<u64>,
+    #[serde(default)]
+    cdp_url: Option<String>,
+    #[serde(default)]
+    max_steps: Option<u64>,
+    #[serde(default)]
+    thinking_token_budget: Option<u64>,
+    #[serde(default)]
+    start_url: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -64,7 +83,12 @@ pub async fn run_agent_manager(
         {
             Ok(limits_exceeded) => {
                 if limits_exceeded.steps {
-                    return Ok(HttpResponse::Forbidden().json("Workspace step limit exceeded"));
+                    return Ok(HttpResponse::Forbidden().json(
+                        serde_json::json!({
+                            "error": "Workspace step limit exceeded",
+                            "message": "You have exceeded your step limit. Please upgrade to a paid plan to continue.",
+                        }),
+                    ));
                 }
             }
             Err(e) => {
@@ -93,7 +117,16 @@ pub async fn run_agent_manager(
             model_provider: request.model_provider,
             model: request.model,
             enable_thinking: request.enable_thinking,
+            agent_state: request.agent_state,
+            storage_state: request.storage_state,
+            timeout: request.timeout,
+            cdp_url: request.cdp_url,
+            max_steps: request.max_steps,
+            thinking_token_budget: request.thinking_token_budget,
+            start_url: request.start_url,
             return_screenshots: request.return_screenshots,
+            return_agent_state: request.return_agent_state,
+            return_storage_state: request.return_storage_state,
         };
         let pool = db.pool.clone();
         let worker_states_clone = worker_states.clone();
@@ -131,6 +164,14 @@ pub async fn run_agent_manager(
                             RunAgentResponseStreamChunk::Step(_) => {
                                 yield anyhow::Ok(agent_chunk.into());
                             }
+                            RunAgentResponseStreamChunk::Error(_) => {
+                                yield anyhow::Ok(agent_chunk.into());
+                                break;
+                            }
+                            RunAgentResponseStreamChunk::Timeout(_) => {
+                                yield anyhow::Ok(agent_chunk.into());
+                                break;
+                            }
                         }
                     }
                     Err(e) => {
@@ -153,18 +194,26 @@ pub async fn run_agent_manager(
     } else {
         let fut = tokio::spawn(async move {
             agent_manager
-                .run_agent(
-                    request.prompt,
+                .run_agent(RunAgentParams {
+                    prompt: request.prompt,
                     session_id,
-                    false,
-                    Some(project_api_key.raw),
-                    request.parent_span_context.clone(),
-                    request.model_provider,
-                    request.model.clone(),
-                    request.enable_thinking,
-                    Vec::new(),
-                    request.return_screenshots,
-                )
+                    is_chat_request: false,
+                    request_api_key: Some(project_api_key.raw),
+                    parent_span_context: request.parent_span_context.clone(),
+                    model_provider: request.model_provider,
+                    model: request.model.clone(),
+                    enable_thinking: request.enable_thinking,
+                    storage_state: request.storage_state,
+                    agent_state: request.agent_state,
+                    timeout: request.timeout,
+                    cdp_url: request.cdp_url,
+                    max_steps: request.max_steps,
+                    thinking_token_budget: request.thinking_token_budget,
+                    start_url: request.start_url,
+                    return_agent_state: request.return_agent_state,
+                    return_storage_state: request.return_storage_state,
+                    return_screenshots: request.return_screenshots,
+                })
                 .await
         });
 
@@ -187,7 +236,7 @@ pub async fn run_agent_manager(
             Err(e) if e.is_cancelled() => Ok(HttpResponse::NoContent().finish()),
             Err(e) => {
                 log::error!("Error running agent: {}", e);
-                Ok(HttpResponse::InternalServerError().finish())
+                Ok(HttpResponse::InternalServerError().body(e.to_string()))
             }
         }
     }

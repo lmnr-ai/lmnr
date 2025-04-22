@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 use super::agent_manager_grpc::{
     run_agent_response_stream_chunk::ChunkType as RunAgentResponseStreamChunkTypeGrpc,
-    ActionResult as ActionResultGrpc, AgentOutput as AgentOutputGrpc, Cookie,
+    ActionResult as ActionResultGrpc, AgentOutput as AgentOutputGrpc,
     RunAgentResponseStreamChunk as RunAgentResponseStreamChunkGrpc,
     StepChunkContent as StepChunkContentGrpc,
 };
@@ -52,31 +50,20 @@ impl Into<ActionResult> for ActionResultGrpc {
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
+#[serde(rename_all(serialize = "camelCase"))]
 pub struct AgentOutput {
     pub result: ActionResult,
-    #[serde(skip_serializing)]
-    pub cookies: Option<Vec<HashMap<String, String>>>,
-    // pub state: String,
+    pub storage_state: Option<String>,
+    pub agent_state: Option<String>,
     pub step_count: Option<u64>,
-}
-
-impl Into<Cookie> for HashMap<String, String> {
-    fn into(self) -> Cookie {
-        Cookie { cookie_data: self }
-    }
 }
 
 impl Into<AgentOutput> for AgentOutputGrpc {
     fn into(self) -> AgentOutput {
-        let cookies = self
-            .cookies
-            .into_iter()
-            .map(|c| c.cookie_data)
-            .collect::<Vec<_>>();
-
         AgentOutput {
             result: self.result.unwrap().into(),
-            cookies: (!cookies.is_empty()).then_some(cookies),
+            storage_state: self.storage_state,
+            agent_state: self.agent_state,
             step_count: self.step_count,
         }
     }
@@ -87,6 +74,8 @@ impl Into<AgentOutput> for AgentOutputGrpc {
 pub enum RunAgentResponseStreamChunk {
     Step(StepChunkContent),
     FinalOutput(FinalOutputChunkContent),
+    Error(ErrorChunkContent),
+    Timeout(StepChunkContent),
 }
 
 impl RunAgentResponseStreamChunk {
@@ -94,6 +83,8 @@ impl RunAgentResponseStreamChunk {
         match self {
             RunAgentResponseStreamChunk::Step(s) => s.message_id,
             RunAgentResponseStreamChunk::FinalOutput(f) => f.message_id,
+            RunAgentResponseStreamChunk::Error(e) => e.message_id,
+            RunAgentResponseStreamChunk::Timeout(t) => t.message_id,
         }
     }
 
@@ -101,6 +92,8 @@ impl RunAgentResponseStreamChunk {
         match self {
             RunAgentResponseStreamChunk::Step(s) => s.created_at,
             RunAgentResponseStreamChunk::FinalOutput(f) => f.created_at,
+            RunAgentResponseStreamChunk::Error(e) => e.created_at,
+            RunAgentResponseStreamChunk::Timeout(t) => t.created_at,
         }
     }
 
@@ -108,6 +101,8 @@ impl RunAgentResponseStreamChunk {
         match self {
             RunAgentResponseStreamChunk::Step(s) => s.trace_id,
             RunAgentResponseStreamChunk::FinalOutput(f) => f.trace_id,
+            RunAgentResponseStreamChunk::Error(_) => Uuid::nil(),
+            RunAgentResponseStreamChunk::Timeout(t) => t.trace_id,
         }
     }
 }
@@ -126,6 +121,8 @@ impl RunAgentResponseStreamChunk {
         match self {
             RunAgentResponseStreamChunk::Step(s) => s.message_id = message_id,
             RunAgentResponseStreamChunk::FinalOutput(f) => f.message_id = message_id,
+            RunAgentResponseStreamChunk::Error(e) => e.message_id = message_id,
+            RunAgentResponseStreamChunk::Timeout(t) => t.message_id = message_id,
         }
     }
 
@@ -139,6 +136,13 @@ impl RunAgentResponseStreamChunk {
                 "text": final_output.content.result.content.clone().unwrap_or_default(),
                 "actionResult": final_output.content.result,
             }),
+            RunAgentResponseStreamChunk::Error(error) => serde_json::json!({
+                "error": error.error,
+            }),
+            RunAgentResponseStreamChunk::Timeout(timeout) => serde_json::json!({
+                "summary": timeout.summary,
+                "actionResult": timeout.action_result,
+            }),
         }
     }
 }
@@ -149,6 +153,9 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
             RunAgentResponseStreamChunkTypeGrpc::StepChunkContent(s) => {
                 RunAgentResponseStreamChunk::Step(s.into())
             }
+            RunAgentResponseStreamChunkTypeGrpc::TimeoutChunkContent(t) => {
+                RunAgentResponseStreamChunk::Timeout(t.into())
+            }
             RunAgentResponseStreamChunkTypeGrpc::AgentOutput(a) => {
                 let output_trace_id = a.trace_id.clone();
                 RunAgentResponseStreamChunk::FinalOutput(FinalOutputChunkContent {
@@ -158,6 +165,13 @@ impl Into<RunAgentResponseStreamChunk> for RunAgentResponseStreamChunkGrpc {
                         .and_then(|id| Uuid::parse_str(&id).ok())
                         .unwrap_or(Uuid::new_v4()),
                     content: a.into(),
+                })
+            }
+            RunAgentResponseStreamChunkTypeGrpc::ErrorChunkContent(e) => {
+                RunAgentResponseStreamChunk::Error(ErrorChunkContent {
+                    created_at: chrono::Utc::now(),
+                    message_id: Uuid::new_v4(),
+                    error: e.content,
                 })
             }
         }
@@ -187,4 +201,12 @@ impl Into<StepChunkContent> for StepChunkContentGrpc {
             screenshot: self.screenshot,
         }
     }
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorChunkContent {
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub message_id: Uuid,
+    pub error: String,
 }
