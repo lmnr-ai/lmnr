@@ -34,7 +34,7 @@ export async function GET(
     pageNumber,
     pageSize,
     filters: [...baseFilters, ...getDateRangeFilters(startTime, endTime, pastHours)],
-    orderBy: desc(datasetDatapoints.createdAt),
+    orderBy: [desc(datasetDatapoints.createdAt), desc(datasetDatapoints.indexInBatch)],
     columns: {
       ...rest,
       ...customColumns,

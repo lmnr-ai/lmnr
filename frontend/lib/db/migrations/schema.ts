@@ -29,7 +29,7 @@ export const spanType = pgEnum("span_type", [
   "TOOL",
 ]);
 export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION"]);
-export const workspaceRole = pgEnum("workspace_role", ["member", "owner"]);
+export const workspaceRole = pgEnum("workspace_role", ["member", "owner", "pending"]);
 
 export const llmPrices = pgTable("llm_prices", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -659,36 +659,6 @@ export const labels = pgTable(
   ]
 );
 
-export const agentChats = pgTable(
-  "agent_chats",
-  {
-    sessionId: uuid("session_id").defaultRandom().primaryKey().notNull(),
-    chatName: text("chat_name").default("New chat").notNull(),
-    userId: uuid("user_id").notNull(),
-    machineStatus: agentMachineStatus("machine_status").default("not_started"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    agentStatus: text("agent_status").default("idle").notNull(),
-  },
-  (table) => [
-    index("agent_chats_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
-    index("agent_chats_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
-    index("agent_chats_user_id_idx").using("hash", table.userId.asc().nullsLast().op("uuid_ops")),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: "agent_chats_user_id_fkey",
-    }),
-    foreignKey({
-      columns: [table.sessionId],
-      foreignColumns: [agentSessions.sessionId],
-      name: "agent_chats_session_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
 export const agentMessages = pgTable(
   "agent_messages",
   {
@@ -893,6 +863,54 @@ export const userSubscriptionTiers = pgTable("user_subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexChatMessages: bigint("index_chat_messages", { mode: "number" }).default(sql`'0'`),
 });
+
+export const agentChats = pgTable(
+  "agent_chats",
+  {
+    sessionId: uuid("session_id").defaultRandom().primaryKey().notNull(),
+    chatName: text("chat_name").default("New chat").notNull(),
+    userId: uuid("user_id").notNull(),
+    machineStatus: agentMachineStatus("machine_status").default("not_started"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    agentStatus: text("agent_status").default("idle").notNull(),
+  },
+  (table) => [
+    index("agent_chats_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
+    index("agent_chats_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
+    index("agent_chats_user_id_idx").using("hash", table.userId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "agent_chats_user_id_fkey",
+    }),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [agentSessions.sessionId],
+      name: "agent_chats_session_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const workspaceInvitations = pgTable(
+  "workspace_invitations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    email: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_invitations_workspace_id_fkey",
+    }).onDelete("cascade"),
+    unique("workspace_invitations_workspace_id_email_key").on(table.workspaceId, table.email),
+  ]
+);
 
 export const machines = pgTable(
   "machines",
