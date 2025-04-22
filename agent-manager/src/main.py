@@ -71,6 +71,9 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 model=request.model if request.HasField("model") else "claude-3-7-sonnet-20250219",
                 enable_thinking=request.enable_thinking if request.HasField("enable_thinking") else True,
                 storage_state=request.storage_state if request.HasField("storage_state") else None,
+                return_agent_state=request.return_agent_state if request.HasField("return_agent_state") else False,
+                return_storage_state=request.return_storage_state if request.HasField("return_storage_state") else False,
+                return_screenshots=request.return_screenshots if request.HasField("return_screenshots") else False,
             )
 
             await self._update_agent_machine_status(
@@ -103,7 +106,6 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 close_context=True,
                 session_id=request.session_id,
                 max_steps=request.max_steps,
-                thinking_token_budget=request.thinking_token_budget,
                 start_url=request.start_url,
                 return_agent_state=request.return_agent_state,
                 return_storage_state=request.return_storage_state,
@@ -198,6 +200,9 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 model=request.model if request.HasField("model") else "claude-3-7-sonnet-20250219",
                 enable_thinking=request.enable_thinking if request.HasField("enable_thinking") else True,
                 storage_state=request.storage_state if request.HasField("storage_state") else None,
+                return_agent_state=request.return_agent_state if request.HasField("return_agent_state") else False,
+                return_storage_state=request.return_storage_state if request.HasField("return_storage_state") else False,
+                return_screenshots=request.return_screenshots if request.HasField("return_screenshots") else False,
             )
 
 
@@ -234,14 +239,10 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 prev_step=None,
                 step_span_context=None,
                 # timeout in seconds
-                timeout=request.timeout,
+                timeout=request.timeout if request.HasField("timeout") else None,
                 session_id=request.session_id,
-                max_steps=request.max_steps,
-                thinking_token_budget=request.thinking_token_budget,
-                start_url=request.start_url,
-                return_screenshots=request.return_screenshots,
-                return_agent_state=request.return_agent_state,
-                return_storage_state=request.return_storage_state,
+                max_steps=request.max_steps if request.HasField("max_steps") else 100,
+                # start_url=request.start_url,
             ):
                 if isinstance(chunk, StepChunk):
                     logger.info(f"Step chunk summary: {chunk.content.summary}")
@@ -352,15 +353,15 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
         enable_thinking: bool = True,
         thinking_token_budget: Optional[int] = 8192,
         storage_state: Optional[str] = None,
+        return_agent_state: bool = False,
+        return_storage_state: bool = False,
+        return_screenshots: bool = False,
     ) -> Agent:
         """Initialize the browser agent with the given configuration"""
-        
-        cv_model_endpoint = os.environ.get("CV_MODEL_ENDPOINT", None)
 
         browser_config = BrowserConfig(
             cdp_url=cdp_url,
             storage_state=json.loads(storage_state) if storage_state else None,
-            cv_model_endpoint=cv_model_endpoint
         )
 
         
@@ -379,7 +380,7 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
 
         agent = Agent(
             browser_config=browser_config,
-            llm=llm_provider,
+            llm=llm_provider
         )
 
         return agent
@@ -534,7 +535,6 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
         close_context: bool = False,
         session_id: Optional[str] = None,
         max_steps: Optional[int] = 100,
-        thinking_token_budget: Optional[int] = 8192,
         start_url: Optional[str] = None,
         return_agent_state: bool = False,
         return_storage_state: bool = False,
@@ -549,17 +549,13 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
             agent_state=agent_state,
             close_context=close_context,
             session_id=session_id,
-            thinking_token_budget=thinking_token_budget,
-            start_url=start_url,
-            return_agent_state=return_agent_state,
-            return_storage_state=return_storage_state,
-            return_screenshots=return_screenshots,
+            # start_url=start_url,
         )
         
         return {
-            "agent_state": output.agent_state.model_dump_json(),
+            "agent_state": output.agent_state.model_dump_json() if return_agent_state else None,
             "result": output.result.model_dump(),
-            "storage_state": output.storage_state,
+            "storage_state": json.dumps(output.storage_state) if output.storage_state and return_storage_state else None,
             "step_count": output.step_count,
             "trace_id": output.trace_id,
         }
