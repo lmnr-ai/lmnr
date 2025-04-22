@@ -1,3 +1,5 @@
+"use client";
+
 import { useParams, useSearchParams } from "next/navigation";
 import { createContext, PropsWithChildren, useContext, useMemo } from "react";
 import useSWR, { KeyedMutator } from "swr";

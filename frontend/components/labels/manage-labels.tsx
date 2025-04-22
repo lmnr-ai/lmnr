@@ -1,3 +1,4 @@
+"use client";
 import { PropsWithChildren, useMemo, useState } from "react";
 
 import CreateLabel from "@/components/labels/create-label";

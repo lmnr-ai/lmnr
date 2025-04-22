@@ -14,7 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useProjectContext } from "@/contexts/project-context";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
@@ -44,8 +43,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [totalDuration, setTotalDuration] = useState(0);
     const [speed, setSpeed] = useState(1);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-    const [startTime, setStartTime] = useState(0);
-    const { projectId } = useProjectContext();
+    const [, setStartTime] = useState(0);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -68,11 +66,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const getEvents = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
+        const res = await fetch(`/api/shared/traces/${traceId}/browser-sessions/events`, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
         });
 
         const reader = res.body?.getReader();
@@ -275,6 +270,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           .rr-controller {
             background-color: transparent !important;
             color: white !important;
+            text-color: white !important;
           }
 
           /* Using the provided cursor SVG with white outline */
