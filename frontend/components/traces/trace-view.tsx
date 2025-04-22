@@ -1,11 +1,12 @@
 import { ChartNoAxesGantt, ChevronsRight, Disc, Expand } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
+import { useToast } from "@/lib/hooks/use-toast";
 import { Span, SpanType, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -24,10 +25,6 @@ import Timeline from "./timeline";
 export interface TraceViewHandle {
   toggleBrowserSession: () => void;
   resetSelectedSpan: () => void;
-  getCurrentState: () => {
-    showingBrowserSession: boolean;
-    selectedSpanId: string | null;
-  };
 }
 
 interface TraceViewProps {
@@ -43,6 +40,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useProjectContext();
+  const { toast } = useToast();
 
   const container = useRef<HTMLDivElement>(null);
   // containerHeight refers to the height of the trace view container
@@ -71,10 +69,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
           router.push(`${pathName}?${searchParams.toString()}`);
         }, 10);
       },
-      getCurrentState: () => ({
-        showingBrowserSession: showBrowserSession,
-        selectedSpanId: selectedSpan?.spanId || null,
-      }),
     }),
     [spans, showBrowserSession, searchParams, pathName, router]
   );
@@ -96,23 +90,31 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
 
-  useEffect(() => {
-    const fetchTrace = async () => {
-      const trace = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
-      return await trace.json();
-    };
+  const handleFetchTrace = useCallback(() => {
+    try {
+      const fetchTrace = async () => {
+        const trace = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
+        return await trace.json();
+      };
 
-    if (propsTrace) {
-      setTrace(propsTrace);
-    } else {
-      fetchTrace().then((trace) => {
-        setTrace(trace);
-        if (trace.hasBrowserSession) {
-          setShowBrowserSession(true);
-        }
-      });
+      if (propsTrace) {
+        setTrace(propsTrace);
+      } else {
+        fetchTrace().then((trace) => {
+          setTrace(trace);
+          if (trace.hasBrowserSession) {
+            setShowBrowserSession(true);
+          }
+        });
+      }
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to load trace. Please try again." });
     }
-  }, [projectId, traceId]);
+  }, [projectId, propsTrace, toast, traceId]);
+
+  useEffect(() => {
+    handleFetchTrace();
+  }, [handleFetchTrace, projectId, traceId]);
 
   useEffect(() => {
     const childSpans = {} as { [key: string]: Span[] };
@@ -358,6 +360,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
           {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
           {(trace || propsTrace) && (
             <ShareTraceButton
+              refetch={handleFetchTrace}
               trace={{ id: traceId, visibility: (propsTrace || trace)?.visibility }}
               projectId={projectId}
             />

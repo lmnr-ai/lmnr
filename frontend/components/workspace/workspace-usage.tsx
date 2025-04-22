@@ -147,8 +147,8 @@ interface UsageProgressDiscProps {
 }
 
 const UsageProgressDisc = ({ maxValue, value, data, dataKey }: UsageProgressDiscProps) => {
-  const endAngle = -90;
-  const startAngle = endAngle + (Math.min(value, maxValue) / maxValue) * 360;
+  const startAngle = 90;
+  const endAngle = startAngle - (Math.min(value, maxValue) / maxValue) * 360;
 
   return (
     <ChartContainer config={{}} className="aspect-square h-16 w-16">
