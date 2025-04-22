@@ -1,10 +1,10 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import TraceView from "@/components/shared/traces/trace-view";
 import { db } from "@/lib/db/drizzle";
-import { traces } from "@/lib/db/migrations/schema";
-import { Trace } from "@/lib/traces/types";
+import { spans, traces } from "@/lib/db/migrations/schema";
+import { Span, Trace } from "@/lib/traces/types";
 
 export default async function SharedTracePage(props: { params: Promise<{ traceId: string }> }) {
   const { traceId } = await props.params;
@@ -13,11 +13,17 @@ export default async function SharedTracePage(props: { params: Promise<{ traceId
     where: eq(traces.id, traceId),
   })) as undefined | Trace;
 
-  // TODO: make check by visibility
-  // || trace.visibility !== "public"
-  if (!trace) {
+  if (!trace || trace.visibility !== "public") {
     return notFound();
   }
 
-  return <TraceView trace={trace} spans={[]} {...props} />;
+  const spansResult = (await db.query.spans.findMany({
+    where: eq(spans.traceId, traceId),
+    orderBy: asc(spans.startTime),
+    with: {
+      events: true,
+    },
+  })) as unknown as Span[];
+
+  return <TraceView trace={trace} spans={spansResult} />;
 }

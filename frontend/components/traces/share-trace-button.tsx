@@ -1,5 +1,7 @@
+"use client";
 import { Globe, Lock, Share } from "lucide-react";
-import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import React from "react";
 
 import { CopyLinkButton } from "@/components/traces/copy-link-button";
 import { Button } from "@/components/ui/button";
@@ -7,10 +9,14 @@ import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/compone
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
+import { Trace } from "@/lib/traces/types";
 
-const ShareTraceButton = ({ traceId, projectId }: { traceId: string; projectId: string }) => {
-  const [mode, setMode] = useState("public");
-  const url = `/shared/traces/${traceId}`;
+const ShareTraceButton = ({ trace, projectId }: { trace: Pick<Trace, "id" | "visibility">; projectId: string }) => {
+  const traceId = trace.id;
+  const router = useRouter();
+
+  const url = `${window.location.origin}/shared/traces/${traceId}`;
+
   const { toast } = useToast();
   const handleChangeVisibility = async (value: "private" | "public") => {
     try {
@@ -25,6 +31,7 @@ const ShareTraceButton = ({ traceId, projectId }: { traceId: string; projectId: 
         toast({
           title: "Trace privacy updated.",
         });
+        router.refresh();
       } else {
         const text = await res.json();
         toast({ variant: "destructive", title: "Error", description: text });
@@ -44,7 +51,7 @@ const ShareTraceButton = ({ traceId, projectId }: { traceId: string; projectId: 
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button className="hover:bg-secondary px-1.5 ml-auto" variant="ghost">
+              <Button className="hover:bg-secondary px-1.5" variant="ghost">
                 <Share className="w-4 h-4" />
               </Button>
             </PopoverTrigger>
@@ -57,10 +64,10 @@ const ShareTraceButton = ({ traceId, projectId }: { traceId: string; projectId: 
             <span className="text-sm text-secondary-foreground mt-2">Configure who has access to this chat.</span>
           </div>
           <div className="flex items-center space-x-2">
-            <Select value={mode} onValueChange={setMode}>
-              <SelectTrigger value={mode} className="text-sm min-w-4 h-8">
+            <Select value={trace.visibility || "private"} onValueChange={handleChangeVisibility}>
+              <SelectTrigger value={trace.visibility || "private"} className="text-sm min-w-4 h-8">
                 <SelectValue placeholder="Select access">
-                  {mode === "public" ? (
+                  {trace.visibility === "public" ? (
                     <div className="flex items-center">
                       <Globe className="text-secondary-foreground h-4 w-4 mr-2" />
                       <span>Public</span>
@@ -95,11 +102,11 @@ const ShareTraceButton = ({ traceId, projectId }: { traceId: string; projectId: 
               </SelectContent>
             </Select>
           </div>
-          <div onClick={() => toast({ description: "asdasd" })} className="flex flex-row-reverse gap-2">
+          <div className="flex flex-row-reverse gap-2">
             <PopoverClose asChild>
               <Button variant="lightSecondary">Done</Button>
             </PopoverClose>
-            {mode === "public" && (
+            {trace.visibility === "public" && (
               <CopyLinkButton url={url}>
                 <span>Copy link</span>
               </CopyLinkButton>

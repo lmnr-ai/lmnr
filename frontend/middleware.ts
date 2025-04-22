@@ -30,16 +30,16 @@ async function checkProjectAuthorization(projectId?: string, apiKey?: string): P
 
 async function checkTraceVisibility(traceId: string): Promise<boolean> {
   try {
-    // const trace = await db.query.traces.findFirst({
-    //   where: eq(traces.id, traceId),
-    // });
-    //
-    // if (!trace) {
-    //   return false;
-    // }
+    const res = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/traces/${traceId}`, {
+      method: "GET",
+    });
 
-    // return trace?.visibility === "public";
-    return true;
+    if (!res.ok) {
+      return false;
+    }
+
+    const data = (await res.json()) as { visibility: string };
+    return data.visibility === "public";
   } catch (error) {
     return false;
   }

@@ -1,20 +1,23 @@
 "use client";
 
 import { ChartNoAxesGantt, Disc } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
+import smallLogo from "@/assets/logo/icon.svg";
+import SessionPlayer, { SessionPlayerHandle } from "@/components/shared/traces/session-player";
+import { SpanView } from "@/components/shared/traces/span-view";
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
-import SessionPlayer, { SessionPlayerHandle } from "@/components/traces/session-player";
 import { SpanCard } from "@/components/traces/span-card";
-import { SpanView } from "@/components/traces/span-view";
 import StatsShields from "@/components/traces/stats-shields";
 import Timeline from "@/components/traces/timeline";
 import { Button } from "@/components/ui/button";
+import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Span, SpanType, Trace } from "@/lib/traces/types";
+import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 interface TraceViewProps {
@@ -26,7 +29,6 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
   const params = useSearchParams();
   const searchParams = useMemo(() => new URLSearchParams(params.toString()), [params]);
 
-  console.log(trace);
   const router = useRouter();
   const pathName = usePathname();
 
@@ -116,7 +118,13 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
 
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
-      <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+      <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
+        <Link className="mr-2" href="/projects">
+          <Image alt="Laminar AI logo" src={smallLogo} width={20} height={20} />
+        </Link>
+        <span>Trace</span>
+        <MonoWithCopy className="text-secondary-foreground">{trace.id}</MonoWithCopy>
+        <div className="flex-grow" />
         {selectedSpan && (
           <Button
             variant={"secondary"}
@@ -147,14 +155,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
         {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
       </div>
       <div className="flex-grow flex">
-        {(!trace || spans.length === 0) && (
-          <div className="w-full p-4 h-full flex flex-col space-y-2">
-            <Skeleton className="w-full h-8" />
-            <Skeleton className="w-full h-8" />
-            <Skeleton className="w-full h-8" />
-          </div>
-        )}
-        {trace && spans.length > 0 && (
+        {spans.length > 0 && (
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>
               <div className="flex h-full w-full relative" ref={container}>
@@ -181,10 +182,9 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                             }}
                           >
                             <td
-                              className={cn(
-                                "p-0 border-r left-0 bg-background flex-none",
-                                !selectedSpan ? "sticky z-50" : ""
-                              )}
+                              className={cn("p-0 border-r left-0 bg-background flex-none", {
+                                "sticky z-50": !selectedSpan,
+                              })}
                             >
                               <div className="flex flex-col pb-4" ref={traceTreePanel}>
                                 <StatsShields
@@ -257,7 +257,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                 </div>
                 {selectedSpan && (
                   <div style={{ width: containerWidth - timelineWidth }}>
-                    <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+                    <SpanView span={selectedSpan} traceId={trace.id} />
                   </div>
                 )}
               </div>
@@ -292,88 +292,3 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
     </div>
   );
 }
-
-const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
-  const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
-  const pendingSpans = new Map<string, Span>();
-
-  // First, add all existing pending spans to the pendingSpans map
-  for (const span of existingSpans) {
-    if (span.pending) {
-      pendingSpans.set(span.spanId, span);
-    }
-  }
-
-  for (const span of existingSpans) {
-    if (span.parentSpanId) {
-      const parentSpanIds = span.attributes["lmnr.span.ids_path"] as string[] | undefined;
-      const parentSpanNames = span.attributes["lmnr.span.path"] as string[] | undefined;
-
-      if (
-        parentSpanIds === undefined ||
-        parentSpanNames === undefined ||
-        parentSpanIds.length === 0 ||
-        parentSpanNames.length === 0 ||
-        parentSpanIds.length !== parentSpanNames.length
-      ) {
-        continue;
-      }
-
-      const startTime = new Date(span.startTime);
-      const endTime = new Date(span.endTime);
-      for (let i = 0; i < parentSpanIds.length; i++) {
-        const spanId = parentSpanIds[i];
-        const spanName = parentSpanNames[i];
-
-        // Skip if this span exists and is not pending
-        if (existingSpanIds.has(spanId) && !pendingSpans.has(spanId)) {
-          continue;
-        }
-
-        if (pendingSpans.has(spanId)) {
-          // Update the time range of the pending span to cover all its children
-          const existingStartTime = new Date(pendingSpans.get(spanId)!.startTime);
-          const existingEndTime = new Date(pendingSpans.get(spanId)!.endTime);
-          pendingSpans.set(spanId, {
-            ...pendingSpans.get(spanId)!,
-            startTime: (startTime < existingStartTime ? startTime : existingStartTime).toISOString(),
-            endTime: (endTime > existingEndTime ? endTime : existingEndTime).toISOString(),
-          });
-          continue;
-        }
-
-        const parentSpanId = i > 0 ? parentSpanIds[i - 1] : null;
-        const parentSpanName = i > 0 ? parentSpanNames[i - 1] : null;
-        const pendingSpan = {
-          spanId,
-          name: spanName,
-          parentSpanId,
-          parentSpanName,
-          startTime: new Date(span.startTime).toISOString(),
-          endTime: new Date(span.endTime).toISOString(),
-          attributes: {},
-          events: [],
-          logs: [],
-          spans: [],
-          traceId: span.traceId,
-          traceName: span.name,
-          input: null,
-          output: null,
-          inputPreview: null,
-          outputPreview: null,
-          spanType: SpanType.DEFAULT,
-          path: "",
-          inputUrl: null,
-          outputUrl: null,
-          pending: true,
-        } as Span;
-        pendingSpans.set(spanId, pendingSpan);
-      }
-    }
-  }
-
-  // Filter out existing spans that are pending (to avoid duplicates)
-  const nonPendingExistingSpans = existingSpans.filter((span) => !span.pending);
-
-  return [...nonPendingExistingSpans, ...pendingSpans.values()];
-};

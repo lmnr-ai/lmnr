@@ -1,8 +1,9 @@
 import { ChartNoAxesGantt, ChevronsRight, Disc, Expand } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
 
+import ShareTraceButton from "@/components/traces/share-trace-button";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Span, SpanType, Trace } from "@/lib/traces/types";
@@ -20,14 +21,24 @@ import { SpanView } from "./span-view";
 import StatsShields from "./stats-shields";
 import Timeline from "./timeline";
 
+export interface TraceViewHandle {
+  toggleBrowserSession: () => void;
+  resetSelectedSpan: () => void;
+  getCurrentState: () => {
+    showingBrowserSession: boolean;
+    selectedSpanId: string | null;
+  };
+}
+
 interface TraceViewProps {
   traceId: string;
   propsTrace?: Trace;
   onClose: () => void;
   fullScreen?: boolean;
+  ref?: Ref<TraceViewHandle>;
 }
 
-export default function TraceView({ traceId, onClose, propsTrace, fullScreen = false }: TraceViewProps) {
+export default function TraceView({ traceId, onClose, propsTrace, fullScreen = false, ref }: TraceViewProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const router = useRouter();
   const pathName = usePathname();
@@ -49,6 +60,24 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const [spans, setSpans] = useState<Span[]>([]);
   const spansRef = useRef<Span[]>([]);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      toggleBrowserSession: () => setShowBrowserSession((prev) => !prev),
+      resetSelectedSpan: () => {
+        setSelectedSpan(null);
+        setTimeout(() => {
+          searchParams.delete("spanId");
+          router.push(`${pathName}?${searchParams.toString()}`);
+        }, 10);
+      },
+      getCurrentState: () => ({
+        showingBrowserSession: showBrowserSession,
+        selectedSpanId: selectedSpan?.spanId || null,
+      }),
+    }),
+    [spans, showBrowserSession, searchParams, pathName, router]
+  );
   // Keep ref updated
   useEffect(() => {
     spansRef.current = spans;
@@ -275,45 +304,39 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
-      <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
-        {!fullScreen && (
-          <>
-            <Button
-              variant={"ghost"}
-              className="px-1"
-              onClick={() => {
-                searchParams.delete("spanId");
-                router.push(`${pathName}?${searchParams.toString()}`);
-                onClose();
-              }}
-            >
-              <ChevronsRight />
+      {!fullScreen && (
+        <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+          <Button
+            variant={"ghost"}
+            className="px-0"
+            onClick={() => {
+              searchParams.delete("spanId");
+              router.push(`${pathName}?${searchParams.toString()}`);
+              onClose();
+            }}
+          >
+            <ChevronsRight />
+          </Button>
+          <Link
+            passHref
+            href={`/project/${projectId}/traces/${traceId}?spanId=${searchParams.get("spanId")}&traceId=${traceId}`}
+          >
+            <Button variant="ghost" className="px-0 mr-1" onClick={() => {}}>
+              <Expand className="w-4 h-4" size={16} />
             </Button>
-            <Link
-              passHref
-              href={`/project/${projectId}/traces/${traceId}?spanId=${searchParams.get("spanId")}&traceId=${traceId}`}
-            >
-              <Button variant="ghost" className="px-1" onClick={() => {}}>
-                <Expand />
-              </Button>
-            </Link>
-            <div className="flex items-center space-x-2">
-              <div>Trace</div>
-              <MonoWithCopy className="text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
-            </div>
-            <div className="flex-grow" />
-          </>
-        )}
-        <div className="flex items-center space-x-2">
+          </Link>
+          <div className="flex items-center space-x-2">
+            <div>Trace</div>
+            <MonoWithCopy className="text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
+          </div>
+          <div className="flex-grow" />
           {selectedSpan && (
             <Button
               variant={"secondary"}
               onClick={() => {
                 setSelectedSpan(null);
-                setTimeout(() => {
-                  searchParams.delete("spanId");
-                  router.push(`${pathName}?${searchParams.toString()}`);
-                }, 10);
+                searchParams.delete("spanId");
+                router.push(`${pathName}?${searchParams.toString()}`);
               }}
             >
               <ChartNoAxesGantt size={16} className="mr-2" />
@@ -333,8 +356,14 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
           )}
 
           {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
+          {(trace || propsTrace) && (
+            <ShareTraceButton
+              trace={{ id: traceId, visibility: (propsTrace || trace)?.visibility }}
+              projectId={projectId}
+            />
+          )}
         </div>
-      </div>
+      )}
       <div className="flex-grow flex">
         {(!trace || spans.length === 0) && (
           <div className="w-full p-4 h-full flex flex-col space-y-2">
@@ -412,10 +441,10 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                                           });
                                         }}
                                         onSpanSelect={(span) => {
-                                          setSelectedSpan(span);
-                                          setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
                                           searchParams.set("spanId", span.spanId);
                                           router.push(`${pathName}?${searchParams.toString()}`);
+                                          setSelectedSpan(span);
+                                          setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
                                         }}
                                         onSelectTime={(time) => {
                                           browserSessionRef.current?.goto(time);
