@@ -103,6 +103,8 @@ pub mod run_agent_response_stream_chunk {
 pub enum ModelProvider {
     Anthropic = 0,
     Bedrock = 1,
+    Openai = 2,
+    Gemini = 3,
 }
 impl ModelProvider {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -113,6 +115,8 @@ impl ModelProvider {
         match self {
             Self::Anthropic => "ANTHROPIC",
             Self::Bedrock => "BEDROCK",
+            Self::Openai => "OPENAI",
+            Self::Gemini => "GEMINI",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -120,6 +124,8 @@ impl ModelProvider {
         match value {
             "ANTHROPIC" => Some(Self::Anthropic),
             "BEDROCK" => Some(Self::Bedrock),
+            "OPENAI" => Some(Self::Openai),
+            "GEMINI" => Some(Self::Gemini),
             _ => None,
         }
     }

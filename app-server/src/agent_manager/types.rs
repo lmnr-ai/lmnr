@@ -14,6 +14,8 @@ use super::agent_manager_grpc::{
 pub enum ModelProvider {
     Anthropic,
     Bedrock,
+    Openai,
+    Gemini,
 }
 
 impl ModelProvider {
@@ -21,6 +23,8 @@ impl ModelProvider {
         match self {
             ModelProvider::Anthropic => 0,
             ModelProvider::Bedrock => 1,
+            ModelProvider::Openai => 2,
+            ModelProvider::Gemini => 3,
         }
     }
 }

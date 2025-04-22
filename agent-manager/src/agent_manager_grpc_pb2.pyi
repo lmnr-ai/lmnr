@@ -9,8 +9,12 @@ class ModelProvider(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     ANTHROPIC: _ClassVar[ModelProvider]
     BEDROCK: _ClassVar[ModelProvider]
+    OPENAI: _ClassVar[ModelProvider]
+    GEMINI: _ClassVar[ModelProvider]
 ANTHROPIC: ModelProvider
 BEDROCK: ModelProvider
+OPENAI: ModelProvider
+GEMINI: ModelProvider
 
 class RunAgentRequest(_message.Message):
     __slots__ = ("prompt", "session_id", "is_chat_request", "request_api_key", "cdp_url", "parent_span_context", "model_provider", "model", "enable_thinking", "return_screenshots", "return_agent_state", "return_storage_state", "storage_state", "agent_state", "timeout", "max_steps", "thinking_token_budget", "start_url")

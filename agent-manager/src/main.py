@@ -15,14 +15,13 @@ from scrapybara import Scrapybara
 import agent_manager_grpc_pb2 as pb2
 import agent_manager_grpc_pb2_grpc as pb2_grpc
 
-from index import Agent, AnthropicProvider, BrowserConfig
+from index import Agent, AnthropicProvider, AnthropicBedrockProvider, BrowserConfig, OpenAIProvider, GeminiProvider
 from index.agent.agent import (
     FinalOutputChunk,
     StepChunk,
     StepChunkError,
     TimeoutChunk,
 )
-from index.llm.providers.anthropic_bedrock import AnthropicBedrockProvider
 
 # Add logging configuration
 logging.basicConfig(
@@ -370,6 +369,11 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
             llm_provider = AnthropicProvider(model=model, enable_thinking=enable_thinking, thinking_token_budget=thinking_token_budget)
         elif provider.lower() == "bedrock":
             llm_provider = AnthropicBedrockProvider(model=model, enable_thinking=enable_thinking, thinking_token_budget=thinking_token_budget)
+        elif provider.lower() == "openai":
+            # TODO: add a heuristic to convert thinking_token_budget to reasoning_effort
+            llm_provider = OpenAIProvider(model=model)
+        elif provider.lower() == "gemini":
+            llm_provider = GeminiProvider(model=model, thinking_token_budget=thinking_token_budget)
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
