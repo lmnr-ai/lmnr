@@ -12,7 +12,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { apiKeys, membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
 
-const expiryInMinutes = 5;
+const INVITATION_EXPIRY_MINUTES = 2880;
 
 const verifyToken = (token: string): JwtPayload => {
   try {
@@ -95,7 +95,8 @@ export default async function SignInPage(props: {
     where: eq(workspaceInvitations.id, decoded.id),
   });
 
-  const isExpired = !invitation || differenceInMinutes(new Date(), new Date(invitation?.createdAt)) > expiryInMinutes;
+  const isExpired =
+    !invitation || differenceInMinutes(new Date(), new Date(invitation?.createdAt)) > INVITATION_EXPIRY_MINUTES;
 
   async function acceptInvitation() {
     "use server";
