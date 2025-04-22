@@ -319,9 +319,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
           </Button>
           <Link
             passHref
-            href={`/project/${projectId}/traces/${traceId}?traceId=${traceId}${
-              selectedSpan ? `&spanId=${selectedSpan.spanId}` : ""
-            }`}
+            href={`/project/${projectId}/traces/${traceId}${selectedSpan ? `?spanId=${selectedSpan.spanId}` : ""}`}
           >
             <Button variant="ghost" className="px-0 mr-1">
               <Expand className="w-4 h-4" size={16} />
