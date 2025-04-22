@@ -40,8 +40,16 @@ const nextConfig = {
     }
     return config;
   },
-  experimental: {
-    turbo: {}
+  turbopack: {
+    resolveExtensions: [
+      '.ts',
+      '.tsx',
+      '.js',
+      '.jsx',
+      '.json',
+      '.css',
+      '.scss',
+    ]
   },
 };
 

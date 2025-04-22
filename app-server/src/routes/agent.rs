@@ -70,6 +70,15 @@ pub async fn run_agent_manager(
             model_provider: request.model_provider,
             model: request.model,
             enable_thinking: request.enable_thinking,
+            agent_state: None,
+            storage_state: None,
+            timeout: None,
+            cdp_url: None,
+            max_steps: None,
+            thinking_token_budget: None,
+            start_url: None,
+            return_agent_state: true,
+            return_storage_state: true,
             return_screenshots: false,
         };
         // Run agent worker
@@ -101,6 +110,14 @@ pub async fn run_agent_manager(
                         }
                         RunAgentResponseStreamChunk::Step(_) => {
                             yield anyhow::Ok(agent_chunk.into());
+                        }
+                        RunAgentResponseStreamChunk::Error(_) => {
+                            yield anyhow::Ok(agent_chunk.into());
+                            break;
+                        }
+                        RunAgentResponseStreamChunk::Timeout(_) => {
+                            yield anyhow::Ok(agent_chunk.into());
+                            break;
                         }
                     }
                 }
