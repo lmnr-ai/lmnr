@@ -13,10 +13,7 @@ import { Trace as TraceType } from "@/lib/traces/types";
 
 const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) => {
   const searchParams = useSearchParams();
-  const showTimeline = useMemo(
-    () => !!searchParams.get("spanId") && searchParams.get("spanId") !== "null",
-    [searchParams]
-  );
+  const showTimeline = useMemo(() => !!searchParams.get("spanId"), [searchParams]);
   const traceViewRef = useRef<TraceViewHandle>(null);
 
   return (
