@@ -11,7 +11,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/lib/hooks/use-toast";
 import { Trace } from "@/lib/traces/types";
 
-const ShareTraceButton = ({ trace, projectId }: { trace: Pick<Trace, "id" | "visibility">; projectId: string }) => {
+const ShareTraceButton = ({
+  trace,
+  projectId,
+  refetch,
+}: {
+  trace: Pick<Trace, "id" | "visibility">;
+  projectId: string;
+  refetch?: () => void;
+}) => {
   const traceId = trace.id;
   const router = useRouter();
 
@@ -31,7 +39,11 @@ const ShareTraceButton = ({ trace, projectId }: { trace: Pick<Trace, "id" | "vis
         toast({
           title: "Trace privacy updated.",
         });
-        router.refresh();
+        if (refetch) {
+          refetch();
+        } else {
+          router.refresh();
+        }
       } else {
         const text = await res.json();
         toast({ variant: "destructive", title: "Error", description: text });
