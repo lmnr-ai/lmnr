@@ -1,3 +1,4 @@
+"use client";
 import { CheckedState } from "@radix-ui/react-checkbox";
 import { isEmpty } from "lodash";
 import { Plus } from "lucide-react";

@@ -1,4 +1,3 @@
-
 export interface LaminarSpanContext {
   traceId: string;
   spanId: string;
@@ -41,8 +40,9 @@ export interface ChatMessage {
   id: string;
   sessionId: string;
   messageType: "step" | "assistant" | "user";
+  traceId?: string;
   content: ChatMessageContent;
-  createdAt?: string;
+  createdAt: string;
 }
 
 export interface TabInfo {
@@ -95,11 +95,15 @@ export interface StepChunkContent {
   messageId: string; // UUID
   actionResult: ActionResult;
   summary: string;
+  traceId?: string;
+  createdAt: string;
 }
 
 export interface FinalOutputChunkContent {
   messageId: string; // UUID
+  traceId?: string;
   content: AgentOutput;
+  createdAt: string;
 }
 
 export interface StreamAgentRequest {
@@ -126,8 +130,10 @@ export interface AgentSession {
 }
 
 export interface ChatUser {
+  id: string;
   email: string;
   name: string;
   image: string;
   userSubscriptionTier: string;
+  supabaseAccessToken: string;
 }

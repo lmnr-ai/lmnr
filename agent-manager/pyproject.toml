@@ -2,7 +2,7 @@
 dependencies = [
   "asyncpg>=0.30.0",
   "grpcio>=1.67.0",
-  "lmnr-index",
+  "lmnr-index>=0.1.7",
   "python-dotenv>=1.1.0",
   "scrapybara>=2.4.7",
 ]
@@ -16,6 +16,3 @@ version = "0.1.0"
 dev = [
   "grpcio-tools>=1.67.0",
 ]
-
-[tool.uv.sources]
-lmnr-index = {git = "https://github.com/lmnr-ai/index.git", rev = "index"}

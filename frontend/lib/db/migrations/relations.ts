@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { agentChats, agentMessages, agentSessions, apiKeys, datapointToSpan,datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, events, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, spans, subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, userSubscriptionTiers, userUsage, workspaces, workspaceUsage } from "./schema";
+import { agentChats, agentMessages, agentSessions, apiKeys, datapointToSpan,datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, events, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, spans, subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, userSubscriptionTiers, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
 export const datasetsRelations = relations(datasets, ({one, many}) => ({
   project: one(projects, {
@@ -46,6 +46,7 @@ export const workspacesRelations = relations(workspaces, ({one, many}) => ({
     references: [subscriptionTiers.id]
   }),
   workspaceUsages: many(workspaceUsage),
+  workspaceInvitations: many(workspaceInvitations),
 }));
 
 export const labelClassesForPathRelations = relations(labelClassesForPath, ({one}) => ({
@@ -69,14 +70,14 @@ export const membersOfWorkspacesRelations = relations(membersOfWorkspaces, ({one
 export const usersRelations = relations(users, ({one, many}) => ({
   membersOfWorkspaces: many(membersOfWorkspaces),
   userSubscriptionInfos: many(userSubscriptionInfo),
+  apiKeys: many(apiKeys),
+  userCookies: many(userCookies),
   userSubscriptionTier: one(userSubscriptionTiers, {
     fields: [users.tierId],
     references: [userSubscriptionTiers.id]
   }),
-  apiKeys: many(apiKeys),
-  userCookies: many(userCookies),
-  agentChats: many(agentChats),
   userUsages: many(userUsage),
+  agentChats: many(agentChats),
 }));
 
 export const subscriptionTiersRelations = relations(subscriptionTiers, ({many}) => ({
@@ -147,10 +148,6 @@ export const labelingQueueItemsRelations = relations(labelingQueueItems, ({one})
     fields: [labelingQueueItems.queueId],
     references: [labelingQueues.id]
   }),
-}));
-
-export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
-  users: many(users),
 }));
 
 export const apiKeysRelations = relations(apiKeys, ({one}) => ({
@@ -228,20 +225,6 @@ export const labelsRelations = relations(labels, ({one}) => ({
   }),
 }));
 
-export const userCookiesRelations = relations(userCookies, ({one}) => ({
-  user: one(users, {
-    fields: [userCookies.userId],
-    references: [users.id]
-  }),
-}));
-
-export const tracesRelations = relations(traces, ({one}) => ({
-  project: one(projects, {
-    fields: [traces.projectId],
-    references: [projects.id]
-  }),
-}));
-
 export const agentMessagesRelations = relations(agentMessages, ({one}) => ({
   agentSession: one(agentSessions, {
     fields: [agentMessages.sessionId],
@@ -252,6 +235,24 @@ export const agentMessagesRelations = relations(agentMessages, ({one}) => ({
 export const agentSessionsRelations = relations(agentSessions, ({many}) => ({
   agentMessages: many(agentMessages),
   agentChats: many(agentChats),
+}));
+
+export const userCookiesRelations = relations(userCookies, ({one}) => ({
+  user: one(users, {
+    fields: [userCookies.userId],
+    references: [users.id]
+  }),
+}));
+
+export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
+  users: many(users),
+}));
+
+export const userUsageRelations = relations(userUsage, ({one}) => ({
+  user: one(users, {
+    fields: [userUsage.userId],
+    references: [users.id]
+  }),
 }));
 
 export const agentChatsRelations = relations(agentChats, ({one}) => ({
@@ -265,10 +266,17 @@ export const agentChatsRelations = relations(agentChats, ({one}) => ({
   }),
 }));
 
-export const userUsageRelations = relations(userUsage, ({one}) => ({
-  user: one(users, {
-    fields: [userUsage.userId],
-    references: [users.id]
+export const workspaceInvitationsRelations = relations(workspaceInvitations, ({one}) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceInvitations.workspaceId],
+    references: [workspaces.id]
+  }),
+}));
+
+export const tracesRelations = relations(traces, ({one}) => ({
+  project: one(projects, {
+    fields: [traces.projectId],
+    references: [projects.id]
   }),
 }));
 

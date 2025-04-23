@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { PropsWithChildren } from "react";
 
+import SessionProvider from "@/components/chat/session-context";
 import { AgentSidebar } from "@/components/chat/side-bar";
 import { ChatUser } from "@/components/chat/types";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -33,16 +34,20 @@ export default async function Layout({ children }: PropsWithChildren) {
   }
 
   const chatUser: ChatUser = {
+    id: user.id,
     email: user.email,
     name: user.name,
     image: session.user.image || "",
     userSubscriptionTier: user.userSubscriptionTier.name,
+    supabaseAccessToken: session.supabaseAccessToken,
   };
 
   return (
     <SidebarProvider style={sidebarRef}>
-      <AgentSidebar user={chatUser} />
-      <SidebarInset>{children}</SidebarInset>
+      <SessionProvider user={chatUser}>
+        <AgentSidebar />
+        <SidebarInset>{children}</SidebarInset>
+      </SessionProvider>
     </SidebarProvider>
   );
 }

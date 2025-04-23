@@ -179,7 +179,8 @@ const DEFAULT_LIMIT: number = 200;
 export const searchSpans = async (
   projectId: string,
   searchQuery: string,
-  timeRange: TimeRange
+  timeRange: TimeRange,
+  traceId?: string
 ): Promise<{
   spanIds: Set<string>;
   traceIds: Set<string>;
@@ -192,6 +193,7 @@ export const searchSpans = async (
         input_lower LIKE {query: String} 
         OR
         output_lower LIKE {query: String}
+        ${traceId ? `OR trace_id = {traceId: String}` : ""}
       )`;
 
   const query = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
@@ -202,6 +204,7 @@ export const searchSpans = async (
     query_params: {
       projectId,
       query: `%${searchQuery.toLowerCase()}%`,
+      traceId,
     },
   });
 

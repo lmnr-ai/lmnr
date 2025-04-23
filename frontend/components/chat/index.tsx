@@ -6,14 +6,12 @@ import { User } from "next-auth";
 import { FormEvent, useState } from "react";
 
 import BrowserWindow from "@/components/chat/browser-window";
-import ChatHeader from "@/components/chat/header";
 import Messages from "@/components/chat/messages";
 import MultimodalInput from "@/components/chat/multimodal-input";
 import Placeholder from "@/components/chat/placeholder";
 import Suggestions from "@/components/chat/suggestions";
 import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { useAgentChat } from "@/components/chat/use-agent-chat";
-import { useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
@@ -29,7 +27,6 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
     enableThinking: true,
   });
 
-  const { setOpen } = useSidebar();
   const { messages, handleSubmit, stop, isLoading, input, setInput, isControlled, setIsControlled } = useAgentChat({
     id: sessionId,
     initialMessages,
@@ -51,7 +48,6 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
       e.preventDefault();
     }
     handleSubmit(e, modelState);
-    setOpen(false);
   };
 
   const handleSubmitWithInput = (input: string) => {
@@ -61,7 +57,6 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
   return (
     <div className="flex max-h-dvh">
       <div className="flex flex-col flex-1 min-w-0 h-dvh bg-background">
-        <ChatHeader />
         {isEmpty(messages) ? (
           <Placeholder user={user} />
         ) : (

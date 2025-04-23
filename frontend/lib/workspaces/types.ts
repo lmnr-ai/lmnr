@@ -31,6 +31,13 @@ export interface WorkspaceWithUsers extends Workspace {
   users: WorkspaceUser[];
 }
 
+export interface WorkspaceInvitation {
+  id: string;
+  workspaceId: string;
+  email: string;
+  createdAt: string;
+}
+
 export type GetProjectResponse = {
   id: string;
   name: string;

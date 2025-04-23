@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import 'rrweb-player/dist/style.css';
+import "rrweb-player/dist/style.css";
 
-import { PauseIcon, PlayIcon } from '@radix-ui/react-icons';
-import { Loader2 } from 'lucide-react';
-import pako from 'pako';
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import rrwebPlayer from 'rrweb-player';
+import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
+import { Loader2 } from "lucide-react";
+import pako from "pako";
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import rrwebPlayer from "rrweb-player";
 
 import {
   DropdownMenu,
@@ -14,9 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useProjectContext } from '@/contexts/project-context';
-import { formatSecondsToMinutesAndSeconds } from '@/lib/utils';
-
+import { useProjectContext } from "@/contexts/project-context";
+import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
   hasBrowserSession: boolean | null;
@@ -35,11 +34,7 @@ export interface SessionPlayerHandle {
 }
 
 const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
-  ({
-    hasBrowserSession,
-    traceId,
-    onTimelineChange
-  }, ref) => {
+  ({ hasBrowserSession, traceId, onTimelineChange }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const playerContainerRef = useRef<HTMLDivElement | null>(null);
     const playerRef = useRef<any>(null);
@@ -74,14 +69,14 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       setIsLoading(true);
       try {
         const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json'
-          }
+            "Content-Type": "application/json",
+          },
         });
 
         const reader = res.body?.getReader();
-        if (!reader) throw new Error('No reader available');
+        if (!reader) throw new Error("No reader available");
 
         const chunks: Uint8Array[] = [];
         while (true) {
@@ -90,47 +85,49 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           chunks.push(value);
         }
 
-        const blob = new Blob(chunks, { type: 'application/json' });
+        const blob = new Blob(chunks, { type: "application/json" });
         const text = await blob.text();
 
         let batchEvents = [];
         try {
           batchEvents = JSON.parse(text);
         } catch (e) {
-          console.error('Error parsing events:', e);
+          console.error("Error parsing events:", e);
           setIsLoading(false);
           setEvents([]);
           return;
         }
 
-        const events = batchEvents.flatMap((batch: any) => batch.map((data: any) => {
-          const parsedEvent = JSON.parse(data.text);
-          const base64DecodedData = atob(parsedEvent.data);
-          let decompressedData = null;
+        const events = batchEvents.flatMap((batch: any) =>
+          batch.map((data: any) => {
+            const parsedEvent = JSON.parse(data.text);
+            const base64DecodedData = atob(parsedEvent.data);
+            let decompressedData = null;
 
-          try {
-            const encodedData = new Uint8Array(base64DecodedData.split('').map((c: any) => c.charCodeAt(0)));
-            decompressedData = pako.ungzip(encodedData, { to: 'string' });
-          } catch (e) {
-            // old non-compressed events
-            decompressedData = base64DecodedData;
-          }
+            try {
+              const encodedData = new Uint8Array(base64DecodedData.split("").map((c: any) => c.charCodeAt(0)));
+              decompressedData = pako.ungzip(encodedData, { to: "string" });
+            } catch (e) {
+              // old non-compressed events
+              decompressedData = base64DecodedData;
+            }
 
-          const event = {
-            ...parsedEvent,
-            data: JSON.parse(decompressedData)
-          };
+            const event = {
+              ...parsedEvent,
+              data: JSON.parse(decompressedData),
+            };
 
-          return {
-            data: event.data,
-            timestamp: (new Date(event.timestamp + 'Z')).getTime(),
-            type: parseInt(event.event_type)
-          };
-        }));
+            return {
+              data: event.data,
+              timestamp: new Date(event.timestamp + "Z").getTime(),
+              type: parseInt(event.event_type),
+            };
+          })
+        );
 
         setEvents(events);
       } catch (e) {
-        console.error('Error processing events:', e);
+        console.error("Error processing events:", e);
       } finally {
         setIsLoading(false);
       }
@@ -161,8 +158,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             mouseTail: false,
             width: dimensions.width,
             height: dimensions.height,
-            speed
-          }
+            speed,
+          },
         });
         const startTime = events[0].timestamp;
         setStartTime(startTime);
@@ -170,20 +167,20 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         const duration = (events[events.length - 1].timestamp - events[0].timestamp) / 1000;
         setTotalDuration(duration);
 
-        playerRef.current.addEventListener('ui-update-player-state', (event: any) => {
-          if (event.payload === 'playing') {
+        playerRef.current.addEventListener("ui-update-player-state", (event: any) => {
+          if (event.payload === "playing") {
             setIsPlaying(true);
-          } else if (event.payload === 'paused') {
+          } else if (event.payload === "paused") {
             setIsPlaying(false);
           }
         });
 
-        playerRef.current.addEventListener('ui-update-current-time', (event: any) => {
+        playerRef.current.addEventListener("ui-update-current-time", (event: any) => {
           setCurrentTime(event.payload / 1000);
           onTimelineChange(startTime + event.payload);
         });
       } catch (e) {
-        console.error('Error initializing player:', e);
+        console.error("Error initializing player:", e);
       }
     }, [events]);
 
@@ -215,7 +212,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             playerRef.current.play();
           }
         } catch (e) {
-          console.error('Error in play/pause:', e);
+          console.error("Error in play/pause:", e);
         }
       }
     };
@@ -249,14 +246,18 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       setSpeed(newSpeed);
     };
 
-    useImperativeHandle(ref, () => ({
-      goto: (time: number) => {
-        if (playerRef.current) {
-          setCurrentTime(time);
-          playerRef.current.goto(time * 1000);
-        }
-      }
-    }), []);
+    useImperativeHandle(
+      ref,
+      () => ({
+        goto: (time: number) => {
+          if (playerRef.current) {
+            setCurrentTime(time);
+            playerRef.current.goto(time * 1000);
+          }
+        },
+      }),
+      []
+    );
 
     return (
       <>
@@ -265,7 +266,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             background-color: transparent !important;
             border-radius: 6px;
           }
-          
+
           .replayer-wrapper {
             background-color: transparent !important;
             border: 1px solid gray !important;
@@ -274,7 +275,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           .rr-controller {
             background-color: transparent !important;
             color: white !important;
-            text-color: white !important;
           }
 
           /* Using the provided cursor SVG with white outline */
@@ -291,7 +291,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           }
 
           @keyframes bounce {
-            0%, 100% {
+            0%,
+            100% {
               transform: scale(1);
             }
             50% {
@@ -305,10 +306,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         `}</style>
         <div className="relative w-full h-full" ref={containerRef}>
           <div className="flex flex-row items-center justify-center gap-2 px-4 h-12 border-b">
-            <button
-              onClick={handlePlayPause}
-              className="text-white py-1 rounded"
-            >
+            <button onClick={handlePlayPause} className="text-white py-1 rounded">
               {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
             </button>
 
@@ -318,10 +316,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 {[1, 2, 4, 8].map((speedOption) => (
-                  <DropdownMenuItem
-                    key={speedOption}
-                    onClick={() => handleSpeedChange(speedOption)}
-                  >
+                  <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
                     {speedOption}x
                   </DropdownMenuItem>
                 ))}
@@ -338,7 +333,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               onChange={handleTimelineChange}
             />
             <span className="font-mono">
-              {formatSecondsToMinutesAndSeconds(currentTime || 0)}/{formatSecondsToMinutesAndSeconds(totalDuration || 0)}
+              {formatSecondsToMinutesAndSeconds(currentTime || 0)}/
+              {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
             </span>
           </div>
           {isLoading && (
@@ -351,15 +347,13 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               No browser session was recorded. This might be due to an outdated SDK version.
             </div>
           )}
-          {!isLoading && events.length > 0 && (
-            <div ref={playerContainerRef} />
-          )}
+          {!isLoading && events.length > 0 && <div ref={playerContainerRef} />}
         </div>
       </>
     );
   }
 );
 
-SessionPlayer.displayName = 'SessionPlayer';
+SessionPlayer.displayName = "SessionPlayer";
 
 export default SessionPlayer;

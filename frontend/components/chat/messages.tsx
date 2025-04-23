@@ -21,8 +21,8 @@ const PureMessages = ({ messages, isLoading, onControl }: MessagesProps) => {
   const lastMessage = last(messages);
 
   return (
-    <ScrollArea className="flex-1 pt-4">
-      <div ref={ref} className="flex flex-col min-w-0">
+    <ScrollArea className="flex-1">
+      <div ref={ref} className="flex flex-col min-w-0 pt-4">
         {messages.map((message) => (
           <Message key={message.id} message={message} />
         ))}

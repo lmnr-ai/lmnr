@@ -15,12 +15,13 @@ from scrapybara import Scrapybara
 import agent_manager_grpc_pb2 as pb2
 import agent_manager_grpc_pb2_grpc as pb2_grpc
 
-from index import Agent, AnthropicProvider, Browser, BrowserConfig
+from index import Agent, AnthropicProvider, AnthropicBedrockProvider, BrowserConfig, OpenAIProvider, GeminiProvider
 from index.agent.agent import (
     FinalOutputChunk,
     StepChunk,
+    StepChunkError,
+    TimeoutChunk,
 )
-from index.llm.providers.anthropic_bedrock import AnthropicBedrockProvider
 
 # Add logging configuration
 logging.basicConfig(
@@ -69,7 +70,10 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 provider=pb2.ModelProvider.Name(request.model_provider) if request.HasField("model_provider") else "anthropic",
                 model=request.model if request.HasField("model") else "claude-3-7-sonnet-20250219",
                 enable_thinking=request.enable_thinking if request.HasField("enable_thinking") else True,
-                cookies=self._convert_cookies_from_proto(request.cookies) if request.cookies else None
+                storage_state=request.storage_state if request.HasField("storage_state") else None,
+                return_agent_state=request.return_agent_state if request.HasField("return_agent_state") else False,
+                return_storage_state=request.return_storage_state if request.HasField("return_storage_state") else False,
+                return_screenshots=request.return_screenshots if request.HasField("return_screenshots") else False,
             )
 
             await self._update_agent_machine_status(
@@ -97,11 +101,15 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 agent=agent,
                 prompt=request.prompt,
                 parent_span_context=parent_span_context,
-                # previous state is not sent via proto to/from app-server
                 agent_state=agent_state,
                 # For now, one browser is used per run
                 close_context=True,
-                session_id=request.session_id
+                session_id=request.session_id,
+                max_steps=request.max_steps,
+                start_url=request.start_url,
+                return_agent_state=request.return_agent_state,
+                return_storage_state=request.return_storage_state,
+                return_screenshots=request.return_screenshots,
             )
 
             await self._update_agent_status(
@@ -123,16 +131,10 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                     give_control=result.get("result", {}).get("give_control", False)
                 ),
                 trace_id=result.get("trace_id", ""),
-                step_count=result.get("step_count", 0)
+                step_count=result.get("step_count", 0),
+                agent_state=result.get("agent_state", "") if request.return_agent_state else None,
+                storage_state=json.dumps(result.get("storage_state", {})) if request.return_storage_state else None
             )
-            
-            # Convert cookies
-            if "cookies" in result and result["cookies"]:
-                for cookie in result["cookies"]:
-                    proto_cookie = pb2.Cookie()
-                    for key, value in cookie.items():
-                        proto_cookie.cookie_data[key] = str(value)
-                    response.cookies.append(proto_cookie)
             
             Laminar.shutdown()
             return response
@@ -197,7 +199,10 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 provider=pb2.ModelProvider.Name(request.model_provider) if request.HasField("model_provider") else "anthropic",
                 model=request.model if request.HasField("model") else "claude-3-7-sonnet-20250219",
                 enable_thinking=request.enable_thinking if request.HasField("enable_thinking") else True,
-                cookies=self._convert_cookies_from_proto(request.cookies) if request.cookies else None
+                storage_state=request.storage_state if request.HasField("storage_state") else None,
+                return_agent_state=request.return_agent_state if request.HasField("return_agent_state") else False,
+                return_storage_state=request.return_storage_state if request.HasField("return_storage_state") else False,
+                return_screenshots=request.return_screenshots if request.HasField("return_screenshots") else False,
             )
 
 
@@ -225,7 +230,6 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
             # Stream agent results
             async for chunk in agent.run_stream(
                 prompt=request.prompt,
-                max_steps=100,
                 parent_span_context=parent_span_context,
                 agent_state=agent_state,
                 # For now, one browser is used per run
@@ -234,9 +238,11 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                 prev_action_result=None,
                 prev_step=None,
                 step_span_context=None,
-                timeout=None,
+                # timeout in seconds
+                timeout=request.timeout if request.HasField("timeout") else None,
                 session_id=request.session_id,
-                return_screenshots=request.return_screenshots
+                max_steps=request.max_steps if request.HasField("max_steps") else 100,
+                # start_url=request.start_url,
             ):
                 if isinstance(chunk, StepChunk):
                     logger.info(f"Step chunk summary: {chunk.content.summary}")
@@ -268,19 +274,11 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                                 give_control=chunk.content.result.give_control
                             ),
                             trace_id=chunk.content.trace_id,
-                            step_count=chunk.content.step_count if hasattr(chunk.content, 'step_count') else 0
+                            step_count=chunk.content.step_count if hasattr(chunk.content, 'step_count') else 0,
+                            agent_state=chunk.content.agent_state.model_dump_json() if request.return_agent_state else None,
+                            storage_state=json.dumps(chunk.content.storage_state) if request.return_storage_state else None
                         )
                     )
-                    
-                    # Convert cookies
-                    if chunk.content.cookies:
-                        for cookie in chunk.content.cookies:
-                            proto_cookie = pb2.Cookie()
-                            for key, value in cookie.items():
-                                proto_cookie.cookie_data[key] = str(value)
-                            response.agent_output.cookies.append(proto_cookie)
-                    
-
 
                     await self._update_agent_status(
                         session_id=request.session_id,
@@ -292,6 +290,36 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
                         state=chunk.content.agent_state.model_dump_json()
                     )
 
+                    yield response
+
+                elif isinstance(chunk, TimeoutChunk):
+                    logger.info(f"Timeout chunk summary: {chunk.content.summary}")
+
+                    # Create timeout chunk response
+                    response = pb2.RunAgentResponseStreamChunk(
+                        timeout_chunk_content=pb2.StepChunkContent(
+                            summary=chunk.content.summary,
+                            action_result=pb2.ActionResult(
+                                is_done=chunk.content.action_result.is_done,
+                                content=chunk.content.action_result.content,
+                                error=chunk.content.action_result.error,
+                                give_control=chunk.content.action_result.give_control
+                            ),
+                            trace_id=chunk.content.trace_id,
+                            screenshot=chunk.content.screenshot
+                        )
+                    )
+                    yield response
+                    break
+
+                elif isinstance(chunk, StepChunkError):
+                    logger.info(f"Step chunk error: {chunk.content}")
+                    
+                    response = pb2.RunAgentResponseStreamChunk(
+                        error_chunk_content=pb2.ErrorChunkContent(
+                            content=chunk.content
+                        )
+                    )
                     yield response
 
         except Exception as e:
@@ -324,33 +352,35 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
         model: str = "claude-3-7-sonnet-20250219",
         enable_thinking: bool = True,
         thinking_token_budget: Optional[int] = 8192,
-        cookies: Optional[list[dict[str, Any]]] = None
+        storage_state: Optional[str] = None,
+        return_agent_state: bool = False,
+        return_storage_state: bool = False,
+        return_screenshots: bool = False,
     ) -> Agent:
         """Initialize the browser agent with the given configuration"""
-        
-        cv_model_endpoint = os.environ.get("CV_MODEL_ENDPOINT", None)
 
         browser_config = BrowserConfig(
             cdp_url=cdp_url,
-            cookies=cookies,
-            cv_model_endpoint=cv_model_endpoint
+            storage_state=json.loads(storage_state) if storage_state else None,
         )
 
-        browser = Browser(
-            config=browser_config,
-        )
         
         # Select the appropriate provider
         if provider.lower() == "anthropic":
             llm_provider = AnthropicProvider(model=model, enable_thinking=enable_thinking, thinking_token_budget=thinking_token_budget)
         elif provider.lower() == "bedrock":
             llm_provider = AnthropicBedrockProvider(model=model, enable_thinking=enable_thinking, thinking_token_budget=thinking_token_budget)
+        elif provider.lower() == "openai":
+            # TODO: add a heuristic to convert thinking_token_budget to reasoning_effort
+            llm_provider = OpenAIProvider(model=model)
+        elif provider.lower() == "gemini":
+            llm_provider = GeminiProvider(model=model, thinking_token_budget=thinking_token_budget)
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
         agent = Agent(
-            browser=browser,
-            llm=llm_provider,
+            browser_config=browser_config,
+            llm=llm_provider
         )
 
         return agent
@@ -504,38 +534,31 @@ class AgentManagerServicer(pb2_grpc.AgentManagerServiceServicer):
         agent_state: Optional[str] = None,
         close_context: bool = False,
         session_id: Optional[str] = None,
+        max_steps: Optional[int] = 100,
+        start_url: Optional[str] = None,
+        return_agent_state: bool = False,
+        return_storage_state: bool = False,
+        return_screenshots: bool = False,
     ) -> Dict:
         """Run the agent in synchronous mode and return the complete result"""
         # Run agent and get complete result
         output = await agent.run(
             prompt=prompt,
-            max_steps=100, 
+            max_steps=max_steps, 
             parent_span_context=parent_span_context, 
             agent_state=agent_state,
             close_context=close_context,
             session_id=session_id,
+            # start_url=start_url,
         )
         
         return {
-            "agent_state": output.agent_state.model_dump_json(),
+            "agent_state": output.agent_state.model_dump_json() if return_agent_state else None,
             "result": output.result.model_dump(),
-            "cookies": output.cookies,
+            "storage_state": json.dumps(output.storage_state) if output.storage_state and return_storage_state else None,
             "step_count": output.step_count,
-            "trace_id": output.trace_id
+            "trace_id": output.trace_id,
         }
-    
-    def _convert_cookies_from_proto(self, proto_cookies):
-        """Convert proto cookies to the format expected by the Browser."""
-        cookies = []
-        for proto_cookie in proto_cookies:
-            cookie_dict = {}
-            for key, value in proto_cookie.cookie_data.items():
-                try:
-                    cookie_dict[key] = json.loads(value)
-                except json.JSONDecodeError:
-                    cookie_dict[key] = value
-            cookies.append(cookie_dict)
-        return cookies
 
 
 async def serve():

@@ -1,34 +1,46 @@
-import { ChartNoAxesGantt, ChevronsRight, Disc } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useRef, useState } from 'react';
+import { ChartNoAxesGantt, ChevronsRight, Disc, Expand } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
-import { useProjectContext } from '@/contexts/project-context';
-import { useUserContext } from '@/contexts/user-context';
-import { Span, SpanType, Trace } from '@/lib/traces/types';
-import { cn } from '@/lib/utils';
+import ShareTraceButton from "@/components/traces/share-trace-button";
+import { useProjectContext } from "@/contexts/project-context";
+import { useUserContext } from "@/contexts/user-context";
+import { useToast } from "@/lib/hooks/use-toast";
+import { Span, SpanType, Trace } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
-import { Button } from '../ui/button';
-import MonoWithCopy from '../ui/mono-with-copy';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
-import { ScrollArea, ScrollBar } from '../ui/scroll-area';
-import { Skeleton } from '../ui/skeleton';
-import { AgentSessionButton } from './agent-session-button';
-import SessionPlayer, { SessionPlayerHandle } from './session-player';
-import { SpanCard } from './span-card';
-import { SpanView } from './span-view';
-import StatsShields from './stats-shields';
-import Timeline from './timeline';
+import { Button } from "../ui/button";
+import MonoWithCopy from "../ui/mono-with-copy";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
+import { ScrollArea, ScrollBar } from "../ui/scroll-area";
+import { Skeleton } from "../ui/skeleton";
+import { AgentSessionButton } from "./agent-session-button";
+import SessionPlayer, { SessionPlayerHandle } from "./session-player";
+import { SpanCard } from "./span-card";
+import { SpanView } from "./span-view";
+import StatsShields from "./stats-shields";
+import Timeline from "./timeline";
+
+export interface TraceViewHandle {
+  toggleBrowserSession: () => void;
+  resetSelectedSpan: () => void;
+}
 
 interface TraceViewProps {
   traceId: string;
+  propsTrace?: Trace;
   onClose: () => void;
+  fullScreen?: boolean;
+  ref?: Ref<TraceViewHandle>;
 }
 
-export default function TraceView({ traceId, onClose }: TraceViewProps) {
+export default function TraceView({ traceId, onClose, propsTrace, fullScreen = false, ref }: TraceViewProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useProjectContext();
+  const { toast } = useToast();
 
   const container = useRef<HTMLDivElement>(null);
   // containerHeight refers to the height of the trace view container
@@ -46,6 +58,20 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const [spans, setSpans] = useState<Span[]>([]);
   const spansRef = useRef<Span[]>([]);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      toggleBrowserSession: () => setShowBrowserSession((prev) => !prev),
+      resetSelectedSpan: () => {
+        setSelectedSpan(null);
+        setTimeout(() => {
+          searchParams.delete("spanId");
+          router.push(`${pathName}?${searchParams.toString()}`);
+        }, 10);
+      },
+    }),
+    [spans, showBrowserSession, searchParams, pathName, router]
+  );
   // Keep ref updated
   useEffect(() => {
     spansRef.current = spans;
@@ -55,11 +81,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
 
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(
-    searchParams.get('spanId')
-      ? spans.find(
-        (span: Span) => span.spanId === searchParams.get('spanId')
-      ) || null
-      : null
+    searchParams.get("spanId") ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null : null
   );
 
   const [activeSpans, setActiveSpans] = useState<string[]>([]);
@@ -68,19 +90,38 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
 
-  useEffect(() => {
-    const fetchTrace = async () => {
-      const trace = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
-      return await trace.json();
-    };
-
-    fetchTrace().then((trace) => {
-      setTrace(trace);
-      if (trace.hasBrowserSession) {
-        setShowBrowserSession(true);
+  const handleFetchTrace = useCallback(async () => {
+    try {
+      if (propsTrace) {
+        setTrace(propsTrace);
+      } else {
+        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
+        if (!response.ok) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to load trace. Please try again.",
+          });
+          return;
+        }
+        const traceData = await response.json();
+        setTrace(traceData);
+        if (traceData.hasBrowserSession) {
+          setShowBrowserSession(true);
+        }
       }
-    });
-  }, [traceId]);
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load trace. Please try again.",
+      });
+    }
+  }, [projectId, propsTrace, toast, traceId]);
+
+  useEffect(() => {
+    handleFetchTrace();
+  }, [handleFetchTrace, projectId, traceId]);
 
   useEffect(() => {
     const childSpans = {} as { [key: string]: Span[] };
@@ -119,16 +160,14 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       if (spans.length === 1) {
         const singleSpan = spans[0];
         setSelectedSpan(singleSpan);
-        searchParams.set('spanId', singleSpan.spanId);
-        searchParams.set('traceId', traceId);
+        searchParams.set("spanId", singleSpan.spanId);
+        searchParams.set("traceId", traceId);
         router.push(`${pathName}?${searchParams.toString()}`);
       } else {
         // Otherwise, use the spanId from URL if present
         setSelectedSpan(
-          searchParams.get('spanId')
-            ? spans.find(
-              (span: Span) => span.spanId === searchParams.get('spanId')
-            ) || null
+          searchParams.get("spanId")
+            ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null
             : null
         );
       }
@@ -142,13 +181,9 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
 
   useEffect(() => {
     setSelectedSpan(
-      searchParams.get('spanId')
-        ? spans.find(
-          (span: Span) => span.spanId === searchParams.get('spanId')
-        ) || null
-        : null
+      searchParams.get("spanId") ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null : null
     );
-  }, [searchParams.get('spanId')]);
+  }, [searchParams.get("spanId")]);
 
   useEffect(() => {
     if (!container.current) {
@@ -180,9 +215,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
       setTimelineWidth(containerWidth);
     } else {
       // if a span is selected, waterfall is hidden, so timeline should take the width of the trace tree panel
-      setTimelineWidth(
-        newTraceTreePanelWidth + 1
-      );
+      setTimelineWidth(newTraceTreePanelWidth + 1);
     }
   }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
 
@@ -192,7 +225,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     traceId: row.trace_id,
     spanType: row.span_type,
     name: row.name,
-    path: row.attributes['lmnr.span.path'] ?? "",
+    path: row.attributes["lmnr.span.path"] ?? "",
     startTime: row.start_time,
     endTime: row.end_time,
     attributes: row.attributes,
@@ -203,7 +236,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     events: [],
     inputUrl: row.input_url,
     outputUrl: row.output_url,
-    model: row.attributes['gen_ai.response.model'] ?? row.attributes['gen_ai.request.model'] ?? null,
+    model: row.attributes["gen_ai.response.model"] ?? row.attributes["gen_ai.request.model"] ?? null,
   });
 
   const { supabaseClient: supabase } = useUserContext();
@@ -216,18 +249,18 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
     const channel = supabase
       .channel(`trace-updates-${traceId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'spans',
-          filter: `trace_id=eq.${traceId}`
+          event: "INSERT",
+          schema: "public",
+          table: "spans",
+          filter: `trace_id=eq.${traceId}`,
         },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
+          if (payload.eventType === "INSERT") {
             const rtEventSpan = dbSpanRowToSpan(payload.new);
 
-            if (rtEventSpan.attributes['lmnr.internal.has_browser_session']) {
+            if (rtEventSpan.attributes["lmnr.internal.has_browser_session"]) {
               setShowBrowserSession(true);
             }
 
@@ -237,21 +270,28 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
               }
 
               const newTrace = { ...currentTrace };
-              newTrace.endTime = new Date(Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())).toUTCString();
-              newTrace.totalTokenCount += (rtEventSpan.attributes['gen_ai.usage.input_tokens'] ?? 0) + (rtEventSpan.attributes['gen_ai.usage.output_tokens'] ?? 0);
-              newTrace.inputTokenCount += rtEventSpan.attributes['gen_ai.usage.input_tokens'] ?? 0;
-              newTrace.outputTokenCount += rtEventSpan.attributes['gen_ai.usage.output_tokens'] ?? 0;
-              newTrace.inputCost += rtEventSpan.attributes['gen_ai.usage.input_cost'] ?? 0;
-              newTrace.outputCost += rtEventSpan.attributes['gen_ai.usage.output_cost'] ?? 0;
-              newTrace.cost += (rtEventSpan.attributes['gen_ai.usage.input_cost'] ?? 0) + (rtEventSpan.attributes['gen_ai.usage.output_cost'] ?? 0);
-              newTrace.hasBrowserSession = currentTrace.hasBrowserSession || rtEventSpan.attributes['lmnr.internal.has_browser_session'];
+              newTrace.endTime = new Date(
+                Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())
+              ).toUTCString();
+              newTrace.totalTokenCount +=
+                (rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
+                (rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
+              newTrace.inputTokenCount += rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
+              newTrace.outputTokenCount += rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
+              newTrace.inputCost += rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
+              newTrace.outputCost += rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
+              newTrace.cost +=
+                (rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
+                (rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
+              newTrace.hasBrowserSession =
+                currentTrace.hasBrowserSession || rtEventSpan.attributes["lmnr.internal.has_browser_session"];
 
               return newTrace;
             });
 
-            setSpans(currentSpans => {
+            setSpans((currentSpans) => {
               const newSpans = [...currentSpans];
-              const index = newSpans.findIndex(span => span.spanId === rtEventSpan.spanId);
+              const index = newSpans.findIndex((span) => span.spanId === rtEventSpan.spanId);
               if (index !== -1 && newSpans[index].pending) {
                 newSpans[index] = rtEventSpan;
               } else {
@@ -273,33 +313,39 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
 
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
-      <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
-        <Button
-          variant={'ghost'}
-          className="px-1"
-          onClick={() => {
-            searchParams.delete('spanId');
-            router.push(`${pathName}?${searchParams.toString()}`);
-            onClose();
-          }}
-        >
-          <ChevronsRight />
-        </Button>
-        <div className="flex items-center space-x-2">
-          <div>Trace</div>
-          <MonoWithCopy className="text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
-        </div>
-        <div className="flex-grow" />
-        <div className="flex items-center space-x-2">
+      {!fullScreen && (
+        <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+          <Button
+            variant={"ghost"}
+            className="px-0"
+            onClick={() => {
+              searchParams.delete("spanId");
+              router.push(`${pathName}?${searchParams.toString()}`);
+              onClose();
+            }}
+          >
+            <ChevronsRight />
+          </Button>
+          <Link
+            passHref
+            href={`/project/${projectId}/traces/${traceId}${selectedSpan ? `?spanId=${selectedSpan.spanId}` : ""}`}
+          >
+            <Button variant="ghost" className="px-0 mr-1">
+              <Expand className="w-4 h-4" size={16} />
+            </Button>
+          </Link>
+          <div className="flex items-center space-x-2">
+            <div>Trace</div>
+            <MonoWithCopy className="text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
+          </div>
+          <div className="flex-grow" />
           {selectedSpan && (
             <Button
-              variant={'secondary'}
+              variant={"secondary"}
               onClick={() => {
                 setSelectedSpan(null);
-                setTimeout(() => {
-                  searchParams.delete('spanId');
-                  router.push(`${pathName}?${searchParams.toString()}`);
-                }, 10);
+                searchParams.delete("spanId");
+                router.push(`${pathName}?${searchParams.toString()}`);
               }}
             >
               <ChartNoAxesGantt size={16} className="mr-2" />
@@ -308,21 +354,26 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           )}
           {trace?.hasBrowserSession && (
             <Button
-              variant={'secondary'}
+              variant={"secondary"}
               onClick={() => {
                 setShowBrowserSession((s) => !s);
               }}
             >
               <Disc size={16} className="mr-2" />
-              {showBrowserSession ? 'Hide browser session' : 'Show browser session'}
+              {showBrowserSession ? "Hide browser session" : "Show browser session"}
             </Button>
           )}
 
-          {trace?.agentSessionId && (
-            <AgentSessionButton sessionId={trace.agentSessionId} />
+          {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
+          {(trace || propsTrace) && (
+            <ShareTraceButton
+              refetch={handleFetchTrace}
+              trace={{ id: traceId, visibility: (propsTrace || trace)?.visibility }}
+              projectId={projectId}
+            />
           )}
         </div>
-      </div>
+      )}
       <div className="flex-grow flex">
         {(!trace || spans.length === 0) && (
           <div className="w-full p-4 h-full flex flex-col space-y-2">
@@ -338,7 +389,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                 <div
                   className="flex-none"
                   style={{
-                    width: timelineWidth
+                    width: timelineWidth,
                   }}
                 >
                   <div className="flex-grow flex">
@@ -346,7 +397,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                       className="overflow-auto w-1 flex-grow"
                       style={{
                         width: timelineWidth,
-                        height: containerHeight
+                        height: containerHeight,
                       }}
                     >
                       <table className="w-full h-full">
@@ -354,19 +405,16 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                           <tr
                             className="flex"
                             style={{
-                              minHeight: containerHeight
+                              minHeight: containerHeight,
                             }}
                           >
                             <td
                               className={cn(
-                                'p-0 border-r left-0 bg-background flex-none',
-                                !selectedSpan ? 'sticky z-50' : ''
+                                "p-0 border-r left-0 bg-background flex-none",
+                                !selectedSpan ? "sticky z-50" : ""
                               )}
                             >
-                              <div
-                                className="flex flex-col pb-4"
-                                ref={traceTreePanel}
-                              >
+                              <div className="flex flex-col pb-4" ref={traceTreePanel}>
                                 <StatsShields
                                   className="px-2 h-10 sticky top-0 bg-background z-50 border-b"
                                   startTime={trace.startTime}
@@ -404,14 +452,9 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                                         }}
                                         onSpanSelect={(span) => {
                                           setSelectedSpan(span);
-                                          setTimelineWidth(
-                                            traceTreePanel.current!.getBoundingClientRect()
-                                              .width + 1
-                                          );
-                                          searchParams.set('spanId', span.spanId);
-                                          router.push(
-                                            `${pathName}?${searchParams.toString()}`
-                                          );
+                                          setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
+                                          searchParams.set("spanId", span.spanId);
+                                          router.push(`${pathName}?${searchParams.toString()}`);
                                         }}
                                         onSelectTime={(time) => {
                                           browserSessionRef.current?.goto(time);
@@ -441,25 +484,16 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                   </div>
                 </div>
                 {selectedSpan && (
-                  <div
-                    style={{ width: containerWidth - timelineWidth }}
-                  >
-                    <SpanView
-                      key={selectedSpan.spanId}
-                      spanId={selectedSpan.spanId}
-                    />
+                  <div style={{ width: containerWidth - timelineWidth }}>
+                    <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
                   </div>
                 )}
               </div>
             </ResizablePanel>
-            {showBrowserSession && (
-              <ResizableHandle
-                withHandle
-              />
-            )}
+            {showBrowserSession && <ResizableHandle withHandle />}
             <ResizablePanel
               style={{
-                display: showBrowserSession ? 'block' : 'none'
+                display: showBrowserSession ? "block" : "none",
               }}
             >
               <SessionPlayer
@@ -469,14 +503,12 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
                 onTimelineChange={(time) => {
                   setBrowserSessionTime(time);
 
-                  const activeSpans = spans.filter(
-                    (span: Span) => {
-                      const spanStartTime = new Date(span.startTime).getTime();
-                      const spanEndTime = new Date(span.endTime).getTime();
+                  const activeSpans = spans.filter((span: Span) => {
+                    const spanStartTime = new Date(span.startTime).getTime();
+                    const spanEndTime = new Date(span.endTime).getTime();
 
-                      return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
-                    }
-                  );
+                    return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
+                  });
 
                   setActiveSpans(activeSpans.map((span) => span.spanId));
                 }}
@@ -485,7 +517,7 @@ export default function TraceView({ traceId, onClose }: TraceViewProps) {
           </ResizablePanelGroup>
         )}
       </div>
-    </div >
+    </div>
   );
 }
 
@@ -502,12 +534,14 @@ const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
 
   for (const span of existingSpans) {
     if (span.parentSpanId) {
-      const parentSpanIds = span.attributes['lmnr.span.ids_path'] as string[] | undefined;
-      const parentSpanNames = span.attributes['lmnr.span.path'] as string[] | undefined;
+      const parentSpanIds = span.attributes["lmnr.span.ids_path"] as string[] | undefined;
+      const parentSpanNames = span.attributes["lmnr.span.path"] as string[] | undefined;
 
       if (
-        parentSpanIds === undefined || parentSpanNames === undefined ||
-        parentSpanIds.length === 0 || parentSpanNames.length === 0 ||
+        parentSpanIds === undefined ||
+        parentSpanNames === undefined ||
+        parentSpanIds.length === 0 ||
+        parentSpanNames.length === 0 ||
         parentSpanIds.length !== parentSpanNames.length
       ) {
         continue;
@@ -528,14 +562,11 @@ const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
           // Update the time range of the pending span to cover all its children
           const existingStartTime = new Date(pendingSpans.get(spanId)!.startTime);
           const existingEndTime = new Date(pendingSpans.get(spanId)!.endTime);
-          pendingSpans.set(
-            spanId,
-            {
-              ...pendingSpans.get(spanId)!,
-              startTime: (startTime < existingStartTime ? startTime : existingStartTime).toISOString(),
-              endTime: (endTime > existingEndTime ? endTime : existingEndTime).toISOString(),
-            }
-          );
+          pendingSpans.set(spanId, {
+            ...pendingSpans.get(spanId)!,
+            startTime: (startTime < existingStartTime ? startTime : existingStartTime).toISOString(),
+            endTime: (endTime > existingEndTime ? endTime : existingEndTime).toISOString(),
+          });
           continue;
         }
 
@@ -559,7 +590,7 @@ const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
           inputPreview: null,
           outputPreview: null,
           spanType: SpanType.DEFAULT,
-          path: '',
+          path: "",
           inputUrl: null,
           outputUrl: null,
           pending: true,
@@ -570,10 +601,7 @@ const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
   }
 
   // Filter out existing spans that are pending (to avoid duplicates)
-  const nonPendingExistingSpans = existingSpans.filter(span => !span.pending);
+  const nonPendingExistingSpans = existingSpans.filter((span) => !span.pending);
 
-  return [
-    ...nonPendingExistingSpans,
-    ...pendingSpans.values()
-  ];
+  return [...nonPendingExistingSpans, ...pendingSpans.values()];
 };

@@ -197,6 +197,34 @@
       "when": 1743853103073,
       "tag": "0027_massive_hawkeye",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1744730518944,
+      "tag": "0028_futuristic_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1744997999195,
+      "tag": "0029_conscious_the_hunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1745324631183,
+      "tag": "0030_groovy_doctor_strange",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1745336938674,
+      "tag": "0031_round_caretaker",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,7 @@ export type SpanLabel = {
   spanId: string;
   name: string;
   email?: string;
+  color?: string;
 };
 
 export enum SpanType {
@@ -74,6 +75,7 @@ export type Trace = {
   hasBrowserSession: boolean | null;
   traceType: (typeof traces.$inferSelect)["traceType"] | null;
   agentSessionId: string | null;
+  visibility?: string;
 };
 
 export type TraceEvent = {

@@ -10,7 +10,7 @@ import { db } from "@/lib/db/drizzle";
 import { users } from "@/lib/db/migrations/schema";
 
 export const metadata: Metadata = {
-  title: "Agent",
+  title: "Index",
 };
 
 export default async function ChatPage() {

@@ -5,9 +5,8 @@ package agent_manager_grpc;
 enum ModelProvider {
     ANTHROPIC = 0;
     BEDROCK = 1;
-}
-message Cookie {
-    map<string, string> cookie_data = 1;
+    OPENAI = 2;
+    GEMINI = 3;
 }
 
 message RunAgentRequest {
@@ -16,12 +15,20 @@ message RunAgentRequest {
     // control flag to distinguish frontend requests
     bool is_chat_request = 3;
     optional string request_api_key = 4;
-    optional string parent_span_context = 5;
-    optional ModelProvider model_provider = 6;
-    optional string model = 7;
-    optional bool enable_thinking = 8;
-    optional bool return_screenshots = 9;
-    repeated Cookie cookies = 10;
+    optional string cdp_url = 5;
+    optional string parent_span_context = 6;
+    optional ModelProvider model_provider = 7;
+    optional string model = 8;
+    optional bool enable_thinking = 9;
+    optional bool return_screenshots = 10;
+    optional bool return_agent_state = 11;
+    optional bool return_storage_state = 12;
+    optional string storage_state = 13;
+    optional string agent_state = 14;
+    optional uint64 timeout = 15;
+    optional uint64 max_steps = 16;
+    optional uint64 thinking_token_budget = 17;
+    optional string start_url = 18;
 }
 
 message ActionResult {
@@ -40,15 +47,22 @@ message StepChunkContent {
 
 message AgentOutput {
     ActionResult result = 1;
-    repeated Cookie cookies = 2;
-    optional string trace_id = 3;
-    optional uint64 step_count = 4;
+    optional string trace_id = 2;
+    optional uint64 step_count = 3;
+    optional string storage_state = 4;
+    optional string agent_state = 5;
+}
+
+message ErrorChunkContent {
+    string content = 1;
 }
 
 message RunAgentResponseStreamChunk {
     oneof chunk_type {
         StepChunkContent step_chunk_content = 1;
         AgentOutput agent_output = 2;
+        ErrorChunkContent error_chunk_content = 3;
+        StepChunkContent timeout_chunk_content = 4;
     }
 }
 

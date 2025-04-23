@@ -11,6 +11,8 @@ pub enum MessageType {
     Step,
     #[sqlx(rename = "assistant")]
     Assistant,
+    #[sqlx(rename = "error")]
+    Error,
 }
 
 pub async fn insert_agent_message(
