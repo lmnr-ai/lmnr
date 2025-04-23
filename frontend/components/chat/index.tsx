@@ -33,7 +33,7 @@ export const defaultModelState: ModelState = {
   modelProvider: "gemini",
 };
 
-const getModelFromStorage = () => {
+const getModelFromStorage = (): ModelState => {
   const modelFromStorage = typeof window !== "undefined" ? localStorage.getItem("chat-model") : null;
 
   if (!modelFromStorage) return defaultModelState;
