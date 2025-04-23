@@ -1,7 +1,5 @@
-import { ChevronsDown, ChevronsUp } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { isChatMessageList } from "@/lib/flow/utils";
 import { Span } from "@/lib/traces/types";
 
@@ -16,7 +14,6 @@ interface SpanViewSpanProps {
 export function SpanViewSpan({ span }: SpanViewSpanProps) {
   const [spanInput, setSpanInput] = useState(span.input);
   const [spanOutput, setSpanOutput] = useState(span.output);
-  const [reversed, setReversed] = useState(false);
 
   if (span.inputUrl) {
     const url = span.inputUrl.startsWith("/") ? `${span.inputUrl}?payloadType=raw` : span.inputUrl;
@@ -44,20 +41,10 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
       <div className="max-h-0">
         <div className="flex flex-col gap-4 h-full p-4 w-full">
           <div className="w-full">
-            <div className="flex pb-2">
-              <div className="font-medium text-lg mr-auto">Input</div>
-              <Button variant="outline" onClick={() => setReversed((prev) => !prev)}>
-                Reverse
-                {reversed ? <ChevronsUp className="ml-2" size={16} /> : <ChevronsDown className="ml-2" size={16} />}
-              </Button>
-            </div>
+            <div className="font-medium text-lg mr-auto">Input</div>
 
             {isChatMessageList(spanInput) ? (
-              <ChatMessageListTab
-                reversed={reversed}
-                messages={spanInput}
-                presetKey={`input-${spanPathArray.join(".")}`}
-              />
+              <ChatMessageListTab messages={spanInput} presetKey={`input-${spanPathArray.join(".")}`} />
             ) : (
               <Formatter
                 className="max-h-[400px]"
@@ -70,11 +57,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
           <div className="">
             <div className="pb-2 font-medium text-lg">Output</div>
             {isChatMessageList(spanOutput) ? (
-              <ChatMessageListTab
-                reversed={reversed}
-                messages={spanOutput}
-                presetKey={`output-${spanPathArray.join(".")}`}
-              />
+              <ChatMessageListTab messages={spanOutput} presetKey={`output-${spanPathArray.join(".")}`} />
             ) : (
               <Formatter
                 className="max-h-[400px]"

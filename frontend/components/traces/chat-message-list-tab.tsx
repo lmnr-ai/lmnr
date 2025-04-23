@@ -1,9 +1,8 @@
-import { uniqueId } from "lodash";
-import { memo, useMemo } from "react";
+import { ImgHTMLAttributes, memo, useMemo } from "react";
+import { AutoSizer, CellMeasurer, CellMeasurerCache, List, ListRowRenderer } from "react-virtualized";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
-import { isStringType } from "@/lib/utils";
+import { ChatMessage, ChatMessageContentPart, flattenChatMessages, OpenAIImageUrl } from "@/lib/types";
 
 import DownloadButton from "../ui/download-button";
 import Formatter from "../ui/formatter";
@@ -24,21 +23,22 @@ interface ContentPartImageProps {
   b64_data: string;
 }
 
-function ContentPartImage({ b64_data }: ContentPartImageProps) {
+function ContentPartImage({ b64_data, ...rest }: ContentPartImageProps & ImgHTMLAttributes<HTMLImageElement>) {
   return (
     <ImageWithPreview
       src={`data:image/png;base64,${b64_data}`}
       className="object-cover rounded-sm size-16 ml-2"
       alt="span image"
+      {...rest}
     />
   );
 }
 
-function ContentPartImageUrl({ url }: { url: string }) {
+function ContentPartImageUrl({ src, ...rest }: ImgHTMLAttributes<HTMLImageElement>) {
   // if url is a relative path, add ?payloadType=image to the end of the url
   // because it implies that we stored the image in S3
-  if (url.startsWith("/")) url += "?payloadType=image";
-  return <ImageWithPreview src={url} className="object-cover rounded-sm size-16 ml-2" alt="span image" />;
+  if (typeof src === "string" && src.startsWith("/")) src += "?payloadType=image";
+  return <ImageWithPreview src={src} className="object-cover rounded-sm size-16 ml-2" {...rest} />;
 }
 
 function ContentPartDocumentUrl({ url }: { url: string }) {
@@ -51,63 +51,94 @@ function ContentPartDocumentUrl({ url }: { url: string }) {
 
 interface ContentPartsProps {
   contentParts: ChatMessageContentPart[];
-}
-
-function ContentParts({ contentParts }: ContentPartsProps) {
-  const renderContentPart = (contentPart: ChatMessageContentPart) => {
-    switch (contentPart.type) {
-      case "text":
-        return <ContentPartText text={contentPart.text} />;
-      case "image":
-        return <ContentPartImage b64_data={contentPart.data} />;
-      case "image_url":
-        // it means we managed to parse span input and properly store image in S3
-        if (contentPart.url) {
-          return <ContentPartImageUrl url={contentPart.url} />;
-        } else {
-          const openAIImageUrl = contentPart as any as OpenAIImageUrl;
-          return <img src={openAIImageUrl.image_url.url} alt="span image" className="w-full" />;
-        }
-      case "document_url":
-        return <ContentPartDocumentUrl url={contentPart.url} />;
-      default:
-        return <div>Unknown content part</div>;
-    }
-  };
-
-  return (
-    <div className="flex flex-col space-y-2 w-full">
-      {contentParts.map((contentPart, index) => (
-        <div key={index} className="w-full">
-          {renderContentPart(contentPart)}
-        </div>
-      ))}
-    </div>
-  );
+  ref?: (element?: Element | null | undefined) => void;
 }
 
 interface ChatMessageListTabProps {
   messages: ChatMessage[];
   presetKey?: string | null;
-  reversed: boolean;
 }
 
-function PureChatMessageListTab({ messages, presetKey, reversed }: ChatMessageListTabProps) {
-  // Memoize messages to prevent unnecessary re-renders
-  const memoizedMessages = useMemo(() => (reversed ? [...messages].reverse() : messages), [messages, reversed]);
+function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps) {
+  const contentParts = useMemo(() => flattenChatMessages(messages), [messages]);
+  const cache = useMemo(
+    () =>
+      new CellMeasurerCache({
+        fixedWidth: true,
+        defaultHeight: 100,
+        keyMapper: (index) => index, // Help with cache key stability
+      }),
+    []
+  );
 
+  const rowRenderer: ListRowRenderer = ({ index, key, parent }) => {
+    const contentPart = contentParts[index];
+
+    switch (contentPart.type) {
+      case "text":
+        return (
+          <CellMeasurer key={key} cache={cache} parent={parent}>
+            {({ registerChild }) => (
+              <div ref={registerChild}>
+                <ContentPartText text={contentPart.text} />
+              </div>
+            )}
+          </CellMeasurer>
+        );
+      case "image":
+        return (
+          <CellMeasurer key={key} cache={cache} parent={parent}>
+            {({ registerChild, measure }) => (
+              <div ref={registerChild}>
+                <ContentPartImage onLoad={measure} b64_data={contentPart.data} />
+              </div>
+            )}
+          </CellMeasurer>
+        );
+      case "image_url":
+        if (contentPart.url) {
+          return (
+            <CellMeasurer key={key} cache={cache} parent={parent}>
+              {({ registerChild, measure }) => (
+                <div ref={registerChild}>
+                  <ContentPartImageUrl onLoad={measure} src={contentPart.url} alt="span image" />
+                </div>
+              )}
+            </CellMeasurer>
+          );
+        } else {
+          const openAIImageUrl = contentPart as any as OpenAIImageUrl;
+          return (
+            <CellMeasurer key={key} cache={cache} parent={parent}>
+              {({ measure, registerChild }) => (
+                <div ref={registerChild}>
+                  <img src={openAIImageUrl.image_url.url} onLoad={measure} alt="span image" className="w-full" />
+                </div>
+              )}
+            </CellMeasurer>
+          );
+        }
+      case "document_url":
+        return (
+          <CellMeasurer key={key} cache={cache} parent={parent}>
+            {({ registerChild }) => (
+              <div ref={registerChild}>
+                <ContentPartDocumentUrl url={contentPart.url} />
+              </div>
+            )}
+          </CellMeasurer>
+        );
+      default:
+        return <div>Unknown content part</div>;
+    }
+  };
   return (
-    <div className="w-full flex flex-col space-y-4 flex-wrap">
-      {memoizedMessages.map((message, index) => (
-        <div key={uniqueId()} className="flex flex-col border rounded" style={{ contain: "content" }}>
-          <div className="font-medium text-sm text-secondary-foreground border-b p-2">{message.role.toUpperCase()}</div>
-          {isStringType(message.content) ? (
-            <ContentPartText text={message.content} presetKey={`${presetKey}-${index}`} />
-          ) : (
-            <ContentParts contentParts={message.content} />
-          )}
-        </div>
-      ))}
+    <div className="h-96">
+      <AutoSizer>
+        {(props) => (
+          <List {...props} rowHeight={cache.rowHeight} rowCount={contentParts.length} rowRenderer={rowRenderer} />
+        )}
+      </AutoSizer>
     </div>
   );
 }

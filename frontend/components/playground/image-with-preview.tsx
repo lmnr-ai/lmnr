@@ -1,18 +1,14 @@
 import { X } from "lucide-react";
+import { ImgHTMLAttributes } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-interface ImageWithPreviewProps {
-  src: string;
-  alt?: string;
-  className?: string;
-}
-const ImageWithPreview = ({ src, className, alt }: ImageWithPreviewProps) => (
+const ImageWithPreview = ({ className, ...rest }: ImgHTMLAttributes<HTMLImageElement>) => (
   <Dialog>
     <DialogTrigger>
-      <img className={cn("cursor-pointer hover:opacity-90", className)} alt={alt} src={src} />
+      <img className={cn("cursor-pointer hover:opacity-90", className)} {...rest} />
     </DialogTrigger>
     <DialogContent className="max-w-none w-fit overflow-hidden">
       <DialogTitle className="flex justify-between items-center">
@@ -23,7 +19,7 @@ const ImageWithPreview = ({ src, className, alt }: ImageWithPreviewProps) => (
           </Button>
         </DialogClose>
       </DialogTitle>
-      <img className="w-auto h-auto rounded-sm max-w-[80vw] max-h-[80vh]" alt={alt} src={src} />
+      <img className="w-auto h-auto rounded-sm max-w-[80vw] max-h-[80vh]" src={rest.src} alt={rest.alt} />
     </DialogContent>
   </Dialog>
 );

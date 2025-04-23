@@ -308,6 +308,9 @@ importers:
       react-textarea-autosize:
         specifier: ^8.5.9
         version: 8.5.9(@types/react@19.1.2)(react@19.1.0)
+      react-virtualized:
+        specifier: ^9.22.6
+        version: 9.22.6(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       reactflow:
         specifier: ^11.11.4
         version: 11.11.4(@types/react@19.1.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -372,6 +375,9 @@ importers:
       '@types/react-syntax-highlighter':
         specifier: ^15.5.13
         version: 15.5.13
+      '@types/react-virtualized':
+        specifier: ^9.22.2
+        version: 9.22.2
       '@types/uuid':
         specifier: ^9.0.8
         version: 9.0.8
@@ -2786,6 +2792,9 @@ packages:
   '@types/phoenix@1.6.6':
     resolution: {integrity: sha512-PIzZZlEppgrpoT2QgbnDU+MMzuR6BbCjllj0bM70lWoejMeNJAxCchxnv7J3XFkI8MpygtRpzXrIlmWUBclP5A==}
 
+  '@types/prop-types@15.7.14':
+    resolution: {integrity: sha512-gNMvNH49DJ7OJYv+KAKn0Xp45p8PLl6zo2YnvDIbTd4J6MER2BmWN49TG7n9LvkyihINxeKW8+3bfS2yDC9dzQ==}
+
   '@types/react-dom@19.1.2':
     resolution: {integrity: sha512-XGJkWF41Qq305SKWEILa1O8vzhb3aOo3ogBlSmiqNko/WmRb6QIaweuZCXjKygVDXpzXb5wyxKTSOsmkuqj+Qw==}
     peerDependencies:
@@ -2798,6 +2807,9 @@ packages:
     resolution: {integrity: sha512-8TV6R3h2j7a91c+1DXdJi3Syo69zzIZbz7Lg5tORM5LEJG7X/E6a1V3drRyBRZq7/utz7A+c4OgYLiLcYGHG6w==}
     peerDependencies:
       '@types/react': '*'
+
+  '@types/react-virtualized@9.22.2':
+    resolution: {integrity: sha512-0Eg/ME3OHYWGxs+/n4VelfYrhXssireZaa1Uqj5SEkTpSaBu5ctFGOCVxcOqpGXRiEdrk/7uho9tlZaryCIjHA==}
 
   '@types/react@19.1.2':
     resolution: {integrity: sha512-oxLPMytKchWGbnQM9O7D67uPa9paTNxO7jVoNMXgkkErULBPhPARCfkKL9ytcIJJRGjbsVwW4ugJzyFFvm/Tiw==}
@@ -3248,6 +3260,10 @@ packages:
 
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
+
+  clsx@1.2.1:
+    resolution: {integrity: sha512-EcR6r5a8bj6pu3ycsa/E/cKVGuTgZJZdsyUYHOksG/UHIiKfjxzRxYJpyVBwYaQeOvghal9fcc4PidlgzugAQg==}
+    engines: {node: '>=6'}
 
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
@@ -5269,6 +5285,9 @@ packages:
   react-is@18.3.1:
     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
 
+  react-lifecycles-compat@3.0.4:
+    resolution: {integrity: sha512-fBASbA6LnOU9dOU2eW7aQ8xmYBSXUIWr+UmF9b1efZBazGNO+rcXT/icdKnYm2pTwcRylVUYwW7H1PHfLekVzA==}
+
   react-markdown@9.1.0:
     resolution: {integrity: sha512-xaijuJB0kzGiUdG7nc2MOMDUDBWPyGAjZtUrow9XxUeua8IqeP+VlIfAZ3bphpcLTnSZXz6z9jcVC/TCwbfgdw==}
     peerDependencies:
@@ -5352,6 +5371,12 @@ packages:
     peerDependencies:
       react: '>=16.6.0'
       react-dom: '>=16.6.0'
+
+  react-virtualized@9.22.6:
+    resolution: {integrity: sha512-U5j7KuUQt3AaMatlMJ0UJddqSiX+Km0YJxSqbAzIiGw5EmNz0khMyqP2hzgu4+QUtm+QPIrxzUX4raJxmVJnHg==}
+    peerDependencies:
+      react: ^16.3.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.3.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   react@19.1.0:
     resolution: {integrity: sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg==}
@@ -8906,6 +8931,8 @@ snapshots:
 
   '@types/phoenix@1.6.6': {}
 
+  '@types/prop-types@15.7.14': {}
+
   '@types/react-dom@19.1.2(@types/react@19.1.2)':
     dependencies:
       '@types/react': 19.1.2
@@ -8916,6 +8943,11 @@ snapshots:
 
   '@types/react-transition-group@4.4.12(@types/react@19.1.2)':
     dependencies:
+      '@types/react': 19.1.2
+
+  '@types/react-virtualized@9.22.2':
+    dependencies:
+      '@types/prop-types': 15.7.14
       '@types/react': 19.1.2
 
   '@types/react@19.1.2':
@@ -9400,6 +9432,8 @@ snapshots:
   classcat@5.0.5: {}
 
   client-only@0.0.1: {}
+
+  clsx@1.2.1: {}
 
   clsx@2.1.1: {}
 
@@ -11757,6 +11791,8 @@ snapshots:
 
   react-is@18.3.1: {}
 
+  react-lifecycles-compat@3.0.4: {}
+
   react-markdown@9.1.0(@types/react@19.1.2)(react@19.1.0):
     dependencies:
       '@types/hast': 3.0.4
@@ -11878,6 +11914,17 @@ snapshots:
       prop-types: 15.8.1
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
+
+  react-virtualized@9.22.6(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
+    dependencies:
+      '@babel/runtime': 7.27.0
+      clsx: 1.2.1
+      dom-helpers: 5.2.1
+      loose-envify: 1.4.0
+      prop-types: 15.8.1
+      react: 19.1.0
+      react-dom: 19.1.0(react@19.1.0)
+      react-lifecycles-compat: 3.0.4
 
   react@19.1.0: {}
 
