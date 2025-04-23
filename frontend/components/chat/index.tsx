@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { isEmpty } from "lodash";
 import { User } from "next-auth";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import BrowserWindow from "@/components/chat/browser-window";
 import Messages from "@/components/chat/messages";
@@ -21,11 +21,32 @@ interface ChatProps {
   initialMessages: ChatMessage[];
 }
 
+export interface ModelState {
+  model: string;
+  enableThinking: boolean;
+  modelProvider: string;
+}
+
+export const defaultModelState: ModelState = {
+  model: "gemini-2.5-pro-preview-03-25",
+  enableThinking: true,
+  modelProvider: "gemini",
+};
+
+const getModelFromStorage = (): ModelState => {
+  const modelFromStorage = typeof window !== "undefined" ? localStorage.getItem("chat-model") : null;
+
+  if (!modelFromStorage) return defaultModelState;
+
+  try {
+    return JSON.parse(modelFromStorage);
+  } catch (error) {
+    return defaultModelState;
+  }
+};
+
 const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
-  const [modelState, setModelState] = useState<{ model: string; enableThinking: boolean }>({
-    model: "claude-3-7-sonnet-20250219",
-    enableThinking: true,
-  });
+  const [modelState, setModelState] = useState<ModelState>(getModelFromStorage());
 
   const { messages, handleSubmit, stop, isLoading, input, setInput, isControlled, setIsControlled } = useAgentChat({
     id: sessionId,
@@ -47,8 +68,15 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
     if (e) {
       e.preventDefault();
     }
+
     handleSubmit(e, modelState);
   };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("chat-model", JSON.stringify(modelState));
+    }
+  }, [modelState]);
 
   const handleSubmitWithInput = (input: string) => {
     setInput(input);
