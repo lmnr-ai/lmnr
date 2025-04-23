@@ -2,6 +2,7 @@ import { uniqueId } from "lodash";
 import { ChangeEvent, Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
+import { defaultModelState, ModelState } from "@/components/chat/index";
 import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { connectToStream, initiateChat, stopSession } from "@/components/chat/utils";
 import { toast } from "@/lib/hooks/use-toast";
@@ -19,11 +20,7 @@ interface UseAgentChatOptions {
 interface UseAgentChatHelpers {
   messages: ChatMessage[];
   isLoading: boolean;
-  handleSubmit: (
-    e?: FormEvent<HTMLFormElement>,
-    options?: { model: string; enableThinking: boolean },
-    submitInput?: string
-  ) => Promise<void>;
+  handleSubmit: (e?: FormEvent<HTMLFormElement>, options?: ModelState, submitInput?: string) => Promise<void>;
   handleInputChange?: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   input: string;
@@ -32,8 +29,6 @@ interface UseAgentChatHelpers {
   isControlled: boolean;
   setIsControlled: (isControlled: boolean) => void;
 }
-
-const defaultOptions = { model: "claude-3-7-sonnet-latest", enableThinking: true };
 
 export function useAgentChat({
   api = "/api/agent",
@@ -75,11 +70,7 @@ export function useAgentChat({
   }, []);
 
   const handleSubmit = useCallback(
-    async (
-      e?: FormEvent<HTMLFormElement>,
-      options?: { model: string; enableThinking: boolean },
-      submitInput?: string
-    ) => {
+    async (e?: FormEvent<HTMLFormElement>, options?: ModelState, submitInput?: string) => {
       if (e) {
         e.preventDefault();
       }
@@ -90,7 +81,7 @@ export function useAgentChat({
         return;
       }
 
-      const modelOptions = options ?? defaultOptions;
+      const modelOptions = options ?? defaultModelState;
 
       setIsLoading(true);
       setInput("");
@@ -170,7 +161,7 @@ export function useAgentChat({
         api,
         id,
         false,
-        defaultOptions,
+        defaultModelState,
         (chunk) => {
           if (chunk.chunkType === "step") {
             const stepMessage: ChatMessage = {
