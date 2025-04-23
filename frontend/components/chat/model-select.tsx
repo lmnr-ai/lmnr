@@ -104,7 +104,7 @@ const ModelSelect = ({ modelState, onModelStateChange, disabled }: ModelSelectPr
           </div>
           <Check
             className={cn("invisible ml-2 text-primary", {
-              visible: model.model === modelState.model,
+              visible: model.model === modelState.model && model.modelProvider === modelState.modelProvider,
             })}
             size={16}
           />

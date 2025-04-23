@@ -2,7 +2,7 @@ import { uniqueId } from "lodash";
 import { ChangeEvent, Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { ModelState } from "@/components/chat/index";
+import { defaultModelState, ModelState } from "@/components/chat/index";
 import { AgentSession, ChatMessage } from "@/components/chat/types";
 import { connectToStream, initiateChat, stopSession } from "@/components/chat/utils";
 import { toast } from "@/lib/hooks/use-toast";
@@ -29,12 +29,6 @@ interface UseAgentChatHelpers {
   isControlled: boolean;
   setIsControlled: (isControlled: boolean) => void;
 }
-
-const defaultOptions: ModelState = {
-  model: "gemini-2.5-pro-preview-03-25",
-  enableThinking: true,
-  modelProvider: "gemini",
-};
 
 export function useAgentChat({
   api = "/api/agent",
@@ -87,7 +81,7 @@ export function useAgentChat({
         return;
       }
 
-      const modelOptions = options ?? defaultOptions;
+      const modelOptions = options ?? defaultModelState;
 
       setIsLoading(true);
       setInput("");
@@ -167,7 +161,7 @@ export function useAgentChat({
         api,
         id,
         false,
-        defaultOptions,
+        defaultModelState,
         (chunk) => {
           if (chunk.chunkType === "step") {
             const stepMessage: ChatMessage = {
