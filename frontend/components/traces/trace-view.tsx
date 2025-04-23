@@ -95,8 +95,16 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       if (propsTrace) {
         setTrace(propsTrace);
       } else {
-        const trace = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
-        const traceData = await trace.json();
+        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
+        if (!response.ok) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to load trace. Please try again.",
+          });
+          return;
+        }
+        const traceData = await response.json();
         setTrace(traceData);
         if (traceData.hasBrowserSession) {
           setShowBrowserSession(true);
