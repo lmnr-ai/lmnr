@@ -1,6 +1,8 @@
 import { find } from "lodash";
 import { Check, ChevronDown } from "lucide-react";
+import { ReactNode } from "react";
 
+import { ModelState } from "@/components/chat/index";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -8,26 +10,54 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { IconAnthropic, IconGemini, IconOpenAI } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 interface ModelSelectProps {
   disabled: boolean;
-  modelState: { model: string; enableThinking: boolean };
-  onModelStateChange: ({ model, enableThinking }: { model: string; enableThinking: boolean }) => void;
+  modelState: ModelState;
+  onModelStateChange: ({ model, enableThinking }: ModelState) => void;
 }
 
-const models: { model: string; description: string; label: string; enableThinking: boolean }[] = [
-  // {
-  //   model: "claude-3-7-sonnet-20250219",
-  //   label: "Claude 3.7 Sonnet",
-  //   description: "Fast",
-  //   enableThinking: false,
-  // },
+const models: {
+  model: string;
+  description: string;
+  modelProvider: string;
+  label: string;
+  enableThinking: boolean;
+  icon: ReactNode;
+}[] = [
+  {
+    model: "gemini-2.5-pro-preview-03-25",
+    label: "Gemini 2.5 Pro",
+    description: "",
+    enableThinking: true,
+    icon: <IconGemini className="size-3" />,
+    modelProvider: "gemini",
+  },
   {
     model: "claude-3-7-sonnet-20250219",
     label: "Claude 3.7 Sonnet (thinking)",
     description: "",
     enableThinking: true,
+    icon: <IconAnthropic className="size-3" />,
+    modelProvider: "anthropic",
+  },
+  {
+    model: "o4-mini",
+    label: "o4-mini",
+    description: "",
+    enableThinking: true,
+    icon: <IconOpenAI className="size-3" />,
+    modelProvider: "openai",
+  },
+  {
+    model: "gemini-2.5-flash-preview-04-17",
+    label: "Gemini 2.5 Flash",
+    description: "",
+    enableThinking: true,
+    icon: <IconGemini className="size-3" />,
+    modelProvider: "gemini",
   },
 ];
 
@@ -35,8 +65,21 @@ const ModelSelect = ({ modelState, onModelStateChange, disabled }: ModelSelectPr
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button disabled={disabled} className="bg-zinc-700" variant="ghost">
+        <span className="mr-2">
+          {
+            find(models, {
+              model: modelState.model,
+              modelProvider: modelState.modelProvider,
+              enableThinking: modelState.enableThinking,
+            })?.icon
+          }
+        </span>
         <span className="flex-1 text-left truncate mr-2 py-0.5">
-          {find(models, { model: modelState.model, enableThinking: modelState.enableThinking })?.label ?? "-"}
+          {find(models, {
+            model: modelState.model,
+            modelProvider: modelState.modelProvider,
+            enableThinking: modelState.enableThinking,
+          })?.label ?? "-"}
         </span>
         <ChevronDown className="text-secondary-foreground min-w-4" size={16} />
       </Button>
@@ -46,15 +89,22 @@ const ModelSelect = ({ modelState, onModelStateChange, disabled }: ModelSelectPr
         <DropdownMenuItem
           className="py-2"
           key={model.label}
-          onSelect={() => onModelStateChange({ model: model.model, enableThinking: model.enableThinking })}
+          onSelect={() =>
+            onModelStateChange({
+              model: model.model,
+              enableThinking: model.enableThinking,
+              modelProvider: model.modelProvider,
+            })
+          }
         >
+          <span className="mr-2">{model.icon}</span>
           <div className="flex flex-col flex-1 pr-2">
             <span className="flex-1">{model.label}</span>
             <span className="flex-1 text-xs text-secondary-foreground">{model.description}</span>
           </div>
           <Check
             className={cn("invisible ml-2 text-primary", {
-              visible: model.enableThinking === modelState.enableThinking,
+              visible: model.model === modelState.model,
             })}
             size={16}
           />

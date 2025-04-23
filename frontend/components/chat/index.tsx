@@ -21,11 +21,23 @@ interface ChatProps {
   initialMessages: ChatMessage[];
 }
 
+export interface ModelState {
+  model: string;
+  enableThinking: boolean;
+  modelProvider: string;
+}
+
+const defaultModelState: ModelState = {
+  model: "gemini-2.5-pro-preview-03-25",
+  enableThinking: true,
+  modelProvider: "gemini",
+};
 const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
-  const [modelState, setModelState] = useState<{ model: string; enableThinking: boolean }>({
-    model: "claude-3-7-sonnet-20250219",
-    enableThinking: true,
-  });
+  const modelFromStorage = typeof window !== "undefined" ? localStorage.getItem("chat-model") : null;
+
+  const [modelState, setModelState] = useState<ModelState>(
+    modelFromStorage ? JSON.parse(modelFromStorage) : defaultModelState
+  );
 
   const { messages, handleSubmit, stop, isLoading, input, setInput, isControlled, setIsControlled } = useAgentChat({
     id: sessionId,
@@ -46,6 +58,10 @@ const Chat = ({ sessionId, agentStatus, user, initialMessages }: ChatProps) => {
   const onSubmit = (e?: FormEvent<HTMLFormElement>) => {
     if (e) {
       e.preventDefault();
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("chat-model", JSON.stringify(modelState));
     }
     handleSubmit(e, modelState);
   };

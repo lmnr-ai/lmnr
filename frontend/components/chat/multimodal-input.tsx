@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { ArrowUp, StopCircleIcon, X } from "lucide-react";
 import { KeyboardEvent, memo, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import { ModelState } from "@/components/chat/index";
 import ModelSelect from "@/components/chat/model-select";
 import { useSessionContext } from "@/components/chat/session-context";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,8 @@ interface MultimodalInputProps {
   className?: string;
   stop: () => void;
   onSubmit: () => void;
-  modelState: { model: string; enableThinking: boolean };
-  onModelStateChange: ({ model, enableThinking }: { model: string; enableThinking: boolean }) => void;
+  modelState: ModelState;
+  onModelStateChange: ({ model, enableThinking }: ModelState) => void;
 }
 
 const MultimodalInput = ({

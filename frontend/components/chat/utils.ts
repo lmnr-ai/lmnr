@@ -2,13 +2,14 @@ import { createParser } from "eventsource-parser";
 import { SetStateAction } from "react";
 import { v4 } from "uuid";
 
+import { ModelState } from "@/components/chat/index";
 import { AgentSession, ChatMessage, RunAgentResponseStreamChunk } from "@/components/chat/types";
 
 export const connectToStream = async (
   api: string,
   sessionId: string,
   isNewUserMessage: boolean,
-  modelOptions: { model: string; enableThinking: boolean },
+  modelState: ModelState,
   onChunk: (chunk: RunAgentResponseStreamChunk) => void,
   onError: (error: Error) => void,
   signal?: AbortSignal,
@@ -23,7 +24,7 @@ export const connectToStream = async (
       sessionId,
       isNewUserMessage,
       prompt: prompt,
-      ...modelOptions,
+      ...modelState,
     }),
     signal,
   });
