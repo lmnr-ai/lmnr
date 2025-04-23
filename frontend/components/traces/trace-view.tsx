@@ -90,25 +90,24 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
 
-  const handleFetchTrace = useCallback(() => {
+  const handleFetchTrace = useCallback(async () => {
     try {
-      const fetchTrace = async () => {
-        const trace = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
-        return await trace.json();
-      };
-
       if (propsTrace) {
         setTrace(propsTrace);
       } else {
-        fetchTrace().then((trace) => {
-          setTrace(trace);
-          if (trace.hasBrowserSession) {
-            setShowBrowserSession(true);
-          }
-        });
+        const trace = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
+        const traceData = await trace.json();
+        setTrace(traceData);
+        if (traceData.hasBrowserSession) {
+          setShowBrowserSession(true);
+        }
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to load trace. Please try again." });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load trace. Please try again.",
+      });
     }
   }, [projectId, propsTrace, toast, traceId]);
 
