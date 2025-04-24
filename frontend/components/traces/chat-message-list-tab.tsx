@@ -1,23 +1,21 @@
-import { uniqueId } from "lodash";
-import { memo, useMemo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { ChevronDown } from "lucide-react";
+import { memo, useMemo, useRef } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
-import { isStringType } from "@/lib/utils";
+import CodeHighlighter from "@/components/traces/code-highlighter";
+import { Button } from "@/components/ui/button";
+import { ChatMessage, ChatMessageContentPart, flattenContentOfMessages, OpenAIImageUrl } from "@/lib/types";
 
 import DownloadButton from "../ui/download-button";
-import Formatter from "../ui/formatter";
 import PdfRenderer from "../ui/pdf-renderer";
-
 interface ContentPartTextProps {
   text: string;
   presetKey?: string | null;
 }
 
 function ContentPartText({ text, presetKey }: ContentPartTextProps) {
-  return (
-    <Formatter collapsible value={text} className="rounded-none max-h-[400px] border-none" presetKey={presetKey} />
-  );
+  return <CodeHighlighter collapsible value={text} className="max-h-[400px] border-none" presetKey={presetKey} />;
 }
 
 interface ContentPartImageProps {
@@ -51,13 +49,14 @@ function ContentPartDocumentUrl({ url }: { url: string }) {
 
 interface ContentPartsProps {
   contentParts: ChatMessageContentPart[];
+  presetKey?: string | null;
 }
 
-function ContentParts({ contentParts }: ContentPartsProps) {
+function ContentParts({ contentParts, presetKey }: ContentPartsProps) {
   const renderContentPart = (contentPart: ChatMessageContentPart) => {
     switch (contentPart.type) {
       case "text":
-        return <ContentPartText text={contentPart.text} />;
+        return <ContentPartText presetKey={presetKey} text={contentPart.text} />;
       case "image":
         return <ContentPartImage b64_data={contentPart.data} />;
       case "image_url":
@@ -76,7 +75,7 @@ function ContentParts({ contentParts }: ContentPartsProps) {
   };
 
   return (
-    <div className="flex flex-col space-y-2 w-full">
+    <div className="flex flex-col gap-2 w-full">
       {contentParts.map((contentPart, index) => (
         <div key={index} className="w-full">
           {renderContentPart(contentPart)}
@@ -89,25 +88,76 @@ function ContentParts({ contentParts }: ContentPartsProps) {
 interface ChatMessageListTabProps {
   messages: ChatMessage[];
   presetKey?: string | null;
-  reversed: boolean;
 }
 
-function PureChatMessageListTab({ messages, presetKey, reversed }: ChatMessageListTabProps) {
-  // Memoize messages to prevent unnecessary re-renders
-  const memoizedMessages = useMemo(() => (reversed ? [...messages].reverse() : messages), [messages, reversed]);
+function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps) {
+  const memoizedMessages = useMemo(() => flattenContentOfMessages(messages), [messages]);
+
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: memoizedMessages.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 500,
+    overscan: 5,
+    gap: 16,
+  });
+
+  const items = virtualizer.getVirtualItems();
 
   return (
-    <div className="w-full flex flex-col space-y-4 flex-wrap">
-      {memoizedMessages.map((message, index) => (
-        <div key={uniqueId()} className="flex flex-col border rounded" style={{ contain: "content" }}>
-          <div className="font-medium text-sm text-secondary-foreground border-b p-2">{message.role.toUpperCase()}</div>
-          {isStringType(message.content) ? (
-            <ContentPartText text={message.content} presetKey={`${presetKey}-${index}`} />
-          ) : (
-            <ContentParts contentParts={message.content} />
-          )}
+    <div className="relative h-full">
+      <div
+        ref={parentRef}
+        className="List h-full overflow-y-auto"
+        style={{
+          width: "100%",
+          contain: "strict",
+        }}
+      >
+        <div
+          style={{
+            height: virtualizer.getTotalSize(),
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${items[0]?.start ?? 0}px)`,
+            }}
+          >
+            {items.map((virtualRow, index) => {
+              const message = memoizedMessages[index];
+              return (
+                <div
+                  key={virtualRow.key}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
+                  className="flex flex-col border rounded mb-4"
+                >
+                  <div className="font-medium text-sm text-secondary-foreground border-b p-2">
+                    {message.role.toUpperCase()}
+                  </div>
+                  <ContentParts presetKey={presetKey} contentParts={message.content} />
+                </div>
+              );
+            })}
+          </div>
         </div>
-      ))}
+      </div>
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute bottom-3 right-3 rounded-full"
+        onClick={() => virtualizer.scrollToIndex(virtualizer.options.count - 1, { align: "end", behavior: "smooth" })}
+      >
+        <ChevronDown className="w-4 h-4" />
+      </Button>
     </div>
   );
 }

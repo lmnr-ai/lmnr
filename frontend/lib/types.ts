@@ -6,48 +6,64 @@ export interface UserSession {
 }
 
 export type ChatMessageText = {
-  type: 'text';
+  type: "text";
   text: string;
 };
 
 export type ChatMessageImageUrl = {
-  type: 'image_url';
+  type: "image_url";
   url: string;
   detail: string | null;
 };
 
 export type ChatMessageImage = {
-  type: 'image';
+  type: "image";
   mediaType: string; // e.g. "image/jpeg"
   data: string;
 };
 
 export type ChatMessageDocumentUrl = {
-  type: 'document_url';
+  type: "document_url";
   mediaType: string; // e.g. "application/pdf"
   url: string;
 };
 
 export type OpenAIImageUrl = {
-  type: 'image_url';
+  type: "image_url";
   image_url: {
     url: string;
     detail: string | null;
   };
 };
 
-export type ChatMessageContentPart =
-  | ChatMessageText
-  | ChatMessageImageUrl
-  | ChatMessageImage
-  | ChatMessageDocumentUrl;
+export type ChatMessageContentPart = ChatMessageText | ChatMessageImageUrl | ChatMessageImage | ChatMessageDocumentUrl;
 
 export type ChatMessageContent = string | ChatMessageContentPart[];
 
 export type ChatMessage = {
   content: ChatMessageContent;
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
 };
+
+export const flattenContentOfMessages = (
+  messages: ChatMessage[]
+): {
+  content: ChatMessageContentPart[];
+  role: "user" | "assistant" | "system";
+}[] =>
+  messages.map((message) => {
+    if (typeof message.content === "string") {
+      return {
+        ...message,
+        content: [{ type: "text", text: message.content }],
+      };
+    }
+
+    return message as {
+      content: ChatMessageContentPart[];
+      role: "user" | "assistant" | "system";
+    };
+  });
 
 export type DatatableFilter = {
   column: string;
@@ -71,8 +87,8 @@ export type BucketRow = {
 };
 
 export const DownloadFormat = {
-  JSON: 'json',
-  CSV: 'csv'
+  JSON: "json",
+  CSV: "csv",
 } as const;
 
-export type DownloadFormat = typeof DownloadFormat[keyof typeof DownloadFormat];
+export type DownloadFormat = (typeof DownloadFormat)[keyof typeof DownloadFormat];

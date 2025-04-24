@@ -63,6 +63,7 @@
     "@react-email/tailwind": "^1.0.4",
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.6",
     "@types/lodash": "^4.17.16",
     "@types/pako": "^2.0.3",
     "@uiw/codemirror-theme-github": "^4.23.10",
