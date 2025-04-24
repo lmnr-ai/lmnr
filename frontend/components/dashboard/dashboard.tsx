@@ -5,7 +5,7 @@ import { useEffect } from "react";
 
 import { useProjectContext } from "@/contexts/project-context";
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
-import { SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/spans";
+import { SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/types";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
 import { getGroupByInterval } from "@/lib/utils";
 

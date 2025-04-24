@@ -36,8 +36,8 @@ importers:
         specifier: ^3.787.0
         version: 3.787.0
       '@clickhouse/client':
-        specifier: 1.11.0
-        version: 1.11.0
+        specifier: ^1.11.1
+        version: 1.11.1
       '@codemirror/lang-html':
         specifier: ^6.4.9
         version: 6.4.9
@@ -702,11 +702,11 @@ packages:
     resolution: {integrity: sha512-H45s8fVLYjbhFH62dIJ3WtmJ6RSPt/3DRO0ZcT2SUiYiQyz3BLVb9ADEnLl91m74aQPS3AzzeajZHYOalWe3bg==}
     engines: {node: '>=6.9.0'}
 
-  '@clickhouse/client-common@1.11.0':
-    resolution: {integrity: sha512-O0xbwv7HiMXayokrf5dYIBpjBnYekcOXWz60T1cXLmiZ8vgrfNRCiOpybJkrMXKnw9D0mWCgPUu/rgMY7U1f4g==}
+  '@clickhouse/client-common@1.11.1':
+    resolution: {integrity: sha512-bme0le2yhDSAh13d2fxhSW5ZrNoVqZ3LTyac8jK6hNH0qkksXnjYkLS6KQalPU6NMpffxHmpI4+/Gi2MnX0NCA==}
 
-  '@clickhouse/client@1.11.0':
-    resolution: {integrity: sha512-VYTQfR0y/BtrIDEjuSce1zv85OvHak5sUhZVyNYJzbAgWHy3jFf8Os7FdUSeqyKav0xGGy+2X+dRanTFjI5Oug==}
+  '@clickhouse/client@1.11.1':
+    resolution: {integrity: sha512-u9h++h72SmWystijNqfNvMkfA+5+Y1LNfmLL/odCL3VgI3oyAPP9ubSw/Yrt2zRZkLKehMMD1kuOej0QHbSoBA==}
     engines: {node: '>=16'}
 
   '@codemirror/autocomplete@6.18.6':
@@ -6665,11 +6665,11 @@ snapshots:
       '@babel/helper-string-parser': 7.25.9
       '@babel/helper-validator-identifier': 7.25.9
 
-  '@clickhouse/client-common@1.11.0': {}
+  '@clickhouse/client-common@1.11.1': {}
 
-  '@clickhouse/client@1.11.0':
+  '@clickhouse/client@1.11.1':
     dependencies:
-      '@clickhouse/client-common': 1.11.0
+      '@clickhouse/client-common': 1.11.1
 
   '@codemirror/autocomplete@6.18.6':
     dependencies:

@@ -1,4 +1,4 @@
-import { SpanMetricGroupBy } from "../clickhouse/spans";
+import { SpanMetricGroupBy } from "../clickhouse/types";
 import { DatatableFilter } from "../types";
 import { SpanType } from "./types";
 
