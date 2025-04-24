@@ -2,11 +2,6 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 
 import { chStepMap, GroupByInterval, intervalMap, truncateTimeMap } from "./modifiers";
 
-interface TimeBounds {
-  minTime: number;
-  maxTime: number;
-}
-
 const NANOS_PER_MILLISECOND = 1e6;
 
 export const dateToNanoseconds = (date: Date): number => date.getTime() * NANOS_PER_MILLISECOND;

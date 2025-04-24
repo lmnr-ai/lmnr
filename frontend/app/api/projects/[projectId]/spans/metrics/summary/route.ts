@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSpanMetricsSummary, SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/spans";
+import { getSpanMetricsSummary } from "@/lib/clickhouse/spans";
+import { SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/types";
 import { AggregationFunction, getTimeRange } from "@/lib/clickhouse/utils";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }) {
