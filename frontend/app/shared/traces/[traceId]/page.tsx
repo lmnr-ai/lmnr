@@ -5,9 +5,15 @@ import TraceView from "@/components/shared/traces/trace-view";
 import { db } from "@/lib/db/drizzle";
 import { spans, traces } from "@/lib/db/migrations/schema";
 import { Span, Trace } from "@/lib/traces/types";
+import { SpanSearchType } from "@/lib/clickhouse/types";
+import { searchSpans } from "@/lib/clickhouse/spans";
 
-export default async function SharedTracePage(props: { params: Promise<{ traceId: string }> }) {
+export default async function SharedTracePage(props: {
+  params: Promise<{ traceId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const { traceId } = await props.params;
+  const { search, searchIn } = await props.searchParams;
 
   const trace = (await db.query.traces.findFirst({
     where: eq(traces.id, traceId),
@@ -17,6 +23,21 @@ export default async function SharedTracePage(props: { params: Promise<{ traceId
     return notFound();
   }
 
+  let searchSpanIds: string[] = [];
+  if (search) {
+    const searchType = (typeof searchIn === "string" ? searchIn.split(",") : searchIn) ?? [];
+
+    const searchQuery = (typeof search === "string" ? search : search[0]);
+    const spansResult = await searchSpans({
+      searchQuery,
+      timeRange: { pastHours: "all" },
+      searchType: searchType as SpanSearchType[],
+      traceId,
+    });
+    searchSpanIds = Array.from(spansResult.spanIds);
+  }
+
+
   const spansResult = (await db.query.spans.findMany({
     where: eq(spans.traceId, traceId),
     orderBy: asc(spans.startTime),
@@ -25,5 +46,7 @@ export default async function SharedTracePage(props: { params: Promise<{ traceId
     },
   })) as unknown as Span[];
 
+  // TODO: return the searchSpanIds as a separate key, and then somehow filter-out/highlight
+  // the searchSpanIds in the UI
   return <TraceView trace={trace} spans={spansResult} />;
 }
