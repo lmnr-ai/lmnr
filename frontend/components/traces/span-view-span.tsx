@@ -44,7 +44,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
             <div className="font-medium text-lg mr-auto">Input</div>
 
             {isChatMessageList(spanInput) ? (
-              <ChatMessageListTab messages={spanInput} presetKey={`input-${spanPathArray.join(".")}`} />
+              <ChatMessageListTab messages={spanInput} />
             ) : (
               <Formatter
                 className="max-h-[400px]"
@@ -57,7 +57,7 @@ export function SpanViewSpan({ span }: SpanViewSpanProps) {
           <div className="">
             <div className="pb-2 font-medium text-lg">Output</div>
             {isChatMessageList(spanOutput) ? (
-              <ChatMessageListTab messages={spanOutput} presetKey={`output-${spanPathArray.join(".")}`} />
+              <ChatMessageListTab messages={spanOutput} />
             ) : (
               <Formatter
                 className="max-h-[400px]"

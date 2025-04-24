@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, Copy, Maximize, Minimize } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CSSProperties, Ref, useEffect, useState } from "react";
 import YAML from "yaml";
 
 import { cn } from "@/lib/utils";
@@ -21,6 +21,8 @@ interface OutputFormatterProps {
   onChange?: (value: string) => void;
   collapsible?: boolean;
   presetKey?: string | null;
+  ref?: Ref<HTMLDivElement>;
+  style?: CSSProperties;
 }
 
 const modes = ["TEXT", "YAML", "JSON", "CUSTOM"];
@@ -33,6 +35,8 @@ export default function Formatter({
   className,
   collapsible = false,
   presetKey = null,
+  style,
+  ref,
 }: OutputFormatterProps) {
   const [renderedValue, setRenderedValue] = useState(value);
   const [mode, setMode] = useState(() => {
@@ -78,7 +82,7 @@ export default function Formatter({
   };
 
   return (
-    <div className={cn("w-full h-full flex flex-col border rounded", className)}>
+    <div ref={ref} style={style} className={cn("w-full h-full flex flex-col border rounded", className)}>
       <div className="flex w-full flex-none p-0">
         <div
           className={cn("flex justify-between items-center pl-2 pr-1 w-full border-b", isCollapsed ? "border-b-0" : "")}

@@ -1,23 +1,13 @@
-import { ImgHTMLAttributes, memo, useMemo } from "react";
+import { uniqueId } from "lodash";
+import React, { ImgHTMLAttributes, memo, useMemo, useRef } from "react";
 import { AutoSizer, CellMeasurer, CellMeasurerCache, List, ListRowRenderer } from "react-virtualized";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import { ChatMessage, ChatMessageContentPart, flattenChatMessages, OpenAIImageUrl } from "@/lib/types";
+import { ChatMessage, ChatMessageContentPart, flattenContentOfMessages, OpenAIImageUrl } from "@/lib/types";
 
+import CodeHighlighter from "../ui/code-highlighter";
 import DownloadButton from "../ui/download-button";
-import Formatter from "../ui/formatter";
 import PdfRenderer from "../ui/pdf-renderer";
-
-interface ContentPartTextProps {
-  text: string;
-  presetKey?: string | null;
-}
-
-function ContentPartText({ text, presetKey }: ContentPartTextProps) {
-  return (
-    <Formatter collapsible value={text} className="rounded-none max-h-[400px] border-none" presetKey={presetKey} />
-  );
-}
 
 interface ContentPartImageProps {
   b64_data: string;
@@ -49,47 +39,52 @@ function ContentPartDocumentUrl({ url }: { url: string }) {
   );
 }
 
-interface ContentPartsProps {
-  contentParts: ChatMessageContentPart[];
-  ref?: (element?: Element | null | undefined) => void;
-}
-
 interface ChatMessageListTabProps {
   messages: ChatMessage[];
-  presetKey?: string | null;
 }
 
-function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps) {
-  const contentParts = useMemo(() => flattenChatMessages(messages), [messages]);
+function PureChatMessageListTab({ messages }: ChatMessageListTabProps) {
+  const transformedMessages = useMemo(() => flattenContentOfMessages(messages), [messages]);
+
+  return transformedMessages.map((message) => (
+    <div key={uniqueId()} className="border rounded h-full overflow-auto mb-4">
+      <div className="font-medium text-sm text-secondary-foreground border-b p-2">{message.role.toUpperCase()}</div>
+      <ContentRenderer contentParts={message.content} />
+    </div>
+  ));
+}
+
+const ContentRenderer = ({ contentParts }: { contentParts: ChatMessageContentPart[] }) => {
   const cache = useMemo(
     () =>
       new CellMeasurerCache({
         fixedWidth: true,
-        defaultHeight: 100,
-        keyMapper: (index) => index, // Help with cache key stability
+        keyMapper: (index) => index,
       }),
     []
   );
 
-  const rowRenderer: ListRowRenderer = ({ index, key, parent }) => {
+  const listRef = useRef<List>(null);
+
+  const rowRenderer: ListRowRenderer = ({ index, key, parent, style }) => {
     const contentPart = contentParts[index];
 
     switch (contentPart.type) {
       case "text":
         return (
-          <CellMeasurer key={key} cache={cache} parent={parent}>
-            {({ registerChild }) => (
-              <div ref={registerChild}>
-                <ContentPartText text={contentPart.text} />
+          <CellMeasurer columnIndex={0} rowIndex={index} key={key} cache={cache} parent={parent}>
+            {({ registerChild, measure }) => (
+              <div style={style} ref={registerChild}>
+                <CodeHighlighter language="json" code={contentPart.text} />
               </div>
             )}
           </CellMeasurer>
         );
       case "image":
         return (
-          <CellMeasurer key={key} cache={cache} parent={parent}>
+          <CellMeasurer columnIndex={0} rowIndex={index} key={key} cache={cache} parent={parent}>
             {({ registerChild, measure }) => (
-              <div ref={registerChild}>
+              <div style={style} ref={registerChild}>
                 <ContentPartImage onLoad={measure} b64_data={contentPart.data} />
               </div>
             )}
@@ -98,9 +93,9 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
       case "image_url":
         if (contentPart.url) {
           return (
-            <CellMeasurer key={key} cache={cache} parent={parent}>
+            <CellMeasurer columnIndex={0} rowIndex={index} key={key} cache={cache} parent={parent}>
               {({ registerChild, measure }) => (
-                <div ref={registerChild}>
+                <div style={style} ref={registerChild}>
                   <ContentPartImageUrl onLoad={measure} src={contentPart.url} alt="span image" />
                 </div>
               )}
@@ -109,9 +104,9 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
         } else {
           const openAIImageUrl = contentPart as any as OpenAIImageUrl;
           return (
-            <CellMeasurer key={key} cache={cache} parent={parent}>
+            <CellMeasurer columnIndex={0} rowIndex={index} key={key} cache={cache} parent={parent}>
               {({ measure, registerChild }) => (
-                <div ref={registerChild}>
+                <div style={style} ref={registerChild}>
                   <img src={openAIImageUrl.image_url.url} onLoad={measure} alt="span image" className="w-full" />
                 </div>
               )}
@@ -120,9 +115,9 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
         }
       case "document_url":
         return (
-          <CellMeasurer key={key} cache={cache} parent={parent}>
+          <CellMeasurer columnIndex={0} rowIndex={index} key={key} cache={cache} parent={parent}>
             {({ registerChild }) => (
-              <div ref={registerChild}>
+              <div style={style} ref={registerChild}>
                 <ContentPartDocumentUrl url={contentPart.url} />
               </div>
             )}
@@ -132,17 +127,24 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
         return <div>Unknown content part</div>;
     }
   };
-  return (
-    <div className="h-96">
-      <AutoSizer>
-        {(props) => (
-          <List {...props} rowHeight={cache.rowHeight} rowCount={contentParts.length} rowRenderer={rowRenderer} />
-        )}
-      </AutoSizer>
-    </div>
-  );
-}
 
+  return (
+    <AutoSizer>
+      {({ width, height }) => (
+        <List
+          ref={listRef}
+          width={width}
+          height={height}
+          deferredMeasurementCache={cache}
+          rowHeight={cache.rowHeight}
+          rowCount={contentParts.length}
+          rowRenderer={rowRenderer}
+          overscanRowCount={5}
+        />
+      )}
+    </AutoSizer>
+  );
+};
 const ChatMessageListTab = memo(PureChatMessageListTab);
 
 export default ChatMessageListTab;

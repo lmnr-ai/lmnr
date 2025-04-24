@@ -4,6 +4,8 @@ import useSWR from "swr";
 
 import LabelsContextProvider from "@/components/labels/labels-context";
 import LabelsList from "@/components/labels/labels-list";
+import SpanInput from "@/components/traces/span-input";
+import SpanOutput from "@/components/traces/span-output";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
 import { Event } from "@/lib/events/types";
@@ -17,7 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import AddToLabelingQueuePopover from "./add-to-labeling-queue-popover";
 import ExportSpansDialog from "./export-spans-dialog";
 import SpanTypeIcon from "./span-type-icon";
-import { SpanViewSpan } from "./span-view-span";
 import StatsShields from "./stats-shields";
 
 interface SpanViewProps {
@@ -45,7 +46,7 @@ export function SpanView({ spanId }: SpanViewProps) {
 
   return (
     <>
-      <Tabs className="flex flex-col h-full w-full" defaultValue="span">
+      <Tabs className="flex flex-col h-full w-full" defaultValue="span-input">
         <div className="border-b flex-none">
           <div className="flex flex-col px-4 pt-2 gap-1">
             <div className="flex flex-col gap-1">
@@ -93,8 +94,11 @@ export function SpanView({ spanId }: SpanViewProps) {
             </LabelsContextProvider>
           </div>
           <TabsList className="border-none text-sm px-4">
-            <TabsTrigger value="span" className="z-50">
-              Span
+            <TabsTrigger value="span-input" className="z-50">
+              Span Input
+            </TabsTrigger>
+            <TabsTrigger value="span-output" className="z-50">
+              Span Output
             </TabsTrigger>
             <TabsTrigger value="attributes" className="z-50">
               Attributes
@@ -106,8 +110,11 @@ export function SpanView({ spanId }: SpanViewProps) {
         </div>
         <div className="flex-grow flex h-0">
           <div className="flex-grow flex flex-col">
-            <TabsContent value="span" className="h-full w-full mt-0">
-              <SpanViewSpan span={span} />
+            <TabsContent value="span-input" className="h-full w-full">
+              <SpanInput span={span} />
+            </TabsContent>
+            <TabsContent value="span-output" className="w-full h-full">
+              <SpanOutput span={span} />
             </TabsContent>
             <TabsContent value="attributes" className="h-full w-full">
               <Formatter

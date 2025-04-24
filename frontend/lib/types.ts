@@ -45,22 +45,45 @@ export type ChatMessage = {
   role: "user" | "assistant" | "system";
 };
 
-export function flattenChatMessages(messages: ChatMessage[]): ChatMessageContentPart[] {
-  return messages.flatMap((message) => {
+export function flattenChatMessages(
+  messages: ChatMessage[]
+): (ChatMessageContentPart & { role?: ChatMessage["role"] })[] {
+  return messages.flatMap((message, index) => {
     // If content is a string, convert it to a text content part
     if (typeof message.content === "string") {
       return [
         {
           type: "text",
           text: message.content,
+          role: index === 0 ? message.role : undefined,
         },
       ];
     }
 
     // If content is already an array of content parts, return it as is
-    return message.content;
+    return message.content.map((content) => ({ ...content, role: index === 0 ? message.role : undefined }));
   });
 }
+
+export const flattenContentOfMessages = (
+  messages: ChatMessage[]
+): {
+  content: ChatMessageContentPart[];
+  role: "user" | "assistant" | "system";
+}[] =>
+  messages.map((message) => {
+    if (typeof message.content === "string") {
+      return {
+        ...message,
+        content: [{ type: "text", text: message.content }],
+      };
+    }
+
+    return message as {
+      content: ChatMessageContentPart[];
+      role: "user" | "assistant" | "system";
+    };
+  });
 
 export type DatatableFilter = {
   column: string;
