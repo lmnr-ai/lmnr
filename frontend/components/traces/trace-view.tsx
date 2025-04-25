@@ -180,10 +180,11 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   }, [traceId, projectId]);
 
   useEffect(() => {
-    setSelectedSpan(
-      searchParams.get("spanId") ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null : null
-    );
-  }, [searchParams.get("spanId")]);
+    const selectedSpan = spans.find((span: Span) => span.spanId === searchParams.get("spanId"));
+    if (selectedSpan) {
+      setSelectedSpan(selectedSpan);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!container.current) {

@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { AiOutlineMinusCircle } from 'react-icons/ai';
+import { useEffect, useState } from "react";
+import { AiOutlineMinusCircle } from "react-icons/ai";
 
-import { ChatMessage, ChatMessageContentPart } from '@/lib/types';
-import { isStringType } from '@/lib/utils';
+import { ChatMessage, ChatMessageContentPart } from "@/lib/types";
+import { isStringType } from "@/lib/utils";
 
-import { Button } from './button';
-import DefaultTextarea from './default-textarea';
-import EditableChatMessageContentParts from './editable-chat-message-content-parts';
+import { Button } from "./button";
+import DefaultTextarea from "./default-textarea";
+import EditableChatMessageContentParts from "./editable-chat-message-content-parts";
 
 interface EditableChatMessageProps {
   defaultMessage: ChatMessage;
@@ -15,12 +15,7 @@ interface EditableChatMessageProps {
   onEdit: (index: number, message: ChatMessage) => void;
 }
 
-export default function EditableChatMessage({
-  defaultMessage,
-  index,
-  onDelete,
-  onEdit
-}: EditableChatMessageProps) {
+export default function EditableChatMessage({ defaultMessage, index, onDelete, onEdit }: EditableChatMessageProps) {
   const [content, setContent] = useState(defaultMessage.content);
   const [role, setRole] = useState(defaultMessage.role);
 
@@ -31,7 +26,7 @@ export default function EditableChatMessage({
   const changeRole = () => {
     const newMessage: ChatMessage = {
       content,
-      role: role === 'user' ? 'assistant' : 'user'
+      role: role === "user" ? "assistant" : "user",
     };
 
     setRole(newMessage.role);
@@ -41,7 +36,7 @@ export default function EditableChatMessage({
   const textContentChange = (content: string) => {
     const newMessage: ChatMessage = {
       role,
-      content
+      content,
     };
     setContent(newMessage.content);
     onEdit(index, newMessage);
@@ -50,7 +45,7 @@ export default function EditableChatMessage({
   const partsChange = (parts: ChatMessageContentPart[]) => {
     const newMessage: ChatMessage = {
       role,
-      content: parts
+      content: parts,
     };
     setContent(newMessage.content);
     onEdit(index, newMessage);
@@ -61,15 +56,12 @@ export default function EditableChatMessage({
     if (isStringType(content)) {
       newMessage = {
         role,
-        content: [{ type: 'text', text: content }]
+        content: [{ type: "text", text: content }],
       };
     } else {
       newMessage = {
         role,
-        content:
-          content.length > 0 && content[0].type === 'text'
-            ? content[0].text
-            : ''
+        content: content.length > 0 && content[0].type === "text" ? content[0].text : "",
       };
     }
 
@@ -81,19 +73,11 @@ export default function EditableChatMessage({
     <div className="flex flex-col group">
       <div className="flex mb-2">
         <div className="flex items-center space-x-2">
-          <Button
-            variant={'secondary'}
-            className="px-1 h-6 text-xs font-bold"
-            onClick={changeRole}
-          >
-            {role.toUpperCase()}
+          <Button variant={"secondary"} className="px-1 h-6 text-xs font-bold" onClick={changeRole}>
+            {role?.toUpperCase()}
           </Button>
-          <Button
-            variant={'outline'}
-            className="px-1 h-6 text-xs text-secondary-foreground"
-            onClick={toggleType}
-          >
-            {isStringType(content) ? 'Text' : 'Image'}
+          <Button variant={"outline"} className="px-1 h-6 text-xs text-secondary-foreground" onClick={toggleType}>
+            {isStringType(content) ? "Text" : "Image"}
           </Button>
         </div>
         <div className="flex-grow"></div>

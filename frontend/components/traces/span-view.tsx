@@ -1,5 +1,7 @@
+import { omit } from "lodash";
 import { PlayCircle } from "lucide-react";
 import Link from "next/link";
+import { useMemo } from "react";
 import useSWR from "swr";
 
 import LabelsContextProvider from "@/components/labels/labels-context";
@@ -27,14 +29,11 @@ interface SpanViewProps {
 
 export function SpanView({ spanId }: SpanViewProps) {
   const { projectId } = useProjectContext();
-  const { data: span } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
+  const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
   const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
-  const cleanedEvents = events?.map((event) => {
-    const { spanId, projectId, ...rest } = event;
-    return rest;
-  });
+  const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
 
-  if (!span) {
+  if (isLoading || !span) {
     return (
       <div className="flex flex-col space-y-2 p-4">
         <Skeleton className="h-8 w-full" />
@@ -109,10 +108,10 @@ export function SpanView({ spanId }: SpanViewProps) {
           </TabsList>
         </div>
         <div className="flex-grow flex overflow-hidden">
-          <TabsContent value="span-input" className="w-full h-full p-4">
+          <TabsContent value="span-input" className="w-full h-full">
             <SpanInput span={span} />
           </TabsContent>
-          <TabsContent value="span-output" className="w-full h-full p-4">
+          <TabsContent value="span-output" className="w-full h-full">
             <SpanOutput span={span} />
           </TabsContent>
           <TabsContent value="attributes" className="h-full w-full">

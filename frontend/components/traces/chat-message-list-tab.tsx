@@ -1,20 +1,15 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useMemo, useRef } from "react";
+import { isEqual } from "lodash";
+import { ChevronDown } from "lucide-react";
+import { memo, useCallback, useMemo, useRef } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import CodeHighlighter from "@/components/traces/code-highlighter";
-import { ChatMessage, ChatMessageContentPart, flattenContentOfMessages, OpenAIImageUrl } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
 
 import DownloadButton from "../ui/download-button";
 import PdfRenderer from "../ui/pdf-renderer";
-interface ContentPartTextProps {
-  text: string;
-  presetKey?: string | null;
-}
-
-function ContentPartText({ text, presetKey }: ContentPartTextProps) {
-  return <CodeHighlighter collapsible value={text} className="max-h-[400px] border-none" presetKey={presetKey} />;
-}
 
 interface ContentPartImageProps {
   b64_data: string;
@@ -50,116 +45,141 @@ interface ContentPartsProps {
   presetKey?: string | null;
 }
 
-function ContentParts({ contentParts, presetKey }: ContentPartsProps) {
-  const renderContentPart = (contentPart: ChatMessageContentPart) => {
-    switch (contentPart.type) {
-      case "text":
-        return <ContentPartText presetKey={presetKey} text={contentPart.text} />;
-      case "image":
-        return <ContentPartImage b64_data={contentPart.data} />;
-      case "image_url":
-        // it means we managed to parse span input and properly store image in S3
-        if (contentPart.url) {
-          return <ContentPartImageUrl url={contentPart.url} />;
-        } else {
-          const openAIImageUrl = contentPart as any as OpenAIImageUrl;
-          return <img src={openAIImageUrl.image_url.url} alt="span image" className="w-full" />;
-        }
-      case "document_url":
-        return <ContentPartDocumentUrl url={contentPart.url} />;
-      default:
-        return <div>Unknown content part</div>;
-    }
-  };
+const MemoizedContentPartImage = memo(ContentPartImage);
+const MemoizedContentPartImageUrl = memo(ContentPartImageUrl);
+const MemoizedContentPartDocumentUrl = memo(ContentPartDocumentUrl);
+
+const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
+  const renderContentPart = useCallback(
+    (contentPart: ChatMessageContentPart) => {
+      switch (contentPart.type) {
+        case "text":
+          return (
+            <CodeHighlighter
+              collapsible
+              value={contentPart.text}
+              presetKey={presetKey}
+              className="max-h-[400px] border-none"
+            />
+          );
+        case "image":
+          return <MemoizedContentPartImage b64_data={contentPart.data} />;
+        case "image_url":
+          if (contentPart.url) {
+            return <MemoizedContentPartImageUrl url={contentPart.url} />;
+          } else {
+            const openAIImageUrl = contentPart as any as OpenAIImageUrl;
+            return <img src={openAIImageUrl.image_url.url} alt="span image" className="w-full" />;
+          }
+        case "document_url":
+          return <MemoizedContentPartDocumentUrl url={contentPart.url} />;
+        default:
+          return <div>Unknown content part</div>;
+      }
+    },
+    [presetKey]
+  );
+
+  const memoizedContentParts = useMemo(
+    () =>
+      contentParts.map((contentPart, index) => ({
+        key: `${contentPart.type}-${index}`,
+        part: contentPart,
+      })),
+    [contentParts]
+  );
 
   return (
     <div className="flex flex-col gap-2 w-full">
-      {contentParts.map((contentPart, index) => (
-        <div key={index} className="w-full">
-          {renderContentPart(contentPart)}
+      {memoizedContentParts.map(({ key, part }) => (
+        <div key={key} className="w-full">
+          {renderContentPart(part)}
         </div>
       ))}
     </div>
   );
-}
+};
 
 interface ChatMessageListTabProps {
-  messages: ChatMessage[];
+  messages: { role?: ChatMessage["role"]; content: ChatMessageContentPart[] }[];
   presetKey?: string | null;
 }
 
 function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps) {
-  const memoizedMessages = useMemo(() => flattenContentOfMessages(messages), [messages]);
-
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
-    count: memoizedMessages.length,
+    count: messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 500,
-    overscan: 3,
+    overscan: 7,
     gap: 16,
   });
 
   const items = virtualizer.getVirtualItems();
 
   return (
-    // <div className="relative h-full">
-    <div
-      ref={parentRef}
-      className="List h-full overflow-y-auto"
-      style={{
-        width: "100%",
-        contain: "strict",
-      }}
-    >
+    <div className="relative h-full">
       <div
+        ref={parentRef}
+        className="List h-full overflow-y-auto p-4"
         style={{
-          height: virtualizer.getTotalSize(),
           width: "100%",
-          position: "relative",
+          contain: "strict",
         }}
       >
         <div
           style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
+            height: virtualizer.getTotalSize(),
             width: "100%",
-            transform: `translateY(${items[0]?.start ?? 0}px)`,
+            position: "relative",
           }}
         >
-          {items.map((virtualRow) => {
-            const message = memoizedMessages[virtualRow.index];
-            return (
-              <div
-                key={virtualRow.key}
-                ref={virtualizer.measureElement}
-                data-index={virtualRow.index}
-                className="flex flex-col border rounded mb-4"
-              >
-                <div className="font-medium text-sm text-secondary-foreground border-b p-2">
-                  {message.role.toUpperCase()}
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${items[0]?.start ?? 0}px)`,
+            }}
+          >
+            {items.map((virtualRow) => {
+              const message = messages[virtualRow.index];
+              return (
+                <div
+                  key={virtualRow.key}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
+                  className="flex flex-col border rounded mb-4"
+                >
+                  {message?.role && (
+                    <div className="font-medium text-sm text-secondary-foreground border-b p-2">
+                      {message.role.toUpperCase()}
+                    </div>
+                  )}
+                  <ContentParts presetKey={presetKey} contentParts={message.content} />
                 </div>
-                <ContentParts presetKey={presetKey} contentParts={message.content} />
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute bottom-3 right-3 rounded-full"
+        onClick={() => virtualizer.scrollToIndex(messages.length - 1, { align: "end" })}
+      >
+        <ChevronDown className="w-4 h-4" />
+      </Button>
     </div>
-    // <Button
-    //   variant="outline"
-    //   size="icon"
-    //   className="absolute bottom-3 right-3 rounded-full"
-    //   onClick={() => virtualizer.scrollToIndex(memoizedMessages.length - 1, { align: "end" })}
-    // >
-    //   <ChevronDown className="w-4 h-4" />
-    // </Button>
-    // </div>
   );
 }
 
-const ChatMessageListTab = memo(PureChatMessageListTab);
+const ChatMessageListTab = memo(PureChatMessageListTab, (prevProps, nextProps) => {
+  if (prevProps.messages.length !== nextProps.messages.length) return false;
+  return isEqual(prevProps.messages, nextProps.messages);
+});
 
 export default ChatMessageListTab;

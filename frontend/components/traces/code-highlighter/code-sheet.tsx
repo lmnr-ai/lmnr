@@ -34,8 +34,8 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
             </SelectTrigger>
             <SelectContent>
               {modes.map((mode) => (
-                <SelectItem key={mode} value={mode}>
-                  {mode.toUpperCase()}
+                <SelectItem key={mode} value={mode.toLowerCase()}>
+                  {mode}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -57,7 +57,7 @@ export const languageExtensions = {
   html: () => html(),
 };
 
-export const modes = ["text", "yaml", "json"];
+export const modes = ["TEXT", "YAML", "JSON"];
 export const renderText = (mode: string, value: string) => {
   if (mode === "yaml") {
     try {

@@ -1,3 +1,5 @@
+import { isArray, isString } from "lodash";
+
 export interface UserSession {
   id: string;
   name: string;
@@ -42,28 +44,37 @@ export type ChatMessageContent = string | ChatMessageContentPart[];
 
 export type ChatMessage = {
   content: ChatMessageContent;
-  role: "user" | "assistant" | "system";
+  role?: "user" | "assistant" | "system";
 };
 
 export const flattenContentOfMessages = (
-  messages: ChatMessage[]
+  messages: ChatMessage[] | Record<string, unknown> | string
 ): {
   content: ChatMessageContentPart[];
-  role: "user" | "assistant" | "system";
-}[] =>
-  messages.map((message) => {
-    if (typeof message.content === "string") {
-      return {
-        ...message,
-        content: [{ type: "text", text: message.content }],
-      };
-    }
+  role?: "user" | "assistant" | "system";
+}[] => {
+  if (isString(messages)) {
+    return [{ content: [{ type: "text", text: messages }] }];
+  }
 
-    return message as {
-      content: ChatMessageContentPart[];
-      role: "user" | "assistant" | "system";
-    };
-  });
+  if (isArray(messages)) {
+    return messages.map((message) => {
+      if (typeof message.content === "string") {
+        return {
+          ...message,
+          content: [{ type: "text", text: message.content }],
+        };
+      }
+
+      return message as {
+        content: ChatMessageContentPart[];
+        role: "user" | "assistant" | "system";
+      };
+    });
+  }
+
+  return [{ content: [{ type: "text", text: JSON.stringify(messages) }] }];
+};
 
 export type DatatableFilter = {
   column: string;
