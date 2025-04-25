@@ -84,7 +84,9 @@ const PureCodeHighlighter = ({
   return (
     <div className={cn("w-full h-full flex flex-col border", className)}>
       <div
-        className={cn("bg-background flex items-center py-1 pl-2 pr-1 w-full rounded-t", { "border-b": !isCollapsed })}
+        className={cn("bg-background flex items-center pl-2 pr-1 w-full border-t", {
+          "border-b": !isCollapsed,
+        })}
       >
         <Select value={mode} onValueChange={handleModeChange}>
           <SelectTrigger className="font-medium text-secondary-foreground h-5 w-fit bg-secondary text-xs border-gray-600">

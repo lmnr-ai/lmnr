@@ -19,7 +19,7 @@ function PureContentPartImage({ b64_data }: ContentPartImageProps) {
   return (
     <ImageWithPreview
       src={`data:image/png;base64,${b64_data}`}
-      className="object-cover rounded-sm size-16 ml-2"
+      className="object-cover rounded-sm size-16 ml-2 mt-2 mb-1"
       alt="span image"
     />
   );
@@ -29,7 +29,7 @@ function PureContentPartImageUrl({ url }: { url: string }) {
   // if url is a relative path, add ?payloadType=image to the end of the url
   // because it implies that we stored the image in S3
   if (url.startsWith("/")) url += "?payloadType=image";
-  return <ImageWithPreview src={url} className="object-cover rounded-sm size-16 ml-2" alt="span image" />;
+  return <ImageWithPreview src={url} className="object-cover rounded-sm size-16 ml-2 mt-2 mb-1" alt="span image" />;
 }
 
 function PureContentPartDocumentUrl({ url }: { url: string }) {
@@ -90,7 +90,7 @@ const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
   );
 
   return (
-    <div className="flex flex-col gap-2 w-full">
+    <div className="flex flex-col w-full">
       {memoizedContentParts.map(({ key, part }) => (
         <div key={key} className="w-full">
           {renderContentPart(part)}
@@ -154,7 +154,7 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
                   className="flex flex-col border rounded mb-4"
                 >
                   {message?.role && (
-                    <div className="font-medium text-sm text-secondary-foreground border-b p-2">
+                    <div className="font-medium text-sm text-secondary-foreground p-2">
                       {message.role.toUpperCase()}
                     </div>
                   )}
