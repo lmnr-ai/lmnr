@@ -29,7 +29,7 @@ interface CodeEditorProps {
   codeEditorClassName?: string;
 }
 
-const defaultMode = "text";
+const defaultMode = "TEXT";
 
 const PureCodeHighlighter = ({
   value,

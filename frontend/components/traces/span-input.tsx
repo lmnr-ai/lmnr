@@ -21,7 +21,7 @@ const SpanInput = ({ span }: { span: Span }) => {
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
   const spanPathArray = typeof spanPath === "string" ? spanPath.split(".") : spanPath;
 
-  const memoizedInput = useMemo(() => flattenContentOfMessages(spanInput), []);
+  const memoizedInput = useMemo(() => flattenContentOfMessages(spanInput), [spanInput]);
 
   return <ChatMessageListTab messages={memoizedInput} presetKey={`input-${spanPathArray.join(".")}`} />;
 };

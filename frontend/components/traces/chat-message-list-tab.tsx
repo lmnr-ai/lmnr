@@ -15,7 +15,7 @@ interface ContentPartImageProps {
   b64_data: string;
 }
 
-function ContentPartImage({ b64_data }: ContentPartImageProps) {
+function PureContentPartImage({ b64_data }: ContentPartImageProps) {
   return (
     <ImageWithPreview
       src={`data:image/png;base64,${b64_data}`}
@@ -25,14 +25,14 @@ function ContentPartImage({ b64_data }: ContentPartImageProps) {
   );
 }
 
-function ContentPartImageUrl({ url }: { url: string }) {
+function PureContentPartImageUrl({ url }: { url: string }) {
   // if url is a relative path, add ?payloadType=image to the end of the url
   // because it implies that we stored the image in S3
   if (url.startsWith("/")) url += "?payloadType=image";
   return <ImageWithPreview src={url} className="object-cover rounded-sm size-16 ml-2" alt="span image" />;
 }
 
-function ContentPartDocumentUrl({ url }: { url: string }) {
+function PureContentPartDocumentUrl({ url }: { url: string }) {
   return url.endsWith(".pdf") ? (
     <PdfRenderer url={url} className="w-full h-[50vh]" />
   ) : (
@@ -45,9 +45,9 @@ interface ContentPartsProps {
   presetKey?: string | null;
 }
 
-const MemoizedContentPartImage = memo(ContentPartImage);
-const MemoizedContentPartImageUrl = memo(ContentPartImageUrl);
-const MemoizedContentPartDocumentUrl = memo(ContentPartDocumentUrl);
+const ContentPartImage = memo(PureContentPartImage);
+const ContentPartImageUrl = memo(PureContentPartImageUrl);
+const ContentPartDocumentUrl = memo(PureContentPartDocumentUrl);
 
 const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
   const renderContentPart = useCallback(
@@ -63,16 +63,16 @@ const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
             />
           );
         case "image":
-          return <MemoizedContentPartImage b64_data={contentPart.data} />;
+          return <ContentPartImage b64_data={contentPart.data} />;
         case "image_url":
           if (contentPart.url) {
-            return <MemoizedContentPartImageUrl url={contentPart.url} />;
+            return <ContentPartImageUrl url={contentPart.url} />;
           } else {
             const openAIImageUrl = contentPart as any as OpenAIImageUrl;
             return <img src={openAIImageUrl.image_url.url} alt="span image" className="w-full" />;
           }
         case "document_url":
-          return <MemoizedContentPartDocumentUrl url={contentPart.url} />;
+          return <ContentPartDocumentUrl url={contentPart.url} />;
         default:
           return <div>Unknown content part</div>;
       }
