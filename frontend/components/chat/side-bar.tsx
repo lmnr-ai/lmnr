@@ -250,7 +250,7 @@ const PureChatItem = ({
               animate={Boolean(chat?.isNew)}
               text={chat.chatName}
             />
-            {chat.agentStatus === "working" && <Loader2 className="animate-spin duration-[3000ms]" />}
+            {chat.agentStatus === "working" && <Loader2 className="animate-spin duration-1000" />}
           </Link>
         )}
       </SidebarMenuButton>

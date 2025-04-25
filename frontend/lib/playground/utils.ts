@@ -8,7 +8,7 @@ export const mapMessages = async (messages: ChatMessage[]): Promise<Message[]> =
     messages.map(async (message) => {
       if (typeof message.content === "string") {
         return {
-          role: message.role,
+          role: message.role ?? "assistant",
           content: [{ type: "text", text: message.content }],
         };
       }
@@ -44,7 +44,7 @@ export const mapMessages = async (messages: ChatMessage[]): Promise<Message[]> =
       );
 
       return {
-        role: message.role,
+        role: message.role ?? "assistant",
         content,
       };
     })

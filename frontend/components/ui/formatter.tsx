@@ -36,7 +36,7 @@ export default function Formatter({
 }: OutputFormatterProps) {
   const [renderedValue, setRenderedValue] = useState(value);
   const [mode, setMode] = useState(() => {
-    if (presetKey) {
+    if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
       return savedMode || defaultMode;
     }
@@ -47,7 +47,7 @@ export default function Formatter({
 
   const handleModeChange = (newMode: string) => {
     setMode(newMode);
-    if (presetKey) {
+    if (presetKey && typeof window !== "undefined") {
       localStorage.setItem(`formatter-mode-${presetKey}`, newMode);
     }
   };
