@@ -6,16 +6,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::utils::map_handles;
+use super::Handle;
 use super::NodeInput;
-use super::{
-    semantic_search_utils::{query_datasources, render_query_res_point},
-    Handle,
-};
 use crate::datasets::Dataset;
 use crate::engine::{RunOutput, RunnableNode};
 use crate::pipeline::context::Context;
-
-static DEFAULT_SEPARATOR: &str = "\n";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,41 +51,9 @@ impl RunnableNode for SemanticSearchNode {
 
     async fn run(
         &self,
-        inputs: HashMap<String, NodeInput>,
-        context: Arc<Context>,
+        _inputs: HashMap<String, NodeInput>,
+        _context: Arc<Context>,
     ) -> Result<RunOutput> {
-        if self.datasets.is_empty() {
-            return Err(anyhow::anyhow!("Semantic search datasets missing."));
-        }
-
-        let query: String = inputs.get("query").unwrap().clone().try_into()?;
-
-        let collection_name = context.env.get("collection_name");
-        if collection_name.is_none() {
-            return Err(anyhow::anyhow!("If you are using semantic search in a public pipeine, fork it to private pipeline, add your private data, and search over it."));
-        }
-        let collection_name = collection_name.unwrap();
-
-        // Points are returned from semantic search sorted by relevance
-        let points = query_datasources(
-            &self.datasets,
-            context.semantic_search.clone(),
-            context.db.clone(),
-            query,
-            collection_name.clone(),
-            self.limit,
-            self.threshold,
-        )
-        .await?;
-
-        let templated_results: Vec<String> = points
-            .iter()
-            .enumerate()
-            .map(|(index, point)| render_query_res_point(&self.template, point, index + 1))
-            .collect();
-
-        let res = templated_results.join(DEFAULT_SEPARATOR);
-
-        return Ok(RunOutput::Success((res.into(), None)));
+        unimplemented!()
     }
 }

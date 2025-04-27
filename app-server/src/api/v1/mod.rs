@@ -7,5 +7,4 @@ pub mod machine_manager;
 pub mod metrics;
 pub mod pipelines;
 pub mod queues;
-pub mod semantic_search;
 pub mod traces;

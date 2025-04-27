@@ -1,5 +1,5 @@
-//! This module reads spans from RabbitMQ and processes them: writes to DB,
-//! clickhouse, and semantic search.
+//! This module reads spans from RabbitMQ and processes them: writes to DB
+//! and clickhouse
 
 use std::sync::Arc;
 

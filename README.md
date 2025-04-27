@@ -60,10 +60,7 @@ For production environment, we recommend using our [managed platform](https://ww
 
 - app-server – core Rust backend
 - rabbitmq – message queue for reliable trace processing
-- qdrant – vector database
-- semantic-search-service – gRPC service for embedding text and storing/retrieving it from qdrant
 - frontend – Next.js frontend and backend
-- python-executor – gRPC service with lightweight Python sandbox that can run arbitrary code.
 - postgres – Postgres database for all the application data
 - clickhouse – columnar OLAP database for more efficient trace and label analytics
 

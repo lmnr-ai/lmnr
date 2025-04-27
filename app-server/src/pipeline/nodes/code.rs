@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::code_executor::CodeExecutorTrait;
 use crate::engine::{RunOutput, RunnableNode};
 use crate::pipeline::context::Context;
 use anyhow::Result;
@@ -48,27 +47,9 @@ impl RunnableNode for CodeNode {
 
     async fn run(
         &self,
-        inputs: HashMap<String, NodeInput>,
-        context: Arc<Context>,
+        _inputs: HashMap<String, NodeInput>,
+        _context: Arc<Context>,
     ) -> Result<RunOutput> {
-        let output_handle = self.outputs.first();
-        if output_handle.is_none() {
-            return Err(anyhow::anyhow!("No output handle found"));
-        }
-        let output_handle = output_handle.unwrap();
-
-        match context
-            .code_executor
-            .execute(
-                &self.code,
-                &self.fn_name,
-                &inputs,
-                output_handle.handle_type.clone(),
-            )
-            .await
-        {
-            Ok(result) => Ok(RunOutput::Success((result, None))),
-            Err(err) => Err(err.into()),
-        }
+        unimplemented!()
     }
 }

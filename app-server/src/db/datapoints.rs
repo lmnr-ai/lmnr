@@ -104,49 +104,6 @@ pub async fn get_full_datapoints(
     Ok(datapoints)
 }
 
-pub async fn get_full_datapoints_by_ids(
-    pool: &PgPool,
-    dataset_ids: Vec<Uuid>,
-    ids: Vec<Uuid>,
-) -> Result<Vec<DBDatapoint>> {
-    let datapoints = sqlx::query_as::<_, DBDatapoint>(
-        "SELECT
-            id,
-            dataset_id,
-            data,
-            target,
-            metadata,
-            created_at
-        FROM dataset_datapoints
-        WHERE dataset_id = ANY($1) AND id = ANY($2)",
-    )
-    .bind(&dataset_ids)
-    .bind(&ids)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(datapoints)
-}
-
-#[derive(FromRow)]
-struct DeletedDatapointId {
-    id: Uuid,
-}
-
-pub async fn delete_all_datapoints(pool: &PgPool, dataset_id: &Uuid) -> Result<Vec<Uuid>> {
-    let datapoint_ids = sqlx::query_as::<_, DeletedDatapointId>(
-        "DELETE FROM dataset_datapoints WHERE dataset_id = $1 RETURNING id",
-    )
-    .bind(dataset_id)
-    .fetch_all(pool)
-    .await?
-    .iter()
-    .map(|row| row.id)
-    .collect();
-
-    Ok(datapoint_ids)
-}
-
 #[derive(FromRow)]
 struct Count {
     count: i64,

@@ -1,14 +1,11 @@
 import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 
-import { authOptions } from '@/lib/auth';
 import { Datapoint } from '@/lib/dataset/types';
 import { db } from '@/lib/db/drizzle';
-import { datapointToSpan, datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
+import { datapointToSpan, datasetDatapoints } from '@/lib/db/migrations/schema';
 import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
-import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: NextRequest,
@@ -96,34 +93,6 @@ export async function POST(
     ).returning();
   }
 
-  const dataset = await db.query.datasets.findFirst({
-    where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
-  });
-
-  if (dataset?.indexedOn != null && res.length > 0) {
-    const session = await getServerSession(authOptions);
-    const user = session!.user;
-    await fetcher(
-      `/projects/${projectId}/datasets/${datasetId}/datapoints`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${user.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          datapoints: res.map((datapoint) => ({
-            id: datapoint.id,
-            data: datapoint.data,
-            target: datapoint.target,
-            metadata: datapoint.metadata,
-          })),
-          indexedOn: dataset?.indexedOn
-        })
-      }
-    );
-  }
-
   if (res.length === 0) {
     return new Response('Error creating datasetDatapoints', { status: 500 });
   }
@@ -141,7 +110,6 @@ export async function DELETE(
 
   const { searchParams } = new URL(req.url);
   const datapointIds = searchParams.get('datapointIds')?.split(',');
-  const indexedOn = searchParams.get('indexedOn');
 
   if (!datapointIds) {
     return new Response('At least one Datapoint ID is required', { status: 400 });
@@ -155,23 +123,6 @@ export async function DELETE(
           eq(datasetDatapoints.datasetId, datasetId)
         )
       );
-
-    if (indexedOn != null) {
-      const session = await getServerSession(authOptions);
-      const user = session!.user;
-      await fetcher(
-        `/projects/${projectId}/datasets/${datasetId}/datapoints`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${user.apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ ids: datapointIds })
-        }
-      );
-    }
-
     return new Response('datasetDatapoints deleted successfully', { status: 200 });
   } catch (error) {
     console.error('Error deleting datasetDatapoints:', error);

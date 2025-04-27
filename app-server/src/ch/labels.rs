@@ -89,21 +89,3 @@ pub async fn insert_label(
         }
     }
 }
-
-pub async fn delete_label(
-    client: clickhouse::Client,
-    project_id: Uuid,
-    span_id: Uuid,
-    id: Uuid,
-) -> Result<()> {
-    // Note, this does not immediately physically delete the data.
-    // https://clickhouse.com/docs/en/sql-reference/statements/delete
-    client
-        .query("DELETE FROM labels WHERE project_id = ? AND span_id = ? AND id = ?")
-        .bind(project_id)
-        .bind(span_id)
-        .bind(id)
-        .execute()
-        .await?;
-    Ok(())
-}
