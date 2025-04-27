@@ -8,7 +8,7 @@ import {
   ChartTooltipContent
 } from '@/components/ui/chart';
 import { GroupByInterval } from '@/lib/clickhouse/modifiers';
-import { MetricTimeValue, SpanMetric, SpanMetricGroupBy, SpanMetricType } from '@/lib/clickhouse/spans';
+import { MetricTimeValue, SpanMetric, SpanMetricGroupBy, SpanMetricType } from '@/lib/clickhouse/types';
 import { AggregationFunction } from '@/lib/clickhouse/utils';
 import {
   cn,

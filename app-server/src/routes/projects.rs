@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use actix_web::{delete, get, web, HttpResponse};
 use serde::Serialize;
 use uuid::Uuid;
@@ -7,7 +5,6 @@ use uuid::Uuid;
 use crate::{
     db::{self, DB},
     routes::ResponseResult,
-    semantic_search::{SemanticSearch, SemanticSearchTrait},
 };
 
 #[derive(Serialize)]
@@ -42,11 +39,7 @@ async fn get_project(project_id: web::Path<Uuid>, db: web::Data<DB>) -> Response
 }
 
 #[delete("")]
-async fn delete_project(
-    project_id: web::Path<Uuid>,
-    db: web::Data<DB>,
-    semantic_search: web::Data<Arc<SemanticSearch>>,
-) -> ResponseResult {
+async fn delete_project(project_id: web::Path<Uuid>, db: web::Data<DB>) -> ResponseResult {
     let project_id = project_id.into_inner();
 
     let project = db::projects::get_project(&db.pool, &project_id).await?;
@@ -58,10 +51,6 @@ async fn delete_project(
         project.name,
         project.workspace_id
     );
-
-    semantic_search
-        .delete_collections(project_id.to_string())
-        .await?;
 
     Ok(HttpResponse::Ok().finish())
 }

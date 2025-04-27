@@ -1,7 +1,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/spans";
+import { SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/types";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
 import { buildSpansUrl } from "@/lib/traces/utils";
 import { cn, toFixedIfFloat } from "@/lib/utils";

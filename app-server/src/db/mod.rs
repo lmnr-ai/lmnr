@@ -10,7 +10,6 @@ pub mod labeling_queues;
 pub mod labels;
 pub mod machine_manager;
 pub mod modifiers;
-pub mod pipelines;
 pub mod prices;
 pub mod project_api_keys;
 pub mod projects;

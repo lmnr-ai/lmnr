@@ -10,7 +10,6 @@ pub const GEN_AI_OUTPUT_TOKENS: &str = "gen_ai.usage.output_tokens";
 pub const GEN_AI_PROMPT_TOKENS: &str = "gen_ai.usage.prompt_tokens";
 pub const GEN_AI_COMPLETION_TOKENS: &str = "gen_ai.usage.completion_tokens";
 
-pub const GEN_AI_TOTAL_TOKENS: &str = "llm.usage.total_tokens";
 pub const GEN_AI_REQUEST_MODEL: &str = "gen_ai.request.model";
 pub const GEN_AI_RESPONSE_MODEL: &str = "gen_ai.response.model";
 // pub const GEN_AI_REQUEST_IS_STREAM: &str = "gen_ai.request.is_stream";
@@ -29,7 +28,6 @@ pub const ASSOCIATION_PROPERTIES_PREFIX: &str = "lmnr.association.properties";
 pub const SPAN_TYPE: &str = "lmnr.span.type";
 pub const SPAN_PATH: &str = "lmnr.span.path";
 pub const SPAN_IDS_PATH: &str = "lmnr.span.ids_path";
-pub const LLM_NODE_RENDERED_PROMPT: &str = "lmnr.span.prompt";
 
 pub const GEN_AI_CACHE_WRITE_INPUT_TOKENS: &str = "gen_ai.usage.cache_creation_input_tokens";
 pub const GEN_AI_CACHE_READ_INPUT_TOKENS: &str = "gen_ai.usage.cache_read_input_tokens";

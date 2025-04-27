@@ -1,8 +1,9 @@
 "use client";
 import useSWR from "swr";
 
+import SpanInput from "@/components/traces/span-input";
+import SpanOutput from "@/components/traces/span-output";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
-import { SpanViewSpan } from "@/components/traces/span-view-span";
 import StatsShields from "@/components/traces/stats-shields";
 import { Badge } from "@/components/ui/badge";
 import Formatter from "@/components/ui/formatter";
@@ -34,7 +35,7 @@ export function SpanView({ span, traceId }: SpanViewProps) {
 
   return (
     <>
-      <Tabs className="flex flex-col h-full w-full" defaultValue="span">
+      <Tabs className="flex flex-col h-full w-full" defaultValue="span-input">
         <div className="border-b flex-none">
           <div className="flex flex-col px-4 pt-2 gap-1">
             <div className="flex flex-col gap-1">
@@ -72,8 +73,11 @@ export function SpanView({ span, traceId }: SpanViewProps) {
             </div>
           </div>
           <TabsList className="border-none text-sm px-4">
-            <TabsTrigger value="span" className="z-50">
-              Span
+            <TabsTrigger value="span-input" className="z-50">
+              Span Input
+            </TabsTrigger>
+            <TabsTrigger value="span-output" className="z-50">
+              Span Output
             </TabsTrigger>
             <TabsTrigger value="attributes" className="z-50">
               Attributes
@@ -85,8 +89,11 @@ export function SpanView({ span, traceId }: SpanViewProps) {
         </div>
         <div className="flex-grow flex h-0">
           <div className="flex-grow flex flex-col">
-            <TabsContent value="span" className="h-full w-full mt-0">
-              <SpanViewSpan span={span} />
+            <TabsContent value="span-input" className="w-full h-full">
+              <SpanInput span={span} />
+            </TabsContent>
+            <TabsContent value="span-output" className="w-full h-full">
+              <SpanOutput span={span} />
             </TabsContent>
             <TabsContent value="attributes" className="h-full w-full">
               <Formatter

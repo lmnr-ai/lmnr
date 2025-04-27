@@ -2,7 +2,7 @@ use std::env;
 use std::sync::Arc;
 
 use actix_web::{post, web, HttpResponse};
-use futures::StreamExt;
+use futures_util::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 

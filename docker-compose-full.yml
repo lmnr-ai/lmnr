@@ -5,13 +5,6 @@
 name: lmnr
 
 services:
-  qdrant:
-    image: qdrant/qdrant
-    volumes:
-      - type: volume
-        source: qdrant-data
-        target: /data
-
   rabbitmq:
     image: rabbitmq
     environment:
@@ -49,21 +42,6 @@ services:
       nofile:
         soft: 262144
         hard: 262144
-
-  semantic-search-service:
-    image: ghcr.io/lmnr-ai/semantic-search-service
-    depends_on:
-      - qdrant
-    environment:
-      PORT: 8080
-      QDRANT_URL: http://qdrant:6334
-      COHERE_ENDPOINT: https://api.cohere.ai/v1/embed
-      COHERE_API_KEY: ${COHERE_API_KEY}
-    pull_policy: always
-
-  python-executor:
-    image: ghcr.io/lmnr-ai/python-executor
-    pull_policy: always
 
   postgres:
     image: postgres:16
@@ -111,8 +89,6 @@ services:
       - "${APP_SERVER_HOST_PORT:-8000}:8000"
       - "${APP_SERVER_GRPC_HOST_PORT:-8001}:8001"
     depends_on:
-      semantic-search-service:
-        condition: service_started
       postgres:
         condition: service_healthy
       rabbitmq:
@@ -125,11 +101,9 @@ services:
       PORT: 8000
       GRPC_PORT: 8001
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      SEMANTIC_SEARCH_URL: http://semantic-search-service:8080
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
-      CODE_EXECUTOR_URL: http://python-executor:8811
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
@@ -159,7 +133,6 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
 volumes:
-  qdrant-data:
   clickhouse-data:
   clickhouse-logs:
   postgres-data:

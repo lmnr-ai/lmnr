@@ -1,5 +1,5 @@
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
-use futures::StreamExt;
+use futures_util::StreamExt;
 use lapin::{
     acker::Acker,
     options::{BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},

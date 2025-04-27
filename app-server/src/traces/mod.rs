@@ -5,14 +5,9 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::{self, spans::CHSpan},
-    db::{
-        events::Event, labels::get_registered_label_classes_for_path, spans::Span,
-        stats::add_spans_to_project_usage_stats, DB,
-    },
+    db::{events::Event, spans::Span, stats::add_spans_to_project_usage_stats, DB},
     mq::MessageQueueAcker,
-    pipeline::runner::PipelineRunner,
     traces::{
-        evaluators::run_evaluator,
         events::record_events,
         utils::{get_llm_usage_for_span, record_labels_to_db_and_ch, record_span_to_db},
     },
@@ -20,7 +15,6 @@ use crate::{
 
 pub mod attributes;
 pub mod consumer;
-pub mod evaluators;
 pub mod events;
 pub mod grpc_service;
 pub mod limits;
@@ -97,47 +91,5 @@ pub async fn process_spans_and_events(
             project_id,
             e
         );
-    }
-}
-
-pub async fn process_label_classes(
-    span: &Span,
-    project_id: &Uuid,
-    db: Arc<DB>,
-    clickhouse: clickhouse::Client,
-    pipeline_runner: Arc<PipelineRunner>,
-) {
-    let registered_label_classes = match get_registered_label_classes_for_path(
-        &db.pool,
-        *project_id,
-        &span.get_attributes().flat_path().unwrap_or_default(),
-    )
-    .await
-    {
-        Ok(classes) => classes,
-        Err(e) => {
-            log::error!(
-                "Failed to get registered label classes. project_id [{}]: {:?}",
-                project_id,
-                e
-            );
-            Vec::new() // Return an empty vector if there's an error
-        }
-    };
-
-    for registered_label_class in registered_label_classes {
-        match run_evaluator(
-            pipeline_runner.clone(),
-            *project_id,
-            registered_label_class.label_class_id,
-            &span,
-            db.clone(),
-            clickhouse.clone(),
-        )
-        .await
-        {
-            Ok(_) => (),
-            Err(e) => log::error!("Failed to run evaluator: {:?}", e),
-        }
     }
 }

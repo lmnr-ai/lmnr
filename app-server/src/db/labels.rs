@@ -95,22 +95,6 @@ pub async fn get_label_classes_by_project_id(
     Ok(label_classes)
 }
 
-pub async fn get_label_class(
-    pool: &PgPool,
-    project_id: Uuid,
-    label_class_id: Uuid,
-) -> Result<Option<LabelClass>> {
-    let label_class = sqlx::query_as::<_, LabelClass>(
-        "SELECT * FROM label_classes WHERE project_id = $1 AND id = $2",
-    )
-    .bind(project_id)
-    .bind(label_class_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(label_class)
-}
-
 pub async fn update_label_class(
     pool: &PgPool,
     project_id: Uuid,

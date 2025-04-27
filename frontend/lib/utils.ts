@@ -1,9 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import * as Y from "yjs";
 
 import { GroupByInterval } from "./clickhouse/modifiers";
-import { InputVariable, PipelineVisibility } from "./pipeline/types";
 import { ChatMessageContentPart, DatatableFilter } from "./types";
 
 export const TIME_MILLISECONDS_FORMAT = "timeMilliseconds";
@@ -188,86 +186,6 @@ export const STORED_INPUTS_STATE_UNSEEN = "INPUTS_UNSEEN_STATE";
 // If seen state, then use allInputs to fill out inputs
 export const STORED_INPUTS_STATE_SEEN = "INPUTS_SEEN_STATE";
 
-export const getStoredInputs = (
-  pipelineVersionId: string,
-  focusedNodeId: string | null,
-  pipelineVisibility: PipelineVisibility = "PRIVATE"
-) => {
-  const innerKey = focusedNodeId === null ? "pipeline" : `node-${focusedNodeId}`;
-  const key = `${pipelineVisibility === "PUBLIC" ? "public-" : ""}pipeline-inputs-${pipelineVersionId}`;
-  const localPipelineInputs = JSON.parse(localStorage.getItem(key) ?? "{}");
-
-  if (!localPipelineInputs[innerKey]) {
-    return {
-      state: STORED_INPUTS_STATE_UNSEEN,
-      inputs: [],
-    };
-  }
-
-  return localPipelineInputs[innerKey];
-};
-
-/**
- * Set local pipeline inputs to the UNSEEN_STATE
- */
-export const convertAllStoredInputsToUnseen = (
-  pipelineVersionId: string,
-  pipelineVisibility: PipelineVisibility = "PRIVATE"
-) => {
-  const inputsKey = `${pipelineVisibility === "PUBLIC" ? "public-" : ""}pipeline-inputs-${pipelineVersionId}`;
-  const localPipelineInputs = JSON.parse(localStorage.getItem(inputsKey) ?? "{}");
-  const preparedLocalPipelineInputs = Object.keys(localPipelineInputs).reduce(
-    (acc, key) => ({
-      ...acc,
-      [key]: {
-        state: STORED_INPUTS_STATE_UNSEEN,
-        inputs: localPipelineInputs[key].inputs,
-      },
-    }),
-    {}
-  );
-  localStorage.setItem(inputsKey, JSON.stringify(preparedLocalPipelineInputs));
-};
-
-/**
- * Set local inputs for focusedNodeid to UNSEEN_STATE
- */
-export const convertStoredInputToUnseen = (
-  pipelineVersionId: string,
-  focusedNodeId: string | null,
-  pipelineVisibility: PipelineVisibility = "PRIVATE"
-) => {
-  const innerKey = focusedNodeId === null ? "pipeline" : `node-${focusedNodeId}`;
-  const key = `${pipelineVisibility === "PUBLIC" ? "public-" : ""}pipeline-inputs-${pipelineVersionId}`;
-  const localPipelineInputs = JSON.parse(localStorage.getItem(key) ?? "{}");
-
-  if (!!localPipelineInputs[innerKey]) {
-    localPipelineInputs[innerKey] = {
-      ...localPipelineInputs[innerKey],
-      state: STORED_INPUTS_STATE_UNSEEN,
-    };
-    localStorage.setItem(key, JSON.stringify(localPipelineInputs));
-  }
-};
-
-export const setStoredInputs = (
-  pipelineVersionId: string,
-  focusedNodeId: string | null,
-  inputs: InputVariable[][],
-  pipelineVisibility: PipelineVisibility = "PRIVATE"
-) => {
-  const innerKey = focusedNodeId === null ? "pipeline" : `node-${focusedNodeId}`;
-  const key = `${pipelineVisibility === "PUBLIC" ? "public-" : ""}pipeline-inputs-${pipelineVersionId}`;
-  const localPipelineInputs = JSON.parse(localStorage.getItem(key) ?? "{}");
-  localStorage.setItem(
-    key,
-    JSON.stringify({
-      ...localPipelineInputs,
-      [innerKey]: { state: STORED_INPUTS_STATE_SEEN, inputs },
-    })
-  );
-};
-
 /**
  * Simple hash function to generate a short unique (with high-probability) identifier
  *
@@ -308,28 +226,6 @@ function deepArray<T extends any[]>(collection: T): any {
   return collection.map((value) => deep(value));
 }
 
-export function toYjsObject(obj: any): any {
-  if (obj === null || obj === undefined || typeof obj !== "object") {
-    throw new Error(`Unsupported type: ${typeof obj}`);
-  }
-
-  const ymap = new Y.Map();
-
-  for (let key of Object.keys(obj)) {
-    const value = obj[key];
-    if (value === null || value === undefined) {
-      ymap.set(key, new Y.Text());
-    } else if (typeof value === "string") {
-      const ytext = new Y.Text();
-      ytext.insert(0, value);
-      ymap.set(key, ytext);
-    } else {
-      ymap.set(key, value);
-    }
-  }
-
-  return ymap;
-}
 
 export const getFilterFromUrlParams = (filter: string): DatatableFilter[] | undefined => {
   const filters = JSON.parse(filter);

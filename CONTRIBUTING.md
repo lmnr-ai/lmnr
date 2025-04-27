@@ -27,7 +27,7 @@ Don't get overwhelmed by the number of docker-compose files. Here's a quick over
 - `docker-compose-full.yml` is the one you want to use for running the full stack locally. This is the best 
 for self-hosting.
 - `docker-compose-local-dev-full.yml` full file for local development. To be used when you make changes
-  to the backend. It will only run the dependency services (postgres, qdrant, clickhouse, rabbitmq).
+  to the backend. It will only run the dependency services (postgres, clickhouse, rabbitmq).
   You will need to run `cargo r`, `pnpm run dev`, `python main.py`, and `python server.py` manually.
 - `docker-compose-local-dev.yml` is the one you want to use for local development. It will only
   run postgres, clickhouse, and app-server. Good for frontend changes.
@@ -37,13 +37,10 @@ or for testing the changes after developing on your own and before opening a PR.
 | Service | docker-compose.yml | docker-compose-full.yml | docker-compose-local-dev-full.yml | docker-compose-local-dev.yml | docker-compose-local-build.yml |
 |---------|-------------------|------------------------|------------------------------|----------------------------|------------------------------|
 | postgres | ✅ | ✅ | ✅ | ✅ | ✅ |
-| qdrant | ❌ | ✅ | ✅ | ❌ | ✅ |
 | clickhouse | ✅ | ✅ | ✅ | ✅ | ✅ |
 | rabbitmq | ❌ | ✅ | ✅ | ❌ | ✅ |
 | app-server | ℹ️ | ✅ | 💻 | ℹ️ | 🔧 | 
 | frontend | ℹ️ | ✅ | 💻 | 💻 | 🔧 |
-| semantic-search-service | ❌ | ✅ | 💻 | ❌ | 🔧 |
-| python-executor | ❌ | ✅ | 💻 | ❌ | 🔧 |
 
 - ✅ – service present, image is pulled from a container registry.
 - 🔧 – service present, image is built from the source. This may take a while.
@@ -88,7 +85,7 @@ locally for development. If you only want to change frontend code, see the secti
 
 ### 0. Configure environment variables
 
-For each of app-server, semantic-search-service, and frontend, the environment is defined
+For both app-server and frontend, the environment is defined
 in `.env.example` files, and you need to copy that to `.env` files, i.e.
 ```sh
 cp .env.example .env
@@ -104,26 +101,7 @@ docker compose -f docker-compose-local-dev-full.yml up
 
 This will spin up postgres, qdrant, clickhouse, and RabbitMQ.
 
-### 2. Run semantic search service in develop mode
-
-```sh
-# semantic-search-service
-cd semantic-search-service
-cargo r
-```
-
-Rust is compiled and not hot reloadable, so you will need to rerun `cargo r` every time you want
-to test a change.
-
-### 3. Run python code executor in development mode
-
-```sh
-cd python_executor/python_executor
-poetry shell # or another virtual env, such as python venv or uv venv activation
-python server.py
-```
-
-### 4. Run agent manager in development mode
+### 2. Run agent manager in development mode
 
 Set environment variables in agent-manager/.env using the example in agent-manager/.env.example.
 
@@ -137,10 +115,7 @@ uv lock && uv sync
 python src/main.py
 ```
 
-### 5. Run app server in development mode
-
-Note, it is important to start semantic search service and python executor _before_ running
-app server, because it tries to connect to them before starting the server
+### 3. Run app server in development mode
 
 ```sh
 cd app-server
@@ -150,14 +125,14 @@ cargo r
 Rust is compiled and not hot-reloadable, so you will need to rerun `cargo r` every time you want
 to test a change.
 
-### 6. Run frontend in development mode
+### 4. Run frontend in development mode
 
 ```sh
 cd frontend
 pnpm run dev
 ```
 
-### 7. After finishing your changes
+### 5. After finishing your changes
 
 Make sure everything runs well in integration in dockers.
 
@@ -169,7 +144,7 @@ docker compose -f docker-compose-local-build.yml up
 ```
 
 Note that this is a different Docker compose file. This one will not only spin up
-dependency containers, but also build semantic search service, python executor,
+dependency containers, but also build
 app server and frontend from local code and run them in production mode.
 
 ## Database migrations
