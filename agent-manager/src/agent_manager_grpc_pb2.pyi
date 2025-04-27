@@ -17,7 +17,7 @@ OPENAI: ModelProvider
 GEMINI: ModelProvider
 
 class RunAgentRequest(_message.Message):
-    __slots__ = ("prompt", "session_id", "is_chat_request", "request_api_key", "cdp_url", "parent_span_context", "model_provider", "model", "enable_thinking", "return_screenshots", "return_agent_state", "return_storage_state", "storage_state", "agent_state", "timeout", "max_steps", "thinking_token_budget", "start_url")
+    __slots__ = ("prompt", "session_id", "is_chat_request", "request_api_key", "cdp_url", "parent_span_context", "model_provider", "model", "enable_thinking", "return_screenshots", "return_agent_state", "return_storage_state", "storage_state", "agent_state", "timeout", "max_steps", "thinking_token_budget", "start_url", "disable_give_control", "user_agent")
     PROMPT_FIELD_NUMBER: _ClassVar[int]
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     IS_CHAT_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -36,6 +36,8 @@ class RunAgentRequest(_message.Message):
     MAX_STEPS_FIELD_NUMBER: _ClassVar[int]
     THINKING_TOKEN_BUDGET_FIELD_NUMBER: _ClassVar[int]
     START_URL_FIELD_NUMBER: _ClassVar[int]
+    DISABLE_GIVE_CONTROL_FIELD_NUMBER: _ClassVar[int]
+    USER_AGENT_FIELD_NUMBER: _ClassVar[int]
     prompt: str
     session_id: str
     is_chat_request: bool
@@ -54,7 +56,9 @@ class RunAgentRequest(_message.Message):
     max_steps: int
     thinking_token_budget: int
     start_url: str
-    def __init__(self, prompt: _Optional[str] = ..., session_id: _Optional[str] = ..., is_chat_request: bool = ..., request_api_key: _Optional[str] = ..., cdp_url: _Optional[str] = ..., parent_span_context: _Optional[str] = ..., model_provider: _Optional[_Union[ModelProvider, str]] = ..., model: _Optional[str] = ..., enable_thinking: bool = ..., return_screenshots: bool = ..., return_agent_state: bool = ..., return_storage_state: bool = ..., storage_state: _Optional[str] = ..., agent_state: _Optional[str] = ..., timeout: _Optional[int] = ..., max_steps: _Optional[int] = ..., thinking_token_budget: _Optional[int] = ..., start_url: _Optional[str] = ...) -> None: ...
+    disable_give_control: bool
+    user_agent: str
+    def __init__(self, prompt: _Optional[str] = ..., session_id: _Optional[str] = ..., is_chat_request: bool = ..., request_api_key: _Optional[str] = ..., cdp_url: _Optional[str] = ..., parent_span_context: _Optional[str] = ..., model_provider: _Optional[_Union[ModelProvider, str]] = ..., model: _Optional[str] = ..., enable_thinking: bool = ..., return_screenshots: bool = ..., return_agent_state: bool = ..., return_storage_state: bool = ..., storage_state: _Optional[str] = ..., agent_state: _Optional[str] = ..., timeout: _Optional[int] = ..., max_steps: _Optional[int] = ..., thinking_token_budget: _Optional[int] = ..., start_url: _Optional[str] = ..., disable_give_control: bool = ..., user_agent: _Optional[str] = ...) -> None: ...
 
 class ActionResult(_message.Message):
     __slots__ = ("is_done", "content", "error", "give_control")
