@@ -454,7 +454,6 @@ dependencies = [
  "enum_dispatch",
  "env_logger",
  "futures",
- "futures-core",
  "futures-util",
  "lapin",
  "lazy_static",
