@@ -4,8 +4,7 @@
 use std::sync::Arc;
 
 use super::{
-    process_label_classes, process_spans_and_events, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
-    OBSERVATIONS_ROUTING_KEY,
+    process_spans_and_events, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
 };
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -13,12 +12,10 @@ use crate::{
     db::{spans::Span, DB},
     features::{is_feature_enabled, Feature},
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
-    pipeline::runner::PipelineRunner,
     storage::Storage,
 };
 
 pub async fn process_queue_spans(
-    pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
@@ -27,7 +24,6 @@ pub async fn process_queue_spans(
 ) {
     loop {
         inner_process_queue_spans(
-            pipeline_runner.clone(),
             db.clone(),
             cache.clone(),
             queue.clone(),
@@ -40,7 +36,6 @@ pub async fn process_queue_spans(
 }
 
 async fn inner_process_queue_spans(
-    pipeline_runner: Arc<PipelineRunner>,
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
@@ -129,15 +124,6 @@ async fn inner_process_queue_spans(
             clickhouse.clone(),
             cache.clone(),
             acker,
-        )
-        .await;
-
-        process_label_classes(
-            &span,
-            &rabbitmq_span_message.project_id,
-            db.clone(),
-            clickhouse.clone(),
-            pipeline_runner.clone(),
         )
         .await;
     }

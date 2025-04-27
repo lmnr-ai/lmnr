@@ -6,8 +6,11 @@ use uuid::Uuid;
 
 #[derive(FromRow)]
 pub struct SavedApiKey {
+    #[allow(dead_code)]
     pub name: String,
+    #[allow(dead_code)]
     pub nonce_hex: String,
+    #[allow(dead_code)]
     pub value: String,
 }
 
@@ -16,27 +19,6 @@ pub struct SavedApiKeyResponse {
     pub id: Uuid,
     pub project_id: Uuid,
     pub name: String,
-}
-
-pub async fn get_api_keys_with_value(pool: &PgPool, project_id: &Uuid) -> Result<Vec<SavedApiKey>> {
-    let api_key = sqlx::query_as::<_, SavedApiKey>(
-        "SELECT
-            name,
-            nonce_hex,
-            value
-        FROM
-            provider_api_keys
-        WHERE
-            project_id = $1
-        ORDER BY
-            created_at ASC
-        ",
-    )
-    .bind(project_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(api_key)
 }
 
 pub async fn save_api_key(

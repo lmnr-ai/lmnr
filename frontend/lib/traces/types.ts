@@ -1,8 +1,5 @@
 import { labelClasses, traces } from "../db/migrations/schema";
 import { Event } from "../events/types";
-import { GraphMessagePreview } from "../pipeline/types";
-
-export type TraceMessages = { [key: string]: GraphMessagePreview };
 
 export enum LabelSource {
   AUTO = "AUTO",
@@ -84,7 +81,6 @@ export type TraceEvent = {
   templateId: string;
 };
 
-export type RunTrace = TracePreview & { messagePreviews: TraceMessages };
 export type TracePreview = {
   startTime: string;
   endTime: string;
