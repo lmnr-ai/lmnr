@@ -14,13 +14,11 @@ import { PaginatedResponse } from '@/lib/types';
 interface DatasetSelectProps {
   onDatasetChange: (dataset: Dataset) => void;
   selectedDatasetId?: string;
-  onlyShowIndexed?: boolean;
 }
 
 export default function DatasetSelect({
   onDatasetChange,
   selectedDatasetId,
-  onlyShowIndexed
 }: DatasetSelectProps) {
   const { projectId } = useProjectContext();
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -29,7 +27,7 @@ export default function DatasetSelect({
     fetch(`/api/projects/${projectId}/datasets`)
       .then((res) => res.json())
       .then((datasets: PaginatedResponse<Dataset>) => {
-        setDatasets(onlyShowIndexed ? datasets.items.filter(dataset => dataset.indexedOn != null) : datasets.items);
+        setDatasets(datasets.items);
       });
   }, []);
 

@@ -11,7 +11,6 @@ use agent_manager::{
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
 use browser_events::process_browser_events;
-use dashmap::DashMap;
 use features::{is_feature_enabled, Feature};
 use lapin::{
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
@@ -33,18 +32,13 @@ use traces::{
 };
 
 use cache::{in_memory::InMemoryCache, redis::RedisCache, Cache};
-use language_model::{LanguageModelProvider, LanguageModelProviderName};
-use routes::pipelines::GraphInterruptMessage;
 use sodiumoxide;
 use std::{
-    collections::HashMap,
     env,
     io::{self, Error},
     sync::Arc,
     thread::{self, JoinHandle},
 };
-use tokio::sync::mpsc;
-use uuid::Uuid;
 
 mod agent_manager;
 mod api;
@@ -54,7 +48,6 @@ mod cache;
 mod ch;
 mod datasets;
 mod db;
-mod engine;
 mod evaluations;
 mod features;
 mod labels;
@@ -63,7 +56,6 @@ mod machine_manager;
 mod mq;
 mod names;
 mod opentelemetry;
-mod pipeline;
 mod project_api_keys;
 mod provider_api_keys;
 mod routes;
@@ -351,62 +343,6 @@ fn main() -> anyhow::Result<()> {
                 // == Name generator ==
                 let name_generator = Arc::new(NameGenerator::new());
 
-                // == Interrupt senders for pipeline execution control ==
-                let interrupt_senders =
-                    Arc::new(DashMap::<Uuid, mpsc::Sender<GraphInterruptMessage>>::new());
-
-                // == Language models ==
-                let client = reqwest::Client::new();
-                let anthropic = language_model::Anthropic::new(client.clone());
-                let openai = language_model::OpenAI::new(client.clone());
-                let openai_azure = language_model::OpenAIAzure::new(client.clone());
-                let gemini = language_model::Gemini::new(client.clone());
-                let groq = language_model::Groq::new(client.clone());
-                let mistral = language_model::Mistral::new(client.clone());
-
-                let mut language_models: HashMap<LanguageModelProviderName, LanguageModelProvider> =
-                    HashMap::new();
-                language_models.insert(
-                    LanguageModelProviderName::Anthropic,
-                    LanguageModelProvider::Anthropic(anthropic),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::OpenAI,
-                    LanguageModelProvider::OpenAI(openai),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::OpenAIAzure,
-                    LanguageModelProvider::OpenAIAzure(openai_azure),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::Gemini,
-                    LanguageModelProvider::Gemini(gemini),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::Groq,
-                    LanguageModelProvider::Groq(groq),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::Mistral,
-                    LanguageModelProvider::Mistral(mistral),
-                );
-                language_models.insert(
-                    LanguageModelProviderName::Bedrock,
-                    LanguageModelProvider::Bedrock(language_model::AnthropicBedrock::new(
-                        aws_sdk_bedrockruntime::Client::new(&aws_sdk_config),
-                    )),
-                );
-                let language_model_runner =
-                    Arc::new(language_model::LanguageModelRunner::new(language_models));
-
-                // == Pipeline runner ==
-                let pipeline_runner = Arc::new(pipeline::runner::PipelineRunner::new(
-                    language_model_runner.clone(),
-                    spans_mq_for_http.clone(),
-                    db_for_http.clone(),
-                    cache_for_http.clone(),
-                ));
-
                 let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
                     .unwrap_or(String::from("4"))
                     .parse::<u8>()
@@ -432,7 +368,6 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_spans_workers_per_thread {
                         tokio::spawn(process_queue_spans(
-                            pipeline_runner.clone(),
                             db_for_http.clone(),
                             cache_for_http.clone(),
                             spans_mq_for_http.clone(),
@@ -455,9 +390,6 @@ fn main() -> anyhow::Result<()> {
                         .app_data(PayloadConfig::new(http_payload_limit))
                         .app_data(web::Data::from(cache_for_http.clone()))
                         .app_data(web::Data::from(db_for_http.clone()))
-                        .app_data(web::Data::new(pipeline_runner.clone()))
-                        .app_data(web::Data::new(interrupt_senders.clone()))
-                        .app_data(web::Data::new(language_model_runner.clone()))
                         .app_data(web::Data::new(spans_mq_for_http.clone()))
                         .app_data(web::Data::new(clickhouse.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
@@ -491,8 +423,6 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
-                                .service(api::v1::pipelines::run_pipeline_graph)
-                                .service(api::v1::pipelines::ping_healthcheck)
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::evaluations::create_evaluation)
@@ -523,24 +453,6 @@ fn main() -> anyhow::Result<()> {
                             web::scope("/api/v1/projects/{project_id}")
                                 .service(routes::projects::get_project)
                                 .service(routes::projects::delete_project)
-                                .service(routes::pipelines::run_pipeline_graph)
-                                .service(routes::pipelines::get_pipelines)
-                                .service(routes::pipelines::create_pipeline)
-                                .service(routes::pipelines::update_pipeline)
-                                .service(routes::pipelines::get_pipeline_by_id)
-                                .service(routes::pipelines::delete_pipeline)
-                                .service(routes::pipelines::create_pipeline_version)
-                                .service(routes::pipelines::fork_pipeline_version)
-                                .service(routes::pipelines::update_pipeline_version)
-                                .service(routes::pipelines::overwrite_pipeline_version)
-                                .service(routes::pipelines::get_pipeline_versions_info)
-                                .service(routes::pipelines::get_pipeline_versions)
-                                .service(routes::pipelines::get_pipeline_version)
-                                .service(routes::pipelines::get_version)
-                                .service(routes::pipelines::get_templates)
-                                .service(routes::pipelines::create_template)
-                                .service(routes::pipelines::run_pipeline_interrupt_graph)
-                                .service(routes::pipelines::update_target_pipeline_version)
                                 .service(routes::api_keys::create_project_api_key)
                                 .service(routes::api_keys::get_api_keys_for_project)
                                 .service(routes::api_keys::revoke_project_api_key)

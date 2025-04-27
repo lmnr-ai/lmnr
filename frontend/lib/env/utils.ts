@@ -1,5 +1,3 @@
-import { GenericNode, LLMNode, MapNode, NodeType, SubpipelineNode } from "@/lib/flow/types";
-
 export enum EnvVars {
   OPENAI_API_KEY = "OPENAI_API_KEY",
   GEMINI_API_KEY = "GEMINI_API_KEY",
@@ -40,37 +38,6 @@ export const MODEL_PROVIDER_TO_API_KEYS: Record<string, string[]> = {
   ],
   [LLMModelProviders.BEDROCK]: [EnvVars.AWS_REGION, EnvVars.AWS_ACCESS_KEY_ID, EnvVars.AWS_SECRET_ACCESS_KEY],
 };
-
-export function getRequiredEnvVars(nodes: GenericNode[]): Set<string> {
-  let vars = new Set<string>();
-
-  for (const node of nodes) {
-    if ([NodeType.LLM].includes(node.type)) {
-      const model = (node as LLMNode).model;
-      if (!model) {
-        continue;
-      }
-      const modelProvider: string = model.split(":")[0];
-      MODEL_PROVIDER_TO_API_KEYS[modelProvider].forEach((envVar) => vars.add(envVar));
-    } else if (node.type === NodeType.ZENGUARD) {
-      vars.add("ZENGUARD_API_KEY");
-    } else if (node.type == NodeType.WEB_SEARCH) {
-      vars.add("GOOGLE_SEARCH_ENGINE_ID");
-      vars.add("GOOGLE_SEARCH_API_KEY");
-    } else if (node.type == NodeType.SUBPIPELINE) {
-      const envVars = getRequiredEnvVars(Array.from(Object.values((node as SubpipelineNode).runnableGraph.nodes)));
-      for (const envVar of envVars) {
-        vars.add(envVar);
-      }
-    } else if (node.type == NodeType.MAP) {
-      const envVars = getRequiredEnvVars(Array.from(Object.values((node as MapNode).runnableGraph.nodes)));
-      for (const envVar of envVars) {
-        vars.add(envVar);
-      }
-    }
-  }
-  return vars;
-}
 
 export const ENV_VAR_TO_ISSUER_URL: Record<string, string> = {
   [EnvVars.OPENAI_API_KEY]: "https://platform.openai.com/api-keys",

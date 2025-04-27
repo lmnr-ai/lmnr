@@ -1,7 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
 
-use serde::{Deserialize, Serialize};
-
 use crate::{
     cache::{keys::LLM_PRICES_CACHE_KEY, Cache, CacheTrait},
     db::{
@@ -10,8 +8,10 @@ use crate::{
     },
     traces::spans::InputTokens,
 };
+use serde::{Deserialize, Serialize};
+use utils::calculate_cost;
 
-use super::providers::utils::calculate_cost;
+mod utils;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct LLMPriceEntry {

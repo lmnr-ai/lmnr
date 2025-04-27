@@ -7,17 +7,6 @@ use uuid::Uuid;
 
 use crate::traces::attributes::TraceAttributes;
 
-/// Helper struct to pass current trace info, if exists, if pipeline is called from remote trace context
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CurrentTraceAndSpan {
-    pub trace_id: Uuid,
-    pub parent_span_id: Uuid,
-    // Optional for backwards compatibility
-    #[serde(default)]
-    pub parent_span_path: Option<String>,
-}
-
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "trace_type")]
 pub enum TraceType {

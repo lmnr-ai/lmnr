@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     db::{
         spans::{Span, SpanType},
-        trace::{CurrentTraceAndSpan, TraceType},
+        trace::TraceType,
         utils::{convert_any_value_to_json_value, span_id_to_uuid},
     },
     language_model::{
@@ -18,7 +18,6 @@ use crate::{
         InstrumentationChatMessageContentPart,
     },
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
-    pipeline::{nodes::Message, trace::MetaLog},
     storage::{Storage, StorageTrait},
     traces::span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
 };
@@ -28,7 +27,7 @@ use super::{
         ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST,
         GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS,
         GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST,
-        GEN_AI_TOTAL_TOKENS, LLM_NODE_RENDERED_PROMPT, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
+        SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
     },
     utils::{json_value_to_string, skip_span_name},
 };
@@ -561,131 +560,6 @@ impl Span {
         span
     }
 
-    pub fn create_parent_span_in_run_trace(
-        current_trace_and_span: Option<CurrentTraceAndSpan>,
-        run_stats: &crate::pipeline::trace::RunTraceStats,
-        name: &String,
-        messages: &HashMap<Uuid, Message>,
-        trace_type: TraceType,
-    ) -> Self {
-        // First, process current active context (current_trace_and_span)
-        // If there is both active trace and span, use them. Otherwise, create new trace id and None for parent span id.
-        let trace_id = current_trace_and_span
-            .as_ref()
-            .map(|t| t.trace_id)
-            .unwrap_or_else(Uuid::new_v4);
-        let parent_span_id = current_trace_and_span.as_ref().map(|t| t.parent_span_id);
-        let parent_span_path = current_trace_and_span.and_then(|t| t.parent_span_path);
-
-        let mut inputs = HashMap::new();
-        let mut outputs = HashMap::new();
-        messages
-            .values()
-            .for_each(|msg| match msg.node_type.as_str() {
-                "Input" => {
-                    inputs.insert(msg.node_name.clone(), msg.value.clone());
-                }
-                "Output" => {
-                    outputs.insert(msg.node_name.clone(), msg.value.clone());
-                }
-                _ => (),
-            });
-
-        let path = if let Some(parent_span_path) = parent_span_path {
-            format!("{}.{}", parent_span_path, name)
-        } else {
-            name.clone()
-        };
-        let mut attributes = HashMap::new();
-        attributes.insert(
-            format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type",),
-            json!(trace_type),
-        );
-        attributes.insert(SPAN_PATH.to_string(), json!(path));
-
-        Self {
-            span_id: Uuid::new_v4(),
-            start_time: run_stats.start_time,
-            end_time: run_stats.end_time,
-            trace_id,
-            parent_span_id,
-            name: name.clone(),
-            attributes: serde_json::json!(attributes),
-            input: serde_json::to_value(inputs).ok(),
-            output: serde_json::to_value(outputs).ok(),
-            span_type: SpanType::PIPELINE,
-            events: None,
-            labels: None,
-            input_url: None,
-            output_url: None,
-        }
-    }
-
-    /// Create spans from messages.
-    ///
-    /// At this point, the whole pipeline run acts as a parent span.
-    /// So trace id, parent span id, and parent span path are all not None.
-    pub fn from_messages(
-        messages: &HashMap<Uuid, Message>,
-        trace_id: Uuid,
-        parent_span_id: Uuid,
-        parent_span_path: Vec<String>,
-    ) -> Vec<Self> {
-        messages
-            .iter()
-            .filter_map(|(msg_id, message)| {
-                if !["LLM", "SemanticSearch"].contains(&message.node_type.as_str()) {
-                    return None;
-                }
-
-                let span_path = if message.node_type == "LLM" {
-                    // Span name is appended for LLM spans, on the consumer side of RabbitMQ,
-                    // in SpanAttributes::extend_span_path to correctly write path for
-                    // auto-instrumented LLM spans.
-                    // Here, we have to mimic what client-side does with LLM spans,
-                    // i.e. do not append span name.
-                    parent_span_path.clone()
-                } else {
-                    let mut path = parent_span_path.clone();
-                    path.push(message.node_name.clone());
-                    path
-                };
-
-                let input_values = message
-                    .input_message_ids
-                    .iter()
-                    .map(|input_id| {
-                        let input_message = messages.get(input_id).unwrap();
-                        (
-                            input_message.node_name.clone(),
-                            input_message.value.clone().into(),
-                        )
-                    })
-                    .collect::<HashMap<String, Value>>();
-                let span = Span {
-                    span_id: *msg_id,
-                    start_time: message.start_time,
-                    end_time: message.end_time,
-                    trace_id,
-                    parent_span_id: Some(parent_span_id),
-                    name: message.node_name.clone(),
-                    attributes: span_attributes_from_meta_log(message.meta_log.clone(), span_path),
-                    input: Some(serde_json::to_value(input_values).unwrap()),
-                    output: Some(message.value.clone().into()),
-                    span_type: match message.node_type.as_str() {
-                        "LLM" => SpanType::LLM,
-                        _ => SpanType::DEFAULT,
-                    },
-                    events: None,
-                    labels: None,
-                    input_url: None,
-                    output_url: None,
-                };
-                Some(span)
-            })
-            .collect()
-    }
-
     pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()
@@ -734,35 +608,6 @@ impl Span {
         }
         Ok(())
     }
-}
-
-fn span_attributes_from_meta_log(meta_log: Option<MetaLog>, span_path: Vec<String>) -> Value {
-    let mut attributes = HashMap::new();
-
-    if let Some(MetaLog::LLM(llm_log)) = meta_log {
-        attributes.insert(
-            GEN_AI_INPUT_TOKENS.to_string(),
-            json!(llm_log.input_token_count),
-        );
-        attributes.insert(
-            GEN_AI_OUTPUT_TOKENS.to_string(),
-            json!(llm_log.output_token_count),
-        );
-        attributes.insert(
-            GEN_AI_TOTAL_TOKENS.to_string(),
-            json!(llm_log.total_token_count),
-        );
-        attributes.insert(GEN_AI_RESPONSE_MODEL.to_string(), json!(llm_log.model));
-        attributes.insert(GEN_AI_SYSTEM.to_string(), json!(llm_log.provider));
-        attributes.insert(
-            GEN_AI_TOTAL_COST.to_string(),
-            json!(llm_log.approximate_cost),
-        );
-        attributes.insert(LLM_NODE_RENDERED_PROMPT.to_string(), json!(llm_log.prompt));
-    }
-    attributes.insert(SPAN_PATH.to_string(), json!(span_path));
-
-    serde_json::to_value(attributes).unwrap()
 }
 
 fn should_keep_attribute(attribute: &str) -> bool {
