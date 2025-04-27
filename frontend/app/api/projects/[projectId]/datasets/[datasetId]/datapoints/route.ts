@@ -1,14 +1,11 @@
 import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 
-import { authOptions } from '@/lib/auth';
 import { Datapoint } from '@/lib/dataset/types';
 import { db } from '@/lib/db/drizzle';
-import { datapointToSpan, datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
+import { datapointToSpan, datasetDatapoints } from '@/lib/db/migrations/schema';
 import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
-import { fetcher } from '@/lib/utils';
 
 export async function GET(
   req: NextRequest,
