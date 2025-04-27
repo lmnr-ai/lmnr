@@ -29,7 +29,7 @@ interface CodeEditorProps {
   codeEditorClassName?: string;
 }
 
-const defaultMode = "TEXT";
+const defaultMode = "text";
 
 const PureCodeHighlighter = ({
   value,
@@ -84,7 +84,7 @@ const PureCodeHighlighter = ({
   return (
     <div className={cn("w-full h-full flex flex-col border", className)}>
       <div
-        className={cn("bg-background flex items-center pl-2 pr-1 w-full border-t", {
+        className={cn("bg-background flex items-center pl-2 pr-1 w-full rounded-t", {
           "border-b": !isCollapsed,
         })}
       >
