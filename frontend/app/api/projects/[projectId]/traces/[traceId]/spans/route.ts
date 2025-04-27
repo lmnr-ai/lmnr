@@ -1,11 +1,11 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { searchSpans } from '@/lib/clickhouse/spans';
+import { SpanSearchType } from '@/lib/clickhouse/types';
 import { TimeRange } from '@/lib/clickhouse/utils';
 import { db } from '@/lib/db/drizzle';
 import { spans } from '@/lib/db/migrations/schema';
-import { SpanSearchType } from '@/lib/clickhouse/types';
 
 export async function GET(
   req: NextRequest,

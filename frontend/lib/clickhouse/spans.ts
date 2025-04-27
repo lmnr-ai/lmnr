@@ -245,7 +245,7 @@ export const getLabelMetricsOverTime = async (
 
 const searchTypeToQueryFilter = (searchType?: SpanSearchType[], queryParamName: string = "query"): string => {
   const uniqueSearchTypes = Array.from(new Set(searchType));
-  const searchBoth = `input_lower LIKE {${queryParamName}: String} OR output_lower LIKE {${queryParamName}: String}`
+  const searchBoth = `input_lower LIKE {${queryParamName}: String} OR output_lower LIKE {${queryParamName}: String}`;
   if (uniqueSearchTypes.length === 0) {
     return searchBoth;
   }
@@ -261,4 +261,4 @@ const searchTypeToQueryFilter = (searchType?: SpanSearchType[], queryParamName: 
     }
   }
   return searchBoth;
-}
+};

@@ -2,13 +2,13 @@ import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { searchSpans } from "@/lib/clickhouse/spans";
+import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { labelClasses, labels, spans, traces } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 import { getDateRangeFilters, paginatedGet } from "@/lib/db/utils";
 import { Span } from "@/lib/traces/types";
-import { SpanSearchType } from "@/lib/clickhouse/types";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;

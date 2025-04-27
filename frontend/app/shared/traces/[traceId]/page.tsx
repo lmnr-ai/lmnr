@@ -2,11 +2,11 @@ import { asc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import TraceView from "@/components/shared/traces/trace-view";
+import { searchSpans } from "@/lib/clickhouse/spans";
+import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
 import { spans, traces } from "@/lib/db/migrations/schema";
 import { Span, Trace } from "@/lib/traces/types";
-import { SpanSearchType } from "@/lib/clickhouse/types";
-import { searchSpans } from "@/lib/clickhouse/spans";
 
 export default async function SharedTracePage(props: {
   params: Promise<{ traceId: string }>;
