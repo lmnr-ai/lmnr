@@ -453,7 +453,6 @@ dependencies = [
  "enum_delegate",
  "enum_dispatch",
  "env_logger",
- "futures",
  "futures-util",
  "lapin",
  "lazy_static",

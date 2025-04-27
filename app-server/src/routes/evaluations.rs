@@ -99,7 +99,7 @@ async fn get_evaluation_score_distribution(
     };
 
     let evaluation_buckets: Vec<Vec<EvaluationScoreBucket>> =
-        futures::future::try_join_all(evaluation_ids.into_iter().map(|evaluation_id| {
+        futures_util::future::try_join_all(evaluation_ids.into_iter().map(|evaluation_id| {
             let clickhouse = clickhouse.clone();
             let score_name = score_name.clone();
             async move {

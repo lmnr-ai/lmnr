@@ -6,9 +6,6 @@ version = "0.1.0"
 [dependencies]
 actix-web = "4"
 anyhow = "1"
-env_logger = "0.11"
-futures-util = "0.3"
-tonic = {version = "0.13", features = ["gzip"]}
 
 # workaround [AFIT](https://rust-lang.github.io/rfcs/3185-static-async-fn-in-trait.html)
 # while [the feature](https://github.com/rust-lang/rust/pull/115822#issuecomment-1718261458) 
@@ -33,7 +30,8 @@ deadpool = "0.12.2"
 dotenv = "0.15"
 enum_delegate = "0.2.0"
 enum_dispatch = "0.3.13"
-futures = "0.3"
+env_logger = "0.11"
+futures-util = "0.3"
 lapin = "2.5.1"
 lazy_static = "1.5.0"
 log = "0.4.27"
@@ -55,6 +53,7 @@ time = "0.3.41"
 tokio = {version = "1.44", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 tokio-tungstenite = "0.26"
+tonic = {version = "0.13", features = ["gzip"]}
 url = "2.5.4"
 uuid = {version = "1.16.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"]}
 

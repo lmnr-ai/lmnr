@@ -28,7 +28,7 @@ impl AgentManagerImpl {
 impl AgentManagerTrait for AgentManagerImpl {
     type RunAgentStreamStream = Pin<
         Box<
-            dyn futures::stream::Stream<Item = Result<RunAgentResponseStreamChunk>>
+            dyn futures_util::stream::Stream<Item = Result<RunAgentResponseStreamChunk>>
                 + Send
                 + 'static,
         >,
@@ -98,7 +98,7 @@ impl AgentManagerTrait for AgentManagerImpl {
             }
             Err(e) => {
                 log::error!("Error running agent: {}", e);
-                Box::pin(futures::stream::once(async move {
+                Box::pin(futures_util::stream::once(async move {
                     Ok(RunAgentResponseStreamChunk::Error(ErrorChunkContent {
                         created_at: Utc::now(),
                         message_id: Uuid::new_v4(),
