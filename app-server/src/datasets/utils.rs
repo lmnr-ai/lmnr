@@ -1,15 +1,7 @@
-use std::{collections::HashMap, result::Result, sync::Arc};
-
-use crate::{
-    pipeline::nodes::NodeInput,
-    routes::error::Error,
-    semantic_search::{SemanticSearch, SemanticSearchTrait},
-};
+use crate::routes::error::Error;
 use actix_multipart::Multipart;
 use anyhow::Context;
 use futures_util::StreamExt;
-
-use super::datapoints::Datapoint;
 
 pub struct ParsedFile {
     pub filename: String,
@@ -41,30 +33,4 @@ pub async fn read_multipart_file(mut payload: Multipart) -> Result<ParsedFile, E
     }
 
     Ok(ParsedFile { filename, bytes })
-}
-
-pub async fn index_new_points(
-    datapoints: Vec<Datapoint>,
-    semantic_search: Arc<SemanticSearch>,
-    collection_name: String,
-    new_index_column: Option<String>,
-) -> anyhow::Result<()> {
-    if let Some(index_column) = &new_index_column {
-        let indexable_datapoints = datapoints.iter().filter(|datapoint| {
-            serde_json::from_value::<HashMap<String, NodeInput>>(datapoint.data.clone())
-                .is_ok_and(|data| data.contains_key(index_column))
-        });
-
-        let vector_db_datapoints = indexable_datapoints
-            .clone()
-            .map(|datapoint| datapoint.into_vector_db_datapoint(index_column))
-            .collect::<Vec<_>>();
-
-        if !vector_db_datapoints.is_empty() {
-            semantic_search
-                .index(vector_db_datapoints, collection_name)
-                .await?;
-        }
-    }
-    Ok(())
 }

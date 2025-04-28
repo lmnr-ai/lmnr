@@ -149,7 +149,7 @@ export default function CodeEditor({
   }
 
   return (
-    <div ref={setRefs} className={cn("w-full h-full bg-card text-foreground", className)}>
+    <div className={cn("w-full h-full bg-card text-foreground", className)}>
       <CodeMirror
         placeholder={placeholder}
         theme={myTheme}

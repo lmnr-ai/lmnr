@@ -1,8 +1,6 @@
 # This compose file is a lightweight version of docker-compose-local-dev-full.yml.
 # It is intended to be used for local development on frontend only.
-# It does not include ClickHouse,
-# Qdrant, Semantic Search, Python executor, and RabbitMQ.
-# It only includes postgres, and app-server.
+# It does not include RabbitMQ.
 # Run frontend manually with `ENVIRONMENT=LITE pnpm run dev`.
 
 name: lmnr
@@ -73,7 +71,7 @@ services:
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
-      ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq, semantic search, and python executor
+      ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
 
 volumes:

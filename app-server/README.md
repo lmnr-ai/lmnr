@@ -28,14 +28,6 @@ All interactions with database. Most submodules have the same name as their rela
 
 Structs and methods for (raw) interaction with language models.
 
-### Pipeline
-
-Core module for pipelines and engine execution.
-
 ### Routes
 
 `actix_web` router to route requests.
-
-### Semantic search
-
-gRPC client for [`semantic-search-service`](https://github.com/lmnr-ai/lmnr/tree/main/semantic-search-service/)

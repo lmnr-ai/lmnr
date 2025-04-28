@@ -20,12 +20,6 @@ jobs:
           - dockerfile: ./frontend/Dockerfile
             context: ./frontend
             image: ghcr.io/lmnr-ai/frontend
-          - dockerfile: ./semantic-search-service/Dockerfile
-            context: ./semantic-search-service
-            image: ghcr.io/lmnr-ai/semantic-search-service
-          - dockerfile: ./python-executor/Dockerfile
-            context: ./python-executor
-            image: ghcr.io/lmnr-ai/python-executor
           - dockerfile: ./agent-manager/Dockerfile
             context: ./agent-manager
             image: ghcr.io/lmnr-ai/agent-manager

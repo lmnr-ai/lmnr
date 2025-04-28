@@ -9,7 +9,7 @@ pub struct MockAgentManager;
 impl AgentManagerTrait for MockAgentManager {
     type RunAgentStreamStream = Pin<
         Box<
-            dyn futures::stream::Stream<Item = Result<RunAgentResponseStreamChunk>>
+            dyn futures_util::stream::Stream<Item = Result<RunAgentResponseStreamChunk>>
                 + Send
                 + 'static,
         >,
@@ -22,7 +22,7 @@ impl AgentManagerTrait for MockAgentManager {
 
     async fn run_agent_stream(&self, _params: super::RunAgentParams) -> Self::RunAgentStreamStream {
         log::debug!("MockAgentManager::run_agent_stream called");
-        Box::pin(futures::stream::once(async move {
+        Box::pin(futures_util::stream::once(async move {
             Ok(RunAgentResponseStreamChunk::FinalOutput(
                 FinalOutputChunkContent::default(),
             ))

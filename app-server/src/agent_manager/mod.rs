@@ -43,7 +43,9 @@ pub struct RunAgentParams {
 #[async_trait]
 #[enum_delegate::register]
 pub trait AgentManagerTrait {
-    type RunAgentStreamStream: futures::stream::Stream<Item = Result<RunAgentResponseStreamChunk>>;
+    type RunAgentStreamStream: futures_util::stream::Stream<
+        Item = Result<RunAgentResponseStreamChunk>,
+    >;
 
     async fn run_agent(&self, params: RunAgentParams) -> Result<AgentOutput>;
 

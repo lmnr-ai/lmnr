@@ -23,7 +23,7 @@ const ShareTraceButton = ({
   const traceId = trace.id;
   const router = useRouter();
 
-  const url = `${window.location.origin}/shared/traces/${traceId}`;
+  const url = typeof window !== "undefined" ? `${window.location.origin}/shared/traces/${traceId}` : "";
 
   const { toast } = useToast();
   const handleChangeVisibility = async (value: "private" | "public") => {

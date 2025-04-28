@@ -7,6 +7,7 @@ import { useProjectContext } from "@/contexts/project-context";
 import { isChatMessageList } from "@/lib/flow/utils";
 import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
 import { LabelClass, Span } from "@/lib/traces/types";
+import { flattenContentOfMessages } from "@/lib/types";
 
 import ChatMessageListTab from "../traces/chat-message-list-tab";
 import { Button } from "../ui/button";
@@ -119,7 +120,7 @@ export default function Queue({ queue }: QueueProps) {
                       <div className="w-full h-full">
                         <div className="pb-2 font-medium text-lg">Input</div>
                         {isChatMessageList(data?.[0]?.span.input) ? (
-                          <ChatMessageListTab reversed={false} messages={data?.[0]?.span.input} />
+                          <ChatMessageListTab messages={flattenContentOfMessages(data?.[0]?.span.input)} />
                         ) : (
                           <Formatter
                             className="max-h-1/3"
