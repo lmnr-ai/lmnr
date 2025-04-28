@@ -128,6 +128,7 @@ const PureCodeHighlighter = ({
         className={cn("flex-grow flex bg-card overflow-auto w-full h-fit", { "h-0": isCollapsed }, codeEditorClassName)}
       >
         <CodeMirror
+          className="w-full"
           onUpdate={onLoad}
           placeholder={placeholder}
           theme={theme}
