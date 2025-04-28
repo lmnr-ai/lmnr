@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import TraceView from "@/components/shared/traces/trace-view";
@@ -37,16 +37,22 @@ export default async function SharedTracePage(props: {
     searchSpanIds = Array.from(spansResult.spanIds);
   }
 
-
-  const spansResult = (await db.query.spans.findMany({
-    where: eq(spans.traceId, traceId),
+  const spansQueryResult = (await db.query.spans.findMany({
+    where: and(
+      eq(spans.traceId, traceId),
+      ...(searchSpanIds ? [inArray(spans.spanId, searchSpanIds)] : []),
+    ),
     orderBy: asc(spans.startTime),
     with: {
       events: true,
     },
   })) as unknown as Span[];
 
-  // TODO: return the searchSpanIds as a separate key, and then somehow filter-out/highlight
-  // the searchSpanIds in the UI
+  // For now we flatten the span tree in the front-end, so we explicitly set the parentSpanId to null
+  const spansResult = spansQueryResult.map((span) => ({
+    ...span,
+    parentSpanId: searchSpanIds ? null : span.parentSpanId,
+  }));
+
   return <TraceView trace={trace} spans={spansResult} />;
 }

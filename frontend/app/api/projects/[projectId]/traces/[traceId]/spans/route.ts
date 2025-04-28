@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { searchSpans } from '@/lib/clickhouse/spans';
@@ -34,7 +34,7 @@ export async function GET(
     where: and(
       eq(spans.traceId, traceId),
       eq(spans.projectId, projectId),
-      // ...(searchSpanIds ? [inArray(spans.spanId, searchSpanIds)] : [])
+      ...(searchSpanIds ? [inArray(spans.spanId, searchSpanIds)] : [])
     ),
     columns: {
       spanId: true,
@@ -55,8 +55,10 @@ export async function GET(
     },
   });
 
-  // TODO: we should return all span items as a key, and the
-  // searchSpanIds as a separate key, and then somehow filter-out/highlight
-  // the searchSpanIds in the UI
-  return NextResponse.json(spanItems);
+  // For now we flatten the span tree in the front-end if there is a search query,
+  // so we explicitly set the parentSpanId to null
+  return NextResponse.json(spanItems.map((span) => ({
+    ...span,
+    parentSpanId: searchSpanIds ? null : span.parentSpanId,
+  })));
 }
