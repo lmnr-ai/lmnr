@@ -1,5 +1,6 @@
 "use client";
 import { ColumnDef } from "@tanstack/react-table";
+import { isEmpty } from "lodash";
 import { ArrowRight, RefreshCcw, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -53,6 +54,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
   const textSearchFilter = searchParams.get("search");
+  const searchIn = searchParams.getAll("searchIn");
   const { projectId } = useProjectContext();
   const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
@@ -112,6 +114,12 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     }
     if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
       url += `&search=${textSearchFilter}`;
+    }
+
+    if (isEmpty(searchIn) || searchIn?.length === 2) {
+      url += `&searchIn=input&searchIn=output`;
+    } else {
+      url += `&searchIn=${searchIn?.[0]}`;
     }
 
     const res = await fetch(url, {
@@ -282,7 +290,17 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
 
   useEffect(() => {
     getTraces();
-  }, [projectId, pageNumber, pageSize, filter, pastHours, startDate, endDate, textSearchFilter]);
+  }, [
+    projectId,
+    pageNumber,
+    pageSize,
+    filter,
+    pastHours,
+    startDate,
+    endDate,
+    textSearchFilter,
+    JSON.stringify(searchIn),
+  ]);
 
   const handleDeleteTraces = async (traceId: string[]) => {
     const response = await fetch(`/api/projects/${projectId}/traces?traceId=${traceId.join(",")}`, {
@@ -576,7 +594,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     },
   ];
 
-  const [open, setOpen] = useState(false);
   return (
     <DataTable
       className="border-none w-full"

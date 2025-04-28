@@ -1,21 +1,15 @@
-import { ListFilter, Plus, X } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { ListFilter, Plus, X } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
-import { DatatableFilter } from '@/lib/types';
-import { cn, getFilterFromUrlParams } from '@/lib/utils';
+import { DatatableFilter } from "@/lib/types";
+import { cn, getFilterFromUrlParams } from "@/lib/utils";
 
-import { Button } from './button';
-import { Input } from './input';
-import { Label } from './label';
-import { Popover, PopoverContent, PopoverTrigger } from './popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from './select';
+import { Button } from "./button";
+import { Input } from "./input";
+import { Label } from "./label";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
 interface Filter {
   name: string;
@@ -30,16 +24,15 @@ interface DataTableFilterProps {
   className?: string;
 }
 
-const toFilterUrlParam = (filters: DatatableFilter[]): string =>
-  JSON.stringify(filters);
+const toFilterUrlParam = (filters: DatatableFilter[]): string => JSON.stringify(filters);
 
 const SELECT_OPERATORS = [
-  { key: 'eq', label: '=' },
-  { key: 'lt', label: '<' },
-  { key: 'gt', label: '>' },
-  { key: 'lte', label: '<=' },
-  { key: 'gte', label: '>=' },
-  { key: 'ne', label: '!=' }
+  { key: "eq", label: "=" },
+  { key: "lt", label: "<" },
+  { key: "gt", label: ">" },
+  { key: "lte", label: "<=" },
+  { key: "gte", label: ">=" },
+  { key: "ne", label: "!=" },
 ];
 
 export default function DataTableFilter({
@@ -52,7 +45,7 @@ export default function DataTableFilter({
   const pathName = usePathname();
   const searchParamsRaw = useSearchParams();
   const searchParams = useMemo(() => new URLSearchParams(searchParamsRaw.toString()), [searchParamsRaw]);
-  const queryParamFilters = searchParams.get('filter');
+  const queryParamFilters = searchParams.get("filter");
 
   const [filters, setFilters] = useState<DatatableFilter[]>(
     queryParamFilters ? (getFilterFromUrlParams(queryParamFilters) ?? []) : []
@@ -60,10 +53,10 @@ export default function DataTableFilter({
   const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
 
   const handleApplyFilters = () => {
-    searchParams.delete('filter');
-    searchParams.delete('pageNumber');
-    searchParams.append('pageNumber', '0');
-    searchParams.append('filter', toFilterUrlParam(filters));
+    searchParams.delete("filter");
+    searchParams.delete("pageNumber");
+    searchParams.append("pageNumber", "0");
+    searchParams.append("filter", toFilterUrlParam(filters));
     setPopoverOpen(false);
     router.push(`${pathName}?${searchParams.toString()}`);
   };
@@ -79,15 +72,14 @@ export default function DataTableFilter({
   const hasFilters = queryParamFilters ? (getFilterFromUrlParams(queryParamFilters)?.length ?? 0) > 0 : false;
 
   return (
-    <Popover
-      open={popoverOpen}
-      onOpenChange={setPopoverOpen}
-      key={useSearchParams().toString()}
-    >
+    <Popover open={popoverOpen} onOpenChange={setPopoverOpen} key={useSearchParams().toString()}>
       <PopoverTrigger asChild className={className}>
         <Button
-          variant='outline'
-          className={cn("text-secondary-foreground h-8", hasFilters ? 'text-primary bg-primary/20 border-primary/40 hover:bg-primary/30' : '')}
+          variant="outline"
+          className={cn(
+            "text-secondary-foreground h-8",
+            hasFilters ? "text-primary bg-primary/20 border-primary/40 hover:bg-primary/30" : ""
+          )}
         >
           <ListFilter size={16} className="mr-2" />
           Filters
@@ -106,16 +98,14 @@ export default function DataTableFilter({
                       filters={filters}
                       setFilters={setFilters}
                       possibleFilters={possibleFilters}
-                      updateFilters={ updateFilters}
+                      updateFilters={updateFilters}
                     />
                   ))}
                 </tbody>
               </table>
             ) : (
               <div className="px-2">
-                <Label className="text-sm text-secondary-foreground">
-                  No filters applied
-                </Label>
+                <Label className="text-sm text-secondary-foreground">No filters applied</Label>
               </div>
             )}
           </div>
@@ -123,10 +113,7 @@ export default function DataTableFilter({
             <Button
               variant="ghost"
               onClick={() => {
-                setFilters((filters) => [
-                  ...filters,
-                  { column: possibleFilters[0].id, operator: 'eq', value: "" }
-                ]);
+                setFilters((filters) => [...filters, { column: possibleFilters[0].id, operator: "eq", value: "" }]);
               }}
             >
               <Plus size={14} className="mr-1" />
@@ -155,18 +142,13 @@ interface RowProps {
   possibleFilters: Filter[];
 }
 
-function DataTableFilterRow({
-  i,
-  filters,
-  setFilters,
-  updateFilters,
-  possibleFilters,
-}: RowProps) {
+function DataTableFilterRow({ i, filters, setFilters, updateFilters, possibleFilters }: RowProps) {
   const filter = filters[i];
-  const [selectedFilter, setSelectedFilter] = useState<Filter|null>(null);
-  const operators = (filter: Filter | null) => (filter?.restrictOperators != null)
-    ? SELECT_OPERATORS.filter(op => filter.restrictOperators!.includes(op.key))
-    : SELECT_OPERATORS;
+  const [selectedFilter, setSelectedFilter] = useState<Filter | null>(null);
+  const operators = (filter: Filter | null) =>
+    filter?.restrictOperators != null
+      ? SELECT_OPERATORS.filter((op) => filter.restrictOperators!.includes(op.key))
+      : SELECT_OPERATORS;
 
   const handleRemoveFilter = (index: number) => {
     const newFilters = [...filters];
@@ -184,7 +166,7 @@ function DataTableFilterRow({
             onValueChange={(value) => {
               const newFilters = [...filters];
               newFilters[i].column = value;
-              setSelectedFilter(possibleFilters.find(f => f.id === value) ?? null);
+              setSelectedFilter(possibleFilters.find((f) => f.id === value) ?? null);
               setFilters(newFilters);
             }}
           >
@@ -203,7 +185,7 @@ function DataTableFilterRow({
       </td>
       <td className="px-2">
         <Select
-          defaultValue={filter?.operator ?? 'eq'}
+          defaultValue={filter?.operator ?? "eq"}
           onValueChange={(value) => {
             const newFilters = [...filters];
             newFilters[i].operator = value;
@@ -225,7 +207,7 @@ function DataTableFilterRow({
       <td className="">
         <Input
           className="h-7"
-          defaultValue={filter?.value ?? ''}
+          defaultValue={filter?.value ?? ""}
           placeholder="value"
           onChange={(e) => {
             const newFilters = [...filters];
@@ -235,11 +217,7 @@ function DataTableFilterRow({
         />
       </td>
       <td>
-        <Button
-          className="p-0 px-1 text-secondary-foreground"
-          variant={'ghost'}
-          onClick={() => handleRemoveFilter(i)}
-        >
+        <Button className="p-0 px-1 text-secondary-foreground" variant={"ghost"} onClick={() => handleRemoveFilter(i)}>
           <X size={16} />
         </Button>
       </td>

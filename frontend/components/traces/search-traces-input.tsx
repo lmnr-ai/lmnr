@@ -5,34 +5,22 @@ import { usePostHog } from "posthog-js/react";
 import React, { KeyboardEventHandler, memo, useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
-const handleUpdateCheckboxParam = (type: "output" | "input", params: URLSearchParams, checked?: boolean) => {
-  const current = params.getAll("searchIn");
-
-  if (checked) {
-    params.append("searchIn", type);
-  } else {
-    const updated = current.filter((v) => v !== type);
-    params.delete("searchIn");
-    updated.forEach((v) => params.set("searchIn", v));
-  }
-};
-
-const SearchTracesInput = () => {
+const SearchTracesInput = ({ className, filterBoxClassName }: { className?: string; filterBoxClassName?: string }) => {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const posthog = usePostHog();
 
+  const searchIn = searchParams.getAll("searchIn");
   const inputRef = useRef<HTMLInputElement>(null);
-  const checkboxInputRef = useRef<HTMLButtonElement>(null);
-  const checkboxOutputRef = useRef<HTMLButtonElement>(null);
+  const [value, setValue] = useState<string>(searchIn?.length === 1 ? searchIn?.[0] : "all");
 
   const handleWindow = useCallback(
     (open: boolean) => () => {
@@ -49,8 +37,16 @@ const SearchTracesInput = () => {
       params.set("search", inputRef?.current?.value);
     }
 
-    handleUpdateCheckboxParam("input", params, checkboxInputRef?.current?.ariaChecked === "true");
-    handleUpdateCheckboxParam("output", params, checkboxOutputRef?.current?.ariaChecked === "true");
+    if (params.get("searchIn")) {
+      params.delete("searchIn");
+    }
+
+    if (value === "all") {
+      params.append("searchIn", "input");
+      params.append("searchIn", "output");
+    } else {
+      params.append("searchIn", value);
+    }
 
     router.push(`${pathName}?${params.toString()}`);
     inputRef.current?.blur();
@@ -59,7 +55,7 @@ const SearchTracesInput = () => {
         searchParams: searchParams.toString(),
       });
     }
-  }, [pathName, posthog, router, searchParams]);
+  }, [pathName, posthog, router, searchParams, value]);
 
   const handleBlur = useCallback(() => {
     submit();
@@ -86,7 +82,7 @@ const SearchTracesInput = () => {
 
   return (
     <div className="flex flex-col flex-1 relative">
-      <div className={cn("flex items-center gap-x-1 border px-2 rounded-md", { "ring-1": open })}>
+      <div className={cn("flex items-center gap-x-1 border px-2 rounded-md bg-secondary", className)}>
         <Search size={18} className="text-secondary-foreground min-w-[18px]" />
         <Input
           defaultValue={searchParams.get("search") ?? ""}
@@ -104,30 +100,27 @@ const SearchTracesInput = () => {
       </div>
       <div
         className={cn(
-          "absolute z-50 top-10 bg-background flex flex-col gap-4 w-full rounded transition-all duration-100 ease-linear",
-          open ? "h-auto p-4 border" : "h-0 p-0 border-none opacity-0"
+          "absolute z-50 top-10 bg-background flex flex-col gap-2 w-full rounded transition-all duration-100 ease-linear",
+          open ? "h-auto p-4 border" : "h-0 p-0 border-none opacity-0",
+          filterBoxClassName
         )}
         onMouseDown={(e) => e.preventDefault()}
       >
-        <span className="text-secondary-foreground text-xs">Search params</span>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            defaultChecked={searchParams.getAll("searchIn").includes("input")}
-            value="input"
-            ref={checkboxInputRef}
-            className="border-secondary"
-          />
-          <Label htmlFor="input">Span input</Label>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            defaultChecked={searchParams.getAll("searchIn").includes("output")}
-            value="output"
-            ref={checkboxOutputRef}
-            className="border-secondary"
-          />
-          <Label htmlFor="output">Span output</Label>
-        </div>
+        <span className="text-secondary-foreground text-xs mb-2">Search in</span>
+        <RadioGroup value={value} onValueChange={setValue} defaultValue="all">
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="all" id="all" />
+            <Label htmlFor="all">All</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="input" id="input" />
+            <Label htmlFor="input">Input</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="output" id="output" />
+            <Label htmlFor="output">Output</Label>
+          </div>
+        </RadioGroup>
       </div>
     </div>
   );
