@@ -452,7 +452,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                               </StatsShields>
                             )}
 
-                            <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2": isLoading })}>
+                            <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isLoading })}>
                               {isLoading && (
                                 <>
                                   <Skeleton className="w-full h-8" />
