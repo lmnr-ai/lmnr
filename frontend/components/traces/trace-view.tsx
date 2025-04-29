@@ -246,7 +246,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         setTimelineWidth(newTraceTreePanelWidth + 1);
       }
     });
-  }, []);
+  }, [containerWidth, selectedSpan]);
 
   const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
     spanId: row.span_id,
@@ -407,14 +407,14 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         </div>
       )}
       <div className="flex-grow flex">
-        {isTraceLoading && (
+        {(!trace || spans.length === 0) && (
           <div className="w-full p-4 h-full flex flex-col gap-y-2">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
         )}
-        {trace && !isTraceLoading && (
+        {trace && !isTraceLoading && spans?.length > 0 && (
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>
               <div className="flex h-full w-full relative" ref={container}>
@@ -438,7 +438,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                             "sticky z-50": !selectedSpan,
                           })}
                         >
-                          <div className="flex flex-col pb-4" ref={traceTreePanel}>
+                          <div className="flex flex-col pb-4 w-96" ref={traceTreePanel}>
                             {searchEnabled ? (
                               <SearchSpansInput
                                 setSearchEnabled={setSearchEnabled}
@@ -464,12 +464,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                               </StatsShields>
                             )}
 
-                            <div
-                              style={{
-                                width: traceTreePanel.current?.getBoundingClientRect()?.width ?? 16,
-                              }}
-                              className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isLoading })}
-                            >
+                            <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isLoading })}>
                               {isLoading && (
                                 <>
                                   <Skeleton className="h-8 w-full" />

@@ -33,17 +33,19 @@ export default function StatsShields({
   children,
 }: PropsWithChildren<StatsShieldsProps>) {
   return (
-    <div className={cn("flex items-center gap-2 font-mono", className)}>
-      <div className="flex space-x-1 items-center p-0.5 px-2 border rounded-md">
-        <Clock3 size={12} />
-        <Label className="text-xs">{getDurationString(startTime, endTime)}</Label>
+    <div className={cn("flex items-center gap-2 font-mono min-w-0", className)}>
+      <div className="flex space-x-1 items-center p-0.5 px-2 border rounded-md min-w-0">
+        <Clock3 size={12} className="min-w-3 min-h-3" />
+        <Label className="text-xs truncate" title={getDurationString(startTime, endTime)}>
+          {getDurationString(startTime, endTime)}
+        </Label>
       </div>
       <TooltipProvider delayDuration={250}>
         <Tooltip>
-          <TooltipTrigger>
+          <TooltipTrigger className="min-w-0">
             <div className="flex space-x-1 items-center p-0.5 px-2 border rounded-md">
               <Coins size={12} />
-              <Label className="text-xs">{totalTokenCount}</Label>
+              <Label className="text-xs truncate">{totalTokenCount}</Label>
               <InfoIcon size={12} />
             </div>
           </TooltipTrigger>
@@ -63,10 +65,10 @@ export default function StatsShields({
       </TooltipProvider>
       <TooltipProvider delayDuration={250}>
         <Tooltip>
-          <TooltipTrigger>
+          <TooltipTrigger className="min-w-0">
             <div className="flex space-x-1 items-center p-0.5 px-2 border rounded-md">
               <CircleDollarSign size={12} />
-              <Label className="text-xs">${cost?.toFixed(5)}</Label>
+              <Label className="text-xs truncate">${cost?.toFixed(5)}</Label>
               <InfoIcon size={12} />
             </div>
           </TooltipTrigger>
