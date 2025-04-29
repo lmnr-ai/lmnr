@@ -60,10 +60,9 @@ const SearchSpansInput = ({
       if (inputRef.current?.value !== "") {
         inputRef.current.value = "";
         setInputValue("");
-        handleSubmit();
       }
     }
-  }, [handleSubmit]);
+  }, []);
 
   return (
     <div className="flex flex-col flex-1 top-0 sticky bg-background z-50 box-border">
@@ -78,6 +77,7 @@ const SearchSpansInput = ({
           onClick={() => {
             setSearchEnabled(false);
             handleClearInput();
+            handleSubmit();
           }}
           variant="ghost"
           className="h-4 w-4 mr-2"

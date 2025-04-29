@@ -458,8 +458,13 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                                 outputCost={trace.outputCost}
                                 cost={trace.cost}
                               >
-                                <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6">
-                                  <Search size={16} />
+                                <Button
+                                  size="icon"
+                                  onClick={() => setSearchEnabled(true)}
+                                  variant="outline"
+                                  className="h-[22px] w-[22px]"
+                                >
+                                  <Search size={14} />
                                 </Button>
                               </StatsShields>
                             )}
