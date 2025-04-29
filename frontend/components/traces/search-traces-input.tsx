@@ -21,6 +21,7 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
   const searchIn = searchParams.getAll("searchIn");
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState<string>(searchIn?.length === 1 ? searchIn?.[0] : "all");
+  const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
 
   const handleWindow = useCallback(
     (open: boolean) => () => {
@@ -74,6 +75,7 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
   const handleClearInput = useCallback(() => {
     if (inputRef.current) {
       if (inputRef.current?.value !== "") {
+        setInputValue("");
         inputRef.current.value = "";
         submit();
       }
@@ -93,10 +95,13 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
           ref={inputRef}
           onBlur={handleBlur}
           onFocus={handleWindow(true)}
+          onChange={(e) => setInputValue(e.target.value)}
         />
-        <Button onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
-          <X size={16} className="text-secondary-foreground cursor-pointer" />
-        </Button>
+        {inputValue && (
+          <Button onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
+            <X size={16} className="text-secondary-foreground cursor-pointer" />
+          </Button>
+        )}
       </div>
       <div
         className={cn(

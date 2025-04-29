@@ -25,6 +25,7 @@ const SearchSpansInput = ({
   const searchIn = searchParams.getAll("searchIn");
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState<string>(searchIn?.length === 1 ? searchIn?.[0] : "all");
+  const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
 
   const handleWindow = useCallback(
     (open: boolean) => () => {
@@ -58,13 +59,14 @@ const SearchSpansInput = ({
     if (inputRef.current) {
       if (inputRef.current?.value !== "") {
         inputRef.current.value = "";
+        setInputValue("");
         handleSubmit();
       }
     }
   }, [handleSubmit]);
 
   return (
-    <div className="flex flex-col flex-1 relative bg-background z-50 box-border">
+    <div className="flex flex-col flex-1 top-0 sticky bg-background z-50 box-border">
       <div
         className={cn(
           "flex items-center gap-x-1 border px-2 rounded-md text-secondary-foreground min-w-[18px] py-[3.5px] box-border",
@@ -92,11 +94,14 @@ const SearchSpansInput = ({
           onKeyDown={handleKeyPress}
           ref={inputRef}
           onBlur={handleBlur}
+          onChange={(e) => setInputValue(e.target.value)}
           onFocus={handleWindow(true)}
         />
-        <Button onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
-          <X size={18} className="text-secondary-foreground min-w-[18px]" />
-        </Button>
+        {inputValue && (
+          <Button onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
+            <X size={18} className="text-secondary-foreground min-w-[18px]" />
+          </Button>
+        )}
       </div>
       {open && (
         <div

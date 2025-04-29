@@ -45,6 +45,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isTraceLoading, setIsTraceLoading] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   // containerHeight refers to the height of the trace view container
   const [containerHeight, setContainerHeight] = useState(0);
@@ -95,6 +96,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
   const handleFetchTrace = useCallback(async () => {
     try {
+      setIsTraceLoading(true);
       if (propsTrace) {
         setTrace(propsTrace);
       } else {
@@ -119,6 +121,8 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         title: "Error",
         description: "Failed to load trace. Please try again.",
       });
+    } finally {
+      setIsTraceLoading(false);
     }
   }, [projectId, propsTrace, toast, traceId]);
 
@@ -173,7 +177,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
           searchParams.set("traceId", traceId);
           router.push(`${pathName}?${searchParams.toString()}`);
         } else {
-          // Otherwise, use the spanId from URL if present
           setSelectedSpan(
             searchParams.get("spanId")
               ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null
@@ -243,7 +246,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         setTimelineWidth(newTraceTreePanelWidth + 1);
       }
     });
-  }, [containerWidth, selectedSpan, collapsedSpans, isLoading, searchEnabled, traceTreePanel]);
+  }, []);
 
   const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
     spanId: row.span_id,
@@ -340,7 +343,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
       {!fullScreen && (
-        <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+        <div className="h-12 flex flex-none items-center border-b gap-x-2 px-4">
           <Button
             variant={"ghost"}
             className="px-0"
@@ -360,48 +363,58 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               <Expand className="w-4 h-4" size={16} />
             </Button>
           </Link>
-          <div className="flex items-center space-x-2">
-            <div>Trace</div>
-            <MonoWithCopy className="text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
+          <div className="flex items-center space-x-2 min-w-0">
+            <span>Trace</span>
+            <div className="min-w-0 flex-shrink">
+              <MonoWithCopy className="truncate text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
+            </div>
           </div>
-          <div className="flex-grow" />
-          {selectedSpan && (
-            <Button
-              variant={"secondary"}
-              onClick={() => {
-                setSelectedSpan(null);
-                searchParams.delete("spanId");
-                router.push(`${pathName}?${searchParams.toString()}`);
-              }}
-            >
-              <ChartNoAxesGantt size={16} className="mr-2" />
-              Show timeline
-            </Button>
-          )}
-          {trace?.hasBrowserSession && (
-            <Button
-              variant={"secondary"}
-              onClick={() => {
-                setShowBrowserSession((s) => !s);
-              }}
-            >
-              <Disc size={16} className="mr-2" />
-              {showBrowserSession ? "Hide browser session" : "Show browser session"}
-            </Button>
-          )}
+          <div className="flex gap-x-2 items-center ml-auto">
+            {selectedSpan && (
+              <Button
+                variant={"secondary"}
+                onClick={() => {
+                  setSelectedSpan(null);
+                  searchParams.delete("spanId");
+                  router.push(`${pathName}?${searchParams.toString()}`);
+                }}
+              >
+                <ChartNoAxesGantt size={16} className="mr-2" />
+                Show timeline
+              </Button>
+            )}
+            {trace?.hasBrowserSession && (
+              <Button
+                variant={"secondary"}
+                onClick={() => {
+                  setShowBrowserSession((s) => !s);
+                }}
+              >
+                <Disc size={16} className="mr-2" />
+                {showBrowserSession ? "Hide browser session" : "Show browser session"}
+              </Button>
+            )}
 
-          {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
-          {(trace || propsTrace) && (
-            <ShareTraceButton
-              refetch={handleFetchTrace}
-              trace={{ id: traceId, visibility: (propsTrace || trace)?.visibility }}
-              projectId={projectId}
-            />
-          )}
+            {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
+            {(trace || propsTrace) && (
+              <ShareTraceButton
+                refetch={handleFetchTrace}
+                trace={{ id: traceId, visibility: (propsTrace || trace)?.visibility }}
+                projectId={projectId}
+              />
+            )}
+          </div>
         </div>
       )}
       <div className="flex-grow flex">
-        {trace && (
+        {isTraceLoading && (
+          <div className="w-full p-4 h-full flex flex-col gap-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        )}
+        {trace && !isTraceLoading && (
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>
               <div className="flex h-full w-full relative" ref={container}>
@@ -421,10 +434,9 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                         }}
                       >
                         <td
-                          className={cn(
-                            "p-0 border-r left-0 bg-background flex-none",
-                            !selectedSpan ? "sticky z-50" : ""
-                          )}
+                          className={cn("p-0 border-r left-0 bg-background flex-none", {
+                            "sticky z-50": !selectedSpan,
+                          })}
                         >
                           <div className="flex flex-col pb-4" ref={traceTreePanel}>
                             {searchEnabled ? (
@@ -452,12 +464,17 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                               </StatsShields>
                             )}
 
-                            <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isLoading })}>
+                            <div
+                              style={{
+                                width: traceTreePanel.current?.getBoundingClientRect()?.width ?? 16,
+                              }}
+                              className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isLoading })}
+                            >
                               {isLoading && (
                                 <>
-                                  <Skeleton className="w-full h-8" />
-                                  <Skeleton className="w-full h-8" />
-                                  <Skeleton className="w-full h-8" />
+                                  <Skeleton className="h-8 w-full" />
+                                  <Skeleton className="h-8 w-full" />
+                                  <Skeleton className="h-8 w-full" />
                                 </>
                               )}
                               {!isLoading &&
