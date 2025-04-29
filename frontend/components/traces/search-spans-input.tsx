@@ -24,14 +24,36 @@ const SearchSpansInput = ({
 
   const searchIn = searchParams.getAll("searchIn");
   const inputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState<string>(searchIn?.length === 1 ? searchIn?.[0] : "all");
-  const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
+
+  const initialSearchValue = searchParams.get("search") ?? "";
+  const initialSearchInValue = searchIn?.length === 1 ? searchIn?.[0] : "all";
+
+  const [inputValue, setInputValue] = useState(initialSearchValue);
+  const [value, setValue] = useState<string>(initialSearchInValue);
+  const [isDirty, setIsDirty] = useState(false);
 
   const handleWindow = useCallback(
     (open: boolean) => () => {
       setOpen(open);
     },
     []
+  );
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = e.target.value;
+      setInputValue(newValue);
+      setIsDirty(newValue !== initialSearchValue);
+    },
+    [initialSearchValue]
+  );
+
+  const handleValueChange = useCallback(
+    (newValue: string) => {
+      setValue(newValue);
+      setIsDirty(newValue !== initialSearchInValue);
+    },
+    [initialSearchInValue]
   );
 
   const handleSubmit = useCallback(() => {
@@ -64,6 +86,14 @@ const SearchSpansInput = ({
     }
   }, []);
 
+  const handleCloseSearch = useCallback(() => {
+    setSearchEnabled(false);
+    if (isDirty) {
+      handleClearInput();
+      handleSubmit();
+    }
+  }, [handleClearInput, handleSubmit, isDirty, setSearchEnabled]);
+
   return (
     <div className="flex flex-col flex-1 top-0 sticky bg-background z-50 box-border">
       <div
@@ -73,16 +103,7 @@ const SearchSpansInput = ({
           className
         )}
       >
-        <Button
-          onClick={() => {
-            setSearchEnabled(false);
-            handleClearInput();
-            handleSubmit();
-          }}
-          variant="ghost"
-          className="h-4 w-4 mr-2"
-          size="icon"
-        >
+        <Button onClick={handleCloseSearch} variant="ghost" className="h-4 w-4 mr-2" size="icon">
           <ChevronLeft className="text-secondary-foreground min-w-[18px]" size={18} />
         </Button>
         <Search size={18} className="text-secondary-foreground min-w-[18px]" />
@@ -94,7 +115,7 @@ const SearchSpansInput = ({
           onKeyDown={handleKeyPress}
           ref={inputRef}
           onBlur={handleBlur}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={handleInputChange}
           onFocus={handleWindow(true)}
         />
         {inputValue && (
@@ -112,7 +133,7 @@ const SearchSpansInput = ({
           onMouseDown={(e) => e.preventDefault()}
         >
           <span className="text-secondary-foreground text-xs mb-2">Search in</span>
-          <RadioGroup value={value} onValueChange={setValue} defaultValue="all">
+          <RadioGroup value={value} onValueChange={handleValueChange} defaultValue="all">
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="all" id="all" />
               <Label htmlFor="all">All</Label>
