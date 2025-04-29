@@ -5,11 +5,12 @@ import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
 interface SpanTypeIconProps {
-  spanType: SpanType,
-  containerWidth?: number,
-  containerHeight?: number
-  size?: number
-  className?: string
+  spanType: SpanType;
+  containerWidth?: number;
+  containerHeight?: number;
+  size?: number;
+  className?: string;
+  iconClassName?: string;
 }
 
 const DEFAULT_CONTAINER_SIZE = 22;
@@ -21,6 +22,7 @@ export default function SpanTypeIcon({
   containerHeight = DEFAULT_CONTAINER_SIZE,
   size = DEFAULT_ICON_SIZE,
   className,
+  iconClassName,
 }: SpanTypeIconProps) {
   return (
     <div
@@ -31,24 +33,12 @@ export default function SpanTypeIcon({
         height: containerHeight,
       }}
     >
-      {spanType === SpanType.DEFAULT && (
-        <Braces size={size} />
-      )}
-      {spanType === SpanType.LLM && (
-        <MessageCircleMore size={size} />
-      )}
-      {spanType === SpanType.EXECUTOR && (
-        <Activity size={size} />
-      )}
-      {spanType === SpanType.EVALUATOR && (
-        <ArrowRight size={size} />
-      )}
-      {spanType === SpanType.EVALUATION && (
-        <Gauge size={size} />
-      )}
-      {spanType === SpanType.TOOL && (
-        <Bolt size={size} />
-      )}
+      {spanType === SpanType.DEFAULT && <Braces className={iconClassName} size={size} />}
+      {spanType === SpanType.LLM && <MessageCircleMore className={iconClassName} size={size} />}
+      {spanType === SpanType.EXECUTOR && <Activity className={iconClassName} size={size} />}
+      {spanType === SpanType.EVALUATOR && <ArrowRight className={iconClassName} size={size} />}
+      {spanType === SpanType.EVALUATION && <Gauge className={iconClassName} size={size} />}
+      {spanType === SpanType.TOOL && <Bolt className={iconClassName} size={size} />}
     </div>
   );
 }

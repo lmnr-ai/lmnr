@@ -6,6 +6,7 @@ import {
   SpanMetric,
   SpanMetricGroupBy,
   SpanMetricType,
+  SpanSearchType,
   SpanType,
 } from "./types";
 import {
@@ -145,25 +146,32 @@ export const getSpansCountInProject = async (projectId: string): Promise<{ count
 
 const DEFAULT_LIMIT: number = 200;
 
-export const searchSpans = async (
-  projectId: string,
+export const searchSpans = async ({
+  projectId,
+  searchQuery,
+  timeRange,
+  searchType,
+  traceId,
+}: {
+  projectId?: string,
   searchQuery: string,
   timeRange: TimeRange,
-  traceId?: string
-): Promise<{
+  searchType?: SpanSearchType[],
+  traceId?: string,
+}): Promise<{
   spanIds: Set<string>;
   traceIds: Set<string>;
 }> => {
   const baseQuery = `
     SELECT span_id spanId, trace_id traceId FROM spans
-    WHERE 
-      project_id = {projectId: UUID}
+    WHERE
+      1 = 1
+      ${projectId ? `AND project_id = {projectId: UUID}` : ""}
       AND (
-        input_lower LIKE {query: String} 
-        OR
-        output_lower LIKE {query: String}
-        ${traceId ? `OR trace_id = {traceId: String}` : ""}
-      )`;
+        ${searchTypeToQueryFilter(searchType, "query")}
+      )
+      ${traceId ? `AND trace_id = {traceId: String}` : ""}
+  `;
 
   const query = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
 
@@ -233,4 +241,24 @@ export const getLabelMetricsOverTime = async (
   });
 
   return await result.json();
+};
+
+const searchTypeToQueryFilter = (searchType?: SpanSearchType[], queryParamName: string = "query"): string => {
+  const uniqueSearchTypes = Array.from(new Set(searchType));
+  const searchBoth = `input_lower LIKE {${queryParamName}: String} OR output_lower LIKE {${queryParamName}: String}`;
+  if (uniqueSearchTypes.length === 0) {
+    return searchBoth;
+  }
+  if (uniqueSearchTypes.length === 1) {
+    const searchType = uniqueSearchTypes[0];
+    switch (searchType) {
+      case SpanSearchType.Input:
+        return `input_lower LIKE {${queryParamName}: String}`;
+      case SpanSearchType.Output:
+        return `output_lower LIKE {${queryParamName}: String}`;
+      default:
+        return searchBoth;
+    }
+  }
+  return searchBoth;
 };

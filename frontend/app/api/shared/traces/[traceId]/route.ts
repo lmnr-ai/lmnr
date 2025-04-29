@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/drizzle";
 import { traces } from "@/lib/db/migrations/schema";
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ traceId: string }> }): Promise<Response> {
+export async function GET(req: NextRequest, props: { params: Promise<{ traceId: string }> }): Promise<Response> {
   const params = await props.params;
   const traceId = params.traceId;
 

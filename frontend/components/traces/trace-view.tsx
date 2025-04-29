@@ -1,9 +1,12 @@
-import { ChartNoAxesGantt, ChevronsRight, Disc, Expand } from "lucide-react";
+import { isEmpty } from "lodash";
+import { ChartNoAxesGantt, ChevronsRight, Disc, Expand, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
+import SearchSpansInput from "@/components/traces/search-spans-input";
 import ShareTraceButton from "@/components/traces/share-trace-button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -14,7 +17,6 @@ import { Button } from "../ui/button";
 import MonoWithCopy from "../ui/mono-with-copy";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
-import { Skeleton } from "../ui/skeleton";
 import { AgentSessionButton } from "./agent-session-button";
 import SessionPlayer, { SessionPlayerHandle } from "./session-player";
 import { SpanCard } from "./span-card";
@@ -42,6 +44,8 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const { projectId } = useProjectContext();
   const { toast } = useToast();
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTraceLoading, setIsTraceLoading] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   // containerHeight refers to the height of the trace view container
   const [containerHeight, setContainerHeight] = useState(0);
@@ -92,6 +96,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
   const handleFetchTrace = useCallback(async () => {
     try {
+      setIsTraceLoading(true);
       if (propsTrace) {
         setTrace(propsTrace);
       } else {
@@ -116,6 +121,8 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         title: "Error",
         description: "Failed to load trace. Please try again.",
       });
+    } finally {
+      setIsTraceLoading(false);
     }
   }, [projectId, propsTrace, toast, traceId]);
 
@@ -146,38 +153,56 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     setTopLevelSpans(topLevelSpans);
   }, [spans]);
 
-  useEffect(() => {
-    const fetchSpans = async () => {
-      const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/spans`);
-      const results = await response.json();
-      return enrichSpansWithPending(results);
-    };
+  const fetchSpans = useCallback(
+    async (search: string, searchIn: string[]) => {
+      try {
+        setIsLoading(true);
+        const params = new URLSearchParams();
+        if (search) params.set("search", search);
+        if (searchIn && searchIn.length > 0) {
+          searchIn.forEach((val) => params.append("searchIn", val));
+        }
+        const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
+        const response = await fetch(url);
+        const results = await response.json();
+        const spans = enrichSpansWithPending(results);
 
-    fetchSpans().then((spans) => {
-      setSpans(spans);
+        setSpans(spans);
 
-      // If there's only one span, select it automatically
-      if (spans.length === 1) {
-        const singleSpan = spans[0];
-        setSelectedSpan(singleSpan);
-        searchParams.set("spanId", singleSpan.spanId);
-        searchParams.set("traceId", traceId);
-        router.push(`${pathName}?${searchParams.toString()}`);
-      } else {
-        // Otherwise, use the spanId from URL if present
-        setSelectedSpan(
-          searchParams.get("spanId")
-            ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null
-            : null
-        );
+        // If there's only one span, select it automatically
+        if (spans.length === 1) {
+          const singleSpan = spans[0];
+          setSelectedSpan(singleSpan);
+          searchParams.set("spanId", singleSpan.spanId);
+          searchParams.set("traceId", traceId);
+          router.push(`${pathName}?${searchParams.toString()}`);
+        } else {
+          setSelectedSpan(
+            searchParams.get("spanId")
+              ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null
+              : null
+          );
+        }
+      } catch (e) {
+      } finally {
+        setIsLoading(false);
       }
-    });
+    },
+    [projectId, traceId, setSpans, setSelectedSpan, searchParams, router, pathName]
+  );
+
+  useEffect(() => {
+    const search = searchParams.get("search") || "";
+    const searchIn = searchParams.getAll("searchIn");
+
+    fetchSpans(search, searchIn);
+
     return () => {
       setTrace(null);
       setSpans([]);
       setShowBrowserSession(false);
     };
-  }, [traceId, projectId]);
+  }, [traceId, projectId, router]);
 
   useEffect(() => {
     const selectedSpan = spans.find((span: Span) => span.spanId === searchParams.get("spanId"));
@@ -205,20 +230,23 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     };
   }, [container.current]);
 
+  const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
+
   useEffect(() => {
     if (!traceTreePanel.current) {
       return;
     }
-    const newTraceTreePanelWidth = traceTreePanel.current.getBoundingClientRect().width;
 
-    // if no span is selected, timeline should take full width
-    if (!selectedSpan) {
-      setTimelineWidth(containerWidth);
-    } else {
-      // if a span is selected, waterfall is hidden, so timeline should take the width of the trace tree panel
-      setTimelineWidth(newTraceTreePanelWidth + 1);
-    }
-  }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
+    requestAnimationFrame(() => {
+      const newTraceTreePanelWidth = traceTreePanel.current?.getBoundingClientRect().width || 0;
+
+      if (!selectedSpan) {
+        setTimelineWidth(containerWidth);
+      } else {
+        setTimelineWidth(newTraceTreePanelWidth + 1);
+      }
+    });
+  }, [containerWidth, selectedSpan]);
 
   const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
     spanId: row.span_id,
@@ -315,7 +343,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
       {!fullScreen && (
-        <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+        <div className="h-12 flex flex-none items-center border-b gap-x-2 px-4">
           <Button
             variant={"ghost"}
             className="px-0"
@@ -335,155 +363,180 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               <Expand className="w-4 h-4" size={16} />
             </Button>
           </Link>
-          <div className="flex items-center space-x-2">
-            <div>Trace</div>
-            <MonoWithCopy className="text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
+          <div className="flex items-center space-x-2 min-w-0">
+            <span>Trace</span>
+            <div className="min-w-0 flex-shrink">
+              <MonoWithCopy className="truncate text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
+            </div>
           </div>
-          <div className="flex-grow" />
-          {selectedSpan && (
-            <Button
-              variant={"secondary"}
-              onClick={() => {
-                setSelectedSpan(null);
-                searchParams.delete("spanId");
-                router.push(`${pathName}?${searchParams.toString()}`);
-              }}
-            >
-              <ChartNoAxesGantt size={16} className="mr-2" />
-              Show timeline
-            </Button>
-          )}
-          {trace?.hasBrowserSession && (
-            <Button
-              variant={"secondary"}
-              onClick={() => {
-                setShowBrowserSession((s) => !s);
-              }}
-            >
-              <Disc size={16} className="mr-2" />
-              {showBrowserSession ? "Hide browser session" : "Show browser session"}
-            </Button>
-          )}
+          <div className="flex gap-x-2 items-center ml-auto">
+            {selectedSpan && (
+              <Button
+                variant={"secondary"}
+                onClick={() => {
+                  setSelectedSpan(null);
+                  searchParams.delete("spanId");
+                  router.push(`${pathName}?${searchParams.toString()}`);
+                }}
+              >
+                <ChartNoAxesGantt size={16} className="mr-2" />
+                Show timeline
+              </Button>
+            )}
+            {trace?.hasBrowserSession && (
+              <Button
+                variant={"secondary"}
+                onClick={() => {
+                  setShowBrowserSession((s) => !s);
+                }}
+              >
+                <Disc size={16} className="mr-2" />
+                {showBrowserSession ? "Hide browser session" : "Show browser session"}
+              </Button>
+            )}
 
-          {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
-          {(trace || propsTrace) && (
-            <ShareTraceButton
-              refetch={handleFetchTrace}
-              trace={{ id: traceId, visibility: (propsTrace || trace)?.visibility }}
-              projectId={projectId}
-            />
-          )}
+            {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
+            {(trace || propsTrace) && (
+              <ShareTraceButton
+                refetch={handleFetchTrace}
+                trace={{ id: traceId, visibility: (propsTrace || trace)?.visibility }}
+                projectId={projectId}
+              />
+            )}
+          </div>
         </div>
       )}
       <div className="flex-grow flex">
         {(!trace || spans.length === 0) && (
-          <div className="w-full p-4 h-full flex flex-col space-y-2">
-            <Skeleton className="w-full h-8" />
-            <Skeleton className="w-full h-8" />
-            <Skeleton className="w-full h-8" />
+          <div className="w-full p-4 h-full flex flex-col gap-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
           </div>
         )}
-        {trace && spans.length > 0 && (
+        {trace && !isTraceLoading && spans?.length > 0 && (
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>
               <div className="flex h-full w-full relative" ref={container}>
-                <div
-                  className="flex-none"
+                <ScrollArea
+                  className="overflow-auto w-1 flex-grow"
                   style={{
                     width: timelineWidth,
+                    height: containerHeight,
                   }}
                 >
-                  <div className="flex-grow flex">
-                    <ScrollArea
-                      className="overflow-auto w-1 flex-grow"
-                      style={{
-                        width: timelineWidth,
-                        height: containerHeight,
-                      }}
-                    >
-                      <table className="w-full h-full">
-                        <tbody className="w-full">
-                          <tr
-                            className="flex"
-                            style={{
-                              minHeight: containerHeight,
-                            }}
-                          >
-                            <td
-                              className={cn(
-                                "p-0 border-r left-0 bg-background flex-none",
-                                !selectedSpan ? "sticky z-50" : ""
-                              )}
-                            >
-                              <div className="flex flex-col pb-4" ref={traceTreePanel}>
-                                <StatsShields
-                                  className="px-2 h-10 sticky top-0 bg-background z-50 border-b"
-                                  startTime={trace.startTime}
-                                  endTime={trace.endTime}
-                                  totalTokenCount={trace.totalTokenCount}
-                                  inputTokenCount={trace.inputTokenCount}
-                                  outputTokenCount={trace.outputTokenCount}
-                                  inputCost={trace.inputCost}
-                                  outputCost={trace.outputCost}
-                                  cost={trace.cost}
-                                />
-                                <div className="flex flex-col pt-1">
-                                  {topLevelSpans.map((span, index) => (
-                                    <div key={index} className="pl-6 relative">
-                                      <SpanCard
-                                        activeSpans={activeSpans}
-                                        traceStartTime={trace.startTime}
-                                        parentY={traceTreePanel.current?.getBoundingClientRect().y || 0}
-                                        span={span}
-                                        childSpans={childSpans}
-                                        depth={1}
-                                        selectedSpan={selectedSpan}
-                                        containerWidth={timelineWidth}
-                                        collapsedSpans={collapsedSpans}
-                                        onToggleCollapse={(spanId) => {
-                                          setCollapsedSpans((prev) => {
-                                            const next = new Set(prev);
-                                            if (next.has(spanId)) {
-                                              next.delete(spanId);
-                                            } else {
-                                              next.add(spanId);
-                                            }
-                                            return next;
-                                          });
-                                        }}
-                                        onSpanSelect={(span) => {
-                                          setSelectedSpan(span);
-                                          setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
-                                          searchParams.set("spanId", span.spanId);
-                                          router.push(`${pathName}?${searchParams.toString()}`);
-                                        }}
-                                        onSelectTime={(time) => {
-                                          browserSessionRef.current?.goto(time);
-                                        }}
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </td>
-                            {!selectedSpan && (
-                              <td className="flex flex-grow w-full p-0 relative">
-                                <Timeline
-                                  containerHeight={containerHeight}
-                                  spans={spans}
-                                  childSpans={childSpans}
-                                  collapsedSpans={collapsedSpans}
-                                  browserSessionTime={browserSessionTime}
-                                />
-                              </td>
+                  <table className="w-full h-full">
+                    <tbody className="w-full">
+                      <tr
+                        className="flex"
+                        style={{
+                          minHeight: containerHeight,
+                        }}
+                      >
+                        <td
+                          className={cn("p-0 border-r left-0 bg-background flex-none", {
+                            "sticky z-50": !selectedSpan,
+                          })}
+                        >
+                          <div className="flex flex-col pb-4 w-96" ref={traceTreePanel}>
+                            {searchEnabled ? (
+                              <SearchSpansInput
+                                setSearchEnabled={setSearchEnabled}
+                                submit={fetchSpans}
+                                filterBoxClassName="top-10"
+                                className="rounded-none border-0 border-b ring-0"
+                              />
+                            ) : (
+                              <StatsShields
+                                className="px-2 h-10 sticky top-0 bg-background z-50 border-b w-full"
+                                startTime={trace.startTime}
+                                endTime={trace.endTime}
+                                totalTokenCount={trace.totalTokenCount}
+                                inputTokenCount={trace.inputTokenCount}
+                                outputTokenCount={trace.outputTokenCount}
+                                inputCost={trace.inputCost}
+                                outputCost={trace.outputCost}
+                                cost={trace.cost}
+                              >
+                                <Button
+                                  size="icon"
+                                  onClick={() => setSearchEnabled(true)}
+                                  variant="outline"
+                                  className="h-[22px] w-[22px]"
+                                >
+                                  <Search size={14} />
+                                </Button>
+                              </StatsShields>
                             )}
-                          </tr>
-                        </tbody>
-                      </table>
-                      <ScrollBar orientation="horizontal" />
-                    </ScrollArea>
-                  </div>
-                </div>
+
+                            <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isLoading })}>
+                              {isLoading && (
+                                <>
+                                  <Skeleton className="h-8 w-full" />
+                                  <Skeleton className="h-8 w-full" />
+                                  <Skeleton className="h-8 w-full" />
+                                </>
+                              )}
+                              {!isLoading &&
+                                topLevelSpans.map((span, index) => (
+                                  <div key={index} className="pl-6 relative">
+                                    <SpanCard
+                                      activeSpans={activeSpans}
+                                      traceStartTime={trace.startTime}
+                                      parentY={traceTreePanel.current?.getBoundingClientRect().y || 0}
+                                      span={span}
+                                      childSpans={childSpans}
+                                      depth={1}
+                                      selectedSpan={selectedSpan}
+                                      containerWidth={timelineWidth}
+                                      collapsedSpans={collapsedSpans}
+                                      onToggleCollapse={(spanId) => {
+                                        setCollapsedSpans((prev) => {
+                                          const next = new Set(prev);
+                                          if (next.has(spanId)) {
+                                            next.delete(spanId);
+                                          } else {
+                                            next.add(spanId);
+                                          }
+                                          return next;
+                                        });
+                                      }}
+                                      onSpanSelect={(span) => {
+                                        setSelectedSpan(span);
+                                        setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
+                                        searchParams.set("spanId", span.spanId);
+                                        router.push(`${pathName}?${searchParams.toString()}`);
+                                      }}
+                                      onSelectTime={(time) => {
+                                        browserSessionRef.current?.goto(time);
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              {!isLoading && isEmpty(topLevelSpans) && (
+                                <span className="text-base text-secondary-foreground mx-auto mt-4">
+                                  No spans found.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        {!selectedSpan && (
+                          <td className="flex flex-grow w-full p-0 relative">
+                            <Timeline
+                              containerHeight={containerHeight}
+                              spans={spans}
+                              childSpans={childSpans}
+                              collapsedSpans={collapsedSpans}
+                              browserSessionTime={browserSessionTime}
+                            />
+                          </td>
+                        )}
+                      </tr>
+                    </tbody>
+                  </table>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
                 {selectedSpan && (
                   <div style={{ width: containerWidth - timelineWidth }}>
                     <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />

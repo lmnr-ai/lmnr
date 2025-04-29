@@ -2,6 +2,7 @@ import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { searchSpans } from "@/lib/clickhouse/spans";
+import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { labelClasses, labels, spans, traces } from "@/lib/db/migrations/schema";
@@ -46,8 +47,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   let searchSpanIds = null;
   if (req.nextUrl.searchParams.get("search")) {
+    const searchType = req.nextUrl.searchParams.getAll("searchIn");
     const timeRange = getTimeRange(pastHours ?? undefined, startTime ?? undefined, endTime ?? undefined);
-    const searchResult = await searchSpans(projectId, req.nextUrl.searchParams.get("search") ?? "", timeRange);
+    const searchResult = await searchSpans({
+      projectId,
+      searchQuery: req.nextUrl.searchParams.get("search") ?? "",
+      timeRange,
+      searchType: searchType as SpanSearchType[],
+    });
     searchSpanIds = Array.from(searchResult.spanIds);
   }
 

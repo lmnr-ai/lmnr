@@ -2,12 +2,12 @@ import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { searchSpans } from "@/lib/clickhouse/spans";
+import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { labelClasses, labels, spans, traces } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 import { getDateRangeFilters } from "@/lib/db/utils";
-
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
@@ -30,8 +30,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   let searchTraceIds = null;
   if (req.nextUrl.searchParams.get("search")) {
+    const searchType = req.nextUrl.searchParams.getAll("searchIn");
     const timeRange = getTimeRange(pastHours ?? undefined, startTime ?? undefined, endTime ?? undefined);
-    const searchResult = await searchSpans(projectId, req.nextUrl.searchParams.get("search") ?? "", timeRange);
+    const searchResult = await searchSpans({
+      projectId,
+      searchQuery: req.nextUrl.searchParams.get("search") ?? "",
+      timeRange,
+      searchType: searchType as SpanSearchType[],
+    });
     searchTraceIds = Array.from(searchResult.traceIds);
   }
 
