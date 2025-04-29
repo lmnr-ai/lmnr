@@ -106,12 +106,12 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
       <div
         className={cn(
           "absolute z-50 top-10 bg-background flex flex-col gap-2 w-full rounded transition-all duration-100 ease-linear",
-          open ? "h-auto p-4 border" : "h-0 p-0 border-none opacity-0",
+          open ? "h-auto p-2 border" : "h-0 p-0 border-none opacity-0",
           filterBoxClassName
         )}
         onMouseDown={(e) => e.preventDefault()}
       >
-        <span className="text-secondary-foreground text-xs mb-2">Search in</span>
+        <span className="text-secondary-foreground text-xs">Search in</span>
         <RadioGroup value={value} onValueChange={setValue} defaultValue="all">
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="all" id="all" />
