@@ -30,30 +30,12 @@ const SearchSpansInput = ({
 
   const [inputValue, setInputValue] = useState(initialSearchValue);
   const [value, setValue] = useState<string>(initialSearchInValue);
-  const [isDirty, setIsDirty] = useState(false);
 
   const handleWindow = useCallback(
     (open: boolean) => () => {
       setOpen(open);
     },
     []
-  );
-
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newValue = e.target.value;
-      setInputValue(newValue);
-      setIsDirty(newValue !== initialSearchValue);
-    },
-    [initialSearchValue]
-  );
-
-  const handleValueChange = useCallback(
-    (newValue: string) => {
-      setValue(newValue);
-      setIsDirty(newValue !== initialSearchInValue);
-    },
-    [initialSearchInValue]
   );
 
   const handleSubmit = useCallback(() => {
@@ -88,11 +70,9 @@ const SearchSpansInput = ({
 
   const handleCloseSearch = useCallback(() => {
     setSearchEnabled(false);
-    if (isDirty) {
-      handleClearInput();
-      handleSubmit();
-    }
-  }, [handleClearInput, handleSubmit, isDirty, setSearchEnabled]);
+    handleClearInput();
+    handleSubmit();
+  }, [handleClearInput, handleSubmit, setSearchEnabled]);
 
   return (
     <div className="flex flex-col flex-1 top-0 sticky bg-background z-50 box-border">
@@ -115,7 +95,7 @@ const SearchSpansInput = ({
           onKeyDown={handleKeyPress}
           ref={inputRef}
           onBlur={handleBlur}
-          onChange={handleInputChange}
+          onChange={(e) => setInputValue(e.target.value)}
           onFocus={handleWindow(true)}
         />
         {inputValue && (
@@ -127,13 +107,13 @@ const SearchSpansInput = ({
       {open && (
         <div
           className={cn(
-            "absolute z-50 top-10 bg-background flex flex-col gap-2 w-full rounded transition-all duration-100 ease-linear p-4 border",
+            "absolute z-50 top-10 bg-background flex flex-col gap-2 flex-1 mx-2 w-[calc(100%_-_16px)] rounded transition-all duration-100 ease-linear p-2 border border-t-0 rounded-t-none",
             filterBoxClassName
           )}
           onMouseDown={(e) => e.preventDefault()}
         >
-          <span className="text-secondary-foreground text-xs mb-2">Search in</span>
-          <RadioGroup value={value} onValueChange={handleValueChange} defaultValue="all">
+          <span className="text-secondary-foreground text-xs">Search in</span>
+          <RadioGroup value={value} onValueChange={setValue} defaultValue="all">
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="all" id="all" />
               <Label htmlFor="all">All</Label>
