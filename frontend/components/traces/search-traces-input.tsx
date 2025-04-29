@@ -82,8 +82,8 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
 
   return (
     <div className="flex flex-col flex-1 relative">
-      <div className={cn("flex items-center gap-x-1 border px-2 rounded-md bg-secondary", className)}>
-        <Search size={18} className="text-secondary-foreground min-w-[18px]" />
+      <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary", className)}>
+        <Search size={16} className="text-secondary-foreground" />
         <Input
           defaultValue={searchParams.get("search") ?? ""}
           className="focus-visible:ring-0 border-none max-h-8 px-1"
@@ -95,7 +95,7 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
           onFocus={handleWindow(true)}
         />
         <Button onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
-          <X size={18} className="text-secondary-foreground cursor-pointer min-w-[18px]" />
+          <X size={16} className="text-secondary-foreground cursor-pointer" />
         </Button>
       </div>
       <div
