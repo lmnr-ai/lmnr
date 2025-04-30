@@ -1,6 +1,6 @@
 import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
-import { ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 
 import CodeSheet from "@/components/traces/code-highlighter/code-sheet";
@@ -13,7 +13,7 @@ import {
   theme,
 } from "@/components/traces/code-highlighter/utils";
 import { Button } from "@/components/ui/button";
-import CopyToClipboardButton from "@/components/ui/copy-to-clipboard";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -119,9 +119,13 @@ const PureCodeHighlighter = ({
             )}
           </Button>
         )}
-        <CopyToClipboardButton className="h-7 w-7 ml-auto" text={renderedValue}>
-          <Copy className="h-3.5 w-3.5" />
-        </CopyToClipboardButton>
+        <CopyButton
+          className="h-7 w-7 ml-auto"
+          iconClassName="h-3.5 w-3.5"
+          size="icon"
+          variant="ghost"
+          text={renderedValue}
+        />
         <CodeSheet renderedValue={renderedValue} mode={mode} onModeChange={handleModeChange} extensions={extensions} />
       </div>
       <div

@@ -1,19 +1,19 @@
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth';
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
 
-import Landing from '@/components/landing/landing';
-import LandingHeader from '@/components/landing/landing-header';
-import { authOptions } from '@/lib/auth';
-import { Feature, isFeatureEnabled } from '@/lib/features/features';
+import Landing from "@/components/landing/landing";
+import LandingHeader from "@/components/landing/landing-header";
+import { authOptions } from "@/lib/auth";
 
 export default async function LandingPage() {
   const session = await getServerSession(authOptions);
 
-  if (!isFeatureEnabled(Feature.WORKSPACE)) {
+  //TODO: revert back after dev.
+  if (false) {
     if (!session) {
-      redirect('/sign-in');
+      redirect("/sign-in");
     } else {
-      redirect('/projects');
+      redirect("/projects");
     }
   }
 

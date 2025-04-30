@@ -1,26 +1,27 @@
-import { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth';
+import { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
 
-import Profile from '@/components/profile/profile';
-import ProfileHeader from '@/components/profile/profile-header';
-import WorkspacesNavbar from '@/components/projects/workspaces-navbar';
-import { UserContextProvider } from '@/contexts/user-context';
-import { authOptions } from '@/lib/auth';
+import Profile from "@/components/profile/profile";
+import ProfileHeader from "@/components/profile/profile-header";
+import WorkspacesNavbar from "@/components/projects/workspaces-navbar";
+import { UserContextProvider } from "@/contexts/user-context";
+import { authOptions } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: 'Profile | Laminar'
+  title: "Profile | Laminar",
 };
 
 export default async function ProfileUsagePage() {
   const session = await getServerSession(authOptions);
   if (!session) {
-    redirect('/sign-in?callbackUrl=/profile/usage');
+    redirect("/sign-in?callbackUrl=/profile/usage");
   }
   const user = session.user;
 
   return (
     <UserContextProvider
+      id={user.id}
       email={user.email!}
       supabaseAccessToken={session.supabaseAccessToken}
       username={user.name!}

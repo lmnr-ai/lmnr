@@ -4,7 +4,8 @@ export interface UserSession {
   id: string;
   name: string;
   email: string;
-  api_key: string;
+  apiKey: string;
+  avatarUrl?: string;
 }
 
 export type ChatMessageText = {

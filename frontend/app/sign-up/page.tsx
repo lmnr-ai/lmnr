@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import SignIn from "@/components/auth/sign-in";
+import SignUp from "@/components/auth/sign-up";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export default async function SignInPage(props: {
@@ -19,7 +19,7 @@ export default async function SignInPage(props: {
   }
 
   return (
-    <SignIn
+    <SignUp
       enableCredentials={isFeatureEnabled(Feature.EMAIL_AUTH)}
       enableGithub={isFeatureEnabled(Feature.GITHUB_AUTH)}
       enableGoogle={isFeatureEnabled(Feature.GOOGLE_AUTH)}

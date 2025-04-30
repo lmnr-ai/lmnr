@@ -226,7 +226,6 @@ function deepArray<T extends any[]>(collection: T): any {
   return collection.map((value) => deep(value));
 }
 
-
 export const getFilterFromUrlParams = (filter: string): DatatableFilter[] | undefined => {
   const filters = JSON.parse(filter);
   if (Array.isArray(filters)) {
@@ -333,3 +332,13 @@ export const streamReader = async (stream: ReadableStream<string>, onChunk: (chu
     reader.releaseLock();
   }
 };
+
+export function generateRandomKey(length: number): string {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const randomValues = new Uint8Array(length);
+  crypto.getRandomValues(randomValues);
+
+  return Array.from(randomValues)
+    .map((value) => chars[value % chars.length])
+    .join("");
+}

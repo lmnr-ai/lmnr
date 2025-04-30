@@ -1,10 +1,12 @@
-'use client'
+"use client";
 
-import React, { createContext, use } from 'react';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/const';
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import React, { createContext, use } from "react";
+
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/const";
 
 type UserContextType = {
+  id: string;
   email: string;
   username: string;
   imageUrl: string;
@@ -12,6 +14,7 @@ type UserContextType = {
 };
 
 export const UserContext = createContext<UserContextType>({
+  id: "",
   email: "",
   username: "",
   imageUrl: "",
@@ -19,6 +22,7 @@ export const UserContext = createContext<UserContextType>({
 });
 
 type UserContextProviderProps = {
+  id: string;
   email: string;
   username: string; // User's name, not unique
   imageUrl: string;
@@ -30,26 +34,27 @@ type UserContextProviderProps = {
 const clients: { [key: string]: SupabaseClient } = {};
 
 export const UserContextProvider = ({
+  id,
   email,
   username,
   imageUrl,
   children,
-  supabaseAccessToken
+  supabaseAccessToken,
 }: UserContextProviderProps) => {
-  const supabaseClient = clients[supabaseAccessToken] || createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${supabaseAccessToken}`
-      }
-    }
-  });
+  const supabaseClient =
+    clients[supabaseAccessToken] ||
+    createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${supabaseAccessToken}`,
+        },
+      },
+    });
   supabaseClient.realtime.setAuth(supabaseAccessToken);
   clients[supabaseAccessToken] = supabaseClient;
 
   return (
-    <UserContext.Provider value={{ email, username, imageUrl, supabaseClient }}>
-      {children}
-    </UserContext.Provider>
+    <UserContext.Provider value={{ id, email, username, imageUrl, supabaseClient }}>{children}</UserContext.Provider>
   );
 };
 

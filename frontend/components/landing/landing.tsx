@@ -4,7 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import Image, { StaticImageData } from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useInView } from 'react-intersection-observer';
+import { useInView } from "react-intersection-observer";
 
 import browserAgentObservability from "@/assets/landing/browser-agent-observability.png";
 import browserSession from "@/assets/landing/browser-session.png";
@@ -125,7 +125,7 @@ response = client.agent.run(
     docsLink: "/chat",
     callToAction: "Use Index via chat",
     isNew: true,
-  }
+  },
 ];
 
 export default function Landing() {
@@ -154,22 +154,21 @@ export default function Landing() {
 
   return (
     <>
-      <div className="flex flex-col z-30 items-center pt-28 space-y-8">
-        <div className="flex flex-col md:w-[1200px] space-y-8">
+      <div className="flex flex-col z-30 items-center pt-28 space-y-8 px-0 md:px-6 lg:px-8">
+        <div className="flex flex-col w-full max-w-full md:max-w-[90%] xl:max-w-[1200px] space-y-8">
           <div className="flex flex-col">
-            <div className="flex flex-col items-center py-8 text-center relative">
-              <div className="z-20 flex flex-col items-center gap-6">
+            <div className="flex flex-col items-center py-6 md:py-8 text-center relative">
+              <div className="z-20 flex flex-col items-center gap-4 md:gap-6">
                 <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500">
-                  How developers <br className="md:hidden" /> <span className="text-primary">build reliable AI products.</span>
+                  How developers <br className="md:hidden" />{" "}
+                  <span className="text-primary">build reliable AI products.</span>
                 </p>
                 <p className="text-2xl text-white/80 font-medium">
                   The open-source platform for tracing and evaluating AI applications.
                 </p>
                 <div className="flex space-x-4 items-center">
                   <Link href="/projects">
-                    <Button className="w-40 h-12 text-base font-semibold">
-                      Get started - free
-                    </Button>
+                    <Button className="w-40 h-12 text-base font-semibold">Get started - free</Button>
                   </Link>
                   <Link target="_blank" href="https://docs.lmnr.ai">
                     <Button
@@ -180,36 +179,39 @@ export default function Landing() {
                     </Button>
                   </Link>
                 </div>
-                <div className="flex justify-center items-center gap-4 flex-col">
+                <div className="flex justify-center items-center gap-4 flex-col mt-2 md:mt-4">
                   <span className="text-sm text-white">Backed by</span>
-                  <Image src={yc} alt="backed by Y Combinator" className="w-40 md:w-60" />
+                  <Image src={yc} alt="backed by Y Combinator" className="w-32 sm:w-40 md:w-60" />
                 </div>
               </div>
             </div>
           </div>
         </div>
-        <div className="flex flex-col md:items-center md:w-[1200px] border">
+        <div className="flex flex-col w-full max-w-full md:max-w-[90%] xl:max-w-[1200px] border border-x-0 md:border-x">
           <div className="flex flex-col w-full relative md:pb-0">
-            <div className="flex flex-wrap border-none gap-4 font-medium col-span-1 p-8 pb-0">
+            <div className="flex flex-wrap border-none gap-2 sm:gap-4 font-medium col-span-1 p-4 sm:p-8 pb-0 overflow-x-auto">
               {sections.map((section, i) => (
                 <button
                   key={i}
                   onClick={() => handleSectionSelect(section)}
-                  className={`border border-white/20 h-8 px-3 rounded transition-colors duration-200 items-center flex ${selectedSection.id === section.id
-                    ? "bg-white/90 text-black border-b-2"
-                    : "text-white/80 hover:bg-white/10 "
+                  className={`border border-white/20 h-8 px-2 sm:px-3 rounded transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${
+                    selectedSection.id === section.id
+                      ? "bg-white/90 text-black border-b-2"
+                      : "text-white/80 hover:bg-white/10 "
                   }`}
                 >
                   {section.title}
-                  {section.isNew && <span className="text-primary pl-2 mb-0.5 text-sm">new</span>}
+                  {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
                 </button>
               ))}
             </div>
-            <div className="z-20 text-white gap-8 grid grid-cols-1 md:grid-cols-2 p-8">
-              <div key={selectedSection.id} className="grid grid-cols-1 gap-8 col-span-2 md:grid-cols-2">
-                <div className="flex flex-col space-y-6 animate-in fade-in fade-out duration-700">
-                  <h1 className="text-4xl md:text-4xl font-semibold text-white/90">{selectedSection.title}</h1>
-                  <p className="text-base tracking-normal text-white/70">{selectedSection.description}</p>
+            <div className="z-20 text-white gap-4 sm:gap-8 grid grid-cols-1 md:grid-cols-2 p-4 sm:p-8">
+              <div key={selectedSection.id} className="grid grid-cols-1 gap-4 sm:gap-8 col-span-2 md:grid-cols-2">
+                <div className="flex flex-col space-y-4 sm:space-y-6 animate-in fade-in fade-out duration-700">
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold text-white/90">
+                    {selectedSection.title}
+                  </h1>
+                  <p className="text-sm sm:text-base tracking-normal text-white/70">{selectedSection.description}</p>
                   {selectedSection.docsLink && (
                     <div className="flex flex-col space-y-2 justify-start">
                       <Link href={selectedSection.docsLink} target="_blank">
@@ -230,26 +232,26 @@ export default function Landing() {
             </div>
             <div
               key={selectedSection.id}
-              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary p-8 pb-0 md:pt-16"
+              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary p-4 sm:p-8 pb-0 md:pt-16"
             >
               <Image
                 alt={selectedSection.title}
                 src={selectedSection.image}
                 priority
-                className="rounded-t-lg w-full object-cover object-top md:h-[550px]"
+                className="rounded-t-lg w-full object-cover object-top h-[300px] sm:h-[400px] md:h-[550px]"
               />
             </div>
           </div>
         </div>
-        <div className="flex flex-col md:items-center md:w-[1200px] md:px-0 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-8 md:px-0">
+        <div className="flex flex-col w-full max-w-full md:max-w-[90%] xl:max-w-[1200px] py-4 sm:py-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 px-4 sm:px-8 md:px-0">
             <TestimonialCard
               quote={`I can attest to it being the only reliable and performant LLM monitoring platform I${"'"}ve tried. Founding team is great to talk to and super responsive.`}
               author="Tommy He"
               role="CTO"
               company="Clarum"
               logo={clarum}
-              className="border-b pb-8 md:border-r md:border-b-0"
+              className="border-b pb-6 sm:pb-8 md:border-r md:border-b-0"
             />
             <TestimonialCard
               quote={`Laminar's evals help us maintain high accuracy while moving fast, and their team is incredibly responsive. We now use them for every LLM based feature we build.`}
@@ -257,7 +259,7 @@ export default function Landing() {
               role="CTO"
               company="Remo"
               logo={remo}
-              className="border-b pb-8 md:border-r md:border-b-0"
+              className="border-b pb-6 sm:pb-8 md:border-r md:border-b-0"
             />
             <TestimonialCard
               quote={`Laminar's tracing is genuinely great. So much better than the others I${"'"}ve tried.`}
@@ -269,7 +271,7 @@ export default function Landing() {
             />
           </div>
         </div>
-        <div className="flex flex-col md:items-center md:w-[1200px] px-4 md:px-0">
+        <div className="flex flex-col w-full max-w-full md:max-w-[90%] xl:max-w-[1200px] px-4 md:px-0">
           <div className="flex flex-col w-full border">
             <div className="flex flex-col">
               <div className="grid grid-cols-1 md:grid-cols-2">
@@ -322,8 +324,7 @@ export default function Landing() {
                     description="Laminar is fully open-source and easy to self-host."
                     animationOrder={3}
                     className="md:border-l"
-                  >
-                  </InfoCard>
+                  ></InfoCard>
                 </div>
               </div>
             </div>
@@ -371,18 +372,17 @@ function InfoCard({
       `}
       style={{
         opacity: inView ? 1 : 0,
-        transform: inView ? 'translateY(0)' : 'translateY(30px)',
-        transition: `opacity 600ms ease ${baseDelay}ms, transform 600ms ease ${baseDelay}ms`
+        transform: inView ? "translateY(0)" : "translateY(30px)",
+        transition: `opacity 600ms ease ${baseDelay}ms, transform 600ms ease ${baseDelay}ms`,
       }}
     >
-
       <div className="p-10 flex-grow space-y-2 flex justify-center flex-col">
         <h3
           className="text-2xl font-medium group-hover:text-white transition-colors"
           style={{
             opacity: inView ? 1 : 0,
-            transform: inView ? 'translateX(0)' : 'translateX(-10px)',
-            transition: `opacity 500ms ease ${baseDelay + 100}ms, transform 500ms ease ${baseDelay + 100}ms`
+            transform: inView ? "translateX(0)" : "translateX(-10px)",
+            transition: `opacity 500ms ease ${baseDelay + 100}ms, transform 500ms ease ${baseDelay + 100}ms`,
           }}
         >
           {title}
@@ -391,26 +391,30 @@ function InfoCard({
           className="text-secondary-foreground/80 group-hover:text-white transition-colors text-sm"
           style={{
             opacity: inView ? 1 : 0,
-            transform: inView ? 'translateX(0)' : 'translateX(-10px)',
-            transition: `opacity 500ms ease ${baseDelay + 200}ms, transform 500ms ease ${baseDelay + 200}ms`
+            transform: inView ? "translateX(0)" : "translateX(-10px)",
+            transition: `opacity 500ms ease ${baseDelay + 200}ms, transform 500ms ease ${baseDelay + 200}ms`,
           }}
         >
           {description}
         </p>
         {children && (
-          <div style={{
-            opacity: inView ? 1 : 0,
-            transition: `opacity 500ms ease ${baseDelay + 300}ms`
-          }}>
+          <div
+            style={{
+              opacity: inView ? 1 : 0,
+              transition: `opacity 500ms ease ${baseDelay + 300}ms`,
+            }}
+          >
             {children}
           </div>
         )}
         {linkUrl && (
-          <div style={{
-            opacity: inView ? 1 : 0,
-            transform: inView ? 'translateY(0)' : 'translateY(10px)',
-            transition: `opacity 500ms ease ${baseDelay + 400}ms, transform 500ms ease ${baseDelay + 400}ms`
-          }}>
+          <div
+            style={{
+              opacity: inView ? 1 : 0,
+              transform: inView ? "translateY(0)" : "translateY(10px)",
+              transition: `opacity 500ms ease ${baseDelay + 400}ms, transform 500ms ease ${baseDelay + 400}ms`,
+            }}
+          >
             <Link href={linkUrl} target="_blank" className="flex flex-col items-start">
               <div className="flex items-center rounded p-1 px-2 text-sm border border-white/20">
                 {actionText} <ArrowUpRight className="ml-2 h-4 w-4" />
@@ -420,17 +424,15 @@ function InfoCard({
         )}
       </div>
       {image && (
-        <div style={{
-          opacity: inView ? 1 : 0,
-          transform: inView ? 'translateY(0)' : 'translateY(20px)',
-          transition: `opacity 700ms ease ${baseDelay + 500}ms, transform 700ms ease ${baseDelay + 500}ms`
-        }}>
+        <div
+          style={{
+            opacity: inView ? 1 : 0,
+            transform: inView ? "translateY(0)" : "translateY(20px)",
+            transition: `opacity 700ms ease ${baseDelay + 500}ms, transform 700ms ease ${baseDelay + 500}ms`,
+          }}
+        >
           <div className="md:border-l md:border-t-0 border-t">
-            <Image
-              src={image}
-              alt={title}
-              className="w-full object-cover object-top"
-            />
+            <Image src={image} alt={title} className="w-full object-cover object-top" />
           </div>
         </div>
       )}
@@ -446,14 +448,16 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
       <div className="p-4 flex space-x-2 text-sm font-medium">
         <button
           onClick={() => setSelectedLang("typescript")}
-          className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
+          className={`border border-white/40 h-7 px-2 rounded ${
+            selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
           }`}
         >
           TypeScript
         </button>
         <button
           onClick={() => setSelectedLang("python")}
-          className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
+          className={`border border-white/40 h-7 px-2 rounded ${
+            selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
           }`}
         >
           Python
