@@ -84,7 +84,6 @@ export const authOptions: NextAuthOptions = {
             token.userId = existingUser.id;
             token.apiKey = existingUser.apiKey;
             if (!existingUser?.avatarUrl && token?.picture) {
-              console.log("setting avatar");
               await updateUserAvatar(existingUser.id, token.picture);
             }
           } else {
