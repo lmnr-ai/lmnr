@@ -167,7 +167,7 @@ export default function Landing() {
                   The open-source platform for tracing and evaluating AI applications.
                 </p>
                 <div className="flex space-x-4 items-center">
-                  <Link href="/projects">
+                  <Link href="/sign-up">
                     <Button className="w-40 h-12 text-base font-semibold">Get started - free</Button>
                   </Link>
                   <Link target="_blank" href="https://docs.lmnr.ai">
