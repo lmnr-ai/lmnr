@@ -4,7 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 
-import { createUser, getUserByEmail } from "@/lib/db/auth";
+import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
 import { getEmailsConfig } from "@/lib/server-utils";
 
 import { sendWelcomeEmail } from "./emails/utils";
@@ -83,6 +83,10 @@ export const authOptions: NextAuthOptions = {
           if (existingUser) {
             token.userId = existingUser.id;
             token.apiKey = existingUser.apiKey;
+            if (!existingUser?.avatarUrl && token?.picture) {
+              console.log("setting avatar");
+              await updateUserAvatar(existingUser.id, token.picture);
+            }
           } else {
             const user = await createUser(token.name, token.email, token.picture);
             token.userId = user.id;

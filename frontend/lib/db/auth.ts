@@ -25,6 +25,7 @@ export async function getUserByEmail(email: string): Promise<UserSession | undef
     id: user.id,
     name: user.name,
     email: user.email,
+    avatarUrl: user?.avatarUrl ?? undefined,
     apiKey: user.apiKeys?.[0]?.apiKey,
   };
 }
@@ -50,4 +51,13 @@ export async function createUser(name: string, email: string, avatarUrl?: string
 
     return { ...user, apiKey };
   });
+}
+
+export async function updateUserAvatar(id: string, avatarUrl: string): Promise<void> {
+  await db
+    .update(users)
+    .set({
+      avatarUrl,
+    })
+    .where(eq(users.id, id));
 }
