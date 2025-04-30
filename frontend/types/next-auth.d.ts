@@ -6,7 +6,6 @@ declare module "next-auth" {
     user: {
       id: string;
       apiKey: string;
-      isNewUserCreated: boolean;
     } & DefaultSession["user"];
   }
 
@@ -19,6 +18,5 @@ declare module "next-auth/jwt" {
   interface JWT {
     userId: string;
     apiKey: string;
-    isNewUserCreated: boolean;
   }
 }

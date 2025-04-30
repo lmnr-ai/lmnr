@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::env;
 use std::future::{ready, Ready};
 
 use actix_web::dev::Payload;
@@ -101,23 +100,5 @@ pub async fn project_validator(
             log::error!("Error validating project_token: {}", e);
             Err((AuthenticationError::from(config).into(), req))
         }
-    }
-}
-
-pub async fn shared_secret_validator(
-    req: ServiceRequest,
-    credentials: BearerAuth,
-) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    let config = req
-        .app_data::<Config>()
-        .map(|data| data.clone())
-        .unwrap_or_else(Default::default);
-
-    if credentials.token().to_string()
-        == env::var("SHARED_SECRET_TOKEN").expect("SHARED_SECRET_TOKEN must be set")
-    {
-        Ok(req)
-    } else {
-        Err((AuthenticationError::from(config).into(), req))
     }
 }

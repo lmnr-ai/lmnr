@@ -65,7 +65,7 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async signIn({ user, account, profile, email, credentials }) {
+    async signIn({ user, account }) {
       const list = await getEmailsConfig();
       if (account?.provider === "github" && user?.email && !!list) {
         return list.includes(user.email);
@@ -81,12 +81,10 @@ export const authOptions: NextAuthOptions = {
         try {
           const existingUser = await getUserByEmail(token.email);
           if (existingUser) {
-            token.isNewUserCreated = false;
             token.userId = existingUser.id;
             token.apiKey = existingUser.apiKey;
           } else {
             const user = await createUser(token.name, token.email, token.picture);
-            token.isNewUserCreated = true;
             token.userId = user.id;
             token.apiKey = user.apiKey;
 
@@ -106,7 +104,6 @@ export const authOptions: NextAuthOptions = {
       session.user.email = token.email;
       session.user.name = token.name;
       session.user.id = token.userId;
-      session.user.isNewUserCreated = token.isNewUserCreated;
 
       // injecting user info into Supabase parsable JWT
       if (isFeatureEnabled(Feature.SUPABASE)) {

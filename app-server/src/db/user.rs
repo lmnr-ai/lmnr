@@ -1,5 +1,4 @@
 use anyhow::Result;
-use log::error;
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use sqlx::PgPool;
@@ -19,38 +18,12 @@ pub struct User {
     pub email: String,
 }
 
-pub async fn write_user(pool: &PgPool, id: &Uuid, email: &String, name: &String) -> Result<()> {
-    sqlx::query("INSERT INTO users (id, name, email) values ($1, $2, $3)")
-        .bind(id)
-        .bind(name)
-        .bind(email)
-        .execute(pool)
-        .await?;
-
-    Ok(())
-}
 
 #[derive(Debug, Deserialize, Serialize, Clone, FromRow)]
 pub struct ApiKey {
     pub api_key: String,
     pub user_id: Uuid,
     pub name: String,
-}
-
-pub async fn write_api_key(
-    pool: &PgPool,
-    api_key: &String,
-    user_id: &Uuid,
-    name: &String,
-) -> Result<()> {
-    sqlx::query("INSERT INTO api_keys (api_key, user_id, name) values ($1, $2, $3)")
-        .bind(api_key)
-        .bind(user_id)
-        .bind(name)
-        .execute(pool)
-        .await?;
-
-    Ok(())
 }
 
 pub async fn get_user_from_api_key(pool: &PgPool, api_key: String) -> Result<User> {
@@ -81,21 +54,3 @@ pub async fn get_user_from_api_key(pool: &PgPool, api_key: String) -> Result<Use
     }
 }
 
-pub async fn get_api_key_for_user_from_email(pool: &PgPool, email: &String) -> Option<String> {
-    match sqlx::query_as::<_, ApiKey>(
-        "SELECT api_key, user_id, name
-        FROM api_keys
-        WHERE user_id = (SELECT id FROM users WHERE email = $1)",
-    )
-    .bind(email)
-    .fetch_optional(pool)
-    .await
-    {
-        Ok(Some(api_key)) => Some(api_key.api_key),
-        Ok(None) => None,
-        Err(e) => {
-            error!("Error getting api key for user from email: {}", e);
-            None
-        }
-    }
-}

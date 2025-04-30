@@ -363,8 +363,6 @@ fn main() -> anyhow::Result<()> {
                 HttpServer::new(move || {
                     let auth = HttpAuthentication::bearer(auth::validator);
                     let project_auth = HttpAuthentication::bearer(auth::project_validator);
-                    let shared_secret_auth =
-                        HttpAuthentication::bearer(auth::shared_secret_validator);
 
                     for _ in 0..num_spans_workers_per_thread {
                         tokio::spawn(process_queue_spans(
@@ -399,12 +397,6 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
-                        // Scopes with specific auth or no auth
-                        .service(
-                            web::scope("api/v1/auth")
-                                .wrap(shared_secret_auth.clone())
-                                .service(routes::auth::signin),
-                        )
                         .service(api::v1::machine_manager::vnc_stream) // vnc stream does not need auth
                         .service(
                             web::scope("/v1/browser-sessions")
