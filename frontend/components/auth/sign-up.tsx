@@ -44,9 +44,9 @@ const SignUp = ({ callbackUrl, enableGoogle, enableGithub, enableCredentials }: 
 
   return (
     <div className="flex flex-1 flex-col h-full">
-      <div className="p-4">
+      <Link className="p-4 self-start" href="/">
         <Image alt="Logo" src={logo} width={120} />
-      </div>
+      </Link>
       <div className="flex flex-1 justify-center flex-col items-center relative rounded-lg">
         <span className="text-4xl font-medium">Create an account</span>
         <div className="z-20 flex flex-col items-center gap-y-4 p-8 w-[380px] rounded-lg pt-20 pb-16">
