@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import SignUp from "@/components/auth/sign-up";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-export default async function SignInPage(props: {
+export default async function SignUpPage(props: {
   params: Promise<{}>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
