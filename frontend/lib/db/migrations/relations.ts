@@ -72,12 +72,12 @@ export const usersRelations = relations(users, ({one, many}) => ({
   userSubscriptionInfos: many(userSubscriptionInfo),
   apiKeys: many(apiKeys),
   userCookies: many(userCookies),
+  userUsages: many(userUsage),
+  agentChats: many(agentChats),
   userSubscriptionTier: one(userSubscriptionTiers, {
     fields: [users.tierId],
     references: [userSubscriptionTiers.id]
   }),
-  userUsages: many(userUsage),
-  agentChats: many(agentChats),
 }));
 
 export const subscriptionTiersRelations = relations(subscriptionTiers, ({many}) => ({
@@ -244,10 +244,6 @@ export const userCookiesRelations = relations(userCookies, ({one}) => ({
   }),
 }));
 
-export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
-  users: many(users),
-}));
-
 export const userUsageRelations = relations(userUsage, ({one}) => ({
   user: one(users, {
     fields: [userUsage.userId],
@@ -278,6 +274,10 @@ export const tracesRelations = relations(traces, ({one}) => ({
     fields: [traces.projectId],
     references: [projects.id]
   }),
+}));
+
+export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
+  users: many(users),
 }));
 
 export const machinesRelations = relations(machines, ({one}) => ({

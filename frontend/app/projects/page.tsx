@@ -1,3 +1,4 @@
+import { eq, sql } from "drizzle-orm";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -7,6 +8,8 @@ import WorkspacesNavbar from "@/components/projects/workspaces-navbar";
 import Header from "@/components/ui/header";
 import { UserContextProvider } from "@/contexts/user-context";
 import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db/drizzle";
+import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
@@ -14,24 +17,41 @@ export const metadata: Metadata = {
 };
 
 export default async function ProjectsPage() {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    redirect("/sign-in?callbackUrl=/onboarding");
-  }
-  const user = session.user;
+  try {
+    const session = await getServerSession(authOptions);
 
-  return (
-    <UserContextProvider
-      email={user.email!}
-      supabaseAccessToken={session.supabaseAccessToken}
-      username={user.name!}
-      imageUrl={user.image!}
-    >
-      <WorkspacesNavbar />
-      <div className="flex flex-col flex-grow min-h-screen ml-64 overflow-auto">
-        <Header path="Projects" showSidebarTrigger={false} />
-        <Projects isWorkspaceEnabled={isFeatureEnabled(Feature.WORKSPACE)} />
-      </div>
-    </UserContextProvider>
-  );
+    if (!session) {
+      redirect("/sign-in?callbackUrl=/projects");
+    }
+
+    const user = session.user;
+
+    const [{ count }] = await db
+      .select({ count: sql`count(*)`.mapWith(Number) })
+      .from(membersOfWorkspaces)
+      .where(eq(membersOfWorkspaces.userId, user.id));
+
+    if (count === 0) {
+      redirect("/onboarding");
+    }
+
+    return (
+      <UserContextProvider
+        id={user.id}
+        email={user.email!}
+        supabaseAccessToken={session.supabaseAccessToken}
+        username={user.name!}
+        imageUrl={user.image!}
+      >
+        <WorkspacesNavbar />
+        <div className="flex flex-col flex-grow min-h-screen ml-64 overflow-auto">
+          <Header path="Projects" showSidebarTrigger={false} />
+          <Projects isWorkspaceEnabled={isFeatureEnabled(Feature.WORKSPACE)} />
+        </div>
+      </UserContextProvider>
+    );
+  } catch (e) {
+    console.error(e);
+    redirect("/sign-in?callbackUrl=/projects");
+  }
 }

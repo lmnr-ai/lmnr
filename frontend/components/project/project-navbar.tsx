@@ -1,98 +1,102 @@
-'use client';
+"use client";
 
+import { Book, Database, FlaskConical, LayoutGrid, Pen, PlayCircle, Rows4, Settings, X } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import smallLogo from "@/assets/logo/icon.svg";
+import fullLogo from "@/assets/logo/logo.svg";
+import { Button } from "@/components/ui/button";
 import {
-  Book,
-  Database,
-  FlaskConical,
-  LayoutGrid,
-  Pen,
-  PlayCircle,
-  Rows4,
-  Settings,
-  X
-} from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
-import smallLogo from '@/assets/logo/icon.svg';
-import fullLogo from '@/assets/logo/logo.svg';
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
-import { cn } from '@/lib/utils';
-
-import AvatarMenu from '../user/avatar-menu';
+import AvatarMenu from "../user/avatar-menu";
 
 interface ProjectNavBarProps {
+  workspaceId: string;
   projectId: string;
+  isFreeTier: boolean;
 }
 
-export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
+export default function ProjectNavbar({ workspaceId, projectId, isFreeTier }: ProjectNavBarProps) {
   const pathname = usePathname();
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useState<boolean>(false);
 
-
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('showStarCard');
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("showStarCard");
       setShowStarCard(saved !== null ? JSON.parse(saved) : true);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('showStarCard', JSON.stringify(showStarCard));
+    localStorage.setItem("showStarCard", JSON.stringify(showStarCard));
   }, [showStarCard]);
 
   const allOptions = [
     {
-      name: 'dashboard',
+      name: "dashboard",
       href: `/project/${projectId}/dashboard`,
       icon: LayoutGrid,
-      current: false
+      current: false,
     },
     {
-      name: 'traces',
+      name: "traces",
       href: `/project/${projectId}/traces`,
       icon: Rows4,
-      current: false
+      current: false,
     },
     {
-      name: 'evaluations',
+      name: "evaluations",
       href: `/project/${projectId}/evaluations`,
       icon: FlaskConical,
-      current: false
+      current: false,
     },
     {
-      name: 'datasets',
+      name: "datasets",
       href: `/project/${projectId}/datasets`,
       icon: Database,
-      current: false
+      current: false,
     },
     {
-      name: 'queues',
+      name: "queues",
       href: `/project/${projectId}/labeling-queues`,
       icon: Pen,
-      current: false
+      current: false,
     },
     {
-      name: 'playgrounds',
+      name: "playgrounds",
       href: `/project/${projectId}/playgrounds`,
       icon: PlayCircle,
-      current: false
+      current: false,
     },
     {
-      name: 'settings',
+      name: "settings",
       href: `/project/${projectId}/settings`,
       icon: Settings,
-      current: false
-    }
+      current: false,
+    },
   ];
 
   return (
-    <Sidebar className="border-r" collapsible='icon'>
+    <Sidebar className="border-r" collapsible="icon">
       <SidebarHeader className="h-12 bg-background">
-        <Link href="/projects" className={`flex h-12 items-center ${open || openMobile ? 'justify-start pl-2' : 'justify-center'}`}>
+        <Link
+          href="/projects"
+          className={`flex h-12 items-center ${open || openMobile ? "justify-start pl-2" : "justify-center"}`}
+        >
           <Image
             alt="Laminar AI logo"
             src={open || openMobile ? fullLogo : smallLogo}
@@ -102,12 +106,15 @@ export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
         </Link>
       </SidebarHeader>
       <SidebarContent className="pt-2 bg-background">
-        <SidebarMenu className={cn(open || openMobile ? undefined : 'justify-center items-center flex')}>
+        <SidebarMenu className={cn(open || openMobile ? undefined : "justify-center items-center flex")}>
           {allOptions.map((option, i) => (
-            <SidebarMenuItem key={i} className='h-7'>
+            <SidebarMenuItem key={i} className="h-7">
               <SidebarMenuButton
                 asChild
-                className={cn('text-secondary-foreground flex items-center', open || openMobile ? '' : 'justify-center gap-0')}
+                className={cn(
+                  "text-secondary-foreground flex items-center",
+                  open || openMobile ? "" : "justify-center gap-0"
+                )}
                 isActive={pathname.startsWith(option.href)}
                 tooltip={option.name}
               >
@@ -119,21 +126,21 @@ export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
-        <div className='flex-1' />
+        <div className="flex-1" />
         {showStarCard && open && (
-          <div className={cn(
-            'mx-4 mt-4 p-3 rounded-lg border bg-muted relative',
-            open || openMobile ? 'text-sm' : 'hidden'
-          )}>
+          <div
+            className={cn(
+              "mx-4 mt-4 p-3 rounded-lg border bg-muted relative",
+              open || openMobile ? "text-sm" : "hidden"
+            )}
+          >
             <button
               onClick={() => setShowStarCard(false)}
               className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
             >
               <X size={16} />
             </button>
-            <p className="text-xs text-muted-foreground mb-2">
-              Laminar is fully open source
-            </p>
+            <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
             <a
               href="https://github.com/lmnr-ai/lmnr"
               target="_blank"
@@ -145,14 +152,26 @@ export default function ProjectNavbar({ projectId }: ProjectNavBarProps) {
           </div>
         )}
       </SidebarContent>
-      <SidebarFooter className='bg-background p-4 gap-4'>
-        <Link href="https://docs.lmnr.ai" target="_blank" rel="noopener noreferrer"
-          className={cn('h-8 text-secondary-foreground flex items-center gap-2', open || openMobile ? '' : 'justify-center')}>
+      <SidebarFooter className="bg-background p-4 gap-4">
+        <Link
+          href="https://docs.lmnr.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "h-8 text-secondary-foreground flex items-center gap-2",
+            open || openMobile ? "" : "justify-center"
+          )}
+        >
           <Book size={16} />
-          {open || openMobile ? <span className='text-sm'>Docs</span> : null}
+          {open || openMobile ? <span className="text-sm">Docs</span> : null}
         </Link>
+        {isFreeTier && (
+          <Link passHref href={`/workspace/${workspaceId}`}>
+            <Button className="w-full">Upgrade</Button>
+          </Link>
+        )}
         <AvatarMenu showDetails={open || openMobile} />
       </SidebarFooter>
-    </Sidebar >
+    </Sidebar>
   );
 }

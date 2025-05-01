@@ -61,7 +61,7 @@ export default withAuth({
     },
   },
   pages: {
-    signIn: "/not-found",
+    signIn: "/sign-in",
   },
 });
 

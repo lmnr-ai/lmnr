@@ -1,10 +1,10 @@
 import CodeMirror, { Extension } from "@uiw/react-codemirror";
-import { Copy, Maximize, Minimize } from "lucide-react";
+import { Maximize, Minimize } from "lucide-react";
 import React, { memo } from "react";
 
 import { modes, theme } from "@/components/traces/code-highlighter/utils";
 import { Button } from "@/components/ui/button";
-import CopyToClipboardButton from "@/components/ui/copy-to-clipboard";
+import { CopyButton } from "@/components/ui/copy-button";
 import { DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -42,9 +42,7 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
           </Select>
         </div>
         <div className="flex items-center gap-1">
-          <CopyToClipboardButton className="h-7 w-7" text={renderedValue}>
-            <Copy className="h-3.5 w-3.5" />
-          </CopyToClipboardButton>
+          <CopyButton iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={renderedValue} />
           <SheetClose asChild>
             <Button variant="ghost" size="icon">
               <Minimize className="h-4 w-4" />
