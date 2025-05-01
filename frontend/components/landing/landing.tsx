@@ -155,7 +155,7 @@ export default function Landing() {
   return (
     <>
       <div className="flex flex-col z-30 items-center pt-28 space-y-8 px-0 md:px-6 lg:px-8">
-        <div className="flex flex-col w-full max-w-full md:max-w-[90%] xl:max-w-[1200px] space-y-8">
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] space-y-8">
           <div className="flex flex-col">
             <div className="flex flex-col items-center py-6 md:py-8 text-center relative">
               <div className="z-20 flex flex-col items-center gap-4 md:gap-6">
@@ -187,7 +187,7 @@ export default function Landing() {
             </div>
           </div>
         </div>
-        <div className="flex flex-col w-full max-w-full md:max-w-[90%] xl:max-w-[1200px] border border-x-0 md:border-x">
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] border border-x-0 md:border-x">
           <div className="flex flex-col w-full relative md:pb-0">
             <div className="flex flex-wrap border-none gap-2 sm:gap-4 font-medium col-span-1 p-4 sm:p-8 pb-0 overflow-x-auto">
               {sections.map((section, i) => (
@@ -232,18 +232,18 @@ export default function Landing() {
             </div>
             <div
               key={selectedSection.id}
-              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary p-4 sm:p-8 pb-0 md:pt-16"
+              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary px-4 pt-4 sm:px-8 sm:pt-8 md:pt-16"
             >
               <Image
                 alt={selectedSection.title}
                 src={selectedSection.image}
                 priority
-                className="rounded-t-lg w-full object-cover object-top h-[300px] sm:h-[400px] md:h-[550px]"
+                className="rounded-t-lg w-full bg-background object-cover object-top h-[300px] md:h-[400px] lg:h-[550px]"
               />
             </div>
           </div>
         </div>
-        <div className="flex flex-col w-full max-w-full md:max-w-[90%] xl:max-w-[1200px] py-4 sm:py-8">
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] py-4 sm:py-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 px-4 sm:px-8 md:px-0">
             <TestimonialCard
               quote={`I can attest to it being the only reliable and performant LLM monitoring platform I${"'"}ve tried. Founding team is great to talk to and super responsive.`}
@@ -271,7 +271,7 @@ export default function Landing() {
             />
           </div>
         </div>
-        <div className="flex flex-col w-full max-w-full md:max-w-[90%] xl:max-w-[1200px] px-4 md:px-0">
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
           <div className="flex flex-col w-full border">
             <div className="flex flex-col">
               <div className="grid grid-cols-1 md:grid-cols-2">
