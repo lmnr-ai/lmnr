@@ -340,6 +340,26 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     };
   }, [supabase, traceId]);
 
+  const [treeViewWidth, setTreeViewWidth] = useState(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const savedWidth = localStorage.getItem("trace-view:tree-view-width");
+        return savedWidth ? parseInt(savedWidth, 10) : 384;
+      }
+      return 384;
+    } catch (e) {
+      return 384;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
+      }
+    } catch (e) {}
+  }, [treeViewWidth]);
+
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
       {!fullScreen && (
@@ -437,8 +457,13 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                           className={cn("p-0 border-r left-0 bg-background flex-none", {
                             "sticky z-50": !selectedSpan,
                           })}
+                          style={{
+                            width: treeViewWidth,
+                            maxWidth: treeViewWidth,
+                            position: "relative",
+                          }}
                         >
-                          <div className="flex flex-col pb-4 w-96" ref={traceTreePanel}>
+                          <div className="flex flex-col pb-4" ref={traceTreePanel}>
                             {searchEnabled ? (
                               <SearchSpansInput
                                 setSearchEnabled={setSearchEnabled}
@@ -520,6 +545,32 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                               )}
                             </div>
                           </div>
+                          {!selectedSpan && (
+                            <div
+                              className="absolute top-0 right-0 h-full w-1 bg-border z-50 cursor-col-resize hover:bg-blue-400 transition-colors"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                const startX = e.clientX;
+                                const startWidth = treeViewWidth;
+
+                                const handleMouseMove = (moveEvent: MouseEvent) => {
+                                  const newWidth = Math.max(
+                                    200,
+                                    Math.min(containerWidth / 2, startWidth + moveEvent.clientX - startX)
+                                  );
+                                  setTreeViewWidth(newWidth);
+                                };
+
+                                const handleMouseUp = () => {
+                                  document.removeEventListener("mousemove", handleMouseMove);
+                                  document.removeEventListener("mouseup", handleMouseUp);
+                                };
+
+                                document.addEventListener("mousemove", handleMouseMove);
+                                document.addEventListener("mouseup", handleMouseUp);
+                              }}
+                            />
+                          )}
                         </td>
                         {!selectedSpan && (
                           <td className="flex flex-grow w-full p-0 relative">
