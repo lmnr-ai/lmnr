@@ -21,6 +21,7 @@ interface SpanCardProps {
   childSpans: { [key: string]: Span[] };
   containerWidth: number;
   depth: number;
+  yOffset: number;
   selectedSpan?: Span | null;
   collapsedSpans: Set<string>;
   traceStartTime: string;
@@ -32,6 +33,7 @@ interface SpanCardProps {
 export function SpanCard({
   span,
   childSpans,
+  yOffset,
   parentY,
   onSpanSelect,
   containerWidth,
@@ -53,22 +55,27 @@ export function SpanCard({
 
   useEffect(() => {
     if (ref.current) {
-      setSegmentHeight(Math.max(0, ref.current.getBoundingClientRect().y - parentY));
+      setSegmentHeight(Math.max(0, yOffset - parentY));
     }
-  }, [parentY, collapsedSpans]);
+  }, [yOffset, parentY]);
 
   useEffect(() => {
     setIsSelected(selectedSpan?.spanId === span.spanId);
   }, [selectedSpan]);
 
   return (
-    <div className="text-md flex w-full flex-col" ref={ref}>
+    <div
+      className="text-md flex w-full flex-col" ref={ref}
+      style={{
+        paddingLeft: depth * 24,
+      }}
+    >
       <div
         className="border-l-2 border-b-2 rounded-bl-lg absolute left-0"
         style={{
-          height: segmentHeight - ROW_HEIGHT / 2 + (SQUARE_SIZE - SQUARE_ICON_SIZE) / 2,
-          top: -segmentHeight + ROW_HEIGHT - (SQUARE_SIZE - SQUARE_ICON_SIZE) / 2,
-          left: SQUARE_SIZE / 2 - 1,
+          height: segmentHeight - ROW_HEIGHT / 2,
+          top: parentY,
+          left: depth * 24 + SQUARE_SIZE / 2 - 1,
           width: SQUARE_SIZE / 2,
         }}
       />
@@ -116,7 +123,7 @@ export function SpanCard({
             style={{
               width: containerWidth,
               height: ROW_HEIGHT,
-              left: -depth * 24 - 8,
+              left: -(depth + 1) * 24 - 8,
             }}
             onClick={(e) => {
               if (!span.pending) {
@@ -170,7 +177,7 @@ export function SpanCard({
           </div>
         </div>
       </div>
-      {!collapsedSpans.has(span.spanId) && (
+      {/* {!collapsedSpans.has(span.spanId) && (
         <div className="flex flex-col">
           {childrenSpans &&
             childrenSpans.map((child, index) => (
@@ -192,7 +199,7 @@ export function SpanCard({
               </div>
             ))}
         </div>
-      )}
+      )} */}
     </div>
   );
 }

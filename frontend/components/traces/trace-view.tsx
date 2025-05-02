@@ -357,8 +357,120 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
+
+  const maxY = useRef(0);
+
+  const recFn = (
+    treeElements: React.ReactNode[],
+    span: Span,
+    activeSpans: string[],
+    depth: number,
+    parentY: number,
+    childSpans: { [key: string]: Span[] },
+    containerWidth: number,
+    collapsedSpans: Set<string>,
+    traceStartTime: string,
+    selectedSpan?: Span | null,
+    onToggleCollapse?: (spanId: string) => void,
+    onSpanSelect?: (span: Span) => void,
+    onSelectTime?: (time: number) => void
+  ) => {
+
+    const yOffset = maxY.current + 36;
+
+    const card = <SpanCard
+      span={span}
+      parentY={parentY}
+      activeSpans={activeSpans}
+      yOffset={yOffset}
+      childSpans={childSpans}
+      containerWidth={containerWidth}
+      depth={depth}
+      selectedSpan={selectedSpan}
+      collapsedSpans={collapsedSpans}
+      traceStartTime={traceStartTime}
+      onSpanSelect={onSpanSelect}
+      onToggleCollapse={onToggleCollapse}
+      onSelectTime={onSelectTime}
+    />
+
+    treeElements.push(card);
+    maxY.current = maxY.current + 36;
+
+    const children = childSpans[span.spanId];
+    if (!children) {
+      return;
+    }
+
+    const py = maxY.current;
+
+    if (collapsedSpans.has(span.spanId)) {
+      return;
+    }
+
+    for (const childSpan of children) {
+      recFn(
+        treeElements,
+        childSpan,
+        activeSpans,
+        depth + 1,
+        py,
+        childSpans,
+        containerWidth,
+        collapsedSpans,
+        traceStartTime,
+        selectedSpan,
+        onToggleCollapse,
+        onSpanSelect,
+        onSelectTime);
+    }
+  };
+
+
+  const renderTreeElements = (): React.ReactNode[] => {
+    maxY.current = 0;
+
+    let treeElements: React.ReactNode[] = [];
+
+    for (const span of topLevelSpans) {
+      recFn(
+        treeElements,
+        span,
+        activeSpans,
+        0,
+        0,
+        childSpans,
+        containerWidth,
+        collapsedSpans,
+        trace!.startTime,
+        selectedSpan,
+        (spanId) => {
+          setCollapsedSpans((prev) => {
+            const next = new Set(prev);
+            if (next.has(spanId)) {
+              next.delete(spanId);
+            } else {
+              next.add(spanId);
+            }
+            return next;
+          });
+        },
+        (span) => {
+          setSelectedSpan(span);
+          setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
+          searchParams.set("spanId", span.spanId);
+          router.push(`${pathName}?${searchParams.toString()}`);
+        },
+        (time) => {
+          browserSessionRef.current?.goto(time);
+        }
+      );
+    }
+    return treeElements;
+
+  }
 
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
@@ -502,7 +614,17 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                                   <Skeleton className="h-8 w-full" />
                                 </>
                               )}
-                              {!isLoading &&
+                              {
+                                !isLoading &&
+                                <div className="flex flex-col relative pl-6">
+                                  {renderTreeElements().map((element, index) => (
+                                    <div key={index}>
+                                      {element}
+                                    </div>
+                                  ))}
+                                </div>
+                              }
+                              {/* {!isLoading &&
                                 topLevelSpans.map((span, index) => (
                                   <div key={index} className="pl-6 relative">
                                     <SpanCard
@@ -537,7 +659,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                                       }}
                                     />
                                   </div>
-                                ))}
+                                ))} */}
                               {!isLoading && isEmpty(topLevelSpans) && (
                                 <span className="text-base text-secondary-foreground mx-auto mt-4">
                                   No spans found.
