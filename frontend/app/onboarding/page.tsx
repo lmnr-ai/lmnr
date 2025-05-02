@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default async function OnboardingPage() {
   const session = await getServerSession(authOptions);
   if (!session) {
-    redirect("/sign-in?callbackUrl=/onboarding");
+    return redirect("/sign-in?callbackUrl=/onboarding");
   }
 
   const [{ count }] = await db
@@ -26,7 +26,7 @@ export default async function OnboardingPage() {
     .where(eq(membersOfWorkspaces.userId, session.user.id));
 
   if (count > 0) {
-    redirect("/projects");
+    return redirect("/projects");
   }
 
   const user = session.user;
