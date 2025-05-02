@@ -14,7 +14,7 @@ export default async function SignInPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
-  const callbackUrl = Array.isArray(searchParams?.callbackUrl)
+  const callbackUrl: string | undefined = Array.isArray(searchParams?.callbackUrl)
     ? searchParams.callbackUrl[0]
     : (searchParams?.callbackUrl ?? "/onboarding");
 
@@ -24,7 +24,7 @@ export default async function SignInPage(props: {
       .from(membersOfWorkspaces)
       .where(eq(membersOfWorkspaces.userId, session.user.id));
 
-    return count === 0 ? redirect("/onboarding") : redirect(callbackUrl);
+    return count === 0 ? redirect("/onboarding") : redirect(callbackUrl || "/onboarding");
   }
 
   return (
