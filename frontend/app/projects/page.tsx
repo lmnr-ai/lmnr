@@ -21,6 +21,7 @@ export default async function ProjectsPage() {
   try {
     session = await getServerSession(authOptions);
   } catch (e) {
+    console.error(e);
     return redirect("/sign-in?callbackUrl=/projects");
   }
 
