@@ -17,41 +17,42 @@ export const metadata: Metadata = {
 };
 
 export default async function ProjectsPage() {
+  let session;
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-      redirect("/sign-in?callbackUrl=/projects");
-    }
-
-    const user = session.user;
-
-    const [{ count }] = await db
-      .select({ count: sql`count(*)`.mapWith(Number) })
-      .from(membersOfWorkspaces)
-      .where(eq(membersOfWorkspaces.userId, user.id));
-
-    if (count === 0) {
-      redirect("/onboarding");
-    }
-
-    return (
-      <UserContextProvider
-        id={user.id}
-        email={user.email!}
-        supabaseAccessToken={session.supabaseAccessToken}
-        username={user.name!}
-        imageUrl={user.image!}
-      >
-        <WorkspacesNavbar />
-        <div className="flex flex-col flex-grow min-h-screen ml-64 overflow-auto">
-          <Header path="Projects" showSidebarTrigger={false} />
-          <Projects isWorkspaceEnabled={isFeatureEnabled(Feature.WORKSPACE)} />
-        </div>
-      </UserContextProvider>
-    );
+    session = await getServerSession(authOptions);
   } catch (e) {
     console.error(e);
-    redirect("/sign-in?callbackUrl=/projects");
+    return redirect("/sign-in?callbackUrl=/projects");
   }
+
+  if (!session) {
+    return redirect("/sign-in?callbackUrl=/projects");
+  }
+
+  const user = session.user;
+
+  const [{ count }] = await db
+    .select({ count: sql`count(*)`.mapWith(Number) })
+    .from(membersOfWorkspaces)
+    .where(eq(membersOfWorkspaces.userId, user.id));
+
+  if (count === 0) {
+    return redirect("/onboarding");
+  }
+
+  return (
+    <UserContextProvider
+      id={user.id}
+      email={user.email!}
+      supabaseAccessToken={session.supabaseAccessToken}
+      username={user.name!}
+      imageUrl={user.image!}
+    >
+      <WorkspacesNavbar />
+      <div className="flex flex-col flex-grow min-h-screen ml-64 overflow-auto">
+        <Header path="Projects" showSidebarTrigger={false} />
+        <Projects isWorkspaceEnabled={isFeatureEnabled(Feature.WORKSPACE)} />
+      </div>
+    </UserContextProvider>
+  );
 }
