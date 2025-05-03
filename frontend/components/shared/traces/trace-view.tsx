@@ -40,9 +40,6 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
-  const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({});
-  const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
-
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(
     searchParams.get("spanId") ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null : null
   );
@@ -53,7 +50,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
 
-  useEffect(() => {
+  const { childSpans, topLevelSpans } = useMemo(() => {
     const childSpans = {} as { [key: string]: Span[] };
 
     const topLevelSpans = spans.filter((span: Span) => !span.parentSpanId);
@@ -72,8 +69,10 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       childSpans[parentId].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     }
 
-    setChildSpans(childSpans);
-    setTopLevelSpans(topLevelSpans);
+    return {
+      childSpans,
+      topLevelSpans,
+    };
   }, [spans]);
 
   useEffect(() => {
@@ -257,7 +256,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                 </div>
                 {selectedSpan && (
                   <div style={{ width: containerWidth - timelineWidth }}>
-                    <SpanView span={selectedSpan} traceId={trace.id} />
+                    <SpanView key={selectedSpan.spanId} span={selectedSpan} traceId={trace.id} />
                   </div>
                 )}
               </div>
