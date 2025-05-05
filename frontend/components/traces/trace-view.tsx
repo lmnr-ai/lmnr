@@ -524,7 +524,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       const startWidth = treeViewWidth;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(200, Math.min(containerWidth / 2, startWidth + moveEvent.clientX - startX));
+        const newWidth = Math.max(320, Math.min(containerWidth / 2, startWidth + moveEvent.clientX - startX));
         setTreeViewWidth(newWidth);
 
         // Only update timeline width when a span is selected
@@ -636,7 +636,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                         }}
                       >
                         <td
-                          className={cn("p-0 border-r left-0 bg-background flex-none", {
+                          className={cn("p-0 left-0 bg-background flex-none", {
                             "sticky z-50": !selectedSpan,
                           })}
                           style={{
@@ -655,7 +655,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                               />
                             ) : (
                               <StatsShields
-                                className="px-2 h-10 sticky top-0 bg-background z-50 border-b w-full"
+                                className="px-2 h-10 border-r box-border sticky top-0 bg-background z-50 border-b w-full"
                                 startTime={trace.startTime}
                                 endTime={trace.endTime}
                                 totalTokenCount={trace.totalTokenCount}
@@ -676,7 +676,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                               </StatsShields>
                             )}
 
-                            <div className={cn("flex flex-col", { "gap-y-2 px-2 mt-1 pt-1": isLoading })}>
+                            <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isLoading })}>
                               {isLoading && (
                                 <>
                                   <Skeleton className="h-8 w-full" />
@@ -726,7 +726,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                             </div>
                           </div>
                           <div
-                            className="absolute top-0 right-0 h-full w-1 bg-border z-10 cursor-col-resize hover:bg-blue-400 transition-colors"
+                            className="absolute top-0 right-0 h-full w-px hover:w-1 bg-border z-10 cursor-col-resize hover:bg-blue-400 transition-colors"
                             onMouseDown={handleResizeTreeView}
                           />
                         </td>

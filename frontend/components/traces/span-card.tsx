@@ -97,7 +97,7 @@ export function SpanCard({
           />
           <div
             className={cn(
-              "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]",
+              "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate",
               span.pending && "text-muted-foreground"
             )}
           >
@@ -178,29 +178,6 @@ export function SpanCard({
           </div>
         </div>
       </div>
-      {/* {!collapsedSpans.has(span.spanId) && (
-        <div className="flex flex-col">
-          {childrenSpans &&
-            childrenSpans.map((child, index) => (
-              <div className="pl-6 relative" key={index}>
-                <SpanCard
-                  activeSpans={activeSpans}
-                  traceStartTime={traceStartTime}
-                  span={child}
-                  childSpans={childSpans}
-                  parentY={ref.current?.getBoundingClientRect().y || 0}
-                  onSpanSelect={onSpanSelect}
-                  containerWidth={containerWidth}
-                  selectedSpan={selectedSpan}
-                  collapsedSpans={collapsedSpans}
-                  onToggleCollapse={onToggleCollapse}
-                  onSelectTime={onSelectTime}
-                  depth={depth + 1}
-                />
-              </div>
-            ))}
-        </div>
-      )} */}
     </div>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { useLabelsContext } from "@/components/labels/labels-context";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { LabelClass } from "@/lib/traces/types";
+import { useToast } from "@/lib/hooks/use-toast";
+import { LabelClass, SpanLabel } from "@/lib/traces/types";
 
 const defaultColors: { color: string; name: string }[] = [
   {
@@ -52,13 +53,15 @@ interface CreateLabelProps {
 
 const CreateLabel = ({ name }: CreateLabelProps) => {
   const [query, setQuery] = useState("");
+  const searchParams = useSearchParams();
   const params = useParams();
   const colors = useMemo(
     () => defaultColors.filter((label) => label.name.toLowerCase().includes(query.toLowerCase())),
     [query]
   );
 
-  const { labelClasses, mutateLabelClass } = useLabelsContext();
+  const { toast } = useToast();
+  const { labelClasses, mutateLabelClass, mutate, labels } = useLabelsContext();
 
   const handleCreateLabelClass = async (color: string) => {
     try {
@@ -71,12 +74,38 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
           color,
         }),
       });
+
+      if (!response.ok) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to create label." });
+      }
+
       const data = (await response.json()) as LabelClass;
       await mutateLabelClass([...labelClasses, data], {
         revalidate: false,
       });
+
+      // attach label right away
+      const res = await fetch(`/api/projects/${params?.projectId}/spans/${searchParams.get("spanId")}/labels`, {
+        method: "POST",
+        body: JSON.stringify({
+          classId: data.id,
+          name: data.name,
+          reasoning: "",
+        }),
+      });
+
+      if (!res.ok) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to attach label." });
+      }
+      const label = (await res.json()) as SpanLabel;
+
+      await mutate([...labels, label], {
+        revalidate: false,
+      });
     } catch (e) {
-      console.error(e);
+      if (e instanceof Error) {
+        toast({ variant: "destructive", title: "Error", description: e.message });
+      }
     }
   };
 

@@ -74,6 +74,7 @@ export default function Timeline({
     [collapsedSpans]
   );
 
+  // Use useEffect instead of useMemo for DOM measurements and state updates
   useEffect(() => {
     if (!ref.current || childSpans === null || spans.length === 0) {
       return;
@@ -160,7 +161,7 @@ export default function Timeline({
   const virtualizer = useVirtualizer({
     count: segments.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 36,
+    estimateSize: () => 36, // HEIGHT + margin
     overscan: 100,
   });
 
@@ -191,62 +192,57 @@ export default function Timeline({
           )}
         </div>
       </div>
-      <div className="px-4 pt-0.5">
+      <div className="px-4 pt-1.5">
         <div
-          className="relative w-full flex flex-col"
+          className="relative w-full"
           style={{
+            position: "relative",
             height: virtualizer.getTotalSize(),
           }}
         >
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              transform: `translateY(${items[0]?.start ?? 0}px)`,
-            }}
-          >
-            {items.map((virtualRow) => {
-              const segment = segments[virtualRow.index];
-              if (!segment) return null; // Safety check
+          {items.map((virtualRow) => {
+            const segment = segments[virtualRow.index];
+            if (!segment) return null; // Safety check
 
-              return (
+            return (
+              <div
+                key={virtualRow.index}
+                data-index={virtualRow.index}
+                className="relative border-secondary-foreground/20"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: HEIGHT,
+                  marginBottom: 4,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
                 <div
-                  key={virtualRow.index}
-                  ref={virtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  className="relative border-secondary-foreground/20"
+                  className="rounded relative z-20"
                   style={{
+                    backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
+                    marginLeft: segment.left + "%",
+                    width: "max(" + segment.width + "%, 2px)",
                     height: HEIGHT,
-                    marginBottom: 4,
                   }}
                 >
-                  <div
-                    className="rounded relative z-20"
-                    style={{
-                      backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
-                      marginLeft: segment.left + "%",
-                      width: "max(" + segment.width + "%, 2px)",
-                      height: HEIGHT,
-                    }}
-                  >
-                    {segment.events.map((event, index) => (
-                      <div
-                        key={index}
-                        className="absolute bg-orange-400 w-1 rounded"
-                        style={{
-                          left: event.left + "%",
-                          top: 0,
-                          height: HEIGHT,
-                        }}
-                      />
-                    ))}
-                  </div>
+                  {segment.events.map((event, index) => (
+                    <div
+                      key={index}
+                      className="absolute bg-orange-400 w-1 rounded"
+                      style={{
+                        left: event.left + "%",
+                        top: 0,
+                        height: HEIGHT,
+                      }}
+                    />
+                  ))}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

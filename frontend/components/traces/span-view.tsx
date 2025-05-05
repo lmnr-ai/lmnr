@@ -6,6 +6,9 @@ import useSWR from "swr";
 
 import LabelsContextProvider from "@/components/labels/labels-context";
 import LabelsList from "@/components/labels/labels-list";
+import LabelsTrigger from "@/components/labels/labels-trigger";
+import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
+import ExportSpansDialog from "@/components/traces/export-spans-dialog";
 import SpanInput from "@/components/traces/span-input";
 import SpanOutput from "@/components/traces/span-output";
 import { Button } from "@/components/ui/button";
@@ -18,8 +21,6 @@ import Formatter from "../ui/formatter";
 import MonoWithCopy from "../ui/mono-with-copy";
 import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import AddToLabelingQueuePopover from "./add-to-labeling-queue-popover";
-import ExportSpansDialog from "./export-spans-dialog";
 import SpanTypeIcon from "./span-type-icon";
 import StatsShields from "./stats-shields";
 
@@ -47,30 +48,24 @@ export function SpanView({ spanId }: SpanViewProps) {
     <>
       <Tabs className="flex flex-col h-full w-full" defaultValue="span-input">
         <div className="border-b flex-none">
-          <div className="flex flex-col px-4 pt-2 gap-1">
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-none items-center space-x-2">
-                <SpanTypeIcon spanType={span.spanType} />
-                <div className="text-xl items-center font-medium truncate">{span.name}</div>
-                {span.spanType === SpanType.LLM && (
-                  <Link
-                    href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-                    passHref
-                  >
-                    <Button variant="outline">
-                      <PlayCircle className="mr-2" size={16} />
-                      Playground
-                    </Button>
-                  </Link>
-                )}
-              </div>
-              <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
+          <div className="flex flex-col px-4 pt-2 gap-2">
+            <div className="flex flex-none items-center space-x-2">
+              <SpanTypeIcon spanType={span.spanType} />
+              <div className="text-xl items-center font-medium truncate">{span.name}</div>
+              {span.spanType === SpanType.LLM && (
+                <Link
+                  href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+                  passHref
+                >
+                  <Button variant="outline">
+                    <PlayCircle className="mr-2" size={16} />
+                    Playground
+                  </Button>
+                </Link>
+              )}
             </div>
-            <div className="flex-wrap gap-2 flex flex-row">
-              <AddToLabelingQueuePopover span={span} />
-              <ExportSpansDialog span={span} />
-            </div>
-            <div className="flex flex-wrap py-1 gap-2">
+            <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
+            <div className="flex flex-wrap gap-2">
               <StatsShields
                 startTime={span.startTime}
                 endTime={span.endTime}
@@ -89,6 +84,11 @@ export function SpanView({ spanId }: SpanViewProps) {
               </div>
             </div>
             <LabelsContextProvider>
+              <div className="flex gap-2 items-center">
+                <LabelsTrigger />
+                <AddToLabelingQueuePopover span={span} />
+                <ExportSpansDialog span={span} />
+              </div>
               <LabelsList />
             </LabelsContextProvider>
           </div>
