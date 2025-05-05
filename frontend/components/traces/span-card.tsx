@@ -65,20 +65,12 @@ export function SpanCard({
 
   return (
     <div
-      className="text-md flex w-full flex-col" ref={ref}
+      className="text-md flex w-full flex-col"
+      ref={ref}
       style={{
         paddingLeft: depth * 24,
       }}
     >
-      <div
-        className="border-l-2 border-b-2 rounded-bl-lg absolute left-0"
-        style={{
-          height: segmentHeight - ROW_HEIGHT / 2,
-          top: parentY,
-          left: depth * 24 + SQUARE_SIZE / 2 - 1,
-          width: SQUARE_SIZE / 2,
-        }}
-      />
       <div className="flex flex-col">
         <div
           className="flex w-full items-center space-x-2 cursor-pointer group relative"
@@ -86,6 +78,15 @@ export function SpanCard({
             height: ROW_HEIGHT,
           }}
         >
+          <div
+            className="border-l-2 border-b-2 rounded-bl-lg absolute left-0"
+            style={{
+              height: segmentHeight - ROW_HEIGHT / 2 + SQUARE_SIZE / 4,
+              top: -(segmentHeight - ROW_HEIGHT + SQUARE_SIZE / 4),
+              left: -(SQUARE_SIZE / 4),
+              width: SQUARE_SIZE / 2,
+            }}
+          />
           <SpanTypeIcon
             iconClassName="min-w-4 min-h-4"
             spanType={span.spanType}
@@ -137,7 +138,7 @@ export function SpanCard({
               style={{
                 width: containerWidth,
                 height: ROW_HEIGHT,
-                left: -depth * 24 - 8,
+                left: -(depth + 1) * 24 - 8,
               }}
             />
           )}
