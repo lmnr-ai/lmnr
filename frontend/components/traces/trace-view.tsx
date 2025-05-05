@@ -1,11 +1,13 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty } from "lodash";
 import { ChartNoAxesGantt, ChevronsRight, Disc, Expand, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { ReactNode, Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import SearchSpansInput from "@/components/traces/search-spans-input";
 import ShareTraceButton from "@/components/traces/share-trace-button";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
@@ -16,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import MonoWithCopy from "../ui/mono-with-copy";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
-import { ScrollArea, ScrollBar } from "../ui/scroll-area";
 import { AgentSessionButton } from "./agent-session-button";
 import SessionPlayer, { SessionPlayerHandle } from "./session-player";
 import { SpanCard } from "./span-card";
@@ -38,7 +39,7 @@ interface TraceViewProps {
 }
 
 export default function TraceView({ traceId, onClose, propsTrace, fullScreen = false, ref }: TraceViewProps) {
-  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useProjectContext();
@@ -69,12 +70,13 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       resetSelectedSpan: () => {
         setSelectedSpan(null);
         setTimeout(() => {
-          searchParams.delete("spanId");
-          router.push(`${pathName}?${searchParams.toString()}`);
+          const params = new URLSearchParams(searchParams);
+          params.delete("spanId");
+          router.push(`${pathName}?${params.toString()}`);
         }, 10);
       },
     }),
-    [spans, showBrowserSession, searchParams, pathName, router]
+    [searchParams, pathName, router]
   );
   // Keep ref updated
   useEffect(() => {
@@ -171,11 +173,12 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
         // If there's only one span, select it automatically
         if (spans.length === 1) {
+          const params = new URLSearchParams(searchParams);
           const singleSpan = spans[0];
           setSelectedSpan(singleSpan);
-          searchParams.set("spanId", singleSpan.spanId);
-          searchParams.set("traceId", traceId);
-          router.push(`${pathName}?${searchParams.toString()}`);
+          params.set("spanId", singleSpan.spanId);
+          params.set("traceId", traceId);
+          router.push(`${pathName}?${params.toString()}`);
         } else {
           setSelectedSpan(
             searchParams.get("spanId")
@@ -189,6 +192,36 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       }
     },
     [projectId, traceId, setSpans, setSelectedSpan, searchParams, router, pathName]
+  );
+
+  const handleClose = useCallback(() => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("spanId");
+    router.push(`${pathName}?${params.toString()}`);
+    onClose();
+  }, [onClose, pathName, router, searchParams]);
+
+  const handleShowTimeline = useCallback(() => {
+    setSelectedSpan(null);
+    const params = new URLSearchParams(searchParams);
+    params.delete("spanId");
+    router.push(`${pathName}?${searchParams.toString()}`);
+  }, [pathName, router, searchParams]);
+
+  const handleTimelineChange = useCallback(
+    (time: number) => {
+      setBrowserSessionTime(time);
+
+      const activeSpans = spans.filter((span: Span) => {
+        const spanStartTime = new Date(span.startTime).getTime();
+        const spanEndTime = new Date(span.endTime).getTime();
+
+        return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
+      });
+
+      setActiveSpans(activeSpans.map((span) => span.spanId));
+    },
+    [spans]
   );
 
   useEffect(() => {
@@ -209,7 +242,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     if (selectedSpan) {
       setSelectedSpan(selectedSpan);
     }
-  }, [searchParams]);
+  }, [searchParams, spans]);
 
   useEffect(() => {
     if (!container.current) {
@@ -340,19 +373,198 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     };
   }, [supabase, traceId]);
 
+  const [treeViewWidth, setTreeViewWidth] = useState(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const savedWidth = localStorage.getItem("trace-view:tree-view-width");
+        return savedWidth ? parseInt(savedWidth, 10) : 384;
+      }
+      return 384;
+    } catch (e) {
+      return 384;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
+      }
+    } catch (e) { }
+  }, [treeViewWidth]);
+
+  const maxY = useRef(0);
+
+  const recFn = useCallback(
+    (
+      treeElements: React.ReactNode[],
+      span: Span,
+      activeSpans: string[],
+      depth: number,
+      parentY: number,
+      childSpans: { [key: string]: Span[] },
+      containerWidth: number,
+      collapsedSpans: Set<string>,
+      traceStartTime: string,
+      selectedSpan?: Span | null,
+      onToggleCollapse?: (spanId: string) => void,
+      onSpanSelect?: (span: Span) => void,
+      onSelectTime?: (time: number) => void
+    ) => {
+      const yOffset = maxY.current + 36;
+
+      const card = (
+        <SpanCard
+          span={span}
+          parentY={parentY}
+          activeSpans={activeSpans}
+          yOffset={yOffset}
+          childSpans={childSpans}
+          containerWidth={containerWidth}
+          depth={depth}
+          selectedSpan={selectedSpan}
+          collapsedSpans={collapsedSpans}
+          traceStartTime={traceStartTime}
+          onSpanSelect={onSpanSelect}
+          onToggleCollapse={onToggleCollapse}
+          onSelectTime={onSelectTime}
+        />
+      );
+
+      treeElements.push(card);
+      maxY.current = maxY.current + 36;
+
+      const children = childSpans[span.spanId];
+      if (!children) {
+        return;
+      }
+
+      const py = maxY.current;
+
+      if (collapsedSpans.has(span.spanId)) {
+        return;
+      }
+
+      for (const childSpan of children) {
+        recFn(
+          treeElements,
+          childSpan,
+          activeSpans,
+          depth + 1,
+          py,
+          childSpans,
+          containerWidth,
+          collapsedSpans,
+          traceStartTime,
+          selectedSpan,
+          onToggleCollapse,
+          onSpanSelect,
+          onSelectTime
+        );
+      }
+    },
+    []
+  );
+
+  const renderTreeElements = useCallback((): ReactNode[] => {
+    maxY.current = 0;
+
+    let treeElements: React.ReactNode[] = [];
+
+    for (const span of topLevelSpans) {
+      recFn(
+        treeElements,
+        span,
+        activeSpans,
+        0,
+        0,
+        childSpans,
+        containerWidth,
+        collapsedSpans,
+        String(trace?.startTime),
+        selectedSpan,
+        (spanId) => {
+          setCollapsedSpans((prev) => {
+            const next = new Set(prev);
+            if (next.has(spanId)) {
+              next.delete(spanId);
+            } else {
+              next.add(spanId);
+            }
+            return next;
+          });
+        },
+        (span) => {
+          const params = new URLSearchParams(searchParams);
+          setSelectedSpan(span);
+          setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
+          params.set("spanId", span.spanId);
+          router.push(`${pathName}?${params.toString()}`);
+        },
+        (time) => {
+          browserSessionRef.current?.goto(time);
+        }
+      );
+    }
+
+    return treeElements;
+  }, [
+    activeSpans,
+    childSpans,
+    collapsedSpans,
+    containerWidth,
+    pathName,
+    recFn,
+    router,
+    selectedSpan,
+    topLevelSpans,
+    trace,
+  ]);
+
+  const handleResizeTreeView = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = treeViewWidth;
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const newWidth = Math.max(320, Math.min(containerWidth / 2, startWidth + moveEvent.clientX - startX));
+        setTreeViewWidth(newWidth);
+
+        // Only update timeline width when a span is selected
+        if (selectedSpan) {
+          setTimelineWidth(newWidth + 1);
+        }
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [containerWidth, selectedSpan, treeViewWidth]
+  );
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const treeElements = useMemo(() => renderTreeElements(), [renderTreeElements]);
+
+  const virtualizer = useVirtualizer({
+    count: treeElements.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 36,
+    overscan: 100,
+  });
+
+  const items = virtualizer.getVirtualItems();
+
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
       {!fullScreen && (
         <div className="h-12 flex flex-none items-center border-b gap-x-2 px-4">
-          <Button
-            variant={"ghost"}
-            className="px-0"
-            onClick={() => {
-              searchParams.delete("spanId");
-              router.push(`${pathName}?${searchParams.toString()}`);
-              onClose();
-            }}
-          >
+          <Button variant={"ghost"} className="px-0" onClick={handleClose}>
             <ChevronsRight />
           </Button>
           <Link
@@ -371,14 +583,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
           </div>
           <div className="flex gap-x-2 items-center ml-auto">
             {selectedSpan && (
-              <Button
-                variant={"secondary"}
-                onClick={() => {
-                  setSelectedSpan(null);
-                  searchParams.delete("spanId");
-                  router.push(`${pathName}?${searchParams.toString()}`);
-                }}
-              >
+              <Button variant={"secondary"} onClick={handleShowTimeline}>
                 <ChartNoAxesGantt size={16} className="mr-2" />
                 Show timeline
               </Button>
@@ -419,7 +624,8 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
             <ResizablePanel>
               <div className="flex h-full w-full relative" ref={container}>
                 <ScrollArea
-                  className="overflow-auto w-1 flex-grow"
+                  ref={scrollRef}
+                  className={cn("overflow-y-auto overflow-x-hidden flex-grow")}
                   style={{
                     width: timelineWidth,
                     height: containerHeight,
@@ -434,11 +640,16 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                         }}
                       >
                         <td
-                          className={cn("p-0 border-r left-0 bg-background flex-none", {
+                          className={cn("p-0 left-0 bg-background flex-none", {
                             "sticky z-50": !selectedSpan,
                           })}
+                          style={{
+                            width: treeViewWidth,
+                            maxWidth: treeViewWidth,
+                            position: "relative",
+                          }}
                         >
-                          <div className="flex flex-col pb-4 w-96" ref={traceTreePanel}>
+                          <div className="flex flex-col pb-4" ref={traceTreePanel}>
                             {searchEnabled ? (
                               <SearchSpansInput
                                 setSearchEnabled={setSearchEnabled}
@@ -448,7 +659,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                               />
                             ) : (
                               <StatsShields
-                                className="px-2 h-10 sticky top-0 bg-background z-50 border-b w-full"
+                                className="px-2 h-10 border-r box-border sticky top-0 bg-background z-50 border-b w-full"
                                 startTime={trace.startTime}
                                 endTime={trace.endTime}
                                 totalTokenCount={trace.totalTokenCount}
@@ -477,42 +688,40 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                                   <Skeleton className="h-8 w-full" />
                                 </>
                               )}
-                              {!isLoading &&
-                                topLevelSpans.map((span, index) => (
-                                  <div key={index} className="pl-6 relative">
-                                    <SpanCard
-                                      activeSpans={activeSpans}
-                                      traceStartTime={trace.startTime}
-                                      parentY={traceTreePanel.current?.getBoundingClientRect().y || 0}
-                                      span={span}
-                                      childSpans={childSpans}
-                                      depth={1}
-                                      selectedSpan={selectedSpan}
-                                      containerWidth={timelineWidth}
-                                      collapsedSpans={collapsedSpans}
-                                      onToggleCollapse={(spanId) => {
-                                        setCollapsedSpans((prev) => {
-                                          const next = new Set(prev);
-                                          if (next.has(spanId)) {
-                                            next.delete(spanId);
-                                          } else {
-                                            next.add(spanId);
-                                          }
-                                          return next;
-                                        });
-                                      }}
-                                      onSpanSelect={(span) => {
-                                        setSelectedSpan(span);
-                                        setTimelineWidth(traceTreePanel.current!.getBoundingClientRect().width + 1);
-                                        searchParams.set("spanId", span.spanId);
-                                        router.push(`${pathName}?${searchParams.toString()}`);
-                                      }}
-                                      onSelectTime={(time) => {
-                                        browserSessionRef.current?.goto(time);
-                                      }}
-                                    />
+                              {!isLoading && (
+                                <div
+                                  className="relative"
+                                  style={{
+                                    height: virtualizer.getTotalSize(),
+                                    width: "100%",
+                                    position: "relative",
+                                  }}
+                                >
+                                  <div
+                                    className="pl-6"
+                                    style={{
+                                      position: "absolute",
+                                      top: 0,
+                                      left: 0,
+                                      width: "100%",
+                                      transform: `translateY(${items[0]?.start ?? 0}px)`,
+                                    }}
+                                  >
+                                    {items.map((virtualRow) => {
+                                      const element = treeElements[virtualRow.index];
+                                      return (
+                                        <div
+                                          key={virtualRow.key}
+                                          ref={virtualizer.measureElement}
+                                          data-index={virtualRow.index}
+                                        >
+                                          {element}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
-                                ))}
+                                </div>
+                              )}
                               {!isLoading && isEmpty(topLevelSpans) && (
                                 <span className="text-base text-secondary-foreground mx-auto mt-4">
                                   No spans found.
@@ -520,10 +729,17 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                               )}
                             </div>
                           </div>
+                          <div
+                            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
+                            onMouseDown={handleResizeTreeView}
+                          >
+                            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+                          </div>
                         </td>
                         {!selectedSpan && (
                           <td className="flex flex-grow w-full p-0 relative">
                             <Timeline
+                              scrollRef={scrollRef}
                               containerHeight={containerHeight}
                               spans={spans}
                               childSpans={childSpans}
@@ -535,7 +751,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                       </tr>
                     </tbody>
                   </table>
-                  <ScrollBar orientation="horizontal" />
+                  <ScrollBar orientation="vertical" />
                 </ScrollArea>
                 {selectedSpan && (
                   <div style={{ width: containerWidth - timelineWidth }}>
@@ -544,7 +760,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                 )}
               </div>
             </ResizablePanel>
-            {showBrowserSession && <ResizableHandle withHandle />}
+            {showBrowserSession && <ResizableHandle className="z-50" withHandle />}
             <ResizablePanel
               style={{
                 display: showBrowserSession ? "block" : "none",
@@ -554,18 +770,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                 ref={browserSessionRef}
                 hasBrowserSession={trace.hasBrowserSession}
                 traceId={traceId}
-                onTimelineChange={(time) => {
-                  setBrowserSessionTime(time);
-
-                  const activeSpans = spans.filter((span: Span) => {
-                    const spanStartTime = new Date(span.startTime).getTime();
-                    const spanEndTime = new Date(span.endTime).getTime();
-
-                    return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
-                  });
-
-                  setActiveSpans(activeSpans.map((span) => span.spanId));
-                }}
+                onTimelineChange={handleTimelineChange}
               />
             </ResizablePanel>
           </ResizablePanelGroup>

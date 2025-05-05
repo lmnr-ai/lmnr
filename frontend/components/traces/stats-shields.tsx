@@ -72,7 +72,6 @@ export default function StatsShields({
               <InfoIcon size={12} />
             </div>
           </TooltipTrigger>
-          {/* portal here so that SpanView does not overlay */}
           <TooltipPortal>
             <TooltipContent side="bottom" className="p-2 border">
               <div className="flex-col space-y-1">

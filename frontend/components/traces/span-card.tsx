@@ -21,6 +21,7 @@ interface SpanCardProps {
   childSpans: { [key: string]: Span[] };
   containerWidth: number;
   depth: number;
+  yOffset: number;
   selectedSpan?: Span | null;
   collapsedSpans: Set<string>;
   traceStartTime: string;
@@ -32,6 +33,7 @@ interface SpanCardProps {
 export function SpanCard({
   span,
   childSpans,
+  yOffset,
   parentY,
   onSpanSelect,
   containerWidth,
@@ -53,25 +55,22 @@ export function SpanCard({
 
   useEffect(() => {
     if (ref.current) {
-      setSegmentHeight(Math.max(0, ref.current.getBoundingClientRect().y - parentY));
+      setSegmentHeight(Math.max(0, yOffset - parentY));
     }
-  }, [parentY, collapsedSpans]);
+  }, [yOffset, parentY]);
 
   useEffect(() => {
     setIsSelected(selectedSpan?.spanId === span.spanId);
   }, [selectedSpan]);
 
   return (
-    <div className="text-md flex w-full flex-col" ref={ref}>
-      <div
-        className="border-l-2 border-b-2 rounded-bl-lg absolute left-0"
-        style={{
-          height: segmentHeight - ROW_HEIGHT / 2 + (SQUARE_SIZE - SQUARE_ICON_SIZE) / 2,
-          top: -segmentHeight + ROW_HEIGHT - (SQUARE_SIZE - SQUARE_ICON_SIZE) / 2,
-          left: SQUARE_SIZE / 2 - 1,
-          width: SQUARE_SIZE / 2,
-        }}
-      />
+    <div
+      className="text-md flex w-full flex-col"
+      ref={ref}
+      style={{
+        paddingLeft: depth * 24,
+      }}
+    >
       <div className="flex flex-col">
         <div
           className="flex w-full items-center space-x-2 cursor-pointer group relative"
@@ -79,6 +78,15 @@ export function SpanCard({
             height: ROW_HEIGHT,
           }}
         >
+          <div
+            className="border-l-2 border-b-2 rounded-bl-lg absolute left-0"
+            style={{
+              height: segmentHeight - ROW_HEIGHT / 2 + SQUARE_SIZE / 4,
+              top: -(segmentHeight - ROW_HEIGHT + SQUARE_SIZE / 4),
+              left: -(SQUARE_SIZE / 4),
+              width: SQUARE_SIZE / 2,
+            }}
+          />
           <SpanTypeIcon
             iconClassName="min-w-4 min-h-4"
             spanType={span.spanType}
@@ -89,7 +97,7 @@ export function SpanCard({
           />
           <div
             className={cn(
-              "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate max-w-[150px]",
+              "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate",
               span.pending && "text-muted-foreground"
             )}
           >
@@ -116,7 +124,7 @@ export function SpanCard({
             style={{
               width: containerWidth,
               height: ROW_HEIGHT,
-              left: -depth * 24 - 8,
+              left: -(depth + 1) * 24 - 8,
             }}
             onClick={(e) => {
               if (!span.pending) {
@@ -130,7 +138,7 @@ export function SpanCard({
               style={{
                 width: containerWidth,
                 height: ROW_HEIGHT,
-                left: -depth * 24 - 8,
+                left: -(depth + 1) * 24 - 8,
               }}
             />
           )}
@@ -170,29 +178,6 @@ export function SpanCard({
           </div>
         </div>
       </div>
-      {!collapsedSpans.has(span.spanId) && (
-        <div className="flex flex-col">
-          {childrenSpans &&
-            childrenSpans.map((child, index) => (
-              <div className="pl-6 relative" key={index}>
-                <SpanCard
-                  activeSpans={activeSpans}
-                  traceStartTime={traceStartTime}
-                  span={child}
-                  childSpans={childSpans}
-                  parentY={ref.current?.getBoundingClientRect().y || 0}
-                  onSpanSelect={onSpanSelect}
-                  containerWidth={containerWidth}
-                  selectedSpan={selectedSpan}
-                  collapsedSpans={collapsedSpans}
-                  onToggleCollapse={onToggleCollapse}
-                  onSelectTime={onSelectTime}
-                  depth={depth + 1}
-                />
-              </div>
-            ))}
-        </div>
-      )}
     </div>
   );
 }

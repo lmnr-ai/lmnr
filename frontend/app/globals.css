@@ -154,4 +154,9 @@
     scrollbar-width: none;
     /* Firefox */
   }
+
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    border: none;
+  }
 }

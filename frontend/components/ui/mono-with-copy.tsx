@@ -15,7 +15,7 @@ export default function MonoWithCopy({ children, className }: PropsWithChildren<
         iconClassName="w-3.5 h-3.5"
         size="icon"
         variant="ghost"
-        className="invisible group-hover:visible"
+        className="ml-2 invisible w-4 h-4 group-hover:visible"
         text={children as string}
       />
     </div>
