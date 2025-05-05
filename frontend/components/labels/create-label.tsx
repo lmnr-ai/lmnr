@@ -77,6 +77,7 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
 
       if (!response.ok) {
         toast({ variant: "destructive", title: "Error", description: "Failed to create label." });
+        return;
       }
 
       const data = (await response.json()) as LabelClass;
@@ -96,6 +97,7 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
 
       if (!res.ok) {
         toast({ variant: "destructive", title: "Error", description: "Failed to attach label." });
+        return;
       }
       const label = (await res.json()) as SpanLabel;
 

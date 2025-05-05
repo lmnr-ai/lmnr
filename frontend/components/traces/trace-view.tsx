@@ -394,73 +394,76 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
   const maxY = useRef(0);
 
-  const recFn = (
-    treeElements: React.ReactNode[],
-    span: Span,
-    activeSpans: string[],
-    depth: number,
-    parentY: number,
-    childSpans: { [key: string]: Span[] },
-    containerWidth: number,
-    collapsedSpans: Set<string>,
-    traceStartTime: string,
-    selectedSpan?: Span | null,
-    onToggleCollapse?: (spanId: string) => void,
-    onSpanSelect?: (span: Span) => void,
-    onSelectTime?: (time: number) => void
-  ) => {
-    const yOffset = maxY.current + 36;
+  const recFn = useCallback(
+    (
+      treeElements: React.ReactNode[],
+      span: Span,
+      activeSpans: string[],
+      depth: number,
+      parentY: number,
+      childSpans: { [key: string]: Span[] },
+      containerWidth: number,
+      collapsedSpans: Set<string>,
+      traceStartTime: string,
+      selectedSpan?: Span | null,
+      onToggleCollapse?: (spanId: string) => void,
+      onSpanSelect?: (span: Span) => void,
+      onSelectTime?: (time: number) => void
+    ) => {
+      const yOffset = maxY.current + 36;
 
-    const card = (
-      <SpanCard
-        span={span}
-        parentY={parentY}
-        activeSpans={activeSpans}
-        yOffset={yOffset}
-        childSpans={childSpans}
-        containerWidth={containerWidth}
-        depth={depth}
-        selectedSpan={selectedSpan}
-        collapsedSpans={collapsedSpans}
-        traceStartTime={traceStartTime}
-        onSpanSelect={onSpanSelect}
-        onToggleCollapse={onToggleCollapse}
-        onSelectTime={onSelectTime}
-      />
-    );
-
-    treeElements.push(card);
-    maxY.current = maxY.current + 36;
-
-    const children = childSpans[span.spanId];
-    if (!children) {
-      return;
-    }
-
-    const py = maxY.current;
-
-    if (collapsedSpans.has(span.spanId)) {
-      return;
-    }
-
-    for (const childSpan of children) {
-      recFn(
-        treeElements,
-        childSpan,
-        activeSpans,
-        depth + 1,
-        py,
-        childSpans,
-        containerWidth,
-        collapsedSpans,
-        traceStartTime,
-        selectedSpan,
-        onToggleCollapse,
-        onSpanSelect,
-        onSelectTime
+      const card = (
+        <SpanCard
+          span={span}
+          parentY={parentY}
+          activeSpans={activeSpans}
+          yOffset={yOffset}
+          childSpans={childSpans}
+          containerWidth={containerWidth}
+          depth={depth}
+          selectedSpan={selectedSpan}
+          collapsedSpans={collapsedSpans}
+          traceStartTime={traceStartTime}
+          onSpanSelect={onSpanSelect}
+          onToggleCollapse={onToggleCollapse}
+          onSelectTime={onSelectTime}
+        />
       );
-    }
-  };
+
+      treeElements.push(card);
+      maxY.current = maxY.current + 36;
+
+      const children = childSpans[span.spanId];
+      if (!children) {
+        return;
+      }
+
+      const py = maxY.current;
+
+      if (collapsedSpans.has(span.spanId)) {
+        return;
+      }
+
+      for (const childSpan of children) {
+        recFn(
+          treeElements,
+          childSpan,
+          activeSpans,
+          depth + 1,
+          py,
+          childSpans,
+          containerWidth,
+          collapsedSpans,
+          traceStartTime,
+          selectedSpan,
+          onToggleCollapse,
+          onSpanSelect,
+          onSelectTime
+        );
+      }
+    },
+    []
+  );
 
   const renderTreeElements = useCallback((): ReactNode[] => {
     maxY.current = 0;

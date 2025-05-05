@@ -54,6 +54,7 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
 
         if (!res.ok) {
           toast({ variant: "destructive", title: "Error", description: "Failed to attach label." });
+          return;
         }
 
         const data = (await res.json()) as SpanLabel;
