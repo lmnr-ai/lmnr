@@ -7,6 +7,7 @@ import React, { ReactNode, Ref, useCallback, useEffect, useImperativeHandle, use
 
 import SearchSpansInput from "@/components/traces/search-spans-input";
 import ShareTraceButton from "@/components/traces/share-trace-button";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
@@ -622,9 +623,9 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>
               <div className="flex h-full w-full relative" ref={container}>
-                <div
+                <ScrollArea
                   ref={scrollRef}
-                  className={cn("overflow-y-auto thin-scrollbar overflow-x-hidden flex-grow")}
+                  className={cn("overflow-y-auto overflow-x-hidden flex-grow")}
                   style={{
                     width: timelineWidth,
                     height: containerHeight,
@@ -731,7 +732,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                           <div
                             className={cn(
                               "absolute top-0 right-0 h-full w-px hover:w-1 bg-border z-10 cursor-col-resize hover:bg-blue-400 transition-colors",
-                              { "right-2": selectedSpan }
+                              { "right-0": selectedSpan }
                             )}
                             onMouseDown={handleResizeTreeView}
                           />
@@ -751,7 +752,8 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                       </tr>
                     </tbody>
                   </table>
-                </div>
+                  <ScrollBar orientation="vertical" />
+                </ScrollArea>
                 {selectedSpan && (
                   <div style={{ width: containerWidth - timelineWidth }}>
                     <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
