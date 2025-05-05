@@ -390,7 +390,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   const maxY = useRef(0);
@@ -730,12 +730,11 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                             </div>
                           </div>
                           <div
-                            className={cn(
-                              "absolute top-0 right-0 h-full w-px hover:w-1 bg-border z-50 cursor-col-resize hover:bg-blue-400 transition-colors",
-                              { "right-0": selectedSpan }
-                            )}
+                            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
                             onMouseDown={handleResizeTreeView}
-                          />
+                          >
+                            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+                          </div>
                         </td>
                         {!selectedSpan && (
                           <td className="flex flex-grow w-full p-0 relative">
