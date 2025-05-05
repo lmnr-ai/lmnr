@@ -731,7 +731,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                           </div>
                           <div
                             className={cn(
-                              "absolute top-0 right-0 h-full w-px hover:w-1 bg-border z-10 cursor-col-resize hover:bg-blue-400 transition-colors",
+                              "absolute top-0 right-0 h-full w-px hover:w-1 bg-border z-50 cursor-col-resize hover:bg-blue-400 transition-colors",
                               { "right-0": selectedSpan }
                             )}
                             onMouseDown={handleResizeTreeView}
@@ -761,7 +761,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                 )}
               </div>
             </ResizablePanel>
-            {showBrowserSession && <ResizableHandle withHandle />}
+            {showBrowserSession && <ResizableHandle className="z-50" withHandle />}
             <ResizablePanel
               style={{
                 display: showBrowserSession ? "block" : "none",
