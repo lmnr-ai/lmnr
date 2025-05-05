@@ -621,7 +621,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               <div className="flex h-full w-full relative" ref={container}>
                 <div
                   ref={scrollRef}
-                  className="overflow-y-auto overflow-x-hidden flex-grow"
+                  className={cn("overflow-y-auto thin-scrollbar overflow-x-hidden flex-grow")}
                   style={{
                     width: timelineWidth,
                     height: containerHeight,
@@ -726,7 +726,10 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                             </div>
                           </div>
                           <div
-                            className="absolute top-0 right-0 h-full w-px hover:w-1 bg-border z-10 cursor-col-resize hover:bg-blue-400 transition-colors"
+                            className={cn(
+                              "absolute top-0 right-0 h-full w-px hover:w-1 bg-border z-10 cursor-col-resize hover:bg-blue-400 transition-colors",
+                              { "right-2": selectedSpan }
+                            )}
                             onMouseDown={handleResizeTreeView}
                           />
                         </td>
