@@ -15,6 +15,7 @@ import evals from "@/assets/landing/evals.png";
 import index from "@/assets/landing/index.png";
 import traces from "@/assets/landing/traces.png";
 import yc from "@/assets/landing/yc.svg";
+import logo from "@/assets/logo/icon.svg";
 
 import { Button } from "../ui/button";
 import CodeHighlighter from "../ui/code-highlighter";
@@ -526,13 +527,30 @@ export default function Landing() {
               </div>
               <InfoCard
                 title="Browser agent observability"
-                description="At Laminar, we invented new kind of observability for browser agents. Laminar automatically records browser sessions and syncs them with agent traces to help you see what the agent was seeing. This drastically improves the debugging experience and allows you to fix issues 10x faster."
+                description={`
+Laminar automatically records high-quality browser sessions and syncs them with agent traces to help you see what the browser agent sees.
+This drastically improves the debugging experience and allows you to fix issues 10x faster.`}
                 linkUrl="https://docs.lmnr.ai/tracing/introduction"
                 actionText="Learn more"
                 image={browserAgentObservability}
                 animationOrder={2}
                 className="border-b items-center"
-              />
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
+                    <IconBrowserUse className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
+                    🤘
+                  </div>
+                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
+                    <IconPlaywright className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
+                    <Image src={logo} alt="Index" className="w-4 h-4 ml-1" />
+                  </div>
+                </div>
+              </InfoCard>
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="grid grid-cols-1">
                   <InfoCard
