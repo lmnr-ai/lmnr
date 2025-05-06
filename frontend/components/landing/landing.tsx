@@ -201,7 +201,7 @@ export default function Landing() {
                   className={`border border-white/20 h-8 px-2 sm:px-3 rounded transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${selectedSection.id === section.id
                     ? "bg-white/90 text-black border-b-2"
                     : "text-white/80 hover:bg-white/10 "
-                    }`}
+                  }`}
                 >
                   {section.title}
                   {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
@@ -702,14 +702,14 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
         <button
           onClick={() => setSelectedLang("typescript")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
-            }`}
+          }`}
         >
           TypeScript
         </button>
         <button
           onClick={() => setSelectedLang("python")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
-            }`}
+          }`}
         >
           Python
         </button>
