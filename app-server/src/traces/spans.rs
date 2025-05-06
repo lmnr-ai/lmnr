@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
