@@ -54,7 +54,8 @@ export function LabelStatChart({
     swrFetcher
   );
 
-  const totalCount = useMemo(() => data?.reduce((sum, point) => sum + point.value, 0) ?? 0, [data]);
+  console.log("data", data);
+  const totalCount = useMemo(() => (data ?? [])?.reduce((sum, point) => sum + point.value, 0) ?? 0, [data]);
 
   return (
     <div className={cn(className, "flex flex-col space-y-2 border rounded-lg p-4 h-full border-dashed border-border")}>

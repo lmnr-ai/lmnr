@@ -15,6 +15,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     const startDate = searchParams.get("startDate") as string | undefined;
     const endDate = searchParams.get("endDate") as string | undefined;
 
+    console.log("timerange", startDate, endDate);
+
     const timeRange = getTimeRange(pastHours, startDate, endDate);
 
     const metrics = await getLabelMetricsOverTime(projectId, groupByInterval, timeRange);
