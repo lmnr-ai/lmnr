@@ -1,0 +1,92 @@
+import { SlidersHorizontal } from "lucide-react";
+import { Controller, useFormContext } from "react-hook-form";
+
+import ReasoningField from "@/components/playground/messages/reasoning-field";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
+import { PlaygroundForm } from "@/lib/playground/types";
+import { cn } from "@/lib/utils";
+
+interface ParamsPopoverProps {
+  className?: string;
+}
+
+const defaultMaxTokens = 1024;
+const defaultTemperature = 1;
+
+const ParamsPopover = ({ className }: ParamsPopoverProps) => {
+  const { control, watch } = useFormContext<PlaygroundForm>();
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button disabled={!watch("model")} size="icon" variant="outline" className={cn(className, "w-8 h-8 self-end")}>
+          <SlidersHorizontal className="w-4 h-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-5">
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Controller
+              render={({ field: { value, onChange } }) => (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Max Output Tokens</span>
+                    <Input
+                      onChange={onChange}
+                      value={value ?? defaultMaxTokens}
+                      type="number"
+                      className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
+                    />
+                  </div>
+                  <Slider
+                    value={[value ?? defaultMaxTokens]}
+                    defaultValue={[defaultMaxTokens]}
+                    min={50}
+                    max={4096}
+                    step={1}
+                    onValueChange={(v) => onChange(v?.[0])}
+                  />
+                </>
+              )}
+              name="maxTokens"
+              control={control}
+            />
+          </div>
+          <div className="space-y-2">
+            <Controller
+              render={({ field: { value, onChange } }) => (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-sm font-medium">Temperature</span>
+                    <Input
+                      onChange={onChange}
+                      value={value ?? defaultTemperature}
+                      type="number"
+                      className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
+                    />
+                  </div>
+                  <Slider
+                    defaultValue={[defaultTemperature]}
+                    value={[value ?? defaultTemperature]}
+                    min={0}
+                    max={2}
+                    step={0.01}
+                    onValueChange={(v) => onChange(v?.[0])}
+                  />
+                </>
+              )}
+              name="temperature"
+              control={control}
+            />
+          </div>
+          <ReasoningField />
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+export default ParamsPopover;

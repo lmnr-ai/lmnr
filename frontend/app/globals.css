@@ -155,8 +155,9 @@
     /* Firefox */
   }
 
-  .thin-scrollbar {
-    scrollbar-width: thin;
-    border: none;
+  .hide-arrow[type="number"]::-webkit-inner-spin-button,
+  .hide-arrow[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 }

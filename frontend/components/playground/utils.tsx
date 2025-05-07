@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 
+import { Provider } from "@/components/playground/types";
 import {
   IconAmazonBedrock,
   IconAnthropic,
@@ -11,7 +12,7 @@ import {
   IconOpenAI,
 } from "@/components/ui/icons";
 import { EnvVars } from "@/lib/env/utils";
-import { Provider } from "@/lib/pipeline/types";
+import { ProviderOptions } from "@/lib/playground/types";
 
 export const providerIconMap: Record<Provider, ReactNode> = {
   openai: <IconOpenAI />,
@@ -47,4 +48,34 @@ export const envVarsToIconMap: Record<EnvVars, ReactNode> = {
   [EnvVars.AWS_SECRET_ACCESS_KEY]: <IconAmazonBedrock />,
   [EnvVars.GOOGLE_SEARCH_ENGINE_ID]: <IconGoogle />,
   [EnvVars.GOOGLE_SEARCH_API_KEY]: <IconGoogle />,
+};
+
+export const getDefaultThinkingModelProviderOptions = (provider: Provider): ProviderOptions => {
+  switch (provider) {
+    case "anthropic":
+      return {
+        anthropic: {
+          thinking: {
+            type: "enabled",
+            budgetTokens: 12000,
+          },
+        },
+      };
+    case "gemini":
+      return {
+        google: {
+          thinkingConfig: {
+            thinkingBudget: 12000,
+          },
+        },
+      };
+    case "openai":
+      return {
+        openai: {
+          reasoningEffort: "low",
+        },
+      };
+    default:
+      return {};
+  }
 };

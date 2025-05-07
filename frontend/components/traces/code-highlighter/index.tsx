@@ -18,9 +18,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 interface CodeEditorProps {
+  defaultMode?: string;
   value: string;
   className?: string;
-  language?: string;
   placeholder?: string;
   lineWrapping?: boolean;
   onLoad?: () => void;
@@ -29,9 +29,8 @@ interface CodeEditorProps {
   codeEditorClassName?: string;
 }
 
-const defaultMode = "text";
-
 const PureCodeHighlighter = ({
+  defaultMode = "text",
   value,
   className,
   placeholder,

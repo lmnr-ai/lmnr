@@ -1,12 +1,14 @@
-import { Image as IconImage, X } from "lucide-react";
+import { Image as IconImage, Paperclip, X } from "lucide-react";
+import { ChangeEvent, useCallback, useRef } from "react";
 import { Controller, FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
-import { Input } from "@/components/ui/input";
+import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
+import { cn } from "@/lib/utils";
 
 const buttonClassName = "size-fit p-[1px] transition-all duration-200 opacity-0 group-hover:opacity-100";
 
@@ -16,8 +18,37 @@ interface MessagePartsProps {
   remove: UseFieldArrayRemove;
 }
 
+const MAX_FILE_SIZE = 2.5 * 1024 * 1024; // 2.5MB in bytes
+
 const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
   const { register, control } = useFormContext<PlaygroundForm>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+  const handleFileSelect = useCallback(
+    (onChange: (value: string) => void) => async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file) {
+        if (file.size > MAX_FILE_SIZE) {
+          toast({ title: "File is too big.", description: "File size must be less than 2.5MB" });
+          return;
+        }
+
+        try {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result;
+            if (typeof result === "string") {
+              onChange(result);
+            }
+          };
+          reader.readAsDataURL(file);
+        } catch (error) {
+          console.error("Error processing image:", error);
+        }
+      }
+    },
+    [toast]
+  );
 
   return (
     <div className="flex-1 flex flex-col gap-2">
@@ -32,7 +63,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 <DefaultTextarea
                   placeholder="Enter text message"
                   {...register(`messages.${parentIndex}.content.${index}.text` as const)}
-                  className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none"
+                  className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none max-h-96"
                 />
                 {fields.length > 1 && (
                   <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
@@ -48,18 +79,32 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 key={part.id}
                 render={({ field: { value, onChange } }) => (
                   <div>
-                    <div className="flex gap-2 mb-1">
-                      <span className="pt-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span>
                         <IconImage className="size-3" />
                       </span>
-                      <Input
-                        placeholder="Image URL, or base64 image"
-                        value={value.toString()}
-                        onChange={onChange}
-                        className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none"
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleFileSelect(onChange)}
                       />
+                      <Button
+                        onClick={() => fileInputRef.current?.click()}
+                        size="icon"
+                        variant="outline"
+                        className={buttonClassName}
+                      >
+                        <Paperclip className="text-gray-400" size={12} />
+                      </Button>
                       {fields.length > 1 && (
-                        <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                        <Button
+                          onClick={() => remove(index)}
+                          className={cn(buttonClassName, "ml-auto")}
+                          variant="outline"
+                          size="icon"
+                        >
                           <X className="text-gray-400" size={12} />
                         </Button>
                       )}

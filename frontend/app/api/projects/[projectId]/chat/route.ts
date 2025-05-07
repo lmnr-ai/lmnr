@@ -2,15 +2,15 @@ import { coreMessageSchema, streamText } from "ai";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { Provider, providerToApiKey } from "@/components/playground/types";
 import { decodeApiKey } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { providerApiKeys } from "@/lib/db/migrations/schema";
-import { Provider, providerToApiKey } from "@/lib/pipeline/types";
 import { getModel } from "@/lib/playground/providersRegistry";
 
 export async function POST(req: Request) {
   try {
-    const { messages, model, projectId } = await req.json();
+    const { messages, model, projectId, providerOptions, maxTokens, temperature, topP, topK } = await req.json();
 
     const parseResult = z.array(coreMessageSchema).min(1).safeParse(messages);
 
@@ -41,10 +41,14 @@ export async function POST(req: Request) {
     const result = streamText({
       model: getModel(model, decodedKey),
       messages,
-      maxTokens: 1024,
+      maxTokens,
+      temperature,
+      topK,
+      topP,
+      providerOptions,
     });
 
-    return result.toTextStreamResponse();
+    return result.toDataStreamResponse({ sendReasoning: true });
   } catch (e) {
     return new Response(
       JSON.stringify({

@@ -1,7 +1,9 @@
+import { AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
 import { DataContent } from "ai";
 
+import { Provider } from "@/components/playground/types";
 import { playgrounds } from "@/lib/db/migrations/schema";
-import { Provider } from "@/lib/pipeline/types";
 
 import { ChatMessage } from "../types";
 
@@ -26,7 +28,41 @@ export interface Message {
   content: Array<ImagePart | TextPart>;
 }
 
+type OpenAIProviderOptions = {
+  openai: {
+    reasoningEffort: "low" | "medium" | "high";
+  };
+};
+
+export type ProviderOptions =
+  | { anthropic: AnthropicProviderOptions }
+  | OpenAIProviderOptions
+  | { google: GoogleGenerativeAIProviderOptions }
+  | {};
+
 export interface PlaygroundForm {
   model: `${Provider}:${string}`;
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  topK?: number;
+  providerOptions: ProviderOptions;
   messages: Message[];
 }
+
+export const openAIThinkingModels = [
+  "openai:o4-mini",
+  "openai:o3",
+  "openai:o3-mini",
+  "openai:o1",
+  "openai:o1-mini",
+  "openai:o1-preview",
+];
+
+export const anthropicThinkingModels = ["anthropic:claude-3-7-sonnet-20250219:thinking"];
+
+export const googleThinkingModels = [
+  "gemini:gemini-2.5-flash-preview-04-17",
+  "gemini:gemini-2.5-pro-exp-03-25",
+  "gemini:gemini-2.5-pro-preview-05-06",
+];

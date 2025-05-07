@@ -66,7 +66,7 @@ export default async function ProjectIdLayout(props: {
             <div className="z-50 h-screen">
               <ProjectNavbar workspaceId={project.workspaceId} isFreeTier={project.isFreeTier} projectId={projectId} />
             </div>
-            <div className="flex flex-col flex-grow h-screen max-w-full min-h-screen overflow-y-auto">
+            <div className="flex flex-col flex-grow h-screen max-w-full flex-1">
               {showBanner && (
                 <ProjectUsageBanner
                   workspaceId={project.workspaceId}
@@ -74,7 +74,7 @@ export default async function ProjectIdLayout(props: {
                   spansLimit={project.spansLimit}
                 />
               )}
-              <div className="z-10 flex flex-col flex-grow ">{children}</div>
+              <div className="z-10 flex flex-col flex-grow overflow-hidden">{children}</div>
             </div>
           </SidebarProvider>
         </div>

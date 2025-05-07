@@ -1,13 +1,17 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ImagePart, TextPart } from "ai";
 import { capitalize } from "lodash";
-import { CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
+import { useState } from "react";
 import { Controller, ControllerRenderProps, useFieldArray, UseFieldArrayReturn, useFormContext } from "react-hook-form";
 
 import MessageParts from "@/components/playground/messages/message-parts";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlaygroundForm } from "@/lib/playground/types";
+import { cn } from "@/lib/utils";
 
 interface MessageProps {
   insert: UseFieldArrayReturn<PlaygroundForm, "messages">["insert"];
@@ -40,6 +44,7 @@ const defaultImagePart: ImagePart = {
 const buttonClassName =
   "size-fit p-[5px] bg-muted/50 transition-opacity duration-200 opacity-0 group-hover:opacity-100";
 const Message = ({ insert, remove, update, index, deletable = true }: MessageProps) => {
+  const [open, setOpen] = useState(true);
   const { control, watch } = useFormContext<PlaygroundForm>();
 
   const {
@@ -61,8 +66,8 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
     };
 
   return (
-    <div className="px-2 py-3 rounded-md border-[1px] bg-muted/50 group overflow-hidden">
-      <div className="flex items-center gap-1 mb-2">
+    <Collapsible open={open} onOpenChange={setOpen} className="px-2 py-3 rounded-md border-[1px] bg-muted/50 group">
+      <div className={cn("flex items-center gap-1", { "mb-2": open })}>
         <Controller
           render={({ field: { value, onChange } }) => (
             <Select value={value} onValueChange={handleUpdateRole(onChange)}>
@@ -84,7 +89,9 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
         {watch(`messages.${index}.role`) !== "system" && (
           <>
             <Tooltip>
-              <TooltipContent>Add text message part</TooltipContent>
+              <TooltipPortal>
+                <TooltipContent>Add text message part</TooltipContent>
+              </TooltipPortal>
               <TooltipTrigger asChild>
                 <Button
                   onClick={() => append(defaultTextPart)}
@@ -97,7 +104,9 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
               </TooltipTrigger>
             </Tooltip>
             <Tooltip>
-              <TooltipContent>Add image message part</TooltipContent>
+              <TooltipPortal>
+                <TooltipContent>Add image message part</TooltipContent>
+              </TooltipPortal>
               <TooltipTrigger asChild>
                 <Button
                   onClick={() => append(defaultImagePart)}
@@ -112,7 +121,9 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
           </>
         )}
         <Tooltip>
-          <TooltipContent>Add message</TooltipContent>
+          <TooltipPortal>
+            <TooltipContent>Add message</TooltipContent>
+          </TooltipPortal>
           <TooltipTrigger asChild>
             <Button
               onClick={() => insert(index + 1, defaultMessage)}
@@ -134,9 +145,16 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
             </TooltipTrigger>
           </Tooltip>
         )}
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="icon" className="w-6 h-6 ml-auto">
+            {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </Button>
+        </CollapsibleTrigger>
       </div>
-      <MessageParts remove={contentRemove} fields={fields} parentIndex={index} />
-    </div>
+      <CollapsibleContent>
+        <MessageParts remove={contentRemove} fields={fields} parentIndex={index} />
+      </CollapsibleContent>
+    </Collapsible>
   );
 };
 
