@@ -31,7 +31,7 @@ const Messages = () => {
     count: fields.length,
     getScrollElement: () => ref.current,
     estimateSize: () => 100,
-    overscan: 10,
+    overscan: 16,
   });
 
   const items = virtualizer.getVirtualItems();
