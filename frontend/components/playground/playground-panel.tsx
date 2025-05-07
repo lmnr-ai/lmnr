@@ -21,15 +21,7 @@ import { PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
 import { ProviderApiKey } from "@/lib/settings/types";
 
-export default function PlaygroundPanel({
-  id,
-  apiKeys,
-  isUpdating,
-}: {
-  id: string;
-  apiKeys: ProviderApiKey[];
-  isUpdating: boolean;
-}) {
+export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: ProviderApiKey[] }) {
   const params = useParams();
   const { toast } = useToast();
   const [output, setOutput] = useState<{ text: string; reasoning: string }>({ text: "", reasoning: "" });
@@ -93,8 +85,7 @@ export default function PlaygroundPanel({
     (onChange: ControllerRenderProps["onChange"]) =>
       <P extends Provider, K extends string>(value: `${P}:${K}`) => {
         onChange(value);
-        const [provider] = value.split(":") as [P, K];
-        setValue("providerOptions", getDefaultThinkingModelProviderOptions(provider));
+        setValue("providerOptions", getDefaultThinkingModelProviderOptions(value));
       },
     [setValue]
   );

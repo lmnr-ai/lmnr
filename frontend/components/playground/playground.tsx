@@ -1,12 +1,12 @@
 "use client";
 import { debounce, isEmpty } from "lodash";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import postgres from "postgres";
 import { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import useSWR from "swr";
 
 import PlaygroundPanel from "@/components/playground/playground-panel";
-import { Provider } from "@/components/playground/types";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -16,6 +16,7 @@ import { ProviderApiKey } from "@/lib/settings/types";
 import { swrFetcher } from "@/lib/utils";
 
 import Header from "../ui/header";
+import value = postgres.toPascal.value;
 
 const defaultMessages: Message[] = [
   {
@@ -51,14 +52,12 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   const handleResetForm = async () => {
     if (playground) {
       const messages = await mapMessages(playground.promptMessages);
-      const [provider] = playground.modelId.split(":") as [Provider, string];
-
       reset({
         model: playground.modelId as PlaygroundForm["model"],
         messages: isEmpty(messages) ? defaultMessages : messages,
         maxTokens: 1024,
         temperature: 1,
-        providerOptions: getDefaultThinkingModelProviderOptions(provider),
+        providerOptions: getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
       });
     }
   };
@@ -128,7 +127,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         </div>
       ) : (
         <FormProvider {...methods}>
-          <PlaygroundPanel id={playground.id} apiKeys={apiKeys ?? []} isUpdating={isUpdating} />
+          <PlaygroundPanel id={playground.id} apiKeys={apiKeys ?? []} />
         </FormProvider>
       )}
     </div>

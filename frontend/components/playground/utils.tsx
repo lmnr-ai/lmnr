@@ -12,7 +12,12 @@ import {
   IconOpenAI,
 } from "@/components/ui/icons";
 import { EnvVars } from "@/lib/env/utils";
-import { ProviderOptions } from "@/lib/playground/types";
+import {
+  anthropicThinkingModels,
+  googleThinkingModels,
+  openAIThinkingModels,
+  ProviderOptions,
+} from "@/lib/playground/types";
 
 export const providerIconMap: Record<Provider, ReactNode> = {
   openai: <IconOpenAI />,
@@ -50,32 +55,38 @@ export const envVarsToIconMap: Record<EnvVars, ReactNode> = {
   [EnvVars.GOOGLE_SEARCH_API_KEY]: <IconGoogle />,
 };
 
-export const getDefaultThinkingModelProviderOptions = (provider: Provider): ProviderOptions => {
-  switch (provider) {
-    case "anthropic":
-      return {
-        anthropic: {
-          thinking: {
-            type: "enabled",
-            budgetTokens: 1024,
+export const getDefaultThinkingModelProviderOptions = <P extends Provider, K extends string>(
+  value: `${P}:${K}`
+): ProviderOptions => {
+  const [provider] = value.split(":") as [P, K];
+  if ([...anthropicThinkingModels, ...googleThinkingModels, ...openAIThinkingModels].includes(value)) {
+    switch (provider) {
+      case "anthropic":
+        return {
+          anthropic: {
+            thinking: {
+              type: "enabled",
+              budgetTokens: 1024,
+            },
           },
-        },
-      };
-    case "gemini":
-      return {
-        google: {
-          thinkingConfig: {
-            thinkingBudget: 1024,
+        };
+      case "gemini":
+        return {
+          google: {
+            thinkingConfig: {
+              thinkingBudget: 1024,
+            },
           },
-        },
-      };
-    case "openai":
-      return {
-        openai: {
-          reasoningEffort: "low",
-        },
-      };
-    default:
-      return {};
+        };
+      case "openai":
+        return {
+          openai: {
+            reasoningEffort: "low",
+          },
+        };
+      default:
+        return {};
+    }
   }
+  return {};
 };
