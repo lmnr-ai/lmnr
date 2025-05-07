@@ -57,7 +57,7 @@ export const getDefaultThinkingModelProviderOptions = (provider: Provider): Prov
         anthropic: {
           thinking: {
             type: "enabled",
-            budgetTokens: 12000,
+            budgetTokens: 1024,
           },
         },
       };
@@ -65,7 +65,7 @@ export const getDefaultThinkingModelProviderOptions = (provider: Provider): Prov
       return {
         google: {
           thinkingConfig: {
-            thinkingBudget: 12000,
+            thinkingBudget: 1024,
           },
         },
       };
