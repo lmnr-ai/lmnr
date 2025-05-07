@@ -60,6 +60,9 @@ export default function PlaygroundPanel({
 
       await processDataStream({
         stream: response.body,
+        onErrorPart: (value) => {
+          toast({ variant: "destructive", title: "Error", description: value });
+        },
         onTextPart: (value) => {
           setOutput((prev) => ({
             ...prev,
