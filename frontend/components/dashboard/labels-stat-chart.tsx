@@ -54,7 +54,6 @@ export function LabelStatChart({
     swrFetcher
   );
 
-  console.log("data", data);
   const totalCount = useMemo(() => (data ?? [])?.reduce((sum, point) => sum + point.value, 0) ?? 0, [data]);
 
   return (

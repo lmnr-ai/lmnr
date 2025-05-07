@@ -107,6 +107,7 @@ function AbsoluteDateRangeFilter() {
             selected={calendarDate}
             onSelect={setCalendarDate}
             numberOfMonths={2}
+            disabled={{ after: new Date() }}
             pagedNavigation
           />
           <div className="flex p-2 space-x-1">
