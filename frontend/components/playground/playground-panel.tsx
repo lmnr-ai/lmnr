@@ -13,8 +13,8 @@ import ParamsPopover from "@/components/playground/messages/params-popover";
 import ProvidersAlert from "@/components/playground/providers-alert";
 import { Provider } from "@/components/playground/types";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
-import CodeHighlighter from "@/components/traces/code-highlighter";
 import { Button } from "@/components/ui/button";
+import Formatter from "@/components/ui/formatter";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
@@ -126,7 +126,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
         </ResizablePanel>
         <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
         <ResizablePanel minSize={20} className="h-full flex flex-col px-4">
-          <CodeHighlighter className="rounded" value={structuredOutput} defaultMode="json" />
+          <Formatter className="rounded" value={structuredOutput} defaultMode="json" />
         </ResizablePanel>
       </ResizablePanelGroup>
     </>
