@@ -43,7 +43,8 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
           };
           reader.readAsDataURL(file);
         } catch (error) {
-          console.error("Error processing image:", error);
+          const message = error instanceof Error ? error.message : "Failed to upload image.";
+          toast({ variant: "destructive", title: "Error", description: message });
         }
       }
     },
