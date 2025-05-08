@@ -459,7 +459,6 @@ impl Span {
 
         span.span_type = span.get_attributes().span_type();
 
-        // to handle OpenLLMetry's prompt/completion messages
         if span.span_type == SpanType::LLM {
             if attributes.get("gen_ai.prompt.0.content").is_some() {
                 let input_messages =
@@ -467,15 +466,10 @@ impl Span {
 
                 span.input = Some(json!(input_messages));
                 span.output = output_from_completion_content(&attributes);
-            } else if attributes.get("ai.prompt.messages").is_some() {
-                // handling the Vercel's AI SDK auto-instrumentation
-                if let Ok(input_messages) = serde_json::from_str::<Vec<ChatMessage>>(
-                    attributes
-                        .get("ai.prompt.messages")
-                        .unwrap()
-                        .as_str()
-                        .unwrap(),
-                ) {
+            } else if let Some(ai_prompt_messages) = attributes.get("ai.prompt.messages") {
+                if let Ok(input_messages) =
+                    serde_json::from_str::<Vec<ChatMessage>>(ai_prompt_messages.as_str().unwrap())
+                {
                     span.input = Some(json!(input_messages));
                 }
 
@@ -502,12 +496,36 @@ impl Span {
         // Which is not really an LLM span, but it has the prompt in its attributes.
         // Set the input to the prompt and the output to the response.
         if let Some(serde_json::Value::String(s)) = attributes.get("ai.prompt") {
-            span.input = Some(
+            let ai_prompt =
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
+            if let Some(messages_value) = ai_prompt.get("messages") {
+                let mut messages =
+                    serde_json::from_value::<Vec<ChatMessage>>(messages_value.clone())
+                        .unwrap_or_default();
+                let system = ai_prompt
+                    .get("system")
+                    .and_then(|v| v.as_str())
+                    .map(|v| v.to_string());
+                if let Some(system) = system {
+                    messages.insert(
+                        0,
+                        ChatMessage {
+                            role: "system".to_string(),
+                            content: ChatMessageContent::Text(system),
+                        },
+                    );
+                }
+                span.input = Some(serde_json::to_value(messages).unwrap());
+            }
+        }
+        if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
+            span.output = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
-            if let Some(output) = try_parse_ai_sdk_output(&attributes) {
-                span.output = Some(output);
-            }
+        } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
+            span.output = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
         }
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
@@ -580,7 +598,11 @@ impl Span {
                     if let ChatMessageContent::ContentPartList(parts) = message.content {
                         let mut new_parts = Vec::new();
                         for part in parts {
-                            new_parts.push(part.store_media(project_id, storage.clone()).await?);
+                            let stored_part = part
+                                .store_media(project_id, storage.clone())
+                                .await
+                                .unwrap_or(part);
+                            new_parts.push(stored_part);
                         }
                         message.content = ChatMessageContent::ContentPartList(new_parts);
                     }
@@ -653,8 +675,8 @@ fn should_keep_attribute(attribute: &str) -> bool {
     }
 
     // AI SDK
-    // remove ai.prompt.messages as it is stored in LLM span's input
-    if attribute == "ai.prompt.messages" {
+    // remove ai.prompt.messages as it is stored in AI SDK span inputs
+    if attribute == "ai.prompt.messages" || attribute == "ai.prompt" {
         return false;
     }
 
