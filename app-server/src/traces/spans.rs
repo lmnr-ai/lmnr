@@ -443,8 +443,9 @@ impl Span {
                     .clone()
                     .into_iter()
                     .filter_map(|(k, v)| {
-                        if should_keep_attribute(k.as_str()) {
-                            Some((k, v))
+                        if should_keep_attribute(&k) {
+                            let converted_val = convert_attribute(&k, v);
+                            Some((k, converted_val))
                         } else {
                             None
                         }
@@ -487,6 +488,15 @@ impl Span {
                         serde_json::from_str::<Value>(s)
                             .unwrap_or(serde_json::Value::String(s.clone())),
                     );
+                } else if let Some(serde_json::Value::String(s)) =
+                    attributes.get("ai.response.toolCalls")
+                {
+                    if let Ok(tool_call_values) =
+                        serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
+                    {
+                        let tool_calls = parse_ai_sdk_tool_calls(tool_call_values);
+                        span.output = Some(serde_json::to_value(tool_calls).unwrap());
+                    }
                 }
             }
         }
@@ -754,6 +764,30 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
     }
 }
 
+fn convert_attribute(key: &str, value: serde_json::Value) -> serde_json::Value {
+    if key == "ai.prompt.tools" {
+        if let Some(tools) = value.as_array() {
+            serde_json::Value::Array(
+                tools
+                    .into_iter()
+                    .map(|tool| match tool {
+                        serde_json::Value::String(s) => {
+                            serde_json::from_str::<HashMap<String, serde_json::Value>>(s)
+                                .map(|m| serde_json::to_value(m).unwrap())
+                                .unwrap_or(tool.clone())
+                        }
+                        _ => tool.clone(),
+                    })
+                    .collect(),
+            )
+        } else {
+            value
+        }
+    } else {
+        value
+    }
+}
+
 #[derive(Serialize)]
 struct ToolCall {
     name: String,
@@ -866,4 +900,37 @@ fn output_message_from_completion_content(
         out_vec.extend(tool_calls);
         Some(Value::Array(out_vec))
     }
+}
+
+fn parse_ai_sdk_tool_calls(tool_calls: Vec<HashMap<String, serde_json::Value>>) -> Vec<Value> {
+    tool_calls
+        .iter()
+        .map(|tool_call| {
+            let has_name = tool_call.get("toolName").is_some();
+            let has_id = tool_call.get("toolCallId").is_some();
+            if has_name && has_id {
+                let args_value = tool_call.get("args").cloned().unwrap_or_default();
+                let args = if let serde_json::Value::String(s) = &args_value {
+                    serde_json::from_str::<HashMap<String, serde_json::Value>>(s).ok()
+                } else {
+                    serde_json::from_value::<HashMap<String, serde_json::Value>>(args_value).ok()
+                };
+                let parsed = ToolCall {
+                    name: tool_call
+                        .get("toolName")
+                        .map(json_value_to_string)
+                        .unwrap_or_default(),
+                    id: tool_call.get("toolCallId").map(json_value_to_string),
+                    arguments: args.map(|args| serde_json::to_value(args).unwrap()),
+                    content_block_type: tool_call
+                        .get("toolCallType")
+                        .map(json_value_to_string)
+                        .unwrap_or_default(),
+                };
+                serde_json::to_value(parsed).unwrap()
+            } else {
+                serde_json::to_value(tool_call).unwrap()
+            }
+        })
+        .collect::<Vec<_>>()
 }
