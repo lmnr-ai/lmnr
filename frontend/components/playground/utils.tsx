@@ -117,14 +117,14 @@ export const parseToolsFromSpan = (
   JSON.stringify(
     tools
       ? tools.reduce(
-          (acc, tool) => ({
-            ...acc,
-            [tool.name]: {
-              description: tool.description || "",
-              parameters: tool.parameters,
-            },
-          }),
-          {}
-        )
+        (acc, tool) => ({
+          ...acc,
+          [tool.name]: {
+            description: tool.description || "",
+            parameters: tool.parameters,
+          },
+        }),
+        {}
+      )
       : ""
   );
