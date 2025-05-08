@@ -1,5 +1,5 @@
 {
-  "id": "e1ee8f39-8ccb-4d66-9cc9-8080d6368b4b",
+  "id": "572a6587-2523-4f12-88dc-fac21bfa97ea",
   "prevId": "8cb79fe4-c009-4efe-9641-1db74a9e13d6",
   "version": "7",
   "dialect": "postgresql",
@@ -1911,26 +1911,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "temperature": {
-          "name": "temperature",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "provider_options": {
-          "name": "provider_options",
+        "tools": {
+          "name": "tools",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "max_tokens": {
-          "name": "max_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1024
+          "notNull": false,
+          "default": "''"
         },
         "tool_choice": {
           "name": "tool_choice",
@@ -1939,12 +1925,26 @@
           "notNull": false,
           "default": "'none'"
         },
-        "tools": {
-          "name": "tools",
+        "max_tokens": {
+          "name": "max_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 1024
+        },
+        "temperature": {
+          "name": "temperature",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 1
+        },
+        "provider_options": {
+          "name": "provider_options",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false,
-          "default": "''"
+          "default": "'{}'::jsonb"
         }
       },
       "indexes": {},

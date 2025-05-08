@@ -523,11 +523,11 @@ export const playgrounds = pgTable(
       .notNull(),
     modelId: text("model_id").default("").notNull(),
     outputSchema: text("output_schema"),
-    temperature: doublePrecision().default(1).notNull(),
-    providerOptions: jsonb("provider_options").default({}).notNull(),
-    maxTokens: integer("max_tokens").default(1024).notNull(),
-    toolChoice: jsonb("tool_choice").default("none"),
     tools: jsonb().default(""),
+    toolChoice: jsonb("tool_choice").default("none"),
+    maxTokens: integer("max_tokens").default(1024),
+    temperature: doublePrecision().default(1),
+    providerOptions: jsonb("provider_options").default({}),
   },
   (table) => [
     foreignKey({
