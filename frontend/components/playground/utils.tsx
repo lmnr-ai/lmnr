@@ -110,3 +110,21 @@ export const parseTools = (tools?: string) => {
     {} as Record<string, any>
   );
 };
+
+export const parseToolsFromSpan = (
+  tools?: { name: string; type: string; description?: string; parameters: Record<string, any> }[]
+): string =>
+  JSON.stringify(
+    tools
+      ? tools.reduce(
+          (acc, tool) => ({
+            ...acc,
+            [tool.name]: {
+              description: tool.description || "",
+              parameters: tool.parameters,
+            },
+          }),
+          {}
+        )
+      : ""
+  );

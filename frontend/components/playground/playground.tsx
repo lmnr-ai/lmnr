@@ -54,11 +54,11 @@ export default function Playground({ playground }: { playground: PlaygroundType 
       reset({
         model: playground.modelId as PlaygroundForm["model"],
         messages: isEmpty(messages) ? defaultMessages : messages,
-        maxTokens: playground.maxTokens,
-        temperature: playground.temperature,
-        providerOptions:
-          playground.providerOptions ??
-          getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
+        maxTokens: playground.maxTokens ?? undefined,
+        temperature: playground.temperature ?? undefined,
+        providerOptions: playground.providerOptions
+          ? playground.providerOptions
+          : getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
         tools: JSON.stringify(playground.tools),
         toolChoice: playground.toolChoice as PlaygroundForm["toolChoice"],
       });

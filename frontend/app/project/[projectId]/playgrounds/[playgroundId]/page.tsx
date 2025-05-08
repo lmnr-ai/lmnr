@@ -1,8 +1,10 @@
 import { and, eq } from "drizzle-orm";
+import { get } from "lodash";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import Playground from "@/components/playground/playground";
+import { parseToolsFromSpan } from "@/components/playground/utils";
 import { db } from "@/lib/db/drizzle";
 import { playgrounds, spans } from "@/lib/db/migrations/schema";
 import { Playground as PlaygroundType } from "@/lib/playground/types";
@@ -31,10 +33,13 @@ export default async function PlaygroundPage(props: {
 
         if (span) {
           const parsedSpanId = span.spanId.replace(/[0-]+/g, "");
+          const tools = get(span, ["attributes", "ai.prompt.tools"]);
+          const parsedTools = parseToolsFromSpan(tools);
 
           const result = await db
             .insert(playgrounds)
             .values({
+              tools: parsedTools,
               projectId: params.projectId,
               name: `${span.name} - ${parsedSpanId}`,
               promptMessages: span.input,
