@@ -495,7 +495,7 @@ impl Span {
                         serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
                     {
                         let tool_calls = parse_ai_sdk_tool_calls(tool_call_values);
-                        span.output = Some(serde_json::to_value(tool_calls).unwrap());
+                        span.output = Some(serde_json::Value::Array(tool_calls));
                     }
                 }
             }
@@ -517,8 +517,14 @@ impl Span {
             span.output = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
+        } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.toolCalls") {
+            if let Ok(tool_call_values) =
+                serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
+            {
+                let tool_calls = parse_ai_sdk_tool_calls(tool_call_values);
+                span.output = Some(serde_json::Value::Array(tool_calls));
+            }
         }
-
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
         // Take their values if input/output are not already set.
         if let Some(input) = attributes.get("traceloop.entity.input") {
