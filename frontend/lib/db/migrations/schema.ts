@@ -488,30 +488,6 @@ export const pipelineVersions = pgTable("pipeline_versions", {
   name: text().notNull(),
 });
 
-export const playgrounds = pgTable(
-  "playgrounds",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    projectId: uuid("project_id").notNull(),
-    promptMessages: jsonb("prompt_messages")
-      .default([{ role: "user", content: "" }])
-      .notNull(),
-    modelId: text("model_id").default("").notNull(),
-    outputSchema: text("output_schema"),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "playgrounds_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
 export const evaluationScores = pgTable(
   "evaluation_scores",
   {
@@ -532,6 +508,35 @@ export const evaluationScores = pgTable(
       .onUpdate("cascade")
       .onDelete("cascade"),
     unique("evaluation_results_names_unique").on(table.resultId, table.name),
+  ]
+);
+
+export const playgrounds = pgTable(
+  "playgrounds",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    promptMessages: jsonb("prompt_messages")
+      .default([{ role: "user", content: "" }])
+      .notNull(),
+    modelId: text("model_id").default("").notNull(),
+    outputSchema: text("output_schema"),
+    temperature: doublePrecision().default(1).notNull(),
+    providerOptions: jsonb("provider_options").default({}).notNull(),
+    maxTokens: integer("max_tokens").default(1024).notNull(),
+    toolChoice: jsonb("tool_choice").default("none"),
+    tools: jsonb().default(""),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "playgrounds_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
   ]
 );
 

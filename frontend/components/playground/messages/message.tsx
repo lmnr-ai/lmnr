@@ -137,7 +137,9 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
         </Tooltip>
         {deletable && (
           <Tooltip>
-            <TooltipContent>Remove message</TooltipContent>
+            <TooltipPortal>
+              <TooltipContent>Remove message</TooltipContent>
+            </TooltipPortal>
             <TooltipTrigger asChild>
               <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
                 <CircleMinus className="text-muted-foreground" size={12} />

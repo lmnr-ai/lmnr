@@ -10,11 +10,12 @@ import { useHotkeys } from "react-hotkeys-hook";
 import Messages from "@/components/playground/messages";
 import LlmSelect from "@/components/playground/messages/llm-select";
 import ParamsPopover from "@/components/playground/messages/params-popover";
+import ToolsDialog from "@/components/playground/messages/tools-dialog";
 import ProvidersAlert from "@/components/playground/providers-alert";
 import { Provider } from "@/components/playground/types";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
+import CodeHighlighter from "@/components/traces/code-highlighter";
 import { Button } from "@/components/ui/button";
-import Formatter from "@/components/ui/formatter";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
@@ -43,6 +44,8 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
           temperature: form.temperature,
           messages: parseSystemMessages(form.messages),
           providerOptions: form.providerOptions,
+          tools: form.tools,
+          toolChoice: form.toolChoice,
         }),
       });
 
@@ -67,6 +70,24 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
             reasoning: prev.reasoning + value,
           }));
         },
+        onToolCallPart: (value) => {
+          setOutput((prev) => ({
+            ...prev,
+            text: prev.text + JSON.stringify(value),
+          }));
+        },
+        onToolResultPart: (value) => {
+          setOutput((prev) => ({
+            ...prev,
+            text: prev.text + JSON.stringify(value),
+          }));
+        },
+        onToolCallDeltaPart: (value) => {
+          setOutput((prev) => ({
+            ...prev,
+            text: prev.text + JSON.stringify(value),
+          }));
+        },
       });
     } catch (e) {
       if (e instanceof Error) {
@@ -79,6 +100,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {
     enableOnFormTags: ["input", "textarea"],
+    enableOnContentEditable: true,
   });
 
   const handleModelChange = useCallback(
@@ -114,6 +136,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
           control={control}
         />
         <ParamsPopover />
+        <ToolsDialog />
         <Button disabled={isLoading} onClick={handleSubmit(submit)} className="ml-auto h-8 w-fit px-2">
           {isLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PlayIcon className="w-4 h-4 mr-1" />}
           <span className="mr-2">Run</span>
@@ -126,7 +149,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
         </ResizablePanel>
         <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
         <ResizablePanel minSize={20} className="h-full flex flex-col px-4">
-          <Formatter className="rounded" value={structuredOutput} defaultMode="json" />
+          <CodeHighlighter className="rounded" value={structuredOutput} defaultMode="json" />
         </ResizablePanel>
       </ResizablePanelGroup>
     </>

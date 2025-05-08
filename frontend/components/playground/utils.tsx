@@ -1,3 +1,4 @@
+import { jsonSchema, tool } from "ai";
 import { ReactNode } from "react";
 
 import { Provider } from "@/components/playground/types";
@@ -89,4 +90,23 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
     }
   }
   return {};
+};
+
+export const parseTools = (tools?: string) => {
+  if (!tools) {
+    return {};
+  }
+
+  const parsed = JSON.parse(tools) as Record<string, { description?: string; parameters: object }>;
+
+  return Object.entries(parsed).reduce(
+    (acc, [toolName, toolItem]) => {
+      acc[toolName] = tool({
+        ...toolItem,
+        parameters: jsonSchema(toolItem.parameters),
+      });
+      return acc;
+    },
+    {} as Record<string, any>
+  );
 };

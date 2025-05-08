@@ -1,7 +1,6 @@
 "use client";
 import { debounce, isEmpty } from "lodash";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import postgres from "postgres";
 import { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import useSWR from "swr";
@@ -16,7 +15,6 @@ import { ProviderApiKey } from "@/lib/settings/types";
 import { swrFetcher } from "@/lib/utils";
 
 import Header from "../ui/header";
-import value = postgres.toPascal.value;
 
 const defaultMessages: Message[] = [
   {
@@ -40,6 +38,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
       temperature: 1,
       providerOptions: {},
     },
+    mode: "onChange",
   });
 
   const { reset, watch } = methods;
@@ -55,9 +54,13 @@ export default function Playground({ playground }: { playground: PlaygroundType 
       reset({
         model: playground.modelId as PlaygroundForm["model"],
         messages: isEmpty(messages) ? defaultMessages : messages,
-        maxTokens: 1024,
-        temperature: 1,
-        providerOptions: getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
+        maxTokens: playground.maxTokens,
+        temperature: playground.temperature,
+        providerOptions:
+          playground.providerOptions ??
+          getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
+        tools: JSON.stringify(playground.tools),
+        toolChoice: playground.toolChoice as PlaygroundForm["toolChoice"],
       });
     }
   };
@@ -71,6 +74,11 @@ export default function Playground({ playground }: { playground: PlaygroundType 
           body: JSON.stringify({
             promptMessages: remapMessages(form.messages),
             modelId: form.model,
+            tools: form.tools,
+            toolChoice: form.toolChoice,
+            maxTokens: form.maxTokens,
+            temperature: form.temperature,
+            providerOptions: form.providerOptions,
           }),
         });
       } catch (e) {

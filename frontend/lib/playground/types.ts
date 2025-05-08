@@ -1,6 +1,6 @@
 import { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
-import { DataContent } from "ai";
+import { DataContent, ToolChoice, ToolSet } from "ai";
 
 import { Provider } from "@/components/playground/types";
 import { playgrounds } from "@/lib/db/migrations/schema";
@@ -9,6 +9,8 @@ import { ChatMessage } from "../types";
 
 export type Playground = typeof playgrounds.$inferSelect & {
   promptMessages: ChatMessage[];
+  toolChoice: ToolChoice<any>;
+  tools: string;
 };
 
 export type PlaygroundInfo = Pick<Playground, "id" | "name" | "createdAt">;
@@ -40,7 +42,7 @@ export type ProviderOptions =
   | { google: GoogleGenerativeAIProviderOptions }
   | {};
 
-export interface PlaygroundForm {
+export interface PlaygroundForm<T extends ToolSet = ToolSet> {
   model: `${Provider}:${string}`;
   temperature?: number;
   maxTokens?: number;
@@ -48,6 +50,8 @@ export interface PlaygroundForm {
   topK?: number;
   providerOptions: ProviderOptions;
   messages: Message[];
+  tools?: string;
+  toolChoice?: ToolChoice<T>;
 }
 
 export const openAIThinkingModels = [

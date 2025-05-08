@@ -1,3 +1,4 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { SlidersHorizontal } from "lucide-react";
 import { Controller, useFormContext } from "react-hook-form";
 
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlaygroundForm } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
 
@@ -21,12 +23,24 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button disabled={!watch("model")} size="icon" variant="outline" className={cn(className, "w-8 h-8 self-end")}>
-          <SlidersHorizontal className="w-4 h-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-5">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              disabled={!watch("model")}
+              size="icon"
+              variant="outline"
+              className={cn(className, "w-8 h-8 self-end")}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent>Model Parameters</TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+      <PopoverContent align="start" className="w-80 p-4">
         <div className="space-y-6">
           <div className="space-y-2">
             <Controller
@@ -35,7 +49,7 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Max Output Tokens</span>
                     <Input
-                      onChange={onChange}
+                      onChange={(e) => onChange(Number(e.target.value))}
                       value={value ?? defaultMaxTokens}
                       type="number"
                       className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
@@ -62,7 +76,7 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Temperature</span>
                     <Input
-                      onChange={onChange}
+                      onChange={(e) => onChange(Number(e.target.value))}
                       value={value ?? defaultTemperature}
                       type="number"
                       className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
