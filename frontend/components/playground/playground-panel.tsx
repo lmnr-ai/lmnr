@@ -1,5 +1,5 @@
 "use client";
-import { processDataStream } from "ai";
+import { processDataStream, ToolCall, ToolResult } from "ai";
 import { isEmpty } from "lodash";
 import { Loader2, PlayIcon } from "lucide-react";
 import { useParams } from "next/navigation";
@@ -33,6 +33,13 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
   const [isLoading, setIsLoading] = useState(false);
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
+
+  const appendToolCalls = (value: ToolCall<any, any> | Partial<ToolResult<any, any, any>>) => {
+    setOutput((prev) => ({
+      ...prev,
+      toolCalls: [...prev.toolCalls, JSON.stringify(value)],
+    }));
+  };
 
   const submit: SubmitHandler<PlaygroundForm> = async (form) => {
     try {
@@ -74,24 +81,9 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
             reasoning: prev.reasoning + value,
           }));
         },
-        onToolCallPart: (value) => {
-          setOutput((prev) => ({
-            ...prev,
-            toolCalls: [...prev.toolCalls, JSON.stringify(value)],
-          }));
-        },
-        onToolResultPart: (value) => {
-          setOutput((prev) => ({
-            ...prev,
-            toolCalls: [...prev.toolCalls, JSON.stringify(value)],
-          }));
-        },
-        onToolCallDeltaPart: (value) => {
-          setOutput((prev) => ({
-            ...prev,
-            toolCalls: [...prev.toolCalls, JSON.stringify(value)],
-          }));
-        },
+        onToolCallPart: appendToolCalls,
+        onToolResultPart: appendToolCalls,
+        onToolCallDeltaPart: appendToolCalls,
       });
     } catch (e) {
       if (e instanceof Error) {
@@ -119,7 +111,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
   const structuredOutput = useMemo(() => {
     const sections = [
       output.reasoning && `<thinking>\n\n${output.reasoning}\n\n</thinking>`,
-      output.toolCalls?.length > 0 && `<tool_calls>\n\n${output.toolCalls}\n\n</tool_calls>`,
+      output.toolCalls?.length > 0 && `<tool_calls>\n\n${output.toolCalls.join("\n\n")}\n\n</tool_calls>`,
       output.text,
     ].filter(Boolean);
 
