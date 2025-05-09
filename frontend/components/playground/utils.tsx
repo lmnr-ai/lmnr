@@ -1,5 +1,5 @@
 import { jsonSchema, tool } from "ai";
-import { get } from "lodash";
+import { get, pickBy } from "lodash";
 import { ReactNode } from "react";
 
 import { Provider, providers } from "@/components/playground/types";
@@ -160,17 +160,25 @@ export const parseToolsFromLLMRequest = (span: Span) => {
     if (!name) break;
 
     const description = get(span, ["attributes", `llm.request.functions.${index}.description`]) as string | undefined;
-    const parametersStr = get(span, ["attributes", `llm.request.functions.${index}.parameters`]) as string | undefined;
 
-    if (parametersStr) {
+    // Try to get parameters from both possible locations
+    const parametersStr = get(span, ["attributes", `llm.request.functions.${index}.parameters`]) as string | undefined;
+    const argumentsStr = get(span, ["attributes", `llm.request.functions.${index}.arguments`]) as string | undefined;
+
+    // Use whichever one is available
+    const paramsToParse = parametersStr || argumentsStr;
+
+    if (paramsToParse) {
       try {
-        const parameters = JSON.parse(parametersStr);
+        const parameters = JSON.parse(paramsToParse);
         functions.push({
           name,
           description,
           parameters,
         });
-      } catch (e) {}
+      } catch (e) {
+        console.error(`Failed to parse parameters for function ${name}:`, e);
+      }
     }
 
     index++;
@@ -193,32 +201,33 @@ export const parseToolsFromLLMRequest = (span: Span) => {
     : undefined;
 };
 
-export const getPlaygroundConfig = (span: Span): { tools?: string; toolChoice?: string; modelId: string } => {
+export const getPlaygroundConfig = (
+  span: Span
+): {
+  tools?: string;
+  toolChoice?: string;
+  modelId: string;
+  maxTokens?: number;
+  temperature?: number;
+} => {
   const provider = get(span, ["attributes", "gen_ai.system"]) as string | undefined;
   const model = get(span, ["attributes", "gen_ai.response.model"]) as string | undefined;
 
   const existingModels = providers.flatMap((p) => p.models).map((p) => p.name);
 
-  // Try both formats for tools
   const tools = get(span, ["attributes", "ai.prompt.tools"]);
   const parsedTools = tools ? parseToolsFromSpan(tools) : parseToolsFromLLMRequest(span);
 
   const toolChoice = get(span, ["attributes", "ai.prompt.toolChoice"]);
   const parsedToolChoice = parseToolChoiceFromSpan(toolChoice);
 
-  const result: { tools?: string; toolChoice?: string; modelId: string } = {
+  const result = {
     modelId: model && provider && existingModels.includes(model) ? model : "openai:gpt-4o-mini",
+    tools: parsedTools,
+    toolChoice: parsedToolChoice || (parsedTools ? "auto" : undefined),
+    maxTokens: get(span, ["attributes", "gen_ai.request.max_tokens"]) as number | undefined,
+    temperature: get(span, ["attributes", "gen_ai.request.temperature"]) as number | undefined,
   };
 
-  if (parsedTools) {
-    result.tools = parsedTools;
-  }
-
-  if (parsedToolChoice) {
-    result.toolChoice = parsedToolChoice;
-  } else if (parsedTools) {
-    result.toolChoice = "auto";
-  }
-
-  return result;
+  return pickBy(result, (value) => value !== undefined) as typeof result;
 };
