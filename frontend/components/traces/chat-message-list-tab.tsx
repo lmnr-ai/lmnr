@@ -112,7 +112,7 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
     count: messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 500,
-    overscan: 7,
+    overscan: 16,
     gap: 16,
   });
 

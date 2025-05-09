@@ -6,7 +6,7 @@ import { createGroq } from "@ai-sdk/groq";
 import { createMistral } from "@ai-sdk/mistral";
 import { createOpenAI } from "@ai-sdk/openai";
 
-import { Provider } from "@/lib/pipeline/types";
+import { Provider } from "@/components/playground/types";
 
 const providersInstanceMap = {
   openai: createOpenAI,
