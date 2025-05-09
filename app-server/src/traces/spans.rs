@@ -887,7 +887,7 @@ fn try_parse_ai_sdk_output(
     if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
         out_vals.push(serde_json::Value::String(s.clone()));
     } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
-        out_vals.push(serde_json::Value::String(s.clone()));
+        out_vals.push(serde_json::from_str::<serde_json::Value>(s).unwrap_or(serde_json::Value::String(s.clone())));
     } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.toolCalls") {
         if let Ok(tool_call_values) =
             serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
