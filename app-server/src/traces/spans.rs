@@ -912,9 +912,7 @@ fn parse_ai_sdk_tool_calls(tool_calls: Vec<HashMap<String, serde_json::Value>>) 
     tool_calls
         .iter()
         .map(|tool_call| {
-            let has_name = tool_call.get("toolName").is_some();
-            let has_id = tool_call.get("toolCallId").is_some();
-            if has_name && has_id {
+            if let Some(tool_name) = tool_call.get("toolName") {
                 let args_value = tool_call.get("args").cloned().unwrap_or_default();
                 let args = if let serde_json::Value::String(s) = &args_value {
                     serde_json::from_str::<HashMap<String, serde_json::Value>>(s).ok()
@@ -922,10 +920,7 @@ fn parse_ai_sdk_tool_calls(tool_calls: Vec<HashMap<String, serde_json::Value>>) 
                     serde_json::from_value::<HashMap<String, serde_json::Value>>(args_value).ok()
                 };
                 let parsed = ToolCall {
-                    name: tool_call
-                        .get("toolName")
-                        .map(json_value_to_string)
-                        .unwrap_or_default(),
+                    name: json_value_to_string(tool_name),
                     id: tool_call.get("toolCallId").map(json_value_to_string),
                     arguments: args.map(|args| serde_json::to_value(args).unwrap()),
                     content_block_type: tool_call
