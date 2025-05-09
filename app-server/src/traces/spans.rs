@@ -479,24 +479,8 @@ impl Span {
                     span.input = Some(json!(input_messages));
                 }
 
-                if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
-                    span.output = Some(serde_json::Value::String(s.clone()));
-                } else if let Some(serde_json::Value::String(s)) =
-                    attributes.get("ai.response.object")
-                {
-                    span.output = Some(
-                        serde_json::from_str::<Value>(s)
-                            .unwrap_or(serde_json::Value::String(s.clone())),
-                    );
-                } else if let Some(serde_json::Value::String(s)) =
-                    attributes.get("ai.response.toolCalls")
-                {
-                    if let Ok(tool_call_values) =
-                        serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
-                    {
-                        let tool_calls = parse_ai_sdk_tool_calls(tool_call_values);
-                        span.output = Some(serde_json::Value::Array(tool_calls));
-                    }
+                if let Some(output) = try_parse_ai_sdk_output(&attributes) {
+                    span.output = Some(output);
                 }
             }
         }
@@ -508,23 +492,11 @@ impl Span {
             span.input = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
-        }
-        if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
-            span.output = Some(
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
-            );
-        } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
-            span.output = Some(
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
-            );
-        } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.toolCalls") {
-            if let Ok(tool_call_values) =
-                serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
-            {
-                let tool_calls = parse_ai_sdk_tool_calls(tool_call_values);
-                span.output = Some(serde_json::Value::Array(tool_calls));
+            if let Some(output) = try_parse_ai_sdk_output(&attributes) {
+                span.output = Some(output);
             }
         }
+
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
         // Take their values if input/output are not already set.
         if let Some(input) = attributes.get("traceloop.entity.input") {
@@ -908,13 +880,36 @@ fn output_message_from_completion_content(
     }
 }
 
+fn try_parse_ai_sdk_output(
+    attributes: &serde_json::Map<String, serde_json::Value>,
+) -> Option<serde_json::Value> {
+    let mut out_vals: Vec<serde_json::Value> = Vec::new();
+    if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
+        out_vals.push(serde_json::Value::String(s.clone()));
+    } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
+        out_vals.push(serde_json::from_str::<serde_json::Value>(s).unwrap_or(serde_json::Value::String(s.clone())));
+    } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.toolCalls") {
+        if let Ok(tool_call_values) =
+            serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
+        {
+            out_vals.push(serde_json::Value::Array(parse_ai_sdk_tool_calls(
+                tool_call_values,
+            )));
+        }
+    }
+
+    if out_vals.is_empty() {
+        None
+    } else {
+        Some(serde_json::Value::Array(out_vals))
+    }
+}
+
 fn parse_ai_sdk_tool_calls(tool_calls: Vec<HashMap<String, serde_json::Value>>) -> Vec<Value> {
     tool_calls
         .iter()
         .map(|tool_call| {
-            let has_name = tool_call.get("toolName").is_some();
-            let has_id = tool_call.get("toolCallId").is_some();
-            if has_name && has_id {
+            if let Some(tool_name) = tool_call.get("toolName") {
                 let args_value = tool_call.get("args").cloned().unwrap_or_default();
                 let args = if let serde_json::Value::String(s) = &args_value {
                     serde_json::from_str::<HashMap<String, serde_json::Value>>(s).ok()
@@ -922,10 +917,7 @@ fn parse_ai_sdk_tool_calls(tool_calls: Vec<HashMap<String, serde_json::Value>>) 
                     serde_json::from_value::<HashMap<String, serde_json::Value>>(args_value).ok()
                 };
                 let parsed = ToolCall {
-                    name: tool_call
-                        .get("toolName")
-                        .map(json_value_to_string)
-                        .unwrap_or_default(),
+                    name: json_value_to_string(tool_name),
                     id: tool_call.get("toolCallId").map(json_value_to_string),
                     arguments: args.map(|args| serde_json::to_value(args).unwrap()),
                     content_block_type: tool_call
