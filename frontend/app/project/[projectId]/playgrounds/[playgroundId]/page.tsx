@@ -1,13 +1,13 @@
 import { and, eq } from "drizzle-orm";
-import { get } from "lodash";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import Playground from "@/components/playground/playground";
-import { parseToolsFromSpan } from "@/components/playground/utils";
+import { getPlaygroundConfig } from "@/components/playground/utils";
 import { db } from "@/lib/db/drizzle";
 import { playgrounds, spans } from "@/lib/db/migrations/schema";
 import { Playground as PlaygroundType } from "@/lib/playground/types";
+import { Span } from "@/lib/traces/types";
 
 export const metadata: Metadata = {
   title: "Playground",
@@ -27,19 +27,18 @@ export default async function PlaygroundPage(props: {
     const spanId = searchParams?.spanId;
     try {
       if (spanId) {
-        const span = await db.query.spans.findFirst({
+        const span = (await db.query.spans.findFirst({
           where: and(eq(spans.spanId, spanId), eq(spans.projectId, params.projectId)),
-        });
+        })) as Span | undefined;
 
         if (span) {
           const parsedSpanId = span.spanId.replace(/[0-]+/g, "");
-          const tools = get(span, ["attributes", "ai.prompt.tools"]);
-          const parsedTools = parseToolsFromSpan(tools);
 
+          const config = getPlaygroundConfig(span);
           const result = await db
             .insert(playgrounds)
             .values({
-              tools: parsedTools,
+              ...config,
               projectId: params.projectId,
               name: `${span.name} - ${parsedSpanId}`,
               promptMessages: span.input,

@@ -1,7 +1,8 @@
 import { jsonSchema, tool } from "ai";
+import { get } from "lodash";
 import { ReactNode } from "react";
 
-import { Provider } from "@/components/playground/types";
+import { Provider, providers } from "@/components/playground/types";
 import {
   IconAmazonBedrock,
   IconAnthropic,
@@ -19,6 +20,7 @@ import {
   openAIThinkingModels,
   ProviderOptions,
 } from "@/lib/playground/types";
+import { Span } from "@/lib/traces/types";
 
 export const providerIconMap: Record<Provider, ReactNode> = {
   openai: <IconOpenAI />,
@@ -113,10 +115,10 @@ export const parseTools = (tools?: string) => {
 
 export const parseToolsFromSpan = (
   tools?: { name: string; type: string; description?: string; parameters: Record<string, any> }[]
-): string =>
-  JSON.stringify(
-    tools
-      ? tools.reduce(
+) =>
+  tools
+    ? JSON.stringify(
+      tools.reduce(
         (acc, tool) => ({
           ...acc,
           [tool.name]: {
@@ -126,5 +128,97 @@ export const parseToolsFromSpan = (
         }),
         {}
       )
-      : ""
-  );
+    )
+    : undefined;
+
+export const parseToolChoiceFromSpan = (toolChoice?: string) => {
+  if (!toolChoice) {
+    return undefined;
+  }
+
+  try {
+    const parsedToolChoice = JSON.parse(toolChoice) as
+      | { type: "auto" | "none" | "required" }
+      | { type: "function"; function: { name: string } };
+    if ("function" in parsedToolChoice) {
+      return JSON.stringify({ type: "tool", toolName: parsedToolChoice?.function?.name });
+    }
+
+    return parsedToolChoice.type;
+  } catch (e) {
+    return undefined;
+  }
+};
+
+export const parseToolsFromLLMRequest = (span: Span) => {
+  const functions: { name: string; description?: string; parameters: Record<string, any> }[] = [];
+  let index = 0;
+
+  // Keep checking for functions until we don't find one
+  while (true) {
+    const name = get(span, ["attributes", `llm.request.functions.${index}.name`]) as string | undefined;
+    if (!name) break;
+
+    const description = get(span, ["attributes", `llm.request.functions.${index}.description`]) as string | undefined;
+    const parametersStr = get(span, ["attributes", `llm.request.functions.${index}.parameters`]) as string | undefined;
+
+    if (parametersStr) {
+      try {
+        const parameters = JSON.parse(parametersStr);
+        functions.push({
+          name,
+          description,
+          parameters,
+        });
+      } catch (e) {}
+    }
+
+    index++;
+  }
+
+  // If we found any functions, format them the same way as parseToolsFromSpan
+  return functions.length > 0
+    ? JSON.stringify(
+      functions.reduce(
+        (acc, tool) => ({
+          ...acc,
+          [tool.name]: {
+            description: tool.description || "",
+            parameters: tool.parameters,
+          },
+        }),
+        {}
+      )
+    )
+    : undefined;
+};
+
+export const getPlaygroundConfig = (span: Span): { tools?: string; toolChoice?: string; modelId: string } => {
+  const provider = get(span, ["attributes", "gen_ai.system"]) as string | undefined;
+  const model = get(span, ["attributes", "gen_ai.response.model"]) as string | undefined;
+
+  const existingModels = providers.flatMap((p) => p.models).map((p) => p.name);
+
+  // Try both formats for tools
+  const tools = get(span, ["attributes", "ai.prompt.tools"]);
+  const parsedTools = tools ? parseToolsFromSpan(tools) : parseToolsFromLLMRequest(span);
+
+  const toolChoice = get(span, ["attributes", "ai.prompt.toolChoice"]);
+  const parsedToolChoice = parseToolChoiceFromSpan(toolChoice);
+
+  const result: { tools?: string; toolChoice?: string; modelId: string } = {
+    modelId: model && provider && existingModels.includes(model) ? model : "openai:gpt-4o-mini",
+  };
+
+  if (parsedTools) {
+    result.tools = parsedTools;
+  }
+
+  if (parsedToolChoice) {
+    result.toolChoice = parsedToolChoice;
+  } else if (parsedTools) {
+    result.toolChoice = "auto";
+  }
+
+  return result;
+};
