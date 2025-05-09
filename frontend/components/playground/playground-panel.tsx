@@ -25,7 +25,11 @@ import { ProviderApiKey } from "@/lib/settings/types";
 export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: ProviderApiKey[] }) {
   const params = useParams();
   const { toast } = useToast();
-  const [output, setOutput] = useState<{ text: string; reasoning: string }>({ text: "", reasoning: "" });
+  const [output, setOutput] = useState<{ text: string; reasoning: string; toolCalls: string[] }>({
+    text: "",
+    reasoning: "",
+    toolCalls: [],
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
@@ -33,7 +37,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
   const submit: SubmitHandler<PlaygroundForm> = async (form) => {
     try {
       setIsLoading(true);
-      setOutput({ text: "", reasoning: "" });
+      setOutput({ text: "", reasoning: "", toolCalls: [] });
 
       const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
         method: "POST",
@@ -73,19 +77,19 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
         onToolCallPart: (value) => {
           setOutput((prev) => ({
             ...prev,
-            text: prev.text + JSON.stringify(value),
+            toolCalls: [...prev.toolCalls, JSON.stringify(value)],
           }));
         },
         onToolResultPart: (value) => {
           setOutput((prev) => ({
             ...prev,
-            text: prev.text + JSON.stringify(value),
+            toolCalls: [...prev.toolCalls, JSON.stringify(value)],
           }));
         },
         onToolCallDeltaPart: (value) => {
           setOutput((prev) => ({
             ...prev,
-            text: prev.text + JSON.stringify(value),
+            toolCalls: [...prev.toolCalls, JSON.stringify(value)],
           }));
         },
       });
@@ -112,10 +116,15 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
     [setValue]
   );
 
-  const structuredOutput = useMemo(
-    () => (output.reasoning ? `<thinking>\n\n${output.reasoning}\n\n</thinking> \n\n ${output.text}` : output.text),
-    [output]
-  );
+  const structuredOutput = useMemo(() => {
+    const sections = [
+      output.reasoning && `<thinking>\n\n${output.reasoning}\n\n</thinking>`,
+      output.toolCalls?.length > 0 && `<tool_calls>\n\n${output.toolCalls}\n\n</tool_calls>`,
+      output.text,
+    ].filter(Boolean);
+
+    return sections.join("\n\n");
+  }, [output]);
 
   if (isEmpty(apiKeys)) {
     return (
