@@ -141,10 +141,10 @@ export const parseToolChoiceFromSpan = (toolChoice?: string) => {
       | { type: "auto" | "none" | "required" }
       | { type: "function"; function: { name: string } };
     if ("function" in parsedToolChoice) {
-      return JSON.stringify({ type: "tool", toolName: parsedToolChoice?.function?.name });
+      return JSON.stringify({ type: "tool", toolName: parsedToolChoice.function.name });
     }
 
-    return parsedToolChoice.type;
+    return JSON.stringify(parsedToolChoice.type);
   } catch (e) {
     return undefined;
   }
