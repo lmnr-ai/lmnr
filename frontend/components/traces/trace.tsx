@@ -6,7 +6,7 @@ import React, { useMemo, useRef } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
-import TraceView, { TraceViewHandle } from "@/components/traces/trace-view";
+import TraceView, { TraceViewHandle } from "@/components/traces/trace-view/trace-view";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header";
 import { Trace as TraceType } from "@/lib/traces/types";

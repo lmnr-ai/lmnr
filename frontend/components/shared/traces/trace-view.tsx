@@ -18,6 +18,8 @@ import Timeline from "@/components/traces/timeline";
 import { Button } from "@/components/ui/button";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -105,16 +107,17 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
     if (!traceTreePanel.current) {
       return;
     }
-    const newTraceTreePanelWidth = traceTreePanel.current.getBoundingClientRect().width;
 
-    // if no span is selected, timeline should take full width
-    if (!selectedSpan) {
-      setTimelineWidth(containerWidth);
-    } else {
-      // if a span is selected, waterfall is hidden, so timeline should take the width of the trace tree panel
-      setTimelineWidth(newTraceTreePanelWidth + 1);
-    }
-  }, [containerWidth, selectedSpan, traceTreePanel.current, collapsedSpans]);
+    requestAnimationFrame(() => {
+      const newTraceTreePanelWidth = traceTreePanel.current?.getBoundingClientRect().width || 0;
+
+      if (!selectedSpan) {
+        setTimelineWidth(containerWidth);
+      } else {
+        setTimelineWidth(newTraceTreePanelWidth + 1);
+      }
+    });
+  }, [containerWidth, selectedSpan]);
 
   const [treeViewWidth, setTreeViewWidth] = useState(() => {
     try {
@@ -135,6 +138,12 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       }
     } catch (e) {}
   }, [treeViewWidth]);
+
+  useEffect(() => {
+    if (trace.hasBrowserSession) {
+      setShowBrowserSession(true);
+    }
+  }, []);
 
   const maxY = useRef(0);
 
@@ -303,6 +312,23 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
 
   const items = virtualizer.getVirtualItems();
 
+  const [isReady, setIsReady] = useState(false);
+
+  // Add this useEffect to control when the component is "ready"
+  useEffect(() => {
+    // This will run after the initial render
+    if (
+      spans.length > 0 &&
+      topLevelSpans.length > 0 &&
+      containerWidth > 0 &&
+      containerHeight > 0 &&
+      !isEmpty(treeElements)
+    ) {
+      // Only set ready when we have all the necessary data and measurements
+      setIsReady(true);
+    }
+  }, [spans.length, topLevelSpans.length, containerWidth, containerHeight, treeElements]);
+
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
       <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
@@ -341,38 +367,44 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
 
         {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
       </div>
-      <div className="flex-grow flex">
-        {spans.length > 0 && (
-          <ResizablePanelGroup direction="vertical">
-            <ResizablePanel>
-              <div className="flex h-full w-full relative" ref={container}>
-                <div
-                  ref={scrollRef}
-                  className="overflow-y-auto overflow-x-hidden flex-grow"
-                  style={{
-                    width: timelineWidth,
-                    height: containerHeight,
-                  }}
-                >
-                  <table className="w-full h-full">
-                    <tbody className="w-full">
-                      <tr
-                        className="flex"
-                        style={{
-                          minHeight: containerHeight,
-                        }}
-                      >
-                        <td
-                          className={cn("p-0 left-0 bg-background flex-none", {
-                            "sticky z-50": !selectedSpan,
-                          })}
-                          style={{
-                            width: treeViewWidth,
-                            maxWidth: treeViewWidth,
-                            position: "relative",
-                          }}
-                        >
-                          <div className="flex flex-col pb-4" ref={traceTreePanel}>
+      <ResizablePanelGroup direction="vertical">
+        <ResizablePanel>
+          <div className="flex h-full w-full relative" ref={container}>
+            <ScrollArea
+              ref={scrollRef}
+              className="overflow-y-auto overflow-x-hidden flex-grow"
+              style={{
+                width: timelineWidth || "100%",
+                height: containerHeight || "100%",
+              }}
+            >
+              <table className="w-full h-full">
+                <tbody className="w-full">
+                  <tr
+                    className="flex"
+                    style={{
+                      minHeight: containerHeight,
+                    }}
+                  >
+                    <td
+                      className={cn("p-0 left-0 bg-background flex-none", {
+                        "sticky z-50": !selectedSpan,
+                      })}
+                      style={{
+                        width: treeViewWidth,
+                        maxWidth: treeViewWidth,
+                        position: "relative",
+                      }}
+                    >
+                      <div className="flex flex-col pb-4" ref={traceTreePanel}>
+                        {!isReady ? (
+                          <div className="w-full p-4 h-full flex flex-col gap-y-2">
+                            <Skeleton className="h-8 w-full" />
+                            <Skeleton className="h-8 w-full" />
+                            <Skeleton className="h-8 w-full" />
+                          </div>
+                        ) : (
+                          <>
                             <StatsShields
                               className="px-2 h-10 sticky top-0 border-r bg-background z-50 border-b"
                               startTime={trace.startTime}
@@ -424,62 +456,74 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                                 </span>
                               )}
                             </div>
-                          </div>
-                          <div
-                            className="absolute top-0 right-0 h-full w-px hover:w-1 bg-border z-10 cursor-col-resize hover:bg-blue-400 transition-colors"
-                            onMouseDown={handleResizeTreeView}
+                          </>
+                        )}
+                      </div>
+                      <div
+                        className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
+                        onMouseDown={handleResizeTreeView}
+                      >
+                        <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+                      </div>
+                    </td>
+                    {!isReady ? (
+                      <td className="flex flex-grow w-full p-0 relative">
+                        <div className="w-full p-4 h-full flex flex-col gap-y-2">
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                        </div>
+                      </td>
+                    ) : (
+                      !selectedSpan && (
+                        <td className="flex flex-grow w-full p-0 relative">
+                          <Timeline
+                            scrollRef={scrollRef}
+                            containerHeight={containerHeight}
+                            spans={spans}
+                            childSpans={childSpans}
+                            collapsedSpans={collapsedSpans}
+                            browserSessionTime={browserSessionTime}
                           />
                         </td>
-                        {!selectedSpan && (
-                          <td className="flex flex-grow w-full p-0 relative">
-                            <Timeline
-                              scrollRef={scrollRef}
-                              containerHeight={containerHeight}
-                              spans={spans}
-                              childSpans={childSpans}
-                              collapsedSpans={collapsedSpans}
-                              browserSessionTime={browserSessionTime}
-                            />
-                          </td>
-                        )}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                {selectedSpan && (
-                  <div style={{ width: containerWidth - timelineWidth }}>
-                    <SpanView key={selectedSpan.spanId} span={selectedSpan} traceId={trace.id} />
-                  </div>
-                )}
+                      )
+                    )}
+                  </tr>
+                </tbody>
+              </table>
+            </ScrollArea>
+            {isReady && selectedSpan && (
+              <div style={{ width: containerWidth - timelineWidth || "min-intrinsic" }}>
+                <SpanView key={selectedSpan.spanId} span={selectedSpan} traceId={trace.id} />
               </div>
-            </ResizablePanel>
-            {showBrowserSession && <ResizableHandle withHandle />}
-            <ResizablePanel
-              style={{
-                display: showBrowserSession ? "block" : "none",
-              }}
-            >
-              <SessionPlayer
-                ref={browserSessionRef}
-                hasBrowserSession={trace.hasBrowserSession}
-                traceId={trace.id}
-                onTimelineChange={(time) => {
-                  setBrowserSessionTime(time);
+            )}
+          </div>
+        </ResizablePanel>
+        {isReady && showBrowserSession && <ResizableHandle withHandle />}
+        <ResizablePanel
+          style={{
+            display: showBrowserSession ? "block" : "none",
+          }}
+        >
+          <SessionPlayer
+            ref={browserSessionRef}
+            hasBrowserSession={trace.hasBrowserSession}
+            traceId={trace.id}
+            onTimelineChange={(time) => {
+              setBrowserSessionTime(time);
 
-                  const activeSpans = spans.filter((span: Span) => {
-                    const spanStartTime = new Date(span.startTime).getTime();
-                    const spanEndTime = new Date(span.endTime).getTime();
+              const activeSpans = spans.filter((span: Span) => {
+                const spanStartTime = new Date(span.startTime).getTime();
+                const spanEndTime = new Date(span.endTime).getTime();
 
-                    return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
-                  });
+                return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
+              });
 
-                  setActiveSpans(activeSpans.map((span) => span.spanId));
-                }}
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        )}
-      </div>
+              setActiveSpans(activeSpans.map((span) => span.spanId));
+            }}
+          />
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }

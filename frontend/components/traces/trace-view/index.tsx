@@ -1,29 +1,27 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty } from "lodash";
-import { ChartNoAxesGantt, ChevronsRight, Disc, Expand, Search } from "lucide-react";
-import Link from "next/link";
+import { Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { ReactNode, Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import SearchSpansInput from "@/components/traces/search-spans-input";
-import ShareTraceButton from "@/components/traces/share-trace-button";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import Header from "@/components/traces/trace-view/header";
+import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Span, SpanType, Trace } from "@/lib/traces/types";
+import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { Button } from "../ui/button";
-import MonoWithCopy from "../ui/mono-with-copy";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
-import { AgentSessionButton } from "./agent-session-button";
-import SessionPlayer, { SessionPlayerHandle } from "./session-player";
-import { SpanCard } from "./span-card";
-import { SpanView } from "./span-view";
-import StatsShields from "./stats-shields";
-import Timeline from "./timeline";
+import { Button } from "../../ui/button";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
+import SessionPlayer, { SessionPlayerHandle } from "../session-player";
+import { SpanCard } from "../span-card";
+import { SpanView } from "../span-view";
+import StatsShields from "../stats-shields";
+import Timeline from "../timeline";
 
 export interface TraceViewHandle {
   toggleBrowserSession: () => void;
@@ -45,7 +43,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const { projectId } = useProjectContext();
   const { toast } = useToast();
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSpansLoading, setIsSpansLoading] = useState(false);
   const [isTraceLoading, setIsTraceLoading] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   // containerHeight refers to the height of the trace view container
@@ -61,7 +59,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const [trace, setTrace] = useState<Trace | null>(null);
 
   const [spans, setSpans] = useState<Span[]>([]);
-  const spansRef = useRef<Span[]>([]);
 
   useImperativeHandle(
     ref,
@@ -78,10 +75,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     }),
     [searchParams, pathName, router]
   );
-  // Keep ref updated
-  useEffect(() => {
-    spansRef.current = spans;
-  }, [spans]);
 
   const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({});
   const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
@@ -158,7 +151,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const fetchSpans = useCallback(
     async (search: string, searchIn: string[]) => {
       try {
-        setIsLoading(true);
+        setIsSpansLoading(true);
         const params = new URLSearchParams();
         if (search) params.set("search", search);
         if (searchIn && searchIn.length > 0) {
@@ -188,11 +181,47 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         }
       } catch (e) {
       } finally {
-        setIsLoading(false);
+        setIsSpansLoading(false);
       }
     },
     [projectId, traceId, setSpans, setSelectedSpan, searchParams, router, pathName]
   );
+
+  useEffect(() => {
+    const search = searchParams.get("search") || "";
+    const searchIn = searchParams.getAll("searchIn");
+
+    fetchSpans(search, searchIn);
+
+    return () => {
+      setTrace(null);
+      setSpans([]);
+      setShowBrowserSession(false);
+    };
+  }, [traceId, projectId, router]);
+
+  useEffect(() => {
+    const childSpans = {} as { [key: string]: Span[] };
+
+    const topLevelSpans = spans.filter((span: Span) => !span.parentSpanId);
+
+    for (const span of spans) {
+      if (span.parentSpanId) {
+        if (!childSpans[span.parentSpanId]) {
+          childSpans[span.parentSpanId] = [];
+        }
+        childSpans[span.parentSpanId].push(span);
+      }
+    }
+
+    // Sort child spans for each parent by start time
+    for (const parentId in childSpans) {
+      childSpans[parentId].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    }
+
+    setChildSpans(childSpans);
+    setTopLevelSpans(topLevelSpans);
+  }, [spans]);
 
   const handleClose = useCallback(() => {
     const params = new URLSearchParams(searchParams);
@@ -200,13 +229,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     router.push(`${pathName}?${params.toString()}`);
     onClose();
   }, [onClose, pathName, router, searchParams]);
-
-  const handleShowTimeline = useCallback(() => {
-    setSelectedSpan(null);
-    const params = new URLSearchParams(searchParams);
-    params.delete("spanId");
-    router.push(`${pathName}?${searchParams.toString()}`);
-  }, [pathName, router, searchParams]);
 
   const handleTimelineChange = useCallback(
     (time: number) => {
@@ -390,7 +412,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) { }
+    } catch (e) {}
   }, [treeViewWidth]);
 
   const maxY = useRef(0);
@@ -560,307 +582,180 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
   const items = virtualizer.getVirtualItems();
 
+  const isLoading = !trace || spans?.length === 0 || isSpansLoading || isTraceLoading;
+
   return (
     <div className="flex flex-col h-full w-full overflow-clip">
-      {!fullScreen && (
-        <div className="h-12 flex flex-none items-center border-b gap-x-2 px-4">
-          <Button variant={"ghost"} className="px-0" onClick={handleClose}>
-            <ChevronsRight />
-          </Button>
-          <Link
-            passHref
-            href={`/project/${projectId}/traces/${traceId}${selectedSpan ? `?spanId=${selectedSpan.spanId}` : ""}`}
-          >
-            <Button variant="ghost" className="px-0 mr-1">
-              <Expand className="w-4 h-4" size={16} />
-            </Button>
-          </Link>
-          <div className="flex items-center space-x-2 min-w-0">
-            <span>Trace</span>
-            <div className="min-w-0 flex-shrink">
-              <MonoWithCopy className="truncate text-secondary-foreground mt-0.5">{traceId}</MonoWithCopy>
-            </div>
-          </div>
-          <div className="flex gap-x-2 items-center ml-auto">
-            {selectedSpan && (
-              <Button variant={"secondary"} onClick={handleShowTimeline}>
-                <ChartNoAxesGantt size={16} className="mr-2" />
-                Show timeline
-              </Button>
-            )}
-            {trace?.hasBrowserSession && (
-              <Button
-                variant={"secondary"}
-                onClick={() => {
-                  setShowBrowserSession((s) => !s);
-                }}
-              >
-                <Disc size={16} className="mr-2" />
-                {showBrowserSession ? "Hide browser session" : "Show browser session"}
-              </Button>
-            )}
-
-            {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
-            {(trace || propsTrace) && (
-              <ShareTraceButton
-                refetch={handleFetchTrace}
-                trace={{ id: traceId, visibility: (propsTrace || trace)?.visibility }}
-                projectId={projectId}
-              />
-            )}
-          </div>
-        </div>
-      )}
-      <div className="flex-grow flex">
-        {(!trace || spans.length === 0) && (
-          <div className="w-full p-4 h-full flex flex-col gap-y-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-          </div>
-        )}
-        {trace && !isTraceLoading && spans?.length > 0 && (
-          <ResizablePanelGroup direction="vertical">
-            <ResizablePanel>
-              <div className="flex h-full w-full relative" ref={container}>
-                <ScrollArea
-                  ref={scrollRef}
-                  className={cn("overflow-y-auto overflow-x-hidden flex-grow")}
-                  style={{
-                    width: timelineWidth,
-                    height: containerHeight,
-                  }}
-                >
-                  <table className="w-full h-full">
-                    <tbody className="w-full">
-                      <tr
-                        className="flex"
-                        style={{
-                          minHeight: containerHeight,
-                        }}
-                      >
-                        <td
-                          className={cn("p-0 left-0 bg-background flex-none", {
-                            "sticky z-50": !selectedSpan,
-                          })}
-                          style={{
-                            width: treeViewWidth,
-                            maxWidth: treeViewWidth,
-                            position: "relative",
-                          }}
-                        >
-                          <div className="flex flex-col pb-4" ref={traceTreePanel}>
-                            {searchEnabled ? (
-                              <SearchSpansInput
-                                setSearchEnabled={setSearchEnabled}
-                                submit={fetchSpans}
-                                filterBoxClassName="top-10"
-                                className="rounded-none border-0 border-b ring-0"
-                              />
-                            ) : (
-                              <StatsShields
-                                className="px-2 h-10 border-r box-border sticky top-0 bg-background z-50 border-b w-full"
-                                startTime={trace.startTime}
-                                endTime={trace.endTime}
-                                totalTokenCount={trace.totalTokenCount}
-                                inputTokenCount={trace.inputTokenCount}
-                                outputTokenCount={trace.outputTokenCount}
-                                inputCost={trace.inputCost}
-                                outputCost={trace.outputCost}
-                                cost={trace.cost}
-                              >
-                                <Button
-                                  size="icon"
-                                  onClick={() => setSearchEnabled(true)}
-                                  variant="outline"
-                                  className="h-[22px] w-[22px]"
-                                >
-                                  <Search size={14} />
-                                </Button>
-                              </StatsShields>
-                            )}
-
-                            <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isLoading })}>
-                              {isLoading && (
-                                <>
-                                  <Skeleton className="h-8 w-full" />
-                                  <Skeleton className="h-8 w-full" />
-                                  <Skeleton className="h-8 w-full" />
-                                </>
-                              )}
-                              {!isLoading && (
-                                <div
-                                  className="relative"
-                                  style={{
-                                    height: virtualizer.getTotalSize(),
-                                    width: "100%",
-                                    position: "relative",
-                                  }}
-                                >
-                                  <div
-                                    className="pl-6"
-                                    style={{
-                                      position: "absolute",
-                                      top: 0,
-                                      left: 0,
-                                      width: "100%",
-                                      transform: `translateY(${items[0]?.start ?? 0}px)`,
-                                    }}
-                                  >
-                                    {items.map((virtualRow) => {
-                                      const element = treeElements[virtualRow.index];
-                                      return (
-                                        <div
-                                          key={virtualRow.key}
-                                          ref={virtualizer.measureElement}
-                                          data-index={virtualRow.index}
-                                        >
-                                          {element}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                              {!isLoading && isEmpty(topLevelSpans) && (
-                                <span className="text-base text-secondary-foreground mx-auto mt-4">
-                                  No spans found.
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div
-                            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-                            onMouseDown={handleResizeTreeView}
-                          >
-                            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
-                          </div>
-                        </td>
-                        {!selectedSpan && (
-                          <td className="flex flex-grow w-full p-0 relative">
-                            <Timeline
-                              scrollRef={scrollRef}
-                              containerHeight={containerHeight}
-                              spans={spans}
-                              childSpans={childSpans}
-                              collapsedSpans={collapsedSpans}
-                              browserSessionTime={browserSessionTime}
-                            />
-                          </td>
-                        )}
-                      </tr>
-                    </tbody>
-                  </table>
-                  <ScrollBar orientation="vertical" />
-                </ScrollArea>
-                {selectedSpan && (
-                  <div style={{ width: containerWidth - timelineWidth }}>
-                    <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
-                  </div>
-                )}
-              </div>
-            </ResizablePanel>
-            {showBrowserSession && <ResizableHandle className="z-50" withHandle />}
-            <ResizablePanel
+      <Header
+        selectedSpan={selectedSpan}
+        trace={trace}
+        fullScreen={fullScreen}
+        handleClose={handleClose}
+        setSelectedSpan={setSelectedSpan}
+        showBrowserSession={showBrowserSession}
+        setShowBrowserSession={setShowBrowserSession}
+        handleFetchTrace={handleFetchTrace}
+      />
+      <ResizablePanelGroup direction="vertical">
+        <ResizablePanel>
+          <div className="flex h-full w-full relative" ref={container}>
+            <ScrollArea
+              ref={scrollRef}
+              className={cn("overflow-y-auto overflow-x-hidden flex-grow")}
               style={{
-                display: showBrowserSession ? "block" : "none",
+                width: timelineWidth || "100%",
+                height: containerHeight || "100%",
               }}
             >
-              <SessionPlayer
-                ref={browserSessionRef}
-                hasBrowserSession={trace.hasBrowserSession}
-                traceId={traceId}
-                onTimelineChange={handleTimelineChange}
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        )}
-      </div>
+              {isLoading ? (
+                <div className="w-full p-4 h-full flex flex-col gap-y-2">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ) : (
+                <table className="w-full h-full">
+                  <tbody className="w-full">
+                    <tr
+                      className="flex"
+                      style={{
+                        minHeight: containerHeight,
+                      }}
+                    >
+                      <td
+                        className={cn("p-0 left-0 bg-background flex-none", {
+                          "sticky z-50": !selectedSpan,
+                        })}
+                        style={{
+                          width: treeViewWidth,
+                          maxWidth: treeViewWidth,
+                          position: "relative",
+                        }}
+                      >
+                        <div className="flex flex-col pb-4" ref={traceTreePanel}>
+                          {searchEnabled ? (
+                            <SearchSpansInput
+                              setSearchEnabled={setSearchEnabled}
+                              submit={fetchSpans}
+                              filterBoxClassName="top-10"
+                              className="rounded-none border-0 border-b ring-0"
+                            />
+                          ) : (
+                            <StatsShields
+                              className="px-2 h-10 border-r box-border sticky top-0 bg-background z-50 border-b w-full"
+                              startTime={trace.startTime}
+                              endTime={trace.endTime}
+                              totalTokenCount={trace.totalTokenCount}
+                              inputTokenCount={trace.inputTokenCount}
+                              outputTokenCount={trace.outputTokenCount}
+                              inputCost={trace.inputCost}
+                              outputCost={trace.outputCost}
+                              cost={trace.cost}
+                            >
+                              <Button
+                                size="icon"
+                                onClick={() => setSearchEnabled(true)}
+                                variant="outline"
+                                className="h-[22px] w-[22px]"
+                              >
+                                <Search size={14} />
+                              </Button>
+                            </StatsShields>
+                          )}
+
+                          <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isSpansLoading })}>
+                            {isSpansLoading ? (
+                              <>
+                                <Skeleton className="h-8 w-full" />
+                                <Skeleton className="h-8 w-full" />
+                                <Skeleton className="h-8 w-full" />
+                              </>
+                            ) : (
+                              <div
+                                className="relative"
+                                style={{
+                                  height: virtualizer.getTotalSize(),
+                                  width: "100%",
+                                  position: "relative",
+                                }}
+                              >
+                                <div
+                                  className="pl-6"
+                                  style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 0,
+                                    width: "100%",
+                                    transform: `translateY(${items[0]?.start ?? 0}px)`,
+                                  }}
+                                >
+                                  {items.map((virtualRow) => {
+                                    const element = treeElements[virtualRow.index];
+                                    return (
+                                      <div
+                                        key={virtualRow.key}
+                                        ref={virtualizer.measureElement}
+                                        data-index={virtualRow.index}
+                                      >
+                                        {element}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            {!isSpansLoading && isEmpty(topLevelSpans) && (
+                              <span className="text-base text-secondary-foreground mx-auto mt-4">No spans found.</span>
+                            )}
+                          </div>
+                        </div>
+                        <div
+                          className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
+                          onMouseDown={handleResizeTreeView}
+                        >
+                          <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+                        </div>
+                      </td>
+                      {!selectedSpan && (
+                        <td className="flex flex-grow w-full p-0 relative">
+                          <Timeline
+                            scrollRef={scrollRef}
+                            containerHeight={containerHeight}
+                            spans={spans}
+                            childSpans={childSpans}
+                            collapsedSpans={collapsedSpans}
+                            browserSessionTime={browserSessionTime}
+                          />
+                        </td>
+                      )}
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </ScrollArea>
+            {selectedSpan && (
+              <div style={{ width: containerWidth - timelineWidth }}>
+                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+              </div>
+            )}
+          </div>
+        </ResizablePanel>
+        {showBrowserSession && <ResizableHandle className="z-50" withHandle />}
+        <ResizablePanel
+          style={{
+            display: showBrowserSession ? "block" : "none",
+          }}
+        >
+          {!isLoading && (
+            <SessionPlayer
+              ref={browserSessionRef}
+              hasBrowserSession={trace.hasBrowserSession}
+              traceId={traceId}
+              onTimelineChange={handleTimelineChange}
+            />
+          )}
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
-
-const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
-  const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
-  const pendingSpans = new Map<string, Span>();
-
-  // First, add all existing pending spans to the pendingSpans map
-  for (const span of existingSpans) {
-    if (span.pending) {
-      pendingSpans.set(span.spanId, span);
-    }
-  }
-
-  for (const span of existingSpans) {
-    if (span.parentSpanId) {
-      const parentSpanIds = span.attributes["lmnr.span.ids_path"] as string[] | undefined;
-      const parentSpanNames = span.attributes["lmnr.span.path"] as string[] | undefined;
-
-      if (
-        parentSpanIds === undefined ||
-        parentSpanNames === undefined ||
-        parentSpanIds.length === 0 ||
-        parentSpanNames.length === 0 ||
-        parentSpanIds.length !== parentSpanNames.length
-      ) {
-        continue;
-      }
-
-      const startTime = new Date(span.startTime);
-      const endTime = new Date(span.endTime);
-      for (let i = 0; i < parentSpanIds.length; i++) {
-        const spanId = parentSpanIds[i];
-        const spanName = parentSpanNames[i];
-
-        // Skip if this span exists and is not pending
-        if (existingSpanIds.has(spanId) && !pendingSpans.has(spanId)) {
-          continue;
-        }
-
-        if (pendingSpans.has(spanId)) {
-          // Update the time range of the pending span to cover all its children
-          const existingStartTime = new Date(pendingSpans.get(spanId)!.startTime);
-          const existingEndTime = new Date(pendingSpans.get(spanId)!.endTime);
-          pendingSpans.set(spanId, {
-            ...pendingSpans.get(spanId)!,
-            startTime: (startTime < existingStartTime ? startTime : existingStartTime).toISOString(),
-            endTime: (endTime > existingEndTime ? endTime : existingEndTime).toISOString(),
-          });
-          continue;
-        }
-
-        const parentSpanId = i > 0 ? parentSpanIds[i - 1] : null;
-        const parentSpanName = i > 0 ? parentSpanNames[i - 1] : null;
-        const pendingSpan = {
-          spanId,
-          name: spanName,
-          parentSpanId,
-          parentSpanName,
-          startTime: new Date(span.startTime).toISOString(),
-          endTime: new Date(span.endTime).toISOString(),
-          attributes: {},
-          events: [],
-          logs: [],
-          spans: [],
-          traceId: span.traceId,
-          traceName: span.name,
-          input: null,
-          output: null,
-          inputPreview: null,
-          outputPreview: null,
-          spanType: SpanType.DEFAULT,
-          path: "",
-          inputUrl: null,
-          outputUrl: null,
-          pending: true,
-        } as Span;
-        pendingSpans.set(spanId, pendingSpan);
-      }
-    }
-  }
-
-  // Filter out existing spans that are pending (to avoid duplicates)
-  const nonPendingExistingSpans = existingSpans.filter((span) => !span.pending);
-
-  return [...nonPendingExistingSpans, ...pendingSpans.values()];
-};

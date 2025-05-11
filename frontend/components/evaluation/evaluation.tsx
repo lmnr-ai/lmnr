@@ -24,7 +24,7 @@ import {
 } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
-import TraceView from "../traces/trace-view";
+import TraceView from "../traces/trace-view/trace-view";
 import { Button } from "../ui/button";
 import { DataTable } from "../ui/datatable";
 import DownloadButton from "../ui/download-button";
