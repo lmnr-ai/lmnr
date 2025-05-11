@@ -1,9 +1,9 @@
 import "@/app/globals.css";
 
+import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
 
 import PostHogClient from "@/app/posthog";
 import ProjectNavbar from "@/components/project/project-navbar";
@@ -12,9 +12,9 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
 import { authOptions } from "@/lib/auth";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { db } from "@/lib/db/drizzle";
-import { projects, workspaces, workspaceUsage, subscriptionTiers } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers,workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { GetProjectResponse } from "@/lib/workspaces/types";
 
 async function getProjectDetails(projectId: string): Promise<GetProjectResponse> {
