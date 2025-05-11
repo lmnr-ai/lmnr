@@ -47,6 +47,8 @@ export type GetProjectResponse = {
   eventsThisMonth: number;
   eventsLimit: number;
   isFreeTier: boolean;
+  agentStepsThisMonth: number;
+  agentStepsLimit: number;
 };
 
 export interface ProjectStats {
