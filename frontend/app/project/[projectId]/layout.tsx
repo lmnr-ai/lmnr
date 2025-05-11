@@ -105,14 +105,13 @@ export default async function ProjectIdLayout(props: {
   const user = session.user;
 
   const project = await getProjectDetails(projectId);
-  console.log(project);
-  const showBanner = true;
-  // isFeatureEnabled(Feature.WORKSPACE) &&
-  // project.isFreeTier &&
-  // (
-  //   (project.spansLimit > 0 && project.spansThisMonth >= 0.8 * project.spansLimit) ||
-  //   (project.agentStepsLimit > 0 && project.agentStepsThisMonth >= 0.8 * project.agentStepsLimit)
-  // );
+  const showBanner =
+    isFeatureEnabled(Feature.WORKSPACE) &&
+    project.isFreeTier &&
+    (
+      (project.spansLimit > 0 && project.spansThisMonth >= 0.8 * project.spansLimit) ||
+      (project.agentStepsLimit > 0 && project.agentStepsThisMonth >= 0.8 * project.agentStepsLimit)
+    );
 
   const posthog = PostHogClient();
   posthog.identify({
