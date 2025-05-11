@@ -1,37 +1,37 @@
 use actix_web::{
+    App, HttpServer,
     middleware::{Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
-    App, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use agent_manager::{
-    agent_manager_grpc::agent_manager_service_client::AgentManagerServiceClient,
-    agent_manager_impl::AgentManagerImpl, channel::AgentManagerWorkers, AgentManager,
+    AgentManager, agent_manager_grpc::agent_manager_service_client::AgentManagerServiceClient,
+    agent_manager_impl::AgentManagerImpl, channel::AgentManagerWorkers,
 };
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
 use browser_events::process_browser_events;
-use features::{is_feature_enabled, Feature};
+use features::{Feature, is_feature_enabled};
 use lapin::{
+    Connection, ConnectionProperties, ExchangeKind,
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::FieldTable,
-    Connection, ConnectionProperties, ExchangeKind,
 };
 use machine_manager::{
-    machine_manager_service_client::MachineManagerServiceClient, MachineManager, MachineManagerImpl,
+    MachineManager, MachineManagerImpl, machine_manager_service_client::MachineManagerServiceClient,
 };
 use mq::MessageQueue;
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
-use storage::{mock::MockStorage, Storage};
+use storage::{Storage, mock::MockStorage};
 use tonic::transport::Server;
 use traces::{
-    consumer::process_queue_spans, grpc_service::ProcessTracesService, OBSERVATIONS_EXCHANGE,
-    OBSERVATIONS_QUEUE,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, consumer::process_queue_spans,
+    grpc_service::ProcessTracesService,
 };
 
-use cache::{in_memory::InMemoryCache, redis::RedisCache, Cache};
+use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use sodiumoxide;
 use std::{
     env,
@@ -443,8 +443,6 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             // auth on path projects/{project_id} is handled by middleware on Next.js
                             web::scope("/api/v1/projects/{project_id}")
-                                .service(routes::projects::get_project)
-                                .service(routes::projects::delete_project)
                                 .service(routes::api_keys::create_project_api_key)
                                 .service(routes::api_keys::get_api_keys_for_project)
                                 .service(routes::api_keys::revoke_project_api_key)

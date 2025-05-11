@@ -1,5 +1,6 @@
 import "@/app/globals.css";
 
+import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -11,9 +12,82 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
 import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db/drizzle";
+import { projects, subscriptionTiers,workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { fetcherJSON } from "@/lib/utils";
 import { GetProjectResponse } from "@/lib/workspaces/types";
+
+async function getProjectDetails(projectId: string): Promise<GetProjectResponse> {
+  const projectResult = await db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      workspaceId: projects.workspaceId,
+    })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  if (projectResult.length === 0) {
+    throw new Error("Project not found");
+  }
+  const project = projectResult[0];
+
+  const workspaceResult = await db
+    .select({
+      id: workspaces.id,
+      tierId: workspaces.tierId,
+    })
+    .from(workspaces)
+    .where(eq(workspaces.id, project.workspaceId))
+    .limit(1);
+
+  if (workspaceResult.length === 0) {
+    throw new Error("Workspace not found for project");
+  }
+  const workspace = workspaceResult[0];
+
+  const usageResult = await db
+    .select({
+      spanCountSinceReset: workspaceUsage.spanCountSinceReset,
+      stepCountSinceReset: workspaceUsage.stepCountSinceReset,
+    })
+    .from(workspaceUsage)
+    .where(eq(workspaceUsage.workspaceId, project.workspaceId))
+    .limit(1);
+
+  const usage = usageResult.length > 0 ? usageResult[0] : { spanCountSinceReset: 0, stepCountSinceReset: 0 };
+
+  const tierResult = await db
+    .select({
+      name: subscriptionTiers.name,
+      spansLimit: subscriptionTiers.spans,
+      stepsLimit: subscriptionTiers.steps,
+    })
+    .from(subscriptionTiers)
+    .where(eq(subscriptionTiers.id, workspace.tierId))
+    .limit(1);
+
+  if (tierResult.length === 0) {
+    throw new Error("Subscription tier not found for workspace");
+  }
+  const tier = tierResult[0];
+
+  const responseData: GetProjectResponse = {
+    id: project.id,
+    name: project.name,
+    workspaceId: project.workspaceId,
+    spansThisMonth: Number(usage.spanCountSinceReset),
+    spansLimit: Number(tier.spansLimit),
+    agentStepsThisMonth: Number(usage.stepCountSinceReset),
+    agentStepsLimit: Number(tier.stepsLimit),
+    isFreeTier: tier.name.toLowerCase().trim() === "free",
+    eventsThisMonth: 0,
+    eventsLimit: 0,
+  };
+
+  return responseData;
+}
 
 export default async function ProjectIdLayout(props: {
   children: React.ReactNode;
@@ -30,25 +104,20 @@ export default async function ProjectIdLayout(props: {
   }
   const user = session.user;
 
-  const projectResponse = await fetcherJSON(`/projects/${projectId}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${user.apiKey}`,
-    },
-  });
-
-  const project = projectResponse as GetProjectResponse;
-
+  const project = await getProjectDetails(projectId);
   const showBanner =
-    isFeatureEnabled(Feature.WORKSPACE) && project.isFreeTier && project.spansThisMonth >= 0.8 * project.spansLimit;
+    isFeatureEnabled(Feature.WORKSPACE) &&
+    project.isFreeTier &&
+    (
+      (project.spansLimit > 0 && project.spansThisMonth >= 0.8 * project.spansLimit) ||
+      (project.agentStepsLimit > 0 && project.agentStepsThisMonth >= 0.8 * project.agentStepsLimit)
+    );
 
   const posthog = PostHogClient();
   posthog.identify({
     distinctId: user.email ?? "",
   });
 
-  // getting the cookies for the sidebar state
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar:state") ? cookieStore.get("sidebar:state")?.value === "true" : true;
 
@@ -72,6 +141,8 @@ export default async function ProjectIdLayout(props: {
                   workspaceId={project.workspaceId}
                   spansThisMonth={project.spansThisMonth}
                   spansLimit={project.spansLimit}
+                  agentStepsThisMonth={project.agentStepsThisMonth}
+                  agentStepsLimit={project.agentStepsLimit}
                 />
               )}
               <div className="z-10 flex flex-col flex-grow overflow-hidden">{children}</div>
