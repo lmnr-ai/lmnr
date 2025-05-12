@@ -312,7 +312,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
 
   const items = virtualizer.getVirtualItems();
 
-  const [isReady, setIsReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Add this useEffect to control when the component is "ready"
   useEffect(() => {
@@ -325,7 +325,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       !isEmpty(treeElements)
     ) {
       // Only set ready when we have all the necessary data and measurements
-      setIsReady(true);
+      setIsLoading(false);
     }
   }, [spans.length, topLevelSpans.length, containerWidth, containerHeight, treeElements]);
 
@@ -372,7 +372,8 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
           <div className="flex h-full w-full relative" ref={container}>
             <ScrollArea
               ref={scrollRef}
-              className="overflow-y-auto overflow-x-hidden flex-grow"
+              asChild
+              className="overflow-y-auto overflow-x-hidden h-full flex-1"
               style={{
                 width: timelineWidth || "100%",
                 height: containerHeight || "100%",
@@ -381,7 +382,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
               <table className="w-full h-full">
                 <tbody className="w-full">
                   <tr
-                    className="flex"
+                    className="flex h-full"
                     style={{
                       minHeight: containerHeight,
                     }}
@@ -397,7 +398,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                       }}
                     >
                       <div className="flex flex-col pb-4" ref={traceTreePanel}>
-                        {!isReady ? (
+                        {isLoading ? (
                           <div className="w-full p-4 h-full flex flex-col gap-y-2">
                             <Skeleton className="h-8 w-full" />
                             <Skeleton className="h-8 w-full" />
@@ -466,8 +467,8 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                         <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
                       </div>
                     </td>
-                    {!isReady ? (
-                      <td className="flex flex-grow w-full p-0 relative">
+                    {isLoading ? (
+                      <td className="flex flex-grow h-full w-full p-0 relative">
                         <div className="w-full p-4 h-full flex flex-col gap-y-2">
                           <Skeleton className="h-8 w-full" />
                           <Skeleton className="h-8 w-full" />
@@ -492,14 +493,14 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                 </tbody>
               </table>
             </ScrollArea>
-            {isReady && selectedSpan && (
+            {!isLoading && selectedSpan && (
               <div style={{ width: containerWidth - timelineWidth || "min-intrinsic" }}>
                 <SpanView key={selectedSpan.spanId} span={selectedSpan} traceId={trace.id} />
               </div>
             )}
           </div>
         </ResizablePanel>
-        {isReady && showBrowserSession && <ResizableHandle withHandle />}
+        {!isLoading && showBrowserSession && <ResizableHandle withHandle />}
         <ResizablePanel
           style={{
             display: showBrowserSession ? "block" : "none",
