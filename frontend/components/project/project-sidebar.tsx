@@ -23,13 +23,13 @@ import { cn } from "@/lib/utils";
 
 import AvatarMenu from "../user/avatar-menu";
 
-interface ProjectNavBarProps {
+interface ProjectSidebarProps {
   workspaceId: string;
   projectId: string;
   isFreeTier: boolean;
 }
 
-export default function ProjectNavbar({ workspaceId, projectId, isFreeTier }: ProjectNavBarProps) {
+export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: ProjectSidebarProps) {
   const pathname = usePathname();
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useState<boolean>(false);
