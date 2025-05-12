@@ -4,16 +4,17 @@ import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
+import { ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
-import ProjectNavbar from "@/components/project/project-navbar";
+import ProjectSidebar from "@/components/project/project-sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers,workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { GetProjectResponse } from "@/lib/workspaces/types";
 
@@ -73,7 +74,7 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
   }
   const tier = tierResult[0];
 
-  const responseData: GetProjectResponse = {
+  return {
     id: project.id,
     name: project.name,
     workspaceId: project.workspaceId,
@@ -85,14 +86,9 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
     eventsThisMonth: 0,
     eventsLimit: 0,
   };
-
-  return responseData;
 }
 
-export default async function ProjectIdLayout(props: {
-  children: React.ReactNode;
-  params: Promise<{ projectId: string }>;
-}) {
+export default async function ProjectIdLayout(props: { children: ReactNode; params: Promise<{ projectId: string }> }) {
   const params = await props.params;
 
   const { children } = props;
@@ -108,10 +104,8 @@ export default async function ProjectIdLayout(props: {
   const showBanner =
     isFeatureEnabled(Feature.WORKSPACE) &&
     project.isFreeTier &&
-    (
-      (project.spansLimit > 0 && project.spansThisMonth >= 0.8 * project.spansLimit) ||
-      (project.agentStepsLimit > 0 && project.agentStepsThisMonth >= 0.8 * project.agentStepsLimit)
-    );
+    ((project.spansLimit > 0 && project.spansThisMonth >= 0.8 * project.spansLimit) ||
+      (project.agentStepsLimit > 0 && project.agentStepsThisMonth >= 0.8 * project.agentStepsLimit));
 
   const posthog = PostHogClient();
   posthog.identify({
@@ -130,12 +124,10 @@ export default async function ProjectIdLayout(props: {
       supabaseAccessToken={session.supabaseAccessToken}
     >
       <ProjectContextProvider projectId={project.id} projectName={project.name}>
-        <div className="flex flex-row max-w-full max-h-screen">
+        <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>
-            <div className="z-50 h-screen">
-              <ProjectNavbar workspaceId={project.workspaceId} isFreeTier={project.isFreeTier} projectId={projectId} />
-            </div>
-            <div className="flex flex-col flex-grow h-screen max-w-full flex-1">
+            <ProjectSidebar workspaceId={project.workspaceId} isFreeTier={project.isFreeTier} projectId={projectId} />
+            <SidebarInset className="overflow-hidden">
               {showBanner && (
                 <ProjectUsageBanner
                   workspaceId={project.workspaceId}
@@ -145,8 +137,8 @@ export default async function ProjectIdLayout(props: {
                   agentStepsLimit={project.agentStepsLimit}
                 />
               )}
-              <div className="z-10 flex flex-col flex-grow overflow-hidden">{children}</div>
-            </div>
+              {children}
+            </SidebarInset>
           </SidebarProvider>
         </div>
       </ProjectContextProvider>

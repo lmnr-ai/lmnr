@@ -1,5 +1,5 @@
 "use client";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, Row } from "@tanstack/react-table";
 import { isEmpty } from "lodash";
 import { ArrowRight, RefreshCcw, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -322,43 +322,20 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     }
   };
 
-  // const handleAddFilter = (column: string, value: string) => {
-  //   const newFilter = { column, operator: 'eq', value };
-  //   const existingFilterIndex = activeFilters.findIndex(
-  //     (filter) => filter.column === column && filter.value === value
-  //   );
-
-  //   let updatedFilters;
-  //   if (existingFilterIndex === -1) {
-
-  //     updatedFilters = [...activeFilters, newFilter];
-  //   } else {
-
-  //     updatedFilters = [...activeFilters];
-  //   }
-
-  //   setActiveFilters(updatedFilters);
-  //   updateUrlWithFilters(updatedFilters);
-  // };
-
-  const updateUrlWithFilters = (filters: DatatableFilter[]) => {
-    searchParams.delete("filter");
-    searchParams.delete("pageNumber");
-    searchParams.append("pageNumber", "0");
-    searchParams.append("filter", toFilterUrlParam(filters));
-    router.push(`${pathName}?${searchParams.toString()}`);
-  };
-
   const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
     setActiveFilters(newFilters);
   };
 
-  const handleRowClick = (row: Trace) => {
-    searchParams.set("traceId", row.id!);
-    searchParams.delete("spanId");
-    onRowClick?.(row.id!);
-    router.push(`${pathName}?${searchParams.toString()}`);
-  };
+  const handleRowClick = useCallback(
+    (row: Row<Trace>) => {
+      const params = new URLSearchParams(searchParams);
+      params.set("traceId", row.id);
+      params.delete("spanId");
+      router.push(`${pathName}?${params.toString()}`);
+      onRowClick?.(row.id);
+    },
+    [onRowClick, pathName, router, searchParams]
+  );
 
   useEffect(() => {
     setTraceId(searchParams.get("traceId") ?? null);
@@ -600,9 +577,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
       columns={columns}
       data={traces}
       getRowId={(trace) => trace.id}
-      onRowClick={(row) => {
-        handleRowClick(row.original);
-      }}
+      onRowClick={handleRowClick}
       paginated
       focusedRowId={traceId}
       manualPagination

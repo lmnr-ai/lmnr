@@ -169,11 +169,11 @@ export default function Timeline({
 
   return (
     <div className="flex flex-col h-full w-full relative" ref={ref}>
-      <div className="bg-background flex text-xs w-full border-b z-30 sticky top-0 h-10 px-4">
+      <div className="bg-background flex text-xs w-full border-b z-50 sticky top-0 h-10 px-4">
         <div className="flex w-full relative">
           {timeIntervals.map((interval, index) => (
             <div
-              className="border-l text-secondary-foreground pl-1 flex items-center min-w-12 relative z-0"
+              className="border-l text-secondary-foreground pl-1 truncate flex items-center min-w-12 relative z-0"
               style={{ width: "10%" }}
               key={index}
             >
