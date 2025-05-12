@@ -4,7 +4,7 @@ import { Book, Database, FlaskConical, LayoutGrid, Pen, PlayCircle, Rows4, Setti
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import smallLogo from "@/assets/logo/icon.svg";
 import fullLogo from "@/assets/logo/logo.svg";
@@ -32,7 +32,7 @@ interface ProjectSidebarProps {
 export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: ProjectSidebarProps) {
   const pathname = usePathname();
   const { open, openMobile } = useSidebar();
-  const [showStarCard, setShowStarCard] = useState<boolean>(false);
+  const [showStarCard, setShowStarCard] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -42,53 +42,58 @@ export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: P
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("showStarCard", JSON.stringify(showStarCard));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("showStarCard", JSON.stringify(showStarCard));
+    }
   }, [showStarCard]);
 
-  const allOptions = [
-    {
-      name: "dashboard",
-      href: `/project/${projectId}/dashboard`,
-      icon: LayoutGrid,
-      current: false,
-    },
-    {
-      name: "traces",
-      href: `/project/${projectId}/traces`,
-      icon: Rows4,
-      current: false,
-    },
-    {
-      name: "evaluations",
-      href: `/project/${projectId}/evaluations`,
-      icon: FlaskConical,
-      current: false,
-    },
-    {
-      name: "datasets",
-      href: `/project/${projectId}/datasets`,
-      icon: Database,
-      current: false,
-    },
-    {
-      name: "queues",
-      href: `/project/${projectId}/labeling-queues`,
-      icon: Pen,
-      current: false,
-    },
-    {
-      name: "playgrounds",
-      href: `/project/${projectId}/playgrounds`,
-      icon: PlayCircle,
-      current: false,
-    },
-    {
-      name: "settings",
-      href: `/project/${projectId}/settings`,
-      icon: Settings,
-      current: false,
-    },
-  ];
+  const allOptions = useMemo(
+    () => [
+      {
+        name: "dashboard",
+        href: `/project/${projectId}/dashboard`,
+        icon: LayoutGrid,
+        current: false,
+      },
+      {
+        name: "traces",
+        href: `/project/${projectId}/traces`,
+        icon: Rows4,
+        current: false,
+      },
+      {
+        name: "evaluations",
+        href: `/project/${projectId}/evaluations`,
+        icon: FlaskConical,
+        current: false,
+      },
+      {
+        name: "datasets",
+        href: `/project/${projectId}/datasets`,
+        icon: Database,
+        current: false,
+      },
+      {
+        name: "queues",
+        href: `/project/${projectId}/labeling-queues`,
+        icon: Pen,
+        current: false,
+      },
+      {
+        name: "playgrounds",
+        href: `/project/${projectId}/playgrounds`,
+        icon: PlayCircle,
+        current: false,
+      },
+      {
+        name: "settings",
+        href: `/project/${projectId}/settings`,
+        icon: Settings,
+        current: false,
+      },
+    ],
+    [projectId]
+  );
 
   return (
     <Sidebar className="border-r" collapsible="icon">
