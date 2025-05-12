@@ -585,7 +585,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const isLoading = !trace || spans?.length === 0 || isSpansLoading || isTraceLoading;
 
   return (
-    <div className="flex flex-col h-full w-full overflow-clip">
+    <div className="flex flex-col h-full w-full overflow-hidden">
       <Header
         selectedSpan={selectedSpan}
         trace={trace}
@@ -733,7 +733,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                 </table>
               )}
             </ScrollArea>
-            {selectedSpan && (
+            {selectedSpan && !isLoading && (
               <div style={{ width: containerWidth - timelineWidth }}>
                 <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
               </div>
