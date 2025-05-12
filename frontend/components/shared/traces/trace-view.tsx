@@ -119,17 +119,18 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
     });
   }, [containerWidth, selectedSpan]);
 
-  const [treeViewWidth, setTreeViewWidth] = useState(() => {
+  const [treeViewWidth, setTreeViewWidth] = useState(384);
+
+  useEffect(() => {
     try {
       if (typeof window !== "undefined") {
         const savedWidth = localStorage.getItem("trace-view:tree-view-width");
-        return savedWidth ? parseInt(savedWidth, 10) : 384;
+        if (savedWidth) {
+          setTreeViewWidth(parseInt(savedWidth, 10));
+        }
       }
-      return 384;
-    } catch (e) {
-      return 384;
-    }
-  });
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     try {
