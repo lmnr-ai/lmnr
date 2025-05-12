@@ -247,19 +247,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   );
 
   useEffect(() => {
-    const search = searchParams.get("search") || "";
-    const searchIn = searchParams.getAll("searchIn");
-
-    fetchSpans(search, searchIn);
-
-    return () => {
-      setTrace(null);
-      setSpans([]);
-      setShowBrowserSession(false);
-    };
-  }, [traceId, projectId, router]);
-
-  useEffect(() => {
     const selectedSpan = spans.find((span: Span) => span.spanId === searchParams.get("spanId"));
     if (selectedSpan) {
       setSelectedSpan(selectedSpan);
