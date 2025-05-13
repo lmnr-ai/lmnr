@@ -1,18 +1,18 @@
 use std::env;
 use std::sync::Arc;
 
-use actix_web::{post, web, HttpResponse};
+use actix_web::{HttpResponse, post, web};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::agent_manager::channel::AgentManagerWorkers;
 use crate::agent_manager::types::RunAgentResponseStreamChunk;
-use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
+use crate::agent_manager::worker::{RunAgentWorkerOptions, run_agent_worker};
 use crate::db;
 use crate::routes::types::ResponseResult;
 use crate::{
-    agent_manager::{types::ModelProvider, AgentManager},
+    agent_manager::{AgentManager, types::ModelProvider},
     db::DB,
 };
 
@@ -33,6 +33,9 @@ struct RunAgentRequest {
     #[serde(default)]
     /// If true, we start the agent from scratch; otherwise, we connect to the existing stream
     is_new_user_message: bool,
+
+    #[serde(default)]
+    start_url: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -70,16 +73,18 @@ pub async fn run_agent_manager(
             model_provider: request.model_provider,
             model: request.model,
             enable_thinking: request.enable_thinking,
+            start_url: request.start_url,
             agent_state: None,
             storage_state: None,
             timeout: None,
             cdp_url: None,
             max_steps: None,
             thinking_token_budget: None,
-            start_url: None,
             return_agent_state: true,
             return_storage_state: true,
             return_screenshots: false,
+            disable_give_control: false,
+            user_agent: None,
         };
         // Run agent worker
         let worker_channel_clone = worker_channel.clone();

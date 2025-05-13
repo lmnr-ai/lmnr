@@ -1,19 +1,19 @@
 use std::sync::Arc;
 
-use actix_web::{post, web, HttpResponse};
+use actix_web::{HttpResponse, post, web};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
+use crate::agent_manager::RunAgentParams;
 use crate::agent_manager::channel::AgentManagerWorkers;
 use crate::agent_manager::types::RunAgentResponseStreamChunk;
-use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
-use crate::agent_manager::RunAgentParams;
-use crate::agent_manager::{types::ModelProvider, AgentManager, AgentManagerTrait};
+use crate::agent_manager::worker::{RunAgentWorkerOptions, run_agent_worker};
+use crate::agent_manager::{AgentManager, AgentManagerTrait, types::ModelProvider};
 use crate::cache::Cache;
 use crate::db::project_api_keys::ProjectApiKey;
 use crate::db::{self, DB};
-use crate::features::{is_feature_enabled, Feature};
+use crate::features::{Feature, is_feature_enabled};
 use crate::routes::types::ResponseResult;
 use crate::traces::limits::get_workspace_limit_exceeded_by_project_id;
 
@@ -34,6 +34,8 @@ struct RunAgentRequest {
     #[serde(default)]
     return_screenshots: bool,
     #[serde(default)]
+    disable_give_control: bool,
+    #[serde(default)]
     return_agent_state: bool,
     #[serde(default)]
     return_storage_state: bool,
@@ -51,6 +53,8 @@ struct RunAgentRequest {
     thinking_token_budget: Option<u64>,
     #[serde(default)]
     start_url: Option<String>,
+    #[serde(default)]
+    user_agent: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -127,6 +131,8 @@ pub async fn run_agent_manager(
             return_screenshots: request.return_screenshots,
             return_agent_state: request.return_agent_state,
             return_storage_state: request.return_storage_state,
+            disable_give_control: request.disable_give_control,
+            user_agent: request.user_agent,
         };
         let pool = db.pool.clone();
         let worker_states_clone = worker_states.clone();
@@ -210,6 +216,8 @@ pub async fn run_agent_manager(
                     max_steps: request.max_steps,
                     thinking_token_budget: request.thinking_token_budget,
                     start_url: request.start_url,
+                    disable_give_control: request.disable_give_control,
+                    user_agent: request.user_agent,
                     return_agent_state: request.return_agent_state,
                     return_storage_state: request.return_storage_state,
                     return_screenshots: request.return_screenshots,
