@@ -225,6 +225,20 @@
       "when": 1745336938674,
       "tag": "0031_round_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1745940282392,
+      "tag": "0032_wealthy_gressill",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1746720543734,
+      "tag": "0033_dizzy_longshot",
+      "breakpoints": true
     }
   ]
 }

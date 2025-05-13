@@ -17,7 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const agentMachineStatus = pgEnum("agent_machine_status", ["not_started", "running", "paused", "stopped"]);
-export const agentMessageType = pgEnum("agent_message_type", ["user", "assistant", "step"]);
+export const agentMessageType = pgEnum("agent_message_type", ["user", "assistant", "step", "error"]);
 export const labelSource = pgEnum("label_source", ["MANUAL", "AUTO", "CODE"]);
 export const spanType = pgEnum("span_type", [
   "DEFAULT",
@@ -488,30 +488,6 @@ export const pipelineVersions = pgTable("pipeline_versions", {
   name: text().notNull(),
 });
 
-export const playgrounds = pgTable(
-  "playgrounds",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    projectId: uuid("project_id").notNull(),
-    promptMessages: jsonb("prompt_messages")
-      .default([{ role: "user", content: "" }])
-      .notNull(),
-    modelId: text("model_id").default("").notNull(),
-    outputSchema: text("output_schema"),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "playgrounds_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
 export const evaluationScores = pgTable(
   "evaluation_scores",
   {
@@ -532,6 +508,35 @@ export const evaluationScores = pgTable(
       .onUpdate("cascade")
       .onDelete("cascade"),
     unique("evaluation_results_names_unique").on(table.resultId, table.name),
+  ]
+);
+
+export const playgrounds = pgTable(
+  "playgrounds",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    promptMessages: jsonb("prompt_messages")
+      .default([{ role: "user", content: "" }])
+      .notNull(),
+    modelId: text("model_id").default("").notNull(),
+    outputSchema: text("output_schema"),
+    tools: jsonb().default(""),
+    toolChoice: jsonb("tool_choice").default("none"),
+    maxTokens: integer("max_tokens").default(1024),
+    temperature: doublePrecision().default(1),
+    providerOptions: jsonb("provider_options").default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "playgrounds_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
   ]
 );
 
@@ -723,29 +728,6 @@ export const userCookies = pgTable(
   ]
 );
 
-export const users = pgTable(
-  "users",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    email: text().notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    tierId: bigint("tier_id", { mode: "number" })
-      .default(sql`'1'`)
-      .notNull(),
-    subscriptionId: text("subscription_id"),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.tierId],
-      foreignColumns: [userSubscriptionTiers.id],
-      name: "users_tier_id_fkey",
-    }),
-    unique("users_email_key").on(table.email),
-  ]
-);
-
 export const userUsage = pgTable(
   "user_usage",
   {
@@ -913,6 +895,30 @@ export const traces = pgTable(
   ]
 );
 
+export const users = pgTable(
+  "users",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    email: text().notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    tierId: bigint("tier_id", { mode: "number" })
+      .default(sql`'1'`)
+      .notNull(),
+    subscriptionId: text("subscription_id"),
+    avatarUrl: text("avatar_url"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tierId],
+      foreignColumns: [userSubscriptionTiers.id],
+      name: "users_tier_id_fkey",
+    }),
+    unique("users_email_key").on(table.email),
+  ]
+);
+
 export const machines = pgTable(
   "machines",
   {
@@ -980,7 +986,7 @@ export const spans = pgTable(
     outputUrl: text("output_url"),
   },
   (table) => [
-    index("span_path_idx").using("btree", sql`(attributes -> 'lmnr.span.path'::text)`),
+    index("span_path_idx").using("btree", sql`((attributes -> 'lmnr.span.path'::text))`),
     index("spans_project_id_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
     index("spans_project_id_trace_id_start_time_idx").using(
       "btree",

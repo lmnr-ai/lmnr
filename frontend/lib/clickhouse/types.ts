@@ -36,3 +36,8 @@ export type SpanMetricType = {
   [key: string]: number;
   timestamp: number; // unix timestamp in seconds
 };
+
+export enum SpanSearchType {
+  Input = "input",
+  Output = "output",
+}

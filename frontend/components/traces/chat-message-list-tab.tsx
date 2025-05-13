@@ -6,6 +6,7 @@ import { memo, useCallback, useMemo, useRef } from "react";
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import CodeHighlighter from "@/components/traces/code-highlighter";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
 
 import DownloadButton from "../ui/download-button";
@@ -90,7 +91,7 @@ const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
   );
 
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex flex-col w-full divide-y">
       {memoizedContentParts.map(({ key, part }) => (
         <div key={key} className="w-full">
           {renderContentPart(part)}
@@ -112,7 +113,7 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
     count: messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 500,
-    overscan: 7,
+    overscan: 16,
     gap: 16,
   });
 
@@ -120,9 +121,9 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
 
   return (
     <div className="relative h-full">
-      <div
+      <ScrollArea
         ref={parentRef}
-        className="List h-full overflow-y-auto p-4"
+        className="h-full overflow-y-auto p-4"
         style={{
           width: "100%",
           contain: "strict",
@@ -154,7 +155,7 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
                   className="flex flex-col border rounded mb-4"
                 >
                   {message?.role && (
-                    <div className="font-medium text-sm text-secondary-foreground p-2">
+                    <div className="font-medium text-sm text-secondary-foreground p-2 border-b">
                       {message.role.toUpperCase()}
                     </div>
                   )}
@@ -164,7 +165,7 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
             })}
           </div>
         </div>
-      </div>
+      </ScrollArea>
       <Button
         variant="outline"
         size="icon"

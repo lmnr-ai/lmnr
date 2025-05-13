@@ -1,24 +1,19 @@
-import { Database, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { Database, Loader2 } from "lucide-react";
+import { useState } from "react";
 
-import { useProjectContext } from '@/contexts/project-context';
-import { Dataset } from '@/lib/dataset/types';
-import { eventEmitter } from '@/lib/event-emitter';
-import { useToast } from '@/lib/hooks/use-toast';
-import { Span } from '@/lib/traces/types';
-import { cn } from '@/lib/utils';
+import { Badge } from "@/components/ui/badge";
+import { useProjectContext } from "@/contexts/project-context";
+import { Dataset } from "@/lib/dataset/types";
+import { eventEmitter } from "@/lib/event-emitter";
+import { useToast } from "@/lib/hooks/use-toast";
+import { Span } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
-import { Button } from '../ui/button';
-import DatasetSelect from '../ui/dataset-select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '../ui/dialog';
-import Formatter from '../ui/formatter';
-import { Label } from '../ui/label';
+import { Button } from "../ui/button";
+import DatasetSelect from "../ui/dataset-select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import Formatter from "../ui/formatter";
+import { Label } from "../ui/label";
 
 interface ExportSpansDialogProps {
   span: Span;
@@ -80,33 +75,30 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
       return;
     }
     setIsLoading(true);
-    const res = await fetch(
-      `/api/projects/${projectId}/datasets/${selectedDataset.id}/datapoints`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          datapoints: [
-            {
-              data: data,
-              target: target,
-              metadata: metadata
-            }
-          ],
-          sourceSpanId: span.spanId
-        })
-      }
-    );
+    const res = await fetch(`/api/projects/${projectId}/datasets/${selectedDataset.id}/datapoints`, {
+      method: "POST",
+      body: JSON.stringify({
+        datapoints: [
+          {
+            data: data,
+            target: target,
+            metadata: metadata,
+          },
+        ],
+        sourceSpanId: span.spanId,
+      }),
+    });
     setIsLoading(false);
     setIsDialogOpen(false);
     if (!res.ok) {
       toast({
-        title: 'Failed to export span',
-        variant: 'destructive'
+        title: "Failed to export span",
+        variant: "destructive",
       });
     } else {
-      eventEmitter.emit('mutateSpanDatapoints');
+      eventEmitter.emit("mutateSpanDatapoints");
       toast({
-        title: `Successfully exported span to dataset ${selectedDataset?.name}`
+        title: `Successfully exported span to dataset ${selectedDataset?.name}`,
       });
     }
   };
@@ -124,10 +116,10 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
         }}
       >
         <DialogTrigger asChild>
-          <Button variant={'outline'}>
-            <Database size={16} className="mr-2" />
-            Add to dataset
-          </Button>
+          <Badge className="cursor-pointer" variant="secondary">
+            <Database className="size-3 mr-2" />
+            <span className="text-xs">Add to dataset</span>
+          </Badge>
         </DialogTrigger>
         <DialogContent className="max-w-6xl bg-background max-h-[90vh] p-0 m-0 gap-0">
           <DialogHeader className="p-4 border-b m-0">
@@ -135,21 +127,9 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               <DialogTitle>Export span to dataset</DialogTitle>
               <Button
                 onClick={async () => await exportSpan()}
-                disabled={
-                  isLoading ||
-                  !selectedDataset ||
-                  !isDataValid ||
-                  !isTargetValid ||
-                  !isMetadataValid
-                }
+                disabled={isLoading || !selectedDataset || !isDataValid || !isTargetValid || !isMetadataValid}
               >
-                <Loader2
-                  className={cn(
-                    'mr-2 hidden',
-                    isLoading ? 'animate-spin block' : ''
-                  )}
-                  size={16}
-                />
+                <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
                 Add to dataset
               </Button>
             </div>
@@ -158,24 +138,20 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
             <div className="flex flex-col space-y-4 p-4 pb-8">
               <div className="flex flex-none flex-col space-y-2">
                 <Label className="text-lg font-medium">Dataset</Label>
-                <DatasetSelect
-                  onDatasetChange={(dataset) => setSelectedDataset(dataset)}
-                />
+                <DatasetSelect onDatasetChange={(dataset) => setSelectedDataset(dataset)} />
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Data</Label>
                 <Formatter
                   className="max-h-[500px]"
                   editable
-                  defaultMode={'json'}
+                  defaultMode={"json"}
                   value={JSON.stringify(data, null, 2)}
                   onChange={handleDataChange}
                 />
                 {!isDataValid && (
                   <p className="text-sm text-red-500">
-                    {data === null
-                      ? 'Data cannot be null'
-                      : 'Invalid JSON format'}
+                    {data === null ? "Data cannot be null" : "Invalid JSON format"}
                   </p>
                 )}
               </div>
@@ -184,26 +160,22 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
                 <Formatter
                   className="max-h-[500px]"
                   editable
-                  defaultMode={'json'}
+                  defaultMode={"json"}
                   value={JSON.stringify(target, null, 2)}
                   onChange={handleTargetChange}
                 />
-                {!isTargetValid && (
-                  <p className="text-sm text-red-500">Invalid JSON format</p>
-                )}
+                {!isTargetValid && <p className="text-sm text-red-500">Invalid JSON format</p>}
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Metadata</Label>
                 <Formatter
                   className="max-h-[500px]"
                   editable
-                  defaultMode={'json'}
+                  defaultMode={"json"}
                   value={JSON.stringify(metadata, null, 2)}
                   onChange={handleMetadataChange}
                 />
-                {!isMetadataValid && (
-                  <p className="text-sm text-red-500">Invalid JSON format</p>
-                )}
+                {!isMetadataValid && <p className="text-sm text-red-500">Invalid JSON format</p>}
               </div>
             </div>
           </div>

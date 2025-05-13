@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { apiKeyToProvider, Provider, providers } from "@/components/playground/types";
 import { providerIconMap, providerNameMap } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +22,6 @@ import {
 import { IconAnthropic, IconGemini, IconOpenAI } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { EnvVars } from "@/lib/env/utils";
-import { apiKeyToProvider, Provider, providers } from "@/lib/pipeline/types";
 import { ProviderApiKey } from "@/lib/settings/types";
 import { cn } from "@/lib/utils";
 
@@ -30,9 +30,10 @@ interface LlmSelectNewProps {
   disabled?: boolean;
   onChange: (id: `${Provider}:${string}`) => void;
   apiKeys: ProviderApiKey[];
+  className?: string;
 }
 
-const LlmSelect = ({ apiKeys, disabled, onChange, value }: LlmSelectNewProps) => {
+const LlmSelect = ({ apiKeys, disabled, onChange, value, className }: LlmSelectNewProps) => {
   const [query, setQuery] = useState("");
   const params = useParams();
   const options = useMemo<typeof providers>(
@@ -42,7 +43,7 @@ const LlmSelect = ({ apiKeys, disabled, onChange, value }: LlmSelectNewProps) =>
         .map(({ provider, models }) => {
           const lowerQuery = query.toLowerCase();
           const providerMatches = provider.toLowerCase().includes(lowerQuery);
-          const filteredModels = models.filter(({ name }) => name.toLowerCase().includes(lowerQuery));
+          const filteredModels = models.filter(({ label }) => label.toLowerCase().includes(lowerQuery));
           return providerMatches || filteredModels.length > 0
             ? { provider, models: providerMatches ? models : filteredModels }
             : null;
@@ -54,9 +55,11 @@ const LlmSelect = ({ apiKeys, disabled, onChange, value }: LlmSelectNewProps) =>
   return (
     <DropdownMenu>
       <DropdownMenuTrigger value={value} asChild>
-        <Button disabled={disabled} className="py-4" variant="outline">
+        <Button disabled={disabled} className={cn("focus-visible:ring-0", className)} variant="outline">
           <span className="mr-2">{providerIconMap[value.split(":")[0] as Provider]}</span>
-          <span>{providers.flatMap((p) => p.models).find((m) => m.id === value)?.name ?? "Select model"}</span>
+          <span className="truncate mr-2 py-0.5">
+            {providers.flatMap((p) => p.models).find((m) => m.id === value)?.label ?? "Select model"}
+          </span>
           <ChevronDown className="ml-auto" size={16} />
         </Button>
       </DropdownMenuTrigger>
@@ -82,8 +85,11 @@ const LlmSelect = ({ apiKeys, disabled, onChange, value }: LlmSelectNewProps) =>
                   <DropdownMenuSubContent>
                     {provider.models.map((model) => (
                       <DropdownMenuItem key={model.id} onSelect={() => onChange(model.id)}>
-                        <Check size={14} className={cn("mr-2", { "opacity-0": value !== model.id })} />
-                        <span className="mr-2">{providerIconMap[provider.provider]}</span> {model.name}
+                        <span title={model.id} className="mr-2">
+                          {providerIconMap[provider.provider]}
+                        </span>
+                        <span className="truncate mr-2">{model.label}</span>
+                        <Check size={14} className={cn("ml-auto", { "opacity-0": value !== model.id })} />
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuSubContent>

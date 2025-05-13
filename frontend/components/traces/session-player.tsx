@@ -5,7 +5,7 @@ import "rrweb-player/dist/style.css";
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { Loader2 } from "lucide-react";
 import pako from "pako";
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from "react";
 import rrwebPlayer from "rrweb-player";
 
 import {
@@ -356,4 +356,4 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
 SessionPlayer.displayName = "SessionPlayer";
 
-export default SessionPlayer;
+export default memo(SessionPlayer);

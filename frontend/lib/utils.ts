@@ -226,7 +226,6 @@ function deepArray<T extends any[]>(collection: T): any {
   return collection.map((value) => deep(value));
 }
 
-
 export const getFilterFromUrlParams = (filter: string): DatatableFilter[] | undefined => {
   const filters = JSON.parse(filter);
   if (Array.isArray(filters)) {
@@ -318,18 +317,12 @@ export const pluralize = (count: number, singular: string, plural: string) => {
 
 export const isValidNumber = (value?: number): value is number => typeof value === "number" && !isNaN(value);
 
-export const streamReader = async (stream: ReadableStream<string>, onChunk: (chunk: string) => void) => {
-  const reader = stream.getReader();
+export function generateRandomKey(length: number): string {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const randomValues = new Uint8Array(length);
+  crypto.getRandomValues(randomValues);
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      onChunk(value);
-    }
-  } catch (error) {
-    throw error;
-  } finally {
-    reader.releaseLock();
-  }
-};
+  return Array.from(randomValues)
+    .map((value) => chars[value % chars.length])
+    .join("");
+}

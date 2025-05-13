@@ -9,6 +9,7 @@ import { useLabelsContext } from "@/components/labels/labels-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/lib/hooks/use-toast";
 import { LabelClass, SpanLabel } from "@/lib/traces/types";
 
 interface PickLabelProps {
@@ -20,7 +21,7 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const { labels, labelClasses, mutate } = useLabelsContext();
-
+  const { toast } = useToast();
   const { selected, available, hasExactMatch } = useMemo(() => {
     const selectedIds = labels.map(({ classId }) => classId);
     const selected = labelClasses.filter((label) => selectedIds.includes(label.id));
@@ -51,6 +52,11 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
           }),
         });
 
+        if (!res.ok) {
+          toast({ variant: "destructive", title: "Error", description: "Failed to attach label." });
+          return;
+        }
+
         const data = (await res.json()) as SpanLabel;
 
         await mutate([...labels, data], {
@@ -58,8 +64,9 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
         });
       }
     } catch (e) {
-      // TODO: add toast
-      console.error(e);
+      if (e instanceof Error) {
+        toast({ variant: "destructive", title: "Error", description: e.message });
+      }
     }
   };
 
@@ -83,8 +90,9 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
         });
       }
     } catch (e) {
-      // TODO: add toast
-      console.error(e);
+      if (e instanceof Error) {
+        toast({ variant: "destructive", title: "Error", description: e.message });
+      }
     }
   };
 

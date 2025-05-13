@@ -1,12 +1,12 @@
-import { ChevronDown, ChevronUp, Copy, Maximize, Minimize } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, ChevronUp, Maximize, Minimize } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import YAML from "yaml";
 
+import { CopyButton } from "@/components/ui/copy-button";
 import { cn } from "@/lib/utils";
 
 import { Button } from "./button";
 import CodeEditor from "./code-editor";
-import CopyToClipboardButton from "./copy-to-clipboard";
 import CustomRenderer from "./custom-renderer";
 import { DialogTitle } from "./dialog";
 import { ScrollArea } from "./scroll-area";
@@ -117,9 +117,13 @@ export default function Formatter({
             )}
           </div>
           <div className="flex items-center gap-1">
-            <CopyToClipboardButton className="h-7 w-7" text={renderedValue}>
-              <Copy className="h-3.5 w-3.5" />
-            </CopyToClipboardButton>
+            <CopyButton
+              className="h-7 w-7 ml-auto"
+              iconClassName="h-3.5 w-3.5"
+              size="icon"
+              variant="ghost"
+              text={renderedValue}
+            />
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -144,9 +148,13 @@ export default function Formatter({
                     </Select>
                   </div>
                   <div className="flex items-center gap-1">
-                    <CopyToClipboardButton className="h-7 w-7" text={renderedValue}>
-                      <Copy className="h-3.5 w-3.5" />
-                    </CopyToClipboardButton>
+                    <CopyButton
+                      className="h-7 w-7"
+                      iconClassName="h-3.5 w-3.5"
+                      size="icon"
+                      variant="ghost"
+                      text={renderedValue}
+                    />
                     <SheetClose asChild>
                       <Button variant="ghost" size="icon">
                         <Minimize className="h-4 w-4" />

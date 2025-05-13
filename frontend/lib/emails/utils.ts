@@ -10,7 +10,7 @@ const RESEND = new Resend(
 );
 
 export async function sendWelcomeEmail(email: string) {
-  const from = 'Robert Kim <robert@lmnr.ai>';
+  const from = 'Robert from Laminar <robert@lmnr.ai>';
   const subject = 'Welcome to Laminar!';
 
   const { data, error } = await RESEND.emails.send({

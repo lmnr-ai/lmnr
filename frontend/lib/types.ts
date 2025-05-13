@@ -1,10 +1,11 @@
-import { isArray, isString } from "lodash";
+import { isArray, isNumber, isString } from "lodash";
 
 export interface UserSession {
   id: string;
   name: string;
   email: string;
-  api_key: string;
+  apiKey: string;
+  avatarUrl?: string;
 }
 
 export type ChatMessageText = {
@@ -48,27 +49,43 @@ export type ChatMessage = {
 };
 
 export const flattenContentOfMessages = (
-  messages: ChatMessage[] | Record<string, unknown> | string
+  messages: ChatMessage[] | Record<string, unknown> | string | undefined
 ): {
   content: ChatMessageContentPart[];
   role?: "user" | "assistant" | "system";
 }[] => {
-  if (isString(messages)) {
-    return [{ content: [{ type: "text", text: messages }] }];
+  if (isString(messages) || isNumber(messages)) {
+    return [{ content: [{ type: "text", text: String(messages) }] }];
   }
 
   if (isArray(messages)) {
     return messages.map((message) => {
-      if (typeof message.content === "string") {
+      if (isString(message) || isNumber(message)) {
         return {
-          ...message,
-          content: [{ type: "text", text: message.content }],
+          content: [{ type: "text", text: String(message) }],
         };
       }
 
-      return message as {
-        content: ChatMessageContentPart[];
-        role: "user" | "assistant" | "system";
+      if (typeof message === "object" && message !== null) {
+        if ("content" in message) {
+          if (typeof message.content === "string") {
+            return {
+              ...message,
+              content: [{ type: "text", text: message.content }],
+            };
+          }
+          return message as {
+            content: ChatMessageContentPart[];
+            role: "user" | "assistant" | "system";
+          };
+        }
+        return {
+          content: [{ type: "text", text: JSON.stringify(message) }],
+        };
+      }
+
+      return {
+        content: [{ type: "text", text: String(message) }],
       };
     });
   }

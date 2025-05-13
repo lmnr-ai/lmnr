@@ -1,6 +1,6 @@
 import { and, eq, getTableColumns, gt, lt, SQL, sql } from "drizzle-orm";
 import { PgTable, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
-import { getServerSession } from 'next-auth';
+import { getServerSession } from "next-auth";
 
 import { authOptions } from "../auth";
 import { cache } from "../cache";
@@ -25,10 +25,7 @@ export const isUserMemberOfProject = async (projectId: string, apiKey: string) =
     .innerJoin(membersOfWorkspaces, eq(users.id, membersOfWorkspaces.userId))
     .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
     .innerJoin(apiKeys, eq(users.id, apiKeys.userId))
-    .where(and(
-      eq(apiKeys.apiKey, apiKey),
-      eq(projects.id, projectId)
-    ))
+    .where(and(eq(apiKeys.apiKey, apiKey), eq(projects.id, projectId)))
     .limit(1);
 
   try {
@@ -52,10 +49,7 @@ export const isCurrentUserMemberOfWorkspace = async (workspaceId: string) => {
     .select({ userId: users.id })
     .from(users)
     .innerJoin(membersOfWorkspaces, eq(users.id, membersOfWorkspaces.userId))
-    .where(and(
-      eq(users.email, user.email!),
-      eq(membersOfWorkspaces.workspaceId, workspaceId)
-    ))
+    .where(and(eq(users.email, user.email!), eq(membersOfWorkspaces.workspaceId, workspaceId)))
     .limit(1);
 
   return result.length > 0;
@@ -91,40 +85,37 @@ interface PaginatedGetParams<T extends TableConfig, R> {
   columns?: SelectedFields;
 }
 
-export const paginatedGet = async<T extends TableConfig, R>(
-  {
-    table,
-    pageNumber,
-    pageSize,
-    filters,
-    orderBy,
-    columns,
-  }: PaginatedGetParams<T, R>
-): Promise<PaginatedResponse<R>> => {
-
-  const itemsQuery = pageNumber !== undefined && pageSize !== undefined
-    ? db
-      .select(columns ?? getTableColumns(table))
-      .from(table)
-      .where(and(...filters))
-      .orderBy(...orderBy)
-      .limit(pageSize).offset(pageNumber * pageSize)
-    : db
-      .select(columns ?? getTableColumns(table))
-      .from(table)
-      .where(and(...filters))
-      .orderBy(...orderBy);
+export const paginatedGet = async <T extends TableConfig, R>({
+  table,
+  pageNumber,
+  pageSize,
+  filters,
+  orderBy,
+  columns,
+}: PaginatedGetParams<T, R>): Promise<PaginatedResponse<R>> => {
+  const itemsQuery =
+    pageNumber !== undefined && pageSize !== undefined
+      ? db
+        .select(columns ?? getTableColumns(table))
+        .from(table)
+        .where(and(...filters))
+        .orderBy(...orderBy)
+        .limit(pageSize)
+        .offset(pageNumber * pageSize)
+      : db
+        .select(columns ?? getTableColumns(table))
+        .from(table)
+        .where(and(...filters))
+        .orderBy(...orderBy);
 
   const countQuery = async () =>
-    db.select({ count: sql<number>`COUNT(*)` })
+    db
+      .select({ count: sql<number>`COUNT(*)` })
       .from(table)
       .where(and(...filters))
       .then(([{ count }]) => count);
 
-  const [items, totalCount] = await Promise.all([
-    itemsQuery,
-    countQuery(),
-  ]);
+  const [items, totalCount] = await Promise.all([itemsQuery, countQuery()]);
 
   return { items: items as R[], totalCount };
 };

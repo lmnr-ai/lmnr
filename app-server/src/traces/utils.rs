@@ -8,10 +8,10 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     db::{
-        self,
+        self, DB,
         labels::LabelSource,
         spans::{Span, SpanType},
-        trace, DB,
+        trace,
     },
     language_model::costs::estimate_cost_by_provider_name,
 };
@@ -127,6 +127,11 @@ pub async fn record_span_to_db(
             }
         }
     });
+
+    if is_top_span(&span, &span_attributes) {
+        span.parent_span_id = None;
+    }
+
     // Once we've set the parent span id, check if it's the top span
     if span.parent_span_id.is_none() {
         trace_attributes.set_top_span_id(span.span_id);
@@ -218,4 +223,26 @@ pub async fn record_labels_to_db_and_ch(
 pub fn skip_span_name(name: &str) -> bool {
     let re = Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap();
     re.is_match(name)
+}
+
+fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
+    let first_in_ids = span.span_id
+        == attributes
+            .ids_path()
+            .unwrap_or_default()
+            .first()
+            .cloned()
+            .unwrap_or_default()
+            .parse::<Uuid>()
+            .unwrap_or_default();
+
+    let first_in_path = span.name
+        == attributes
+            .path()
+            .unwrap_or_default()
+            .first()
+            .cloned()
+            .unwrap_or_default();
+
+    first_in_ids && first_in_path
 }

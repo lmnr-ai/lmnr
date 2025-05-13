@@ -1,10 +1,10 @@
 "use client";
-import { Globe, Lock, Share } from "lucide-react";
+import { Globe, Link, Lock, Share } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React from "react";
 
-import { CopyLinkButton } from "@/components/traces/copy-link-button";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -119,9 +119,9 @@ const ShareTraceButton = ({
               <Button variant="lightSecondary">Done</Button>
             </PopoverClose>
             {trace.visibility === "public" && (
-              <CopyLinkButton url={url}>
+              <CopyButton icon={<Link className="h-4 w-4 mr-2" />} text={url}>
                 <span>Copy link</span>
-              </CopyLinkButton>
+              </CopyButton>
             )}
           </div>
         </PopoverContent>

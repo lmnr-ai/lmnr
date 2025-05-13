@@ -1,26 +1,16 @@
-import { Copy, Plus } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { Plus } from "lucide-react";
+import { useCallback, useState } from "react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import { useProjectContext } from '@/contexts/project-context';
-import {
-  GenerateProjectApiKeyResponse,
-  ProjectApiKey
-} from '@/lib/api-keys/types';
-import { useToast } from '@/lib/hooks/use-toast';
+import { CopyButton } from "@/components/ui/copy-button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useProjectContext } from "@/contexts/project-context";
+import { GenerateProjectApiKeyResponse, ProjectApiKey } from "@/lib/api-keys/types";
+import { useToast } from "@/lib/hooks/use-toast";
 
-import { Button } from '../ui/button';
-import CopyToClipboardButton from '../ui/copy-to-clipboard';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import RevokeDialog from './revoke-dialog';
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import RevokeDialog from "./revoke-dialog";
 
 interface ApiKeysProps {
   apiKeys: ProjectApiKey[];
@@ -28,18 +18,16 @@ interface ApiKeysProps {
 
 export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [isGenerateKeyDialogOpen, setIsGenerateKeyDialogOpen] = useState(false);
-  const [projectApiKeys, setProjectApiKeys] =
-    useState<ProjectApiKey[]>(apiKeys);
-  const [newApiKeyName, setNewApiKeyName] = useState<string>('');
-  const [newApiKey, setNewApiKey] =
-    useState<GenerateProjectApiKeyResponse | null>(null);
+  const [projectApiKeys, setProjectApiKeys] = useState<ProjectApiKey[]>(apiKeys);
+  const [newApiKeyName, setNewApiKeyName] = useState<string>("");
+  const [newApiKey, setNewApiKey] = useState<GenerateProjectApiKeyResponse | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
   const { projectId } = useProjectContext();
 
   const generateNewAPIKey = useCallback(async (newName: string) => {
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {
-      method: 'POST',
-      body: JSON.stringify({ name: newName })
+      method: "POST",
+      body: JSON.stringify({ name: newName }),
     });
     const newKey = (await res.json()) as GenerateProjectApiKeyResponse;
 
@@ -48,8 +36,8 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
 
   const deleteApiKey = useCallback(async (id: string) => {
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {
-      method: 'DELETE',
-      body: JSON.stringify({ id: id })
+      method: "DELETE",
+      body: JSON.stringify({ id: id }),
     });
     await res.text();
 
@@ -58,7 +46,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
 
   const getProjectApiKeys = async () => {
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {
-      method: 'GET'
+      method: "GET",
     });
     const data = await res.json();
     setProjectApiKeys(data);
@@ -69,14 +57,13 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       <div className="flex flex-col items-start space-y-4">
         <h1 className="text-lg">Project API keys</h1>
         <Label>
-          Create a Laminar API key to make pipeline calls from your application.
-          These keys are tied to the project.
+          Create a Laminar API key to make pipeline calls from your application. These keys are tied to the project.
         </Label>
         <Dialog
           open={isGenerateKeyDialogOpen}
           onOpenChange={() => {
             setIsGenerateKeyDialogOpen(!isGenerateKeyDialogOpen);
-            setNewApiKeyName('');
+            setNewApiKeyName("");
             setNewApiKey(null);
             setIsGenerated(false);
           }}
@@ -90,16 +77,10 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
           <DialogContent
             className="sm:max-w-[425px]"
             // prevent closing dialog when clicking outside when copying api key
-            onInteractOutside={(e) =>
-              isGenerated && newApiKey && e.preventDefault()
-            }
+            onInteractOutside={(e) => isGenerated && newApiKey && e.preventDefault()}
           >
             <DialogHeader>
-              <DialogTitle>
-                {isGenerated && newApiKey
-                  ? 'API key generated'
-                  : 'Generate API key'}
-              </DialogTitle>
+              <DialogTitle>{isGenerated && newApiKey ? "API key generated" : "Generate API key"}</DialogTitle>
             </DialogHeader>
             {isGenerated && newApiKey ? (
               <DisplayKeyDialogContent
@@ -130,11 +111,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
                 </td>
                 <td>
                   <div className="flex justify-end">
-                    <RevokeDialog
-                      apiKey={apiKey}
-                      onRevoke={deleteApiKey}
-                      entity="API key"
-                    />
+                    <RevokeDialog apiKey={apiKey} onRevoke={deleteApiKey} entity="API key" />
                   </div>
                 </td>
               </tr>
@@ -148,7 +125,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
 
 function GenerateKeyDialogContent({
   onClick,
-  onNameChange
+  onNameChange,
 }: {
   onClick: () => void;
   onNameChange: (name: string) => void;
@@ -157,11 +134,7 @@ function GenerateKeyDialogContent({
     <>
       <div className="grid gap-4 py-4">
         <Label>Name</Label>
-        <Input
-          autoFocus
-          placeholder="API key name"
-          onChange={(e) => onNameChange(e.target.value)}
-        />
+        <Input autoFocus placeholder="API key name" onChange={(e) => onNameChange(e.target.value)} />
       </div>
       <DialogFooter>
         <Button onClick={onClick} handleEnter>
@@ -172,31 +145,19 @@ function GenerateKeyDialogContent({
   );
 }
 
-function DisplayKeyDialogContent({
-  apiKey,
-  onClose
-}: {
-  apiKey: GenerateProjectApiKeyResponse;
-  onClose?: () => void;
-}) {
+function DisplayKeyDialogContent({ apiKey, onClose }: { apiKey: GenerateProjectApiKeyResponse; onClose?: () => void }) {
   const { toast } = useToast();
   return (
     <>
       <div className="flex flex-col space-y-2">
         <p className="text-secondary-foreground">
-          {' '}
-          For security reasons, you will not be able to see this key again. Make
-          sure to copy and save it somewhere safe.{' '}
+          {" "}
+          For security reasons, you will not be able to see this key again. Make sure to copy and save it somewhere
+          safe.{" "}
         </p>
-        <div className="flex space-x-2">
+        <div className="flex gap-x-2">
           <Input className="flex h-8 text-sm" value={apiKey.value} readOnly />
-          <CopyToClipboardButton
-            className="flex h-8"
-            text={apiKey.value}
-            toastPrefix="API key"
-          >
-            <Copy size={12} />
-          </CopyToClipboardButton>
+          <CopyButton size="icon" className="min-w-8 h-8" text={apiKey.value} />
         </div>
       </div>
       <DialogFooter>

@@ -1,21 +1,25 @@
 "use client";
 
-import { Check, Link } from "lucide-react";
-import { PropsWithChildren, useState } from "react";
+import { Check, CopyIcon } from "lucide-react";
+import { PropsWithChildren, ReactNode, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface CopyLinkButtonProps {
-  url: string;
+  text: string;
+  icon?: ReactNode;
   className?: string;
+  iconClassName?: string;
   variant?: "default" | "outline" | "ghost";
   size?: "default" | "sm" | "lg" | "icon";
 }
 
-export function CopyLinkButton({
-  url,
+export function CopyButton({
+  text,
   className,
+  icon,
+  iconClassName,
   variant = "outline",
   size = "default",
   children,
@@ -24,10 +28,9 @@ export function CopyLinkButton({
 
   const copyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
 
-      // Reset after 2 seconds
       setTimeout(() => {
         setCopied(false);
       }, 2000);
@@ -45,9 +48,9 @@ export function CopyLinkButton({
       aria-label={copied ? "Copied to clipboard" : "Copy link to clipboard"}
     >
       {copied ? (
-        <Check className={cn("h-4 w-4", { "mr-2": children })} />
+        <Check className={cn("h-4 w-4", { "mr-2": children }, iconClassName)} />
       ) : (
-        <Link className={cn("h-4 w-4", { "mr-2": children })} />
+        (icon ?? <CopyIcon className={cn("h-4 w-4", { "mr-2": children }, iconClassName)} />)
       )}
       {children}
     </Button>

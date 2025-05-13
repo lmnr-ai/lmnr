@@ -1,26 +1,29 @@
 import { EditorView } from "@codemirror/view";
-import CodeMirror from "@uiw/react-codemirror";
-import { ChevronDown, ChevronUp, Copy } from "lucide-react";
-import { memo, useCallback, useMemo, useState } from "react";
+import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import CodeSheet from "@/components/traces/code-highlighter/code-sheet";
 import {
   baseExtensions,
   languageExtensions,
   MAX_LINE_WRAPPING_LENGTH,
-  modes,
+  modes as defaultModes,
   renderText,
   theme,
 } from "@/components/traces/code-highlighter/utils";
 import { Button } from "@/components/ui/button";
-import CopyToClipboardButton from "@/components/ui/copy-to-clipboard";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 interface CodeEditorProps {
+  onChange?: ReactCodeMirrorProps["onChange"];
+  readOnly?: boolean;
+  modes?: string[];
+  defaultMode?: string;
   value: string;
   className?: string;
-  language?: string;
   placeholder?: string;
   lineWrapping?: boolean;
   onLoad?: () => void;
@@ -29,9 +32,11 @@ interface CodeEditorProps {
   codeEditorClassName?: string;
 }
 
-const defaultMode = "TEXT";
-
 const PureCodeHighlighter = ({
+  onChange,
+  readOnly,
+  modes = defaultModes,
+  defaultMode = "text",
   value,
   className,
   placeholder,
@@ -41,6 +46,8 @@ const PureCodeHighlighter = ({
   onLoad,
   codeEditorClassName,
 }: CodeEditorProps) => {
+  const editorRef = useRef<ReactCodeMirrorRef | null>(null);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
@@ -84,7 +91,7 @@ const PureCodeHighlighter = ({
   return (
     <div className={cn("w-full h-full flex flex-col border", className)}>
       <div
-        className={cn("bg-background flex items-center pl-2 pr-1 w-full border-t", {
+        className={cn("bg-background flex items-center pl-2 pr-1 w-full rounded-t", {
           "border-b": !isCollapsed,
         })}
       >
@@ -119,20 +126,27 @@ const PureCodeHighlighter = ({
             )}
           </Button>
         )}
-        <CopyToClipboardButton className="h-7 w-7 ml-auto" text={renderedValue}>
-          <Copy className="h-3.5 w-3.5" />
-        </CopyToClipboardButton>
+        <CopyButton
+          className="h-7 w-7 ml-auto"
+          iconClassName="h-3.5 w-3.5"
+          size="icon"
+          variant="ghost"
+          text={renderedValue}
+        />
         <CodeSheet renderedValue={renderedValue} mode={mode} onModeChange={handleModeChange} extensions={extensions} />
       </div>
       <div
         className={cn("flex-grow flex bg-card overflow-auto w-full h-fit", { "h-0": isCollapsed }, codeEditorClassName)}
       >
         <CodeMirror
-          onUpdate={onLoad}
+          ref={editorRef}
+          className="w-full"
           placeholder={placeholder}
+          onChange={onChange}
           theme={theme}
           extensions={extensions}
           value={renderedValue}
+          readOnly={readOnly}
         />
       </div>
     </div>

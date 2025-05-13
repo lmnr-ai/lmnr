@@ -93,6 +93,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
 
   return (
     <UserContextProvider
+      id={user.id}
       email={user.email!}
       supabaseAccessToken={session.supabaseAccessToken}
       username={user.name!}
