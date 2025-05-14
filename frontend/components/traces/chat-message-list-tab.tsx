@@ -57,6 +57,7 @@ const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
         case "text":
           return (
             <CodeHighlighter
+              readOnly
               collapsible
               value={contentPart.text}
               presetKey={presetKey}
