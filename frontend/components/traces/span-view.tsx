@@ -86,7 +86,14 @@ export function SpanView({ spanId }: SpanViewProps) {
             <LabelsContextProvider>
               <div className="flex gap-2 items-center">
                 <LabelsTrigger />
-                <AddToLabelingQueuePopover span={span} />
+                <AddToLabelingQueuePopover
+                  data={[
+                    {
+                      payload: { data: span.input, target: span.output, metadata: {} },
+                      metadata: { source: "span", id: span.spanId },
+                    },
+                  ]}
+                />
                 <ExportSpansDialog span={span} />
               </div>
               <LabelsList />

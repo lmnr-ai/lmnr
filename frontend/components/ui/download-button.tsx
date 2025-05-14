@@ -1,37 +1,29 @@
-import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { Download } from "lucide-react";
+import React, { useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import { Button } from "./button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "./dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./dropdown-menu";
 
-const downloadFile = async (
-  uri: string,
-  filenameFallback: string,
-  fileFormat?: string,
-) => {
+const downloadFile = async (uri: string, filenameFallback: string, fileFormat?: string) => {
   try {
     const response = await fetch(uri);
 
     if (!response.ok) {
-      throw new Error('Download failed');
+      throw new Error("Download failed");
     }
 
-    const contentDisposition = response.headers.get('Content-Disposition');
+    const contentDisposition = response.headers.get("Content-Disposition");
     const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
     const filename = filenameMatch?.[1] || filenameFallback;
 
     const blob = await response.blob();
 
     const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = filename;
 
@@ -43,8 +35,8 @@ const downloadFile = async (
     window.URL.revokeObjectURL(url);
   } catch (error) {
     toast({
-      title: `Error downloading ${fileFormat || 'file'}`,
-      variant: 'destructive'
+      title: `Error downloading ${fileFormat || "file"}`,
+      variant: "destructive",
     });
   }
 };
@@ -52,7 +44,7 @@ const downloadFile = async (
 interface DownloadButtonProps {
   uri: string;
   filenameFallback: string;
-  variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost';
+  variant?: "default" | "secondary" | "destructive" | "outline" | "ghost";
   className?: string;
   supportedFormats?: string[];
   text?: string;
@@ -65,20 +57,14 @@ export default function DownloadButton(props: DownloadButtonProps) {
   return <DownloadButtonSingleFormat {...props} />;
 }
 
-function DownloadButtonSingleFormat({
-  uri,
-  filenameFallback,
-  variant,
-  className,
-  text
-}: DownloadButtonProps) {
+function DownloadButtonSingleFormat({ uri, filenameFallback, variant, className, text }: DownloadButtonProps) {
   const [isDownloading, setIsDownloading] = useState(false);
 
   return (
     <Button
       variant={variant}
       className={cn(
-        'flex h-7 items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none',
+        "flex h-7 items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none",
         className
       )}
       disabled={isDownloading}
@@ -88,7 +74,7 @@ function DownloadButtonSingleFormat({
         setIsDownloading(false);
       }}
     >
-      {text || 'Download'}
+      {text || "Download"}
     </Button>
   );
 }
@@ -96,22 +82,18 @@ function DownloadButtonSingleFormat({
 function DownloadButtonMultipleFormats({
   uri,
   filenameFallback,
-  supportedFormats = ['csv', 'json'],
-  className
+  supportedFormats = ["csv", "json"],
+  className,
 }: DownloadButtonProps) {
   const [isDownloading, setIsDownloading] = useState(false);
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        className={cn(
-          'flex h-7  items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none',
-          className
-        )}
-        disabled={isDownloading}
-      >
-        Download
-        <ChevronDown className="h-4 w-4 opacity-50" />
+      <DropdownMenuTrigger className={cn(className)} asChild disabled={isDownloading}>
+        <Badge className="cursor-pointer py-1 px-2" variant="secondary">
+          <Download className="size-3 mr-2" />
+          <span className="text-xs">Download</span>
+        </Badge>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"

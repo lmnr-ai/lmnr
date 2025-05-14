@@ -398,6 +398,26 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
     .notNull(),
 });
 
+export const labelingQueueItems = pgTable(
+  "labeling_queue_items",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    queueId: uuid("queue_id").defaultRandom().notNull(),
+    metadata: jsonb().default({}),
+    payload: jsonb().default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.queueId],
+      foreignColumns: [labelingQueues.id],
+      name: "labelling_queue_items_queue_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const labelingQueues = pgTable(
   "labeling_queues",
   {
@@ -411,26 +431,6 @@ export const labelingQueues = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "labeling_queues_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const labelingQueueItems = pgTable(
-  "labeling_queue_items",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    queueId: uuid("queue_id").defaultRandom().notNull(),
-    action: jsonb().notNull(),
-    spanId: uuid("span_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.queueId],
-      foreignColumns: [labelingQueues.id],
-      name: "labelling_queue_items_queue_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),

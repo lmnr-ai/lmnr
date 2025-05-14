@@ -1,7 +1,9 @@
-import { Loader2, Pen } from "lucide-react";
-import { useState } from "react";
+import { isEmpty } from "lodash";
+import { Loader2, Pen, Plus } from "lucide-react";
+import { PropsWithChildren, useState } from "react";
 import useSWR from "swr";
 
+import CreateQueueDialog from "@/components/queues/create-queue-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -9,23 +11,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue } from "@/lib/queue/types";
-import { Span } from "@/lib/traces/types";
 import { PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface AddToLabelingQueuePopoverProps {
-  span: Span;
-  onSuccess?: () => void;
+  data: { metadata: Record<string, unknown>; payload: Record<string, unknown> }[];
 }
 
-export default function AddToLabelingQueuePopover({ span, onSuccess }: AddToLabelingQueuePopoverProps) {
+export default function AddToLabelingQueuePopover({
+  data,
+  children,
+}: PropsWithChildren<AddToLabelingQueuePopoverProps>) {
   const [selectedQueue, setSelectedQueue] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const { projectId } = useProjectContext();
   const { toast } = useToast();
 
-  const { data: labelingQueues } = useSWR<PaginatedResponse<LabelingQueue>>(
+  const { data: labelingQueues, isLoading: isQueuesLoading } = useSWR<PaginatedResponse<LabelingQueue>>(
     `/api/projects/${projectId}/queues`,
     swrFetcher
   );
@@ -37,15 +40,14 @@ export default function AddToLabelingQueuePopover({ span, onSuccess }: AddToLabe
     try {
       const response = await fetch(`/api/projects/${projectId}/queues/${selectedQueue}/push`, {
         method: "POST",
-        body: JSON.stringify({ spanId: span.spanId }),
+        body: JSON.stringify(data),
       });
 
       if (response.ok) {
         toast({
           title: "Success",
-          description: "Successfully added span to labeling queue",
+          description: "Successfully added items to labeling queue",
         });
-        onSuccess?.();
         setOpen(false);
       } else {
         toast({
@@ -67,20 +69,32 @@ export default function AddToLabelingQueuePopover({ span, onSuccess }: AddToLabe
     }
   };
 
+  const handleValueChange = (value: string) => {
+    if (value === "create-queue") {
+      return;
+    }
+    setSelectedQueue(value);
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Badge className="cursor-pointer h-fit" variant="secondary">
-          <Pen className="size-3 mr-2" />
-          <span className="text-xs">Add to labeling queue</span>
-        </Badge>
+        {children || (
+          <Badge className="cursor-pointer h-fit flex-nowrap min-w-8" variant="secondary">
+            <Pen className="size-3 min-w-3" />
+            <span className="ml-2 text-xs truncate block flex-1">Add to labeling queue</span>
+          </Badge>
+        )}
       </PopoverTrigger>
 
       <PopoverContent className="w-80" align="start" side="bottom">
         <div className="flex flex-col space-y-4">
-          <div className="font-medium">Add to Labeling Queue</div>
-
-          <Select value={selectedQueue} onValueChange={setSelectedQueue}>
+          <span className="font-medium">Add to Labeling Queue</span>
+          <Select
+            disabled={isQueuesLoading || isEmpty(labelingQueues?.items)}
+            value={selectedQueue}
+            onValueChange={handleValueChange}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select a labeling queue" />
             </SelectTrigger>
@@ -91,6 +105,12 @@ export default function AddToLabelingQueuePopover({ span, onSuccess }: AddToLabe
                     {queue.name}
                   </SelectItem>
                 ))}
+              <CreateQueueDialog>
+                <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  <span>Create new queue</span>
+                </div>
+              </CreateQueueDialog>
             </SelectContent>
           </Select>
           <Button className="ml-auto" onClick={handleAddToQueue} disabled={!selectedQueue || isLoading}>

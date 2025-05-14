@@ -1,20 +1,14 @@
-import { Loader2 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { Loader2, Rows2 } from "lucide-react";
+import React, { useCallback, useState } from "react";
 
-import { useProjectContext } from '@/contexts/project-context';
-import { isValidJsonObject } from '@/lib/utils';
+import { Badge } from "@/components/ui/badge";
+import { useProjectContext } from "@/contexts/project-context";
+import { isValidJsonObject } from "@/lib/utils";
 
-import { useToast } from '../../lib/hooks/use-toast';
-import { Button } from '../ui/button';
-import CodeEditor from '../ui/code-editor';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '../ui/dialog';
+import { useToast } from "../../lib/hooks/use-toast";
+import { Button } from "../ui/button";
+import CodeEditor from "../ui/code-editor";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 
 const DEFAULT_DATA = '{\n  "data": {},\n  "target": {}\n}';
 
@@ -24,10 +18,7 @@ interface TypeDatapointDialogProps {
 }
 
 // Dialog to add a single datapoint to a dataset by manually typing
-export default function ManualAddDatapointDialog({
-  datasetId,
-  onUpdate
-}: TypeDatapointDialogProps) {
+export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDatapointDialogProps) {
   const { projectId } = useProjectContext();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -51,10 +42,10 @@ export default function ManualAddDatapointDialog({
 
   const showError = useCallback((message: string) => {
     toast({
-      title: 'Add datapoint error',
-      variant: 'destructive',
+      title: "Add datapoint error",
+      variant: "destructive",
       description: message,
-      duration: 10000
+      duration: 10000,
     });
   }, []);
 
@@ -62,32 +53,29 @@ export default function ManualAddDatapointDialog({
     setIsLoading(true);
 
     try {
-      let res = await fetch(
-        `/api/projects/${projectId}/datasets/${datasetId}/datapoints`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            datapoints: [JSON.parse(data)],
-          }),
-          cache: 'no-cache'
-        }
-      );
+      let res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints`, {
+        method: "POST",
+        body: JSON.stringify({
+          datapoints: [JSON.parse(data)],
+        }),
+        cache: "no-cache",
+      });
 
       if (res.status != 200) {
-        showError((await res.json())['details']);
+        showError((await res.json())["details"]);
         setIsLoading(false);
         return;
       }
 
       toast({
-        title: 'Successfully added datapoint'
+        title: "Successfully added datapoint",
       });
 
       onUpdate?.();
       setIsLoading(false);
       setIsDialogOpen(false);
     } catch (e) {
-      showError('Please enter a valid JSON');
+      showError("Please enter a valid JSON");
       setIsLoading(false);
       return;
     }
@@ -102,13 +90,16 @@ export default function ManualAddDatapointDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline">Add row</Button>
+        <Badge className="cursor-pointer py-1 px-2" variant="secondary">
+          <Rows2 className="size-3 mr-2" />
+          <span className="text-xs">Add row</span>
+        </Badge>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>New datapoint</DialogTitle>
         </DialogHeader>
-        <span>{'Fill in datapoint in JSON format.'}</span>
+        <span>{"Fill in datapoint in JSON format."}</span>
         <div className="border rounded-md max-h-[300px] overflow-y-auto">
           <CodeEditor value={data} onChange={setData} language="json" editable />
         </div>
@@ -118,10 +109,7 @@ export default function ManualAddDatapointDialog({
           </div>
         )}
         <DialogFooter className="mt-4">
-          <Button
-            disabled={isLoading || !isValidJson()}
-            onClick={async () => await addDatapoint()}
-          >
+          <Button disabled={isLoading || !isValidJson()} onClick={async () => await addDatapoint()}>
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             Add datapoint
           </Button>

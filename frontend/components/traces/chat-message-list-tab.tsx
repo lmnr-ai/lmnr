@@ -120,52 +120,50 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
   const items = virtualizer.getVirtualItems();
 
   return (
-    <div className="relative h-full">
-      <ScrollArea
-        ref={parentRef}
-        className="h-full overflow-y-auto p-4"
+    <ScrollArea
+      ref={parentRef}
+      className="h-full relative overflow-y-auto p-4"
+      style={{
+        width: "100%",
+        contain: "strict",
+      }}
+    >
+      <div
         style={{
+          height: virtualizer.getTotalSize(),
           width: "100%",
-          contain: "strict",
+          position: "relative",
         }}
       >
         <div
           style={{
-            height: virtualizer.getTotalSize(),
+            position: "absolute",
+            top: 0,
+            left: 0,
             width: "100%",
-            position: "relative",
+            transform: `translateY(${items[0]?.start ?? 0}px)`,
           }}
         >
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              transform: `translateY(${items[0]?.start ?? 0}px)`,
-            }}
-          >
-            {items.map((virtualRow) => {
-              const message = messages[virtualRow.index];
-              return (
-                <div
-                  key={virtualRow.key}
-                  ref={virtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  className="flex flex-col border rounded mb-4"
-                >
-                  {message?.role && (
-                    <div className="font-medium text-sm text-secondary-foreground p-2 border-b">
-                      {message.role.toUpperCase()}
-                    </div>
-                  )}
-                  <ContentParts presetKey={presetKey} contentParts={message.content} />
-                </div>
-              );
-            })}
-          </div>
+          {items.map((virtualRow) => {
+            const message = messages[virtualRow.index];
+            return (
+              <div
+                key={virtualRow.key}
+                ref={virtualizer.measureElement}
+                data-index={virtualRow.index}
+                className="flex flex-col border rounded mb-4"
+              >
+                {message?.role && (
+                  <div className="font-medium text-sm text-secondary-foreground p-2 border-b">
+                    {message.role.toUpperCase()}
+                  </div>
+                )}
+                <ContentParts presetKey={presetKey} contentParts={message.content} />
+              </div>
+            );
+          })}
         </div>
-      </ScrollArea>
+      </div>
       <Button
         variant="outline"
         size="icon"
@@ -174,7 +172,7 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
       >
         <ChevronDown className="w-4 h-4" />
       </Button>
-    </div>
+    </ScrollArea>
   );
 }
 
