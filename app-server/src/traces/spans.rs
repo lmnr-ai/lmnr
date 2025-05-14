@@ -485,6 +485,19 @@ impl Span {
             }
         }
 
+        // try parsing LiteLLM inner span for well-known providers
+        if span.name == "raw_gen_ai_request" {
+            span.input = span
+                .input
+                .or(attributes.get("llm.openai.messages").cloned())
+                .or(attributes.get("llm.anthropic.messages").cloned());
+
+            span.output = span
+                .output
+                .or(attributes.get("llm.openai.choices").cloned())
+                .or(attributes.get("llm.anthropic.content").cloned());
+        }
+
         // Vercel AI SDK wraps "raw" LLM spans in an additional `ai.generateText` span.
         // Which is not really an LLM span, but it has the prompt in its attributes.
         // Set the input to the prompt and the output to the response.
