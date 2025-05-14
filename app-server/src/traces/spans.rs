@@ -865,14 +865,24 @@ fn parse_tool_calls(
     let mut tool_calls = Vec::new();
     let mut i = 0;
 
-    while let Some(serde_json::Value::String(tool_call_name)) =
-        attributes.get(&format!("{prefix}.tool_calls.{i}.name"))
+    while let Some(serde_json::Value::String(tool_call_name)) = attributes
+        .get(&format!("{prefix}.tool_calls.{i}.name"))
+        .or(attributes.get(&format!("{prefix}.function_call.name")))
     {
+        let is_litellm_tool_call = attributes
+            .get(&format!("{prefix}.function_call.name"))
+            .is_some()
+            && attributes
+                .get(&format!("{prefix}.tool_calls.{i}.name"))
+                .is_none();
         let tool_call_id = attributes
             .get(&format!("{prefix}.tool_calls.{i}.id"))
+            .or(attributes.get(&format!("{prefix}.function_call.id")))
             .and_then(|id| id.as_str())
             .map(String::from);
-        let tool_call_arguments_raw = attributes.get(&format!("{prefix}.tool_calls.{i}.arguments"));
+        let tool_call_arguments_raw = attributes
+            .get(&format!("{prefix}.tool_calls.{i}.arguments"))
+            .or(attributes.get(&format!("{prefix}.function_call.arguments")));
         let tool_call_arguments: Option<Value> = match tool_call_arguments_raw {
             Some(serde_json::Value::String(s)) => {
                 let parsed = serde_json::from_str::<HashMap<String, Value>>(s);
@@ -891,6 +901,12 @@ fn parse_tool_calls(
         };
         tool_calls.push(tool_call);
         i += 1;
+        if is_litellm_tool_call {
+            // LiteLLM indexes tool calls by gen_ai.completion.N, i.e. parallel
+            // tool calls are like two completion messages. We break to avoid
+            // infinite loop.
+            break;
+        }
     }
     tool_calls
 }
