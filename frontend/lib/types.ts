@@ -31,6 +31,13 @@ export type ChatMessageDocumentUrl = {
   url: string;
 };
 
+export type ChatMessageToolCall = {
+  type: "tool_call";
+  id?: string;
+  arguments?: Record<string, unknown>;
+  name: string;
+};
+
 export type OpenAIImageUrl = {
   type: "image_url";
   image_url: {
@@ -39,7 +46,12 @@ export type OpenAIImageUrl = {
   };
 };
 
-export type ChatMessageContentPart = ChatMessageText | ChatMessageImageUrl | ChatMessageImage | ChatMessageDocumentUrl;
+export type ChatMessageContentPart =
+  | ChatMessageText
+  | ChatMessageImageUrl
+  | ChatMessageImage
+  | ChatMessageDocumentUrl
+  | ChatMessageToolCall;
 
 export type ChatMessageContent = string | ChatMessageContentPart[];
 

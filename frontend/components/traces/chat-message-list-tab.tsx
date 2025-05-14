@@ -74,6 +74,15 @@ const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
           }
         case "document_url":
           return <ContentPartDocumentUrl url={contentPart.url} />;
+        case "tool_call":
+          return (
+            <CodeHighlighter
+              collapsible
+              value={JSON.stringify(contentPart, null, 2)}
+              presetKey={presetKey}
+              className="max-h-[400px] border-none"
+            />
+          );
         default:
           return <div>Unknown content part</div>;
       }

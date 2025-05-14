@@ -61,6 +61,14 @@ pub struct ChatMessageDocument {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessageToolCall {
+    pub name: String,
+    pub id: Option<String>,
+    pub arguments: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum ChatMessageContentPart {
     #[serde(rename = "text")]
@@ -73,6 +81,8 @@ pub enum ChatMessageContentPart {
     Document(ChatMessageDocument),
     #[serde(rename = "document_url")]
     DocumentUrl(ChatMessageDocumentUrl),
+    #[serde(rename = "tool_call")]
+    ToolCall(ChatMessageToolCall),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
