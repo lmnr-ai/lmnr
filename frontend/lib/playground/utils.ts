@@ -34,6 +34,12 @@ export const mapMessages = async (messages: ChatMessage[]): Promise<Message[]> =
                 type: "image",
                 image: part.url,
               };
+            case "tool_call":
+              // TODO: parse tool call content blocks from message history and span outputs
+              return {
+                type: "text",
+                text: JSON.stringify(part),
+              };
             default:
               return {
                 type: "text",
