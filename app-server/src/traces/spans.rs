@@ -519,6 +519,16 @@ impl Span {
             .output
             .or(attributes.get("traceloop.entity.output").cloned());
 
+        // Ignore inputs for Traceloop Langchain RunnableSequence spans
+        if span.name.starts_with("RunnableSequence")
+            && attributes
+                .get("traceloop.entity.name")
+                .map(|s| json_value_to_string(s) == "RunnableSequence")
+                .unwrap_or(false)
+        {
+            span.input = None;
+        }
+
         // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
         // attributes over gen_ai/vercel/LiteLLM attributes.
         // Therefore this block is outside and after the LLM span type check.
