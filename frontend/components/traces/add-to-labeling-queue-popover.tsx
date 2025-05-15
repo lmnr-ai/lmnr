@@ -1,4 +1,5 @@
 import { Loader2, Pen, Plus } from "lucide-react";
+import Link from "next/link";
 import { PropsWithChildren, useCallback, useState } from "react";
 import useSWR from "swr";
 
@@ -45,7 +46,14 @@ export default function AddToLabelingQueuePopover({
       if (response.ok) {
         toast({
           title: "Success",
-          description: "Successfully added items to labeling queue",
+          description: (
+            <span>
+              Successfully added to queue.{" "}
+              <Link className="text-primary" href={`/project/${projectId}/labeling-queues/${selectedQueue}`}>
+                Go to queue.
+              </Link>
+            </span>
+          ),
         });
         setOpen(false);
       } else {

@@ -6,14 +6,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 
+import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Button } from "@/components/ui/button";
+import Mono from "@/components/ui/mono";
 import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue } from "@/lib/queue/types";
 import { PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
-import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { DataTable } from "../ui/datatable";
 import {
   Dialog,
@@ -25,15 +26,40 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import Header from "../ui/header";
-import Mono from "../ui/mono";
 import { TableCell, TableRow } from "../ui/table";
 import CreateQueueDialog from "./create-queue-dialog";
+
+const columns: ColumnDef<LabelingQueue>[] = [
+  {
+    cell: ({ row }) => <Mono>{row.original.id}</Mono>,
+    size: 300,
+    header: "ID",
+  },
+  {
+    accessorKey: "name",
+    header: "Name",
+    size: 300,
+  },
+  {
+    accessorKey: "count",
+    header: "Count",
+    size: 300,
+  },
+  {
+    header: "Created at",
+    accessorKey: "createdAt",
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+  },
+];
 
 export default function Queues() {
   const { projectId } = useProjectContext();
 
   const router = useRouter();
-  const { data, mutate } = useSWR<PaginatedResponse<LabelingQueue>>(`/api/projects/${projectId}/queues`, swrFetcher);
+  const { data, mutate } = useSWR<PaginatedResponse<LabelingQueue & { count: number }>>(
+    `/api/projects/${projectId}/queues`,
+    swrFetcher
+  );
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -65,24 +91,6 @@ export default function Queues() {
     setIsDeleting(false);
     setIsDeleteDialogOpen(false);
   };
-
-  const columns: ColumnDef<LabelingQueue>[] = [
-    {
-      cell: ({ row }) => <Mono>{row.original.id}</Mono>,
-      size: 300,
-      header: "ID",
-    },
-    {
-      accessorKey: "name",
-      header: "name",
-      size: 300,
-    },
-    {
-      header: "Created at",
-      accessorKey: "createdAt",
-      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-    },
-  ];
 
   return (
     <div className="h-full flex flex-col">
