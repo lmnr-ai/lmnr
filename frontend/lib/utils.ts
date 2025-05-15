@@ -153,53 +153,6 @@ function innerFormatTimestamp(date: Date): string {
   return `${dateStr}, ${timeStr}`;
 }
 
-export const getLocalEnvVars = (projectId: string): Record<string, string> =>
-  JSON.parse(localStorage?.getItem(`env-${projectId}`) ?? "{}");
-
-export const setLocalEnvVar = (projectId: string, key: string, value: string) => {
-  const localEnvVars = getLocalEnvVars(projectId);
-  localStorage.setItem(`env-${projectId}`, JSON.stringify({ ...localEnvVars, [key]: value }));
-};
-
-export const deleteLocalEnvVar = (projectId: string, key: string) => {
-  const localEnvVars = getLocalEnvVars(projectId);
-  delete localEnvVars[key];
-  localStorage.setItem(`env-${projectId}`, JSON.stringify(localEnvVars));
-};
-
-export const getLocalDevSessions = (projectId: string): Record<string, string> =>
-  JSON.parse(localStorage?.getItem(`dev-sessions-${projectId}`) ?? "{}");
-
-export const setLocalDevSession = (projectId: string, key: string, value: string) => {
-  const localDevSessions = getLocalDevSessions(projectId);
-  localStorage.setItem(`dev-sessions-${projectId}`, JSON.stringify({ ...localDevSessions, [key]: value }));
-};
-
-export const deleteLocalDevSession = (projectId: string, key: string) => {
-  const localDevSessions = getLocalDevSessions(projectId);
-  delete localDevSessions[key];
-  localStorage.setItem(`dev-sessions-${projectId}`, JSON.stringify(localDevSessions));
-};
-
-// If unseen state, then use it to fill out inputs
-export const STORED_INPUTS_STATE_UNSEEN = "INPUTS_UNSEEN_STATE";
-// If seen state, then use allInputs to fill out inputs
-export const STORED_INPUTS_STATE_SEEN = "INPUTS_SEEN_STATE";
-
-/**
- * Simple hash function to generate a short unique (with high-probability) identifier
- *
- * It doesn't use numbers so that in the code-generated nodes there are no numbers in the variables.
- */
-export function generateShortHash() {
-  const chars = "abcdefghkmnopqrstuxyz0123456789";
-  let hash = "";
-  for (let i = 0; i < 6; i++) {
-    hash += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return hash;
-}
-
 export const isStringType = (content: string | ChatMessageContentPart[]): content is string =>
   typeof content === "string" || content instanceof String;
 
