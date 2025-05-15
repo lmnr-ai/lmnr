@@ -1,8 +1,8 @@
 // components/analytics/PostHogIdentifier.tsx
-'use client'
+'use client';
 
-import { useEffect } from 'react'
-import { usePostHog } from 'posthog-js/react'
+import { usePostHog } from 'posthog-js/react';
+import { useEffect } from 'react';
 
 interface PostHogIdentifierProps {
   email: string
@@ -16,9 +16,9 @@ export default function PostHogIdentifier({ email }: PostHogIdentifierProps) {
     if (email && posthog) {
       posthog.identify(email, {
         email: email,
-      })
+      });
     }
-  }, [email])
+  }, [email]);
 
-  return null // This component doesn't render anything
+  return null; // This component doesn't render anything
 }

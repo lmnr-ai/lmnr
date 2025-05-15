@@ -11,6 +11,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+
 import PostHogClient from "../posthog";
 import PostHogIdentifier from "../posthog-identifier";
 

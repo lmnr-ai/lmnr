@@ -2,11 +2,11 @@
 
 import Image from "next/image";
 import { signOut } from "next-auth/react";
+import { posthog } from "posthog-js";
 
 import { useUserContext } from "@/contexts/user-context";
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
-import { posthog } from "posthog-js";
 
 interface AvatarMenuProps {
   showDetails?: boolean;

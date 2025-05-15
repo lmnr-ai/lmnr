@@ -7,6 +7,7 @@ import { getServerSession } from "next-auth";
 import { ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
+import PostHogIdentifier from "@/app/posthog-identifier";
 import ProjectSidebar from "@/components/project/project-sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -17,7 +18,6 @@ import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { GetProjectResponse } from "@/lib/workspaces/types";
-import PostHogIdentifier from "@/app/posthog-identifier";
 async function getProjectDetails(projectId: string): Promise<GetProjectResponse> {
   const projectResult = await db
     .select({
