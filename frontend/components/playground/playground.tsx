@@ -6,6 +6,7 @@ import { FormProvider, useForm } from "react-hook-form";
 import useSWR from "swr";
 
 import PlaygroundPanel from "@/components/playground/playground-panel";
+import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
@@ -33,7 +34,11 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     defaultValues: {
       model: "openai:gpt-4o-mini",
       messages: defaultMessages,
+      maxTokens: 1024,
+      temperature: 1,
+      providerOptions: {},
     },
+    mode: "onChange",
   });
 
   const { reset, watch } = methods;
@@ -46,10 +51,16 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   const handleResetForm = async () => {
     if (playground) {
       const messages = await mapMessages(playground.promptMessages);
-
       reset({
-        model: (playground.modelId as PlaygroundForm["model"]) ?? "openai:gpt-4o-mini",
+        model: playground.modelId as PlaygroundForm["model"],
         messages: isEmpty(messages) ? defaultMessages : messages,
+        maxTokens: playground.maxTokens ?? undefined,
+        temperature: playground.temperature ?? undefined,
+        providerOptions: playground.providerOptions
+          ? playground.providerOptions
+          : getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
+        tools: JSON.stringify(playground.tools),
+        toolChoice: playground.toolChoice as PlaygroundForm["toolChoice"],
       });
     }
   };
@@ -63,6 +74,11 @@ export default function Playground({ playground }: { playground: PlaygroundType 
           body: JSON.stringify({
             promptMessages: remapMessages(form.messages),
             modelId: form.model,
+            tools: form.tools,
+            toolChoice: form.toolChoice,
+            maxTokens: form.maxTokens,
+            temperature: form.temperature,
+            providerOptions: form.providerOptions,
           }),
         });
       } catch (e) {
@@ -104,19 +120,22 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   }, [params?.projectId, playground.id, updatePlaygroundData, watch]);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex-1 flex flex-col overflow-hidden">
       <Header path={`playgrounds/${playground.name}`}>
         {isUpdating && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />}
       </Header>
       {isApiKeysLoading ? (
-        <div className="flex flex-col gap-4 py-8 px-4">
+        <div className="flex flex-col gap-4 py-4 px-4">
           <Skeleton className="w-64 h-8" />
-          <Skeleton className="w-full h-32" />
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="w-full h-64" />
+            <Skeleton className="w-full h-64" />
+          </div>
           <Skeleton className="w-16 h-7" />
         </div>
       ) : (
         <FormProvider {...methods}>
-          <PlaygroundPanel apiKeys={apiKeys ?? []} isUpdating={isUpdating} />
+          <PlaygroundPanel id={playground.id} apiKeys={apiKeys ?? []} />
         </FormProvider>
       )}
     </div>

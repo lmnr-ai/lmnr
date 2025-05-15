@@ -59,7 +59,7 @@ export default function Pricing() {
               '50K spans / month',
               '15 day data retention',
               '1 team member',
-              '100 agent steps / month',
+              '500 agent steps / month',
               'Community support',
             ]}
           />
@@ -78,8 +78,8 @@ export default function Pricing() {
               '100k spans / month',
               '30 day data retention',
               '2 team members',
-              '1000 agent steps / month',
-              'Community support',
+              '2500 agent steps / month',
+              'Priority email support',
             ]}
             subfeatures={[
               'then $5 per 100k of additional spans',
@@ -103,13 +103,13 @@ export default function Pricing() {
               '200k spans / month included',
               '90 day data retention',
               '3 team members included',
-              '3000 agent steps / month',
+              '5000 agent steps / month',
               'Private Slack channel',
             ]}
             subfeatures={[
               'then $5 per 100k of additional spans',
               null,
-              '$25 per additional team member',
+              'then $25 per additional team member',
               'then $10 per 1k steps'
             ]}
           />

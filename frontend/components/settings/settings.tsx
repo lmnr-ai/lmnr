@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { ProjectApiKey } from "@/lib/api-keys/types";
 
@@ -14,9 +14,9 @@ interface SettingsProps {
 
 export default function Settings({ apiKeys }: SettingsProps) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       <Header path="settings" />
-      <div className="flex flex-col space-y-8 p-4">
+      <div className="flex flex-col flex-1 space-y-8 p-4 overflow-y-auto">
         <ProjectApiKeys apiKeys={apiKeys} />
         <ProviderApiKeys />
         <RenameProject />

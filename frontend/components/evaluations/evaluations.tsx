@@ -128,15 +128,13 @@ export default function Evaluations() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1">
       <Header path="evaluations" />
-      <div className="flex size-full">
+      <div className="flex flex-1">
         <EvaluationsGroupsBar />
-        <div className="flex flex-col h-full flex-1">
+        <div className="flex flex-col flex-1 overflow-auto">
           <div className="flex gap-4 pt-4 px-4 items-center">
-            <div className="flex gap-2 text-secondary-foreground">
-              <div className="text-primary-foreground text-xl font-medium">{searchParams.get("groupId")}</div>
-            </div>
+            <div className="text-primary-foreground text-xl font-medium">{searchParams.get("groupId")}</div>
             <Select
               value={aggregationFunction}
               onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}

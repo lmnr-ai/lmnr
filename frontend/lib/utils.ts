@@ -317,22 +317,6 @@ export const pluralize = (count: number, singular: string, plural: string) => {
 
 export const isValidNumber = (value?: number): value is number => typeof value === "number" && !isNaN(value);
 
-export const streamReader = async (stream: ReadableStream<string>, onChunk: (chunk: string) => void) => {
-  const reader = stream.getReader();
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      onChunk(value);
-    }
-  } catch (error) {
-    throw error;
-  } finally {
-    reader.releaseLock();
-  }
-};
-
 export function generateRandomKey(length: number): string {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   const randomValues = new Uint8Array(length);

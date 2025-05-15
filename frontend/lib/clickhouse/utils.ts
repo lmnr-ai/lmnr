@@ -6,8 +6,6 @@ const NANOS_PER_MILLISECOND = 1e6;
 
 export const dateToNanoseconds = (date: Date): number => date.getTime() * NANOS_PER_MILLISECOND;
 
-export const nanosecondsToDate = (nanoseconds: number): Date => new Date(nanoseconds / NANOS_PER_MILLISECOND);
-
 const validateSqlString = (str: string): boolean => /^[a-zA-Z0-9_\.]+$/.test(str);
 
 type AbsoluteTimeRange = {
@@ -68,9 +66,11 @@ export const addTimeRangeToQuery = (query: string, timeRange: TimeRange, column:
     throw new Error(`Invalid column name: ${column}`);
   }
   if ("start" in timeRange && "end" in timeRange) {
+    const startSeconds = Math.floor(timeRange.start.getTime() / 1000);
+    const endSeconds = Math.floor(timeRange.end.getTime() / 1000);
     return `${query}
-      AND ${column} >= ${dateToNanoseconds(timeRange.start)}
-      AND ${column} <= ${dateToNanoseconds(timeRange.end)}`;
+      AND ${column} >= fromUnixTimestamp(${startSeconds})
+      AND ${column} <= fromUnixTimestamp(${endSeconds})`;
   }
   if ("pastHours" in timeRange) {
     if (timeRange.pastHours === "all") {

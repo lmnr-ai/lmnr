@@ -165,13 +165,6 @@ export const evaluationsRelations = relations(evaluations, ({one, many}) => ({
   evaluationResults: many(evaluationResults),
 }));
 
-export const playgroundsRelations = relations(playgrounds, ({one}) => ({
-  project: one(projects, {
-    fields: [playgrounds.projectId],
-    references: [projects.id]
-  }),
-}));
-
 export const evaluationScoresRelations = relations(evaluationScores, ({one}) => ({
   evaluationResult: one(evaluationResults, {
     fields: [evaluationScores.resultId],
@@ -184,6 +177,13 @@ export const evaluationResultsRelations = relations(evaluationResults, ({one, ma
   evaluation: one(evaluations, {
     fields: [evaluationResults.evaluationId],
     references: [evaluations.id]
+  }),
+}));
+
+export const playgroundsRelations = relations(playgrounds, ({one}) => ({
+  project: one(projects, {
+    fields: [playgrounds.projectId],
+    references: [projects.id]
   }),
 }));
 

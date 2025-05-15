@@ -1,14 +1,14 @@
 import { EditorView } from "@codemirror/view";
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import CodeSheet from "@/components/traces/code-highlighter/code-sheet";
 import {
   baseExtensions,
   languageExtensions,
   MAX_LINE_WRAPPING_LENGTH,
-  modes,
+  modes as defaultModes,
   renderText,
   theme,
 } from "@/components/traces/code-highlighter/utils";
@@ -18,9 +18,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 interface CodeEditorProps {
+  onChange?: ReactCodeMirrorProps["onChange"];
+  readOnly?: boolean;
+  modes?: string[];
+  defaultMode?: string;
   value: string;
   className?: string;
-  language?: string;
   placeholder?: string;
   lineWrapping?: boolean;
   onLoad?: () => void;
@@ -29,9 +32,11 @@ interface CodeEditorProps {
   codeEditorClassName?: string;
 }
 
-const defaultMode = "text";
-
 const PureCodeHighlighter = ({
+  onChange,
+  readOnly,
+  modes = defaultModes,
+  defaultMode = "text",
   value,
   className,
   placeholder,
@@ -41,6 +46,8 @@ const PureCodeHighlighter = ({
   onLoad,
   codeEditorClassName,
 }: CodeEditorProps) => {
+  const editorRef = useRef<ReactCodeMirrorRef | null>(null);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
@@ -132,12 +139,14 @@ const PureCodeHighlighter = ({
         className={cn("flex-grow flex bg-card overflow-auto w-full h-fit", { "h-0": isCollapsed }, codeEditorClassName)}
       >
         <CodeMirror
+          ref={editorRef}
           className="w-full"
-          onUpdate={onLoad}
           placeholder={placeholder}
+          onChange={onChange}
           theme={theme}
           extensions={extensions}
           value={renderedValue}
+          readOnly={readOnly}
         />
       </div>
     </div>
