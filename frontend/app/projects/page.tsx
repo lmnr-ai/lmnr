@@ -11,6 +11,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import PostHogClient from "../posthog";
+import PostHogIdentifier from "../posthog-identifier";
 
 export const metadata: Metadata = {
   title: "Projects",
@@ -40,6 +42,11 @@ export default async function ProjectsPage() {
     return redirect("/onboarding");
   }
 
+  const posthog = PostHogClient();
+  posthog.identify({
+    distinctId: user.email ?? "",
+  });
+
   return (
     <UserContextProvider
       id={user.id}
@@ -48,6 +55,7 @@ export default async function ProjectsPage() {
       username={user.name!}
       imageUrl={user.image!}
     >
+      <PostHogIdentifier email={user.email!} />
       <WorkspacesNavbar />
       <div className="flex flex-col flex-grow min-h-screen ml-64 overflow-auto">
         <Header path="Projects" showSidebarTrigger={false} />
