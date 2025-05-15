@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Label } from "@/components/ui/label";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
 import { cn } from "@/lib/utils";
@@ -46,7 +47,7 @@ const getDefaultState = (
 export default function Queue({ queue }: QueueProps) {
   const { projectId } = useParams();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState<"skip" | "move" | false>(false);
+  const [isLoading, setIsLoading] = useState<"skip" | "move" | "first-load" | false>("first-load");
   const [isValid, setIsValid] = useState(true);
   const [dataset, setDataset] = useState<string>();
   const [currentItem, setCurrentItem] = useState<
@@ -92,9 +93,13 @@ export default function Queue({ queue }: QueueProps) {
   }, []);
 
   const move = useCallback(
-    async (refDate: string, direction: "next" | "prev" = "next") => {
+    async (
+      refDate: string,
+      direction: "next" | "prev" = "next",
+      load: "skip" | "move" | "first-load" | false = "move"
+    ) => {
       try {
-        setIsLoading("move");
+        setIsLoading(load);
         const response = await fetch(`/api/projects/${projectId}/queues/${queue.id}/move`, {
           method: "POST",
           body: JSON.stringify({ refDate, direction }),
@@ -167,7 +172,7 @@ export default function Queue({ queue }: QueueProps) {
   );
 
   useEffect(() => {
-    move(new Date(0).toISOString());
+    move(new Date(0).toISOString(), "next", "first-load");
   }, []);
 
   return (
@@ -175,17 +180,32 @@ export default function Queue({ queue }: QueueProps) {
       <Header path={`labeling queues/${queue.name}`} />
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel className="flex flex-1 flex-col overflow-hidden p-4" minSize={20} defaultSize={50}>
-          <span className="text-secondary-foreground mb-2">Payload</span>
-          <MonoWithCopy className="text-secondary-foreground text-nowrap truncate">{currentItem.id}</MonoWithCopy>
-          <div className="flex flex-1 overflow-hidden mt-3">
-            <CodeHighlighter
-              codeEditorClassName="rounded-b"
-              className="rounded"
-              defaultMode="json"
-              readOnly
-              value={JSON.stringify(currentItem.payload, null, 2)}
-            />
-          </div>
+          {isLoading === "first-load" ? (
+            <div className="size-full flex flex-col flex-1 gap-2">
+              <Skeleton className="h-6 w-20 mb-2" />
+              <Skeleton className="h-4" />
+              <Skeleton className="h-full" />
+            </div>
+          ) : currentItem.count > 0 ? (
+            <>
+              <span className="text-secondary-foreground mb-2">Payload</span>
+              <MonoWithCopy className="text-secondary-foreground text-nowrap truncate">{currentItem.id}</MonoWithCopy>
+              <div className="flex flex-1 overflow-hidden mt-3">
+                <CodeHighlighter
+                  codeEditorClassName="rounded-b"
+                  className="rounded"
+                  defaultMode="json"
+                  readOnly
+                  value={JSON.stringify(currentItem.payload, null, 2)}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col gap-1 justify-center items-center size-full">
+              <span className="text-lg">No items in the queue</span>
+              <span className="text-secondary-foreground text-sm">Push items to queue from dataset or spans</span>
+            </div>
+          )}
         </ResizablePanel>
         <ResizableHandle withHandle className="z-50" />
         <ResizablePanel className="flex-1 flex-col flex" minSize={20} defaultSize={33}>

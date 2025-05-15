@@ -12,7 +12,10 @@ import { LabelingQueue } from "@/lib/queue/types";
 import { PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export default function CreateQueueDialog({ children }: PropsWithChildren) {
+export default function CreateQueueDialog({
+  onSuccess,
+  children,
+}: PropsWithChildren<{ onSuccess?: (queue: LabelingQueue) => void }>) {
   const [newQueueName, setNewQueueName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -50,6 +53,10 @@ export default function CreateQueueDialog({ children }: PropsWithChildren) {
         { revalidate: false, populateCache: true, rollbackOnError: true }
       );
 
+      if (onSuccess) {
+        onSuccess(newQueue);
+      }
+
       toast({ title: "Successfully created queue" });
       setIsDialogOpen(false);
       setIsLoading(false);
@@ -60,7 +67,7 @@ export default function CreateQueueDialog({ children }: PropsWithChildren) {
         description: e instanceof Error ? e.message : "Failed to create the queue. Please try again.",
       });
     }
-  }, [mutate, newQueueName, projectId, toast]);
+  }, [mutate, newQueueName, onSuccess, projectId, toast]);
 
   return (
     <Dialog

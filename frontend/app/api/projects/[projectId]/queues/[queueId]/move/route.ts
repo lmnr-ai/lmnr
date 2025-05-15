@@ -4,7 +4,6 @@ import { z } from "zod";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueueItems } from "@/lib/db/migrations/schema";
 
-// Add request body validation schema
 const RequestBodySchema = z.object({
   refDate: z.string(),
   direction: z.enum(["next", "prev"]),
@@ -13,7 +12,6 @@ const RequestBodySchema = z.object({
 export async function POST(req: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
   const params = await props.params;
 
-  // Validate body
   const body = await req.json();
   const parsedBody = RequestBodySchema.safeParse(body);
   if (!parsedBody.success) {
@@ -39,8 +37,6 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
       return Response.json({});
     }
 
-    console.log("next item", nextItem);
-    // Get position for next item
     const [{ position }] = await db
       .select({
         position: sql<number>`(
@@ -68,7 +64,6 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
       return Response.json({});
     }
 
-    // Get position for prev item
     const [{ position }] = await db
       .select({
         position: sql<number>`(

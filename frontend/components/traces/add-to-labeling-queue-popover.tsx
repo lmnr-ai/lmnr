@@ -1,6 +1,5 @@
-import { isEmpty } from "lodash";
 import { Loader2, Pen, Plus } from "lucide-react";
-import { PropsWithChildren, useState } from "react";
+import { PropsWithChildren, useCallback, useState } from "react";
 import useSWR from "swr";
 
 import CreateQueueDialog from "@/components/queues/create-queue-dialog";
@@ -33,7 +32,7 @@ export default function AddToLabelingQueuePopover({
     swrFetcher
   );
 
-  const handleAddToQueue = async () => {
+  const handleAddToQueue = useCallback(async () => {
     if (!selectedQueue) return;
     setIsLoading(true);
 
@@ -67,7 +66,7 @@ export default function AddToLabelingQueuePopover({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [data, projectId, selectedQueue, toast]);
 
   const handleValueChange = (value: string) => {
     if (value === "create-queue") {
@@ -90,11 +89,7 @@ export default function AddToLabelingQueuePopover({
       <PopoverContent className="w-80" align="start" side="bottom">
         <div className="flex flex-col space-y-4">
           <span className="font-medium">Add to Labeling Queue</span>
-          <Select
-            disabled={isQueuesLoading || isEmpty(labelingQueues?.items)}
-            value={selectedQueue}
-            onValueChange={handleValueChange}
-          >
+          <Select disabled={isQueuesLoading} value={selectedQueue} onValueChange={handleValueChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select a labeling queue" />
             </SelectTrigger>

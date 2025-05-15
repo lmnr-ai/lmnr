@@ -33,7 +33,7 @@ export default function Queues() {
   const { projectId } = useProjectContext();
 
   const router = useRouter();
-  const { data, mutate } = useSWR<PaginatedResponse<LabelingQueue>>(`/api/projects/${projectId}/queues/`, swrFetcher);
+  const { data, mutate } = useSWR<PaginatedResponse<LabelingQueue>>(`/api/projects/${projectId}/queues`, swrFetcher);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -89,7 +89,7 @@ export default function Queues() {
       <Header path="labeling queues" />
       <div className="flex justify-between items-center p-4 flex-none">
         <h1 className="scroll-m-20 text-2xl font-medium">Labeling Queues</h1>
-        <CreateQueueDialog>
+        <CreateQueueDialog onSuccess={(queue) => router.push(`/project/${projectId}/labeling-queues/${queue.id}`)}>
           <Button variant="default">New queue</Button>
         </CreateQueueDialog>
       </div>
