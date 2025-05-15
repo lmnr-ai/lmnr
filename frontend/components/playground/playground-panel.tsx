@@ -46,7 +46,6 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
     }));
   };
 
-  console.log(usage);
   const submit: SubmitHandler<PlaygroundForm> = async (form) => {
     try {
       setIsLoading(true);
@@ -83,7 +82,6 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
           }));
         },
         onFinishMessagePart: (part) => {
-          console.log(part);
           if (part?.usage) {
             setUsage(part.usage);
           }
@@ -157,13 +155,13 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
           <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
         </Button>
       </div>
-      <ResizablePanelGroup autoSaveId={`playground:${id}`} direction="horizontal" className="flex-1 pb-4">
+      <ResizablePanelGroup autoSaveId={`playground:${id}`} direction="horizontal" className="flex flex-1 pb-4">
         <ResizablePanel minSize={30} className="flex flex-col flex-1 gap-2">
           <Messages />
         </ResizablePanel>
         <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
-        <ResizablePanel minSize={20} className="h-full flex flex-col px-4">
-          <div className="flex flex-1">
+        <ResizablePanel minSize={20} className="flex-1 flex flex-col px-4">
+          <div className="flex flex-1 overflow-hidden">
             <CodeHighlighter
               codeEditorClassName="rounded-b"
               className="rounded"
@@ -173,8 +171,12 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
           </div>
           {!!usage && (
             <div className={cn("mt-2 flex flex-col gap-1")}>
-              <span className="text-xs text-secondary-foreground">Prompt Tokens: {usage?.promptTokens}</span>
-              <span className="text-xs text-secondary-foreground">Completion Tokens: {usage?.completionTokens}</span>
+              {!isNaN(usage?.promptTokens) && (
+                <span className="text-xs text-secondary-foreground">Prompt Tokens: {usage.promptTokens}</span>
+              )}
+              {!isNaN(usage?.completionTokens) && (
+                <span className="text-xs text-secondary-foreground">Completion Tokens: {usage.completionTokens}</span>
+              )}
             </div>
           )}
         </ResizablePanel>

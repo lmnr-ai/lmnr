@@ -218,15 +218,23 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
     provider: "mistral",
     models: [
       {
-        id: "mistral:mistral-small",
-        name: "mistral-small",
-        label: "Mistral Small",
+        id: "mistral:pixtral-large-latest",
+        name: "pixtral-large-latest",
+        label: "Pixtral Large",
       },
       {
-        id: "mistral:mistral-tiny",
-        name: "mistral-tiny",
-        label: "Mistral Tiny",
+        id: "mistral:mistral-large-latest",
+        name: "mistral-large-latest",
+        label: "Mistral Large",
       },
+      {
+        id: "mistral:mistral-small-latest",
+        name: "mistral-small-latest",
+        label: "Mistral Small",
+      },
+      { id: "mistral:ministral-3b-latest", name: "ministral-3b-latest", label: "Ministral 3B" },
+      { id: "mistral:ministral-8b-latest", name: "ministral-8b-latest", label: "Ministral 8B" },
+      { id: "mistral:pixtral-12b-2409", name: "pixtral-12b-2409", label: "Pixtral 12b 2409" },
     ],
   },
   {
