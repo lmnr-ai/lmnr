@@ -72,6 +72,11 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "o3-mini",
       },
       {
+        id: "openai:o3",
+        name: "o3",
+        label: "o3",
+      },
+      {
         id: "openai:o4-mini",
         name: "o4-mini",
         label: "o4-mini",
