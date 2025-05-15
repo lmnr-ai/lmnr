@@ -17,7 +17,7 @@ import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { GetProjectResponse } from "@/lib/workspaces/types";
-
+import PostHogIdentifier from "@/app/posthog-identifier";
 async function getProjectDetails(projectId: string): Promise<GetProjectResponse> {
   const projectResult = await db
     .select({
@@ -123,6 +123,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       imageUrl={user.image!}
       supabaseAccessToken={session.supabaseAccessToken}
     >
+      <PostHogIdentifier email={user.email!} />
       <ProjectContextProvider projectId={project.id} projectName={project.name}>
         <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>

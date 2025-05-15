@@ -17,7 +17,6 @@ export default function PostHogIdentifier({ email }: PostHogIdentifierProps) {
       posthog.identify(email, {
         email: email,
       })
-      console.log("identified", email)
     }
   }, [email])
 
