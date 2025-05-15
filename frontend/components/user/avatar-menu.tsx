@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import { useUserContext } from "@/contexts/user-context";
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { posthog } from "posthog-js";
 
 interface AvatarMenuProps {
   showDetails?: boolean;
@@ -27,7 +28,10 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>Sign out</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => {
+          signOut({ callbackUrl: "/" });
+          posthog.reset();
+        }}>Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
