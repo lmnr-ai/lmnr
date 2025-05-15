@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import Dataset from "@/components/dataset/dataset";
@@ -27,7 +27,7 @@ export default async function DatasetPage(props: { params: Promise<{ projectId: 
   });
 
   if (!dataset) {
-    redirect("/404");
+    return notFound();
   }
 
   return <Dataset dataset={dataset} />;

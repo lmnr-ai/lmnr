@@ -1,121 +1,87 @@
-import { and, asc, desc, eq, gt, lt, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { z } from "zod";
 
-import { db } from '@/lib/db/drizzle';
-import { labelingQueueItems, spans } from '@/lib/db/migrations/schema';
+import { db } from "@/lib/db/drizzle";
+import { labelingQueueItems } from "@/lib/db/migrations/schema";
 
-// Add request body validation schema
 const RequestBodySchema = z.object({
   refDate: z.string(),
-  direction: z.enum(['next', 'prev']),
+  direction: z.enum(["next", "prev"]),
 });
 
-export async function POST(
-  req: Request,
-  props: { params: Promise<{ projectId: string; queueId: string }> }
-) {
+export async function POST(req: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
   const params = await props.params;
 
-  // Validate body
   const body = await req.json();
   const parsedBody = RequestBodySchema.safeParse(body);
   if (!parsedBody.success) {
-    return Response.json({ error: 'Invalid request body' }, { status: 400 });
+    return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
 
   const { refDate, direction } = parsedBody.data;
 
-  if (direction === 'next') {
-    // return the next item in the queue after the refDataId
+  const [{ count }] = await db
+    .select({
+      count: sql<number>`count(*)::int4`,
+    })
+    .from(labelingQueueItems)
+    .where(eq(labelingQueueItems.queueId, params.queueId));
 
-    const nextItem = await db
-      .select({
-        queueData: labelingQueueItems,
-        span: spans,
-      })
-      .from(labelingQueueItems)
-      .innerJoin(spans, eq(labelingQueueItems.spanId, spans.spanId))
-      .where(and(eq(labelingQueueItems.queueId, params.queueId), gt(labelingQueueItems.createdAt, refDate)))
-      .orderBy(asc(labelingQueueItems.createdAt))
-      .limit(1);
+  if (direction === "next") {
+    const nextItem = await db.query.labelingQueueItems.findFirst({
+      where: and(eq(labelingQueueItems.queueId, params.queueId), gt(labelingQueueItems.createdAt, refDate)),
+      orderBy: asc(labelingQueueItems.createdAt),
+    });
 
-    const stats = await db
-      .select({
-        count: sql<number>`(count(*) OVER())::int4`,
-        position: sql<number>`(
-          SELECT COUNT(*)
-          FROM labeling_queue_items
-          WHERE queue_id = ${params.queueId}
-          AND created_at <= (
-            SELECT created_at
-            FROM labeling_queue_items
-            WHERE queue_id = ${params.queueId}
-            AND created_at > ${refDate}
-            ORDER BY created_at ASC
-            LIMIT 1
-          )
-        )::int4`
-      })
-      .from(labelingQueueItems)
-      .where(eq(labelingQueueItems.queueId, params.queueId))
-      .limit(1);
-
-    if (nextItem.length === 0 || stats.length === 0) {
-      return Response.json([]);
+    if (!nextItem) {
+      return Response.json({});
     }
 
-    return Response.json([{
-      ...nextItem[0],
-      count: stats[0].count,
-      position: stats[0].position
-    }]);
-
-  } else if (direction === 'prev') {
-    // return the previous item in the queue before the refDataId
-
-    const prevItem = await db
+    const [{ position }] = await db
       .select({
-        queueData: labelingQueueItems,
-        span: spans
-      })
-      .from(labelingQueueItems)
-      .innerJoin(spans, eq(labelingQueueItems.spanId, spans.spanId))
-      .where(and(eq(labelingQueueItems.queueId, params.queueId), lt(labelingQueueItems.createdAt, refDate)))
-      .orderBy(desc(labelingQueueItems.createdAt))
-      .limit(1);
-
-
-    const stats = await db
-      .select({
-        count: sql<number>`(count(*) OVER())::int4`,
         position: sql<number>`(
-          SELECT COUNT(*)
+          SELECT COUNT(*)::int4
           FROM labeling_queue_items
           WHERE queue_id = ${params.queueId}
-          AND created_at <= (
-            SELECT created_at
-            FROM labeling_queue_items
-            WHERE queue_id = ${params.queueId}
-            AND created_at < ${refDate}
-            ORDER BY created_at DESC
-            LIMIT 1
-          )
-        )::int4`
+          AND created_at < ${nextItem.createdAt}
+        ) + 1`,
       })
       .from(labelingQueueItems)
-      .where(eq(labelingQueueItems.queueId, params.queueId))
-      .limit(1);
+      .where(eq(labelingQueueItems.queueId, params.queueId));
 
-    if (prevItem.length === 0 || stats.length === 0) {
-      return Response.json([]);
+    return Response.json({
+      ...nextItem,
+      count,
+      position,
+    });
+  } else if (direction === "prev") {
+    const prevItem = await db.query.labelingQueueItems.findFirst({
+      where: and(eq(labelingQueueItems.queueId, params.queueId), lt(labelingQueueItems.createdAt, refDate)),
+      orderBy: desc(labelingQueueItems.createdAt),
+    });
+
+    if (!prevItem) {
+      return Response.json({});
     }
 
-    return Response.json([{
-      ...prevItem[0],
-      count: stats[0].count,
-      position: stats[0].position
-    }]);
+    const [{ position }] = await db
+      .select({
+        position: sql<number>`(
+          SELECT COUNT(*)::int4
+          FROM labeling_queue_items
+          WHERE queue_id = ${params.queueId}
+          AND created_at < ${prevItem.createdAt}
+        ) + 1`,
+      })
+      .from(labelingQueueItems)
+      .where(eq(labelingQueueItems.queueId, params.queueId));
+
+    return Response.json({
+      ...prevItem,
+      count,
+      position,
+    });
   }
 
-  return Response.json({ error: 'Invalid direction' }, { status: 400 });
+  return Response.json({ error: "Invalid direction" }, { status: 400 });
 }
