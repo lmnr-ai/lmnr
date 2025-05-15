@@ -21,6 +21,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
 import { ProviderApiKey } from "@/lib/settings/types";
+import { cn } from "@/lib/utils";
 
 export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: ProviderApiKey[] }) {
   const params = useParams();
@@ -30,6 +31,10 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
     reasoning: "",
     toolCalls: [],
   });
+  const [usage, setUsage] = useState<{
+    promptTokens: number;
+    completionTokens: number;
+  }>();
   const [isLoading, setIsLoading] = useState(false);
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
@@ -41,9 +46,11 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
     }));
   };
 
+  console.log(usage);
   const submit: SubmitHandler<PlaygroundForm> = async (form) => {
     try {
       setIsLoading(true);
+      setUsage(undefined);
       setOutput({ text: "", reasoning: "", toolCalls: [] });
 
       const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
@@ -74,6 +81,12 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
             ...prev,
             text: prev.text + value,
           }));
+        },
+        onFinishMessagePart: (part) => {
+          console.log(part);
+          if (part?.usage) {
+            setUsage(part.usage);
+          }
         },
         onReasoningPart: (value) => {
           setOutput((prev) => ({
@@ -150,7 +163,20 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
         </ResizablePanel>
         <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
         <ResizablePanel minSize={20} className="h-full flex flex-col px-4">
-          <CodeHighlighter className="rounded" value={structuredOutput} defaultMode="json" />
+          <div className="flex flex-1">
+            <CodeHighlighter
+              codeEditorClassName="rounded-b"
+              className="rounded"
+              value={structuredOutput}
+              defaultMode="json"
+            />
+          </div>
+          {!!usage && (
+            <div className={cn("mt-2 flex flex-col gap-1")}>
+              <span className="text-xs text-secondary-foreground">Prompt Tokens: {usage?.promptTokens}</span>
+              <span className="text-xs text-secondary-foreground">Completion Tokens: {usage?.completionTokens}</span>
+            </div>
+          )}
         </ResizablePanel>
       </ResizablePanelGroup>
     </>
