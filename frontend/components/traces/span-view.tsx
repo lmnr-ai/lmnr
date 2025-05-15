@@ -90,7 +90,7 @@ export function SpanView({ spanId }: SpanViewProps) {
                   data={[
                     {
                       payload: { data: span.input, target: span.output, metadata: {} },
-                      metadata: { source: "span", id: span.spanId },
+                      metadata: { source: "span", id: span.spanId, traceId: span.traceId },
                     },
                   ]}
                 />

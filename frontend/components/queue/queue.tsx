@@ -1,7 +1,8 @@
 "use client";
 
 import { get, isEmpty } from "lodash";
-import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -9,7 +10,6 @@ import CodeHighlighter from "@/components/traces/code-highlighter";
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Label } from "@/components/ui/label";
-import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
@@ -75,6 +75,17 @@ export default function Queue({ queue }: QueueProps) {
       complete: isAnyLoading || !isDatasetSelected || isEmpty || !isValid,
     };
   }, [currentItem.count, currentItem.position, isLoading, dataset, isValid]);
+
+  const sourceLink = useMemo(() => {
+    if (get(currentItem.metadata, "source") === "datapoint") {
+      return `/project/${projectId}/datasets/${get(currentItem.metadata, "datasetId")}?datapointId=${get(currentItem.metadata, "id")}`;
+    }
+
+    if (get(currentItem.metadata, "source") === "span") {
+      return `/project/${projectId}/traces?traceId=${get(currentItem.metadata, "traceId")}&spanId=${get(currentItem.metadata, "id")}`;
+    }
+    return `/project/${projectId}/labeling-queues/${queue.id}`;
+  }, [currentItem.metadata, projectId, queue.id]);
 
   const onChange = useCallback((v: string) => {
     try {
@@ -183,14 +194,20 @@ export default function Queue({ queue }: QueueProps) {
           {isLoading === "first-load" ? (
             <div className="size-full flex flex-col flex-1 gap-2">
               <Skeleton className="h-6 w-20 mb-2" />
-              <Skeleton className="h-4" />
+              <Skeleton className="h-8" />
               <Skeleton className="h-full" />
             </div>
           ) : currentItem.count > 0 ? (
             <>
-              <span className="text-secondary-foreground mb-2">Payload</span>
-              <MonoWithCopy className="text-secondary-foreground text-nowrap truncate">{currentItem.id}</MonoWithCopy>
-              <div className="flex flex-1 overflow-hidden mt-3">
+              <span className="mb-1">Payload</span>
+              <div className="flex text-xs gap-1 text-nowrap truncate">
+                <span className="text-secondary-foreground">Created from</span>
+                <Link className="flex text-xs items-center text-primary" href={sourceLink}>
+                  {get(currentItem.metadata, "source", "-")}
+                  <ArrowUpRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="flex flex-1 overflow-hidden mt-2">
                 <CodeHighlighter
                   codeEditorClassName="rounded-b"
                   className="rounded"
@@ -241,7 +258,11 @@ export default function Queue({ queue }: QueueProps) {
               <DatasetSelect className="mt-2" value={dataset} onChange={(dataset) => setDataset(dataset.id)} />
             </div>
             <div className="flex flex-1 h-full flex-col overflow-hidden p-4">
-              <span className="text-secondary-foreground mb-2">Data</span>
+              <span className="mb-1">Target</span>
+              <span className="text-secondary-foreground text-xs mb-2">
+                Data that will be written to the target key of the payload object. It can contain any valid JSON
+                structure.
+              </span>
               <div className="flex flex-1 overflow-hidden">
                 <CodeHighlighter
                   codeEditorClassName="rounded-b"

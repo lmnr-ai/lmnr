@@ -12,6 +12,8 @@ const pushQueueItemSchema = z.array(
     }),
     metadata: z.object({
       source: z.enum(["span", "datapoint"]),
+      datasetId: z.string().optional(),
+      traceId: z.string().optional(),
       id: z.string(),
     }),
   })

@@ -127,7 +127,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
               data={[
                 {
                   payload: { data: datapoint.data, target: datapoint.target, metadata: datapoint.metadata },
-                  metadata: { source: "datapoint", id: datapoint.id },
+                  metadata: { source: "datapoint", id: datapoint.id, datasetId: datasetId },
                 },
               ]}
             />

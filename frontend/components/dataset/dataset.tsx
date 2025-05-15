@@ -106,9 +106,9 @@ export default function Dataset({ dataset }: DatasetProps) {
           target: tryParse(point, "target"),
           metadata: tryParse(point, "metadata"),
         },
-        metadata: { source: "datapoint", id: point.id },
+        metadata: { source: "datapoint", id: point.id, datasetId: dataset.id },
       })),
-    [datapoints]
+    [datapoints, dataset.id]
   );
 
   const pageCount = Math.ceil(totalCount / pageSize);
