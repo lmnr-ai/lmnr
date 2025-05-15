@@ -172,7 +172,6 @@ export default function Queue({ queue }: QueueProps) {
 
         await move(currentItem.createdAt);
       } catch (e) {
-        console.log(e);
         toast({
           variant: "destructive",
           title: "Error",

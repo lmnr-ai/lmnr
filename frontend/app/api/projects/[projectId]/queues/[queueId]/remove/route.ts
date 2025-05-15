@@ -45,6 +45,13 @@ export async function POST(request: Request, props: { params: Promise<{ projectI
         .delete(labelingQueueItems)
         .where(and(eq(labelingQueueItems.queueId, params.queueId), eq(labelingQueueItems.id, id)));
     });
+  } else {
+    return new Response(
+      JSON.stringify({
+        error: "Invalid request parameters",
+      }),
+      { status: 400 }
+    );
   }
 
   return new Response(JSON.stringify({ success: true }));
