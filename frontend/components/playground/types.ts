@@ -72,6 +72,11 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "o3-mini",
       },
       {
+        id: "openai:o3",
+        name: "o3",
+        label: "o3",
+      },
+      {
         id: "openai:o4-mini",
         name: "o4-mini",
         label: "o4-mini",
@@ -162,14 +167,34 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
     provider: "groq",
     models: [
       {
-        id: "groq:llama-3.1-405b-reasoning",
-        name: "llama-3.1-405b-reasoning",
-        label: "Llama 3.1 405B Reasoning",
+        id: "groq:meta-llama/llama-4-maverick-17b-128e-instruct",
+        name: "meta-llama/llama-4-maverick-17b-128e-instruct",
+        label: "Llama 4 Maverick (17Bx128E)",
       },
       {
-        id: "groq:llama-3.1-70b-versatile",
-        name: "llama-3.1-70b-versatile",
-        label: "Llama 3.1 70B Versatile",
+        id: "groq:meta-llama/llama-4-scout-17b-16e-instruct",
+        name: "meta-llama/llama-4-scout-17b-16e-instruct",
+        label: "Llama 4 Scout (17Bx16E)",
+      },
+      {
+        id: "groq:meta-llama/llama-guard-4-12b",
+        name: "meta-llama/llama-guard-4-12b",
+        label: "Llama Guard 4 12B 128k",
+      },
+      {
+        id: "groq:deepseek-r1-distill-llama-70b",
+        name: "deepseek-r1-distill-llama-70b",
+        label: "DeepSeek R1 Distill Llama 70B",
+      },
+      {
+        id: "groq:qwen-qwq-32b",
+        name: "qwen-qwq-32b",
+        label: "Qwen QwQ 32B (Preview) 128k",
+      },
+      {
+        id: "groq:llama-3.3-70b-versatile",
+        name: "llama-3.3-70b-versatile",
+        label: "Llama 3.3 70b versatile",
       },
       {
         id: "groq:llama-3.1-8b-instant",
@@ -177,50 +202,44 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Llama 3.1 8B Instant",
       },
       {
-        id: "groq:llama3-groq-8b-8192-tool-use-preview",
-        name: "llama3-groq-8b-8192-tool-use-preview",
-        label: "Llama 3 8B Tool Use Preview",
+        id: "groq:llama3-70b-8192",
+        name: "llama3-70b-8192",
+        label: "Llama 3 70b 8192",
       },
       {
         id: "groq:llama3-8b-8192",
         name: "llama3-8b-8192",
-        label: "Llama 3 8B",
-      },
-      {
-        id: "groq:llama3-70b-8192",
-        name: "llama3-70b-8192",
-        label: "Llama 3 70B",
-      },
-      {
-        id: "groq:mixtral-8x7b-32768",
-        name: "mixtral-8x7b-32768",
-        label: "Mixtral 8x7B",
+        label: "Llama 3 8B 8192",
       },
       {
         id: "groq:gemma2-9b-it",
         name: "gemma2-9b-it",
-        label: "Gemma 2 9B IT",
+        label: "Gemma 2 9B 8k",
       },
-      {
-        id: "groq:gemma-7b-it",
-        name: "gemma-7b-it",
-        label: "Gemma 7B IT",
-      },
+      { id: "groq:llama-guard-3-8b", name: "llama-guard-3-8b", label: "Llama Guard 3 8B 8k" },
     ],
   },
   {
     provider: "mistral",
     models: [
       {
-        id: "mistral:mistral-small",
-        name: "mistral-small",
-        label: "Mistral Small",
+        id: "mistral:pixtral-large-latest",
+        name: "pixtral-large-latest",
+        label: "Pixtral Large",
       },
       {
-        id: "mistral:mistral-tiny",
-        name: "mistral-tiny",
-        label: "Mistral Tiny",
+        id: "mistral:mistral-large-latest",
+        name: "mistral-large-latest",
+        label: "Mistral Large",
       },
+      {
+        id: "mistral:mistral-small-latest",
+        name: "mistral-small-latest",
+        label: "Mistral Small",
+      },
+      { id: "mistral:ministral-3b-latest", name: "ministral-3b-latest", label: "Ministral 3B" },
+      { id: "mistral:ministral-8b-latest", name: "ministral-8b-latest", label: "Ministral 8B" },
+      { id: "mistral:pixtral-12b-2409", name: "pixtral-12b-2409", label: "Pixtral 12b 2409" },
     ],
   },
   {
