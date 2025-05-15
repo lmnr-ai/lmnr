@@ -166,10 +166,13 @@ export default function Queue({ queue }: QueueProps) {
             title: "Error",
             description: "Failed to remove from queue. Please try again.",
           });
+          setIsLoading(false);
+          return;
         }
 
         await move(currentItem.createdAt);
       } catch (e) {
+        console.log(e);
         toast({
           variant: "destructive",
           title: "Error",

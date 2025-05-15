@@ -7,7 +7,7 @@ import { datasetDatapoints, labelingQueueItems } from "@/lib/db/migrations/schem
 const removeQueueItemSchema = z.object({
   id: z.string(),
   skip: z.boolean().optional(),
-  datasetId: z.string(),
+  datasetId: z.string().optional(),
   data: z.any(),
   target: z.any(),
   metadata: z.any(),
@@ -32,7 +32,7 @@ export async function POST(request: Request, props: { params: Promise<{ projectI
     await db
       .delete(labelingQueueItems)
       .where(and(eq(labelingQueueItems.queueId, queueId), eq(labelingQueueItems.id, id)));
-  } else {
+  } else if (datasetId) {
     await db.transaction(async (tx) => {
       await tx.insert(datasetDatapoints).values({
         data,
