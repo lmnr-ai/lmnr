@@ -23,16 +23,16 @@ export const columns: ColumnDef<Trace, any>[] = [
     cell: (row) => (
       <div className="flex h-full justify-center items-center w-10">
         {row.getValue() ? (
-          <CircleX className="self-center text-destructive/90" />
+          <CircleX className="self-center text-red-500" size={20} />
         ) : (
-          <CircleCheck className="text-green-400/90" />
+          <CircleCheck className="text-green-500/80" size={20} />
         )}
       </div>
     ),
     accessorKey: "status",
     header: "Status",
     id: "status",
-    size: 72,
+    size: 70,
   },
   {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
