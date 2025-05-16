@@ -246,6 +246,13 @@
       "when": 1747130540714,
       "tag": "0034_colossal_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1747398363816,
+      "tag": "0035_eminent_vindicator",
+      "breakpoints": true
     }
   ]
 }

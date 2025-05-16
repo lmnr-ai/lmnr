@@ -1,48 +1,34 @@
 "use client";
-import { ColumnDef, Row } from "@tanstack/react-table";
+import { Row } from "@tanstack/react-table";
 import { isEmpty } from "lodash";
-import { ArrowRight, RefreshCcw, X } from "lucide-react";
+import { RefreshCcw } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import SearchTracesInput from "@/components/traces/search-traces-input";
+import { columns, filters } from "@/components/traces/traces-table/columns";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanType, Trace } from "@/lib/traces/types";
-import { isStringDateOld } from "@/lib/traces/utils";
 import { DatatableFilter, PaginatedResponse } from "@/lib/types";
 import { getFilterFromUrlParams } from "@/lib/utils";
 
-import ClientTimestampFormatter from "../client-timestamp-formatter";
-import { Button } from "../ui/button";
-import { DataTable } from "../ui/datatable";
-import DataTableFilter from "../ui/datatable-filter";
-import DateRangeFilter from "../ui/date-range-filter";
-import { Label } from "../ui/label";
-import Mono from "../ui/mono";
-import { Skeleton } from "../ui/skeleton";
-import { Switch } from "../ui/switch";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
-import { NoSpanTooltip } from "./no-span-tooltip";
-import SpanTypeIcon from "./span-type-icon";
+import { Button } from "../../ui/button";
+import { DataTable } from "../../ui/datatable";
+import DataTableFilter from "../../ui/datatable-filter";
+import DateRangeFilter from "../../ui/date-range-filter";
+import { Label } from "../../ui/label";
+import { Switch } from "../../ui/switch";
 
 interface TracesTableProps {
   onRowClick?: (rowId: string) => void;
 }
-const toFilterUrlParam = (filters: DatatableFilter[]): string => JSON.stringify(filters);
-
-const renderCost = (val: any) => {
-  if (val == null) {
-    return "-";
-  }
-  return `$${parseFloat(val).toFixed(5) || val}`;
-};
 
 const LIVE_UPDATES_STORAGE_KEY = "traces-live-updates";
 
-export default function TracesTable({ onRowClick }: TracesTableProps) {
+export default function Index({ onRowClick }: TracesTableProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
@@ -156,6 +142,7 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
     topSpanName: null,
     topSpanType: null,
     topSpanPath: null,
+    status: row.status,
   });
 
   const getTraceTopSpanInfo = async (
@@ -340,236 +327,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   useEffect(() => {
     setTraceId(searchParams.get("traceId") ?? null);
   }, [searchParams]);
-
-  const columns: ColumnDef<Trace, any>[] = [
-    {
-      cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
-      header: "ID",
-      accessorKey: "id",
-      id: "id",
-    },
-    {
-      accessorKey: "topSpanType",
-      header: "Top level span",
-      id: "top_span_type",
-      cell: (row) => (
-        <div
-          // onClick={(event) => {
-          //   event.stopPropagation();
-          //   handleAddFilter('span_type', row.getValue());
-          // }}
-          className="cursor-pointer flex gap-2 items-center"
-        >
-          <div className="flex items-center gap-2">
-            {row.row.original.topSpanName ? (
-              <SpanTypeIcon className="z-10" spanType={row.getValue()} />
-            ) : isStringDateOld(row.row.original.endTime) ? (
-              <NoSpanTooltip>
-                <div className="flex items-center gap-2 rounded-sm bg-secondary p-1">
-                  <X className="w-4 h-4" />
-                </div>
-              </NoSpanTooltip>
-            ) : (
-              <Skeleton className="w-6 h-6 bg-secondary rounded-sm" />
-            )}
-          </div>
-          {row.row.original.topSpanName ? (
-            <div className="flex text-sm text-ellipsis overflow-hidden whitespace-nowrap">
-              {row.row.original.topSpanName}
-            </div>
-          ) : isStringDateOld(row.row.original.endTime) ? (
-            <NoSpanTooltip>
-              <div className="flex text-muted-foreground">None</div>
-            </NoSpanTooltip>
-          ) : (
-            <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
-          )}
-        </div>
-      ),
-      size: 150,
-    },
-    {
-      cell: (row) => row.getValue(),
-      accessorKey: "topSpanInputPreview",
-      header: "Input",
-      id: "input",
-      size: 150,
-    },
-    {
-      cell: (row) => row.getValue(),
-      // <TooltipProvider delayDuration={250}>
-      //   <Tooltip>
-      //     <TooltipTrigger className="relative p-0">
-      //       <div
-      //         style={{
-      //           width: row.column.getSize() - 32
-      //         }}
-      //         className="relative"
-      //       >
-      //         <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-      //           <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-      //             {row.getValue()}
-      //           </div>
-      //         </div>
-      //       </div>
-      //     </TooltipTrigger>
-      //     <TooltipContent side="bottom" className="p-0 border">
-      //       <ScrollArea className="max-h-48 overflow-y-auto p-4">
-      //         <div>
-      //           <p className="max-w-sm break-words whitespace-pre-wrap">
-      //             {row.getValue()}
-      //           </p>
-      //         </div>
-      //       </ScrollArea>
-      //     </TooltipContent>
-      //   </Tooltip>
-      // </TooltipProvider>,
-      accessorKey: "topSpanOutputPreview",
-      header: "Output",
-      id: "output",
-      size: 150,
-    },
-    {
-      accessorFn: (row) => row.startTime,
-      header: "Timestamp",
-      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-      id: "start_time",
-      size: 125,
-    },
-    {
-      accessorFn: (row) => {
-        const start = new Date(row.startTime);
-        const end = new Date(row.endTime);
-        const duration = end.getTime() - start.getTime();
-
-        return `${(duration / 1000).toFixed(2)}s`;
-      },
-      header: "Latency",
-      id: "latency",
-      size: 80,
-    },
-    {
-      accessorFn: (row) => row.cost,
-      header: "Cost",
-      id: "cost",
-      cell: (row) => (
-        <TooltipProvider delayDuration={100}>
-          <Tooltip>
-            <TooltipTrigger className="relative p-0">
-              <div
-                style={{
-                  width: row.column.getSize() - 32,
-                }}
-                className="relative"
-              >
-                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">{renderCost(row.getValue())}</div>
-                </div>
-              </div>
-            </TooltipTrigger>
-            {row.getValue() != undefined && (
-              <TooltipContent side="bottom" className="p-2 border">
-                <div>
-                  <div className="flex justify-between space-x-2">
-                    <span>Input cost</span>
-                    <span>{renderCost(row.row.original.inputCost)}</span>
-                  </div>
-                  <div className="flex justify-between space-x-2">
-                    <span>Output cost</span>
-                    <span>{renderCost(row.row.original.outputCost)}</span>
-                  </div>
-                </div>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-      ),
-      size: 100,
-    },
-    {
-      accessorFn: (row) => row.totalTokenCount ?? "-",
-      header: "Tokens",
-      id: "total_token_count",
-      cell: (row) => (
-        <div className="flex items-center">
-          {`${row.row.original.inputTokenCount ?? "-"}`}
-          <ArrowRight size={12} className="mx-1 min-w-[12px]" />
-          {`${row.row.original.outputTokenCount ?? "-"}`}
-          {` (${row.row.original.totalTokenCount ?? "-"})`}
-        </div>
-      ),
-      size: 150,
-    },
-    {
-      accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata, null, 2) : ""),
-      header: "Metadata",
-      id: "metadata",
-      cell: (row) => (
-        <TooltipProvider delayDuration={100}>
-          <Tooltip>
-            <TooltipTrigger className="relative p-0">
-              <div
-                style={{
-                  width: row.column.getSize() - 32,
-                }}
-                className="relative"
-              >
-                <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                  <div className="text-ellipsis overflow-hidden whitespace-nowrap">{row.getValue()}</div>
-                </div>
-              </div>
-            </TooltipTrigger>
-            {row.getValue() != undefined && (
-              <TooltipContent side="bottom" className="p-2 border">
-                <div className="whitespace-pre-wrap">{row.getValue()}</div>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-      ),
-      size: 100,
-    },
-  ];
-
-  const filters = [
-    {
-      name: "ID",
-      id: "id",
-    },
-    {
-      name: "Latency",
-      id: "latency",
-    },
-    // TODO: alias span_type and name to top_span_type and top_span_name in
-    // the DB query
-    {
-      name: "Top level span",
-      id: "span_type",
-      restrictOperators: ["eq"],
-    },
-    {
-      name: "Top span name",
-      id: "name",
-    },
-    {
-      name: "Input cost",
-      id: "input_cost",
-    },
-    {
-      name: "Output cost",
-      id: "output_cost",
-    },
-    {
-      name: "Metadata",
-      id: "metadata",
-      restrictOperators: ["eq"],
-    },
-    {
-      name: "Labels",
-      id: "labels",
-      restrictOperators: ["eq"],
-    },
-  ];
 
   return (
     <DataTable

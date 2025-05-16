@@ -9,7 +9,7 @@ use crate::opentelemetry::opentelemetry_proto_trace_v1::span::Event as OtelEvent
 
 use super::utils::convert_any_value_to_json_value;
 
-#[derive(Deserialize, Serialize, Clone, FromRow)]
+#[derive(Deserialize, Serialize, Clone, FromRow, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
     pub id: Uuid,
