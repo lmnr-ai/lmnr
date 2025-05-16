@@ -588,7 +588,7 @@ impl Span {
     pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()
-            .and_then(|s| s.parse::<usize>().ok())
+            .and_then(|s: String| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_PAYLOAD_SIZE_THRESHOLD);
         if let Some(input) = self.input.clone() {
             let span_input = serde_json::from_value::<Vec<ChatMessage>>(input);
@@ -598,10 +598,14 @@ impl Span {
                     if let ChatMessageContent::ContentPartList(parts) = message.content {
                         let mut new_parts = Vec::new();
                         for part in parts {
-                            let stored_part = part
-                                .store_media(project_id, storage.clone())
-                                .await
-                                .unwrap_or(part);
+                            let stored_part =
+                                match part.store_media(project_id, storage.clone()).await {
+                                    Ok(stored_part) => stored_part,
+                                    Err(e) => {
+                                        log::error!("Error storing media: {e}");
+                                        part
+                                    }
+                                };
                             new_parts.push(stored_part);
                         }
                         message.content = ChatMessageContent::ContentPartList(new_parts);

@@ -455,7 +455,6 @@ dependencies = [
  "env_logger",
  "futures-util",
  "lapin",
- "lazy_static",
  "log",
  "moka",
  "num_cpus",

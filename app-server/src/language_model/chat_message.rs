@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use anyhow::Result;
 use regex::Regex;
@@ -229,12 +229,9 @@ impl ChatMessageContentPart {
                     }
                     ChatMessageImage::AISDKRawBytes(image) => image.image.clone(),
                     ChatMessageImage::AISDKRawBase64(image) => {
-                        let re = Regex::new(r"^data:image/[a-zA-Z]+;base64,(.*)$").unwrap();
-                        let caps = re.captures(&image.image);
-                        // If the image data does not start with data:image/...;base64,
-                        // we return the original image data
+                        // strip off the data:image/...;base64, prefix if present
                         let base64_data =
-                            caps.map_or(image.image.clone(), |caps| caps[1].to_string());
+                            raw_base64_from_data_url(&image.image).unwrap_or(&image.image);
                         crate::storage::base64_to_bytes(&base64_data)?
                     }
                 };
@@ -244,8 +241,9 @@ impl ChatMessageContentPart {
                         image.mime_type.clone().unwrap_or("image/png".to_string())
                     }
                     ChatMessageImage::AISDKRawBase64(image) => image.mime_type.clone().unwrap_or({
-                        let re = Regex::new(r"^data:(image/[a-zA-Z]+);base64,.*$").unwrap();
-                        let caps = re.captures(&image.image);
+                        // only check the first 50 characters to avoid expensive regex matching
+                        let chars = image.image.chars().take(50).collect::<String>();
+                        let caps: Option<regex::Captures<'_>> = data_url_regex().captures(&chars);
                         caps.map_or("image/png".to_string(), |caps| caps[1].to_string())
                     }),
                 };
@@ -272,10 +270,7 @@ impl ChatMessageContentPart {
                 ))
             }
             ChatMessageContentPart::ImageUrl(image_url) => {
-                let pattern = Regex::new(r"^data:image/[a-zA-Z]+;base64,.*$").unwrap();
-                // If base64 data URL, store the image and return the new url
-                if pattern.is_match(&image_url.url.chars().take(50).collect::<String>()) {
-                    let base64_data = image_url.url.split(',').last().unwrap();
+                if let Some(base64_data) = raw_base64_from_data_url(&image_url.url) {
                     let data = crate::storage::base64_to_bytes(base64_data)?;
                     let key = crate::storage::create_key(project_id, &None);
                     let url = storage.store(data, &key).await?;
@@ -291,4 +286,19 @@ impl ChatMessageContentPart {
             _ => Ok(self.clone()),
         }
     }
+}
+
+/// Extract the raw base64 data from a data URL.
+fn raw_base64_from_data_url(data_url: &str) -> Option<&str> {
+    // We only check the first 50 characters to avoid expensive regex matching.
+    // The mimeType is fairly short, so 50 characters is more than enough.
+    if data_url_regex().is_match(&data_url.chars().take(50).collect::<String>()) {
+        data_url.split_once(',').map(|(_, base64_data)| base64_data)
+    } else {
+        None
+    }
+}
+
+fn data_url_regex() -> LazyLock<Regex> {
+    LazyLock::new(|| Regex::new(r"^data:(image/[a-zA-Z]+);base64,.*$").unwrap())
 }
