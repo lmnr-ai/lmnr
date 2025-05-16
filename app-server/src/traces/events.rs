@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use crate::{
     ch::{self, events::CHEvent},
-    db::{self, events::Event, DB},
+    db::{self, DB, events::Event},
 };
 
 pub async fn record_events(

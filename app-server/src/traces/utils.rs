@@ -9,6 +9,7 @@ use crate::{
     cache::Cache,
     db::{
         self, DB,
+        events::Event,
         labels::LabelSource,
         spans::{Span, SpanType},
         trace,
@@ -89,6 +90,7 @@ pub async fn record_span_to_db(
     span_usage: &SpanUsage,
     project_id: &Uuid,
     span: &mut Span,
+    events: &Vec<Event>,
 ) -> anyhow::Result<()> {
     let mut trace_attributes = TraceAttributes::new(span.trace_id);
 
@@ -96,6 +98,13 @@ pub async fn record_span_to_db(
     trace_attributes.update_end_time(span.end_time);
 
     let mut span_attributes = span.get_attributes();
+
+    events.iter().for_each(|event| {
+        // Check if it's an exception event
+        if event.name == "exception" {
+            trace_attributes.set_status("error".to_string());
+        }
+    });
 
     trace_attributes.update_session_id(span_attributes.session_id());
     trace_attributes.update_trace_type(span_attributes.trace_type());

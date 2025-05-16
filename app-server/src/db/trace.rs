@@ -33,6 +33,7 @@ pub struct Trace {
     output_cost: f64,
     cost: f64,
     project_id: Uuid,
+    status: Option<String>,
 }
 
 pub async fn update_trace_attributes(
@@ -57,7 +58,8 @@ pub async fn update_trace_attributes(
             trace_type,
             metadata,
             has_browser_session,
-            top_span_id
+            top_span_id,
+            status
         )
         VALUES (
             $1,
@@ -74,7 +76,8 @@ pub async fn update_trace_attributes(
             COALESCE($12, 'DEFAULT'::trace_type),
             $13,
             $14,
-            $15
+            $15,
+            $16
         )
         ON CONFLICT(id) DO
         UPDATE
@@ -91,7 +94,8 @@ pub async fn update_trace_attributes(
             trace_type = CASE WHEN $12 IS NULL THEN traces.trace_type ELSE COALESCE($12, 'DEFAULT'::trace_type) END,
             metadata = COALESCE($13, traces.metadata),
             has_browser_session = COALESCE($14, traces.has_browser_session),
-            top_span_id = COALESCE(traces.top_span_id, $15)
+            top_span_id = COALESCE(traces.top_span_id, $15),
+            status = CASE WHEN $16 = 'error' THEN $16 ELSE COALESCE($16, traces.status) END
         "
     )
     .bind(attributes.id)
@@ -106,9 +110,10 @@ pub async fn update_trace_attributes(
     .bind(attributes.end_time)
     .bind(&attributes.session_id)
     .bind(&attributes.trace_type)
-    .bind(&serde_json::to_value(&attributes.metadata).unwrap())
+    .bind(&serde_json::to_value(&attributes.metadata)?)
     .bind(attributes.has_browser_session)
     .bind(attributes.top_span_id)
+    .bind(&attributes.status)
     .execute(pool)
     .await?;
     Ok(())

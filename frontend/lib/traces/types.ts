@@ -73,6 +73,7 @@ export type Trace = {
   traceType: (typeof traces.$inferSelect)["traceType"] | null;
   agentSessionId: string | null;
   visibility?: string;
+  status: string | null;
 };
 
 export type TraceEvent = {

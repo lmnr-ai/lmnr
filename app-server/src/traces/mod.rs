@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::{self, spans::CHSpan},
-    db::{events::Event, spans::Span, stats::add_spans_to_project_usage_stats, DB},
+    db::{DB, events::Event, spans::Span, stats::add_spans_to_project_usage_stats},
     mq::MessageQueueAcker,
     traces::{
         events::record_events,
@@ -40,7 +40,7 @@ pub async fn process_spans_and_events(
     let span_usage =
         get_llm_usage_for_span(&mut span.get_attributes(), db.clone(), cache.clone()).await;
 
-    match record_span_to_db(db.clone(), &span_usage, &project_id, span).await {
+    match record_span_to_db(db.clone(), &span_usage, &project_id, span, &events).await {
         Ok(_) => {
             let _ = acker.ack().await.map_err(|e| {
                 log::error!("Failed to ack MQ delivery (span): {:?}", e);

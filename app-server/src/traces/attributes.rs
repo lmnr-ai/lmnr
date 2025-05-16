@@ -20,6 +20,7 @@ pub struct TraceAttributes {
     pub cost: Option<f64>,
     pub session_id: Option<String>,
     pub trace_type: Option<TraceType>,
+    pub status: Option<String>,
     pub metadata: Option<HashMap<String, String>>,
     pub has_browser_session: Option<bool>,
     pub top_span_id: Option<Uuid>,
@@ -86,5 +87,9 @@ impl TraceAttributes {
 
     pub fn set_top_span_id(&mut self, top_span_id: Uuid) {
         self.top_span_id = Some(top_span_id);
+    }
+
+    pub fn set_status(&mut self, status: String) {
+        self.status = Some(status);
     }
 }
