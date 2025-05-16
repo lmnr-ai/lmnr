@@ -1,4 +1,4 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
 use regex::Regex;
@@ -33,10 +33,6 @@ pub fn json_value_to_string(v: &Value) -> String {
         _ => v.to_string(),
     }
 }
-
-static EXCEPTION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(exception|exception\.(type|message|stacktrace))$").unwrap()
-});
 
 /// Calculate usage for both default and LLM spans
 pub async fn get_llm_usage_for_span(
@@ -105,7 +101,7 @@ pub async fn record_span_to_db(
 
     events.iter().for_each(|event| {
         // Check if it's an exception event
-        if event.name == "exception" || EXCEPTION_REGEX.is_match(&event.name) {
+        if event.name == "exception" {
             trace_attributes.set_status("error".to_string());
         }
     });
