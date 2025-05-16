@@ -110,7 +110,7 @@ pub async fn update_trace_attributes(
     .bind(attributes.end_time)
     .bind(&attributes.session_id)
     .bind(&attributes.trace_type)
-    .bind(&serde_json::to_value(&attributes.metadata).unwrap())
+    .bind(&serde_json::to_value(&attributes.metadata)?)
     .bind(attributes.has_browser_session)
     .bind(attributes.top_span_id)
     .bind(&attributes.status)

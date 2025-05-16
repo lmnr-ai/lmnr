@@ -90,6 +90,6 @@ impl TraceAttributes {
     }
 
     pub fn set_status(&mut self, status: String) {
-        self.status = Some(status)
+        self.status = Some(status);
     }
 }

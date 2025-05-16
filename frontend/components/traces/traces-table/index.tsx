@@ -28,7 +28,7 @@ interface TracesTableProps {
 
 const LIVE_UPDATES_STORAGE_KEY = "traces-live-updates";
 
-export default function Index({ onRowClick }: TracesTableProps) {
+export default function TracesTable({ onRowClick }: TracesTableProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
