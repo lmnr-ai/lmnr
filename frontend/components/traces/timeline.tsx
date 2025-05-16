@@ -173,7 +173,7 @@ export default function Timeline({
   const virtualizer = useVirtualizer({
     count: segments.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 24, // HEIGHT + margin
+    estimateSize: () => 36, // HEIGHT + margin
     overscan: 50,
   });
 
@@ -182,8 +182,8 @@ export default function Timeline({
   return (
     <div className="flex flex-col h-full w-full relative" ref={ref}>
       <ScrollArea className="h-full w-full" ref={scrollRef}>
-        <div className="bg-background flex text-xs w-full border-b z-50 sticky top-0 h-8 px-4">
-          <div className="flex relative" style={{ width: `${100 * zoomLevel * 2}%` }}>
+        <div className="bg-background flex text-xs border-b z-50 sticky top-0 h-8 px-4">
+          <div className="flex relative w-full">
             {timeIntervals.map((interval, index) => (
               <div
                 className="relative z-0"
@@ -216,7 +216,7 @@ export default function Timeline({
             style={{
               position: "relative",
               height: virtualizer.getTotalSize(),
-              width: `${100 * zoomLevel * 2}%`,
+              width: `${100 * zoomLevel}%`,
             }}
           >
             {items.map((virtualRow) => {
@@ -239,14 +239,17 @@ export default function Timeline({
                   }}
                 >
                   <div
-                    className="rounded relative z-20"
+                    className="rounded relative z-20 flex items-center px-2"
                     style={{
                       backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
                       marginLeft: segment.left + "%",
-                      width: "max(" + segment.width + "%, 2px)",
-                      height: HEIGHT,
+                      width: "max(" + segment.width + "%, 1px)",
+                      height: 28,
                     }}
                   >
+                    <div className="text-sm truncate">
+                      {segment.span.name}
+                    </div>
                     {segment.events.map((event, index) => (
                       <div
                         key={index}
@@ -264,7 +267,7 @@ export default function Timeline({
             })}
           </div>
         </div>
-        <ScrollBar orientation="vertical" />
+        <ScrollBar orientation="horizontal" />
       </ScrollArea>
     </div>
   );
