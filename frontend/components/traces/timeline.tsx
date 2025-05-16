@@ -4,6 +4,9 @@ import { RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { getDuration } from "@/lib/flow/utils";
 import { Span } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Plus, Minus } from "lucide-react";
 
 interface TimelineProps {
   spans: Span[];
@@ -45,6 +48,7 @@ export default function Timeline({
   scrollRef,
 }: TimelineProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [timelineData, setTimelineData] = useState<TimelineData>({
     segments: [],
     startTime: 0,
@@ -53,6 +57,14 @@ export default function Timeline({
   });
 
   const { segments, startTime, timeIntervals, timelineWidthInMilliseconds } = timelineData;
+
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(prev + 0.5, 5));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => Math.max(prev - 0.5, 0.5));
+  };
 
   const traverse = useCallback(
     (span: Span, childSpans: { [key: string]: Span[] }, orderedSpans: Span[]) => {
@@ -161,90 +173,99 @@ export default function Timeline({
   const virtualizer = useVirtualizer({
     count: segments.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 36, // HEIGHT + margin
-    overscan: 100,
+    estimateSize: () => 24, // HEIGHT + margin
+    overscan: 50,
   });
 
   const items = virtualizer.getVirtualItems();
 
   return (
     <div className="flex flex-col h-full w-full relative" ref={ref}>
-      <div className="bg-background flex text-xs w-full border-b z-50 sticky top-0 h-10 px-4">
-        <div className="flex w-full relative">
-          {timeIntervals.map((interval, index) => (
-            <div
-              className="border-l text-secondary-foreground pl-1 truncate flex items-center min-w-12 relative z-0"
-              style={{ width: "10%" }}
-              key={index}
-            >
-              {interval}
-            </div>
-          ))}
-          <div className="border-r" />
-          {browserSessionTime && (
-            <div
-              className="absolute top-0 bg-primary z-50 w-[1px]"
-              style={{
-                left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + "%",
-                height: containerHeight,
-              }}
-            />
-          )}
-        </div>
-      </div>
-      <div className="px-4 pt-1.5">
-        <div
-          className="relative w-full"
-          style={{
-            position: "relative",
-            height: virtualizer.getTotalSize(),
-          }}
-        >
-          {items.map((virtualRow) => {
-            const segment = segments[virtualRow.index];
-            if (!segment) return null; // Safety check
-
-            return (
+      <ScrollArea className="h-full w-full" ref={scrollRef}>
+        <div className="bg-background flex text-xs w-full border-b z-50 sticky top-0 h-8 px-4">
+          <div className="flex relative" style={{ width: `${100 * zoomLevel * 2}%` }}>
+            {timeIntervals.map((interval, index) => (
               <div
-                key={virtualRow.index}
-                data-index={virtualRow.index}
-                className="relative border-secondary-foreground/20"
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: HEIGHT,
-                  marginBottom: 4,
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
+                className="relative z-0"
+                style={{ width: "10%" }}
+                key={index}
               >
+                <div className="border-l text-secondary-foreground pl-1 truncate flex items-center min-w-12 h-8">
+                  {interval}
+                </div>
                 <div
-                  className="rounded relative z-20"
+                  className="absolute top-8 border-l border-secondary-foreground/20 h-full"
+                  style={{ left: 0 }}
+                />
+              </div>
+            ))}
+            <div className="border-r" />
+            {browserSessionTime && (
+              <div
+                className="absolute top-0 bg-primary z-50 w-[1px]"
+                style={{
+                  left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + "%",
+                  height: containerHeight,
+                }}
+              />
+            )}
+          </div>
+        </div>
+        <div className="px-4 pt-1.5">
+          <div
+            style={{
+              position: "relative",
+              height: virtualizer.getTotalSize(),
+              width: `${100 * zoomLevel * 2}%`,
+            }}
+          >
+            {items.map((virtualRow) => {
+              const segment = segments[virtualRow.index];
+              if (!segment) return null; // Safety check
+
+              return (
+                <div
+                  key={virtualRow.index}
+                  data-index={virtualRow.index}
+                  className="relative border-secondary-foreground/20"
                   style={{
-                    backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
-                    marginLeft: segment.left + "%",
-                    width: "max(" + segment.width + "%, 2px)",
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
                     height: HEIGHT,
+                    marginBottom: 4,
+                    transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  {segment.events.map((event, index) => (
-                    <div
-                      key={index}
-                      className="absolute bg-orange-400 w-1 rounded"
-                      style={{
-                        left: event.left + "%",
-                        top: 0,
-                        height: HEIGHT,
-                      }}
-                    />
-                  ))}
+                  <div
+                    className="rounded relative z-20"
+                    style={{
+                      backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
+                      marginLeft: segment.left + "%",
+                      width: "max(" + segment.width + "%, 2px)",
+                      height: HEIGHT,
+                    }}
+                  >
+                    {segment.events.map((event, index) => (
+                      <div
+                        key={index}
+                        className="absolute bg-orange-400 w-1 rounded"
+                        style={{
+                          left: event.left + "%",
+                          top: 0,
+                          height: HEIGHT,
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+        <ScrollBar orientation="vertical" />
+      </ScrollArea>
     </div>
   );
 }

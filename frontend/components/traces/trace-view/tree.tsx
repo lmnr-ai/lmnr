@@ -5,6 +5,8 @@ import React, { ReactNode, useCallback, useMemo, useRef } from "react";
 import { SpanCard } from "../span-card";
 import { Span, Trace } from "@/lib/traces/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 interface TreeProps {
   spans: Span[];
@@ -174,37 +176,47 @@ export default function Tree({
   }
 
   return (
-    <div
-      className="relative"
-      style={{
-        height: virtualizer.getTotalSize(),
-        width: "100%",
-        position: "relative",
-      }}
+    <ScrollArea
+      ref={scrollRef}
+      className="overflow-y-auto overflow-x-hidden flex-grow"
     >
-      <div
-        className="pl-6"
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          transform: `translateY(${items[0]?.start ?? 0}px)`,
-        }}
-      >
-        {items.map((virtualRow) => {
-          const element = treeElements[virtualRow.index];
-          return (
+      <div>
+        <div className="flex flex-col pb-4">
+          <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isSpansLoading })}></div>
+          <div
+            className="relative"
+            style={{
+              height: virtualizer.getTotalSize(),
+              width: "100%",
+              position: "relative",
+            }}
+          >
             <div
-              key={virtualRow.key}
-              ref={virtualizer.measureElement}
-              data-index={virtualRow.index}
+              className="pl-6"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${items[0]?.start ?? 0}px)`,
+              }}
             >
-              {element}
+              {items.map((virtualRow) => {
+                const element = treeElements[virtualRow.index];
+                return (
+                  <div
+                    key={virtualRow.key}
+                    ref={virtualizer.measureElement}
+                    data-index={virtualRow.index}
+                  >
+                    {element}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 } 

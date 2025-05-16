@@ -36,13 +36,6 @@ const Header = ({
   const params = useParams();
   const projectId = params?.projectId as string;
 
-  const handleShowTimeline = useCallback(() => {
-    setSelectedSpan(null);
-    const params = new URLSearchParams(searchParams);
-    params.delete("spanId");
-    router.push(`${pathName}?${params.toString()}`);
-  }, [pathName, router, searchParams, setSelectedSpan]);
-
   if (fullScreen) {
     return null;
   }
@@ -67,12 +60,6 @@ const Header = ({
         </div>
       </div>
       <div className="flex gap-x-2 items-center ml-auto">
-        {selectedSpan && (
-          <Button variant={"secondary"} onClick={handleShowTimeline}>
-            <ChartNoAxesGantt size={16} className="mr-2" />
-            Show timeline
-          </Button>
-        )}
         {trace?.hasBrowserSession && (
           <Button
             variant={"secondary"}

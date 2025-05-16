@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { ChartNoAxesGantt, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useState, useRef } from "react";
 
@@ -44,13 +44,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const [isSpansLoading, setIsSpansLoading] = useState(false);
   const [isTraceLoading, setIsTraceLoading] = useState(false);
   const container = useRef<HTMLDivElement>(null);
-  // containerHeight refers to the height of the trace view container
-  const [containerHeight, setContainerHeight] = useState(0);
-  // containerWidth refers to the width of the trace view container
-  const [containerWidth, setContainerWidth] = useState(0);
-  const traceTreePanel = useRef<HTMLDivElement>(null);
-  // here timelineWidth refers to the width of the trace tree panel AND waterfall timeline
-  const [timelineWidth, setTimelineWidth] = useState(0);
+
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
@@ -86,6 +80,9 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   // Add new state for collapsed spans
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
+
+  const [showTimeline, setShowTimeline] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleFetchTrace = useCallback(async () => {
     try {
@@ -251,42 +248,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     }
   }, [searchParams, spans]);
 
-  useEffect(() => {
-    if (!container.current) {
-      return;
-    }
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        setContainerHeight(height);
-        setContainerWidth(width);
-      }
-    });
-    resizeObserver.observe(container.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [container.current]);
-
   const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
-
-  useEffect(() => {
-    if (!traceTreePanel.current) {
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      const newTraceTreePanelWidth = traceTreePanel.current?.getBoundingClientRect().width || 0;
-
-      if (!selectedSpan) {
-        setTimelineWidth(containerWidth);
-      } else {
-        setTimelineWidth(newTraceTreePanelWidth + 1);
-      }
-    });
-  }, [containerWidth, selectedSpan]);
 
   const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
     spanId: row.span_id,
@@ -400,8 +362,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     } catch (e) { }
   }, [treeViewWidth]);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-
   const isLoading = !trace || spans?.length === 0 || isSpansLoading || isTraceLoading;
 
   // Add back the handleResizeTreeView function
@@ -412,13 +372,9 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       const startWidth = treeViewWidth;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(320, Math.min(containerWidth / 2, startWidth + moveEvent.clientX - startX));
+        const newWidth = Math.max(320, startWidth + moveEvent.clientX - startX);
         setTreeViewWidth(newWidth);
 
-        // Only update timeline width when a span is selected
-        if (selectedSpan) {
-          setTimelineWidth(newWidth + 1);
-        }
       };
 
       const handleMouseUp = () => {
@@ -429,7 +385,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [containerWidth, selectedSpan, treeViewWidth]
+    [treeViewWidth]
   );
 
   if (isLoading) {
@@ -486,64 +442,60 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                     >
                       <Search size={14} />
                     </Button>
+                    <Button
+                      size="icon"
+                      onClick={() => setShowTimeline(!showTimeline)}
+                      variant="outline"
+                      className="h-[22px] w-[22px]"
+                    >
+                      <ChartNoAxesGantt size={14} />
+                    </Button>
                   </StatsShields>
                 )}
               </div>
-              <ScrollArea
-                ref={scrollRef}
-                className={cn("overflow-y-auto overflow-x-hidden flex-grow")}
-              >
-                <div>
-                  <div className="flex flex-col pb-4">
-                    <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isSpansLoading })}>
-                      <Tree
-                        spans={spans}
-                        topLevelSpans={topLevelSpans}
-                        childSpans={childSpans}
-                        activeSpans={activeSpans}
-                        collapsedSpans={collapsedSpans}
-                        containerWidth={containerWidth}
-                        selectedSpan={selectedSpan}
-                        trace={trace}
-                        isSpansLoading={isSpansLoading}
-                        scrollRef={scrollRef}
-                        onToggleCollapse={(spanId) => {
-                          setCollapsedSpans((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(spanId)) {
-                              next.delete(spanId);
-                            } else {
-                              next.add(spanId);
-                            }
-                            return next;
-                          });
-                        }}
-                        onSpanSelect={(span) => {
-                          const params = new URLSearchParams(searchParams);
-                          setSelectedSpan(span);
-                          params.set("spanId", span.spanId);
-                          router.push(`${pathName}?${params.toString()}`);
-                        }}
-                        onSelectTime={(time) => {
-                          browserSessionRef.current?.goto(time);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-                {/* {!selectedSpan && (
-                        <td className="flex flex-grow w-full p-0 relative">
-                          <Timeline
-                            scrollRef={scrollRef}
-                            containerHeight={containerHeight}
-                            spans={spans}
-                            childSpans={childSpans}
-                            collapsedSpans={collapsedSpans}
-                            browserSessionTime={browserSessionTime}
-                          />
-                        </td>
-                      )} */}
-              </ScrollArea>
+              {showTimeline ? (
+                <Timeline
+                  scrollRef={scrollRef}
+                  containerHeight={scrollRef.current?.clientHeight || 0}
+                  spans={spans}
+                  childSpans={childSpans}
+                  collapsedSpans={collapsedSpans}
+                  browserSessionTime={browserSessionTime}
+                />
+              ) : (
+                <Tree
+                  spans={spans}
+                  topLevelSpans={topLevelSpans}
+                  childSpans={childSpans}
+                  activeSpans={activeSpans}
+                  collapsedSpans={collapsedSpans}
+                  containerWidth={treeViewWidth}
+                  selectedSpan={selectedSpan}
+                  trace={trace}
+                  isSpansLoading={isSpansLoading}
+                  scrollRef={scrollRef}
+                  onToggleCollapse={(spanId) => {
+                    setCollapsedSpans((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(spanId)) {
+                        next.delete(spanId);
+                      } else {
+                        next.add(spanId);
+                      }
+                      return next;
+                    });
+                  }}
+                  onSpanSelect={(span) => {
+                    const params = new URLSearchParams(searchParams);
+                    setSelectedSpan(span);
+                    params.set("spanId", span.spanId);
+                    router.push(`${pathName}?${params.toString()}`);
+                  }}
+                  onSelectTime={(time) => {
+                    browserSessionRef.current?.goto(time);
+                  }}
+                />
+              )}
               <div
                 className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
                 onMouseDown={handleResizeTreeView}
@@ -557,7 +509,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               </div>
             )}
           </div>
-        </ResizablePanel >
+        </ResizablePanel>
         {showBrowserSession && (
           <>
             <ResizableHandle className="z-50" withHandle />
@@ -576,9 +528,8 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               )}
             </ResizablePanel>
           </>
-        )
-        }
-      </ResizablePanelGroup >
-    </div >
+        )}
+      </ResizablePanelGroup>
+    </div>
   );
 }
