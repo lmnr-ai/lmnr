@@ -16,8 +16,8 @@ import { Button } from '../ui/button';
 import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import DateRangeFilter from '../ui/date-range-filter';
-import TextSearchFilter from '../ui/text-search-filter';
 import Mono from '../ui/mono';
+import TextSearchFilter from '../ui/text-search-filter';
 
 type SessionRow = {
   type: string;
