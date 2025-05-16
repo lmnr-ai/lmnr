@@ -1,4 +1,8 @@
-use std::{collections::HashMap, env, sync::Arc};
+use std::{
+    collections::HashMap,
+    env,
+    sync::{Arc, LazyLock},
+};
 
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
@@ -46,7 +50,20 @@ const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_sess
 //
 // We use 7/2 as an estimate of the number of characters per token.
 // And 128K is a common input size for LLM calls.
-const DEFAULT_PAYLOAD_SIZE_THRESHOLD: usize = (7 / 2) * 128_000; // approx 448KB
+const DEFAULT_PAYLOAD_SIZE_THRESHOLD: usize = 128_000 * 7 / 2; // approx 448KB
+
+static GEN_AI_CONTENT_OR_ROLE_ATTRIBUTE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap());
+
+static LEGACY_LITELLM_CONTENT_OR_ROLE_ATTRIBUTE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"SpanAttributes\.LLM_(PROMPTS|COMPLETIONS)\.\d+\.(content|role)").unwrap()
+});
+
+static GEN_AI_PROMPT_ATTRIBUTE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^gen_ai\.prompt\.(\d+)").unwrap());
+
+static GEN_AI_COMPLETION_ATTRIBUTE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^gen_ai\.completion\.(\d+)").unwrap());
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -665,16 +682,14 @@ fn should_keep_attribute(attribute: &str) -> bool {
 
     // OpenLLMetry
     // remove gen_ai.prompt/completion attributes as they are stored in LLM span's input/output
-    let pattern = Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap();
-    if pattern.is_match(attribute) {
+
+    if GEN_AI_CONTENT_OR_ROLE_ATTRIBUTE_REGEX.is_match(attribute) {
         return false;
     }
 
     // older LiteLLM
-    // remove SpanAttributes.LLM_PROMPTS/COMPLETIONS attributes as they are stored in LLM span's input/output
-    let pattern =
-        Regex::new(r"SpanAttributes\.LLM_(PROMPTS|COMPLETIONS)\.\d+\.(content|role)").unwrap();
-    if pattern.is_match(attribute) {
+    // remove SpanAttributes.LLM_PROMPTS/COMPLETIONS attributes as they are stored in LLM span's input/output;
+    if LEGACY_LITELLM_CONTENT_OR_ROLE_ATTRIBUTE_REGEX.is_match(attribute) {
         return false;
     }
 
@@ -704,12 +719,11 @@ fn input_chat_messages_from_prompt_content(
     prefix: &str,
 ) -> Vec<ChatMessage> {
     let mut input_messages: Vec<ChatMessage> = vec![];
-    let prompt_regex = Regex::new(r"^gen_ai\.prompt\.(\d+)").unwrap();
 
     let prompt_message_count = attributes
         .keys()
         .filter_map(|k| {
-            prompt_regex
+            GEN_AI_PROMPT_ATTRIBUTE_REGEX
                 .captures(k)
                 .and_then(|m| m.get(1).and_then(|s| s.as_str().parse::<usize>().ok()))
         })
@@ -842,11 +856,10 @@ fn output_from_completion_content(
     attributes: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<serde_json::Value> {
     let mut out_vec = Vec::new();
-    let completion_regex = Regex::new(r"^gen_ai\.completion\.(\d+)").unwrap();
     let completion_message_count = attributes
         .keys()
         .filter_map(|k| {
-            completion_regex
+            GEN_AI_COMPLETION_ATTRIBUTE_REGEX
                 .captures(k)
                 .and_then(|m| m.get(1).and_then(|s| s.as_str().parse::<usize>().ok()))
         })

@@ -7,6 +7,9 @@ use uuid::Uuid;
 
 use crate::storage::{Storage, StorageTrait};
 
+static DATA_URL_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^data:(image/[a-zA-Z]+);base64,.*$").unwrap());
+
 #[derive(Deserialize)]
 pub struct ImageUrl {
     pub url: String,
@@ -243,7 +246,7 @@ impl ChatMessageContentPart {
                     ChatMessageImage::AISDKRawBase64(image) => image.mime_type.clone().unwrap_or({
                         // only check the first 50 characters to avoid expensive regex matching
                         let chars = image.image.chars().take(50).collect::<String>();
-                        let caps: Option<regex::Captures<'_>> = data_url_regex().captures(&chars);
+                        let caps: Option<regex::Captures<'_>> = DATA_URL_REGEX.captures(&chars);
                         caps.map_or("image/png".to_string(), |caps| caps[1].to_string())
                     }),
                 };
@@ -292,13 +295,9 @@ impl ChatMessageContentPart {
 fn raw_base64_from_data_url(data_url: &str) -> Option<&str> {
     // We only check the first 50 characters to avoid expensive regex matching.
     // The mimeType is fairly short, so 50 characters is more than enough.
-    if data_url_regex().is_match(&data_url.chars().take(50).collect::<String>()) {
+    if DATA_URL_REGEX.is_match(&data_url.chars().take(50).collect::<String>()) {
         data_url.split_once(',').map(|(_, base64_data)| base64_data)
     } else {
         None
     }
-}
-
-fn data_url_regex() -> LazyLock<Regex> {
-    LazyLock::new(|| Regex::new(r"^data:(image/[a-zA-Z]+);base64,.*$").unwrap())
 }
