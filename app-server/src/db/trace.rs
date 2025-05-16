@@ -95,7 +95,7 @@ pub async fn update_trace_attributes(
             metadata = COALESCE($13, traces.metadata),
             has_browser_session = COALESCE($14, traces.has_browser_session),
             top_span_id = COALESCE(traces.top_span_id, $15),
-            status = COALESCE($16, traces.status)
+            status = CASE WHEN $16 = 'error' THEN $16 ELSE COALESCE($16, traces.status) END
         "
     )
     .bind(attributes.id)

@@ -1,5 +1,4 @@
-use lazy_static::lazy_static;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use backoff::ExponentialBackoffBuilder;
 use regex::Regex;
@@ -35,10 +34,9 @@ pub fn json_value_to_string(v: &Value) -> String {
     }
 }
 
-lazy_static! {
-    static ref EXCEPTION_REGEX: Regex =
-        Regex::new(r"^(exception|exception\.(type|message|stacktrace))$").unwrap();
-}
+static EXCEPTION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(exception|exception\.(type|message|stacktrace))$").unwrap()
+});
 
 /// Calculate usage for both default and LLM spans
 pub async fn get_llm_usage_for_span(

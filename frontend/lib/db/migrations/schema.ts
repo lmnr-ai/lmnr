@@ -14,7 +14,6 @@ import {
   timestamp,
   unique,
   uuid,
-  varchar,
 } from "drizzle-orm/pg-core";
 
 export const agentMachineStatus = pgEnum("agent_machine_status", ["not_started", "running", "paused", "stopped"]);
@@ -884,7 +883,7 @@ export const traces = pgTable(
     topSpanId: uuid("top_span_id"),
     agentSessionId: uuid("agent_session_id"),
     visibility: text(),
-    status: varchar(),
+    status: text(),
   },
   (table) => [
     index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast().op("jsonb_ops")),
