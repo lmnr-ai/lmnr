@@ -7,6 +7,7 @@ import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Plus, Minus } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TimelineProps {
   spans: Span[];
@@ -172,17 +173,17 @@ export default function Timeline({
 
   const virtualizer = useVirtualizer({
     count: segments.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 36, // HEIGHT + margin
+    getScrollElement: () => ref.current,
+    estimateSize: () => 32, // HEIGHT + margin
     overscan: 50,
   });
 
   const items = virtualizer.getVirtualItems();
 
   return (
-    <div className="flex flex-col h-full w-full relative" ref={ref}>
-      <ScrollArea className="h-full w-full" ref={scrollRef}>
-        <div className="bg-background flex text-xs border-b z-50 sticky top-0 h-8 px-4">
+    <div className="flex flex-col h-full w-full relative">
+      <ScrollArea className="h-full w-full" ref={ref}>
+        <div className="bg-background flex text-xs border-b z-50 top-0 h-8 px-4 sticky">
           <div className="flex relative w-full">
             {timeIntervals.map((interval, index) => (
               <div
@@ -194,7 +195,7 @@ export default function Timeline({
                   {interval}
                 </div>
                 <div
-                  className="absolute top-8 border-l border-secondary-foreground/20 h-full"
+                  className="absolute top-8 border-l border-secondary-foreground/20 h-[2000px]"
                   style={{ left: 0 }}
                 />
               </div>
@@ -211,7 +212,7 @@ export default function Timeline({
             )}
           </div>
         </div>
-        <div className="px-4 pt-1.5">
+        <div style={{ height: virtualizer.getTotalSize() }}>
           <div
             style={{
               position: "relative",
@@ -227,29 +228,23 @@ export default function Timeline({
                 <div
                   key={virtualRow.index}
                   data-index={virtualRow.index}
-                  className="relative border-secondary-foreground/20"
+                  className={cn(
+                    "absolute top-0 left-0 w-full h-8 flex items-center px-4",
+                    virtualRow.index % 2 === 0 ? "bg-secondary-foreground/5" : "bg-secondary-foreground/10"
+                  )}
                   style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: HEIGHT,
-                    marginBottom: 4,
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
                   <div
-                    className="rounded relative z-20 flex items-center px-2"
+                    className="rounded relative z-20 flex items-center"
                     style={{
                       backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
                       marginLeft: segment.left + "%",
-                      width: "max(" + segment.width + "%, 1px)",
+                      width: `max(${segment.width}%, 2px)`,
                       height: 28,
                     }}
                   >
-                    <div className="text-sm truncate">
-                      {segment.span.name}
-                    </div>
                     {segment.events.map((event, index) => (
                       <div
                         key={index}
@@ -261,6 +256,9 @@ export default function Timeline({
                         }}
                       />
                     ))}
+                    <div className="text-xs font-medium text-white/90 truncate absolute">
+                      {segment.span.name}
+                    </div>
                   </div>
                 </div>
               );

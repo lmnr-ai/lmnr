@@ -18,7 +18,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 import SessionPlayer, { SessionPlayerHandle } from "../session-player";
 import { SpanView } from "../span-view";
 import StatsShields from "../stats-shields";
-import Timeline from "../timeline";
+import Timeline from "./timeline";
 import Tree from "./tree";
 
 export interface TraceViewHandle {

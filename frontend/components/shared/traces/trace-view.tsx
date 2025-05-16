@@ -14,7 +14,7 @@ import { SpanView } from "@/components/shared/traces/span-view";
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import { SpanCard } from "@/components/traces/span-card";
 import StatsShields from "@/components/traces/stats-shields";
-import Timeline from "@/components/traces/timeline";
+import Timeline from "@/components/traces/trace-view/timeline";
 import { Button } from "@/components/ui/button";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -129,7 +129,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
           setTreeViewWidth(parseInt(savedWidth, 10));
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }, []);
 
   useEffect(() => {
@@ -137,7 +137,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   useEffect(() => {
