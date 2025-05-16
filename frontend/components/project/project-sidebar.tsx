@@ -170,7 +170,7 @@ export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: P
           <Book size={16} />
           {open || openMobile ? <span className="text-sm">Docs</span> : null}
         </Link>
-        {isFreeTier && (
+        {isFreeTier && (open || openMobile) && (
           <Link passHref href={`/workspace/${workspaceId}`}>
             <Button className="w-full">Upgrade</Button>
           </Link>
