@@ -569,7 +569,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
   const items = virtualizer.getVirtualItems();
 
-  const isLoading = !trace || spans?.length === 0 || isSpansLoading || isTraceLoading;
+  const isLoading = !trace || spans?.length === 0 || (isSpansLoading && isTraceLoading);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
