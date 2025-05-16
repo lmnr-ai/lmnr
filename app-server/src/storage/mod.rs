@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::{Engine, prelude::BASE64_STANDARD};
 use enum_dispatch::enum_dispatch;
 use uuid::Uuid;
 

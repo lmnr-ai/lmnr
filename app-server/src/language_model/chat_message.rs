@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use anyhow::Result;
 use regex::Regex;
@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::storage::{Storage, StorageTrait};
+
+static DATA_URL_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^data:(image/[a-zA-Z]+);base64,.*$").unwrap());
 
 #[derive(Deserialize)]
 pub struct ImageUrl {
@@ -35,9 +38,36 @@ pub struct ChatMessageImageUrl {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ChatMessageImage {
+pub struct DefaultChatMessageImage {
     pub media_type: String, // e.g. "image/jpeg"
     pub data: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessageImageAISDKRawBytes {
+    pub image: Vec<u8>,
+    #[serde(default)]
+    pub mime_type: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessageImageAISDKRawBase64 {
+    pub image: String,
+    #[serde(default)]
+    pub mime_type: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
+pub enum ChatMessageImage {
+    Default(DefaultChatMessageImage),
+    // On outer AI SDK spans
+    AISDKRawBytes(ChatMessageImageAISDKRawBytes),
+    // Inner, doGenerate and doStream spans
+    AISDKRawBase64(ChatMessageImageAISDKRawBase64),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -166,10 +196,10 @@ impl ChatMessageContentPart {
                 }
             },
             InstrumentationChatMessageContentPart::Image(image) => {
-                ChatMessageContentPart::Image(ChatMessageImage {
+                ChatMessageContentPart::Image(ChatMessageImage::Default(DefaultChatMessageImage {
                     media_type: image.source.media_type,
                     data: image.source.data,
-                })
+                }))
             }
             InstrumentationChatMessageContentPart::Document(document) => match document.source {
                 InstrumentationChatMessageDocumentSource::Base64(document_source) => {
@@ -196,11 +226,34 @@ impl ChatMessageContentPart {
         match self {
             ChatMessageContentPart::Image(image) => {
                 let key = crate::storage::create_key(project_id, &None);
-                let data = crate::storage::base64_to_bytes(&image.data)?;
+                let data = match image {
+                    ChatMessageImage::Default(image) => {
+                        crate::storage::base64_to_bytes(&image.data)?
+                    }
+                    ChatMessageImage::AISDKRawBytes(image) => image.image.clone(),
+                    ChatMessageImage::AISDKRawBase64(image) => {
+                        // strip off the data:image/...;base64, prefix if present
+                        let base64_data =
+                            raw_base64_from_data_url(&image.image).unwrap_or(&image.image);
+                        crate::storage::base64_to_bytes(&base64_data)?
+                    }
+                };
+                let media_type = match image {
+                    ChatMessageImage::Default(image) => image.media_type.clone(),
+                    ChatMessageImage::AISDKRawBytes(image) => {
+                        image.mime_type.clone().unwrap_or("image/png".to_string())
+                    }
+                    ChatMessageImage::AISDKRawBase64(image) => image.mime_type.clone().unwrap_or({
+                        // only check the first 50 characters to avoid expensive regex matching
+                        let chars = image.image.chars().take(50).collect::<String>();
+                        let caps: Option<regex::Captures<'_>> = DATA_URL_REGEX.captures(&chars);
+                        caps.map_or("image/png".to_string(), |caps| caps[1].to_string())
+                    }),
+                };
                 let url = storage.store(data, &key).await?;
                 Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                     url,
-                    detail: Some(format!("media_type:{};base64", image.media_type)),
+                    detail: Some(format!("media_type:{};base64", media_type)),
                 }))
             }
             ChatMessageContentPart::Document(document) => {
@@ -220,16 +273,7 @@ impl ChatMessageContentPart {
                 ))
             }
             ChatMessageContentPart::ImageUrl(image_url) => {
-                // OpenAI and LangChain allow `image_url` to be a base64 encoded image
-                // This somewhat hacky solution is to check if the url is a base64 encoded image
-                // and if so, store the image and return the new url
-                // https://python.langchain.com/docs/how_to/multimodal_inputs/
-                // https://platform.openai.com/docs/guides/vision#uploading-base64-encoded-images
-                // Discussion we've opened with OpenLLMetry:
-                // https://github.com/traceloop/openllmetry/issues/2516
-                let pattern = Regex::new(r"^data:image/[a-zA-Z]+;base64,.*$").unwrap();
-                if pattern.is_match(&image_url.url.chars().take(50).collect::<String>()) {
-                    let base64_data = image_url.url.split(',').last().unwrap();
+                if let Some(base64_data) = raw_base64_from_data_url(&image_url.url) {
                     let data = crate::storage::base64_to_bytes(base64_data)?;
                     let key = crate::storage::create_key(project_id, &None);
                     let url = storage.store(data, &key).await?;
@@ -238,10 +282,22 @@ impl ChatMessageContentPart {
                         detail: image_url.detail.clone(),
                     }))
                 } else {
+                    // Otherwise, assume it's a regular image url
                     Ok(self.clone())
                 }
             }
             _ => Ok(self.clone()),
         }
+    }
+}
+
+/// Extract the raw base64 data from a data URL.
+fn raw_base64_from_data_url(data_url: &str) -> Option<&str> {
+    // We only check the first 50 characters to avoid expensive regex matching.
+    // The mimeType is fairly short, so 50 characters is more than enough.
+    if DATA_URL_REGEX.is_match(&data_url.chars().take(50).collect::<String>()) {
+        data_url.split_once(',').map(|(_, base64_data)| base64_data)
+    } else {
+        None
     }
 }

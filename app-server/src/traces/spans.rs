@@ -1,4 +1,8 @@
-use std::{collections::HashMap, env, sync::Arc};
+use std::{
+    collections::HashMap,
+    env,
+    sync::{Arc, LazyLock},
+};
 
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
@@ -46,7 +50,20 @@ const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_sess
 //
 // We use 7/2 as an estimate of the number of characters per token.
 // And 128K is a common input size for LLM calls.
-const DEFAULT_PAYLOAD_SIZE_THRESHOLD: usize = (7 / 2) * 128_000; // approx 448KB
+const DEFAULT_PAYLOAD_SIZE_THRESHOLD: usize = 128_000 * 7 / 2; // approx 448KB
+
+static GEN_AI_CONTENT_OR_ROLE_ATTRIBUTE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap());
+
+static LEGACY_LITELLM_CONTENT_OR_ROLE_ATTRIBUTE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"SpanAttributes\.LLM_(PROMPTS|COMPLETIONS)\.\d+\.(content|role)").unwrap()
+});
+
+static GEN_AI_PROMPT_ATTRIBUTE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^gen_ai\.prompt\.(\d+)").unwrap());
+
+static GEN_AI_COMPLETION_ATTRIBUTE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^gen_ai\.completion\.(\d+)").unwrap());
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -459,7 +476,6 @@ impl Span {
 
         span.span_type = span.get_attributes().span_type();
 
-        // to handle OpenLLMetry's prompt/completion messages
         if span.span_type == SpanType::LLM {
             if attributes.get("gen_ai.prompt.0.content").is_some() {
                 let input_messages =
@@ -467,15 +483,10 @@ impl Span {
 
                 span.input = Some(json!(input_messages));
                 span.output = output_from_completion_content(&attributes);
-            } else if attributes.get("ai.prompt.messages").is_some() {
-                // handling the Vercel's AI SDK auto-instrumentation
-                if let Ok(input_messages) = serde_json::from_str::<Vec<ChatMessage>>(
-                    attributes
-                        .get("ai.prompt.messages")
-                        .unwrap()
-                        .as_str()
-                        .unwrap(),
-                ) {
+            } else if let Some(ai_prompt_messages) = attributes.get("ai.prompt.messages") {
+                if let Ok(input_messages) =
+                    serde_json::from_str::<Vec<ChatMessage>>(ai_prompt_messages.as_str().unwrap())
+                {
                     span.input = Some(json!(input_messages));
                 }
 
@@ -502,12 +513,36 @@ impl Span {
         // Which is not really an LLM span, but it has the prompt in its attributes.
         // Set the input to the prompt and the output to the response.
         if let Some(serde_json::Value::String(s)) = attributes.get("ai.prompt") {
-            span.input = Some(
+            let ai_prompt =
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
+            if let Some(messages_value) = ai_prompt.get("messages") {
+                let mut messages =
+                    serde_json::from_value::<Vec<ChatMessage>>(messages_value.clone())
+                        .unwrap_or_default();
+                let system = ai_prompt
+                    .get("system")
+                    .and_then(|v| v.as_str())
+                    .map(|v| v.to_string());
+                if let Some(system) = system {
+                    messages.insert(
+                        0,
+                        ChatMessage {
+                            role: "system".to_string(),
+                            content: ChatMessageContent::Text(system),
+                        },
+                    );
+                }
+                span.input = Some(serde_json::to_value(messages).unwrap());
+            }
+        }
+        if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
+            span.output = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
-            if let Some(output) = try_parse_ai_sdk_output(&attributes) {
-                span.output = Some(output);
-            }
+        } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
+            span.output = Some(
+                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
+            );
         }
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
@@ -570,7 +605,7 @@ impl Span {
     pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()
-            .and_then(|s| s.parse::<usize>().ok())
+            .and_then(|s: String| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_PAYLOAD_SIZE_THRESHOLD);
         if let Some(input) = self.input.clone() {
             let span_input = serde_json::from_value::<Vec<ChatMessage>>(input);
@@ -580,7 +615,15 @@ impl Span {
                     if let ChatMessageContent::ContentPartList(parts) = message.content {
                         let mut new_parts = Vec::new();
                         for part in parts {
-                            new_parts.push(part.store_media(project_id, storage.clone()).await?);
+                            let stored_part =
+                                match part.store_media(project_id, storage.clone()).await {
+                                    Ok(stored_part) => stored_part,
+                                    Err(e) => {
+                                        log::error!("Error storing media: {e}");
+                                        part
+                                    }
+                                };
+                            new_parts.push(stored_part);
                         }
                         message.content = ChatMessageContent::ContentPartList(new_parts);
                     }
@@ -639,22 +682,20 @@ fn should_keep_attribute(attribute: &str) -> bool {
 
     // OpenLLMetry
     // remove gen_ai.prompt/completion attributes as they are stored in LLM span's input/output
-    let pattern = Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap();
-    if pattern.is_match(attribute) {
+
+    if GEN_AI_CONTENT_OR_ROLE_ATTRIBUTE_REGEX.is_match(attribute) {
         return false;
     }
 
     // older LiteLLM
-    // remove SpanAttributes.LLM_PROMPTS/COMPLETIONS attributes as they are stored in LLM span's input/output
-    let pattern =
-        Regex::new(r"SpanAttributes\.LLM_(PROMPTS|COMPLETIONS)\.\d+\.(content|role)").unwrap();
-    if pattern.is_match(attribute) {
+    // remove SpanAttributes.LLM_PROMPTS/COMPLETIONS attributes as they are stored in LLM span's input/output;
+    if LEGACY_LITELLM_CONTENT_OR_ROLE_ATTRIBUTE_REGEX.is_match(attribute) {
         return false;
     }
 
     // AI SDK
-    // remove ai.prompt.messages as it is stored in LLM span's input
-    if attribute == "ai.prompt.messages" {
+    // remove ai.prompt.messages as it is stored in AI SDK span inputs
+    if attribute == "ai.prompt.messages" || attribute == "ai.prompt" {
         return false;
     }
 
@@ -678,12 +719,11 @@ fn input_chat_messages_from_prompt_content(
     prefix: &str,
 ) -> Vec<ChatMessage> {
     let mut input_messages: Vec<ChatMessage> = vec![];
-    let prompt_regex = Regex::new(r"^gen_ai\.prompt\.(\d+)").unwrap();
 
     let prompt_message_count = attributes
         .keys()
         .filter_map(|k| {
-            prompt_regex
+            GEN_AI_PROMPT_ATTRIBUTE_REGEX
                 .captures(k)
                 .and_then(|m| m.get(1).and_then(|s| s.as_str().parse::<usize>().ok()))
         })
@@ -816,11 +856,10 @@ fn output_from_completion_content(
     attributes: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<serde_json::Value> {
     let mut out_vec = Vec::new();
-    let completion_regex = Regex::new(r"^gen_ai\.completion\.(\d+)").unwrap();
     let completion_message_count = attributes
         .keys()
         .filter_map(|k| {
-            completion_regex
+            GEN_AI_COMPLETION_ATTRIBUTE_REGEX
                 .captures(k)
                 .and_then(|m| m.get(1).and_then(|s| s.as_str().parse::<usize>().ok()))
         })
