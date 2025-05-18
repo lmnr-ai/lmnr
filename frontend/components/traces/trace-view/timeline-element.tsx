@@ -4,6 +4,7 @@ import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Span } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
+import { getDuration, getDurationString } from "@/lib/flow/utils";
 
 interface Segment {
   left: number;
@@ -66,7 +67,7 @@ const TimelineElement = ({
       onClick={() => setSelectedSpan(segment.span)}
       className={cn(
         "absolute top-0 left-0 w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200",
-        virtualRow.index % 2 === 0 ? "bg-secondary-foreground/5" : "bg-secondary-foreground/10"
+        virtualRow.index % 2 === 0 ? "bg-muted/15" : "bg-muted/30"
       )}
       style={{
         transform: `translateY(${virtualRow.start}px)`,
@@ -79,10 +80,10 @@ const TimelineElement = ({
           style={{
             right: `calc(100% - ${segment.left}% + 16px)`,
             textAlign: "right",
-            maxWidth: "200px",
+            maxWidth: "250px",
           }}
         >
-          {segment.span.name}
+          {segment.span.name} {getDurationString(segment.span.startTime, segment.span.endTime)}
         </span>
       )}
       <div
@@ -92,7 +93,7 @@ const TimelineElement = ({
           backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
           marginLeft: segment.left + "%",
           width: `max(${segment.width}%, 2px)`,
-          height: 28,
+          height: 24,
         }}
       >
         {segment.events.map((event, index) => (
@@ -114,12 +115,12 @@ const TimelineElement = ({
               left: segment.events.length > 0 ? "8px" : "4px",
             }}
           >
-            {segment.span.name}
+            {segment.span.name} {getDurationString(segment.span.startTime, segment.span.endTime)}
           </span>
         )}
       </div>
       {segment.left <= 50 && textPosition === "outside" && (
-        <span className="text-xs ml-2 text-left font-medium text-white/90 truncate">{segment.span.name}</span>
+        <span className="text-xs ml-1 text-left font-medium text-white/85 truncate">{segment.span.name} {getDurationString(segment.span.startTime, segment.span.endTime)}</span>
       )}
     </div>
   );
