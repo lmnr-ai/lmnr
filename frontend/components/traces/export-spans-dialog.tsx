@@ -1,20 +1,18 @@
+import { isString } from "lodash";
 import { Database, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect,useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { useProjectContext } from "@/contexts/project-context";
 import { Dataset } from "@/lib/dataset/types";
 import { eventEmitter } from "@/lib/event-emitter";
 import { useToast } from "@/lib/hooks/use-toast";
+import { Span } from "@/lib/traces/types";
 import {
   ChatMessage,
-  ChatMessageContentPart,
   ChatMessageImage,
   ChatMessageImageUrl,
-  ChatMessageContent,
-  flattenContentOfMessages,
 } from "@/lib/types";
-import { Span } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -22,7 +20,6 @@ import DatasetSelect from "../ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import Formatter from "../ui/formatter";
 import { Label } from "../ui/label";
-import { isString } from "lodash";
 
 interface ExportSpansDialogProps {
   span: Span;
