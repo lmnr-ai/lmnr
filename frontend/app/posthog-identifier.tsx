@@ -1,4 +1,3 @@
-// components/analytics/PostHogIdentifier.tsx
 'use client';
 
 import { usePostHog } from 'posthog-js/react';
