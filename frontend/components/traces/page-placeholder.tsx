@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProjectContext } from "@/contexts/project-context";
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from "@/lib/const";
 
@@ -31,10 +32,10 @@ Laminar.initialize({
 `;
 
   return (
-    <div className="h-full w-full flex flex-col">
+    <div className="h-full w-full flex flex-col overflow-hidden">
       <Header path={"traces"} />
-      <div className="flex flex-col justify-center items-center p-2">
-        <div className="flex-col p-4 mb-32 space-y-4 w-[800px]">
+      <ScrollArea>
+        <div className="flex-1 flex-col mx-auto p-6 overflow-y-auto max-w-[800px] gap-4 pb-16 flex">
           <h1 className="text-2xl font-semibold">Quickstart</h1>
           <h3 className="text-muted-foreground">
             You don{"'"}t have any traces in this project yet. Here is how to send your first traces.
@@ -182,7 +183,7 @@ Laminar.initialize({
             and we{"'"}ll be happy to help.
           </p>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }

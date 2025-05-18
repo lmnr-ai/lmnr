@@ -1,17 +1,15 @@
-import { ChartNoAxesGantt, Search } from "lucide-react";
+import { ChartNoAxesGantt, ListTree, Minus, Plus, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { Ref, useCallback, useEffect, useImperativeHandle, useState, useRef } from "react";
+import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import SearchSpansInput from "@/components/traces/search-spans-input";
 import Header from "@/components/traces/trace-view/header";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span, Trace } from "@/lib/traces/types";
-import { cn } from "@/lib/utils";
 
 import { Button } from "../../ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
@@ -34,6 +32,10 @@ interface TraceViewProps {
   ref?: Ref<TraceViewHandle>;
 }
 
+const MAX_ZOOM = 3;
+const MIN_ZOOM = 1;
+const ZOOM_INCREMENT = 0.5;
+
 export default function TraceView({ traceId, onClose, propsTrace, fullScreen = false, ref }: TraceViewProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -43,7 +45,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
   const [isSpansLoading, setIsSpansLoading] = useState(false);
   const [isTraceLoading, setIsTraceLoading] = useState(false);
-  const container = useRef<HTMLDivElement>(null);
 
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
@@ -82,7 +83,15 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
 
   const [showTimeline, setShowTimeline] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+
+  const handleZoomIn = useCallback(() => {
+    setZoomLevel((prev) => Math.min(prev + ZOOM_INCREMENT, MAX_ZOOM));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoomLevel((prev) => Math.max(prev - ZOOM_INCREMENT, MIN_ZOOM));
+  }, []);
 
   const handleFetchTrace = useCallback(async () => {
     try {
@@ -359,12 +368,11 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) { }
+    } catch (e) {}
   }, [treeViewWidth]);
 
-  const isLoading = !trace || spans?.length === 0 || isSpansLoading || isTraceLoading;
+  const isLoading = !trace || spans?.length === 0 || (isSpansLoading && isTraceLoading);
 
-  // Add back the handleResizeTreeView function
   const handleResizeTreeView = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -374,7 +382,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       const handleMouseMove = (moveEvent: MouseEvent) => {
         const newWidth = Math.max(320, startWidth + moveEvent.clientX - startX);
         setTreeViewWidth(newWidth);
-
       };
 
       const handleMouseUp = () => {
@@ -444,27 +451,45 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                     </Button>
                     <Button
                       size="icon"
-                      onClick={() => setShowTimeline(!showTimeline)}
+                      onClick={() => setShowTimeline((prev) => !prev)}
                       variant="outline"
                       className="h-[22px] w-[22px]"
                     >
-                      <ChartNoAxesGantt size={14} />
+                      {showTimeline ? <ChartNoAxesGantt size={14} /> : <ListTree size={14} />}
+                    </Button>
+                    <Button
+                      disabled={zoomLevel === MAX_ZOOM}
+                      className="h-[22px] w-[22px] ml-auto"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleZoomIn}
+                    >
+                      <Plus size={14} />
+                    </Button>
+                    <Button
+                      disabled={zoomLevel === MIN_ZOOM}
+                      className="h-[22px] w-[22px]"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleZoomOut}
+                    >
+                      <Minus size={14} />
                     </Button>
                   </StatsShields>
                 )}
               </div>
               {showTimeline ? (
                 <Timeline
-                  scrollRef={scrollRef}
-                  containerHeight={scrollRef.current?.clientHeight || 0}
+                  setSelectedSpan={setSelectedSpan}
+                  selectedSpan={selectedSpan}
                   spans={spans}
                   childSpans={childSpans}
                   collapsedSpans={collapsedSpans}
                   browserSessionTime={browserSessionTime}
+                  zoomLevel={zoomLevel}
                 />
               ) : (
                 <Tree
-                  spans={spans}
                   topLevelSpans={topLevelSpans}
                   childSpans={childSpans}
                   activeSpans={activeSpans}
@@ -473,7 +498,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                   selectedSpan={selectedSpan}
                   trace={trace}
                   isSpansLoading={isSpansLoading}
-                  scrollRef={scrollRef}
                   onToggleCollapse={(spanId) => {
                     setCollapsedSpans((prev) => {
                       const next = new Set(prev);

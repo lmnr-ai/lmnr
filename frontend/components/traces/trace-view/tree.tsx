@@ -2,14 +2,13 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty } from "lodash";
 import React, { ReactNode, useCallback, useMemo, useRef } from "react";
 
-import { SpanCard } from "../span-card";
-import { Span, Trace } from "@/lib/traces/types";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Span, Trace } from "@/lib/traces/types";
+
+import { SpanCard } from "../span-card";
 
 interface TreeProps {
-  spans: Span[];
   topLevelSpans: Span[];
   childSpans: { [key: string]: Span[] };
   activeSpans: string[];
@@ -18,14 +17,12 @@ interface TreeProps {
   selectedSpan: Span | null;
   trace: Trace | null;
   isSpansLoading: boolean;
-  scrollRef: any; // Use any to bypass the type error temporarily
   onToggleCollapse: (spanId: string) => void;
   onSpanSelect: (span: Span) => void;
   onSelectTime?: (time: number) => void;
 }
 
 export default function Tree({
-  spans,
   topLevelSpans,
   childSpans,
   activeSpans,
@@ -34,11 +31,12 @@ export default function Tree({
   selectedSpan,
   trace,
   isSpansLoading,
-  scrollRef,
   onToggleCollapse,
   onSpanSelect,
   onSelectTime,
 }: TreeProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   const maxY = useRef(0);
 
   const recFn = useCallback(
@@ -176,47 +174,37 @@ export default function Tree({
   }
 
   return (
-    <ScrollArea
-      ref={scrollRef}
-      className="overflow-y-auto overflow-x-hidden flex-grow"
-    >
-      <div>
-        <div className="flex flex-col pb-4">
-          <div className={cn("flex flex-col pt-1", { "gap-y-2 px-2 mt-1": isSpansLoading })}></div>
+    <ScrollArea ref={scrollRef} className="overflow-y-auto overflow-x-hidden flex-grow">
+      <div className="flex flex-col pb-4 pt-1">
+        <div
+          className="relative"
+          style={{
+            height: virtualizer.getTotalSize(),
+            width: "100%",
+            position: "relative",
+          }}
+        >
           <div
-            className="relative"
+            className="pl-6"
             style={{
-              height: virtualizer.getTotalSize(),
+              position: "absolute",
+              top: 0,
+              left: 0,
               width: "100%",
-              position: "relative",
+              transform: `translateY(${items[0]?.start ?? 0}px)`,
             }}
           >
-            <div
-              className="pl-6"
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${items[0]?.start ?? 0}px)`,
-              }}
-            >
-              {items.map((virtualRow) => {
-                const element = treeElements[virtualRow.index];
-                return (
-                  <div
-                    key={virtualRow.key}
-                    ref={virtualizer.measureElement}
-                    data-index={virtualRow.index}
-                  >
-                    {element}
-                  </div>
-                );
-              })}
-            </div>
+            {items.map((virtualRow) => {
+              const element = treeElements[virtualRow.index];
+              return (
+                <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
+                  {element}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
     </ScrollArea>
   );
-} 
+}

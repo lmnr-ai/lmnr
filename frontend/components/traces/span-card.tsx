@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, X } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { getDuration, getDurationString } from "@/lib/flow/utils";
 import { Span } from "@/lib/traces/types";
@@ -45,7 +45,6 @@ export function SpanCard({
   activeSpans,
   onSelectTime,
 }: SpanCardProps) {
-  const [isSelected, setIsSelected] = useState(false);
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -59,9 +58,7 @@ export function SpanCard({
     }
   }, [yOffset, parentY]);
 
-  useEffect(() => {
-    setIsSelected(selectedSpan?.spanId === span.spanId);
-  }, [selectedSpan]);
+  const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
   return (
     <div

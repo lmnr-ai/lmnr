@@ -1,7 +1,7 @@
-import { ChartNoAxesGantt, ChevronsRight, Disc, Expand } from "lucide-react";
+import { ChevronsRight, Disc, Expand } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { memo, useCallback } from "react";
+import React, { memo } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
