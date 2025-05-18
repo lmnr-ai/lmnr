@@ -135,18 +135,18 @@ export const workspaceUsageRelations = relations(workspaceUsage, ({one}) => ({
   }),
 }));
 
-export const labelingQueuesRelations = relations(labelingQueues, ({one, many}) => ({
-  project: one(projects, {
-    fields: [labelingQueues.projectId],
-    references: [projects.id]
-  }),
-  labelingQueueItems: many(labelingQueueItems),
-}));
-
 export const labelingQueueItemsRelations = relations(labelingQueueItems, ({one}) => ({
   labelingQueue: one(labelingQueues, {
     fields: [labelingQueueItems.queueId],
     references: [labelingQueues.id]
+  }),
+}));
+
+export const labelingQueuesRelations = relations(labelingQueues, ({one, many}) => ({
+  labelingQueueItems: many(labelingQueueItems),
+  project: one(projects, {
+    fields: [labelingQueues.projectId],
+    references: [projects.id]
   }),
 }));
 
@@ -269,15 +269,15 @@ export const workspaceInvitationsRelations = relations(workspaceInvitations, ({o
   }),
 }));
 
+export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
+  users: many(users),
+}));
+
 export const tracesRelations = relations(traces, ({one}) => ({
   project: one(projects, {
     fields: [traces.projectId],
     references: [projects.id]
   }),
-}));
-
-export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
-  users: many(users),
 }));
 
 export const machinesRelations = relations(machines, ({one}) => ({

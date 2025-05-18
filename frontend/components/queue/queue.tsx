@@ -1,258 +1,285 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Loader2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { get, isEmpty } from "lodash";
+import { ArrowDown, ArrowUp, ArrowUpRight, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { useProjectContext } from "@/contexts/project-context";
-import { isChatMessageList } from "@/lib/flow/utils";
+import CodeHighlighter from "@/components/traces/code-highlighter";
+import { Button } from "@/components/ui/button";
+import DatasetSelect from "@/components/ui/dataset-select";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
-import { LabelClass, Span } from "@/lib/traces/types";
-import { flattenContentOfMessages } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
-import ChatMessageListTab from "../traces/chat-message-list-tab";
-import { Button } from "../ui/button";
-import DatasetSelect from "../ui/dataset-select";
-import DefaultTextarea from "../ui/default-textarea";
-import Formatter from "../ui/formatter";
 import Header from "../ui/header";
-import { Label } from "../ui/label";
-import MonoWithCopy from "../ui/mono-with-copy";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
-import { ScrollArea } from "../ui/scroll-area";
-import { Skeleton } from "../ui/skeleton";
-import { Switch } from "../ui/switch";
-import { Labels } from "./labels";
 
 interface QueueProps {
   queue: LabelingQueue;
 }
 
-export default function Queue({ queue }: QueueProps) {
-  const { projectId } = useProjectContext();
-
-  const [data, setData] = useState<
-    | {
-        queueData: LabelingQueueItem;
-        span: Span;
-        count: number;
-        position: number;
-      }[]
-    | null
-  >(null);
-
-  const [isRemoving, setIsRemoving] = useState(false);
-  const [addedLabels, setAddedLabels] = useState<
-    Array<{
-      labelClass: LabelClass;
-      reasoning?: string | null;
-    }>
-  >([]);
-  const [datasetId, setDatasetId] = useState<string | undefined>(undefined);
-  const [insertOnComplete, setInsertOnComplete] = useState(false);
-
-  const next = (refDate: string, direction: "next" | "prev" = "next") => {
-    fetch(`/api/projects/${projectId}/queues/${queue.id}/move`, {
-      method: "POST",
-      body: JSON.stringify({ refDate, direction }),
-    }).then(async (data) => {
-      if (data.ok) {
-        const json = await data.json();
-        setData(json);
-      }
-    });
+const getDefaultState = (
+  id: string
+): LabelingQueueItem & {
+  count: number;
+  position: number;
+  payload: {
+    data: Record<string, unknown>;
+    target: Record<string, unknown>;
   };
+} => ({
+  count: 0,
+  position: 0,
+  id: "-",
+  createdAt: "",
+  queueId: id,
+  metadata: "{}",
+  payload: {
+    data: {},
+    target: {},
+  },
+});
 
-  const remove = () => {
-    setIsRemoving(true);
+export default function Queue({ queue }: QueueProps) {
+  const { projectId } = useParams();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState<"skip" | "move" | "first-load" | false>("first-load");
+  const [isValid, setIsValid] = useState(true);
+  const [dataset, setDataset] = useState<string>();
+  const [currentItem, setCurrentItem] = useState<
+    LabelingQueueItem & {
+      count: number;
+      position: number;
+      payload: {
+        data: Record<string, unknown>;
+        target: Record<string, unknown>;
+      };
+    }
+  >(getDefaultState(queue.id));
 
-    // TODO: refactor when we have structured actions
-    let action = data?.[0]?.queueData.action as { resultId: string; datasetId?: string };
-    if (datasetId) {
-      action.datasetId = datasetId;
+  const states = useMemo(() => {
+    const isEmpty = currentItem.count === 0;
+    const isFirstItem = currentItem.position === 1;
+    const isLastItem = currentItem.position === currentItem.count;
+    const isAnyLoading = !!isLoading;
+    const isDatasetSelected = !!dataset;
+
+    return {
+      skip: isAnyLoading || isEmpty || !isValid,
+      prev: isAnyLoading || isFirstItem || isEmpty || !isValid,
+      next: isAnyLoading || isLastItem || isEmpty || !isValid,
+      complete: isAnyLoading || !isDatasetSelected || isEmpty || !isValid,
+    };
+  }, [currentItem.count, currentItem.position, isLoading, dataset, isValid]);
+
+  const sourceLink = useMemo(() => {
+    if (get(currentItem.metadata, "source") === "datapoint") {
+      return `/project/${projectId}/datasets/${get(currentItem.metadata, "datasetId")}?datapointId=${get(currentItem.metadata, "id")}`;
     }
 
-    fetch(`/api/projects/${projectId}/queues/${queue.id}/remove`, {
-      method: "POST",
-      body: JSON.stringify({
-        id: data?.[0]?.queueData.id,
-        spanId: data?.[0]?.span.spanId,
-        action,
-        addedLabels,
-      }),
-    })
-      .then(async (data) => {
-        if (data.ok) {
-          setAddedLabels([]);
-          const json = await data.json();
-          next(json.createdAt);
-        }
-      })
-      .finally(() => {
-        setIsRemoving(false);
-      });
-  };
+    if (get(currentItem.metadata, "source") === "span") {
+      return `/project/${projectId}/traces?traceId=${get(currentItem.metadata, "traceId")}&spanId=${get(currentItem.metadata, "id")}`;
+    }
+    return `/project/${projectId}/labeling-queues/${queue.id}`;
+  }, [currentItem.metadata, projectId, queue.id]);
 
-  const removeLabel = (index: number) => {
-    setAddedLabels((prev) => prev.filter((_, i) => i !== index));
-  };
+  const onChange = useCallback((v: string) => {
+    try {
+      const parsedValue = JSON.parse(v);
+      setIsValid(true);
+      setCurrentItem((prev) => ({
+        ...prev,
+        payload: {
+          ...prev.payload,
+          target: parsedValue,
+        },
+      }));
+    } catch (e) {
+      setIsValid(false);
+    }
+  }, []);
+
+  const move = useCallback(
+    async (
+      refDate: string,
+      direction: "next" | "prev" = "next",
+      load: "skip" | "move" | "first-load" | false = "move"
+    ) => {
+      try {
+        setIsLoading(load);
+        const response = await fetch(`/api/projects/${projectId}/queues/${queue.id}/move`, {
+          method: "POST",
+          body: JSON.stringify({ refDate, direction }),
+        });
+        if (!response.ok) {
+          toast({ variant: "destructive", title: "Error", description: "Failed to move queue. Please try again." });
+        }
+        const data = (await response.json()) as LabelingQueueItem & {
+          count: number;
+          position: number;
+          payload: { data: Record<string, unknown>; target: Record<string, unknown> };
+        };
+
+        if (!isEmpty(data)) {
+          setCurrentItem({
+            ...data,
+            payload: data.payload,
+          });
+        } else {
+          setCurrentItem(getDefaultState(queue.id));
+        }
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: e instanceof Error ? e.message : "Failed to move queue. Please try again.",
+        });
+      } finally {
+        setTimeout(() => setIsLoading(false), 300);
+      }
+    },
+    [projectId, queue.id, toast]
+  );
+
+  const remove = useCallback(
+    async (skip: boolean = false) => {
+      try {
+        setIsLoading("skip");
+        const response = await fetch(`/api/projects/${projectId}/queues/${queue.id}/remove`, {
+          method: "POST",
+          body: JSON.stringify({
+            id: currentItem.id,
+            skip: skip,
+            data: get(currentItem.payload, "data", {}),
+            target: get(currentItem.payload, "target", {}),
+            metadata: get(currentItem.payload, "metadata", {}),
+            datasetId: dataset,
+          }),
+        });
+        if (!response.ok) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to remove from queue. Please try again.",
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        await move(currentItem.createdAt);
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: e instanceof Error ? e.message : "Failed to remove from queue. Please try again.",
+        });
+      } finally {
+        setTimeout(() => setIsLoading(false), 5000);
+      }
+    },
+    [currentItem.createdAt, currentItem.id, currentItem.payload, dataset, move, projectId, queue.id, toast]
+  );
 
   useEffect(() => {
-    next(new Date(0).toUTCString());
+    move(new Date(0).toISOString(), "next", "first-load");
   }, []);
 
   return (
-    <div className="flex flex-col w-full h-full">
-      <div className="flex-none">
-        <Header path={`labeling queues/${queue.name}`} />
-      </div>
-      <div className="flex-1 flex">
-        <ResizablePanelGroup direction="horizontal">
-          <ResizablePanel className="flex-1 flex" minSize={20} defaultSize={50}>
-            {data?.[0]?.span && (
-              <div className="flex h-full w-full">
-                <ScrollArea className="flex overflow-auto w-full mt-0">
-                  <div className="flex flex-col max-h-0">
-                    <div className="flex flex-col p-4 gap-4">
-                      <div className="flex items-center space-x-2">
-                        <Label className="text-sm text-secondary-foreground font-mono">Span</Label>
-                        <MonoWithCopy className="text-secondary-foreground">{data?.[0]?.span.spanId}</MonoWithCopy>
-                      </div>
-                      <div className="w-full h-full">
-                        <div className="pb-2 font-medium text-lg">Input</div>
-                        {isChatMessageList(data?.[0]?.span.input) ? (
-                          <ChatMessageListTab messages={flattenContentOfMessages(data?.[0]?.span.input)} />
-                        ) : (
-                          <Formatter
-                            className="max-h-1/3"
-                            collapsible
-                            value={JSON.stringify(data?.[0]?.span.input)}
-                            presetKey={`input-${queue.id}`}
-                          />
-                        )}
-                      </div>
-                      <div className="w-full h-full">
-                        <div className="pb-2 font-medium text-lg">Output</div>
-                        <Formatter
-                          className="max-h-[600px]"
-                          value={JSON.stringify(data?.[0]?.span.output)}
-                          collapsible
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </ScrollArea>
+    <div className="flex flex-col flex-1 overflow-hidden">
+      <Header path={`labeling queues/${queue.name}`} />
+      <ResizablePanelGroup direction="horizontal">
+        <ResizablePanel className="flex flex-1 flex-col overflow-hidden p-4" minSize={20} defaultSize={50}>
+          {isLoading === "first-load" ? (
+            <div className="size-full flex flex-col flex-1 gap-2">
+              <Skeleton className="h-6 w-20 mb-2" />
+              <Skeleton className="h-8" />
+              <Skeleton className="h-full" />
+            </div>
+          ) : currentItem.count > 0 ? (
+            <>
+              <span className="mb-1">Payload</span>
+              <div className="flex text-xs gap-1 text-nowrap truncate">
+                <span className="text-secondary-foreground">Created from</span>
+                <Link className="flex text-xs items-center text-primary" href={sourceLink}>
+                  {get(currentItem.metadata, "source", "-")}
+                  <ArrowUpRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="flex flex-1 overflow-hidden mt-2">
+                <CodeHighlighter
+                  codeEditorClassName="rounded-b"
+                  className="rounded"
+                  defaultMode="json"
+                  readOnly
+                  value={JSON.stringify(currentItem.payload, null, 2)}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col gap-1 justify-center items-center size-full">
+              <span className="text-lg">No items in the queue</span>
+              <span className="text-secondary-foreground text-sm">Push items to queue from dataset or spans</span>
+            </div>
+          )}
+        </ResizablePanel>
+        <ResizableHandle withHandle className="z-50" />
+        <ResizablePanel className="flex-1 flex-col flex" minSize={20} defaultSize={33}>
+          <div className="flex gap-2 p-4 py-2 border-b text-secondary-foreground justify-between items-center">
+            <span className="text-nowrap">
+              Item {currentItem.position} of {currentItem.count}
+            </span>
+            <div className="flex flex-wrap justify-end items-center gap-2">
+              <Button onClick={() => remove(true)} disabled={states.skip} variant="outline">
+                Skip
+              </Button>
+              <Button onClick={() => move(currentItem.createdAt, "prev")} disabled={states.prev} variant="outline">
+                <ArrowDown size={16} className="mr-2" />
+                Prev
+              </Button>
+              <Button onClick={() => move(currentItem.createdAt, "next")} disabled={states.next} variant="outline">
+                <ArrowUp size={16} className="mr-2" />
+                Next
+              </Button>
+              <Button onClick={() => remove()} disabled={states.complete}>
+                Complete
+              </Button>
+            </div>
+          </div>
+          <div className={cn("flex flex-col flex-1 relative overflow-hidden z-50")}>
+            {!!isLoading && (
+              <div className="z-50 absolute inset-0 bg-background/40 backdrop-blur-sm flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             )}
-            {data && data.length === 0 && (
-              <div className="h-full p-4 flex w-full flex-col gap-2">
-                <span className="text-secondary-foreground">No items in queue.</span>
-              </div>
-            )}
-            {!data && (
-              <div className="h-full p-4 flex w-full flex-col gap-2">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-              </div>
-            )}
-          </ResizablePanel>
-          <ResizableHandle withHandle className="z-50" />
-          <ResizablePanel className="flex-1 flex" minSize={20} defaultSize={33}>
-            <div className="w-full flex flex-col">
-              <div className="flex-none p-4 py-2 border-b text-secondary-foreground flex justify-between items-center">
-                {data && (
-                  <span>
-                    Item {data[0]?.position} of {data[0]?.count}
-                  </span>
-                )}
-                <div></div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => data?.[0]?.queueData && next(data[0].queueData.createdAt, "prev")}
-                    disabled={!data || data[0]?.position <= 1}
-                  >
-                    <ArrowDown size={16} className="mr-2" />
-                    Prev
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => data?.[0]?.queueData && next(data[0].queueData.createdAt, "next")}
-                    disabled={!data || data[0]?.position >= (data[0]?.count || 0)}
-                  >
-                    <ArrowUp size={16} className="mr-2" />
-                    Next
-                  </Button>
-                  <Button onClick={remove} disabled={isRemoving || !data}>
-                    {isRemoving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Complete
-                  </Button>
-                </div>
-              </div>
-              <div className="flex-1 p-4">
-                <Label className="text-sm text-secondary-foreground">Labels to be added to the span</Label>
-                <div className="mt-4 space-y-2">
-                  {addedLabels.map((label, index) => (
-                    <div key={index} className="flex flex-col p-2 border border-foreground/10 bg-muted rounded gap-2">
-                      <div className="flex items-center gap-2 justify-between w-full">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">{label.labelClass.name}</span>
-                          <Button variant="ghost" size="sm" onClick={() => removeLabel(index)} className="h-6 px-2">
-                            <X size={14} />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <DefaultTextarea
-                          className="w-full"
-                          placeholder="Reasoning (optional)"
-                          value={label.reasoning || ""}
-                          onChange={(e) => {
-                            setAddedLabels((prev) =>
-                              prev.map((l) =>
-                                l.labelClass.id === label.labelClass.id ? { ...l, reasoning: e.target.value } : l
-                              )
-                            );
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="flex-none p-4 border-t">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="insert-dataset">Insert to dataset on complete</Label>
-                  <Switch checked={insertOnComplete} onCheckedChange={setInsertOnComplete} id="insert-dataset" />
-                </div>
-
-                {insertOnComplete && (
-                  <div className="mt-4">
-                    <DatasetSelect
-                      selectedDatasetId={datasetId}
-                      onDatasetChange={(dataset) => {
-                        setDatasetId(dataset?.id || undefined);
-                      }}
-                    />
-                  </div>
-                )}
+            <div className="p-4 border-b">
+              <Label htmlFor="insert-dataset">Insert to dataset on complete</Label>
+              <DatasetSelect className="mt-2" value={dataset} onChange={(dataset) => setDataset(dataset.id)} />
+            </div>
+            <div className="flex flex-1 h-full flex-col overflow-hidden p-4">
+              <span className="mb-1">Target</span>
+              <span className="text-secondary-foreground text-xs mb-2">
+                Data that will be written to the target key of the payload object. It can contain any valid JSON
+                structure.
+              </span>
+              <div className="flex flex-1 overflow-hidden">
+                <CodeHighlighter
+                  codeEditorClassName="rounded-b"
+                  className={cn("rounded", {
+                    "border border-destructive/75": !isValid,
+                  })}
+                  defaultMode="json"
+                  value={JSON.stringify(currentItem.payload.target)}
+                  onChange={onChange}
+                />
               </div>
             </div>
-          </ResizablePanel>
-          <ResizableHandle withHandle className="z-50" />
-          <ResizablePanel className="w-1/3 p-4 border-l" minSize={10} defaultSize={17}>
-            <Labels
-              span={data?.[0]?.span}
-              onAddLabel={(labelClass) => {
-                const isDuplicateClass = addedLabels.some((label) => label.labelClass.id === labelClass.id);
-                if (!isDuplicateClass) {
-                  setAddedLabels((prev) => [...prev, { labelClass, reasoning: null }]);
-                }
-              }}
-            />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }

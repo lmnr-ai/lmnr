@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, delete, get, web};
+use actix_web::{HttpResponse, delete, web};
 use uuid::Uuid;
 
 use crate::{

@@ -239,6 +239,20 @@
       "when": 1746720543734,
       "tag": "0033_dizzy_longshot",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1747130540714,
+      "tag": "0034_colossal_the_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1747403874536,
+      "tag": "0035_aberrant_mantis",
+      "breakpoints": true
     }
   ]
 }

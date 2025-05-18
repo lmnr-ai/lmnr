@@ -398,6 +398,26 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
     .notNull(),
 });
 
+export const labelingQueueItems = pgTable(
+  "labeling_queue_items",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    queueId: uuid("queue_id").defaultRandom().notNull(),
+    metadata: jsonb().default({}),
+    payload: jsonb().default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.queueId],
+      foreignColumns: [labelingQueues.id],
+      name: "labelling_queue_items_queue_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const labelingQueues = pgTable(
   "labeling_queues",
   {
@@ -411,26 +431,6 @@ export const labelingQueues = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "labeling_queues_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const labelingQueueItems = pgTable(
-  "labeling_queue_items",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    queueId: uuid("queue_id").defaultRandom().notNull(),
-    action: jsonb().notNull(),
-    spanId: uuid("span_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.queueId],
-      foreignColumns: [labelingQueues.id],
-      name: "labelling_queue_items_queue_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
@@ -823,6 +823,30 @@ export const workspaceInvitations = pgTable(
   ]
 );
 
+export const users = pgTable(
+  "users",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    email: text().notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    tierId: bigint("tier_id", { mode: "number" })
+      .default(sql`'1'`)
+      .notNull(),
+    subscriptionId: text("subscription_id"),
+    avatarUrl: text("avatar_url"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tierId],
+      foreignColumns: [userSubscriptionTiers.id],
+      name: "users_tier_id_fkey",
+    }),
+    unique("users_email_key").on(table.email),
+  ]
+);
+
 export const traces = pgTable(
   "traces",
   {
@@ -859,6 +883,7 @@ export const traces = pgTable(
     topSpanId: uuid("top_span_id"),
     agentSessionId: uuid("agent_session_id"),
     visibility: text(),
+    status: text(),
   },
   (table) => [
     index("trace_metadata_gin_idx").using("gin", table.metadata.asc().nullsLast().op("jsonb_ops")),
@@ -892,30 +917,6 @@ export const traces = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-  ]
-);
-
-export const users = pgTable(
-  "users",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    email: text().notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    tierId: bigint("tier_id", { mode: "number" })
-      .default(sql`'1'`)
-      .notNull(),
-    subscriptionId: text("subscription_id"),
-    avatarUrl: text("avatar_url"),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.tierId],
-      foreignColumns: [userSubscriptionTiers.id],
-      name: "users_tier_id_fkey",
-    }),
-    unique("users_email_key").on(table.email),
   ]
 );
 

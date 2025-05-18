@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use rand::distr::{Alphanumeric, SampleString};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::opentelemetry::opentelemetry_proto_common_v1;

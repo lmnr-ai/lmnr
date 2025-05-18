@@ -138,7 +138,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
             <div className="flex flex-col space-y-4 p-4 pb-8">
               <div className="flex flex-none flex-col space-y-2">
                 <Label className="text-lg font-medium">Dataset</Label>
-                <DatasetSelect onDatasetChange={(dataset) => setSelectedDataset(dataset)} />
+                <DatasetSelect onChange={(dataset) => setSelectedDataset(dataset)} />
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Data</Label>

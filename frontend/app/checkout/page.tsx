@@ -88,9 +88,11 @@ export default async function CheckoutPage(props: {
         type: "user",
       };
 
+  const urlEncodedWorkspaceName = encodeURIComponent(workspaceName ?? "");
+
   const successUrl =
     typeParam === "workspace"
-      ? `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${workspaceName}&lookupKey=${lookupKey}`
+      ? `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${urlEncodedWorkspaceName}&lookupKey=${lookupKey}`
       : `${process.env.NEXT_PUBLIC_URL}/chat?sessionId={CHECKOUT_SESSION_ID}&userId=${userId}&lookupKey=${lookupKey}`;
 
   const cancelUrl =

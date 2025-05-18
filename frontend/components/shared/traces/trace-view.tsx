@@ -373,7 +373,6 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
           <div className="flex h-full w-full relative" ref={container}>
             <ScrollArea
               ref={scrollRef}
-              asChild
               className="overflow-y-auto overflow-x-hidden h-full flex-1"
               style={{
                 width: timelineWidth || "100%",

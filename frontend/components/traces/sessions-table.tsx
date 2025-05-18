@@ -16,6 +16,7 @@ import { Button } from '../ui/button';
 import { DataTable } from '../ui/datatable';
 import DataTableFilter from '../ui/datatable-filter';
 import DateRangeFilter from '../ui/date-range-filter';
+import Mono from '../ui/mono';
 import TextSearchFilter from '../ui/text-search-filter';
 
 type SessionRow = {
@@ -181,15 +182,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       header: 'ID',
       id: 'id',
       cell: (row) => (
-        <div
-          onClick={(event) => {
-            event.stopPropagation();
-            handleAddFilter('id', row.getValue());
-          }}
-          className="cursor-pointer hover:underline"
-        >
-          {/* <Mono className='text-xs'>{row.getValue()}</Mono> */}
-        </div>
+        <Mono className='text-xs'>{row.getValue()}</Mono>
       ),
     },
     {

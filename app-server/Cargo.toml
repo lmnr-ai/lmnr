@@ -33,7 +33,6 @@ enum_dispatch = "0.3.13"
 env_logger = "0.11"
 futures-util = "0.3"
 lapin = "2.5.1"
-lazy_static = "1.5.0"
 log = "0.4.27"
 moka = {version = "0.12.10", features = ["sync", "future"]}
 num_cpus = "1.16.0"
