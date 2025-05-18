@@ -3,8 +3,8 @@ import { Bolt, X } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { Controller, ControllerRenderProps, useFormContext } from "react-hook-form";
 
-import CodeHighlighter from "@/components/traces/code-highlighter";
 import { Button } from "@/components/ui/button";
+import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

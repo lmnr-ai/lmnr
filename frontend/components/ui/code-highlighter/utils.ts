@@ -24,7 +24,7 @@ export const theme = createTheme({
   styles: githubDarkStyle,
 });
 
-export const MAX_LINE_WRAPPING_LENGTH = 500000;
+export const MAX_LINE_WRAPPING_LENGTH = 10000000;
 export const baseExtensions = [
   EditorView.theme({
     "&.cm-focused": {

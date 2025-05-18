@@ -1,6 +1,6 @@
 import { isString } from "lodash";
 import { Database, Loader2 } from "lucide-react";
-import { useEffect,useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { useProjectContext } from "@/contexts/project-context";
@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import DatasetSelect from "../ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import CodeHighlighter from "../ui/code-highlighter/index";
 import Formatter from "../ui/formatter";
 import { Label } from "../ui/label";
 
@@ -239,9 +240,9 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Data</Label>
-                <Formatter
+                <CodeHighlighter
                   className="max-h-[500px]"
-                  editable
+                  readOnly={false}
                   defaultMode={"json"}
                   value={JSON.stringify(data, null, 2)}
                   onChange={handleDataChange}
@@ -254,9 +255,9 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Target</Label>
-                <Formatter
+                <CodeHighlighter
                   className="max-h-[500px]"
-                  editable
+                  readOnly={false}
                   defaultMode={"json"}
                   value={JSON.stringify(target, null, 2)}
                   onChange={handleTargetChange}
@@ -265,9 +266,9 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Metadata</Label>
-                <Formatter
+                <CodeHighlighter
                   className="max-h-[500px]"
-                  editable
+                  readOnly={false}
                   defaultMode={"json"}
                   value={JSON.stringify(metadata, null, 2)}
                   onChange={handleMetadataChange}

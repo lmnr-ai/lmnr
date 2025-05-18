@@ -2,8 +2,8 @@ import CodeMirror, { Extension } from "@uiw/react-codemirror";
 import { Maximize, Minimize } from "lucide-react";
 import React, { memo } from "react";
 
-import { modes, theme } from "@/components/traces/code-highlighter/utils";
 import { Button } from "@/components/ui/button";
+import { modes, theme } from "@/components/ui/code-highlighter/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";

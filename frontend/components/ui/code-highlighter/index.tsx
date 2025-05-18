@@ -3,7 +3,8 @@ import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 
-import CodeSheet from "@/components/traces/code-highlighter/code-sheet";
+import { Button } from "@/components/ui/button";
+import CodeSheet from "@/components/ui/code-highlighter/code-sheet";
 import {
   baseExtensions,
   languageExtensions,
@@ -11,8 +12,7 @@ import {
   modes as defaultModes,
   renderText,
   theme,
-} from "@/components/traces/code-highlighter/utils";
-import { Button } from "@/components/ui/button";
+} from "@/components/ui/code-highlighter/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
