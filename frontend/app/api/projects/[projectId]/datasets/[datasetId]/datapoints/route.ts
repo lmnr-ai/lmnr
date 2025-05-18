@@ -97,7 +97,7 @@ export async function POST(
     return new Response('Error creating datasetDatapoints', { status: 500 });
   }
 
-  return new Response('datasetDatapoints created successfully', { status: 200 });
+  return NextResponse.json(res[0], { status: 200 });
 }
 
 export async function DELETE(

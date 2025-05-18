@@ -4,15 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
+import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Datapoint } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { isValidJsonObject, swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
-import Formatter from "../ui/formatter";
 import { Label } from "../ui/label";
 import MonoWithCopy from "../ui/mono-with-copy";
-import { ScrollArea } from "../ui/scroll-area";
 import { Skeleton } from "../ui/skeleton";
 
 interface DatasetPanelProps {
@@ -134,89 +133,87 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
           )}
         </div>
         {datapoint && (
-          <ScrollArea className="flex-grow flex overflow-auto">
-            <div className="flex max-h-0">
-              <div className="flex-grow flex flex-col space-y-4 p-4 h-full">
-                <div className="flex flex-col space-y-2">
-                  <Label className="text-lg font-medium">Data</Label>
-                  <Formatter
-                    className="max-h-[400px]"
-                    value={JSON.stringify(newData, null, 2)}
-                    defaultMode="json"
-                    editable
-                    onChange={(s) => {
-                      try {
-                        const parsed = JSON.parse(s);
-                        if (parsed === null) {
-                          setIsValidJsonData(false);
-                          // we still set it to null to format the error,
-                          // button is blocked by isValidJsonData check
-                          setNewData(null);
-                          return;
-                        }
-                        setIsValidJsonData(true);
-                        setNewData(parsed);
-                      } catch (e) {
+          <div className="flex-grow flex overflow-auto">
+            <div className="flex-grow flex flex-col space-y-4 p-4 h-full w-full">
+              <div className="flex flex-col space-y-2">
+                <Label className="text-lg font-medium">Data</Label>
+                <CodeHighlighter
+                  className="max-h-[400px]"
+                  value={JSON.stringify(newData, null, 2)}
+                  defaultMode="json"
+                  readOnly={false}
+                  onChange={(s) => {
+                    try {
+                      const parsed = JSON.parse(s);
+                      if (parsed === null) {
                         setIsValidJsonData(false);
+                        // we still set it to null to format the error,
+                        // button is blocked by isValidJsonData check
+                        setNewData(null);
+                        return;
                       }
-                    }}
-                  />
-                  {!isValidJsonData && (
-                    <p className="text-sm text-red-500">
-                      {newData === null ? "Data cannot be null" : "Invalid JSON format"}
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-col space-y-2">
-                  <Label className="text-lg font-medium">Target</Label>
-                  <Formatter
-                    className="max-h-[400px]"
-                    value={JSON.stringify(newTarget, null, 2)}
-                    defaultMode="json"
-                    editable
-                    onChange={(s) => {
-                      try {
-                        setNewTarget(JSON.parse(s));
-                        setIsValidJsonTarget(true);
-                      } catch (e) {
-                        setIsValidJsonTarget(false);
-                      }
-                    }}
-                  />
-                  {!isValidJsonTarget && <p className="text-sm text-red-500">Invalid JSON format</p>}
-                </div>
-                <div className="flex flex-col space-y-2">
-                  <Label className="text-lg font-medium">Metadata</Label>
-                  <Formatter
-                    className="max-h-[400px]"
-                    value={JSON.stringify(newMetadata, null, 2)}
-                    defaultMode="json"
-                    editable
-                    onChange={(s: string) => {
-                      try {
-                        if (s === "") {
-                          setNewMetadata({});
-                          setIsValidJsonMetadata(true);
-                          return;
-                        }
-                        if (!isValidJsonObject(JSON.parse(s))) {
-                          setIsValidJsonMetadata(false);
-                          return;
-                        }
-                        setNewMetadata(JSON.parse(s));
+                      setIsValidJsonData(true);
+                      setNewData(parsed);
+                    } catch (e) {
+                      setIsValidJsonData(false);
+                    }
+                  }}
+                />
+                {!isValidJsonData && (
+                  <p className="text-sm text-red-500">
+                    {newData === null ? "Data cannot be null" : "Invalid JSON format"}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col space-y-2">
+                <Label className="text-lg font-medium">Target</Label>
+                <CodeHighlighter
+                  className="max-h-[400px] w-full"
+                  value={JSON.stringify(newTarget, null, 2)}
+                  defaultMode="json"
+                  readOnly={false}
+                  onChange={(s) => {
+                    try {
+                      setNewTarget(JSON.parse(s));
+                      setIsValidJsonTarget(true);
+                    } catch (e) {
+                      setIsValidJsonTarget(false);
+                    }
+                  }}
+                />
+                {!isValidJsonTarget && <p className="text-sm text-red-500">Invalid JSON format</p>}
+              </div>
+              <div className="flex flex-col space-y-2">
+                <Label className="text-lg font-medium">Metadata</Label>
+                <CodeHighlighter
+                  className="max-h-[400px]"
+                  value={JSON.stringify(newMetadata, null, 2)}
+                  defaultMode="json"
+                  readOnly={false}
+                  onChange={(s: string) => {
+                    try {
+                      if (s === "") {
+                        setNewMetadata({});
                         setIsValidJsonMetadata(true);
-                      } catch (e) {
-                        setIsValidJsonMetadata(false);
+                        return;
                       }
-                    }}
-                  />
-                  {!isValidJsonMetadata && (
-                    <p className="text-sm text-red-500">Invalid JSON object. Metadata must be a JSON map.</p>
-                  )}
-                </div>
+                      if (!isValidJsonObject(JSON.parse(s))) {
+                        setIsValidJsonMetadata(false);
+                        return;
+                      }
+                      setNewMetadata(JSON.parse(s));
+                      setIsValidJsonMetadata(true);
+                    } catch (e) {
+                      setIsValidJsonMetadata(false);
+                    }
+                  }}
+                />
+                {!isValidJsonMetadata && (
+                  <p className="text-sm text-red-500">Invalid JSON object. Metadata must be a JSON map.</p>
+                )}
               </div>
             </div>
-          </ScrollArea>
+          </div>
         )}
       </div>
     );

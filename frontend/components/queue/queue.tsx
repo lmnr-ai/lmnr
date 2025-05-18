@@ -6,8 +6,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import CodeHighlighter from "@/components/traces/code-highlighter";
 import { Button } from "@/components/ui/button";
+import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";

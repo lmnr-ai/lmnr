@@ -1,5 +1,7 @@
+import { isString } from "lodash";
 import { Database, Loader2 } from "lucide-react";
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { useProjectContext } from "@/contexts/project-context";
@@ -7,12 +9,17 @@ import { Dataset } from "@/lib/dataset/types";
 import { eventEmitter } from "@/lib/event-emitter";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span } from "@/lib/traces/types";
+import {
+  ChatMessage,
+  ChatMessageImage,
+  ChatMessageImageUrl,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../ui/button";
+import CodeHighlighter from "../ui/code-highlighter/index";
 import DatasetSelect from "../ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
-import Formatter from "../ui/formatter";
 import { Label } from "../ui/label";
 
 interface ExportSpansDialogProps {
@@ -27,7 +34,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
 
   const { toast } = useToast();
 
-  const [data, setData] = useState(span.input);
+  const [data, setData] = useState<ChatMessage[] | any>({});
   const [target, setTarget] = useState(span.output);
   const [isDataValid, setIsDataValid] = useState(true);
   const [isTargetValid, setIsTargetValid] = useState(true);
@@ -35,17 +42,108 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
   const [metadata, setMetadata] = useState({ spanId: span.spanId });
   const [isMetadataValid, setIsMetadataValid] = useState(true);
 
+  useEffect(() => {
+    const processInput = async () => {
+      if (span && span.input !== undefined && span.input !== null) {
+        let spanInput: any = span.input;
+
+        if (!Array.isArray(spanInput)) {
+          setData(spanInput);
+          setIsDataValid(true);
+          return;
+        }
+
+        // if data is an array most likely it's a list of ChatMessages
+        const initialMessages = spanInput as ChatMessage[];
+
+        const processedMessages = await Promise.all(
+          initialMessages.map(async (message) => {
+            if (isString(message.content)) {
+              return message;
+            }
+            const newContentParts = await Promise.all(
+              message.content.map(async (part) => {
+                if (part.type === "image_url" && (part as ChatMessageImageUrl).url) {
+                  const imageUrlPart = part as ChatMessageImageUrl;
+                  try {
+                    const response = await fetch(imageUrlPart.url);
+                    if (!response.ok) {
+                      console.error(
+                        `Failed to download image: ${imageUrlPart.url}, status: ${response.status}`
+                      );
+                      return imageUrlPart;
+                    }
+                    const blob = await response.blob();
+                    let mediaType = blob.type || "application/octet-stream"; // Initial mediaType from blob
+
+                    const base64DataUrl = await new Promise<string>((resolve, reject) => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => resolve(reader.result as string);
+                      reader.onerror = reject;
+                      reader.readAsDataURL(blob);
+                    });
+                    const base64StringParts = base64DataUrl.split(",");
+                    const base64String =
+                      base64StringParts.length > 1 ? base64StringParts[1] : null;
+
+                    if (!base64String) {
+                      console.error(
+                        `Failed to convert image to base64: ${imageUrlPart.url}`
+                      );
+                      return imageUrlPart;
+                    }
+
+                    // Infer mediaType from base64 string
+                    if (base64String.startsWith("/9j/")) {
+                      mediaType = "image/jpeg";
+                    } else if (base64String.startsWith("iVBORw0KGgo")) {
+                      mediaType = "image/png";
+                    } else if (blob.type && blob.type !== "application/octet-stream") {
+                      // Fallback to blob.type if it's specific
+                      mediaType = blob.type;
+                    } else {
+                      // Final fallback
+                      mediaType = "application/octet-stream";
+                    }
+
+                    return {
+                      type: "image",
+                      mediaType: mediaType,
+                      data: base64String,
+                    } as ChatMessageImage;
+                  } catch (error) {
+                    console.error(
+                      `Error processing image_url ${imageUrlPart.url}:`,
+                      error
+                    );
+                    return imageUrlPart;
+                  }
+                }
+                return part;
+              })
+            );
+            return { ...message, content: newContentParts };
+          })
+        );
+        setData(processedMessages);
+        setIsDataValid(true);
+      } else {
+        setData([]);
+        setIsDataValid(true);
+      }
+    };
+
+    processInput();
+  }, [span.input]);
+
   const handleDataChange = (value: string) => {
     try {
       const parsed = JSON.parse(value);
-      if (parsed === null) {
+      if (!Array.isArray(parsed)) {
         setIsDataValid(false);
-        // we still set it to null to format the error,
-        // button is blocked by isDataValid check
-        setData(parsed);
         return;
       }
-      setData(parsed);
+      setData(parsed as ChatMessage[]);
       setIsDataValid(true);
     } catch (e) {
       setIsDataValid(false);
@@ -96,9 +194,19 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
         variant: "destructive",
       });
     } else {
+      const datapoint = await res.json();
+
       eventEmitter.emit("mutateSpanDatapoints");
       toast({
-        title: `Successfully exported span to dataset ${selectedDataset?.name}`,
+        title: `Added span to dataset`,
+        description: (
+          <span>
+            Successfully added to dataset.{" "}
+            <Link className="text-primary" href={`/project/${projectId}/datasets/${selectedDataset.id}?datapointId=${datapoint.id}`}>
+              Go to dataset.
+            </Link>
+          </span>
+        )
       });
     }
   };
@@ -121,7 +229,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
             <span className="text-xs">Add to dataset</span>
           </Badge>
         </DialogTrigger>
-        <DialogContent className="max-w-6xl bg-background max-h-[90vh] p-0 m-0 gap-0">
+        <DialogContent className="max-w-6xl bg-background p-0 m-0 gap-0">
           <DialogHeader className="p-4 border-b m-0">
             <div className="flex flex-row justify-between items-center">
               <DialogTitle>Export span to dataset</DialogTitle>
@@ -134,7 +242,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               </Button>
             </div>
           </DialogHeader>
-          <div className="flex flex-col space-y-8 overflow-auto flex-grow h-[70vh] m-0">
+          <div className="flex flex-col space-y-8 overflow-auto flex-grow m-0 max-h-[80vh]">
             <div className="flex flex-col space-y-4 p-4 pb-8">
               <div className="flex flex-none flex-col space-y-2">
                 <Label className="text-lg font-medium">Dataset</Label>
@@ -142,24 +250,24 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Data</Label>
-                <Formatter
+                <CodeHighlighter
                   className="max-h-[500px]"
-                  editable
+                  readOnly={false}
                   defaultMode={"json"}
                   value={JSON.stringify(data, null, 2)}
                   onChange={handleDataChange}
                 />
                 {!isDataValid && (
                   <p className="text-sm text-red-500">
-                    {data === null ? "Data cannot be null" : "Invalid JSON format"}
+                    Data must be a valid JSON array of ChatMessages.
                   </p>
                 )}
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Target</Label>
-                <Formatter
+                <CodeHighlighter
                   className="max-h-[500px]"
-                  editable
+                  readOnly={false}
                   defaultMode={"json"}
                   value={JSON.stringify(target, null, 2)}
                   onChange={handleTargetChange}
@@ -168,9 +276,9 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               </div>
               <div className="flex flex-col space-y-2">
                 <Label className="text-lg font-medium">Metadata</Label>
-                <Formatter
+                <CodeHighlighter
                   className="max-h-[500px]"
-                  editable
+                  readOnly={false}
                   defaultMode={"json"}
                   value={JSON.stringify(metadata, null, 2)}
                   onChange={handleMetadataChange}
