@@ -42,7 +42,7 @@ function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<strin
   // Replace each placeholder with the original value
   for (const [id, data] of Object.entries(imageMap)) {
     const placeholder = `"[IMG:${id}]"`;
-    restoredText = restoredText.replace(new RegExp(placeholder, 'g'), data.original);
+    restoredText = restoredText.replace(placeholder, data.original);
   }
 
   return restoredText;
@@ -64,7 +64,6 @@ const PureCodeHighlighter = ({
   renderBase64Images = true,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const originalValueRef = useRef<string>(value);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mode, setMode] = useState(() => {
@@ -96,15 +95,15 @@ const PureCodeHighlighter = ({
 
   // Handle changes, restoring original base64 values if needed
   const handleChange = useCallback(
-    (editedText: string) => {
+    (editedText: string, viewUpdate: any) => {
       if (!onChange) return;
 
       if (renderBase64Images && hasImages) {
         // Restore original base64 strings from placeholders
         const restoredText = restoreOriginalFromPlaceholders(editedText, imageMap);
-        onChange(restoredText);
+        onChange(restoredText, viewUpdate);
       } else {
-        onChange(editedText);
+        onChange(editedText, viewUpdate);
       }
     },
     [onChange, renderBase64Images, hasImages, imageMap]

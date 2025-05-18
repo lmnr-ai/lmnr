@@ -219,7 +219,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
             <span className="text-xs">Add to dataset</span>
           </Badge>
         </DialogTrigger>
-        <DialogContent className="max-w-6xl bg-background max-h-[90vh] p-0 m-0 gap-0">
+        <DialogContent className="max-w-6xl bg-background p-0 m-0 gap-0">
           <DialogHeader className="p-4 border-b m-0">
             <div className="flex flex-row justify-between items-center">
               <DialogTitle>Export span to dataset</DialogTitle>
@@ -232,7 +232,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               </Button>
             </div>
           </DialogHeader>
-          <div className="flex flex-col space-y-8 overflow-auto flex-grow m-0">
+          <div className="flex flex-col space-y-8 overflow-auto flex-grow m-0 max-h-[80vh]">
             <div className="flex flex-col space-y-4 p-4 pb-8">
               <div className="flex flex-none flex-col space-y-2">
                 <Label className="text-lg font-medium">Dataset</Label>

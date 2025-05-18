@@ -99,6 +99,7 @@ export function createImageDecorationPlugin(imageMap: Record<string, ImageData>)
       }
 
       update(update: { docChanged: boolean; view: EditorView }) {
+        // Only update decorations when document changes
         if (update.docChanged) {
           this.updateDecorations(update.view);
         }
@@ -130,10 +131,15 @@ export function createImageDecorationPlugin(imageMap: Record<string, ImageData>)
         }
 
         this.decorations = Decoration.set(decorations);
+
       }
     },
     {
       decorations: (v) => v.decorations,
+      // Make decorations persist by using atomic ranges
+      provide: plugin => EditorView.atomicRanges.of(view => {
+        return view.plugin(plugin)?.decorations || Decoration.none;
+      })
     }
   );
 }
