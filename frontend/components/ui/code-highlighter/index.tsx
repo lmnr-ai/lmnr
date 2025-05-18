@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/code-highlighter/code-sheet";
 import {
   baseExtensions,
+  createImageDecorationPlugin,
+  ImageData,
   languageExtensions,
   MAX_LINE_WRAPPING_LENGTH,
   modes as defaultModes,
@@ -33,174 +35,17 @@ interface CodeEditorProps {
   renderBase64Images?: boolean;
 }
 
-// Image widget for displaying base64 images
-class ImageWidget extends WidgetType {
-  constructor(readonly src: string, readonly maxHeight: number = 100) {
-    super();
+// Restore original value from placeholder text when user edits content
+function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
+  let restoredText = newText;
+
+  // Replace each placeholder with the original value
+  for (const [id, data] of Object.entries(imageMap)) {
+    const placeholder = `"[IMG:${id}]"`;
+    restoredText = restoredText.replace(new RegExp(placeholder, 'g'), data.original);
   }
 
-  toDOM() {
-    const div = document.createElement("div");
-    div.style.display = "inline-block";
-    div.style.verticalAlign = "text-top";
-    div.style.margin = "2px 0";
-
-    const img = document.createElement("img");
-    img.src = this.src;
-    img.style.maxHeight = `${this.maxHeight}px`;
-    img.style.borderRadius = "4px";
-
-    div.appendChild(img);
-    return div;
-  }
-}
-
-// Function to detect base64 image patterns in text
-function findBase64Images(text: string) {
-  const matches = [];
-
-  // Pattern 1: Look for data URI image patterns with proper prefix
-  const dataUriRegex = /"(data:image\/[^;]+;base64,[^"]+)"/g;
-  let match;
-
-  while ((match = dataUriRegex.exec(text)) !== null) {
-    matches.push({
-      from: match.index,
-      to: match.index + match[1].length,
-      content: match[1]
-    });
-  }
-
-  // Pattern 2: Look for raw base64 patterns without prefix
-  // We need to find quoted strings that look like base64 image data
-  const rawBase64Regex = /"([A-Za-z0-9+/]{20,}={0,2})"/g;
-
-  while ((match = rawBase64Regex.exec(text)) !== null) {
-    const base64Data = match[1];
-
-    // Skip if it's too short to be an image (arbitrary min length)
-    if (base64Data.length < 50) continue;
-
-    // Identify image type by checking the first characters
-    let imageType = null;
-
-    if (base64Data.startsWith("/9j/")) {
-      imageType = "image/jpeg";
-    } else if (base64Data.startsWith("iVBORw0KGgo")) {
-      imageType = "image/png";
-    } else if (base64Data.startsWith("R0lGODlh")) {
-      imageType = "image/gif";
-    } else if (base64Data.startsWith("UklGR")) {
-      imageType = "image/webp";
-    } else if (base64Data.startsWith("PHN2Zz")) {
-      imageType = "image/svg+xml";
-    } else {
-      // Skip if we can't identify the image type
-      continue;
-    }
-
-    // Create a proper data URI
-    const content = `data:${imageType};base64,${base64Data}`;
-
-    matches.push({
-      from: match.index,
-      to: match.index + base64Data.length + 1,
-      content
-    });
-  }
-
-  return matches;
-}
-
-// Plugin to create decorations for base64 images
-function createBase64ImagePlugin() {
-  return ViewPlugin.fromClass(
-    class {
-      decorations = Decoration.none;
-      // Use a timer to debounce decoration updates
-      updateTimer: NodeJS.Timeout | null = null;
-      // Track if we're in the middle of an edit session
-      isEditing = false;
-      // Track last update time
-      lastUpdateTime = 0;
-      // Track if this is the first render
-      isFirstRender = true;
-
-      constructor(view: EditorView) {
-        this.scheduleUpdate(view);
-      }
-
-      update(update: { docChanged: boolean; view: EditorView }) {
-        if (update.docChanged) {
-          // Mark that we're editing
-          this.isEditing = true;
-          this.scheduleUpdate(update.view);
-        }
-      }
-
-      scheduleUpdate(view: EditorView) {
-        // Clear existing timer if any
-        if (this.updateTimer) {
-          clearTimeout(this.updateTimer);
-        }
-
-        const now = Date.now();
-
-        // Use no delay for first render, long delay for editing, short delay otherwise
-        let delay = 0;
-
-        if (this.isFirstRender) {
-          // Immediate execution for first render
-          delay = 0;
-          this.isFirstRender = false;
-        } else if (this.isEditing) {
-          // Longer delay during active editing
-          delay = 1000;
-        }
-
-        if (delay === 0) {
-          // Immediate execution without setTimeout for first render
-          this.updateDecorations(view);
-          this.updateTimer = null;
-          this.isEditing = false;
-          this.lastUpdateTime = now;
-        } else {
-          this.updateTimer = setTimeout(() => {
-            this.updateDecorations(view);
-            this.updateTimer = null;
-            this.isEditing = false;
-            this.lastUpdateTime = now;
-          }, delay);
-        }
-      }
-
-      updateDecorations(view: EditorView) {
-        const decorations = [];
-        const text = view.state.doc.toString();
-        const base64Images = findBase64Images(text);
-
-        for (const { from, to, content } of base64Images) {
-          decorations.push(
-            Decoration.replace({
-              widget: new ImageWidget(content),
-              inclusive: true,
-            }).range(from, to)
-          );
-        }
-
-        this.decorations = Decoration.set(decorations);
-      }
-
-      destroy() {
-        if (this.updateTimer) {
-          clearTimeout(this.updateTimer);
-        }
-      }
-    },
-    {
-      decorations: (v) => v.decorations,
-    }
-  );
+  return restoredText;
 }
 
 const PureCodeHighlighter = ({
@@ -219,6 +64,7 @@ const PureCodeHighlighter = ({
   renderBase64Images = true,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
+  const originalValueRef = useRef<string>(value);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mode, setMode] = useState(() => {
@@ -229,7 +75,10 @@ const PureCodeHighlighter = ({
     return defaultMode;
   });
 
-  const renderedValue = useMemo(() => renderText(mode, value), [mode, value]);
+  // Process the value using the enhanced renderText function
+  const { text: renderedValue, imageMap, hasImages } = useMemo(() => {
+    return renderText(mode, value, renderBase64Images);
+  }, [mode, value, renderBase64Images]);
 
   const toggleCollapsed = useCallback(() => {
     setIsCollapsed((prev) => !prev);
@@ -245,10 +94,26 @@ const PureCodeHighlighter = ({
     [presetKey]
   );
 
+  // Handle changes, restoring original base64 values if needed
+  const handleChange = useCallback(
+    (editedText: string) => {
+      if (!onChange) return;
+
+      if (renderBase64Images && hasImages) {
+        // Restore original base64 strings from placeholders
+        const restoredText = restoreOriginalFromPlaceholders(editedText, imageMap);
+        onChange(restoredText);
+      } else {
+        onChange(editedText);
+      }
+    },
+    [onChange, renderBase64Images, hasImages, imageMap]
+  );
+
   const extensions = useMemo(() => {
     const extensions = [...baseExtensions];
 
-    if (lineWrapping && value.length < MAX_LINE_WRAPPING_LENGTH) {
+    if (lineWrapping && renderedValue.length < MAX_LINE_WRAPPING_LENGTH) {
       extensions.push(EditorView.lineWrapping);
     }
 
@@ -257,13 +122,13 @@ const PureCodeHighlighter = ({
       extensions.push(languageExtension());
     }
 
-    // Add base64 image rendering plugin if enabled and in JSON mode
-    if (renderBase64Images) {
-      extensions.push(createBase64ImagePlugin());
+    // Add base64 image rendering plugin if enabled and images were found
+    if (renderBase64Images && hasImages) {
+      extensions.push(createImageDecorationPlugin(imageMap));
     }
 
     return extensions;
-  }, [mode, lineWrapping, value.length, renderBase64Images]);
+  }, [mode, lineWrapping, renderedValue.length, renderBase64Images, hasImages, imageMap]);
 
   return (
     <div className={cn("w-full h-full flex flex-col border", className)}>
@@ -308,9 +173,15 @@ const PureCodeHighlighter = ({
           iconClassName="h-3.5 w-3.5"
           size="icon"
           variant="ghost"
-          text={renderedValue}
+          text={value} // Use original value for copying
         />
-        <CodeSheet renderedValue={renderedValue} mode={mode} onModeChange={handleModeChange} extensions={extensions} />
+        <CodeSheet
+          renderedValue={value}
+          mode={mode}
+          onModeChange={handleModeChange}
+          extensions={extensions}
+          placeholder={placeholder}
+        />
       </div>
       <div
         className={cn("flex-grow flex bg-card overflow-auto w-full h-fit", { "h-0": isCollapsed }, codeEditorClassName)}
@@ -319,7 +190,7 @@ const PureCodeHighlighter = ({
           ref={editorRef}
           className="w-full"
           placeholder={placeholder}
-          onChange={onChange}
+          onChange={handleChange}
           theme={theme}
           extensions={extensions}
           value={renderedValue}

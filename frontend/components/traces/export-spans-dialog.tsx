@@ -232,7 +232,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
               </Button>
             </div>
           </DialogHeader>
-          <div className="flex flex-col space-y-8 overflow-auto flex-grow h-[70vh] m-0">
+          <div className="flex flex-col space-y-8 overflow-auto flex-grow m-0">
             <div className="flex flex-col space-y-4 p-4 pb-8">
               <div className="flex flex-none flex-col space-y-2">
                 <Label className="text-lg font-medium">Dataset</Label>
