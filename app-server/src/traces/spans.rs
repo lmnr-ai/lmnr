@@ -483,11 +483,15 @@ impl Span {
 
                 span.input = Some(json!(input_messages));
                 span.output = output_from_completion_content(&attributes);
-            } else if let Some(ai_prompt_messages) = attributes.get("ai.prompt.messages") {
-                if let Ok(input_messages) =
-                    serde_json::from_str::<Vec<ChatMessage>>(ai_prompt_messages.as_str().unwrap())
-                {
-                    span.input = Some(json!(input_messages));
+            } else if let Some(stringified_value) = attributes
+                .get("ai.prompt.messages")
+                .and_then(|v| v.as_str())
+            {
+                if let Ok(prompt_messages_val) = serde_json::from_str::<Value>(stringified_value) {
+                    if let Ok(input_messages) = input_chat_messages_from_json(&prompt_messages_val)
+                    {
+                        span.input = Some(json!(input_messages));
+                    }
                 }
 
                 if let Some(output) = try_parse_ai_sdk_output(&attributes) {
@@ -517,8 +521,7 @@ impl Span {
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
             if let Some(messages_value) = ai_prompt.get("messages") {
                 let mut messages =
-                    serde_json::from_value::<Vec<ChatMessage>>(messages_value.clone())
-                        .unwrap_or_default();
+                    input_chat_messages_from_json(&messages_value).unwrap_or_default();
                 let system = ai_prompt
                     .get("system")
                     .and_then(|v| v.as_str())
@@ -534,15 +537,7 @@ impl Span {
                 }
                 span.input = Some(serde_json::to_value(messages).unwrap());
             }
-        }
-        if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
-            span.output = Some(
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
-            );
-        } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
-            span.output = Some(
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
-            );
+            span.output = span.output.or(try_parse_ai_sdk_output(&attributes));
         }
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
