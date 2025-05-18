@@ -18,7 +18,7 @@ export default function PostHogIdentifier({ email }: PostHogIdentifierProps) {
         email: email,
       });
     }
-  }, [email]);
+  }, [email, posthog]);
 
   return null; // This component doesn't render anything
 }
