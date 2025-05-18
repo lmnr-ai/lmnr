@@ -7,6 +7,7 @@ import { getServerSession } from "next-auth";
 import { ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
+import PostHogIdentifier from "@/app/posthog-identifier";
 import ProjectSidebar from "@/components/project/project-sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -123,6 +124,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       imageUrl={user.image!}
       supabaseAccessToken={session.supabaseAccessToken}
     >
+      <PostHogIdentifier email={user.email!} />
       <ProjectContextProvider projectId={project.id} projectName={project.name}>
         <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>
