@@ -16,10 +16,9 @@ import {
 import { cn } from "@/lib/utils";
 
 import { Button } from "../ui/button";
+import CodeHighlighter from "../ui/code-highlighter/index";
 import DatasetSelect from "../ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
-import CodeHighlighter from "../ui/code-highlighter/index";
-import Formatter from "../ui/formatter";
 import { Label } from "../ui/label";
 
 interface ExportSpansDialogProps {

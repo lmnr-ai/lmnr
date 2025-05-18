@@ -12,7 +12,6 @@ import { isValidJsonObject, swrFetcher } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import MonoWithCopy from "../ui/mono-with-copy";
-import { ScrollArea } from "../ui/scroll-area";
 import { Skeleton } from "../ui/skeleton";
 
 interface DatasetPanelProps {

@@ -137,9 +137,7 @@ export function createImageDecorationPlugin(imageMap: Record<string, ImageData>)
     {
       decorations: (v) => v.decorations,
       // Make decorations persist by using atomic ranges
-      provide: plugin => EditorView.atomicRanges.of(view => {
-        return view.plugin(plugin)?.decorations || Decoration.none;
-      })
+      provide: plugin => EditorView.atomicRanges.of(view => view.plugin(plugin)?.decorations || Decoration.none)
     }
   );
 }

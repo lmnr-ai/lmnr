@@ -20,9 +20,7 @@ interface CodeSheetProps {
 
 const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placeholder }: CodeSheetProps) => {
   // Process the value using the new renderText function
-  const { text: processedText, imageMap, hasImages } = useMemo(() => {
-    return renderText(mode, renderedValue, true);
-  }, [mode, renderedValue]);
+  const { text: processedText, imageMap, hasImages } = useMemo(() => renderText(mode, renderedValue, true), [mode, renderedValue]);
 
   // Add image rendering extensions if images are found
   const combinedExtensions = useMemo(() => {

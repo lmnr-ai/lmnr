@@ -1,4 +1,4 @@
-import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
@@ -75,9 +75,7 @@ const PureCodeHighlighter = ({
   });
 
   // Process the value using the enhanced renderText function
-  const { text: renderedValue, imageMap, hasImages } = useMemo(() => {
-    return renderText(mode, value, renderBase64Images);
-  }, [mode, value, renderBase64Images]);
+  const { text: renderedValue, imageMap, hasImages } = useMemo(() => renderText(mode, value, renderBase64Images), [mode, value, renderBase64Images]);
 
   const toggleCollapsed = useCallback(() => {
     setIsCollapsed((prev) => !prev);
