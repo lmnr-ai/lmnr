@@ -1,11 +1,19 @@
 import { Database, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { useProjectContext } from "@/contexts/project-context";
 import { Dataset } from "@/lib/dataset/types";
 import { eventEmitter } from "@/lib/event-emitter";
 import { useToast } from "@/lib/hooks/use-toast";
+import {
+  ChatMessage,
+  ChatMessageContentPart,
+  ChatMessageImage,
+  ChatMessageImageUrl,
+  ChatMessageContent,
+  flattenContentOfMessages,
+} from "@/lib/types";
 import { Span } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +22,7 @@ import DatasetSelect from "../ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import Formatter from "../ui/formatter";
 import { Label } from "../ui/label";
+import { isString } from "lodash";
 
 interface ExportSpansDialogProps {
   span: Span;
@@ -27,7 +36,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
 
   const { toast } = useToast();
 
-  const [data, setData] = useState(span.input);
+  const [data, setData] = useState<ChatMessage[] | any>({});
   const [target, setTarget] = useState(span.output);
   const [isDataValid, setIsDataValid] = useState(true);
   const [isTargetValid, setIsTargetValid] = useState(true);
@@ -35,17 +44,108 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
   const [metadata, setMetadata] = useState({ spanId: span.spanId });
   const [isMetadataValid, setIsMetadataValid] = useState(true);
 
+  useEffect(() => {
+    const processInput = async () => {
+      if (span && span.input !== undefined && span.input !== null) {
+        let spanInput: any = span.input;
+
+        if (!Array.isArray(spanInput)) {
+          setData(spanInput);
+          setIsDataValid(true);
+          return;
+        }
+
+        // if data is an array most likely it's a list of ChatMessages
+        const initialMessages = spanInput as ChatMessage[];
+
+        const processedMessages = await Promise.all(
+          initialMessages.map(async (message) => {
+            if (isString(message.content)) {
+              return message;
+            }
+            const newContentParts = await Promise.all(
+              message.content.map(async (part) => {
+                if (part.type === "image_url" && (part as ChatMessageImageUrl).url) {
+                  const imageUrlPart = part as ChatMessageImageUrl;
+                  try {
+                    const response = await fetch(imageUrlPart.url);
+                    if (!response.ok) {
+                      console.error(
+                        `Failed to download image: ${imageUrlPart.url}, status: ${response.status}`
+                      );
+                      return imageUrlPart;
+                    }
+                    const blob = await response.blob();
+                    let mediaType = blob.type || "application/octet-stream"; // Initial mediaType from blob
+
+                    const base64DataUrl = await new Promise<string>((resolve, reject) => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => resolve(reader.result as string);
+                      reader.onerror = reject;
+                      reader.readAsDataURL(blob);
+                    });
+                    const base64StringParts = base64DataUrl.split(",");
+                    const base64String =
+                      base64StringParts.length > 1 ? base64StringParts[1] : null;
+
+                    if (!base64String) {
+                      console.error(
+                        `Failed to convert image to base64: ${imageUrlPart.url}`
+                      );
+                      return imageUrlPart;
+                    }
+
+                    // Infer mediaType from base64 string
+                    if (base64String.startsWith("/9j/")) {
+                      mediaType = "image/jpeg";
+                    } else if (base64String.startsWith("iVBORw0KGgo")) {
+                      mediaType = "image/png";
+                    } else if (blob.type && blob.type !== "application/octet-stream") {
+                      // Fallback to blob.type if it's specific
+                      mediaType = blob.type;
+                    } else {
+                      // Final fallback
+                      mediaType = "application/octet-stream";
+                    }
+
+                    return {
+                      type: "image",
+                      mediaType: mediaType,
+                      data: base64String,
+                    } as ChatMessageImage;
+                  } catch (error) {
+                    console.error(
+                      `Error processing image_url ${imageUrlPart.url}:`,
+                      error
+                    );
+                    return imageUrlPart;
+                  }
+                }
+                return part;
+              })
+            );
+            return { ...message, content: newContentParts };
+          })
+        );
+        setData(processedMessages);
+        setIsDataValid(true);
+      } else {
+        setData([]);
+        setIsDataValid(true);
+      }
+    };
+
+    processInput();
+  }, [span.input]);
+
   const handleDataChange = (value: string) => {
     try {
       const parsed = JSON.parse(value);
-      if (parsed === null) {
+      if (!Array.isArray(parsed)) {
         setIsDataValid(false);
-        // we still set it to null to format the error,
-        // button is blocked by isDataValid check
-        setData(parsed);
         return;
       }
-      setData(parsed);
+      setData(parsed as ChatMessage[]);
       setIsDataValid(true);
     } catch (e) {
       setIsDataValid(false);
@@ -151,7 +251,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
                 />
                 {!isDataValid && (
                   <p className="text-sm text-red-500">
-                    {data === null ? "Data cannot be null" : "Invalid JSON format"}
+                    Data must be a valid JSON array of ChatMessages.
                   </p>
                 )}
               </div>
