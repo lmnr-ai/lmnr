@@ -1,5 +1,6 @@
 import { isString } from "lodash";
 import { Database, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,6 @@ import CodeHighlighter from "../ui/code-highlighter/index";
 import DatasetSelect from "../ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { Label } from "../ui/label";
-import Link from "next/link";
 
 interface ExportSpansDialogProps {
   span: Span;
