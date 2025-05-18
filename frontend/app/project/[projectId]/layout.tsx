@@ -18,6 +18,7 @@ import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { GetProjectResponse } from "@/lib/workspaces/types";
+
 async function getProjectDetails(projectId: string): Promise<GetProjectResponse> {
   const projectResult = await db
     .select({

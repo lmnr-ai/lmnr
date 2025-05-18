@@ -15,6 +15,8 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import PostHogClient from "../posthog";
 import PostHogIdentifier from "../posthog-identifier";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Projects",
 };
