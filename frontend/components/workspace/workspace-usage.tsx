@@ -49,12 +49,12 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
 
   const tierHintInfo = TIER_SPAN_HINTS[workspaceStats.tierName.toLowerCase().trim() as keyof typeof TIER_SPAN_HINTS];
   const tierHint =
-    `${workspaceStats.tierName} tier comes with ${tierHintInfo.spans} spans and ` +
-    `${tierHintInfo.steps} agent steps included per month.`;
+    `${workspaceStats.tierName} tier comes with ${tierHintInfo?.spans ?? "unlimited"} spans and ` +
+    `${tierHintInfo?.steps ?? "unlimited"} agent steps included per month.`;
 
   const tierHintOverages =
     "If you exceed this limit, " +
-    (tierHintInfo.isOverageAllowed
+    (tierHintInfo?.isOverageAllowed
       ? "you will be charged for overages."
       : "you won't be able to send any more spans during current billing cycle.");
 
