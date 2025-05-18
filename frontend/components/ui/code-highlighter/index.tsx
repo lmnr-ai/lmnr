@@ -1,6 +1,6 @@
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Settings } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,15 @@ import {
   theme,
 } from "@/components/ui/code-highlighter/utils";
 import { CopyButton } from "@/components/ui/copy-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 interface CodeEditorProps {
@@ -64,7 +72,6 @@ const PureCodeHighlighter = ({
   renderBase64Images = true,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
@@ -74,8 +81,14 @@ const PureCodeHighlighter = ({
     return defaultMode;
   });
 
+  // State for rendering base64 images
+  const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
+
   // Process the value using the enhanced renderText function
-  const { text: renderedValue, imageMap, hasImages } = useMemo(() => renderText(mode, value, renderBase64Images), [mode, value, renderBase64Images]);
+  const { text: renderedValue, imageMap, hasImages } = useMemo(() =>
+    renderText(mode, value, shouldRenderImages),
+  [mode, value, shouldRenderImages]
+  );
 
   const toggleCollapsed = useCallback(() => {
     setIsCollapsed((prev) => !prev);
@@ -91,12 +104,17 @@ const PureCodeHighlighter = ({
     [presetKey]
   );
 
+  // Toggle base64 image rendering
+  const toggleImageRendering = useCallback(() => {
+    setShouldRenderImages(prev => !prev);
+  }, []);
+
   // Handle changes, restoring original base64 values if needed
   const handleChange = useCallback(
     (editedText: string, viewUpdate: any) => {
       if (!onChange) return;
 
-      if (renderBase64Images && hasImages) {
+      if (shouldRenderImages && hasImages) {
         // Restore original base64 strings from placeholders
         const restoredText = restoreOriginalFromPlaceholders(editedText, imageMap);
         onChange(restoredText, viewUpdate);
@@ -104,7 +122,7 @@ const PureCodeHighlighter = ({
         onChange(editedText, viewUpdate);
       }
     },
-    [onChange, renderBase64Images, hasImages, imageMap]
+    [onChange, shouldRenderImages, hasImages, imageMap]
   );
 
   const extensions = useMemo(() => {
@@ -120,17 +138,17 @@ const PureCodeHighlighter = ({
     }
 
     // Add base64 image rendering plugin if enabled and images were found
-    if (renderBase64Images && hasImages) {
+    if (shouldRenderImages && hasImages) {
       extensions.push(createImageDecorationPlugin(imageMap));
     }
 
     return extensions;
-  }, [mode, lineWrapping, renderedValue.length, renderBase64Images, hasImages, imageMap]);
+  }, [mode, lineWrapping, renderedValue.length, shouldRenderImages, hasImages, imageMap]);
 
   return (
     <div className={cn("w-full h-full flex flex-col border", className)}>
       <div
-        className={cn("bg-background flex items-center pl-2 pr-1 w-full rounded-t", {
+        className={cn("bg-background h-8 flex items-center pl-2 pr-1 w-full rounded-t", {
           "border-b": !isCollapsed,
         })}
       >
@@ -146,6 +164,7 @@ const PureCodeHighlighter = ({
             ))}
           </SelectContent>
         </Select>
+
         {collapsible && (
           <Button
             variant="ghost"
@@ -179,9 +198,28 @@ const PureCodeHighlighter = ({
           extensions={extensions}
           placeholder={placeholder}
         />
+        {/* Settings dropdown with image rendering toggle */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-secondary-foreground">
+              <Settings size={16} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className="flex items-center justify-between cursor-default">
+              <span>Render base64 images</span>
+              <Switch
+                checked={shouldRenderImages}
+                onCheckedChange={toggleImageRendering}
+                className="ml-2"
+              />
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div
-        className={cn("flex-grow flex bg-card overflow-auto w-full h-fit", { "h-0": isCollapsed }, codeEditorClassName)}
+        className={cn("flex-grow flex bg-muted/50 overflow-auto w-full h-fit", { "h-0": isCollapsed }, codeEditorClassName)}
       >
         <CodeMirror
           ref={editorRef}

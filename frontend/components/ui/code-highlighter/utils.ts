@@ -14,7 +14,7 @@ export const theme = createTheme({
     fontSize: "11pt",
     background: "transparent",
     lineHighlight: "transparent",
-    gutterBackground: "#1D1D20",
+    gutterBackground: "#18181A",
     gutterBorder: "transparent",
     gutterForeground: "gray !important",
     selection: "#193860",
