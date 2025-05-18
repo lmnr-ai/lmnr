@@ -55,7 +55,7 @@ const ReasoningField = () => {
                   className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
                 />
               </div>
-              <Slider value={[value ?? 1024]} min={100} max={32000} step={1} onValueChange={(v) => onChange(v?.[0])} />
+              <Slider value={[value ?? 1024]} min={100} max={65536} step={1} onValueChange={(v) => onChange(v?.[0])} />
             </>
           )}
           name="providerOptions.anthropic.thinking.budgetTokens"
@@ -80,7 +80,7 @@ const ReasoningField = () => {
                   className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
                 />
               </div>
-              <Slider value={[value ?? 1024]} min={100} max={32000} step={1} onValueChange={(v) => onChange(v?.[0])} />
+              <Slider value={[value ?? 1024]} min={100} max={65536} step={1} onValueChange={(v) => onChange(v?.[0])} />
             </>
           )}
           name="providerOptions.google.thinkingConfig.thinkingBudget"

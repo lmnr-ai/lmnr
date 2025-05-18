@@ -20,6 +20,7 @@ import CodeHighlighter from "../ui/code-highlighter/index";
 import DatasetSelect from "../ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { Label } from "../ui/label";
+import Link from "next/link";
 
 interface ExportSpansDialogProps {
   span: Span;
@@ -193,9 +194,19 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
         variant: "destructive",
       });
     } else {
+      const datapoint = await res.json();
+
       eventEmitter.emit("mutateSpanDatapoints");
       toast({
-        title: `Successfully exported span to dataset ${selectedDataset?.name}`,
+        title: `Added span to dataset`,
+        description: (
+          <span>
+            Successfully added to dataset.{" "}
+            <Link className="text-primary" href={`/project/${projectId}/datasets/${selectedDataset.id}?datapointId=${datapoint.id}`}>
+              Go to dataset.
+            </Link>
+          </span>
+        )
       });
     }
   };
