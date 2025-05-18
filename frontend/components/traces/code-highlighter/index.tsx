@@ -123,6 +123,8 @@ function createBase64ImagePlugin() {
       isEditing = false;
       // Track last update time
       lastUpdateTime = 0;
+      // Track if this is the first render
+      isFirstRender = true;
 
       constructor(view: EditorView) {
         this.scheduleUpdate(view);
@@ -143,61 +145,50 @@ function createBase64ImagePlugin() {
         }
 
         const now = Date.now();
-        // Use a longer delay if we're in an edit session
-        const delay = this.isEditing ? 1000 : 0;
 
-        this.updateTimer = setTimeout(() => {
+        // Use no delay for first render, long delay for editing, short delay otherwise
+        let delay = 0;
+
+        if (this.isFirstRender) {
+          // Immediate execution for first render
+          delay = 0;
+          this.isFirstRender = false;
+        } else if (this.isEditing) {
+          // Longer delay during active editing
+          delay = 1000;
+        }
+
+        if (delay === 0) {
+          // Immediate execution without setTimeout for first render
           this.updateDecorations(view);
           this.updateTimer = null;
           this.isEditing = false;
           this.lastUpdateTime = now;
-        }, delay);
+        } else {
+          this.updateTimer = setTimeout(() => {
+            this.updateDecorations(view);
+            this.updateTimer = null;
+            this.isEditing = false;
+            this.lastUpdateTime = now;
+          }, delay);
+        }
       }
 
       updateDecorations(view: EditorView) {
         const decorations = [];
-        const visibleRanges = this.getVisibleRanges(view);
+        const text = view.state.doc.toString();
+        const base64Images = findBase64Images(text);
 
-        // Only process visible portions of the document
-        for (const { from, to } of visibleRanges) {
-          const text = view.state.doc.sliceString(from, to);
-          const base64Images = findBase64Images(text);
-
-          for (const { from: imgFrom, to: imgTo, content } of base64Images) {
-            decorations.push(
-              Decoration.replace({
-                widget: new ImageWidget(content),
-                inclusive: false,
-              }).range(from + imgFrom, from + imgTo)
-            );
-          }
+        for (const { from, to, content } of base64Images) {
+          decorations.push(
+            Decoration.replace({
+              widget: new ImageWidget(content),
+              inclusive: true,
+            }).range(from, to)
+          );
         }
 
         this.decorations = Decoration.set(decorations);
-      }
-
-      // Helper to get approximately visible document ranges
-      getVisibleRanges(view: EditorView) {
-        const dom = view.scrollDOM;
-        const { top, bottom } = dom.getBoundingClientRect();
-
-        // Get an estimate of lines visible in viewport
-        const startLine = Math.max(0, Math.floor(view.lineBlockAtHeight(top - dom.scrollTop).from / 80));
-        const endLine = Math.min(
-          view.state.doc.lines,
-          Math.ceil(view.lineBlockAtHeight(bottom - dom.scrollTop).to / 80) + 10
-        );
-
-        // Add margin lines for smoother scrolling
-        const marginLines = 20;
-        const safeStartLine = Math.max(0, startLine - marginLines);
-        const safeEndLine = Math.min(view.state.doc.lines, endLine + marginLines);
-
-        // Get positions from line numbers
-        const from = view.state.doc.line(safeStartLine || 1).from;
-        const to = view.state.doc.line(safeEndLine || 1).to;
-
-        return [{ from, to }];
       }
 
       destroy() {
@@ -267,7 +258,7 @@ const PureCodeHighlighter = ({
     }
 
     // Add base64 image rendering plugin if enabled and in JSON mode
-    if (renderBase64Images && mode === "json") {
+    if (renderBase64Images) {
       extensions.push(createBase64ImagePlugin());
     }
 

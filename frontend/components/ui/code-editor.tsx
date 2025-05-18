@@ -73,8 +73,8 @@ function findBase64Images(text: string) {
 
   while ((match = dataUriRegex.exec(text)) !== null) {
     matches.push({
-      from: match.index + 1, // +1 to skip the opening quote
-      to: match.index + match[1].length + 1, // +1 to include the position right after the content
+      from: match.index,
+      to: match.index + match[1].length,
       content: match[1]
     });
   }
@@ -310,7 +310,7 @@ export default function CodeEditor({
     }
 
     // Add base64 image rendering plugin if enabled and language is JSON
-    if (renderBase64Images && language === "json") {
+    if (renderBase64Images) {
       extensions.push(createBase64ImagePlugin());
     }
     return extensions;
