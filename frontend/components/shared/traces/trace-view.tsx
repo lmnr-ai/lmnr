@@ -83,18 +83,20 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
     };
   }, [spans]);
 
-  const handleSetSpan = useCallback(() => {
-    const firstSpan = spans?.[0] || null;
+  useEffect(() => {
+    const handleSetSpan = () => {
+      const firstSpan = spans?.[0] || null;
 
-    if (firstSpan) {
-      setSelectedSpan(firstSpan);
-      const params = new URLSearchParams(searchParams);
-      params.set("spanId", firstSpan.spanId);
-      router.push(`${pathName}?${params.toString()}`);
-    }
-  }, [pathName, router, searchParams, spans]);
+      if (firstSpan) {
+        setSelectedSpan(firstSpan);
+        const params = new URLSearchParams(searchParams);
+        params.set("spanId", firstSpan.spanId);
+        router.push(`${pathName}?${params.toString()}`);
+      }
+    };
 
-  useEffect(() => handleSetSpan(), [handleSetSpan]);
+    handleSetSpan();
+  }, []);
 
   const [treeViewWidth, setTreeViewWidth] = useState(384);
 

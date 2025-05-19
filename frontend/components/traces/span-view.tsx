@@ -1,7 +1,7 @@
 import { omit } from "lodash";
 import { PlayCircle } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import LabelsContextProvider from "@/components/labels/labels-context";

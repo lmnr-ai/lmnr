@@ -179,7 +179,10 @@ function Timeline({
           }}
         />
       )}
-      <div style={{ width: `${100 * zoomLevel}%` }} className="bg-background flex flex-1 text-xs border-b h-8 px-4">
+      <div
+        style={{ width: `${100 * zoomLevel}%` }}
+        className="sticky top-0 z-30 bg-background flex flex-1 text-xs border-b h-8 px-4"
+      >
         <div className="flex w-full relative">
           {timeIntervals.map((interval, index) => (
             <div className="flex items-center h-full w-[10%]" key={index}>
@@ -200,21 +203,6 @@ function Timeline({
             height: virtualizer.getTotalSize(),
           }}
         >
-          <div className="absolute inset-0 pointer-events-none">
-            {timeIntervals.map((_, index) => (
-              <div
-                key={index}
-                className="absolute top-0 bottom-0 border-l border-secondary-foreground/20"
-                style={{
-                  left: `calc(${(index * 10) / 100} * (100% - 32px) + 16px)`,
-                }}
-              />
-            ))}
-            <div
-              className="absolute top-0 bottom-0 border-r border-secondary-foreground/20"
-              style={{ right: "16px" }}
-            />
-          </div>
           {items.map((virtualRow) => (
             <TimelineElement
               key={virtualRow.key}

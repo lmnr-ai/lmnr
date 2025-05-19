@@ -63,7 +63,7 @@ export default function Traces() {
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
         </TabsList>
         <TabsContent value="traces" asChild>
-          <TracesTable onRowClick={setTraceId} />
+          <TracesTable traceId={traceId} onRowClick={setTraceId} />
         </TabsContent>
         <TabsContent value="sessions" asChild>
           <SessionsTable onRowClick={setTraceId} />
@@ -82,18 +82,16 @@ export default function Traces() {
               width: "65vw",
             }}
           >
-            <div className="w-full h-full flex">
-              <TraceView
-                onClose={() => {
-                  searchParams.delete("traceId");
-                  searchParams.delete("spanId");
-                  router.push(`${pathName}?${searchParams.toString()}`);
-                  setIsSidePanelOpen(false);
-                  setTraceId(null);
-                }}
-                traceId={traceId!}
-              />
-            </div>
+            <TraceView
+              onClose={() => {
+                searchParams.delete("traceId");
+                searchParams.delete("spanId");
+                router.push(`${pathName}?${searchParams.toString()}`);
+                setIsSidePanelOpen(false);
+                setTraceId(null);
+              }}
+              traceId={traceId!}
+            />
           </Resizable>
         </div>
       )}

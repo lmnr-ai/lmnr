@@ -68,7 +68,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
   const [activeSpans, setActiveSpans] = useState<string[]>([]);
 
-  // Add new state for collapsed spans
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
 
@@ -119,29 +118,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     handleFetchTrace();
   }, [handleFetchTrace, projectId, traceId]);
 
-  useEffect(() => {
-    const childSpans = {} as { [key: string]: Span[] };
-
-    const topLevelSpans = spans.filter((span: Span) => !span.parentSpanId);
-
-    for (const span of spans) {
-      if (span.parentSpanId) {
-        if (!childSpans[span.parentSpanId]) {
-          childSpans[span.parentSpanId] = [];
-        }
-        childSpans[span.parentSpanId].push(span);
-      }
-    }
-
-    // Sort child spans for each parent by start time
-    for (const parentId in childSpans) {
-      childSpans[parentId].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    }
-
-    setChildSpans(childSpans);
-    setTopLevelSpans(topLevelSpans);
-  }, [spans]);
-
   const fetchSpans = useCallback(
     async (search: string, searchIn: string[]) => {
       try {
@@ -158,20 +134,14 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
         setSpans(spans);
 
-        // If there's only one span, select it automatically
-        if (spans.length === 1) {
+        const spanIdFromUrl = searchParams.get("spanId");
+        const spanToSelect = spanIdFromUrl ? spans.find((span: Span) => span.spanId === spanIdFromUrl) : spans[0];
+
+        if (spanToSelect) {
+          setSelectedSpan(spanToSelect);
           const params = new URLSearchParams(searchParams);
-          const singleSpan = spans[0];
-          setSelectedSpan(singleSpan);
-          params.set("spanId", singleSpan.spanId);
-          params.set("traceId", traceId);
+          params.set("spanId", spanToSelect.spanId);
           router.push(`${pathName}?${params.toString()}`);
-        } else {
-          setSelectedSpan(
-            searchParams.get("spanId")
-              ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null
-              : spans[0]
-          );
         }
       } catch (e) {
       } finally {
@@ -245,7 +215,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     if (selectedSpan) {
       setSelectedSpan(selectedSpan);
     }
-  }, [searchParams, spans]);
+  }, []);
 
   const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
 
@@ -493,8 +463,8 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                   });
                 }}
                 onSpanSelect={(span) => {
-                  const params = new URLSearchParams(searchParams);
                   setSelectedSpan(span);
+                  const params = new URLSearchParams(searchParams);
                   params.set("spanId", span.spanId);
                   router.push(`${pathName}?${params.toString()}`);
                 }}
@@ -510,11 +480,16 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
             </div>
           </div>
-          {selectedSpan && (
-            <div className="flex-grow overflow-hidden flex-wrap">
+          <div className="flex-grow overflow-hidden flex-wrap">
+            {selectedSpan ? (
               <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
+                <span className="text-xl font-medium mb-2">No span selected</span>
+                <span className="text-base">Select a span from the trace tree to view its details</span>
+              </div>
+            )}
+          </div>
         </ResizablePanel>
         {showBrowserSession && (
           <>
