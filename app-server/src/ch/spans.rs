@@ -7,15 +7,16 @@ use uuid::Uuid;
 
 use crate::{
     db::spans::{Span, SpanType},
-    traces::{spans::SpanUsage, utils::json_value_to_string},
+    traces::spans::SpanUsage,
+    utils::json_value_to_string,
 };
 
 use super::{
+    Aggregation, MetricTimeValue,
     modifiers::GroupByInterval,
     utils::{
         chrono_to_nanoseconds, group_by_time_absolute_statement, group_by_time_relative_statement,
     },
-    Aggregation, MetricTimeValue,
 };
 
 /// for inserting into clickhouse

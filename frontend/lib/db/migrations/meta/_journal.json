@@ -253,6 +253,13 @@
       "when": 1747403874536,
       "tag": "0035_aberrant_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1747667493376,
+      "tag": "0036_gigantic_silver_sable",
+      "breakpoints": true
     }
   ]
 }

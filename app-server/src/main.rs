@@ -62,6 +62,7 @@ mod routes;
 mod runtime;
 mod storage;
 mod traces;
+mod utils;
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -376,6 +377,7 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_browser_events_workers_per_thread {
                         tokio::spawn(process_browser_events(
+                            db_for_http.clone(),
                             clickhouse.clone(),
                             browser_events_message_queue.clone(),
                         ));
