@@ -1,4 +1,4 @@
-import { ChartNoAxesGantt, ListTree, Minus, Plus, Search } from "lucide-react";
+import { ChartNoAxesGantt, Minus, Plus, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
@@ -10,12 +10,12 @@ import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span, Trace } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 import { Button } from "../../ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer, { SessionPlayerHandle } from "../session-player";
 import { SpanView } from "../span-view";
-import StatsShields from "../stats-shields";
 import Timeline from "./timeline";
 import Tree from "./tree";
 
@@ -355,11 +355,11 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     try {
       if (typeof window !== "undefined") {
         const savedWidth = localStorage.getItem("trace-view:tree-view-width");
-        return savedWidth ? parseInt(savedWidth, 10) : 384;
+        return savedWidth ? parseInt(savedWidth, 10) : 440;
       }
-      return 384;
+      return 440;
     } catch (e) {
-      return 384;
+      return 440;
     }
   });
 
@@ -397,142 +397,134 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full w-full overflow-hidde p-2 gap-y-2">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
+      <div className="flex flex-col flex-1">
+        <div className="flex items-center gap-x-2 p-2 border-b h-12">
+          <Skeleton className="h-8 w-full" />
+        </div>
+        <div className="flex flex-col p-2 gap-2">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      <Header
-        selectedSpan={selectedSpan}
-        trace={trace}
-        fullScreen={fullScreen}
-        handleClose={handleClose}
-        setSelectedSpan={setSelectedSpan}
-        showBrowserSession={showBrowserSession}
-        setShowBrowserSession={setShowBrowserSession}
-        handleFetchTrace={handleFetchTrace}
-      />
       <ResizablePanelGroup direction="vertical">
-        <ResizablePanel>
-          <div className="flex h-full w-full">
-            <div className="flex h-full flex-col flex-none relative" style={{ width: treeViewWidth }}>
-              <div className="flex flex-col gap-y-2 w-full">
-                {searchEnabled ? (
-                  <SearchSpansInput
-                    setSearchEnabled={setSearchEnabled}
-                    submit={fetchSpans}
-                    filterBoxClassName="top-10"
-                    className="rounded-none border-0 border-b ring-0"
-                  />
-                ) : (
-                  <StatsShields
-                    className="px-2 h-10 border-r box-border sticky top-0 bg-background z-50 border-b w-full"
-                    startTime={trace.startTime}
-                    endTime={trace.endTime}
-                    totalTokenCount={trace.totalTokenCount}
-                    inputTokenCount={trace.inputTokenCount}
-                    outputTokenCount={trace.outputTokenCount}
-                    inputCost={trace.inputCost}
-                    outputCost={trace.outputCost}
-                    cost={trace.cost}
-                  >
-                    <Button
-                      size="icon"
-                      onClick={() => setSearchEnabled(true)}
-                      variant="outline"
-                      className="h-[22px] w-[22px]"
-                    >
-                      <Search size={14} />
-                    </Button>
-                    <Button
-                      size="icon"
-                      onClick={() => setShowTimeline((prev) => !prev)}
-                      variant="outline"
-                      className="h-[22px] w-[22px]"
-                    >
-                      {showTimeline ? <ChartNoAxesGantt size={14} /> : <ListTree size={14} />}
-                    </Button>
+        <ResizablePanel className="flex size-full">
+          <div className="flex h-full flex-col flex-none relative" style={{ width: treeViewWidth }}>
+            <Header
+              selectedSpan={selectedSpan}
+              trace={trace}
+              fullScreen={fullScreen}
+              handleClose={handleClose}
+              showBrowserSession={showBrowserSession}
+              setShowBrowserSession={setShowBrowserSession}
+              handleFetchTrace={handleFetchTrace}
+            />
+            {searchEnabled ? (
+              <SearchSpansInput
+                setSearchEnabled={setSearchEnabled}
+                submit={fetchSpans}
+                filterBoxClassName="top-10"
+                className="rounded-none border-0 border-b ring-0"
+              />
+            ) : (
+              <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
+                <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6">
+                  <Search className="mr-2" size={16} />
+                  <span>Search</span>
+                </Button>
+                <Button
+                  onClick={() => setShowTimeline((prev) => !prev)}
+                  variant="outline"
+                  className={cn("h-6", {
+                    "border-primary text-primary": showTimeline,
+                  })}
+                >
+                  <ChartNoAxesGantt className="w-4 h-4 mr-2" />
+                  <span>Timeline</span>
+                </Button>
+                {showTimeline && (
+                  <>
                     <Button
                       disabled={zoomLevel === MAX_ZOOM}
-                      className="h-[22px] w-[22px] ml-auto"
+                      className="h-6 w-6 ml-auto"
                       variant="outline"
                       size="icon"
                       onClick={handleZoomIn}
                     >
-                      <Plus size={14} />
+                      <Plus className="w-4 h-4" />
                     </Button>
                     <Button
                       disabled={zoomLevel === MIN_ZOOM}
-                      className="h-[22px] w-[22px]"
+                      className="h-6 w-6"
                       variant="outline"
                       size="icon"
                       onClick={handleZoomOut}
                     >
-                      <Minus size={14} />
+                      <Minus className="w-4 h-4" />
                     </Button>
-                  </StatsShields>
+                  </>
                 )}
               </div>
-              {showTimeline ? (
-                <Timeline
-                  setSelectedSpan={setSelectedSpan}
-                  selectedSpan={selectedSpan}
-                  spans={spans}
-                  childSpans={childSpans}
-                  collapsedSpans={collapsedSpans}
-                  browserSessionTime={browserSessionTime}
-                  zoomLevel={zoomLevel}
-                />
-              ) : (
-                <Tree
-                  topLevelSpans={topLevelSpans}
-                  childSpans={childSpans}
-                  activeSpans={activeSpans}
-                  collapsedSpans={collapsedSpans}
-                  containerWidth={treeViewWidth}
-                  selectedSpan={selectedSpan}
-                  trace={trace}
-                  isSpansLoading={isSpansLoading}
-                  onToggleCollapse={(spanId) => {
-                    setCollapsedSpans((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(spanId)) {
-                        next.delete(spanId);
-                      } else {
-                        next.add(spanId);
-                      }
-                      return next;
-                    });
-                  }}
-                  onSpanSelect={(span) => {
-                    const params = new URLSearchParams(searchParams);
-                    setSelectedSpan(span);
-                    params.set("spanId", span.spanId);
-                    router.push(`${pathName}?${params.toString()}`);
-                  }}
-                  onSelectTime={(time) => {
-                    browserSessionRef.current?.goto(time);
-                  }}
-                />
-              )}
-              <div
-                className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-                onMouseDown={handleResizeTreeView}
-              >
-                <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
-              </div>
-            </div>
-            {selectedSpan && (
-              <div className="flex-grow">
-                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
-              </div>
             )}
+            {showTimeline ? (
+              <Timeline
+                setSelectedSpan={setSelectedSpan}
+                selectedSpan={selectedSpan}
+                spans={spans}
+                childSpans={childSpans}
+                collapsedSpans={collapsedSpans}
+                browserSessionTime={browserSessionTime}
+                zoomLevel={zoomLevel}
+              />
+            ) : (
+              <Tree
+                topLevelSpans={topLevelSpans}
+                childSpans={childSpans}
+                activeSpans={activeSpans}
+                collapsedSpans={collapsedSpans}
+                containerWidth={treeViewWidth}
+                selectedSpan={selectedSpan}
+                trace={trace}
+                isSpansLoading={isSpansLoading}
+                onToggleCollapse={(spanId) => {
+                  setCollapsedSpans((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(spanId)) {
+                      next.delete(spanId);
+                    } else {
+                      next.add(spanId);
+                    }
+                    return next;
+                  });
+                }}
+                onSpanSelect={(span) => {
+                  const params = new URLSearchParams(searchParams);
+                  setSelectedSpan(span);
+                  params.set("spanId", span.spanId);
+                  router.push(`${pathName}?${params.toString()}`);
+                }}
+                onSelectTime={(time) => {
+                  browserSessionRef.current?.goto(time);
+                }}
+              />
+            )}
+            <div
+              className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
+              onMouseDown={handleResizeTreeView}
+            >
+              <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+            </div>
           </div>
+          {selectedSpan && (
+            <div className="flex-grow overflow-hidden flex-wrap">
+              <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+            </div>
+          )}
         </ResizablePanel>
         {showBrowserSession && (
           <>

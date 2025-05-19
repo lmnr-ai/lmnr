@@ -1,10 +1,10 @@
 import { VirtualItem } from "@tanstack/react-virtual";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { getDurationString } from "@/lib/flow/utils";
 import { Span } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
-import { getDuration, getDurationString } from "@/lib/flow/utils";
 
 interface Segment {
   left: number;
@@ -20,6 +20,10 @@ interface SegmentEvent {
 }
 
 const HEIGHT = 32;
+const TEXT_PADDING = {
+  WITH_EVENTS: 8,
+  WITHOUT_EVENTS: 4,
+};
 
 const TimelineElement = ({
   setSelectedSpan,
@@ -53,12 +57,74 @@ const TimelineElement = ({
       }
     };
 
-    measure();
+    const frameId = requestAnimationFrame(measure);
     const observer = new ResizeObserver(measure);
     observer.observe(textRef.current);
     observer.observe(blockRef.current);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frameId);
+    };
   }, [segment.span.name, segment.events.length, segment.width]);
+
+  const SpanText = useMemo(() => {
+    const textContent = (
+      <>
+        {segment.span.name}{" "}
+        <span className="text-secondary-foreground">
+          {getDurationString(segment.span.startTime, segment.span.endTime)}
+        </span>
+      </>
+    );
+
+    const commonProps = {
+      title: segment.span.name,
+      ref: textRef,
+      className: "text-xs font-medium text-white/90 truncate",
+    };
+
+    if (textPosition === "inside") {
+      return (
+        <span
+          {...commonProps}
+          className={cn(commonProps.className, "absolute text-left")}
+          style={{
+            left: segment.events.length > 0 ? `${TEXT_PADDING.WITH_EVENTS}px` : `${TEXT_PADDING.WITHOUT_EVENTS}px`,
+          }}
+        >
+          {textContent}
+        </span>
+      );
+    }
+
+    if (segment.left > 50) {
+      return (
+        <span
+          {...commonProps}
+          className={cn(commonProps.className, "absolute text-right")}
+          style={{
+            right: `calc(100% - ${segment.left}% + 16px)`,
+            maxWidth: "250px",
+          }}
+        >
+          {textContent}
+        </span>
+      );
+    }
+
+    return (
+      <span {...commonProps} className={cn(commonProps.className, "ml-1 text-left text-white/85")}>
+        {textContent}
+      </span>
+    );
+  }, [
+    segment.span.name,
+    segment.span.startTime,
+    segment.span.endTime,
+    segment.left,
+    segment.events.length,
+    textPosition,
+  ]);
 
   return (
     <div
@@ -76,6 +142,8 @@ const TimelineElement = ({
       {isSelected && <div className="h-full w-full absolute left-0 bg-primary/25" />}
       {segment.left > 50 && textPosition === "outside" && (
         <span
+          title={segment.span.name}
+          ref={textRef}
           className="text-xs font-medium text-white/90 truncate absolute"
           style={{
             right: `calc(100% - ${segment.left}% + 16px)`,
@@ -83,7 +151,10 @@ const TimelineElement = ({
             maxWidth: "250px",
           }}
         >
-          {segment.span.name} {getDurationString(segment.span.startTime, segment.span.endTime)}
+          {segment.span.name}{" "}
+          <span className="text-secondary-foreground">
+            {getDurationString(segment.span.startTime, segment.span.endTime)}
+          </span>
         </span>
       )}
       <div
@@ -107,21 +178,9 @@ const TimelineElement = ({
             }}
           />
         ))}
-        {textPosition === "inside" && (
-          <span
-            ref={textRef}
-            className="text-xs font-medium text-left text-white/90 truncate absolute"
-            style={{
-              left: segment.events.length > 0 ? "8px" : "4px",
-            }}
-          >
-            {segment.span.name} {getDurationString(segment.span.startTime, segment.span.endTime)}
-          </span>
-        )}
+        {textPosition === "inside" && SpanText}
       </div>
-      {segment.left <= 50 && textPosition === "outside" && (
-        <span className="text-xs ml-1 text-left font-medium text-white/85 truncate">{segment.span.name} {getDurationString(segment.span.startTime, segment.span.endTime)}</span>
-      )}
+      {textPosition === "outside" && SpanText}
     </div>
   );
 };

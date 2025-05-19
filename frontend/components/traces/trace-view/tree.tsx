@@ -161,11 +161,11 @@ export default function Tree({
 
   if (isSpansLoading) {
     return (
-      <>
+      <div className="flex flex-col gap-2 p-2 pb-4">
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
-      </>
+      </div>
     );
   }
 

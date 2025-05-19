@@ -1,17 +1,19 @@
-import { ChevronsRight, Disc, Expand } from "lucide-react";
+import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { ChevronsRight, Disc, Disc2, Expand } from "lucide-react";
 import Link from "next/link";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import React, { memo } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
+import StatsShields from "@/components/traces/stats-shields";
 import { Button } from "@/components/ui/button";
-import MonoWithCopy from "@/components/ui/mono-with-copy";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Span, Trace } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   selectedSpan: Span | null;
-  setSelectedSpan: (span: Span | null) => void;
   trace: Trace | null;
   fullScreen: boolean;
   handleClose: () => void;
@@ -25,14 +27,10 @@ const Header = ({
   trace,
   fullScreen,
   handleClose,
-  setSelectedSpan,
   showBrowserSession,
   setShowBrowserSession,
   handleFetchTrace,
 }: HeaderProps) => {
-  const router = useRouter();
-  const pathName = usePathname();
-  const searchParams = useSearchParams();
   const params = useParams();
   const projectId = params?.projectId as string;
 
@@ -41,7 +39,7 @@ const Header = ({
   }
 
   return (
-    <div className="h-12 flex flex-none items-center border-b gap-x-2 px-4">
+    <div className="h-12 flex py-3 items-center border-b gap-x-2 px-4">
       <Button variant={"ghost"} className="px-0" onClick={handleClose}>
         <ChevronsRight />
       </Button>
@@ -53,23 +51,42 @@ const Header = ({
           <Expand className="w-4 h-4" size={16} />
         </Button>
       </Link>
-      <div className="flex items-center space-x-2 min-w-0">
-        <span>Trace</span>
-        <div className="min-w-0 flex-shrink">
-          <MonoWithCopy className="truncate text-secondary-foreground mt-0.5">{trace?.id}</MonoWithCopy>
-        </div>
-      </div>
-      <div className="flex gap-x-2 items-center ml-auto">
+      <span>Trace</span>
+      {trace && (
+        <StatsShields
+          className="box-border sticky top-0 bg-background"
+          startTime={trace.startTime}
+          endTime={trace.endTime}
+          totalTokenCount={trace.totalTokenCount}
+          inputTokenCount={trace.inputTokenCount}
+          outputTokenCount={trace.outputTokenCount}
+          inputCost={trace.inputCost}
+          outputCost={trace.outputCost}
+          cost={trace.cost}
+        />
+      )}
+      <div className="flex gap-x-1 items-center ml-auto">
         {trace?.hasBrowserSession && (
-          <Button
-            variant={"secondary"}
-            onClick={() => {
-              setShowBrowserSession(!showBrowserSession);
-            }}
-          >
-            <Disc size={16} className="mr-2" />
-            {showBrowserSession ? "Hide browser session" : "Show browser session"}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="hover:bg-secondary px-1.5"
+                variant="ghost"
+                onClick={() => {
+                  setShowBrowserSession(!showBrowserSession);
+                }}
+              >
+                {showBrowserSession ? (
+                  <Disc2 className={cn({ "text-primary w-4 h-4": showBrowserSession })} />
+                ) : (
+                  <Disc className="w-4 h-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent>{showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
         )}
 
         {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}

@@ -18,7 +18,6 @@ import { Span, SpanType } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
 
 import Formatter from "../ui/formatter";
-import MonoWithCopy from "../ui/mono-with-copy";
 import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SpanTypeIcon from "./span-type-icon";
@@ -46,9 +45,9 @@ export function SpanView({ spanId }: SpanViewProps) {
 
   return (
     <>
-      <Tabs className="flex flex-col h-full w-full" defaultValue="span-input">
+      <Tabs className="flex flex-col h-full w-full overflow-hidden" defaultValue="span-input">
         <div className="border-b flex-none">
-          <div className="flex flex-col px-4 pt-2 gap-2">
+          <div className="flex flex-col px-4 pt-4 gap-2">
             <div className="flex flex-none items-center space-x-2">
               <SpanTypeIcon spanType={span.spanType} />
               <div className="text-xl items-center font-medium truncate">{span.name}</div>
@@ -64,9 +63,9 @@ export function SpanView({ spanId }: SpanViewProps) {
                 </Link>
               )}
             </div>
-            <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
             <div className="flex flex-wrap gap-2">
               <StatsShields
+                className="flex-wrap"
                 startTime={span.startTime}
                 endTime={span.endTime}
                 totalTokenCount={
@@ -79,7 +78,7 @@ export function SpanView({ spanId }: SpanViewProps) {
                 outputCost={span.attributes["gen_ai.usage.output_cost"] ?? 0}
                 cost={span.attributes["gen_ai.usage.cost"] ?? 0}
               />
-              <div className="flex flex-row text-xs font-mono space-x-2 rounded-md p-0.5 px-2 border items-center">
+              <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
                 {new Date(span.startTime).toLocaleString()}
               </div>
             </div>
@@ -100,16 +99,16 @@ export function SpanView({ spanId }: SpanViewProps) {
             </LabelsContextProvider>
           </div>
           <TabsList className="border-none text-sm px-4">
-            <TabsTrigger value="span-input" className="z-50">
+            <TabsTrigger value="span-input" className="truncate">
               Span Input
             </TabsTrigger>
-            <TabsTrigger value="span-output" className="z-50">
+            <TabsTrigger value="span-output" className="truncate">
               Span Output
             </TabsTrigger>
-            <TabsTrigger value="attributes" className="z-50">
+            <TabsTrigger value="attributes" className="truncate">
               Attributes
             </TabsTrigger>
-            <TabsTrigger value="events" className="z-50">
+            <TabsTrigger value="events" className="truncate">
               Events
             </TabsTrigger>
           </TabsList>

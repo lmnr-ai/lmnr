@@ -1,5 +1,6 @@
 "use client";
-import { Globe, Link, Lock, Share } from "lucide-react";
+import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { Globe, Link, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React from "react";
 
@@ -63,12 +64,14 @@ const ShareTraceButton = ({
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button className="hover:bg-secondary px-1.5" variant="ghost">
-                <Share className="w-4 h-4" />
+              <Button className="relative hover:bg-secondary px-1.5" variant="ghost">
+                {trace.visibility === "public" ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent>Share Trace</TooltipContent>
+          <TooltipPortal>
+            <TooltipContent>Share Trace</TooltipContent>
+          </TooltipPortal>
         </Tooltip>
         <PopoverContent className="flex flex-col gap-4 w-96" align="end">
           <div>

@@ -171,29 +171,29 @@ function Timeline({
 
   return (
     <div className="flex flex-col h-full flex-1 relative overflow-hidden">
-      <ScrollArea className="h-full w-full overflow-x-auto" ref={ref}>
+      {browserSessionTime && (
         <div
-          style={{ width: `${100 * zoomLevel}%` }}
-          className="bg-background flex text-xs border-b z-50 top-0 h-8 px-4 sticky"
-        >
-          <div className="flex relative w-full">
-            {timeIntervals.map((interval, index) => (
-              <div className="z-0" style={{ width: "10%" }} key={index}>
-                <div className="absolute border-l border-secondary-foreground/20 bottom-0 h-full" />
-                <div className="text-secondary-foreground pl-1 truncate flex items-center min-w-12 h-8">{interval}</div>
-              </div>
-            ))}
-            <div className="border-r" />
-            {browserSessionTime && (
-              <div
-                className="absolute top-0 bg-primary z-50 w-[1px]"
-                style={{
-                  left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + "%",
-                }}
-              />
-            )}
+          className="absolute top-0 bg-primary z-30 h-full w-[1px]"
+          style={{
+            left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + "%",
+          }}
+        />
+      )}
+
+      <div style={{ width: `${100 * zoomLevel}%` }} className="bg-background flex text-xs border-b h-8 px-4">
+        <div className="flex w-full">
+          {timeIntervals.map((interval, index) => (
+            <div className="flex items-center h-full w-[10%]" key={index}>
+              <div className="absolute border-l border-secondary-foreground/20 top-0 h-full" />
+              <div className="text-secondary-foreground truncate flex ml-1 justify-center">{interval}</div>
+            </div>
+          ))}
+          <div className="flex items-center h-full">
+            <div className="absolute border-r border-secondary-foreground/20 top-0 h-full" />
           </div>
         </div>
+      </div>
+      <ScrollArea className="h-full w-full overflow-x-auto" ref={ref}>
         <div style={{ height: virtualizer.getTotalSize(), width: `${100 * zoomLevel}%` }}>
           <div
             className="overflow-hidden"
