@@ -19,7 +19,7 @@ pub fn estimate_json_size(v: &Value) -> usize {
         Value::Null => 4,
         Value::Bool(b) => b.to_string().len(),
         Value::Number(n) => n.to_string().len(),
-        Value::String(s) => s.len(),
+        Value::String(s) => s.as_bytes().len(),
         Value::Array(a) => a.iter().map(estimate_json_size).sum(),
         Value::Object(o) => o.iter().map(|(k, v)| k.len() + estimate_json_size(v)).sum(),
     }
