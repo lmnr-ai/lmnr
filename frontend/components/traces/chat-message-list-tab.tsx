@@ -4,8 +4,8 @@ import { ChevronDown } from "lucide-react";
 import { memo, useCallback, useMemo, useRef } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import CodeHighlighter from "@/components/traces/code-highlighter";
 import { Button } from "@/components/ui/button";
+import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
 

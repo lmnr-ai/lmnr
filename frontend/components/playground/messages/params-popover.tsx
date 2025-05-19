@@ -59,7 +59,7 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
                     value={[value ?? defaultMaxTokens]}
                     defaultValue={[defaultMaxTokens]}
                     min={50}
-                    max={4096}
+                    max={65536}
                     step={1}
                     onValueChange={(v) => onChange(v?.[0])}
                   />

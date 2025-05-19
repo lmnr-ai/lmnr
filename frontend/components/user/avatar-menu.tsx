@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { signOut } from "next-auth/react";
+import { posthog } from "posthog-js";
 
 import { useUserContext } from "@/contexts/user-context";
 
@@ -27,7 +28,10 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>Sign out</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => {
+          posthog.reset();
+          signOut({ callbackUrl: "/" });
+        }}>Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

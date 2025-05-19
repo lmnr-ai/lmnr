@@ -114,7 +114,7 @@ async fn push_to_queue(
         )
         .await;
 
-        crate::traces::utils::record_span_to_db(db.clone(), &span_usage, &project_id, &mut span)
+        crate::traces::utils::record_span_to_db(db.clone(), &span_usage, &project_id, &mut span, &Vec::new())
             .await?;
         span_ids.push(span.span_id);
     }

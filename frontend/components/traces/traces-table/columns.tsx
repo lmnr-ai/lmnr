@@ -1,0 +1,234 @@
+import { ColumnDef } from "@tanstack/react-table";
+import { ArrowRight, CircleCheck, CircleX, X } from "lucide-react";
+
+import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
+import SpanTypeIcon from "@/components/traces/span-type-icon";
+import Mono from "@/components/ui/mono";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Trace } from "@/lib/traces/types";
+import { isStringDateOld } from "@/lib/traces/utils";
+
+const renderCost = (val: any) => {
+  if (val == null) {
+    return "-";
+  }
+  const parsed = parseFloat(val);
+  return isNaN(parsed) ? "-" : `$${parsed.toFixed(5)}`;
+};
+
+export const columns: ColumnDef<Trace, any>[] = [
+  {
+    cell: (row) => (
+      <div className="flex h-full justify-center items-center w-10">
+        {row.getValue() ? (
+          <CircleX className="self-center text-red-500" size={20} />
+        ) : (
+          <CircleCheck className="text-green-500/80" size={20} />
+        )}
+      </div>
+    ),
+    accessorKey: "status",
+    header: "Status",
+    id: "status",
+    size: 70,
+  },
+  {
+    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    header: "ID",
+    accessorKey: "id",
+    id: "id",
+  },
+  {
+    accessorKey: "topSpanType",
+    header: "Top level span",
+    id: "top_span_type",
+    cell: (row) => (
+      <div className="cursor-pointer flex gap-2 items-center">
+        <div className="flex items-center gap-2">
+          {row.row.original.topSpanName ? (
+            <SpanTypeIcon className="z-10" spanType={row.getValue()} />
+          ) : isStringDateOld(row.row.original.endTime) ? (
+            <NoSpanTooltip>
+              <div className="flex items-center gap-2 rounded-sm bg-secondary p-1">
+                <X className="w-4 h-4" />
+              </div>
+            </NoSpanTooltip>
+          ) : (
+            <Skeleton className="w-6 h-6 bg-secondary rounded-sm" />
+          )}
+        </div>
+        {row.row.original.topSpanName ? (
+          <div className="flex text-sm text-ellipsis overflow-hidden whitespace-nowrap">
+            {row.row.original.topSpanName}
+          </div>
+        ) : isStringDateOld(row.row.original.endTime) ? (
+          <NoSpanTooltip>
+            <div className="flex text-muted-foreground">None</div>
+          </NoSpanTooltip>
+        ) : (
+          <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
+        )}
+      </div>
+    ),
+    size: 150,
+  },
+
+  {
+    cell: (row) => row.getValue(),
+    accessorKey: "topSpanInputPreview",
+    header: "Input",
+    id: "input",
+    size: 150,
+  },
+  {
+    cell: (row) => row.getValue(),
+    accessorKey: "topSpanOutputPreview",
+    header: "Output",
+    id: "output",
+    size: 150,
+  },
+  {
+    accessorFn: (row) => row.startTime,
+    header: "Timestamp",
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    id: "start_time",
+    size: 125,
+  },
+  {
+    accessorFn: (row) => {
+      const start = new Date(row.startTime);
+      const end = new Date(row.endTime);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+        return "-";
+      }
+      const duration = end.getTime() - start.getTime();
+      return `${(duration / 1000).toFixed(2)}s`;
+    },
+    header: "Latency",
+    id: "latency",
+    size: 80,
+  },
+  {
+    accessorFn: (row) => row.cost,
+    header: "Cost",
+    id: "cost",
+    cell: (row) => (
+      <TooltipProvider delayDuration={100}>
+        <Tooltip>
+          <TooltipTrigger className="relative p-0">
+            <div
+              style={{
+                width: row.column.getSize() - 32,
+              }}
+              className="relative"
+            >
+              <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+                <div className="text-ellipsis overflow-hidden whitespace-nowrap">{renderCost(row.getValue())}</div>
+              </div>
+            </div>
+          </TooltipTrigger>
+          {row.getValue() != undefined && (
+            <TooltipContent side="bottom" className="p-2 border">
+              <div>
+                <div className="flex justify-between space-x-2">
+                  <span>Input cost</span>
+                  <span>{renderCost(row.row.original.inputCost)}</span>
+                </div>
+                <div className="flex justify-between space-x-2">
+                  <span>Output cost</span>
+                  <span>{renderCost(row.row.original.outputCost)}</span>
+                </div>
+              </div>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    ),
+    size: 100,
+  },
+  {
+    accessorFn: (row) => row.totalTokenCount ?? "-",
+    header: "Tokens",
+    id: "total_token_count",
+    cell: (row) => (
+      <div className="flex items-center">
+        {`${row.row.original.inputTokenCount ?? "-"}`}
+        <ArrowRight size={12} className="mx-1 min-w-[12px]" />
+        {`${row.row.original.outputTokenCount ?? "-"}`}
+        {` (${row.row.original.totalTokenCount ?? "-"})`}
+      </div>
+    ),
+    size: 150,
+  },
+  {
+    accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata, null, 2) : ""),
+    header: "Metadata",
+    id: "metadata",
+    cell: (row) => (
+      <TooltipProvider delayDuration={100}>
+        <Tooltip>
+          <TooltipTrigger className="relative p-0">
+            <div
+              style={{
+                width: row.column.getSize() - 32,
+              }}
+              className="relative"
+            >
+              <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+                <div className="text-ellipsis overflow-hidden whitespace-nowrap">{row.getValue()}</div>
+              </div>
+            </div>
+          </TooltipTrigger>
+          {row.getValue() != undefined && (
+            <TooltipContent side="bottom" className="p-2 border">
+              <div className="whitespace-pre-wrap">{row.getValue()}</div>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    ),
+    size: 100,
+  },
+];
+
+export const filters = [
+  {
+    name: "ID",
+    id: "id",
+  },
+  {
+    name: "Latency",
+    id: "latency",
+  },
+  // TODO: alias span_type and name to top_span_type and top_span_name in
+  // the DB query
+  {
+    name: "Top level span",
+    id: "span_type",
+    restrictOperators: ["eq"],
+  },
+  {
+    name: "Top span name",
+    id: "name",
+  },
+  {
+    name: "Input cost",
+    id: "input_cost",
+  },
+  {
+    name: "Output cost",
+    id: "output_cost",
+  },
+  {
+    name: "Metadata",
+    id: "metadata",
+    restrictOperators: ["eq"],
+  },
+  {
+    name: "Labels",
+    id: "labels",
+    restrictOperators: ["eq"],
+  },
+];

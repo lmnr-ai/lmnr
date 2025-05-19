@@ -21,7 +21,6 @@ import Tree from "./tree";
 
 export interface TraceViewHandle {
   toggleBrowserSession: () => void;
-  resetSelectedSpan: () => void;
 }
 
 interface TraceViewProps {
@@ -57,16 +56,8 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     ref,
     () => ({
       toggleBrowserSession: () => setShowBrowserSession((prev) => !prev),
-      resetSelectedSpan: () => {
-        setSelectedSpan(null);
-        setTimeout(() => {
-          const params = new URLSearchParams(searchParams);
-          params.delete("spanId");
-          router.push(`${pathName}?${params.toString()}`);
-        }, 10);
-      },
     }),
-    [searchParams, pathName, router]
+    []
   );
 
   const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({});

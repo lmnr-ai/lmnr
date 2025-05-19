@@ -269,15 +269,15 @@ export const workspaceInvitationsRelations = relations(workspaceInvitations, ({o
   }),
 }));
 
+export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
+  users: many(users),
+}));
+
 export const tracesRelations = relations(traces, ({one}) => ({
   project: one(projects, {
     fields: [traces.projectId],
     references: [projects.id]
   }),
-}));
-
-export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
-  users: many(users),
 }));
 
 export const machinesRelations = relations(machines, ({one}) => ({
