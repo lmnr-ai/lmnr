@@ -71,7 +71,7 @@ const TimelineElement = ({
     const textContent = (
       <>
         {segment.span.name}{" "}
-        <span className="text-secondary-foreground">
+        <span className="text-white/70">
           {getDurationString(segment.span.startTime, segment.span.endTime)}
         </span>
       </>
@@ -113,7 +113,7 @@ const TimelineElement = ({
     }
 
     return (
-      <span {...commonProps} className={cn(commonProps.className, "ml-1 text-left text-white/85")}>
+      <span {...commonProps} className={cn(commonProps.className, "ml-1 text-left text-white/90")}>
         {textContent}
       </span>
     );
@@ -132,8 +132,7 @@ const TimelineElement = ({
       data-index={virtualRow.index}
       onClick={() => setSelectedSpan(segment.span)}
       className={cn(
-        "absolute top-0 left-0 w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200",
-        virtualRow.index % 2 === 0 ? "bg-muted/15" : "bg-muted/30"
+        "absolute top-0 left-0 w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200"
       )}
       style={{
         transform: `translateY(${virtualRow.start}px)`,
@@ -144,7 +143,7 @@ const TimelineElement = ({
         <span
           title={segment.span.name}
           ref={textRef}
-          className="text-xs font-medium text-white/90 truncate absolute"
+          className="text-xs font-medium text-black truncate absolute"
           style={{
             right: `calc(100% - ${segment.left}% + 16px)`,
             textAlign: "right",
@@ -167,9 +166,9 @@ const TimelineElement = ({
           height: 24,
         }}
       >
-        {segment.events.map((event, index) => (
+        {segment.events.map((event) => (
           <div
-            key={index}
+            key={event.id}
             className="absolute bg-orange-400 w-1 rounded"
             style={{
               left: event.left + "%",

@@ -135,7 +135,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         setSpans(spans);
 
         const spanIdFromUrl = searchParams.get("spanId");
-        const spanToSelect = spanIdFromUrl ? spans.find((span: Span) => span.spanId === spanIdFromUrl) : spans[0];
+        const spanToSelect = spanIdFromUrl ? spans.find((span: Span) => span.spanId === spanIdFromUrl) ?? spans[0] : spans[0];
 
         if (spanToSelect) {
           setSelectedSpan(spanToSelect);
@@ -328,7 +328,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   const isLoading = !trace || spans?.length === 0 || (isSpansLoading && isTraceLoading);
@@ -494,11 +494,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         {showBrowserSession && (
           <>
             <ResizableHandle className="z-50" withHandle />
-            <ResizablePanel
-              style={{
-                display: showBrowserSession ? "block" : "none",
-              }}
-            >
+            <ResizablePanel>
               {!isLoading && (
                 <SessionPlayer
                   ref={browserSessionRef}
