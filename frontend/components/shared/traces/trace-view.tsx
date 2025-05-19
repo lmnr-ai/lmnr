@@ -30,8 +30,7 @@ const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
 
 export default function TraceView({ trace, spans }: TraceViewProps) {
-  const params = useSearchParams();
-  const searchParams = useMemo(() => new URLSearchParams(params.toString()), [params]);
+  const searchParams = useSearchParams();
 
   const router = useRouter();
   const pathName = usePathname();
@@ -84,11 +83,18 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
     };
   }, [spans]);
 
-  useEffect(() => {
-    setSelectedSpan(
-      searchParams.get("spanId") ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null : null
-    );
-  }, [searchParams, spans]);
+  const handleSetSpan = useCallback(() => {
+    const firstSpan = spans?.[0] || null;
+
+    if (firstSpan) {
+      setSelectedSpan(firstSpan);
+      const params = new URLSearchParams(searchParams);
+      params.set("spanId", firstSpan.spanId);
+      router.push(`${pathName}?${params.toString()}`);
+    }
+  }, [pathName, router, searchParams, spans]);
+
+  useEffect(() => handleSetSpan(), [handleSetSpan]);
 
   const [treeViewWidth, setTreeViewWidth] = useState(384);
 

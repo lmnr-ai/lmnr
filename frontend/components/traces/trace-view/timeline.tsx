@@ -170,7 +170,7 @@ function Timeline({
   const items = virtualizer.getVirtualItems();
 
   return (
-    <div className="flex flex-col h-full flex-1 relative overflow-hidden">
+    <ScrollArea className="h-full w-full relative" ref={ref}>
       {browserSessionTime && (
         <div
           className="absolute top-0 bg-primary z-30 h-full w-[1px]"
@@ -179,43 +179,55 @@ function Timeline({
           }}
         />
       )}
-
-      <div style={{ width: `${100 * zoomLevel}%` }} className="bg-background flex text-xs border-b h-8 px-4">
-        <div className="flex w-full">
+      <div style={{ width: `${100 * zoomLevel}%` }} className="bg-background flex flex-1 text-xs border-b h-8 px-4">
+        <div className="flex w-full relative">
           {timeIntervals.map((interval, index) => (
             <div className="flex items-center h-full w-[10%]" key={index}>
-              <div className="absolute border-l border-secondary-foreground/20 top-0 h-full" />
+              <div className="border-l border-secondary-foreground/20 h-full" />
               <div className="text-secondary-foreground truncate flex ml-1 justify-center">{interval}</div>
             </div>
           ))}
           <div className="flex items-center h-full">
-            <div className="absolute border-r border-secondary-foreground/20 top-0 h-full" />
+            <div className="border-r border-secondary-foreground/20 h-full" />
           </div>
         </div>
       </div>
-      <ScrollArea className="h-full w-full overflow-x-auto" ref={ref}>
-        <div style={{ height: virtualizer.getTotalSize(), width: `${100 * zoomLevel}%` }}>
-          <div
-            className="overflow-hidden"
-            style={{
-              position: "relative",
-              height: virtualizer.getTotalSize(),
-            }}
-          >
-            {items.map((virtualRow) => (
-              <TimelineElement
-                key={virtualRow.key}
-                selectedSpan={selectedSpan}
-                setSelectedSpan={setSelectedSpan}
-                segment={segments[virtualRow.index]}
-                virtualRow={virtualRow}
+      <div style={{ height: virtualizer.getTotalSize(), width: `${100 * zoomLevel}%` }}>
+        <div
+          className="overflow-hidden"
+          style={{
+            position: "relative",
+            height: virtualizer.getTotalSize(),
+          }}
+        >
+          <div className="absolute inset-0 pointer-events-none">
+            {timeIntervals.map((_, index) => (
+              <div
+                key={index}
+                className="absolute top-0 bottom-0 border-l border-secondary-foreground/20"
+                style={{
+                  left: `calc(${(index * 10) / 100} * (100% - 32px) + 16px)`,
+                }}
               />
             ))}
+            <div
+              className="absolute top-0 bottom-0 border-r border-secondary-foreground/20"
+              style={{ right: "16px" }}
+            />
           </div>
+          {items.map((virtualRow) => (
+            <TimelineElement
+              key={virtualRow.key}
+              selectedSpan={selectedSpan}
+              setSelectedSpan={setSelectedSpan}
+              segment={segments[virtualRow.index]}
+              virtualRow={virtualRow}
+            />
+          ))}
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </div>
+      </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   );
 }
 

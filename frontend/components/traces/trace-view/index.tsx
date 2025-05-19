@@ -1,12 +1,11 @@
 import { ChartNoAxesGantt, Minus, Plus, Search } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import SearchSpansInput from "@/components/traces/search-spans-input";
 import Header from "@/components/traces/trace-view/header";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span, Trace } from "@/lib/traces/types";
@@ -39,7 +38,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
   const { toast } = useToast();
 
   const [isSpansLoading, setIsSpansLoading] = useState(false);
