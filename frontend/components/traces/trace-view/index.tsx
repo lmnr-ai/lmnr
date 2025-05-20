@@ -124,7 +124,10 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         setIsSpansLoading(true);
 
         const params = new URLSearchParams();
-        if (search) params.set("search", search);
+        if (search) {
+          params.set("search", search);
+          setSearchEnabled(true);
+        }
         if (searchIn && searchIn.length > 0) {
           searchIn.forEach((val) => params.append("searchIn", val));
         }
@@ -329,7 +332,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     } catch (e) { }
   }, [treeViewWidth]);
 
-  const isLoading = !trace || spans?.length === 0 || (isSpansLoading && isTraceLoading);
+  const isLoading = !trace || (isSpansLoading && isTraceLoading);
 
   const handleResizeTreeView = useCallback(
     (e: React.MouseEvent) => {

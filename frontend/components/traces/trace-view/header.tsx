@@ -8,7 +8,8 @@ import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import StatsShields from "@/components/traces/stats-shields";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/lib/hooks/use-toast";
 import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,18 @@ const Header = ({
 }: HeaderProps) => {
   const params = useParams();
   const projectId = params?.projectId as string;
+  const { toast } = useToast();
+
+  const copyTraceId = () => {
+    if (trace) {
+      navigator.clipboard.writeText(trace.id);
+      toast({
+        title: "Copied trace ID",
+        description: "Trace ID has been copied to clipboard",
+        variant: "default",
+      });
+    }
+  };
 
   if (fullScreen) {
     return null;
@@ -51,7 +64,21 @@ const Header = ({
           <Expand className="w-4 h-4" size={16} />
         </Button>
       </Link>
-      <span>Trace</span>
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              className="cursor-pointer"
+              onClick={copyTraceId}
+            >
+              Trace
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Click to copy trace ID</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       {trace && (
         <StatsShields
           className="box-border sticky top-0 bg-background"

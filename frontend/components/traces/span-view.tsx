@@ -12,10 +12,12 @@ import ExportSpansDialog from "@/components/traces/export-spans-dialog";
 import SpanInput from "@/components/traces/span-input";
 import SpanOutput from "@/components/traces/span-output";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
 import { Event } from "@/lib/events/types";
 import { Span, SpanType } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
+import { useToast } from "@/lib/hooks/use-toast";
 
 import Formatter from "../ui/formatter";
 import { Skeleton } from "../ui/skeleton";
@@ -32,6 +34,18 @@ export function SpanView({ spanId }: SpanViewProps) {
   const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
   const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
+  const { toast } = useToast();
+
+  const copySpanId = () => {
+    if (span) {
+      navigator.clipboard.writeText(span.spanId);
+      toast({
+        title: "Copied span ID",
+        description: "Span ID has been copied to clipboard",
+        variant: "default",
+      });
+    }
+  };
 
   if (isLoading || !span) {
     return (
@@ -50,13 +64,27 @@ export function SpanView({ spanId }: SpanViewProps) {
           <div className="flex flex-col px-4 pt-4 gap-2">
             <div className="flex flex-none items-center space-x-2">
               <SpanTypeIcon spanType={span.spanType} />
-              <div className="text-xl items-center font-medium truncate">{span.name}</div>
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="text-xl items-center font-medium truncate cursor-pointer"
+                      onClick={copySpanId}
+                    >
+                      {span.name}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Click to copy span ID</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               {span.spanType === SpanType.LLM && (
                 <Link
                   href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
                   passHref
                 >
-                  <Button variant="outlinePrimary">
+                  <Button variant="outlinePrimary" className="px-1.5">
                     <PlayCircle className="mr-2" size={16} />
                     Open in Playground
                   </Button>
