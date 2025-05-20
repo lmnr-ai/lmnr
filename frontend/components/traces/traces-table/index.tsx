@@ -2,13 +2,12 @@
 import { Row } from "@tanstack/react-table";
 import { isEmpty } from "lodash";
 import { RefreshCcw } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import SearchTracesInput from "@/components/traces/search-traces-input";
 import { columns, filters } from "@/components/traces/traces-table/columns";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
-import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanType, Trace } from "@/lib/traces/types";
@@ -30,23 +29,30 @@ interface TracesTableProps {
 const LIVE_UPDATES_STORAGE_KEY = "traces-live-updates";
 
 export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
-  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
+  const { projectId } = useParams();
   const { toast } = useToast();
-  const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
-  const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
-  const filter = searchParams.get("filter");
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-  const pastHours = searchParams.get("pastHours");
-  const textSearchFilter = searchParams.get("search");
-  const searchIn = searchParams.getAll("searchIn");
-  const { projectId } = useProjectContext();
+  const { pageNumber, pageSize, pastHours, startDate, endDate, textSearchFilter, filter, searchIn } = useMemo(
+    () => ({
+      pageNumber: searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0,
+      pageSize: searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50,
+      filter: searchParams.get("filter"),
+      startDate: searchParams.get("startDate"),
+      endDate: searchParams.get("endDate"),
+      pastHours: searchParams.get("pastHours"),
+      textSearchFilter: searchParams.get("search"),
+      searchIn: searchParams.getAll("searchIn"),
+    }),
+    [searchParams]
+  );
+
   const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
-  const pageCount = Math.ceil(totalCount / pageSize);
   const [enableLiveUpdates, setEnableLiveUpdates] = useState<boolean>(true);
+
+  const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
 
   useEffect(() => {
     const stored = globalThis?.localStorage?.getItem(LIVE_UPDATES_STORAGE_KEY);
@@ -66,60 +72,82 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     tracesRef.current = traces;
   }, [traces]);
 
-  const getTraces = async () => {
-    let queryFilter = searchParams.get("filter");
-    setTraces(undefined);
+  const getTraces = useCallback(async () => {
+    try {
+      let queryFilter = searchParams.get("filter");
+      setTraces(undefined);
 
-    if (!pastHours && !startDate && !endDate) {
-      const sp = new URLSearchParams();
-      for (const [key, value] of Object.entries(searchParams)) {
-        if (key !== "pastHours") {
-          sp.set(key, value as string);
-        }
+      if (!pastHours && !startDate && !endDate) {
+        const sp = new URLSearchParams(searchParams.toString());
+        sp.set("pastHours", "24");
+        router.replace(`${pathName}?${sp.toString()}`);
+        return;
       }
-      sp.set("pastHours", "24");
-      router.replace(`${pathName}?${sp.toString()}`);
-      return;
-    }
 
-    let url = `/api/projects/${projectId}/traces?pageNumber=${pageNumber}&pageSize=${pageSize}`;
-    if (pastHours != null) {
-      url += `&pastHours=${pastHours}`;
-    }
-    if (startDate != null) {
-      url += `&startDate=${startDate}`;
-    }
-    if (endDate != null) {
-      url += `&endDate=${endDate}`;
-    }
-    if (typeof queryFilter === "string") {
-      url += `&filter=${encodeURIComponent(queryFilter)}`;
-    } else if (Array.isArray(queryFilter)) {
-      const filters = encodeURIComponent(JSON.stringify(queryFilter));
-      url += `&filter=${filters}`;
-    }
-    if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
-      url += `&search=${textSearchFilter}`;
-    }
+      const urlParams = new URLSearchParams();
+      urlParams.set("pageNumber", pageNumber.toString());
+      urlParams.set("pageSize", pageSize.toString());
 
-    if (isEmpty(searchIn) || searchIn?.length === 2) {
-      url += `&searchIn=input&searchIn=output`;
-    } else {
-      url += `&searchIn=${searchIn?.[0]}`;
+      if (pastHours != null) urlParams.set("pastHours", pastHours);
+      if (startDate != null) urlParams.set("startDate", startDate);
+      if (endDate != null) urlParams.set("endDate", endDate);
+
+      if (typeof queryFilter === "string") {
+        urlParams.set("filter", queryFilter);
+      } else if (Array.isArray(queryFilter)) {
+        urlParams.set("filter", JSON.stringify(queryFilter));
+      }
+
+      if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
+        urlParams.set("search", textSearchFilter);
+      }
+
+      if (isEmpty(searchIn) || searchIn?.length === 2) {
+        urlParams.append("searchIn", "input");
+        urlParams.append("searchIn", "output");
+      } else if (searchIn?.length > 0) {
+        urlParams.set("searchIn", searchIn[0]);
+      }
+
+      const url = `/api/projects/${projectId}/traces?${urlParams.toString()}`;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
+      }
+
+      const data = (await res.json()) as PaginatedResponse<Trace>;
+      setTraces(data.items);
+      setTotalCount(data.totalCount);
+    } catch (error) {
+      toast({
+        title: "Failed to load traces. Please try again.",
+        variant: "destructive",
+      });
+      // Set empty traces to show error state
+      setTraces([]);
+      setTotalCount(0);
     }
-
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    const data = (await res.json()) as PaginatedResponse<Trace>;
-
-    setTraces(data.items);
-    setTotalCount(data.totalCount);
-  };
+  }, [
+    endDate,
+    pageNumber,
+    pageSize,
+    pastHours,
+    pathName,
+    projectId,
+    router,
+    searchIn,
+    searchParams,
+    startDate,
+    textSearchFilter,
+    toast,
+  ]);
 
   const dbTraceRowToTrace = (row: Record<string, any>): Trace => ({
     startTime: row.start_time,
@@ -145,23 +173,45 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     status: row.status,
   });
 
-  const getTraceTopSpanInfo = async (
-    spanId: string
-  ): Promise<{
-    topSpanName: string | null;
-    topSpanType: SpanType | null;
-    topSpanInputPreview: any | null;
-    topSpanOutputPreview: any | null;
-  }> => {
-    const response = await fetch(`/api/projects/${projectId}/spans/${spanId}/basic-info`);
-    const span = await response.json();
-    return {
-      topSpanName: span?.name ?? null,
-      topSpanType: span?.spanType ?? null,
-      topSpanInputPreview: span?.inputPreview ?? null,
-      topSpanOutputPreview: span?.outputPreview ?? null,
-    };
-  };
+  const getTraceTopSpanInfo = useCallback(
+    async (
+      spanId: string
+    ): Promise<{
+      topSpanName: string | null;
+      topSpanType: SpanType | null;
+      topSpanInputPreview: any | null;
+      topSpanOutputPreview: any | null;
+    }> => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/spans/${spanId}/basic-info`);
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch span info: ${response.status} ${response.statusText}`);
+        }
+
+        const span = await response.json();
+        return {
+          topSpanName: span?.name ?? null,
+          topSpanType: span?.spanType ?? null,
+          topSpanInputPreview: span?.inputPreview ?? null,
+          topSpanOutputPreview: span?.outputPreview ?? null,
+        };
+      } catch (error) {
+        toast({
+          title: "Failed to load span information",
+          variant: "destructive",
+        });
+
+        return {
+          topSpanName: null,
+          topSpanType: null,
+          topSpanInputPreview: null,
+          topSpanOutputPreview: null,
+        };
+      }
+    },
+    [projectId, toast]
+  );
 
   const updateRealtimeTraces = useCallback(
     async (eventType: "INSERT" | "UPDATE", old: Record<string, any>, newObj: Record<string, any>) => {
@@ -215,7 +265,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
         }
       }
     },
-    []
+    [getTraceTopSpanInfo, pageSize]
   ); // only depends on pageSize now
 
   const { supabaseClient: supabase } = useUserContext();
@@ -289,23 +339,30 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     JSON.stringify(searchIn),
   ]);
 
-  const handleDeleteTraces = async (traceId: string[]) => {
-    const response = await fetch(`/api/projects/${projectId}/traces?traceId=${traceId.join(",")}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (!response.ok) {
+  const handleDeleteTraces = async (traceIds: string[]) => {
+    try {
+      const params = new URLSearchParams(traceIds.map((id) => ["traceId", id]));
+      const response = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        toast({
+          title: "Failed to delete traces. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Traces deleted",
+          description: `Successfully deleted ${traceIds.length} trace(s).`,
+        });
+        await getTraces();
+      }
+    } catch (e) {
       toast({
-        title: "Failed to delete traces",
         variant: "destructive",
+        title: "Error",
+        description: e instanceof Error ? e.message : "Failed to delete traces. Please try again.",
       });
-    } else {
-      toast({
-        title: "Traces deleted",
-        description: `Successfully deleted ${traceId.length} trace(s).`,
-      });
-      getTraces();
     }
   };
 
@@ -324,6 +381,16 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     [onRowClick, pathName, router, searchParams]
   );
 
+  const onPageChange = useCallback(
+    (pageNumber: number, pageSize: number) => {
+      const params = new URLSearchParams(searchParams);
+      params.set("pageNumber", pageNumber.toString());
+      params.set("pageSize", pageSize.toString());
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
+
   return (
     <DataTable
       className="border-none w-full"
@@ -337,11 +404,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       pageCount={pageCount}
       defaultPageSize={pageSize}
       defaultPageNumber={pageNumber}
-      onPageChange={(pageNumber, pageSize) => {
-        searchParams.set("pageNumber", pageNumber.toString());
-        searchParams.set("pageSize", pageSize.toString());
-        router.push(`${pathName}?${searchParams.toString()}`);
-      }}
+      onPageChange={onPageChange}
       totalItemsCount={totalCount}
       enableRowSelection
       selectionPanel={(selectedRowIds) => (
