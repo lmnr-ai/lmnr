@@ -2,8 +2,8 @@ import { ChartNoAxesGantt, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
-import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
 import Header from "@/components/traces/trace-view/header";
+import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
