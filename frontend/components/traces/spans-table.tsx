@@ -28,6 +28,7 @@ import {
   TooltipTrigger
 } from '../ui/tooltip';
 import SpanTypeIcon from './span-type-icon';
+import SearchTracesInput from './search-traces-input';
 
 interface SpansTableProps {
   onRowClick?: (traceId: string) => void;
@@ -67,14 +68,6 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   const [spanId, setSpanId] = useState<string | null>(
     searchParams.get('spanId') ?? null
   );
-  const [enableLiveUpdates, setEnableLiveUpdates] = useState<boolean>(true);
-  const isCurrentTimestampIncluded =
-    !!pastHours || (!!endDate && new Date(endDate) >= new Date());
-
-  useEffect(() => {
-    const stored = globalThis?.localStorage?.getItem(LIVE_UPDATES_STORAGE_KEY);
-    setEnableLiveUpdates(stored == null ? true : stored === 'true');
-  }, []);
 
   const spansRef = useRef<Span[] | undefined>(spans);
 
@@ -308,38 +301,25 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       id: 'trace_id'
     },
     {
-      accessorKey: 'spanType',
-      header: 'Type',
-      id: 'span_type',
-      cell: (row) => (
-        <div
-          // onClick={(event) => {
-          //   event.stopPropagation();
-          //   handleAddFilter('span_type', row.getValue());
-          // }}
-          className="cursor-pointer flex space-x-2 items-center hover:underline"
-        >
-          <SpanTypeIcon className='z-10' spanType={row.getValue()} />
-          <div className='flex text-sm'>{row.getValue() === 'DEFAULT' ? 'SPAN' : row.getValue()}</div>
-        </div>),
-      size: 120
-    },
-    {
-      cell: (row) => (
-        <div
-          // onClick={(event) => {
-          //   event.stopPropagation();
-          //   handleAddFilter('name', row.getValue());
-          // }}
-          className="cursor-pointer hover:underline"
-        >
-          {row.getValue()}
-        </div>
-      ),
-      accessorKey: 'name',
       header: 'Name',
       id: 'name',
-      size: 150
+      cell: (row) => (
+        <div className="cursor-pointer flex gap-2 items-center text-ellipsis">
+          <div
+            // onClick={(event) => {
+            //   event.stopPropagation();
+            //   handleAddFilter('span_type', row.getValue());
+            // }}
+            className="flex space-x-2 items-center"
+          >
+            <SpanTypeIcon className='z-10' spanType={row.row.original.spanType} />
+            <div className="flex text-sm text-ellipsis overflow-hidden whitespace-nowrap">
+              {row.row.original.name}
+            </div>
+          </div>
+        </div>
+      ),
+      size: 200
     },
     {
       accessorKey: 'path',
@@ -575,7 +555,6 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
         </div>
       )}
     >
-      <TextSearchFilter />
       <DataTableFilter
         possibleFilters={filterColumns} activeFilters={activeFilters} updateFilters={handleUpdateFilters}
       />
@@ -585,20 +564,12 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
           getSpans();
         }}
         variant="outline"
+        className="text-xs"
       >
-        <RefreshCcw size={16} className="mr-2" />
+        <RefreshCcw size={14} className="mr-2" />
         Refresh
       </Button>
-      {/* <div className="flex items-center space-x-2">
-        <Switch
-          checked={enableLiveUpdates}
-          onCheckedChange={(checked) => {
-            setEnableLiveUpdates(checked);
-            localStorage.setItem(LIVE_UPDATES_STORAGE_KEY, checked.toString());
-          }}
-        />
-        <Label>Live</Label>
-      </div> */}
+      <SearchTracesInput />
     </DataTable>
   );
 }

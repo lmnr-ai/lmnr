@@ -201,9 +201,7 @@ export async function GET(
       startTime: traces.startTime,
       endTime: traces.endTime,
       inputCost: traces.inputCost,
-      outputCost: traces.outputCost,
-      duration: durationExpr.as("duration"),
-      cost: costExpr.as("cost")
+      outputCost: traces.outputCost
     })
     .from(evaluationResults)
     .leftJoin(traces, eq(evaluationResults.traceId, traces.id))
