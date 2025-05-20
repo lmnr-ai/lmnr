@@ -1,17 +1,19 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 
+import TimelineElement from "@/components/traces/trace-view/timeline-element";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { getDuration } from "@/lib/flow/utils";
 import { Span } from "@/lib/traces/types";
-import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
 interface TimelineProps {
   spans: Span[];
   childSpans: { [key: string]: Span[] };
   collapsedSpans: Set<string>;
   browserSessionTime: number | null;
-  containerHeight: number;
-  scrollRef: RefObject<HTMLDivElement | null>;
+  zoomLevel: number;
+  selectedSpan: Span | null;
+  setSelectedSpan: (span: Span | null) => void;
 }
 
 interface SegmentEvent {
@@ -34,17 +36,17 @@ interface TimelineData {
   timelineWidthInMilliseconds: number;
 }
 
-const HEIGHT = 32;
-
-export default function Timeline({
+function Timeline({
   spans,
+  selectedSpan,
   childSpans,
   collapsedSpans,
   browserSessionTime,
-  containerHeight,
-  scrollRef,
+  zoomLevel,
+  setSelectedSpan,
 }: TimelineProps) {
   const ref = useRef<HTMLDivElement>(null);
+
   const [timelineData, setTimelineData] = useState<TimelineData>({
     segments: [],
     startTime: 0,
@@ -160,91 +162,62 @@ export default function Timeline({
 
   const virtualizer = useVirtualizer({
     count: segments.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 36, // HEIGHT + margin
-    overscan: 100,
+    getScrollElement: () => ref.current,
+    estimateSize: () => 32, // HEIGHT + margin
+    overscan: 50,
   });
 
   const items = virtualizer.getVirtualItems();
 
   return (
-    <div className="flex flex-col h-full w-full relative" ref={ref}>
-      <div className="bg-background flex text-xs w-full border-b z-50 sticky top-0 h-10 px-4">
+    <ScrollArea className="h-full w-full relative" ref={ref}>
+      <div
+        style={{ width: `${100 * zoomLevel}%` }}
+        className="sticky top-0 z-30 bg-background flex flex-1 text-xs border-b h-8 px-4"
+      >
+        {browserSessionTime && (
+          <div
+            className="absolute top-0 bg-primary z-50 w-[1px]"
+            style={{
+              left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds * 100) + "%",
+              height: virtualizer.getTotalSize() + 32,
+            }}
+          />
+        )}
         <div className="flex w-full relative">
           {timeIntervals.map((interval, index) => (
-            <div
-              className="border-l text-secondary-foreground pl-1 truncate flex items-center min-w-12 relative z-0"
-              style={{ width: "10%" }}
-              key={index}
-            >
-              {interval}
+            <div className="flex items-center h-full w-[10%]" key={index}>
+              <div className="border-l border-secondary-foreground/20 h-full" />
+              <div className="text-secondary-foreground truncate flex ml-1 justify-center">{interval}</div>
             </div>
           ))}
-          <div className="border-r" />
-          {browserSessionTime && (
-            <div
-              className="absolute top-0 bg-primary z-50 w-[1px]"
-              style={{
-                left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + "%",
-                height: containerHeight,
-              }}
-            />
-          )}
+          <div className="flex items-center h-full">
+            <div className="border-r border-secondary-foreground/20 h-full" />
+          </div>
         </div>
       </div>
-      <div className="px-4 pt-1.5">
+      <div style={{ height: virtualizer.getTotalSize(), width: `${100 * zoomLevel}%` }}>
         <div
-          className="relative w-full"
+          className="overflow-hidden"
           style={{
             position: "relative",
             height: virtualizer.getTotalSize(),
           }}
         >
-          {items.map((virtualRow) => {
-            const segment = segments[virtualRow.index];
-            if (!segment) return null; // Safety check
-
-            return (
-              <div
-                key={virtualRow.index}
-                data-index={virtualRow.index}
-                className="relative border-secondary-foreground/20"
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: HEIGHT,
-                  marginBottom: 4,
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                <div
-                  className="rounded relative z-20"
-                  style={{
-                    backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
-                    marginLeft: segment.left + "%",
-                    width: "max(" + segment.width + "%, 2px)",
-                    height: HEIGHT,
-                  }}
-                >
-                  {segment.events.map((event, index) => (
-                    <div
-                      key={index}
-                      className="absolute bg-orange-400 w-1 rounded"
-                      style={{
-                        left: event.left + "%",
-                        top: 0,
-                        height: HEIGHT,
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {items.map((virtualRow) => (
+            <TimelineElement
+              key={virtualRow.key}
+              selectedSpan={selectedSpan}
+              setSelectedSpan={setSelectedSpan}
+              segment={segments[virtualRow.index]}
+              virtualRow={virtualRow}
+            />
+          ))}
         </div>
       </div>
-    </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   );
 }
+
+export default memo(Timeline);

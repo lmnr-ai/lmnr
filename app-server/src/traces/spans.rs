@@ -24,6 +24,7 @@ use crate::{
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     storage::{Storage, StorageTrait},
     traces::span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
+    utils::json_value_to_string,
 };
 
 use super::{
@@ -33,7 +34,7 @@ use super::{
         GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST,
         SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
     },
-    utils::{json_value_to_string, skip_span_name},
+    utils::skip_span_name,
 };
 
 const INPUT_ATTRIBUTE_NAME: &str = "lmnr.span.input";

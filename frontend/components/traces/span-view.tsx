@@ -1,7 +1,7 @@
 import { omit } from "lodash";
 import { PlayCircle } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import LabelsContextProvider from "@/components/labels/labels-context";
@@ -12,13 +12,14 @@ import ExportSpansDialog from "@/components/traces/export-spans-dialog";
 import SpanInput from "@/components/traces/span-input";
 import SpanOutput from "@/components/traces/span-output";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
 import { Event } from "@/lib/events/types";
+import { useToast } from "@/lib/hooks/use-toast";
 import { Span, SpanType } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
 
 import Formatter from "../ui/formatter";
-import MonoWithCopy from "../ui/mono-with-copy";
 import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SpanTypeIcon from "./span-type-icon";
@@ -33,6 +34,18 @@ export function SpanView({ spanId }: SpanViewProps) {
   const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
   const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
+  const { toast } = useToast();
+
+  const copySpanId = () => {
+    if (span) {
+      navigator.clipboard.writeText(span.spanId);
+      toast({
+        title: "Copied span ID",
+        description: "Span ID has been copied to clipboard",
+        variant: "default",
+      });
+    }
+  };
 
   console.log(span);
   if (isLoading || !span) {
@@ -47,27 +60,41 @@ export function SpanView({ spanId }: SpanViewProps) {
 
   return (
     <>
-      <Tabs className="flex flex-col h-full w-full" defaultValue="span-input">
+      <Tabs className="flex flex-col h-full w-full overflow-hidden" defaultValue="span-input">
         <div className="border-b flex-none">
-          <div className="flex flex-col px-4 pt-2 gap-2">
+          <div className="flex flex-col px-4 pt-4 gap-2">
             <div className="flex flex-none items-center space-x-2">
               <SpanTypeIcon spanType={span.spanType} />
-              <div className="text-xl items-center font-medium truncate">{span.name}</div>
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="text-xl items-center font-medium truncate cursor-pointer"
+                      onClick={copySpanId}
+                    >
+                      {span.name}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Click to copy span ID</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               {span.spanType === SpanType.LLM && (
                 <Link
                   href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
                   passHref
                 >
-                  <Button variant="outlinePrimary">
+                  <Button variant="outlinePrimary" className="px-1.5">
                     <PlayCircle className="mr-2" size={16} />
                     Open in Playground
                   </Button>
                 </Link>
               )}
             </div>
-            <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
             <div className="flex flex-wrap gap-2">
               <StatsShields
+                className="flex-wrap"
                 startTime={span.startTime}
                 endTime={span.endTime}
                 totalTokenCount={
@@ -80,7 +107,7 @@ export function SpanView({ spanId }: SpanViewProps) {
                 outputCost={span.attributes["gen_ai.usage.output_cost"] ?? 0}
                 cost={span.attributes["gen_ai.usage.cost"] ?? 0}
               />
-              <div className="flex flex-row text-xs font-mono space-x-2 rounded-md p-0.5 px-2 border items-center">
+              <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
                 {new Date(span.startTime).toLocaleString()}
               </div>
             </div>
@@ -101,16 +128,16 @@ export function SpanView({ spanId }: SpanViewProps) {
             </LabelsContextProvider>
           </div>
           <TabsList className="border-none text-sm px-4">
-            <TabsTrigger value="span-input" className="z-50">
+            <TabsTrigger value="span-input" className="truncate">
               Span Input
             </TabsTrigger>
-            <TabsTrigger value="span-output" className="z-50">
+            <TabsTrigger value="span-output" className="truncate">
               Span Output
             </TabsTrigger>
-            <TabsTrigger value="attributes" className="z-50">
+            <TabsTrigger value="attributes" className="truncate">
               Attributes
             </TabsTrigger>
-            <TabsTrigger value="events" className="z-50">
+            <TabsTrigger value="events" className="truncate">
               Events
             </TabsTrigger>
           </TabsList>

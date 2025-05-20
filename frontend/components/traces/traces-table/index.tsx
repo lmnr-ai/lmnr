@@ -23,12 +23,13 @@ import { Label } from "../../ui/label";
 import { Switch } from "../../ui/switch";
 
 interface TracesTableProps {
+  traceId: string | null;
   onRowClick?: (rowId: string) => void;
 }
 
 const LIVE_UPDATES_STORAGE_KEY = "traces-live-updates";
 
-export default function TracesTable({ onRowClick }: TracesTableProps) {
+export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
@@ -45,7 +46,6 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
   const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
   const pageCount = Math.ceil(totalCount / pageSize);
-  const [traceId, setTraceId] = useState<string | null>(searchParams.get("traceId") ?? null);
   const [enableLiveUpdates, setEnableLiveUpdates] = useState<boolean>(true);
 
   useEffect(() => {
@@ -315,18 +315,14 @@ export default function TracesTable({ onRowClick }: TracesTableProps) {
 
   const handleRowClick = useCallback(
     (row: Row<Trace>) => {
+      onRowClick?.(row.id);
       const params = new URLSearchParams(searchParams);
       params.set("traceId", row.id);
       params.delete("spanId");
       router.push(`${pathName}?${params.toString()}`);
-      onRowClick?.(row.id);
     },
     [onRowClick, pathName, router, searchParams]
   );
-
-  useEffect(() => {
-    setTraceId(searchParams.get("traceId") ?? null);
-  }, [searchParams]);
 
   return (
     <DataTable

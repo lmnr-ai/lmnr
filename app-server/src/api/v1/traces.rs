@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use actix_web::{post, web, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse, post, web};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    db::{events::Event, project_api_keys::ProjectApiKey, spans::Span, DB},
-    features::{is_feature_enabled, Feature},
+    db::{DB, events::Event, project_api_keys::ProjectApiKey, spans::Span},
+    features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
