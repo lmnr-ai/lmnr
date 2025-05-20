@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight, RefreshCcw } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -23,7 +23,8 @@ import {
   EvaluationDatapointPreviewWithCompared,
   EvaluationResultsInfo,
 } from "@/lib/evaluation/types";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { DatatableFilter } from "@/lib/types";
+import { formatTimestamp, getFilterFromUrlParams,swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
 import { Button } from "../ui/button";
@@ -32,8 +33,6 @@ import DataTableFilter from "../ui/datatable-filter";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { DatatableFilter } from "@/lib/types";
-import { getFilterFromUrlParams } from "@/lib/utils";
 
 interface EvaluationProps {
   evaluations: EvaluationType[];
@@ -217,16 +216,14 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   };
 
   // Define possible filters based on columns
-  const possibleFilters = useMemo(() => {
-    return [
-      { id: "id", name: "ID" },
-      { id: "index", name: "Index" },
-      { id: "traceId", name: "Trace ID" },
-      { id: "startTime", name: "Start Time" },
-      { id: "duration", name: "Duration" },
-      { id: "cost", name: "Cost" }
-    ];
-  }, []);
+  const possibleFilters = useMemo(() => [
+    { id: "id", name: "ID" },
+    { id: "index", name: "Index" },
+    { id: "traceId", name: "Trace ID" },
+    { id: "startTime", name: "Start Time" },
+    { id: "duration", name: "Duration" },
+    { id: "cost", name: "Cost" }
+  ], []);
 
   return (
     <div className="h-full flex flex-col relative">

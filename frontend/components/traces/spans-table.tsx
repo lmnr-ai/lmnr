@@ -20,15 +20,14 @@ import DateRangeFilter from '../ui/date-range-filter';
 // import { Label } from '../ui/label';
 import Mono from '../ui/mono';
 // import { Switch } from '../ui/switch';
-import TextSearchFilter from '../ui/text-search-filter';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '../ui/tooltip';
-import SpanTypeIcon from './span-type-icon';
 import SearchTracesInput from './search-traces-input';
+import SpanTypeIcon from './span-type-icon';
 
 interface SpansTableProps {
   onRowClick?: (traceId: string) => void;

@@ -1,7 +1,7 @@
 'use client';
 
 import { formatDate } from "date-fns";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DateRange as ReactDateRange } from "react-day-picker";
@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 
 import { Button } from "./button";
 import { Calendar } from "./calendar";
-import { Input } from "./input";
 import { Label } from "./label";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";

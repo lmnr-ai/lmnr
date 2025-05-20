@@ -1,11 +1,10 @@
-import { and, asc, eq, ilike, inArray, or, sql, SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, SQL,sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations, evaluationScores, traces } from "@/lib/db/migrations/schema";
-import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 import { DatatableFilter } from "@/lib/types";
 import { getFilterFromUrlParams } from "@/lib/utils";
 

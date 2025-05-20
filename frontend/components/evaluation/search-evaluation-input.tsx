@@ -89,4 +89,4 @@ const SearchEvaluationInput = ({ className }: { className?: string }) => {
   );
 };
 
-export default memo(SearchEvaluationInput); 
+export default memo(SearchEvaluationInput);

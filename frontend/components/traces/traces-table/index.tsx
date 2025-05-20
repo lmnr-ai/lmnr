@@ -19,8 +19,6 @@ import { Button } from "../../ui/button";
 import { DataTable } from "../../ui/datatable";
 import DataTableFilter from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
-import { Label } from "../../ui/label";
-import { Switch } from "../../ui/switch";
 
 interface TracesTableProps {
   traceId: string | null;
