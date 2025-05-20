@@ -173,7 +173,7 @@ const TimelineElement = ({
             style={{
               left: event.left + "%",
               top: 0,
-              height: HEIGHT,
+              height: 24,
             }}
           />
         ))}
