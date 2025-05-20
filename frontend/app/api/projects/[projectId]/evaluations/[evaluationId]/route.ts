@@ -115,24 +115,71 @@ export async function GET(
     }
   }
 
+  // Duration expression (in seconds)
+  const durationExpr = sql`EXTRACT(EPOCH FROM (${traces.endTime} - ${traces.startTime}))`;
+
+  // Total cost expression
+  const costExpr = sql`(COALESCE(${traces.inputCost}, 0) + COALESCE(${traces.outputCost}, 0))`;
+
   // Add filter conditions
   urlParamFilters.forEach(filter => {
     const column = filter.column;
     const value = filter.value;
+    const operator = filter.operator;
 
     // Handle different column types
     if (column === "index") {
       whereConditions.push(eq(evaluationResults.index, parseInt(value)));
     } else if (column === "traceId") {
       whereConditions.push(eq(evaluationResults.traceId, value));
-    } else if (column === "startTime") {
-      whereConditions.push(sql`${traces.startTime}::text ILIKE ${'%' + value + '%'}`);
-    } else if (column === "endTime") {
-      whereConditions.push(sql`${traces.endTime}::text ILIKE ${'%' + value + '%'}`);
-    } else if (column === "inputCost") {
-      whereConditions.push(sql`${traces.inputCost}::text ILIKE ${'%' + value + '%'}`);
-    } else if (column === "outputCost") {
-      whereConditions.push(sql`${traces.outputCost}::text ILIKE ${'%' + value + '%'}`);
+
+    } else if (column === "duration") {
+      if (operator === "gt") {
+        const numValue = parseFloat(value);
+        whereConditions.push(sql`${durationExpr} > ${numValue}`);
+      } else if (operator === "gte") {
+        const numValue = parseFloat(value);
+        whereConditions.push(sql`${durationExpr} >= ${numValue}`);
+      } else if (operator === "lt") {
+        const numValue = parseFloat(value);
+        whereConditions.push(sql`${durationExpr} < ${numValue}`);
+      } else if (operator === "lte") {
+        const numValue = parseFloat(value);
+        whereConditions.push(sql`${durationExpr} <= ${numValue}`);
+      } else if (operator === "eq") {
+        const numValue = parseFloat(value);
+        whereConditions.push(sql`${durationExpr} = ${numValue}`);
+      } else {
+        // Default to equals if no operator specified
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          whereConditions.push(sql`${durationExpr} = ${numValue}`);
+        }
+      }
+    } else if (column === "cost") {
+      // Handle cost filtering with comparison operators
+      if (operator === "gt") {
+        const numValue = parseFloat(value);
+        whereConditions.push(sql`${costExpr} > ${numValue}`);
+      } else if (operator === "gte") {
+        const numValue = parseFloat(value.substring(2));
+        whereConditions.push(sql`${costExpr} >= ${numValue}`);
+      } else if (operator === "lt") {
+        const numValue = parseFloat(value);
+        whereConditions.push(sql`${costExpr} < ${numValue}`);
+      } else if (operator === "lte") {
+        const numValue = parseFloat(value);
+        whereConditions.push(sql`${costExpr} <= ${numValue}`);
+      } else if (operator === "eq") {
+        const numValue = parseFloat(value);
+        whereConditions.push(sql`${costExpr} = ${numValue}`);
+      } else {
+        // Default to equals if no operator specified
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          whereConditions.push(sql`${costExpr} = ${numValue}`);
+        }
+      }
     } else {
       // Default text search for ID
       whereConditions.push(sql`${evaluationResults.id}::text ILIKE ${'%' + value + '%'}`);
@@ -155,6 +202,8 @@ export async function GET(
       endTime: traces.endTime,
       inputCost: traces.inputCost,
       outputCost: traces.outputCost,
+      duration: durationExpr.as("duration"),
+      cost: costExpr.as("cost")
     })
     .from(evaluationResults)
     .leftJoin(traces, eq(evaluationResults.traceId, traces.id))

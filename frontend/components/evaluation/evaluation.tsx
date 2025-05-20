@@ -224,8 +224,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
       { id: "traceId", name: "Trace ID" },
       { id: "startTime", name: "Start Time" },
       { id: "duration", name: "Duration" },
-      { id: "cost", name: "Input Cost" },
-      { id: "outputCost", name: "Output Cost" },
+      { id: "cost", name: "Cost" }
     ];
   }, []);
 
