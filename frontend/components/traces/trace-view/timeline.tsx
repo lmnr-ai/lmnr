@@ -171,18 +171,19 @@ function Timeline({
 
   return (
     <ScrollArea className="h-full w-full relative" ref={ref}>
-      {browserSessionTime && (
-        <div
-          className="absolute top-0 bg-primary z-30 h-full w-[1px]"
-          style={{
-            left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + "%",
-          }}
-        />
-      )}
       <div
         style={{ width: `${100 * zoomLevel}%` }}
         className="sticky top-0 z-30 bg-background flex flex-1 text-xs border-b h-8 px-4"
       >
+        {browserSessionTime && (
+          <div
+            className="absolute top-0 bg-primary z-50 w-[1px]"
+            style={{
+              left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds * 100) + "%",
+              height: virtualizer.getTotalSize() + 32,
+            }}
+          />
+        )}
         <div className="flex w-full relative">
           {timeIntervals.map((interval, index) => (
             <div className="flex items-center h-full w-[10%]" key={index}>
