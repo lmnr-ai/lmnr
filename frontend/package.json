@@ -11,7 +11,8 @@
     "preview": "next build && next start",
     "type-check": "tsc --noEmit",
     "format:write": "prettier --write \"{app,lib,components}/**/*.{ts,tsx,mdx}\" --cache",
-    "format:check": "prettier --check \"{app,lib,components}**/*.{ts,tsx,mdx}\" --cache"
+    "format:check": "prettier --check \"{app,lib,components}**/*.{ts,tsx,mdx}\" --cache",
+    "test": "tsx --test tests/**.test.ts"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^2.2.8",
@@ -28,6 +29,7 @@
     "@codemirror/lang-html": "^6.4.9",
     "@codemirror/lang-json": "^6.0.1",
     "@codemirror/lang-python": "^6.1.7",
+    "@codemirror/lang-sql": "^6.8.0",
     "@codemirror/lang-yaml": "^6.1.2",
     "@codemirror/language": "^6.11.0",
     "@codemirror/state": "^6.5.2",
@@ -83,6 +85,7 @@
     "next": "^15.3.1",
     "next-auth": "^4.24.11",
     "next-mdx-remote": "^5.0.0",
+    "node-sql-parser": "^5.3.9",
     "pako": "^2.1.0",
     "postgres": "^3.4.5",
     "posthog-js": "^1.236.5",
@@ -140,6 +143,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.19.4",
     "typescript": "^5.8.3"
   }
 }

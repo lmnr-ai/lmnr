@@ -1,6 +1,7 @@
 import { html } from "@codemirror/lang-html";
 import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
+import { sql } from "@codemirror/lang-sql";
 import { yaml } from "@codemirror/lang-yaml";
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import { githubDarkStyle } from "@uiw/codemirror-theme-github";
@@ -251,6 +252,7 @@ const languageExtensions = {
   json: () => json(),
   yaml: () => yaml(),
   html: () => html(),
+  sql: () => sql(),
 };
 
 export default function CodeEditor({
