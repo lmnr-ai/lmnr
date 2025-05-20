@@ -220,13 +220,12 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const possibleFilters = useMemo(() => {
     return [
       { id: "id", name: "ID" },
-      { id: "evaluationId", name: "Evaluation ID" },
       { id: "index", name: "Index" },
       { id: "traceId", name: "Trace ID" },
       { id: "startTime", name: "Start Time" },
-      { id: "endTime", name: "End Time" },
-      { id: "inputCost", name: "Input Cost" },
-      { id: "outputCost", name: "Output Cost" }
+      { id: "duration", name: "Duration" },
+      { id: "cost", name: "Input Cost" },
+      { id: "outputCost", name: "Output Cost" },
     ];
   }, []);
 
