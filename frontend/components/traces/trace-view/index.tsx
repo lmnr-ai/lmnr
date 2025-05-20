@@ -158,6 +158,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       setTrace(null);
       setSpans([]);
       setShowBrowserSession(false);
+      setSearchEnabled(false);
     };
   }, [traceId, projectId, router]);
 
