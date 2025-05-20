@@ -2,7 +2,7 @@ import { ChartNoAxesGantt, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
-import SearchSpansInput from "@/components/traces/search-spans-input";
+import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
 import Header from "@/components/traces/trace-view/header";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -122,6 +122,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     async (search: string, searchIn: string[]) => {
       try {
         setIsSpansLoading(true);
+
         const params = new URLSearchParams();
         if (search) params.set("search", search);
         if (searchIn && searchIn.length > 0) {
@@ -136,14 +137,10 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
         const spanIdFromUrl = searchParams.get("spanId");
         const spanToSelect = spanIdFromUrl ? spans.find((span: Span) => span.spanId === spanIdFromUrl) ?? spans[0] : spans[0];
+        setSelectedSpan(spanToSelect);
 
-        if (spanToSelect) {
-          setSelectedSpan(spanToSelect);
-          const params = new URLSearchParams(searchParams);
-          params.set("spanId", spanToSelect.spanId);
-          router.push(`${pathName}?${params.toString()}`);
-        }
       } catch (e) {
+        console.error(e);
       } finally {
         setIsSpansLoading(false);
       }
