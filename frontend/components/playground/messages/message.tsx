@@ -1,7 +1,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ImagePart, TextPart } from "ai";
+import { ImagePart, TextPart, ToolCallPart } from "ai";
 import { capitalize } from "lodash";
-import { ChevronDown, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
+import { Bolt, ChevronDown, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
 import { useState } from "react";
 import { Controller, ControllerRenderProps, useFieldArray, UseFieldArrayReturn, useFormContext } from "react-hook-form";
 
@@ -41,6 +41,13 @@ const defaultImagePart: ImagePart = {
   image: "",
 };
 
+const defaultToolCallPart: ToolCallPart = {
+  type: "tool-call",
+  toolName: "",
+  toolCallId: "",
+  args: [],
+};
+
 const buttonClassName =
   "size-fit p-[5px] bg-muted/50 transition-opacity duration-200 opacity-0 group-hover:opacity-100";
 const Message = ({ insert, remove, update, index, deletable = true }: MessageProps) => {
@@ -75,7 +82,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["user", "assistant", "system"].map((item) => (
+                {["user", "assistant", "system", "tool"].map((item) => (
                   <SelectItem key={item} value={item}>
                     {capitalize(item)}
                   </SelectItem>
@@ -86,7 +93,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
           name={`messages.${index}.role`}
           control={control}
         />
-        {watch(`messages.${index}.role`) !== "system" && (
+        {watch(`messages.${index}.role`) !== "system" && watch(`messages.${index}.role`) !== "tool" && (
           <>
             <Tooltip>
               <TooltipPortal>
@@ -119,6 +126,23 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
               </TooltipTrigger>
             </Tooltip>
           </>
+        )}
+        {watch(`messages.${index}.role`) === "assistant" && (
+          <Tooltip>
+            <TooltipPortal>
+              <TooltipContent>Add tool message part</TooltipContent>
+            </TooltipPortal>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => append(defaultToolCallPart)}
+                className={buttonClassName}
+                variant="outline"
+                size="icon"
+              >
+                <Bolt size={12} />
+              </Button>
+            </TooltipTrigger>
+          </Tooltip>
         )}
         <Tooltip>
           <TooltipPortal>

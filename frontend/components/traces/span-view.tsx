@@ -67,10 +67,7 @@ export function SpanView({ spanId }: SpanViewProps) {
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div
-                      className="text-xl items-center font-medium truncate cursor-pointer"
-                      onClick={copySpanId}
-                    >
+                    <div className="text-xl items-center font-medium truncate cursor-pointer" onClick={copySpanId}>
                       {span.name}
                     </div>
                   </TooltipTrigger>
