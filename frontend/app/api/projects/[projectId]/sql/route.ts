@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { executeSafeQuery } from "@/lib/sql/transpile";
-import { db } from "@/lib/db/drizzle";
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
@@ -16,7 +15,7 @@ export async function POST(
       );
     }
 
-    const result = await executeSafeQuery(sqlQuery, projectId, db);
+    const result = await executeSafeQuery(sqlQuery, projectId);
 
     return NextResponse.json({ success: true, result });
   } catch (error) {

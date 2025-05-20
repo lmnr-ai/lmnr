@@ -549,6 +549,43 @@ class SQLValidator {
           }]
         }
       };
+    } else if (mainTable === 'dataset_datapoints') {
+      // Nested query for dataset_datapoints
+      projectIdCondition = {
+        type: 'binary_expr',
+        operator: 'IN',
+        left: {
+          type: 'column_ref',
+          table: mainTable,
+          column: 'dataset_id'
+        },
+        right: {
+          type: 'expr_list',
+          value: [{
+            type: 'select',
+            columns: [{
+              expr: { type: 'column_ref', table: '', column: 'id' },
+              as: null
+            }],
+            from: [{ table: 'datasets', as: null }],
+            where: {
+              type: 'binary_expr',
+              operator: '=',
+              left: {
+                type: 'column_ref',
+                table: '',
+                column: 'project_id'
+              },
+              right: {
+                type: 'param',
+                value: 1,
+                // @ts-ignore
+                prefix: '$'
+              }
+            }
+          }]
+        }
+      };
     } else {
       // A fallback condition for tables we don't recognize
       // It's better if this results in an error or empty result, than if
@@ -610,7 +647,6 @@ class SQLValidator {
 async function executeSafeQuery(
   sqlQuery: string,
   projectId: string,
-  dbClient: typeof db,
   logger: Logger = new DefaultLogger()
 ): Promise<any> {
   const validator = new SQLValidator();
@@ -623,7 +659,7 @@ async function executeSafeQuery(
   try {
     // Execute the query with prepared statement
     const prepared = new PostgresJsPreparedQuery(
-      dbClient.$client,
+      db.$client,
       result.sql,
       result.args.map(arg => arg.value),
       logger,
