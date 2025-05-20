@@ -1,20 +1,76 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, or, sql, SQL } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
+import { searchSpans } from "@/lib/clickhouse/spans";
+import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations, evaluationScores, traces } from "@/lib/db/migrations/schema";
+import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
+import { DatatableFilter } from "@/lib/types";
+import { getFilterFromUrlParams } from "@/lib/utils";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   props: { params: Promise<{ projectId: string; evaluationId: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;
 
-  const getEvaluation = db.query.evaluations.findFirst({
+  // Get search params
+  const search = req.nextUrl.searchParams.get("search");
+
+  // Get filters
+  let urlParamFilters: DatatableFilter[] = [];
+  try {
+    const filterParam = req.nextUrl.searchParams.get("filter");
+    if (filterParam) {
+      const parsedFilters = getFilterFromUrlParams(filterParam);
+      if (parsedFilters) {
+        urlParamFilters = parsedFilters;
+      }
+    }
+  } catch (e) {
+    console.error("Error parsing filters:", e);
+  }
+
+  // First, get the evaluation to extract its creation time
+  const evaluation = await db.query.evaluations.findFirst({
     where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
   });
+
+  if (!evaluation) {
+    return Response.json({ error: "Evaluation not found" }, { status: 404 });
+  }
+
+  // Check for span search
+  let searchTraceIds: string[] = [];
+  if (search && search.trim() !== "") {
+    try {
+      // Always search in both span input and output
+      const spanSearchTypes = [SpanSearchType.Input, SpanSearchType.Output];
+
+      // Calculate time range based on evaluation creation time
+      const startTime = new Date(evaluation.createdAt);
+      const endTime = new Date(evaluation.createdAt);
+      endTime.setHours(endTime.getHours() + 24); // Add 24 hours
+
+      // Search in spans with proper time range
+      const result = await searchSpans({
+        projectId,
+        searchQuery: search,
+        timeRange: {
+          start: startTime,
+          end: endTime
+        },
+        searchType: spanSearchTypes,
+      });
+
+      searchTraceIds = Array.from(result.traceIds);
+    } catch (error) {
+      console.error("Error searching spans:", error);
+    }
+  }
 
   const subQueryScoreCte = db.$with("scores").as(
     db
@@ -26,14 +82,71 @@ export async function GET(
       .groupBy(evaluationScores.resultId)
   );
 
+  // Build all where conditions
+  const whereConditions = [eq(evaluationResults.evaluationId, evaluationId)];
+
+  // Handle search conditions
+  if (search && search.trim() !== "") {
+    // Build search conditions for regular fields
+    const regularSearchConditions: SQL<unknown>[] = [
+      sql`${evaluationResults.data}::text ILIKE ${'%' + search + '%'}`,
+      sql`${evaluationResults.target}::text ILIKE ${'%' + search + '%'}`,
+      sql`${evaluationResults.executorOutput}::text ILIKE ${'%' + search + '%'}`,
+      sql`${subQueryScoreCte.cteScores}::text ILIKE ${'%' + search + '%'}`
+    ];
+
+    // If we found matching traces via span search, include those matches
+    if (searchTraceIds.length > 0) {
+      regularSearchConditions.push(
+        inArray(evaluationResults.traceId, searchTraceIds)
+      );
+    }
+
+    // Build OR condition manually
+    if (regularSearchConditions.length === 1) {
+      whereConditions.push(regularSearchConditions[0]);
+    } else {
+      let orCondition = sql`(${regularSearchConditions[0]}`;
+      for (let i = 1; i < regularSearchConditions.length; i++) {
+        orCondition = sql`${orCondition} OR ${regularSearchConditions[i]}`;
+      }
+      orCondition = sql`${orCondition})`;
+      whereConditions.push(orCondition);
+    }
+  }
+
+  // Add filter conditions
+  urlParamFilters.forEach(filter => {
+    const column = filter.column;
+    const value = filter.value;
+
+    // Handle different column types
+    if (column === "index") {
+      whereConditions.push(eq(evaluationResults.index, parseInt(value)));
+    } else if (column === "traceId") {
+      whereConditions.push(eq(evaluationResults.traceId, value));
+    } else if (column === "startTime") {
+      whereConditions.push(sql`${traces.startTime}::text ILIKE ${'%' + value + '%'}`);
+    } else if (column === "endTime") {
+      whereConditions.push(sql`${traces.endTime}::text ILIKE ${'%' + value + '%'}`);
+    } else if (column === "inputCost") {
+      whereConditions.push(sql`${traces.inputCost}::text ILIKE ${'%' + value + '%'}`);
+    } else if (column === "outputCost") {
+      whereConditions.push(sql`${traces.outputCost}::text ILIKE ${'%' + value + '%'}`);
+    } else {
+      // Default text search for ID
+      whereConditions.push(sql`${evaluationResults.id}::text ILIKE ${'%' + value + '%'}`);
+    }
+  });
+
   const getEvaluationResults = db
     .with(subQueryScoreCte)
     .select({
       id: evaluationResults.id,
       createdAt: evaluationResults.createdAt,
       evaluationId: evaluationResults.evaluationId,
-      data: sql<string>`SUBSTRING(${evaluationResults.data}::text, 0, 100)`.as("data"),
-      target: sql<string>`SUBSTRING(${evaluationResults.target}::text, 0, 100)`.as("target"),
+      data: evaluationResults.data,
+      target: evaluationResults.target,
       executorOutput: evaluationResults.executorOutput,
       scores: subQueryScoreCte.cteScores,
       index: evaluationResults.index,
@@ -46,10 +159,10 @@ export async function GET(
     .from(evaluationResults)
     .leftJoin(traces, eq(evaluationResults.traceId, traces.id))
     .leftJoin(subQueryScoreCte, eq(evaluationResults.id, subQueryScoreCte.resultId))
-    .where(eq(evaluationResults.evaluationId, evaluationId))
+    .where(and(...whereConditions))
     .orderBy(asc(evaluationResults.index), asc(evaluationResults.createdAt));
 
-  const [evaluation, results] = await Promise.all([getEvaluation, getEvaluationResults]);
+  const results = await getEvaluationResults;
 
   const result = {
     evaluation: evaluation,

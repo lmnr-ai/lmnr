@@ -57,7 +57,7 @@ export default function Traces() {
         className="flex flex-col h-full w-full"
         onValueChange={(value) => resetUrlParams(value)}
       >
-        <TabsList className="w-full flex px-4 border-b">
+        <TabsList className="w-full flex px-4 border-b text-sm">
           <TabsTrigger value="traces">Traces</TabsTrigger>
           <TabsTrigger value="spans">Spans</TabsTrigger>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>

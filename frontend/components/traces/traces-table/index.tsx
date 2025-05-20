@@ -352,22 +352,10 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     >
       <DataTableFilter possibleFilters={filters} activeFilters={activeFilters} updateFilters={handleUpdateFilters} />
       <DateRangeFilter />
-      <Button onClick={getTraces} variant="outline">
-        <RefreshCcw size={16} className="mr-2" />
+      <Button onClick={getTraces} variant="outline" className="text-xs">
+        <RefreshCcw size={14} className="mr-2" />
         Refresh
       </Button>
-      {supabase && (
-        <div className="flex items-center space-x-2">
-          <Switch
-            checked={enableLiveUpdates}
-            onCheckedChange={(checked) => {
-              setEnableLiveUpdates(checked);
-              localStorage.setItem(LIVE_UPDATES_STORAGE_KEY, checked.toString());
-            }}
-          />
-          <Label>Live</Label>
-        </div>
-      )}
       <SearchTracesInput />
     </DataTable>
   );

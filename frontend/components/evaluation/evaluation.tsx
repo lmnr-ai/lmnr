@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, RefreshCcw } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,6 +15,7 @@ import {
 } from "@/components/evaluation/columns";
 import CompareChart from "@/components/evaluation/compare-chart";
 import ScoreCard from "@/components/evaluation/score-card";
+import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import {
@@ -27,9 +28,12 @@ import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import TraceView from "../traces/trace-view";
 import { Button } from "../ui/button";
 import { DataTable } from "../ui/datatable";
+import DataTableFilter from "../ui/datatable-filter";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { DatatableFilter } from "@/lib/types";
+import { getFilterFromUrlParams } from "@/lib/utils";
 
 interface EvaluationProps {
   evaluations: EvaluationType[];
@@ -43,10 +47,38 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const searchParams = useSearchParams();
   const params = useParams();
   const targetId = searchParams.get("targetId");
-  const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(
-    `/api/projects/${params?.projectId}/evaluations/${evaluationId}`,
-    swrFetcher
-  );
+  const search = searchParams.get("search");
+  const filter = searchParams.get("filter");
+
+  // Build the URL with search and filter params
+  const evaluationUrl = useMemo(() => {
+    let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}`;
+    const urlParams = new URLSearchParams();
+
+    // Add search parameters if they exist
+    if (search) {
+      urlParams.set("search", search);
+    }
+
+    // Add searchIn parameters
+    const searchIn = searchParams.getAll("searchIn");
+    searchIn.forEach(value => {
+      urlParams.append("searchIn", value);
+    });
+
+    // Add filter parameters
+    if (filter) {
+      urlParams.set("filter", filter);
+    }
+
+    if (urlParams.toString()) {
+      url += `?${urlParams.toString()}`;
+    }
+
+    return url;
+  }, [params?.projectId, evaluationId, search, searchParams, filter]);
+
+  const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(evaluationUrl, swrFetcher);
 
   const { data: targetData } = useSWR<EvaluationResultsInfo>(
     () => (targetId ? `/api/projects/${params?.projectId}/evaluations/${targetId}` : null),
@@ -56,6 +88,9 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
   const evaluation = data?.evaluation;
+  const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
+    filter ? (getFilterFromUrlParams(filter) ?? []) : []
+  );
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -170,6 +205,31 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     }
   }, []);
 
+  const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
+    setActiveFilters(newFilters);
+    const params = new URLSearchParams(searchParams.toString());
+    if (newFilters.length > 0) {
+      params.set("filter", JSON.stringify(newFilters));
+    } else {
+      params.delete("filter");
+    }
+    push(`${pathName}?${params.toString()}`);
+  };
+
+  // Define possible filters based on columns
+  const possibleFilters = useMemo(() => {
+    return [
+      { id: "id", name: "ID" },
+      { id: "evaluationId", name: "Evaluation ID" },
+      { id: "index", name: "Index" },
+      { id: "traceId", name: "Trace ID" },
+      { id: "startTime", name: "Start Time" },
+      { id: "endTime", name: "End Time" },
+      { id: "inputCost", name: "Input Cost" },
+      { id: "outputCost", name: "Output Cost" }
+    ];
+  }, []);
+
   return (
     <div className="h-full flex flex-col relative">
       <Header path={`evaluations/${evaluationName}`} />
@@ -275,7 +335,14 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
               focusedRowId={searchParams?.get("datapointId")}
               paginated
               onRowClick={(row) => handleRowClick(row.original)}
-            />
+            >
+              <DataTableFilter
+                possibleFilters={possibleFilters}
+                activeFilters={activeFilters}
+                updateFilters={handleUpdateFilters}
+              />
+              <SearchEvaluationInput />
+            </DataTable>
           </div>
         </div>
       </div>

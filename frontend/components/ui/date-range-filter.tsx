@@ -1,5 +1,7 @@
+'use client';
+
 import { formatDate } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Clock } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DateRange as ReactDateRange } from "react-day-picker";
@@ -11,6 +13,7 @@ import { Calendar } from "./calendar";
 import { Input } from "./input";
 import { Label } from "./label";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
 type DateRange = {
   name: string;
@@ -46,22 +49,33 @@ function AbsoluteDateRangeFilter() {
   const router = useRouter();
   const pastHours = searchParams.get("pastHours");
   const [calendarDate, setCalendarDate] = useState<ReactDateRange | undefined>(undefined);
+  const [startTime, setStartTime] = useState({ hour: "00", minute: "00" });
+  const [endTime, setEndTime] = useState({ hour: "00", minute: "00" });
+
   useEffect(() => {
     let urlFrom: Date | undefined = undefined;
     try {
       const param = searchParams.get("startDate");
       if (param != undefined) {
         urlFrom = new Date(searchParams.get("startDate") as string);
+        setStartTime({
+          hour: urlFrom.getHours().toString().padStart(2, "0"),
+          minute: urlFrom.getMinutes().toString().padStart(2, "0")
+        });
       }
-    } catch (e) {}
+    } catch (e) { }
 
     let urlTo: Date | undefined = undefined;
     try {
       const param = searchParams.get("endDate");
       if (param != undefined) {
         urlTo = new Date(searchParams.get("endDate") as string);
+        setEndTime({
+          hour: urlTo.getHours().toString().padStart(2, "0"),
+          minute: urlTo.getMinutes().toString().padStart(2, "0")
+        });
       }
-    } catch (e) {}
+    } catch (e) { }
 
     if (calendarDate === undefined || urlFrom === undefined || urlTo === undefined) {
       setCalendarDate({
@@ -70,7 +84,31 @@ function AbsoluteDateRangeFilter() {
       });
     }
   }, [pastHours]);
+
+  useEffect(() => {
+    if (calendarDate?.from) {
+      const from = new Date(calendarDate.from);
+      from.setHours(parseInt(startTime.hour));
+      from.setMinutes(parseInt(startTime.minute));
+
+      const newRange: ReactDateRange = { from };
+
+      if (calendarDate.to) {
+        const to = new Date(calendarDate.to);
+        to.setHours(parseInt(endTime.hour));
+        to.setMinutes(parseInt(endTime.minute));
+        newRange.to = to;
+      }
+
+      setCalendarDate(newRange);
+    }
+  }, [startTime, endTime]);
+
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+
+  // Generate hours and minutes for select options
+  const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"));
+  const minutes = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, "0"));
 
   return (
     <div className={cn("grid gap-2")}>
@@ -79,7 +117,7 @@ function AbsoluteDateRangeFilter() {
           <Button
             id="date"
             variant="ghost"
-            className={cn("justify-start text-left flex font-normal", !calendarDate && "text-muted-foreground")}
+            className={cn("justify-start text-left flex font-normal text-xs text-white")}
           >
             <div>
               {calendarDate?.from ? (
@@ -92,7 +130,7 @@ function AbsoluteDateRangeFilter() {
                   formatDate(calendarDate?.from, "LLL dd, y HH:mm")
                 )
               ) : (
-                <div className="flex space-x-2 text-foreground">
+                <div className="flex space-x-2 text-secondary-foreground">
                   <CalendarIcon size={14} /> <div>Custom </div>
                 </div>
               )}
@@ -101,7 +139,6 @@ function AbsoluteDateRangeFilter() {
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
-            autoFocus
             mode="range"
             defaultMonth={calendarDate?.from}
             selected={calendarDate}
@@ -110,57 +147,92 @@ function AbsoluteDateRangeFilter() {
             disabled={{ after: new Date() }}
             pagedNavigation
           />
-          <div className="flex p-2 space-x-1">
-            <div className="flex p-1 flex-grow">
-              <Label className="py-2 flex-grow">
-                {calendarDate?.from ? formatDate(calendarDate.from, "LLL dd, y") : "Select start date"}
-              </Label>
-              <Input
-                type="time"
-                disabled={calendarDate?.from === undefined}
-                className="flex-shrink max-w-28"
-                value={`${calendarDate?.from?.getHours().toString().padStart(2, "0") ?? "00"}:${calendarDate?.from?.getMinutes().toString().padStart(2, "0") ?? "00"}`}
-                onChange={(e) => {
-                  const from = calendarDate?.from;
-                  if (from) {
-                    const time = e.target.value;
-                    const [hours, minutes] = time.split(":");
-                    from.setHours(parseInt(hours));
-                    from.setMinutes(parseInt(minutes));
-                    setCalendarDate({
-                      from,
-                      to: calendarDate.to,
-                    });
-                  }
-                }}
-              />
-            </div>
-            <div className="flex p-1 flex-grow">
-              <Label className="py-2 flex-grow">
-                {calendarDate?.to ? formatDate(calendarDate.to, "LLL dd, y") : "Select end date"}
-              </Label>
-              <Input
-                type="time"
-                disabled={calendarDate?.to === undefined}
-                className="flex-shrink max-w-28"
-                value={`${calendarDate?.to?.getHours().toString().padStart(2, "0") ?? "00"}:${calendarDate?.to?.getMinutes().toString().padStart(2, "0") ?? "00"}`}
-                onChange={(e) => {
-                  const to = calendarDate?.to;
-                  if (to) {
-                    const time = e.target.value;
-                    const [hours, minutes] = time.split(":");
-                    to.setHours(parseInt(hours));
-                    to.setMinutes(parseInt(minutes));
-                    setCalendarDate({
-                      from: calendarDate.from,
-                      to,
-                    });
-                  }
-                }}
-              />
+          <div className="p-3">
+            <div className="flex items-center gap-16">
+              <div>
+                <div className="flex items-center mb-2">
+                  <Label>Start Time</Label>
+                </div>
+                <div className="flex gap-2">
+                  <Select
+                    value={startTime.hour}
+                    onValueChange={(value) => setStartTime({ ...startTime, hour: value })}
+                    disabled={calendarDate?.from === undefined}
+                  >
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue placeholder="Hour" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {hours.map((hour) => (
+                        <SelectItem key={`start-hour-${hour}`} value={hour}>
+                          {hour}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center">:</span>
+                  <Select
+                    value={startTime.minute}
+                    onValueChange={(value) => setStartTime({ ...startTime, minute: value })}
+                    disabled={calendarDate?.from === undefined}
+                  >
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue placeholder="Minute" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {minutes.map((minute) => (
+                        <SelectItem key={`start-minute-${minute}`} value={minute}>
+                          {minute}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center mb-2">
+                  <Label>End Time</Label>
+                </div>
+                <div className="flex gap-2">
+                  <Select
+                    value={endTime.hour}
+                    onValueChange={(value) => setEndTime({ ...endTime, hour: value })}
+                    disabled={calendarDate?.to === undefined}
+                  >
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue placeholder="Hour" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {hours.map((hour) => (
+                        <SelectItem key={`end-hour-${hour}`} value={hour}>
+                          {hour}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center">:</span>
+                  <Select
+                    value={endTime.minute}
+                    onValueChange={(value) => setEndTime({ ...endTime, minute: value })}
+                    disabled={calendarDate?.to === undefined}
+                  >
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue placeholder="Minute" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {minutes.map((minute) => (
+                        <SelectItem key={`end-minute-${minute}`} value={minute}>
+                          {minute}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex justify-end p-2">
+          <div className="flex justify-end p-4 pt-2">
             <Button
               disabled={calendarDate?.from === undefined || calendarDate?.to === undefined}
               onClick={() => {
@@ -194,7 +266,7 @@ export default function DateRangeFilter() {
 
   return (
     <div className="flex items-start flex-none space-x-4">
-      <div className="flex rounded-md border h-8">
+      <div className="flex rounded-md border h-7 text-xs font-medium text-secondary-foreground">
         {
           <>
             {RANGES.map((range, index) => (
@@ -202,7 +274,7 @@ export default function DateRangeFilter() {
                 key={index}
                 className={cn(
                   "h-full items-center flex px-2 cursor-pointer border-r",
-                  range.value === selectedRange?.value ? "bg-secondary/80" : "hover:bg-secondary/80"
+                  range.value === selectedRange?.value ? "bg-secondary/80 text-white" : "hover:bg-secondary/80"
                 )}
                 onClick={() => {
                   searchParams.delete("startDate");
