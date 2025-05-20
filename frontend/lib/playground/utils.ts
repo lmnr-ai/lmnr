@@ -136,7 +136,7 @@ export const mapMessages = async (messages: ChatMessage[]): Promise<Message[]> =
 
         return {
           role: message.role ?? "assistant",
-          content: content as Array<ImagePart | TextPart | ToolCallPart>,
+          content: content as Array<ImagePart | TextPart | ToolCallPart | ToolResultPart>,
         } as Message;
       }
 
@@ -205,7 +205,6 @@ export const urlToBase64 = async (url: string): Promise<string> => {
     const base64 = Buffer.from(bytes).toString("base64");
     return `data:${contentType};base64,${base64}`;
   } catch (error) {
-    console.error("Error in urlToBase64:", error);
     throw new Error(`Failed to convert URL to base64: ${error}`);
   }
 };

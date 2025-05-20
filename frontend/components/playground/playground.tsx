@@ -63,7 +63,6 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     }
   };
 
-  console.log(playground.promptMessages);
   const updatePlaygroundData = useCallback(
     async (form: PlaygroundForm, id: string, projectId?: string) => {
       try {

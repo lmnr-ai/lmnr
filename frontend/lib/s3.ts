@@ -38,5 +38,6 @@ function getContentTypeFromFilename(filename: string): string {
   if (filename.endsWith(".gif")) return "image/gif";
   if (filename.endsWith(".webp")) return "image/webp";
   if (filename.endsWith(".pdf")) return "application/pdf";
-  return "image/jpeg"; // default
+  if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
+  return "application/octet-stream"; // safe default
 }

@@ -15,9 +15,11 @@ export async function GET(
 
   if (payloadType === "image") {
     headers.set("Content-Type", contentType);
+    headers.set("Content-Disposition", "inline");
     return new Response(bytes, { headers });
   } else if (payloadType === "raw") {
-    return new Response(bytes);
+    headers.set("Content-Type", contentType);
+    return new Response(bytes, { headers });
   } else if (payloadId.endsWith(".pdf")) {
     headers.set("Content-Type", "application/pdf");
   } else {

@@ -54,10 +54,8 @@ export default async function PlaygroundPage(props: {
           }
         }
       }
-      console.log("failed no span id");
       return notFound();
     } catch (e) {
-      console.log("failed to create playground", e);
       return notFound();
     }
   }
@@ -68,13 +66,11 @@ export default async function PlaygroundPage(props: {
     });
 
     if (!playground) {
-      console.log("failed couldn't create");
       return notFound();
     }
 
     return <Playground playground={playground as PlaygroundType} />;
   } catch (error) {
-    console.log("failed", error);
     return notFound();
   }
 }

@@ -47,7 +47,6 @@ export function SpanView({ spanId }: SpanViewProps) {
     }
   };
 
-  console.log(span);
   if (isLoading || !span) {
     return (
       <div className="flex flex-col space-y-2 p-4">
@@ -68,10 +67,7 @@ export function SpanView({ spanId }: SpanViewProps) {
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div
-                      className="text-xl items-center font-medium truncate cursor-pointer"
-                      onClick={copySpanId}
-                    >
+                    <div className="text-xl items-center font-medium truncate cursor-pointer" onClick={copySpanId}>
                       {span.name}
                     </div>
                   </TooltipTrigger>

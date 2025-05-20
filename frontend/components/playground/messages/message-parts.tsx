@@ -86,7 +86,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                   <div className="flex flex-col gap-1">
                     <span className="text-secondary-foreground text-xs">Tool name</span>
                     <Input
-                      placeholder="Enter text message"
+                      placeholder="Enter tool name"
                       {...register(`messages.${parentIndex}.content.${index}.toolName` as const)}
                       className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
                     />
@@ -104,7 +104,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                       <div className="flex flex-col gap-1">
                         <span className="text-secondary-foreground text-xs">Arguments</span>
                         <CodeHighlighter
-                          value={value as string}
+                          value={String(value)}
                           onChange={onChange}
                           className="bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit max-h-96"
                         />
@@ -132,7 +132,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                   <div className="flex flex-col gap-1">
                     <span className="text-secondary-foreground text-xs">Tool name</span>
                     <Input
-                      placeholder="Enter text message"
+                      placeholder="Enter tool name"
                       {...register(`messages.${parentIndex}.content.${index}.toolName` as const)}
                       className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
                     />
