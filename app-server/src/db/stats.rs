@@ -42,6 +42,29 @@ pub async fn add_spans_to_project_usage_stats(
     Ok(())
 }
 
+pub async fn increment_project_data_ingested(
+    pool: &PgPool,
+    project_id: &Uuid,
+    size: usize,
+) -> Result<()> {
+    sqlx::query(
+        "UPDATE workspace_usage
+        SET bytes_ingested = bytes_ingested + $2,
+            bytes_ingested_since_reset = bytes_ingested_since_reset + $2
+        WHERE workspace_id = (
+            SELECT workspace_id
+            FROM projects
+            WHERE id = $1
+            LIMIT 1)",
+    )
+    .bind(project_id)
+    .bind(size as i64)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
 pub async fn add_agent_steps_to_project_usage_stats(
     pool: &PgPool,
     project_id: &Uuid,

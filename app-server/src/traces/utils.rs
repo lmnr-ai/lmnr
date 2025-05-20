@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
 use regex::Regex;
-use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -21,18 +20,6 @@ use super::{
     attributes::TraceAttributes,
     spans::{SpanAttributes, SpanUsage},
 };
-
-pub fn json_value_to_string(v: &Value) -> String {
-    match v {
-        Value::String(s) => s.to_string(),
-        Value::Array(a) => a
-            .iter()
-            .map(json_value_to_string)
-            .collect::<Vec<_>>()
-            .join(", "),
-        _ => v.to_string(),
-    }
-}
 
 /// Calculate usage for both default and LLM spans
 pub async fn get_llm_usage_for_span(
