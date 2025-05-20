@@ -1,7 +1,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ImagePart, TextPart } from "ai";
+import { ImagePart, TextPart, ToolCallPart } from "ai";
 import { capitalize } from "lodash";
-import { ChevronDown, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
+import { Bolt, ChevronDown, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
 import { useState } from "react";
 import { Controller, ControllerRenderProps, useFieldArray, UseFieldArrayReturn, useFormContext } from "react-hook-form";
 
@@ -39,6 +39,13 @@ const defaultTextPart: TextPart = {
 const defaultImagePart: ImagePart = {
   type: "image",
   image: "",
+};
+
+const defaultToolCallPart: ToolCallPart = {
+  type: "tool-call",
+  toolName: "",
+  toolCallId: "",
+  args: [],
 };
 
 const buttonClassName =
@@ -119,6 +126,23 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
               </TooltipTrigger>
             </Tooltip>
           </>
+        )}
+        {watch(`messages.${index}.role`) === "assistant" && (
+          <Tooltip>
+            <TooltipPortal>
+              <TooltipContent>Add tool message part</TooltipContent>
+            </TooltipPortal>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => append(defaultToolCallPart)}
+                className={buttonClassName}
+                variant="outline"
+                size="icon"
+              >
+                <Bolt size={12} />
+              </Button>
+            </TooltipTrigger>
+          </Tooltip>
         )}
         <Tooltip>
           <TooltipPortal>

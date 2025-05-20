@@ -46,64 +46,67 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
     }));
   };
 
-  const submit: SubmitHandler<PlaygroundForm> = async (form) => {
-    try {
-      setIsLoading(true);
-      setUsage(undefined);
-      setOutput({ text: "", reasoning: "", toolCalls: [] });
+  const submit: SubmitHandler<PlaygroundForm> = useCallback(
+    async (form) => {
+      try {
+        setIsLoading(true);
+        setUsage(undefined);
+        setOutput({ text: "", reasoning: "", toolCalls: [] });
 
-      const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
-        method: "POST",
-        body: JSON.stringify({
-          projectId: params?.projectId,
-          model: form.model,
-          maxTokens: form.maxTokens,
-          temperature: form.temperature,
-          messages: parseSystemMessages(form.messages),
-          providerOptions: form.providerOptions,
-          tools: form.tools,
-          toolChoice: form.toolChoice,
-        }),
-      });
+        const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
+          method: "POST",
+          body: JSON.stringify({
+            projectId: params?.projectId,
+            model: form.model,
+            maxTokens: form.maxTokens,
+            temperature: form.temperature,
+            messages: parseSystemMessages(form.messages),
+            providerOptions: form.providerOptions,
+            tools: form.tools,
+            toolChoice: form.toolChoice,
+          }),
+        });
 
-      if (!response.body) {
-        throw new Error("No stream found.");
+        if (!response.body) {
+          throw new Error("No stream found.");
+        }
+
+        await processDataStream({
+          stream: response.body,
+          onErrorPart: (value) => {
+            toast({ variant: "destructive", title: "Error", description: value });
+          },
+          onTextPart: (value) => {
+            setOutput((prev) => ({
+              ...prev,
+              text: prev.text + value,
+            }));
+          },
+          onFinishMessagePart: (part) => {
+            if (part?.usage) {
+              setUsage(part.usage);
+            }
+          },
+          onReasoningPart: (value) => {
+            setOutput((prev) => ({
+              ...prev,
+              reasoning: prev.reasoning + value,
+            }));
+          },
+          onToolCallPart: appendToolCalls,
+          onToolResultPart: appendToolCalls,
+          onToolCallDeltaPart: appendToolCalls,
+        });
+      } catch (e) {
+        if (e instanceof Error) {
+          toast({ title: "Error", description: e.message, variant: "destructive" });
+        }
+      } finally {
+        setIsLoading(false);
       }
-
-      await processDataStream({
-        stream: response.body,
-        onErrorPart: (value) => {
-          toast({ variant: "destructive", title: "Error", description: value });
-        },
-        onTextPart: (value) => {
-          setOutput((prev) => ({
-            ...prev,
-            text: prev.text + value,
-          }));
-        },
-        onFinishMessagePart: (part) => {
-          if (part?.usage) {
-            setUsage(part.usage);
-          }
-        },
-        onReasoningPart: (value) => {
-          setOutput((prev) => ({
-            ...prev,
-            reasoning: prev.reasoning + value,
-          }));
-        },
-        onToolCallPart: appendToolCalls,
-        onToolResultPart: appendToolCalls,
-        onToolCallDeltaPart: appendToolCalls,
-      });
-    } catch (e) {
-      if (e instanceof Error) {
-        toast({ title: "Error", description: e.message, variant: "destructive" });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [params?.projectId, toast]
+  );
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {
     enableOnFormTags: ["input", "textarea"],
