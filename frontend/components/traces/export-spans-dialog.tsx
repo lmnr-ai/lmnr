@@ -224,9 +224,9 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
         }}
       >
         <DialogTrigger asChild>
-          <Badge className="cursor-pointer" variant="secondary">
-            <Database className="size-3 mr-2" />
-            <span className="text-xs">Add to dataset</span>
+          <Badge className="cursor-pointer min-w-8" variant="secondary">
+            <Database className="size-3 min-w-3 mr-2" />
+            <span className="text-xs truncate min-w-0 block">Add to dataset</span>
           </Badge>
         </DialogTrigger>
         <DialogContent className="max-w-6xl bg-background p-0 m-0 gap-0">

@@ -24,6 +24,7 @@ import { events, spans } from '@/lib/db/migrations/schema'; export async functio
       traceId,
       searchType: searchType as SpanSearchType[]
     });
+
     searchSpanIds = Array.from(searchResult.spanIds);
   }
 
@@ -77,7 +78,7 @@ import { events, spans } from '@/lib/db/migrations/schema'; export async functio
       and(
         eq(spans.traceId, traceId),
         eq(spans.projectId, projectId),
-        ...(searchSpanIds.length > 0 ? [inArray(spans.spanId, searchSpanIds)] : [])
+        ...(searchQuery !== null ? [inArray(spans.spanId, searchSpanIds)] : [])
       )
     )
     .orderBy(asc(spans.startTime));

@@ -89,7 +89,7 @@ export default function AddToLabelingQueuePopover({
         {children || (
           <Badge className="cursor-pointer h-fit flex-nowrap min-w-8" variant="secondary">
             <Pen className="size-3 min-w-3" />
-            <span className="ml-2 text-xs truncate block flex-1">Add to labeling queue</span>
+            <span className="ml-2 text-xs truncate block min-w-0">Add to labeling queue</span>
           </Badge>
         )}
       </PopoverTrigger>
