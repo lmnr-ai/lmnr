@@ -7,6 +7,7 @@ import { getPlaygroundConfig } from "@/components/playground/utils";
 import { db } from "@/lib/db/drizzle";
 import { playgrounds, spans } from "@/lib/db/migrations/schema";
 import { Playground as PlaygroundType } from "@/lib/playground/types";
+import { mapMessages } from "@/lib/playground/utils";
 import { Span } from "@/lib/traces/types";
 
 export const metadata: Metadata = {
@@ -35,13 +36,14 @@ export default async function PlaygroundPage(props: {
           const parsedSpanId = span.spanId.replace(/[0-]+/g, "");
 
           const config = getPlaygroundConfig(span);
+          const promptMessages = await mapMessages(span.input);
           const result = await db
             .insert(playgrounds)
             .values({
               ...config,
               projectId: params.projectId,
               name: `${span.name} - ${parsedSpanId}`,
-              promptMessages: span.input,
+              promptMessages,
             })
             .returning();
 
@@ -52,24 +54,27 @@ export default async function PlaygroundPage(props: {
           }
         }
       }
+      console.log("failed no span id");
       return notFound();
     } catch (e) {
+      console.log("failed to create playground", e);
       return notFound();
     }
   }
 
   try {
-    // db.query.playgrounds
     const playground = await db.query.playgrounds.findFirst({
       where: eq(playgrounds.id, params.playgroundId),
     });
 
     if (!playground) {
+      console.log("failed couldn't create");
       return notFound();
     }
 
     return <Playground playground={playground as PlaygroundType} />;
   } catch (error) {
+    console.log("failed", error);
     return notFound();
   }
 }

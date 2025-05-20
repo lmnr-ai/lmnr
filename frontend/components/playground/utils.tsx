@@ -221,8 +221,10 @@ export const getPlaygroundConfig = (
   const toolChoice = get(span, ["attributes", "ai.prompt.toolChoice"]);
   const parsedToolChoice = parseToolChoiceFromSpan(toolChoice);
 
+  const foundModel = model && existingModels.find((existingModel) => model.includes(existingModel));
+
   const result = {
-    modelId: model && provider && existingModels.includes(model) ? model : "openai:gpt-4o-mini",
+    modelId: foundModel && provider ? `${provider}:${foundModel}` : "openai:gpt-4o-mini",
     tools: parsedTools,
     toolChoice: parsedToolChoice || (parsedTools ? "auto" : undefined),
     maxTokens: get(span, ["attributes", "gen_ai.request.max_tokens"]) as number | undefined,

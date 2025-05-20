@@ -75,7 +75,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["user", "assistant", "system"].map((item) => (
+                {["user", "assistant", "system", "tool"].map((item) => (
                   <SelectItem key={item} value={item}>
                     {capitalize(item)}
                   </SelectItem>
@@ -86,7 +86,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
           name={`messages.${index}.role`}
           control={control}
         />
-        {watch(`messages.${index}.role`) !== "system" && (
+        {watch(`messages.${index}.role`) !== "system" && watch(`messages.${index}.role`) !== "tool" && (
           <>
             <Tooltip>
               <TooltipPortal>

@@ -5,10 +5,8 @@ import { DataContent, ToolChoice, ToolSet } from "ai";
 import { Provider } from "@/components/playground/types";
 import { playgrounds } from "@/lib/db/migrations/schema";
 
-import { ChatMessage } from "../types";
-
 export type Playground = typeof playgrounds.$inferSelect & {
-  promptMessages: ChatMessage[];
+  promptMessages: Message[];
   toolChoice: ToolChoice<any>;
   tools: string;
 };
@@ -25,9 +23,23 @@ export interface TextPart {
   text: string;
 }
 
+export interface ToolResultPart {
+  type: "tool-result";
+  toolCallId: string;
+  toolName: string;
+  result: any;
+}
+
+export interface ToolCallPart {
+  type: "tool-call";
+  toolCallId: string;
+  toolName: string;
+  args: unknown;
+}
+
 export interface Message {
-  role: "system" | "user" | "assistant";
-  content: Array<ImagePart | TextPart>;
+  role: "system" | "user" | "assistant" | "tool";
+  content: Array<ImagePart | TextPart | ToolResultPart | ToolCallPart>;
 }
 
 type OpenAIProviderOptions = {

@@ -57,14 +57,14 @@ export type ChatMessageContent = string | ChatMessageContentPart[];
 
 export type ChatMessage = {
   content: ChatMessageContent;
-  role?: "user" | "assistant" | "system";
+  role?: "user" | "assistant" | "system" | "tool";
 };
 
 export const flattenContentOfMessages = (
   messages: ChatMessage[] | Record<string, unknown> | string | undefined
 ): {
   content: ChatMessageContentPart[];
-  role?: "user" | "assistant" | "system";
+  role?: "user" | "assistant" | "system" | "tool";
 }[] => {
   if (isString(messages) || isNumber(messages)) {
     return [{ content: [{ type: "text", text: String(messages) }] }];

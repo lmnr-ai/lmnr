@@ -10,7 +10,6 @@ import { getDefaultThinkingModelProviderOptions } from "@/components/playground/
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
-import { mapMessages, remapMessages } from "@/lib/playground/utils";
 import { ProviderApiKey } from "@/lib/settings/types";
 import { swrFetcher } from "@/lib/utils";
 
@@ -50,10 +49,9 @@ export default function Playground({ playground }: { playground: PlaygroundType 
 
   const handleResetForm = async () => {
     if (playground) {
-      const messages = await mapMessages(playground.promptMessages);
       reset({
         model: playground.modelId as PlaygroundForm["model"],
-        messages: isEmpty(messages) ? defaultMessages : messages,
+        messages: isEmpty(playground.promptMessages) ? defaultMessages : playground.promptMessages,
         maxTokens: playground.maxTokens ?? undefined,
         temperature: playground.temperature ?? undefined,
         providerOptions: playground.providerOptions
@@ -65,6 +63,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     }
   };
 
+  console.log(playground.promptMessages);
   const updatePlaygroundData = useCallback(
     async (form: PlaygroundForm, id: string, projectId?: string) => {
       try {
@@ -72,7 +71,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         await fetch(`/api/projects/${projectId}/playgrounds/${id}`, {
           method: "POST",
           body: JSON.stringify({
-            promptMessages: remapMessages(form.messages),
+            promptMessages: form.messages,
             modelId: form.model,
             tools: form.tools,
             toolChoice: form.toolChoice,

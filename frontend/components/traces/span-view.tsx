@@ -34,6 +34,7 @@ export function SpanView({ spanId }: SpanViewProps) {
   const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
 
+  console.log(span);
   if (isLoading || !span) {
     return (
       <div className="flex flex-col space-y-2 p-4">

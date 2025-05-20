@@ -1,11 +1,13 @@
-import { Image as IconImage, Paperclip, X } from "lucide-react";
+import { Bolt, Image as IconImage, Paperclip, X } from "lucide-react";
 import { ChangeEvent, useCallback, useRef } from "react";
 import { Controller, FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Button } from "@/components/ui/button";
+import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
@@ -66,6 +68,98 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                   {...register(`messages.${parentIndex}.content.${index}.text` as const)}
                   className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none max-h-96"
                 />
+                {fields.length > 1 && (
+                  <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                    <X className="text-gray-400" size={12} />
+                  </Button>
+                )}
+              </div>
+            );
+
+          case "tool-call":
+            return (
+              <div key={part.id} className="flex gap-2">
+                <span className="pt-1">
+                  <Bolt className="size-3" />
+                </span>
+                <div className="flex flex-1 flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-secondary-foreground text-xs">Tool name</span>
+                    <Input
+                      placeholder="Enter text message"
+                      {...register(`messages.${parentIndex}.content.${index}.toolName` as const)}
+                      className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-secondary-foreground text-xs">Tool ID</span>
+                    <Input
+                      placeholder="Enter text message"
+                      {...register(`messages.${parentIndex}.content.${index}.toolCallId` as const)}
+                      className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
+                    />
+                  </div>
+                  <Controller
+                    render={({ field: { value, onChange } }) => (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-secondary-foreground text-xs">Arguments</span>
+                        <CodeHighlighter
+                          value={value as string}
+                          onChange={onChange}
+                          className="bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit max-h-96"
+                        />
+                      </div>
+                    )}
+                    name={`messages.${parentIndex}.content.${index}.args` as const}
+                    control={control}
+                  />
+                </div>
+                {fields.length > 1 && (
+                  <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                    <X className="text-gray-400" size={12} />
+                  </Button>
+                )}
+              </div>
+            );
+
+          case "tool-result":
+            return (
+              <div key={part.id} className="flex gap-2">
+                <span className="pt-1">
+                  <Bolt className="size-3" />
+                </span>
+                <div className="flex flex-1 flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-secondary-foreground text-xs">Tool name</span>
+                    <Input
+                      placeholder="Enter text message"
+                      {...register(`messages.${parentIndex}.content.${index}.toolName` as const)}
+                      className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-secondary-foreground text-xs">Tool ID</span>
+                    <Input
+                      placeholder="Enter text message"
+                      {...register(`messages.${parentIndex}.content.${index}.toolCallId` as const)}
+                      className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
+                    />
+                  </div>
+                  <Controller
+                    render={({ field: { value, onChange } }) => (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-secondary-foreground text-xs">Result</span>
+                        <CodeHighlighter
+                          value={value}
+                          onChange={onChange}
+                          className="bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit max-h-96"
+                        />
+                      </div>
+                    )}
+                    name={`messages.${parentIndex}.content.${index}.result` as const}
+                    control={control}
+                  />
+                </div>
                 {fields.length > 1 && (
                   <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
                     <X className="text-gray-400" size={12} />
