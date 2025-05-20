@@ -15,9 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
 import { Event } from "@/lib/events/types";
+import { useToast } from "@/lib/hooks/use-toast";
 import { Span, SpanType } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import Formatter from "../ui/formatter";
 import { Skeleton } from "../ui/skeleton";
