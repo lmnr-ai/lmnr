@@ -93,7 +93,7 @@ export default function DataTableFilter({ columns, className }: DataTableFilterP
       <PopoverTrigger asChild className={className}>
         <Button variant="outline" className="text-secondary-foreground h-7 text-xs font-medium">
           <ListFilter size={14} className="mr-2" />
-          Add filters
+          Add filter
         </Button>
       </PopoverTrigger>
       <PopoverContent className="z-30 p-0 w-96" side="bottom" align="start">
@@ -178,7 +178,13 @@ export const DataTableFilterList = () => {
             <Badge className="flex gap-2 border-primary py-1 px-2" variant="outline">
               <ListFilter className="w-3 h-3 text-primary" />
               <span className="text-xs text-primary truncate">
-                {f.column} {f.operator} {f.value}
+                {f.column}{" "}
+                {get(
+                  find([...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS], ["key", f.operator]),
+                  "label",
+                  f.operator
+                )}{" "}
+                {f.value}
               </span>
               <Button onClick={() => handleRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
                 <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
