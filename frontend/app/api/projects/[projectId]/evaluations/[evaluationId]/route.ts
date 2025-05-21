@@ -6,7 +6,6 @@ import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations, evaluationScores, traces } from "@/lib/db/migrations/schema";
 import { DatatableFilter } from "@/lib/types";
-import { getFilterFromUrlParams } from "@/lib/utils";
 
 export async function GET(
   req: NextRequest,
@@ -22,13 +21,7 @@ export async function GET(
   // Get filters
   let urlParamFilters: DatatableFilter[] = [];
   try {
-    const filterParam = req.nextUrl.searchParams.get("filter");
-    if (filterParam) {
-      const parsedFilters = getFilterFromUrlParams(filterParam);
-      if (parsedFilters) {
-        urlParamFilters = parsedFilters;
-      }
-    }
+    urlParamFilters = req.nextUrl.searchParams.getAll("filter").map((f) => JSON.parse(f) as DatatableFilter);
   } catch (e) {
     console.error("Error parsing filters:", e);
     return Response.json({ error: "Error parsing filters" }, { status: 400 });
@@ -64,7 +57,7 @@ export async function GET(
         searchQuery: search,
         timeRange: {
           start: startTime,
-          end: endTime
+          end: endTime,
         },
         searchType: spanSearchTypes,
       });
@@ -72,7 +65,6 @@ export async function GET(
       searchTraceIds = Array.from(result.traceIds);
 
       whereConditions.push(inArray(evaluationResults.traceId, searchTraceIds));
-
     } catch (error) {
       console.error("Error searching spans:", error);
     }
@@ -95,7 +87,7 @@ export async function GET(
   const costExpr = sql`(COALESCE(${traces.inputCost}, 0) + COALESCE(${traces.outputCost}, 0))`;
 
   // Add filter conditions
-  urlParamFilters.forEach(filter => {
+  urlParamFilters.forEach((filter) => {
     const column = filter.column;
     const value = filter.value;
     const operator = filter.operator;
@@ -105,7 +97,6 @@ export async function GET(
       whereConditions.push(eq(evaluationResults.index, parseInt(value)));
     } else if (column === "traceId") {
       whereConditions.push(eq(evaluationResults.traceId, value));
-
     } else if (column === "duration") {
       if (operator === "gt") {
         const numValue = parseFloat(value);
@@ -155,7 +146,7 @@ export async function GET(
       }
     } else {
       // Default text search for ID
-      whereConditions.push(sql`${evaluationResults.id}::text ILIKE ${'%' + value + '%'}`);
+      whereConditions.push(sql`${evaluationResults.id}::text ILIKE ${"%" + value + "%"}`);
     }
   });
 
@@ -174,7 +165,7 @@ export async function GET(
       startTime: traces.startTime,
       endTime: traces.endTime,
       inputCost: traces.inputCost,
-      outputCost: traces.outputCost
+      outputCost: traces.outputCost,
     })
     .from(evaluationResults)
     .leftJoin(traces, eq(evaluationResults.traceId, traces.id))

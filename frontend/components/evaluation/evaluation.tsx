@@ -23,13 +23,12 @@ import {
   EvaluationDatapointPreviewWithCompared,
   EvaluationResultsInfo,
 } from "@/lib/evaluation/types";
-import { DatatableFilter } from "@/lib/types";
-import { formatTimestamp, getFilterFromUrlParams, swrFetcher } from "@/lib/utils";
+import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
 import { Button } from "../ui/button";
 import { DataTable } from "../ui/datatable";
-import DataTableFilter from "../ui/datatable-filter";
+import DataTableFilter, { ColumnFilter, DataTableFilterList } from "../ui/datatable-filter";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -40,6 +39,15 @@ interface EvaluationProps {
   evaluationName: string;
 }
 
+const filters: ColumnFilter[] = [
+  { key: "id", name: "ID", dataType: "string" },
+  { key: "index", name: "Index", dataType: "number" },
+  { key: "traceId", name: "Trace ID", dataType: "string" },
+  { key: "startTime", name: "Start Time", dataType: "string" },
+  { key: "duration", name: "Duration", dataType: "number" },
+  { key: "cost", name: "Cost", dataType: "number" },
+];
+
 export default function Evaluation({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
   const { push } = useRouter();
   const pathName = usePathname();
@@ -47,7 +55,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const params = useParams();
   const targetId = searchParams.get("targetId");
   const search = searchParams.get("search");
-  const filter = searchParams.get("filter");
+  const filter = searchParams.getAll("filter");
 
   // Build the URL with search and filter params
   const evaluationUrl = useMemo(() => {
@@ -61,14 +69,11 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
     // Add searchIn parameters
     const searchIn = searchParams.getAll("searchIn");
-    searchIn.forEach(value => {
+    searchIn.forEach((value) => {
       urlParams.append("searchIn", value);
     });
 
-    // Add filter parameters
-    if (filter) {
-      urlParams.set("filter", filter);
-    }
+    filter.forEach((f) => urlParams.append("filter", f));
 
     if (urlParams.toString()) {
       url += `?${urlParams.toString()}`;
@@ -87,9 +92,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
   const evaluation = data?.evaluation;
-  const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
-    filter ? (getFilterFromUrlParams(filter) ?? []) : []
-  );
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -204,27 +206,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     }
   }, []);
 
-  const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
-    setActiveFilters(newFilters);
-    const params = new URLSearchParams(searchParams.toString());
-    if (newFilters.length > 0) {
-      params.set("filter", JSON.stringify(newFilters));
-    } else {
-      params.delete("filter");
-    }
-    push(`${pathName}?${params.toString()}`);
-  };
-
-  // Define possible filters based on columns
-  const possibleFilters = useMemo(() => [
-    { id: "id", name: "ID" },
-    { id: "index", name: "Index" },
-    { id: "traceId", name: "Trace ID" },
-    { id: "startTime", name: "Start Time" },
-    { id: "duration", name: "Duration" },
-    { id: "cost", name: "Cost" }
-  ], []);
-
   return (
     <div className="h-full flex flex-col relative">
       <Header path={`evaluations/${evaluationName}`} />
@@ -330,13 +311,13 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
               focusedRowId={searchParams?.get("datapointId")}
               paginated
               onRowClick={(row) => handleRowClick(row.original)}
+              childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
             >
-              <DataTableFilter
-                possibleFilters={possibleFilters}
-                activeFilters={activeFilters}
-                updateFilters={handleUpdateFilters}
-              />
-              <SearchEvaluationInput />
+              <div className="flex flex-1 w-full space-x-2">
+                <DataTableFilter columns={filters} />
+                <SearchEvaluationInput />
+              </div>
+              <DataTableFilterList />
             </DataTable>
           </div>
         </div>

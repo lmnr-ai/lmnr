@@ -1,32 +1,38 @@
-import { ListFilter, Plus, X } from "lucide-react";
+import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { find, get, head, isEqual } from "lodash";
+import { ListFilter, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DatatableFilter } from "@/lib/types";
-import { cn, getFilterFromUrlParams } from "@/lib/utils";
 
 import { Button } from "./button";
-import { Input } from "./input";
-import { Label } from "./label";
-import { Popover, PopoverContent, PopoverTrigger } from "./popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "./popover";
 
-interface Filter {
+export interface ColumnFilter {
   name: string;
-  id: string;
-  restrictOperators?: string[];
+  key: string;
+  dataType: "string" | "number" | "json";
 }
 
 interface DataTableFilterProps {
-  possibleFilters: Filter[];
-  activeFilters: DatatableFilter[];
-  updateFilters: (newFilters: DatatableFilter[]) => void;
+  columns: ColumnFilter[];
   className?: string;
 }
 
-const toFilterUrlParam = (filters: DatatableFilter[]): string => JSON.stringify(filters);
+const STRING_OPERATIONS = [
+  {
+    key: "eq",
+    label: "=",
+  },
+  { key: "ne", label: "!=" },
+];
 
-const SELECT_OPERATORS = [
+const NUMBER_OPERATIONS = [
   { key: "eq", label: "=" },
   { key: "lt", label: "<" },
   { key: "gt", label: ">" },
@@ -35,192 +41,163 @@ const SELECT_OPERATORS = [
   { key: "ne", label: "!=" },
 ];
 
-export default function DataTableFilter({
-  possibleFilters,
-  activeFilters,
-  updateFilters,
-  className,
-}: DataTableFilterProps) {
+const JSON_OPERATIONS = [{ key: "eq", label: "=" }];
+
+const dataTypeOperationsMap: Record<ColumnFilter["dataType"], { key: string; label: string }[]> = {
+  string: STRING_OPERATIONS,
+  number: NUMBER_OPERATIONS,
+  json: JSON_OPERATIONS,
+};
+
+export default function DataTableFilter({ columns, className }: DataTableFilterProps) {
   const router = useRouter();
   const pathName = usePathname();
-  const searchParamsRaw = useSearchParams();
-  const searchParams = useMemo(() => new URLSearchParams(searchParamsRaw.toString()), [searchParamsRaw]);
-  const queryParamFilters = searchParams.get("filter");
+  const searchParams = useSearchParams();
+  const [filter, setFilter] = useState<DatatableFilter>({ operator: "", column: "", value: "" });
 
-  const [filters, setFilters] = useState<DatatableFilter[]>(
-    queryParamFilters ? (getFilterFromUrlParams(queryParamFilters) ?? []) : []
-  );
-  const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
+  const handleApplyFilters = useCallback(() => {
+    const params = new URLSearchParams(searchParams);
+    params.append("filter", JSON.stringify(filter));
+    params.delete("pageNumber");
+    params.append("pageNumber", "0");
+    router.push(`${pathName}?${params.toString()}`);
+  }, [filter, pathName, router, searchParams]);
 
-  const handleApplyFilters = () => {
-    searchParams.delete("filter");
-    searchParams.delete("pageNumber");
-    searchParams.append("pageNumber", "0");
-    searchParams.append("filter", toFilterUrlParam(filters));
-    setPopoverOpen(false);
-    router.push(`${pathName}?${searchParams.toString()}`);
-  };
+  const handleValueChange = useCallback(({ field, value }: { field: keyof DatatableFilter; value: string }) => {
+    setFilter((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  }, []);
 
   useEffect(() => {
-    if (activeFilters.length > 0) {
-      setFilters(activeFilters);
+    const firstColumn = head(columns);
+
+    if (firstColumn) {
+      const { key: column, dataType } = firstColumn;
+
+      if (dataType && dataTypeOperationsMap[dataType]?.length) {
+        const operator = dataTypeOperationsMap[dataType][0].key;
+
+        setFilter({
+          operator,
+          column,
+          value: "",
+        });
+      }
     }
-  }, [activeFilters]);
-
-  const isFilterFilled = (filter: DatatableFilter): boolean => filter.value.length > 0;
-
-  const hasFilters = queryParamFilters ? (getFilterFromUrlParams(queryParamFilters)?.length ?? 0) > 0 : false;
+  }, [columns]);
 
   return (
-    <Popover open={popoverOpen} onOpenChange={setPopoverOpen} key={useSearchParams().toString()}>
+    <Popover>
       <PopoverTrigger asChild className={className}>
-        <Button
-          variant="outline"
-          className={cn(
-            "text-secondary-foreground h-7 text-xs font-medium",
-            hasFilters ? "text-primary bg-primary/20 border-primary/40 hover:bg-primary/30" : ""
-          )}
-        >
+        <Button variant="outline" className="text-secondary-foreground h-7 text-xs font-medium">
           <ListFilter size={14} className="mr-2" />
-          Filters
+          Add filters
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="z-30 p-0 w-[400px]" side="bottom" align="start">
-        <div className="">
-          <div className="p-2">
-            {filters.length > 0 ? (
-              <table key={filters.length.toString()} className="w-full">
-                <tbody>
-                  {filters.map((filter, i) => (
-                    <DataTableFilterRow
-                      i={i}
-                      key={i}
-                      filters={filters}
-                      setFilters={setFilters}
-                      possibleFilters={possibleFilters}
-                      updateFilters={updateFilters}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="px-2">
-                <Label className="text-sm text-secondary-foreground">No filters applied</Label>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-row justify-between p-2 border-t">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setFilters((filters) => [...filters, { column: possibleFilters[0].id, operator: "eq", value: "" }]);
-              }}
-            >
-              <Plus size={14} className="mr-1" />
-              Add Filter
+      <PopoverContent className="z-30 p-0 w-96" side="bottom" align="start">
+        <div className="flex gap-2 p-2">
+          <Select value={filter.column} onValueChange={(value) => handleValueChange({ field: "column", value })}>
+            <SelectTrigger className="flex truncate font-medium max-w-32">
+              <SelectValue placeholder="Choose column..." />
+            </SelectTrigger>
+            <SelectContent>
+              {columns.map((column) => (
+                <SelectItem key={column.key} value={column.key}>
+                  {column.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filter.operator} onValueChange={(value) => handleValueChange({ field: "operator", value })}>
+            <SelectTrigger className="font-medium w-fit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {dataTypeOperationsMap[get(find(columns, ["key", filter.column]), "dataType", "string")].map(
+                ({ key, label }) => (
+                  <SelectItem key={key} value={key}>
+                    {label}
+                  </SelectItem>
+                )
+              )}
+            </SelectContent>
+          </Select>
+          <Input
+            type={columns.find((c) => c.key === filter.column)?.dataType === "number" ? "number" : "text"}
+            className="h-7 hide-arrow"
+            placeholder="value"
+            onChange={(e) => handleValueChange({ field: "value", value: e.target.value })}
+          />
+        </div>
+        <div className="flex flex-row-reverse border-t p-2">
+          <PopoverClose asChild>
+            <Button onClick={handleApplyFilters} variant="secondary" handleEnter className="ml-auto">
+              Add filter
             </Button>
-            <Button
-              disabled={filters.some((filter) => !isFilterFilled(filter))}
-              variant="secondary"
-              onClick={handleApplyFilters}
-              handleEnter
-            >
-              Apply
-            </Button>
-          </div>
+          </PopoverClose>
         </div>
       </PopoverContent>
     </Popover>
   );
 }
 
-interface RowProps {
-  i: number;
-  filters: DatatableFilter[];
-  setFilters: (filters: DatatableFilter[]) => void;
-  updateFilters: (newFilters: DatatableFilter[]) => void;
-  possibleFilters: Filter[];
-}
+export const DataTableFilterList = () => {
+  const router = useRouter();
+  const pathName = usePathname();
+  const searchParams = useSearchParams();
 
-function DataTableFilterRow({ i, filters, setFilters, updateFilters, possibleFilters }: RowProps) {
-  const filter = filters[i];
-  const [selectedFilter, setSelectedFilter] = useState<Filter | null>(null);
-  const operators = (filter: Filter | null) =>
-    filter?.restrictOperators != null
-      ? SELECT_OPERATORS.filter((op) => filter.restrictOperators!.includes(op.key))
-      : SELECT_OPERATORS;
+  const filters = useMemo(
+    () => searchParams.getAll("filter").map((f) => JSON.parse(f) as DatatableFilter),
+    [searchParams]
+  );
 
-  const handleRemoveFilter = (index: number) => {
-    const newFilters = [...filters];
-    newFilters.splice(index, 1);
-    setFilters(newFilters);
-    updateFilters(newFilters);
-  };
+  const handleRemoveFilter = useCallback(
+    (filter: DatatableFilter) => {
+      const params = new URLSearchParams(searchParams);
+      const newFilters = filters.filter((f) => !isEqual(f, filter));
+      params.delete("filter");
+      newFilters.forEach((f) => {
+        params.append(`filter`, JSON.stringify(f));
+      });
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [filters, pathName, router, searchParams]
+  );
+
+  if (filters.length === 0) {
+    return null;
+  }
 
   return (
-    <tr key={i} className="w-full">
-      <td>
-        <div className="flex">
-          <Select
-            defaultValue={filter.column}
-            onValueChange={(value) => {
-              const newFilters = [...filters];
-              newFilters[i].column = value;
-              setSelectedFilter(possibleFilters.find((f) => f.id === value) ?? null);
-              setFilters(newFilters);
-            }}
-          >
-            <SelectTrigger className="flex font-medium w-40">
-              <SelectValue placeholder="Choose column..." />
-            </SelectTrigger>
-            <SelectContent>
-              {possibleFilters.map((filter, colIdx) => (
-                <SelectItem key={colIdx} value={filter.id}>
-                  {filter.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </td>
-      <td className="px-2">
-        <Select
-          defaultValue={filter?.operator ?? "eq"}
-          onValueChange={(value) => {
-            const newFilters = [...filters];
-            newFilters[i].operator = value;
-            setFilters(newFilters);
-          }}
-        >
-          <SelectTrigger className="font-medium">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {operators(selectedFilter).map((operator) => (
-              <SelectItem key={operator.key} value={operator.key}>
-                {operator.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </td>
-      <td className="">
-        <Input
-          className="h-7"
-          defaultValue={filter?.value ?? ""}
-          placeholder="value"
-          onChange={(e) => {
-            const newFilters = [...filters];
-            newFilters[i].value = e.target.value ?? "";
-            setFilters(newFilters);
-          }}
-        />
-      </td>
-      <td>
-        <Button className="p-0 px-1 text-secondary-foreground" variant={"ghost"} onClick={() => handleRemoveFilter(i)}>
-          <X size={16} />
-        </Button>
-      </td>
-    </tr>
+    <div className="flex gap-2 flex-wrap">
+      {filters.map((f) => (
+        <Tooltip key={`${f.column}-${f.value}-${f.operator}`}>
+          <TooltipTrigger asChild>
+            <Badge className="flex gap-2 border-primary py-1 px-2" variant="outline">
+              <ListFilter className="w-3 h-3 text-primary" />
+              <span className="text-xs text-primary truncate">
+                {f.column} {f.operator} {f.value}
+              </span>
+              <Button onClick={() => handleRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
+                <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
+              </Button>
+            </Badge>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent>
+              {f.column}{" "}
+              {get(
+                find([...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS], ["key", f.operator]),
+                "label",
+                f.operator
+              )}{" "}
+              {f.value}
+            </TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
+      ))}
+    </div>
   );
-}
+};

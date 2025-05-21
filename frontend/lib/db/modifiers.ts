@@ -1,18 +1,18 @@
-import { BinaryOperator, eq, gt, gte, lt, lte, ne, SQL,sql } from "drizzle-orm";
+import { BinaryOperator, eq, gt, gte, lt, lte, ne, SQL, sql } from "drizzle-orm";
 
 const filterOperators: Record<string, BinaryOperator> = {
-  'eq': eq,
-  'lt': lt,
-  'gt': gt,
-  'lte': lte,
-  'gte': gte,
-  'ne': ne,
+  eq: eq,
+  lt: lt,
+  gt: gt,
+  lte: lte,
+  gte: gte,
+  ne: ne,
 };
 
 const validateSqlColumnName = (column: string, allowPatterns?: RegExp[]): boolean => {
   const regex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
   const patterns = (allowPatterns ?? []).concat([regex]);
-  return patterns.some(pattern => pattern.test(column));
+  return patterns.some((pattern) => pattern.test(column));
 };
 
 export type FilterDef = {
@@ -20,7 +20,7 @@ export type FilterDef = {
   operator: string;
   value: string;
   castType?: string;
-}
+};
 
 export const filtersToSql = (
   filters: FilterDef[],

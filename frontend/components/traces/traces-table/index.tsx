@@ -1,22 +1,20 @@
 "use client";
 import { Row } from "@tanstack/react-table";
 import { isEmpty } from "lodash";
-import { RefreshCcw } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import RefreshButton from "@/components/traces/refresh-button";
 import SearchTracesInput from "@/components/traces/search-traces-input";
 import { columns, filters } from "@/components/traces/traces-table/columns";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanType, Trace } from "@/lib/traces/types";
-import { DatatableFilter, PaginatedResponse } from "@/lib/types";
-import { getFilterFromUrlParams } from "@/lib/utils";
+import { PaginatedResponse } from "@/lib/types";
 
-import { Button } from "../../ui/button";
 import { DataTable } from "../../ui/datatable";
-import DataTableFilter from "../../ui/datatable-filter";
+import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
 
 interface TracesTableProps {
@@ -57,10 +55,6 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     setEnableLiveUpdates(stored == null ? true : stored === "true");
   }, []);
 
-  const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
-    filter ? (getFilterFromUrlParams(filter) ?? []) : []
-  );
-
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
   const tracesRef = useRef<Trace[] | undefined>(traces);
@@ -72,7 +66,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
 
   const getTraces = useCallback(async () => {
     try {
-      let queryFilter = searchParams.get("filter");
+      let queryFilter = searchParams.getAll("filter");
       setTraces(undefined);
 
       if (!pastHours && !startDate && !endDate) {
@@ -90,11 +84,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       if (startDate != null) urlParams.set("startDate", startDate);
       if (endDate != null) urlParams.set("endDate", endDate);
 
-      if (typeof queryFilter === "string") {
-        urlParams.set("filter", queryFilter);
-      } else if (Array.isArray(queryFilter)) {
-        urlParams.set("filter", JSON.stringify(queryFilter));
-      }
+      queryFilter.forEach((filter) => urlParams.append("filter", filter));
 
       if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
         urlParams.set("search", textSearchFilter);
@@ -364,10 +354,6 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     }
   };
 
-  const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
-    setActiveFilters(newFilters);
-  };
-
   const handleRowClick = useCallback(
     (row: Row<Trace>) => {
       onRowClick?.(row.id);
@@ -405,19 +391,20 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       onPageChange={onPageChange}
       totalItemsCount={totalCount}
       enableRowSelection
+      childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
       selectionPanel={(selectedRowIds) => (
         <div className="flex flex-col space-y-2">
           <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTraces} entityName="traces" />
         </div>
       )}
     >
-      <DataTableFilter possibleFilters={filters} activeFilters={activeFilters} updateFilters={handleUpdateFilters} />
-      <DateRangeFilter />
-      <Button onClick={getTraces} variant="outline" className="text-xs">
-        <RefreshCcw size={14} className="mr-2" />
-        Refresh
-      </Button>
-      <SearchTracesInput />
+      <div className="flex flex-1 w-full space-x-2">
+        <DataTableFilter columns={filters} />
+        <DateRangeFilter />
+        <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getTraces} variant="outline" className="text-xs" />
+        <SearchTracesInput />
+      </div>
+      <DataTableFilterList />
     </DataTable>
   );
 }
