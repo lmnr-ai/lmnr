@@ -116,24 +116,24 @@ function AbsoluteDateRangeFilter() {
           <Button
             id="date"
             variant="ghost"
-            className={cn("justify-start text-left flex font-normal text-xs text-white")}
+            className={cn("justify-start text-left flex items-center font-normal text-xs text-white")}
           >
-            <div>
-              {calendarDate?.from ? (
-                calendarDate.to ? (
+            {calendarDate?.from ? (
+              <div className="pb-0.5">
+                {calendarDate.to ? (
                   <>
                     {formatDate(calendarDate.from, "LLL dd, y HH:mm")} -{" "}
                     {formatDate(calendarDate.to, "LLL dd, y HH:mm")}
                   </>
                 ) : (
                   formatDate(calendarDate?.from, "LLL dd, y HH:mm")
-                )
-              ) : (
-                <div className="flex space-x-2 text-secondary-foreground">
-                  <CalendarIcon size={14} /> <div>Custom </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex space-x-2 items-center text-secondary-foreground pb-0.5">
+                <CalendarIcon size={14} /> <span>Custom</span>
+              </div>
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
