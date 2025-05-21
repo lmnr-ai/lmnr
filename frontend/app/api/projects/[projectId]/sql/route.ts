@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { executeSafeQuery } from "@/lib/sql/transpile";
 export async function POST(
   request: NextRequest,

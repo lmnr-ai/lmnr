@@ -1,9 +1,9 @@
 /**
  * SQL Validator and Transpiler
- * 
- * This module validates and transpiles a subset of SQL queries for a platform 
+ *
+ * This module validates and transpiles a subset of SQL queries for a platform
  * where users have projects with multiple entities inside.
- * 
+ *
  * Features:
  * 1. Only allows SELECT queries
  * 2. Only allows access to specified tables
@@ -11,56 +11,50 @@
  * 4. Provides syntactic sugar for JSONB fields
  */
 
-import { NoopLogger, DefaultLogger, Logger } from "drizzle-orm";
+import { Logger, NoopLogger } from "drizzle-orm";
+import { PostgresJsPreparedQuery } from "drizzle-orm/postgres-js";
 import {
-  AggrFunc,
   AST,
-  BaseFrom,
   Binary,
-  Case,
-  Cast,
   Column,
   ColumnRef,
-  ColumnRefExpr,
-  ColumnRefItem,
   ExpressionValue,
-  ExprList,
-  From,
   Function as NodeSqlFunction,
   OrderBy,
   Parser,
   Select,
-  TableColumnAst,
   TableExpr,
 } from "node-sql-parser";
+
 import { db } from "@/lib/db/drizzle";
-import { PostgresJsPreparedQuery } from "drizzle-orm/postgres-js";
-import { Arg, TableName, TranspiledQuery } from "./types";
-import { REPLACE_JSONB_FIELDS } from "./replace";
+
+import { getExpressionASTs } from "./expression";
+import {
+  applyAutoJoinRules,
+  qualifyColumnReferences,
+} from "./join";
+import { applyProjectIdToStatement, findMainTable } from "./project-id-filter";
+import { replaceJsonbFields } from "./replace";
+import { ALLOWED_TABLES, Arg, TranspiledQuery } from "./types";
+import { getFromTableNames } from "./utils";
+import { AGG_SCORE_CTE_WITH, WITH_AGG_SCORES_CTE_NAME } from "./with";
+
+const ALLOWED_INTERNAL_CTES = [WITH_AGG_SCORES_CTE_NAME];
 
 class SQLValidator {
   private parser: Parser;
   private allowedTables: Set<string>;
 
-  constructor() {
+  constructor(allowedTables: Set<string> = ALLOWED_TABLES) {
     this.parser = new Parser();
-
-    this.allowedTables = new Set([
-      "spans",
-      "traces",
-      "evaluations",
-      "evaluation_results",
-      "evaluation_scores",
-      "datasets",
-      "dataset_datapoints"
-    ]);
+    this.allowedTables = allowedTables;
   }
 
   /**
    * Validates and transpiles a user SQL query to a safe SQL query
    * @param {string} sqlQuery - The user's SQL query
    * @param {string} projectId - The user's project ID
-   * @returns {TranspiledQuery} - { valid: boolean, sql: string, params: any[], error: string }
+   * @returns {TranspiledQuery} - the result of transpilation
    */
   public validateAndTranspile(sqlQuery: string, projectId: string): TranspiledQuery {
     try {
@@ -77,18 +71,34 @@ class SQLValidator {
         };
       }
 
-      const allowedTables = [`(select)::(.*)::(${Array.from(this.allowedTables).join('|')})`]
-      this.parser.whiteListCheck(sqlQuery,
-        allowedTables,
-        {
-          database: 'Postgresql',
-          type: 'table',
-        }
-      )
+      const allowedTables = [`(select)::(.*)::(${Array.from(this.allowedTables).concat(ALLOWED_INTERNAL_CTES).join('|')})`];
+      try {
+        this.parser.whiteListCheck(sqlQuery,
+          allowedTables,
+          {
+            database: 'Postgresql',
+            type: 'table',
+          }
+        );
+      } catch (error) {
+        // This error is worded with good explanation, but exposes too much
+        // information to the user, so throw a generic error instead
+        return {
+          valid: false,
+          sql: null,
+          args: [],
+          error: 'Access denied. Only SELECT queries on tables ' +
+            `${Array.from(this.allowedTables).map(table => `'${table}'`).join(', ')}` +
+            ' are allowed.'
+        };
+      }
+
+      console.log('ast', JSON.stringify(ast, null, 2));
 
       // Transpile the query
       const transpiled = this.transpileQuery(ast, projectId);
 
+      console.log('transpiled', transpiled.sql);
       return {
         valid: true,
         sql: transpiled.sql,
@@ -133,12 +143,13 @@ class SQLValidator {
     for (const statement of statements) {
       if (statement.type !== 'select') continue;
 
-      // Add project_id condition to WHERE clause
+      statement.with = [...(statement.with ?? []), ...AGG_SCORE_CTE_WITH];
+
       this.processSubqueries(statement, new Set());
     }
 
     // Convert AST back to SQL
-    let sql = this.parser.sqlify(ast, {
+    const sql = this.parser.sqlify(ast, {
       database: 'Postgresql',
     });
 
@@ -168,34 +179,36 @@ class SQLValidator {
       const newProcessedNodes = new Set(processedNodes);
       newProcessedNodes.add(node);
 
-      let fromTables: string[] = [];
-
-      if (node.from) {
-        if (Array.isArray(node.from)) {
-          fromTables = node.from.map((from: From) => {
-            if ((from as BaseFrom).table) {
-              return (from as BaseFrom).table;
-            }
-          }).filter((table): table is string => table !== undefined);
+      if (node.with) {
+        for (const withItem of node.with) {
+          this.processSubqueries(withItem.stmt.ast, newProcessedNodes);
         }
       }
 
+      const fromTables: string[] = getFromTableNames(node);
+
+      // Process auto-joins based on rules
+      applyAutoJoinRules(node as Select, fromTables);
+
+      // After joins are added, qualify column references
+
       node.columns.forEach((column: Column) => {
         const aliases: string[] = [];
-        column.expr = this.replaceJsonbFields(column.expr, fromTables, aliases);
-        column.as = aliases[0] ?? null;
+        column.expr = qualifyColumnReferences(column.expr, fromTables);
+        column.expr = replaceJsonbFields(column.expr, fromTables, aliases);
+        column.as = aliases[0] ?? column.as ?? null;
       });
 
       if (node.groupby?.columns) {
         node.groupby.columns = node.groupby.columns.map((column: ColumnRef) =>
-          this.replaceJsonbFields(column, fromTables, []) as ExpressionValue as ColumnRef
+          replaceJsonbFields(column, fromTables, []) as ExpressionValue as ColumnRef
         );
       }
 
       if (node.orderby) {
         node.orderby = node.orderby.map((order: OrderBy) => ({
           ...order,
-          expr: this.replaceJsonbFields(order.expr, fromTables, []) as ExpressionValue,
+          expr: replaceJsonbFields(order.expr, fromTables, []) as ExpressionValue,
         }));
       }
 
@@ -217,8 +230,8 @@ class SQLValidator {
 
       if (node.where) {
         if (node.where.type === 'binary_expr') {
-          const leftASTs = this.getExpressionASTs((node.where as Binary).left);
-          const rightASTs = this.getExpressionASTs((node.where as Binary).right);
+          const leftASTs = getExpressionASTs((node.where as Binary).left);
+          const rightASTs = getExpressionASTs((node.where as Binary).right);
           for (const leftAST of leftASTs) {
             this.processSubqueries(leftAST, newProcessedNodes);
           }
@@ -227,13 +240,13 @@ class SQLValidator {
           }
           node.where = {
             ...node.where,
-            left: this.replaceJsonbFields(node.where.left, fromTables, []) as ExpressionValue,
-            right: this.replaceJsonbFields(node.where.right, fromTables, []) as ExpressionValue,
-          }
+            left: replaceJsonbFields(node.where.left, fromTables, []) as ExpressionValue,
+            right: replaceJsonbFields(node.where.right, fromTables, []) as ExpressionValue,
+          };
         } else if (node.where.type === 'function') {
           const args = (node.where as NodeSqlFunction).args;
           if (args) {
-            const argASTs = this.getExpressionASTs(args);
+            const argASTs = getExpressionASTs(args);
             for (const argAST of argASTs) {
               this.processSubqueries(argAST, newProcessedNodes);
             }
@@ -241,17 +254,17 @@ class SQLValidator {
               ...node.where,
               args: {
                 ...args,
-                value: args.value.map(item => this.replaceJsonbFields(item, fromTables, []) as ExpressionValue),
+                value: args.value.map(item => replaceJsonbFields(item, fromTables, []) as ExpressionValue),
               },
-            }
+            };
           }
         }
       }
 
       // Now apply the project_id condition to this select statement
-      const mainTable = this.findMainTable(node);
+      const mainTable = findMainTable(node);
       if (this.allowedTables.has(mainTable)) {
-        this.applyProjectIdToStatement(node);
+        applyProjectIdToStatement(node);
       }
       return node;
     } else if (node as unknown as TableExpr) {
@@ -260,381 +273,6 @@ class SQLValidator {
       throw new Error('Only select queries are supported');
     }
   }
-
-  private getExpressionASTs(expression: ExpressionValue | ExprList): AST[] {
-    if (expression.type === 'expr_list' && Array.isArray(expression.value)) {
-      return (expression.value as ExpressionValue[]).flatMap(item => this.getExpressionASTs(item));
-    }
-
-    if ((expression as unknown as TableColumnAst)?.ast) {
-      const ast = (expression as unknown as TableColumnAst).ast;
-      if (ast) {
-        return Array.isArray(ast) ? ast : [ast];
-      }
-    }
-
-    if (expression.type === 'function' && (expression as unknown as NodeSqlFunction).args) {
-      const args = (expression as unknown as NodeSqlFunction).args;
-      if (args) {
-        return this.getExpressionASTs(args);
-      }
-    }
-
-    if (expression.type === 'case') {
-      const args = (expression as unknown as Case).args;
-      if (args) {
-        for (const arg of args) {
-          if (arg.type === 'when') {
-            return this.getExpressionASTs(arg.cond);
-          }
-          if (arg.type === 'else') {
-            return this.getExpressionASTs(arg.result);
-          }
-        }
-      }
-    }
-
-    if (expression.type === 'binary_expr') {
-      const binaryExpression = expression as unknown as Binary;
-      return [
-        ...this.getExpressionASTs(binaryExpression.left),
-        ...this.getExpressionASTs(binaryExpression.right)
-      ];
-    }
-
-    if (expression.type === 'aggr_func') {
-      const aggrFunc = expression as unknown as AggrFunc;
-      return this.getExpressionASTs(aggrFunc.args.expr);
-    }
-
-    if (expression.type === 'cast') {
-      const cast = expression as unknown as Cast;
-      return this.getExpressionASTs(cast.expr);
-    }
-
-    return [];
-  }
-
-  private replaceJsonbFields(
-    columnExpression: ExpressionValue | ExprList,
-    fromTables: string[] = [],
-    aliases: string[] = [],
-  ): ExpressionValue | ExprList {
-    if (columnExpression.type === 'expr_list' && Array.isArray(columnExpression.value)) {
-      return {
-        ...columnExpression,
-        value: columnExpression.value.map(item => this.replaceJsonbFields(item, fromTables, aliases))
-      }
-    }
-
-    if (columnExpression.type === 'expr' && (columnExpression as unknown as ColumnRefExpr).expr?.type === 'column_ref') {
-      const innerExpr = (columnExpression as unknown as ColumnRefExpr).expr;
-      const tables = innerExpr.table ? [innerExpr.table] : fromTables;
-      const column = innerExpr.column;
-      const columnName = typeof column === 'string' ? column : column.expr.value as string;
-      for (const table of tables) {
-        if (table && columnName && REPLACE_JSONB_FIELDS[table as TableName]?.[columnName]) {
-          const mapping = REPLACE_JSONB_FIELDS[table as TableName]?.[columnName]!;
-          aliases.push(mapping.as ?? columnName);
-          return mapping.replaceWith as unknown as ExpressionValue;
-        }
-      }
-      return columnExpression;
-    }
-
-    if (columnExpression.type === "column_ref") {
-      const tables = (columnExpression as unknown as ColumnRefItem).table ? [
-        (columnExpression as unknown as ColumnRefItem).table
-      ] : fromTables;
-      const column = (columnExpression as unknown as ColumnRefItem).column;
-      const columnName = typeof column === 'string' ? column : column.expr.value as string;
-      for (const table of tables) {
-        if (table && columnName && REPLACE_JSONB_FIELDS[table as TableName]?.[columnName]) {
-          const mapping = REPLACE_JSONB_FIELDS[table as TableName]?.[columnName]!;
-          aliases.push(mapping.as ?? columnName);
-          return mapping.replaceWith as unknown as ExpressionValue;
-        }
-      }
-      return columnExpression;
-    }
-
-    if (columnExpression.type === "function") {
-      const functionExpression = columnExpression as unknown as NodeSqlFunction;
-      const args = functionExpression.args;
-      if (args !== undefined) {
-        return {
-          ...functionExpression,
-          args: {
-            ...args,
-            value: args.value.map(item => this.replaceJsonbFields(item, fromTables, aliases))
-          }
-        };
-      }
-      return columnExpression;
-    }
-
-    if (columnExpression.type === "case") {
-      const caseExpression = columnExpression as unknown as Case;
-      const args = caseExpression.args;
-      return {
-        ...caseExpression,
-        args: args.map(item => {
-          if (item.type === "when") {
-            return {
-              ...item,
-              cond: this.replaceJsonbFields(item.cond, fromTables, aliases) as ExpressionValue as Binary,
-              result: this.replaceJsonbFields(item.result, fromTables, aliases)
-            }
-          } else if (item.type === "else") {
-            return {
-              ...item,
-              result: this.replaceJsonbFields(item.result, fromTables, aliases)
-            }
-          }
-          return item;
-        })
-      }
-    }
-
-    if (columnExpression.type === "binary_expr") {
-      const binaryExpression = columnExpression as unknown as Binary;
-      return {
-        ...binaryExpression,
-        left: this.replaceJsonbFields(binaryExpression.left, fromTables, aliases),
-        right: this.replaceJsonbFields(binaryExpression.right, fromTables, aliases)
-      }
-    }
-
-    if (columnExpression.type === "aggr_func") {
-      const aggrFunc = columnExpression as unknown as AggrFunc;
-      return {
-        ...aggrFunc,
-        args: {
-          ...aggrFunc.args,
-          expr: this.replaceJsonbFields(aggrFunc.args.expr, fromTables, aliases)
-        }
-      }
-    }
-
-    if (columnExpression.type === "cast") {
-      const cast = columnExpression as unknown as Cast;
-      return {
-        ...cast,
-        expr: this.replaceJsonbFields(cast.expr, fromTables, aliases)
-      }
-    }
-
-    return columnExpression;
-  }
-
-  /**
-   * Apply project_id condition to a statement
-   * @param {AST} statement - SQL statement object
-   */
-  private applyProjectIdToStatement(statement: AST) {
-    if (statement.type !== 'select') return;
-
-    const mainTable = this.findMainTable(statement);
-    let projectIdCondition: Binary;
-
-    // Create the appropriate condition based on the table
-    if (['spans', 'traces', 'evaluations'].includes(mainTable)) {
-      // Direct project_id condition for tables with project_id column
-      projectIdCondition = {
-        type: 'binary_expr',
-        operator: '=',
-        left: {
-          type: 'column_ref',
-          table: mainTable,
-          column: 'project_id'
-        },
-        right: {
-          type: 'param',
-          value: 1, // Using $1 for the parameter
-          // @ts-ignore
-          prefix: '$'
-        }
-      };
-    } else if (mainTable === 'evaluation_scores') {
-      // Nested query for evaluation_scores
-      projectIdCondition = {
-        type: 'binary_expr',
-        operator: 'IN',
-        left: {
-          type: 'column_ref',
-          table: mainTable,
-          column: 'result_id'
-        },
-        right: {
-          type: 'expr_list',
-          value: [{
-            type: 'select',
-            columns: [{
-              expr: { type: 'column_ref', table: '', column: 'id' },
-              as: null
-            }],
-            from: [{ table: 'evaluation_results', as: null }],
-            where: {
-              type: 'binary_expr',
-              operator: 'IN',
-              left: {
-                type: 'column_ref',
-                table: '',
-                column: 'evaluation_id'
-              },
-              right: {
-                type: 'expr_list',
-                value: [{
-                  type: 'select',
-                  columns: [{
-                    expr: { type: 'column_ref', table: '', column: 'id' },
-                    as: null
-                  }],
-                  from: [{ table: 'evaluations', as: null }],
-                  where: {
-                    type: 'binary_expr',
-                    operator: '=',
-                    left: {
-                      type: 'column_ref',
-                      table: '',
-                      column: 'project_id'
-                    },
-                    right: {
-                      type: 'param',
-                      value: 1,
-                      // @ts-ignore
-                      prefix: '$'
-                    }
-                  }
-                }]
-              }
-            }
-          }]
-        }
-      };
-    } else if (mainTable === 'evaluation_results') {
-      // Nested query for evaluation_results
-      projectIdCondition = {
-        type: 'binary_expr',
-        operator: 'IN',
-        left: {
-          type: 'column_ref',
-          table: mainTable,
-          column: 'evaluation_id'
-        },
-        right: {
-          type: 'expr_list',
-          value: [{
-            type: 'select',
-            columns: [{
-              expr: { type: 'column_ref', table: '', column: 'id' },
-              as: null
-            }],
-            from: [{ table: 'evaluations', as: null }],
-            where: {
-              type: 'binary_expr',
-              operator: '=',
-              left: {
-                type: 'column_ref',
-                table: '',
-                column: 'project_id'
-              },
-              right: {
-                type: 'param',
-                value: 1,
-                // @ts-ignore
-                prefix: '$'
-              }
-            }
-          }]
-        }
-      };
-    } else if (mainTable === 'dataset_datapoints') {
-      // Nested query for dataset_datapoints
-      projectIdCondition = {
-        type: 'binary_expr',
-        operator: 'IN',
-        left: {
-          type: 'column_ref',
-          table: mainTable,
-          column: 'dataset_id'
-        },
-        right: {
-          type: 'expr_list',
-          value: [{
-            type: 'select',
-            columns: [{
-              expr: { type: 'column_ref', table: '', column: 'id' },
-              as: null
-            }],
-            from: [{ table: 'datasets', as: null }],
-            where: {
-              type: 'binary_expr',
-              operator: '=',
-              left: {
-                type: 'column_ref',
-                table: '',
-                column: 'project_id'
-              },
-              right: {
-                type: 'param',
-                value: 1,
-                // @ts-ignore
-                prefix: '$'
-              }
-            }
-          }]
-        }
-      };
-    } else {
-      // A fallback condition for tables we don't recognize
-      // It's better if this results in an error or empty result, than if
-      // we expose data from other projects
-      projectIdCondition = {
-        type: 'binary_expr',
-        operator: '=',
-        left: {
-          type: 'column_ref',
-          table: mainTable,
-          column: 'project_id'
-        },
-        right: {
-          type: 'param',
-          value: 1, // Using $1 for the parameter
-          // @ts-ignore
-          prefix: '$'
-        }
-      };
-    }
-
-    // If there's already a WHERE clause, add the condition with AND
-    if ((statement as Select).where) {
-      (statement as Select).where = {
-        type: 'binary_expr',
-        operator: 'AND',
-        left: (statement as Select).where as Binary,
-        right: projectIdCondition as Binary
-      };
-    } else {
-      // Otherwise, create a new WHERE clause
-      (statement as Select).where = projectIdCondition;
-    }
-  }
-
-  /**
-   * Find the main table in the statement to add project_id condition
-   * @param {AST} statement - SQL statement object
-   * @returns {string} - Table name
-   */
-  private findMainTable(statement: AST): string {
-    if ((statement as Select).from
-      && Array.isArray((statement as Select).from)
-      && ((statement as Select).from as From[]).length > 0
-    ) {
-      return (((statement as Select).from as From[])[0] as BaseFrom).table;
-    }
-    return '';
-  }
 }
 
 /**
@@ -642,13 +280,13 @@ class SQLValidator {
  * @param {string} sqlQuery - The user SQL query
  * @param {string} projectId - The user's project ID
  * @param {typeof db} dbClient - Database client (e.g., pg client)
- * @returns {Promise<any>} - Query result or error
+ * @returns {Promise<Record<string, any>[]>} - Query result or error
  */
 async function executeSafeQuery(
   sqlQuery: string,
   projectId: string,
-  logger: Logger = new DefaultLogger()
-): Promise<any> {
+  logger: Logger = new NoopLogger()
+): Promise<Record<string, any>[]> {
   const validator = new SQLValidator();
   const result = validator.validateAndTranspile(sqlQuery, projectId);
 
@@ -667,13 +305,13 @@ async function executeSafeQuery(
       false
     );
     const r = await prepared.execute();
-    return r;
+    return r as Record<string, any>[];
   } catch (error) {
     throw new Error(`Database error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 export {
-  SQLValidator,
-  executeSafeQuery
+  executeSafeQuery,
+  SQLValidator
 };

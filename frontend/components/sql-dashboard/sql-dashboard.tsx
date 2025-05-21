@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import CodeEditor from "@/components/ui/code-editor";
 import { DataTable } from "@/components/ui/datatable";
-import { Button } from "@/components/ui/button";
-import { ColumnDef } from "@tanstack/react-table";
 
 export default function SqlDashboard() {
   const params = useParams();

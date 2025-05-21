@@ -1,4 +1,6 @@
-import { TableColumnAst } from "node-sql-parser";
+import { BaseFrom, Binary, Cast, ExpressionValue as BaseExpressionValue } from "node-sql-parser";
+
+import { datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, spans, traces } from "../db/migrations/schema";
 
 export type Arg = {
   name: string,
@@ -13,9 +15,85 @@ export type TranspiledQuery = {
   warning?: string;
 };
 
-export type TableName = 'spans' | 'traces' | 'evaluations' | 'evaluation_results' | 'evaluation_scores';
+export type TableName =
+  | 'spans'
+  | 'traces'
+  | 'evaluations'
+  | 'evaluation_results'
+  | 'evaluation_scores'
+  | 'datasets'
+  | 'dataset_datapoints';
 
-export type JsonbFieldMapping = {
-  replaceWith: TableColumnAst;
+export interface JsonbFieldMapping {
+  replaceWith: unknown;
   as?: string;
 }
+
+// New types for auto-join functionality
+export interface JoinCondition {
+  leftTable: TableName;
+  leftColumn: string;
+  rightTable: TableName;
+  rightColumn: string;
+}
+
+// types.d.ts in the library are slightly outdated, so we need to extend the types here
+export interface Extract {
+  type: 'extract';
+  args: {
+    field: string;
+    cast_type: null;
+    source: ExpressionValue;
+  };
+}
+
+// Extend the Cast interface to allow for both 'as' and '::' symbols
+// types.d.ts in the library are slightly outdated, so we need to extend the types here
+export interface ExtendedCast extends Omit<Cast, 'symbol' | 'expr'> {
+  symbol: 'as' | '::';
+  expr: BaseExpressionValue | Extract;
+  target: {
+    dataType: string;
+    length?: number;
+    suffix?: any[];
+  }[];
+}
+
+export interface AutoJoinRule {
+  // Tables that trigger this join rule
+  triggerTables: TableName[];
+  // Column references that trigger this join rule
+  triggerColumns: string[];
+  // The join chain to add (in order)
+  joinChain: JoinCondition[];
+  // Column replacements to apply after joining
+  columnReplacements?: {
+    original: string;
+    replacement: {
+      table: TableName;
+      column: string;
+    } | Binary | ExpressionValue | ExtendedCast;
+  }[];
+}
+
+export interface JoinASTNode extends BaseFrom {
+  join: string;
+  on: Binary;
+}
+
+// Extend the base ExpressionValue type to include our custom types
+export type ExpressionValue = BaseExpressionValue | Extract;
+
+const camelCaseToSnakeCase = (str: string) => str.replace(/([A-Z])/g, '_$1').toLowerCase();
+
+export const ALLOWED_TABLES_AND_SCHEMA: Record<TableName, string[]> = {
+  spans: Object.keys(spans).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  traces: Object.keys(traces).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  evaluations: Object.keys(evaluations).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  evaluation_results: Object.keys(evaluationResults).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  evaluation_scores: Object.keys(evaluationScores).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  datasets: Object.keys(datasets).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  dataset_datapoints: Object.keys(datasetDatapoints).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase)
+};
+
+export const ALLOWED_TABLES: Set<TableName> = new Set(Object.keys(ALLOWED_TABLES_AND_SCHEMA) as TableName[]);
