@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, SQL,sql } from "drizzle-orm";
+import { and, asc, eq, inArray, SQL, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { searchSpans } from "@/lib/clickhouse/spans";
@@ -31,6 +31,7 @@ export async function GET(
     }
   } catch (e) {
     console.error("Error parsing filters:", e);
+    return Response.json({ error: "Error parsing filters" }, { status: 400 });
   }
 
   // First, get the evaluation to extract its creation time
@@ -42,7 +43,10 @@ export async function GET(
     return Response.json({ error: "Evaluation not found" }, { status: 404 });
   }
 
-  // Check for span search
+  // Build all where conditions
+  const whereConditions = [eq(evaluationResults.evaluationId, evaluationId)];
+
+  // span search
   let searchTraceIds: string[] = [];
   if (search && search.trim() !== "") {
     try {
@@ -66,6 +70,9 @@ export async function GET(
       });
 
       searchTraceIds = Array.from(result.traceIds);
+
+      whereConditions.push(inArray(evaluationResults.traceId, searchTraceIds))
+
     } catch (error) {
       console.error("Error searching spans:", error);
     }
@@ -80,39 +87,6 @@ export async function GET(
       .from(evaluationScores)
       .groupBy(evaluationScores.resultId)
   );
-
-  // Build all where conditions
-  const whereConditions = [eq(evaluationResults.evaluationId, evaluationId)];
-
-  // Handle search conditions
-  if (search && search.trim() !== "") {
-    // Build search conditions for regular fields
-    const regularSearchConditions: SQL<unknown>[] = [
-      sql`${evaluationResults.data}::text ILIKE ${'%' + search + '%'}`,
-      sql`${evaluationResults.target}::text ILIKE ${'%' + search + '%'}`,
-      sql`${evaluationResults.executorOutput}::text ILIKE ${'%' + search + '%'}`,
-      sql`${subQueryScoreCte.cteScores}::text ILIKE ${'%' + search + '%'}`
-    ];
-
-    // If we found matching traces via span search, include those matches
-    if (searchTraceIds.length > 0) {
-      regularSearchConditions.push(
-        inArray(evaluationResults.traceId, searchTraceIds)
-      );
-    }
-
-    // Build OR condition manually
-    if (regularSearchConditions.length === 1) {
-      whereConditions.push(regularSearchConditions[0]);
-    } else {
-      let orCondition = sql`(${regularSearchConditions[0]}`;
-      for (let i = 1; i < regularSearchConditions.length; i++) {
-        orCondition = sql`${orCondition} OR ${regularSearchConditions[i]}`;
-      }
-      orCondition = sql`${orCondition})`;
-      whereConditions.push(orCondition);
-    }
-  }
 
   // Duration expression (in seconds)
   const durationExpr = sql`EXTRACT(EPOCH FROM (${traces.endTime} - ${traces.startTime}))`;
@@ -161,7 +135,7 @@ export async function GET(
         const numValue = parseFloat(value);
         whereConditions.push(sql`${costExpr} > ${numValue}`);
       } else if (operator === "gte") {
-        const numValue = parseFloat(value.substring(2));
+        const numValue = parseFloat(value);
         whereConditions.push(sql`${costExpr} >= ${numValue}`);
       } else if (operator === "lt") {
         const numValue = parseFloat(value);
