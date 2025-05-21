@@ -30,19 +30,15 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
   const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { pageNumber, pageSize, pastHours, startDate, endDate, textSearchFilter, filter, searchIn } = useMemo(
-    () => ({
-      pageNumber: searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0,
-      pageSize: searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50,
-      filter: searchParams.get("filter"),
-      startDate: searchParams.get("startDate"),
-      endDate: searchParams.get("endDate"),
-      pastHours: searchParams.get("pastHours"),
-      textSearchFilter: searchParams.get("search"),
-      searchIn: searchParams.getAll("searchIn"),
-    }),
-    [searchParams]
-  );
+
+  const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
+  const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
+  const filter = searchParams.getAll("filter");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const pastHours = searchParams.get("pastHours");
+  const textSearchFilter = searchParams.get("search");
+  const searchIn = searchParams.getAll("searchIn");
 
   const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
@@ -66,16 +62,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
 
   const getTraces = useCallback(async () => {
     try {
-      let queryFilter = searchParams.getAll("filter");
       setTraces(undefined);
-
-      if (!pastHours && !startDate && !endDate) {
-        const sp = new URLSearchParams(searchParams.toString());
-        sp.set("pastHours", "24");
-        router.replace(`${pathName}?${sp.toString()}`);
-        return;
-      }
-
       const urlParams = new URLSearchParams();
       urlParams.set("pageNumber", pageNumber.toString());
       urlParams.set("pageSize", pageSize.toString());
@@ -84,7 +71,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       if (startDate != null) urlParams.set("startDate", startDate);
       if (endDate != null) urlParams.set("endDate", endDate);
 
-      queryFilter.forEach((filter) => urlParams.append("filter", filter));
+      filter.forEach((filter) => urlParams.append("filter", filter));
 
       if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
         urlParams.set("search", textSearchFilter);
@@ -124,6 +111,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     }
   }, [
     endDate,
+    JSON.stringify(filter),
     pageNumber,
     pageSize,
     pastHours,
@@ -131,7 +119,6 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     projectId,
     router,
     searchIn,
-    searchParams,
     startDate,
     textSearchFilter,
     toast,
@@ -314,16 +301,23 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
   }, [enableLiveUpdates, projectId, isCurrentTimestampIncluded, supabase]);
 
   useEffect(() => {
-    getTraces();
+    if (pastHours || startDate || endDate) {
+      getTraces();
+    } else {
+      // Set default parameters only once without triggering getTraces again
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.set("pastHours", "24");
+      router.replace(`${pathName}?${sp.toString()}`);
+    }
   }, [
     projectId,
     pageNumber,
     pageSize,
-    filter,
     pastHours,
     startDate,
     endDate,
     textSearchFilter,
+    JSON.stringify(filter),
     JSON.stringify(searchIn),
   ]);
 

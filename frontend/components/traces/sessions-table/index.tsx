@@ -2,7 +2,7 @@
 
 import { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import RefreshButton from "@/components/traces/refresh-button";
 import { columns, filters } from "@/components/traces/sessions-table/columns";
@@ -34,41 +34,27 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
 
   const [focusedRowId, setFocusedRowId] = useState<string | undefined>(undefined);
   const [sessions, setSessions] = useState<SessionRow[] | undefined>(undefined);
-
-  const defaultPageNumber = searchParams.get("pageNumber") ?? "0";
-  const defaultPageSize = searchParams.get("pageSize") ?? "50";
   const [totalCount, setTotalCount] = useState<number>(0);
+
   const pageNumber = parseInt(searchParams.get("pageNumber") ?? "0");
-  const pageSize = Math.max(parseInt(defaultPageSize), 1);
-  const pageCount = Math.ceil(totalCount / pageSize);
-  const filter = searchParams.get("filter");
+  const pageSize = Math.max(parseInt(searchParams.get("pageSize") ?? "50"), 1);
+  const filter = searchParams.getAll("filter");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
   const textSearchFilter = searchParams.get("search");
 
+  const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
+
   const getSessions = useCallback(async () => {
     try {
       setSessions(undefined);
-      let queryFilter = searchParams.getAll("filter");
-
-      if (!pastHours && !startDate && !endDate) {
-        const sp = new URLSearchParams();
-        for (const [key, value] of Object.entries(searchParams)) {
-          if (key !== "pastHours") {
-            sp.set(key, value as string);
-          }
-        }
-        sp.set("pastHours", "24");
-        router.push(`${pathName}?${sp.toString()}`);
-        return;
-      }
 
       const urlParams = new URLSearchParams();
       urlParams.set("pageNumber", pageNumber.toString());
       urlParams.set("pageSize", pageSize.toString());
 
-      queryFilter.forEach((filter) => urlParams.append("filter", filter));
+      filter.forEach((filter) => urlParams.append("filter", filter));
 
       if (pastHours != null) urlParams.set("pastHours", pastHours);
       if (startDate != null) urlParams.set("startDate", startDate);
@@ -184,8 +170,14 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
   );
 
   useEffect(() => {
-    getSessions();
-  }, [pageSize, defaultPageNumber, projectId, filter, pastHours, startDate, endDate, textSearchFilter]);
+    if (pastHours || startDate || endDate) {
+      getSessions();
+    } else {
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.set("pastHours", "24");
+      router.push(`${pathName}?${sp.toString()}`);
+    }
+  }, [pageSize, projectId, JSON.stringify(filter), pastHours, startDate, endDate, textSearchFilter]);
 
   return (
     <DataTable
@@ -198,7 +190,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       focusedRowId={focusedRowId}
       pageCount={pageCount}
       defaultPageSize={pageSize}
-      defaultPageNumber={parseInt(defaultPageNumber)}
+      defaultPageNumber={pageNumber}
       onPageChange={onPageChange}
       manualPagination
       totalItemsCount={totalCount}

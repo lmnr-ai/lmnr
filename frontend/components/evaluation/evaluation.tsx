@@ -56,19 +56,16 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const targetId = searchParams.get("targetId");
   const search = searchParams.get("search");
   const filter = searchParams.getAll("filter");
+  const searchIn = searchParams.getAll("searchIn");
 
-  // Build the URL with search and filter params
   const evaluationUrl = useMemo(() => {
     let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}`;
     const urlParams = new URLSearchParams();
 
-    // Add search parameters if they exist
     if (search) {
       urlParams.set("search", search);
     }
 
-    // Add searchIn parameters
-    const searchIn = searchParams.getAll("searchIn");
     searchIn.forEach((value) => {
       urlParams.append("searchIn", value);
     });
@@ -80,7 +77,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     }
 
     return url;
-  }, [params?.projectId, evaluationId, search, searchParams, filter]);
+  }, [params?.projectId, evaluationId, search, JSON.stringify(searchIn), JSON.stringify(filter)]);
 
   const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(evaluationUrl, swrFetcher);
 

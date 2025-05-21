@@ -1,6 +1,6 @@
 "use client";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import RefreshButton from "@/components/traces/refresh-button";
 import { columns, filters } from "@/components/traces/spans-table/columns";
@@ -25,33 +25,20 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   const { toast } = useToast();
   const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
   const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
-  const filter = searchParams.get("filter");
+  const filter = searchParams.getAll("filter");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
   const textSearchFilter = searchParams.get("search");
+
   const [spans, setSpans] = useState<Span[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
-  const pageCount = Math.ceil(totalCount / pageSize);
   const [spanId, setSpanId] = useState<string | null>(searchParams.get("spanId") ?? null);
+  const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
 
   const getSpans = useCallback(async () => {
     try {
-      let queryFilter = searchParams.getAll("filter");
-
       setSpans(undefined);
-
-      if (!pastHours && !startDate && !endDate) {
-        const sp = new URLSearchParams();
-        for (const [key, value] of Object.entries(searchParams)) {
-          if (key !== "pastHours") {
-            sp.set(key, value as string);
-          }
-        }
-        sp.set("pastHours", "24");
-        router.push(`${pathName}?${sp.toString()}`);
-        return;
-      }
 
       const urlParams = new URLSearchParams();
       urlParams.set("pageNumber", pageNumber.toString());
@@ -61,7 +48,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
       if (startDate != null) urlParams.set("startDate", startDate);
       if (endDate != null) urlParams.set("endDate", endDate);
 
-      queryFilter.forEach((filter) => urlParams.append("filter", filter));
+      filter.forEach((filter) => urlParams.append("filter", filter));
 
       if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
         urlParams.set("search", textSearchFilter);
@@ -109,8 +96,14 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   ]);
 
   useEffect(() => {
-    getSpans();
-  }, [projectId, pageNumber, pageSize, filter, pastHours, startDate, endDate, textSearchFilter]);
+    if (pastHours || startDate || endDate) {
+      getSpans();
+    } else {
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.set("pastHours", "24");
+      router.push(`${pathName}?${sp.toString()}`);
+    }
+  }, [projectId, pageNumber, pageSize, JSON.stringify(filter), pastHours, startDate, endDate, textSearchFilter]);
 
   const handleDeleteSpans = async (spanId: string[]) => {
     const response = await fetch(`/api/projects/${projectId}/spans?spanId=${spanId.join(",")}`, {
