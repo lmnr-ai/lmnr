@@ -377,8 +377,9 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
           getSessions();
         }}
         variant="outline"
+        className="text-xs"
       >
-        <RefreshCcw size={16} className="mr-2" />
+        <RefreshCcw size={14} className="mr-2" />
         Refresh
       </Button>
     </DataTable>

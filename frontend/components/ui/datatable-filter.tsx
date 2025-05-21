@@ -77,11 +77,11 @@ export default function DataTableFilter({
         <Button
           variant="outline"
           className={cn(
-            "text-secondary-foreground h-8",
+            "text-secondary-foreground h-7 text-xs font-medium",
             hasFilters ? "text-primary bg-primary/20 border-primary/40 hover:bg-primary/30" : ""
           )}
         >
-          <ListFilter size={16} className="mr-2" />
+          <ListFilter size={14} className="mr-2" />
           Filters
         </Button>
       </PopoverTrigger>

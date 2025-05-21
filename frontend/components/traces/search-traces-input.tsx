@@ -88,9 +88,9 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
         <Search size={16} className="text-secondary-foreground" />
         <Input
           defaultValue={searchParams.get("search") ?? ""}
-          className="focus-visible:ring-0 border-none max-h-8 px-1"
+          className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs"
           type="text"
-          placeholder="Search"
+          placeholder="Search in spans..."
           onKeyDown={handleKeyPress}
           ref={inputRef}
           onBlur={handleBlur}
