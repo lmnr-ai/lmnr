@@ -24,7 +24,7 @@ import {
   EvaluationResultsInfo,
 } from "@/lib/evaluation/types";
 import { DatatableFilter } from "@/lib/types";
-import { formatTimestamp, getFilterFromUrlParams,swrFetcher } from "@/lib/utils";
+import { formatTimestamp, getFilterFromUrlParams, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
 import { Button } from "../ui/button";
@@ -130,7 +130,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
         };
       });
     }
-    return data?.results || [];
+    return data?.results || undefined;
   }, [data?.results, targetData?.results, targetId]);
 
   const selectedRow = useMemo<undefined | EvaluationDatapointPreviewWithCompared>(

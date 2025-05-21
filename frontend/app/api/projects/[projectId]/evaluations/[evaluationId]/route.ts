@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, SQL, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { searchSpans } from "@/lib/clickhouse/spans";
@@ -71,7 +71,7 @@ export async function GET(
 
       searchTraceIds = Array.from(result.traceIds);
 
-      whereConditions.push(inArray(evaluationResults.traceId, searchTraceIds))
+      whereConditions.push(inArray(evaluationResults.traceId, searchTraceIds));
 
     } catch (error) {
       console.error("Error searching spans:", error);
