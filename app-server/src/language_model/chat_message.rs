@@ -174,9 +174,10 @@ pub enum InstrumentationChatMessageImageUrl {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct InstrumentationChatMessageDocumentBase64 {
-    pub media_type: String, // e.g. "application/pdf"
+    // alias, not rename to allow for both "mediaType" and "media_type"
+    #[serde(alias = "mediaType", default)]
+    pub media_type: Option<String>, // e.g. "application/pdf"
     pub data: String,
 }
 
@@ -246,7 +247,9 @@ impl ChatMessageContentPart {
                     ChatMessageContentPart::Document(ChatMessageDocument {
                         source: ChatMessageDocumentSource {
                             document_type: "base64".to_string(),
-                            media_type: document_source.media_type,
+                            media_type: document_source
+                                .media_type
+                                .unwrap_or("application/octet-stream".to_string()),
                             data: document_source.data,
                         },
                     })
