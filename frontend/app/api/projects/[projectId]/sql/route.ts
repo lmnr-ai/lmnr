@@ -18,7 +18,7 @@ export async function POST(
 
     const result = await executeSafeQuery(sqlQuery, projectId);
 
-    return NextResponse.json({ success: true, result });
+    return NextResponse.json({ success: true, result: result.result, warnings: result.warnings });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(

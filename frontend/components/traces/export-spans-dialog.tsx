@@ -14,7 +14,7 @@ import {
   ChatMessageImage,
   ChatMessageImageUrl,
 } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, inferImageType } from "@/lib/utils";
 
 import { Button } from "../ui/button";
 import CodeHighlighter from "../ui/code-highlighter/index";
@@ -94,17 +94,7 @@ export default function ExportSpansDialog({ span }: ExportSpansDialogProps) {
                     }
 
                     // Infer mediaType from base64 string
-                    if (base64String.startsWith("/9j/")) {
-                      mediaType = "image/jpeg";
-                    } else if (base64String.startsWith("iVBORw0KGgo")) {
-                      mediaType = "image/png";
-                    } else if (blob.type && blob.type !== "application/octet-stream") {
-                      // Fallback to blob.type if it's specific
-                      mediaType = blob.type;
-                    } else {
-                      // Final fallback
-                      mediaType = "application/octet-stream";
-                    }
+                    mediaType = inferImageType(base64String) || mediaType;
 
                     return {
                       type: "image",

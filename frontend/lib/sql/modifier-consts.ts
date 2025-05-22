@@ -1,4 +1,5 @@
 import { AutoJoinRule, ExtendedCast, JsonbFieldMapping, TableName } from "./types";
+import { WITH_EVAL_DP_DATA_CTE_NAME, WITH_EVAL_DP_TARGET_CTE_NAME } from "./with";
 
 export const REPLACE_JSONB_FIELDS: Partial<Record<TableName, Record<string, JsonbFieldMapping>>> = {
   spans: {
@@ -258,6 +259,48 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         replacement: {
           table: 'traces',
           column: 'end_time'
+        }
+      }
+    ]
+  },
+  {
+    triggerTables: ['evaluation_results'],
+    triggerColumns: ['data'],
+    joinChain: [
+      {
+        leftTable: 'evaluation_results',
+        leftColumn: 'id',
+        rightTable: WITH_EVAL_DP_DATA_CTE_NAME,
+        rightColumn: 'id',
+      }
+    ],
+    columnReplacements: [
+      {
+        original: 'data',
+        replacement: {
+          table: WITH_EVAL_DP_DATA_CTE_NAME,
+          column: 'full_data',
+        }
+      }
+    ]
+  },
+  {
+    triggerTables: ['evaluation_results'],
+    triggerColumns: ['target'],
+    joinChain: [
+      {
+        leftTable: 'evaluation_results',
+        leftColumn: 'id',
+        rightTable: WITH_EVAL_DP_TARGET_CTE_NAME,
+        rightColumn: 'id',
+      }
+    ],
+    columnReplacements: [
+      {
+        original: 'target',
+        replacement: {
+          table: WITH_EVAL_DP_TARGET_CTE_NAME,
+          column: 'target',
         }
       }
     ]

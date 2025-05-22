@@ -2,6 +2,8 @@ import {
   AggrFunc,
   Binary,
   Case,
+  Cast,
+  Column,
   ColumnRef,
   ColumnRefExpr,
   ColumnRefItem,
@@ -9,7 +11,7 @@ import {
   ExprList,
   Function as NodeSqlFunction,
   Join,
-  Select
+  Select,
 } from "node-sql-parser";
 
 import { AUTO_JOIN_RULES } from "./modifier-consts";
@@ -151,12 +153,9 @@ export function qualifyColumnReferences<T extends ExpressionValue>(
  * @param condition - Join condition
  * @returns JOIN AST node
  */
-const createJoinNode = (condition: JoinCondition): Join => ({
-  db: null,
-  table: condition.rightTable,
-  as: null,
-  join: 'INNER JOIN',
-  on: {
+const createJoinNode = (condition: JoinCondition): Join => {
+  // Create the main equality condition
+  const mainCondition: Binary = {
     type: 'binary_expr',
     operator: '=',
     left: {
@@ -169,8 +168,41 @@ const createJoinNode = (condition: JoinCondition): Join => ({
       table: condition.rightTable,
       column: condition.rightColumn
     }
+  };
+
+  // If there are no additional conditions, just use the main condition
+  if (!condition.additionalConditions || condition.additionalConditions.length === 0) {
+    return {
+      db: null,
+      table: condition.rightTable,
+      as: null,
+      join: 'INNER JOIN',
+      // join: condition.lateral ? 'INNER JOIN' : 'INNER JOIN',
+      on: mainCondition
+    };
   }
-});
+
+  // Combine all conditions with AND operators
+  const combinedCondition = [mainCondition, ...condition.additionalConditions].reduce(
+    (acc: Binary, curr: Binary): Binary => {
+      if (!acc) return curr;
+      return {
+        type: 'binary_expr',
+        operator: 'AND',
+        left: acc,
+        right: curr
+      };
+    }
+  );
+
+  return {
+    db: null,
+    table: condition.rightTable,
+    as: null,
+    join: 'INNER JOIN',
+    on: combinedCondition
+  };
+};
 
 
 /**
@@ -197,14 +229,13 @@ const replaceColumnReferences = (
         if (columnName === replacement.original) {
           // Handle different types of replacements
           if (typeof replacement.replacement === 'object' && 'table' in replacement.replacement) {
-            // Original behavior: table.column replacement
             return {
               type: 'column_ref',
               table: replacement.replacement.table,
-              column: replacement.replacement.column
+              column: replacement.replacement.column,
+              as: (replacement.replacement as { as?: string }).as
             } as ColumnRefItem;
           } else {
-            // New behavior: handle other expression types like Binary expressions
             return replacement.replacement as ExpressionValue;
           }
         }
@@ -236,6 +267,48 @@ const replaceColumnReferences = (
         }
       } as NodeSqlFunction;
     }
+  }
+
+  if (expression.type === 'cast') {
+    const castExpr = expression as Cast;
+    return {
+      ...castExpr,
+      expr: replaceColumnReferences(castExpr.expr, rule),
+      target: castExpr.target
+    };
+  }
+
+  if (expression.type === 'case') {
+    const caseExpr = expression as Case;
+    return {
+      ...caseExpr,
+      args: caseExpr.args.map(arg => {
+        if (arg.type === 'when') {
+          return {
+            ...arg,
+            cond: replaceColumnReferences(arg.cond, rule),
+            result: replaceColumnReferences(arg.result, rule)
+          };
+        } else if (arg.type === 'else') {
+          return {
+            ...arg,
+            result: replaceColumnReferences(arg.result, rule)
+          };
+        }
+        return arg;
+      })
+    } as Case;
+  }
+
+  if (expression.type === 'aggr_func') {
+    const aggrFuncExpr = expression as AggrFunc;
+    return {
+      ...aggrFuncExpr,
+      args: {
+        ...aggrFuncExpr.args,
+        expr: replaceColumnReferences(aggrFuncExpr.args.expr, rule)
+      }
+    } as AggrFunc;
   }
 
   return expression;
@@ -311,10 +384,29 @@ const applyJoins = (node: Select, rule: AutoJoinRule): void => {
   if (rule.columnReplacements) {
     // Apply to columns
     if (node.columns) {
-      node.columns = node.columns.map(column => ({
-        ...column,
-        expr: replaceColumnReferences(column.expr, rule)
-      }));
+      node.columns = node.columns.map((column: Column) => {
+        let newAs = column.as;
+        if (column.expr.type === 'column_ref') {
+          const columnRef = column.expr as ColumnRefItem;
+          if (typeof columnRef.column === 'string') {
+            newAs = newAs ?? columnRef.column;
+          } else {
+            newAs = newAs ?? (columnRef.column.expr?.value as string);
+          }
+        } else if (column.expr.type === 'expr') {
+          const innerColumnRef = (column.expr as unknown as ColumnRefExpr).expr as ColumnRefItem;
+          if (typeof innerColumnRef.column === 'string') {
+            newAs = newAs ?? innerColumnRef.column;
+          } else {
+            newAs = newAs ?? (innerColumnRef.column.expr?.value as string);
+          }
+        }
+        return {
+          ...column,
+          expr: replaceColumnReferences(column.expr, rule),
+          as: newAs
+        };
+      });
     }
 
     // Apply to WHERE

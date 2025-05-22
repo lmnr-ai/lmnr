@@ -37,9 +37,7 @@ import { applyProjectIdToStatement, findMainTable } from "./project-id-filter";
 import { replaceJsonbFields } from "./replace";
 import { ALLOWED_TABLES, Arg, TranspiledQuery } from "./types";
 import { getFromTableNames } from "./utils";
-import { AGG_SCORE_CTE_WITH, WITH_AGG_SCORES_CTE_NAME } from "./with";
-
-const ALLOWED_INTERNAL_CTES = [WITH_AGG_SCORES_CTE_NAME];
+import { ADDITIONAL_WITH_CTES } from "./with";
 
 class SQLValidator {
   private parser: Parser;
@@ -71,7 +69,7 @@ class SQLValidator {
         };
       }
 
-      const allowedTables = [`(select)::(.*)::(${Array.from(this.allowedTables).concat(ALLOWED_INTERNAL_CTES).join('|')})`];
+      const allowedTables = [`(select)::(.*)::(${Array.from(this.allowedTables).join('|')})`];
       try {
         this.parser.whiteListCheck(sqlQuery,
           allowedTables,
@@ -92,18 +90,15 @@ class SQLValidator {
             ' are allowed.'
         };
       }
-
-      console.log('ast', JSON.stringify(ast, null, 2));
-
       // Transpile the query
       const transpiled = this.transpileQuery(ast, projectId);
 
-      console.log('transpiled', transpiled.sql);
       return {
         valid: true,
         sql: transpiled.sql,
         args: transpiled.args,
-        error: null
+        error: null,
+        warnings: transpiled.warnings,
       };
     } catch (error) {
       return {
@@ -137,15 +132,28 @@ class SQLValidator {
   private transpileQuery(ast: AST | AST[], projectId: string): {
     sql: string;
     args: Arg[];
+    warnings?: string[];
   } {
+    const warnings: string[] = [];
     const statements = Array.isArray(ast) ? ast : [ast];
 
     for (const statement of statements) {
       if (statement.type !== 'select') continue;
 
-      statement.with = [...(statement.with ?? []), ...AGG_SCORE_CTE_WITH];
+      statement.with = [...(statement.with ?? []), ...ADDITIONAL_WITH_CTES];
 
       this.processSubqueries(statement, new Set());
+
+      if (statement.limit == null || statement.limit.value.length === 0) {
+        statement.limit = {
+          seperator: '',
+          value: [{
+            type: 'number',
+            value: 100,
+          }],
+        };
+        warnings.push('A limit of 100 was applied to the query for performance reasons. Add an explicit limit to see more results.');
+      }
     }
 
     // Convert AST back to SQL
@@ -159,6 +167,7 @@ class SQLValidator {
         name: 'project_id',
         value: projectId
       }],
+      warnings,
     };
   }
 
@@ -191,7 +200,6 @@ class SQLValidator {
       applyAutoJoinRules(node as Select, fromTables);
 
       // After joins are added, qualify column references
-
       node.columns.forEach((column: Column) => {
         const aliases: string[] = [];
         column.expr = qualifyColumnReferences(column.expr, fromTables);
@@ -229,6 +237,7 @@ class SQLValidator {
       }
 
       if (node.where) {
+        node.where = qualifyColumnReferences(node.where, fromTables);
         if (node.where.type === 'binary_expr') {
           const leftASTs = getExpressionASTs((node.where as Binary).left);
           const rightASTs = getExpressionASTs((node.where as Binary).right);
@@ -261,6 +270,23 @@ class SQLValidator {
         }
       }
 
+      if (node.groupby) {
+        node.groupby.columns = node.groupby.columns?.map((column: ColumnRef) => {
+          const qualifiedColumn = qualifyColumnReferences(column, fromTables);
+          return replaceJsonbFields(qualifiedColumn, fromTables, []) as ExpressionValue as ColumnRef;
+        }) ?? [];
+      }
+
+      if (node.orderby) {
+        node.orderby = node.orderby.map((order: OrderBy) => {
+          const qualifiedExpr = qualifyColumnReferences(order.expr as ExpressionValue, fromTables);
+          return {
+            ...order,
+            expr: replaceJsonbFields(qualifiedExpr, fromTables, []) as ExpressionValue,
+          };
+        });
+      }
+
       // Now apply the project_id condition to this select statement
       const mainTable = findMainTable(node);
       if (this.allowedTables.has(mainTable)) {
@@ -286,7 +312,10 @@ async function executeSafeQuery(
   sqlQuery: string,
   projectId: string,
   logger: Logger = new NoopLogger()
-): Promise<Record<string, any>[]> {
+): Promise<{
+  result: Record<string, any>[];
+  warnings?: string[];
+}> {
   const validator = new SQLValidator();
   const result = validator.validateAndTranspile(sqlQuery, projectId);
 
@@ -305,7 +334,10 @@ async function executeSafeQuery(
       false
     );
     const r = await prepared.execute();
-    return r as Record<string, any>[];
+    return {
+      result: r as Record<string, any>[],
+      warnings: result.warnings,
+    };
   } catch (error) {
     throw new Error(`Database error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }

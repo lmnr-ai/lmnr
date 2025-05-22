@@ -8,6 +8,8 @@ import { githubDarkStyle } from "@uiw/codemirror-theme-github";
 import { createTheme } from "@uiw/codemirror-themes";
 import YAML from "yaml";
 
+import { inferImageType } from "@/lib/utils";
+
 export const theme = createTheme({
   theme: "dark",
   settings: {
@@ -193,20 +195,9 @@ function extractBase64Images(text: string): { processedText: string; imageMap: R
     // Identify image type by checking the first characters
     let imageType = null;
 
-    if (base64Data.startsWith("/9j/")) {
-      imageType = "image/jpeg";
-    } else if (base64Data.startsWith("iVBORw0KGgo")) {
-      imageType = "image/png";
-    } else if (base64Data.startsWith("R0lGODlh")) {
-      imageType = "image/gif";
-    } else if (base64Data.startsWith("UklGR")) {
-      imageType = "image/webp";
-    } else if (base64Data.startsWith("PHN2Zz")) {
-      imageType = "image/svg+xml";
-    } else {
-      // Skip if we can't identify the image type
-      continue;
-    }
+    imageType = inferImageType(base64Data);
+
+    if (!imageType) continue;
 
     const dataUri = `data:${imageType};base64,${base64Data}`;
     const id = String(imageCount++);

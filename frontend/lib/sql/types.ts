@@ -1,6 +1,7 @@
 import { BaseFrom, Binary, Cast, ExpressionValue as BaseExpressionValue } from "node-sql-parser";
 
 import { datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, spans, traces } from "../db/migrations/schema";
+import { AllowedTableNameForJoin } from "./with";
 
 export type Arg = {
   name: string,
@@ -12,7 +13,7 @@ export type TranspiledQuery = {
   sql: string | null;
   args: Arg[];
   error: string | null;
-  warning?: string;
+  warnings?: string[];
 };
 
 export type TableName =
@@ -33,8 +34,10 @@ export interface JsonbFieldMapping {
 export interface JoinCondition {
   leftTable: TableName;
   leftColumn: string;
-  rightTable: TableName;
+  rightTable: AllowedTableNameForJoin;
   rightColumn: string;
+  additionalConditions?: Binary[];
+  lateral?: boolean;
 }
 
 // types.d.ts in the library are slightly outdated, so we need to extend the types here
@@ -70,8 +73,9 @@ export interface AutoJoinRule {
   columnReplacements?: {
     original: string;
     replacement: {
-      table: TableName;
+      table: AllowedTableNameForJoin;
       column: string;
+      as?: string;
     } | Binary | ExpressionValue | ExtendedCast;
   }[];
 }

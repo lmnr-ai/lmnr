@@ -1,8 +1,7 @@
 import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 
-import { Datapoint } from '@/lib/dataset/types';
+import { CreateDatapointsSchema, Datapoint } from '@/lib/dataset/types';
 import { db } from '@/lib/db/drizzle';
 import { datapointToSpan, datasetDatapoints } from '@/lib/db/migrations/schema';
 import { getDateRangeFilters, paginatedGet } from '@/lib/db/utils';
@@ -40,15 +39,6 @@ export async function GET(
 
   return NextResponse.json(datapointsData);
 }
-
-const CreateDatapointsSchema = z.object({
-  datapoints: z.array(z.object({
-    data: z.unknown(),
-    target: z.any().optional(),
-    metadata: z.any().optional(),
-  })),
-  sourceSpanId: z.string().optional(),
-});
 
 export async function POST(
   req: Request,
