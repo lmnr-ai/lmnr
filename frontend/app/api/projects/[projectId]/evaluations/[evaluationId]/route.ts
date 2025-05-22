@@ -144,6 +144,31 @@ export async function GET(
           whereConditions.push(sql`${costExpr} = ${numValue}`);
         }
       }
+    } else if (column.startsWith("score:")) {
+      const scoreName = column.split(":")[1];
+      const numValue = parseFloat(value);
+
+      if (scoreName && !isNaN(numValue)) {
+        const opMap: Record<string, string> = {
+          gt: ">",
+          gte: ">=",
+          lt: "<",
+          lte: "<=",
+          eq: "=",
+          ne: "!=",
+        };
+
+        const opSymbol = opMap[operator] || "=";
+
+        whereConditions.push(
+          sql`${evaluationResults.id} IN (
+                  SELECT ${evaluationScores.resultId}
+                  FROM   ${evaluationScores}
+                  WHERE  ${evaluationScores.name} = ${scoreName}
+                  AND    ${evaluationScores.score} ${sql.raw(opSymbol)} ${numValue}
+                )`
+        );
+      }
     } else {
       // Default text search for ID
       whereConditions.push(sql`${evaluationResults.id}::text ILIKE ${"%" + value + "%"}`);
@@ -181,4 +206,29 @@ export async function GET(
   };
 
   return Response.json(result);
+}
+
+export async function PATCH(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; evaluationId: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const { projectId, evaluationId } = params;
+  const { name } = await req.json();
+
+  if (!name || typeof name !== "string" || name.trim() === "") {
+    return Response.json({ error: "Name is required" }, { status: 400 });
+  }
+
+  const [updated] = await db
+    .update(evaluations)
+    .set({ name })
+    .where(and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)))
+    .returning();
+
+  if (!updated) {
+    return Response.json({ error: "Evaluation not found" }, { status: 404 });
+  }
+
+  return Response.json(updated);
 }
