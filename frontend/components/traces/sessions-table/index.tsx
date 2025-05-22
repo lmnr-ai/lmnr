@@ -141,30 +141,42 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
         operator: "eq",
       };
 
-      const res = await fetch(
-        `/api/projects/${projectId}/traces?pageNumber=0&pageSize=50&filter=${JSON.stringify(filter)}`
-      );
+      try {
+        const res = await fetch(
+          `/api/projects/${projectId}/traces?pageNumber=0&pageSize=50&filter=${JSON.stringify(filter)}`
+        );
 
-      const traces = (await res.json()) as PaginatedResponse<Trace>;
-      setSessions((sessions) =>
-        sessions?.map((s) => {
-          if (s.data.id === row.original.data.id) {
-            return {
-              ...s,
-              type: "session",
-              subRows: traces.items
-                .map((t) => ({
-                  type: "trace",
-                  data: t,
-                  subRows: [],
-                }))
-                .toReversed(),
-            };
-          } else {
-            return s;
-          }
-        })
-      );
+        if (!res.ok) {
+          throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
+        }
+
+        const traces = (await res.json()) as PaginatedResponse<Trace>;
+        setSessions((sessions) =>
+          sessions?.map((s) => {
+            if (s.data.id === row.original.data.id) {
+              return {
+                ...s,
+                type: "session",
+                subRows: traces.items
+                  .map((t) => ({
+                    type: "trace",
+                    data: t,
+                    subRows: [],
+                  }))
+                  .toReversed(),
+              };
+            } else {
+              return s;
+            }
+          })
+        );
+      } catch (error) {
+        toast({
+          title: "Failed to load traces. Please try again.",
+          variant: "destructive",
+        });
+        row.toggleExpanded();
+      }
     },
     [onRowClick, pathName, projectId, router, searchParams]
   );

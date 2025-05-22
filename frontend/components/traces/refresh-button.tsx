@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { MouseEventHandler, useState } from "react";
 
 import { Button, ButtonProps } from "@/components/ui/button";
@@ -18,7 +18,7 @@ const RefreshButton = ({ iconClassName, onClick, ...rest }: ButtonProps & { icon
   return (
     <Button onClick={handleOnClick} {...rest}>
       <motion.div transition={{ duration: 0.5, ease: "linear" }} className="block" animate={{ rotate }}>
-        <RefreshCcw className={cn(iconClassName)} />
+        <RefreshCw className={cn(iconClassName)} />
       </motion.div>
       <span className="ml-2">Refresh</span>
     </Button>

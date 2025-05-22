@@ -130,7 +130,7 @@ export const columns: ColumnDef<Trace, any>[] = [
               </div>
             </div>
           </TooltipTrigger>
-          {row.getValue() != undefined && (
+          {row.getValue() !== undefined && (
             <TooltipContent side="bottom" className="p-2 border">
               <div>
                 <div className="flex justify-between space-x-2">
@@ -182,7 +182,7 @@ export const columns: ColumnDef<Trace, any>[] = [
               </div>
             </div>
           </TooltipTrigger>
-          {row.getValue() != undefined && (
+          {row.getValue() !== undefined && (
             <TooltipContent side="bottom" className="p-2 border">
               <div className="whitespace-pre-wrap">{row.getValue()}</div>
             </TooltipContent>

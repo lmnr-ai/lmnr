@@ -57,10 +57,21 @@ export default function DataTableFilter({ columns, className }: DataTableFilterP
 
   const handleApplyFilters = useCallback(() => {
     const params = new URLSearchParams(searchParams);
-    params.append("filter", JSON.stringify(filter));
-    params.delete("pageNumber");
-    params.append("pageNumber", "0");
-    router.push(`${pathName}?${params.toString()}`);
+
+    const existingFilters = searchParams.getAll("filter").flatMap((f) => {
+      try {
+        return [JSON.parse(f) as DatatableFilter];
+      } catch {
+        return [];
+      }
+    });
+
+    if (!existingFilters.some((f) => isEqual(f, filter))) {
+      params.append("filter", JSON.stringify(filter));
+      params.delete("pageNumber");
+      params.append("pageNumber", "0");
+      router.push(`${pathName}?${params.toString()}`);
+    }
   }, [filter, pathName, router, searchParams]);
 
   const handleValueChange = useCallback(({ field, value }: { field: keyof DatatableFilter; value: string }) => {
@@ -149,7 +160,14 @@ export const DataTableFilterList = () => {
   const searchParams = useSearchParams();
 
   const filters = useMemo(
-    () => searchParams.getAll("filter").map((f) => JSON.parse(f) as DatatableFilter),
+    () =>
+      searchParams.getAll("filter").flatMap((f) => {
+        try {
+          return [JSON.parse(f) as DatatableFilter];
+        } catch {
+          return [];
+        }
+      }),
     [searchParams]
   );
 

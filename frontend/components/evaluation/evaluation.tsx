@@ -175,6 +175,10 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
       return;
     }
 
+    if (filter.length > 0) {
+      supabase.removeAllChannels();
+    }
+
     supabase.channel("table-db-changes").unsubscribe();
 
     supabase
@@ -194,7 +198,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
         }
       )
       .subscribe();
-  }, [supabase]);
+  }, [evaluation, filter.length, mutate, supabase]);
 
   useEffect(() => {
     const traceId = searchParams.get("traceId");

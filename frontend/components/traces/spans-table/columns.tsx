@@ -9,10 +9,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Span } from "@/lib/traces/types";
 
 const renderCost = (val: any) => {
-  if (val == null) {
+  if (val === null || val === undefined) {
     return "-";
   }
-  return `$${parseFloat(val).toFixed(5) || val}`;
+  const parsed = parseFloat(val);
+  return `$${Number.isNaN(parsed) ? val : parsed.toFixed(5)}`;
 };
 
 export const filters: ColumnFilter[] = [
@@ -154,7 +155,7 @@ export const columns: ColumnDef<Span, any>[] = [
           </div>
         );
       }
-      return <div className="flex items-center"></div>;
+      return <div className="flex items-center">-</div>;
     },
     size: 150,
   },
@@ -177,7 +178,7 @@ export const columns: ColumnDef<Span, any>[] = [
               </div>
             </div>
           </TooltipTrigger>
-          {row.getValue() != undefined && (
+          {row.getValue() !== undefined && (
             <TooltipContent side="bottom" className="p-2 border">
               <div>
                 <div className="flex justify-between space-x-2">

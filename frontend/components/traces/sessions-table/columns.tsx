@@ -94,7 +94,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     size: 120,
   },
   {
-    accessorFn: (row) => (row.data as SessionPreview).traceCount,
+    accessorFn: (row) => (row.type === "session" ? ((row.data as SessionPreview).traceCount ?? 0) : "-"),
     header: "Trace Count",
     id: "trace_count",
     size: 120,
