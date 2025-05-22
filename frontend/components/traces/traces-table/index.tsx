@@ -1,22 +1,20 @@
 "use client";
 import { Row } from "@tanstack/react-table";
 import { isEmpty } from "lodash";
-import { RefreshCcw } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import RefreshButton from "@/components/traces/refresh-button";
 import SearchTracesInput from "@/components/traces/search-traces-input";
 import { columns, filters } from "@/components/traces/traces-table/columns";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanType, Trace } from "@/lib/traces/types";
-import { DatatableFilter, PaginatedResponse } from "@/lib/types";
-import { getFilterFromUrlParams } from "@/lib/utils";
+import { PaginatedResponse } from "@/lib/types";
 
-import { Button } from "../../ui/button";
 import { DataTable } from "../../ui/datatable";
-import DataTableFilter from "../../ui/datatable-filter";
+import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
 
 interface TracesTableProps {
@@ -32,19 +30,15 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
   const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { pageNumber, pageSize, pastHours, startDate, endDate, textSearchFilter, filter, searchIn } = useMemo(
-    () => ({
-      pageNumber: searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0,
-      pageSize: searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50,
-      filter: searchParams.get("filter"),
-      startDate: searchParams.get("startDate"),
-      endDate: searchParams.get("endDate"),
-      pastHours: searchParams.get("pastHours"),
-      textSearchFilter: searchParams.get("search"),
-      searchIn: searchParams.getAll("searchIn"),
-    }),
-    [searchParams]
-  );
+
+  const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
+  const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
+  const filter = searchParams.getAll("filter");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const pastHours = searchParams.get("pastHours");
+  const textSearchFilter = searchParams.get("search");
+  const searchIn = searchParams.getAll("searchIn");
 
   const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
@@ -57,10 +51,6 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     setEnableLiveUpdates(stored == null ? true : stored === "true");
   }, []);
 
-  const [activeFilters, setActiveFilters] = useState<DatatableFilter[]>(
-    filter ? (getFilterFromUrlParams(filter) ?? []) : []
-  );
-
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
   const tracesRef = useRef<Trace[] | undefined>(traces);
@@ -72,16 +62,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
 
   const getTraces = useCallback(async () => {
     try {
-      let queryFilter = searchParams.get("filter");
       setTraces(undefined);
-
-      if (!pastHours && !startDate && !endDate) {
-        const sp = new URLSearchParams(searchParams.toString());
-        sp.set("pastHours", "24");
-        router.replace(`${pathName}?${sp.toString()}`);
-        return;
-      }
-
       const urlParams = new URLSearchParams();
       urlParams.set("pageNumber", pageNumber.toString());
       urlParams.set("pageSize", pageSize.toString());
@@ -90,11 +71,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       if (startDate != null) urlParams.set("startDate", startDate);
       if (endDate != null) urlParams.set("endDate", endDate);
 
-      if (typeof queryFilter === "string") {
-        urlParams.set("filter", queryFilter);
-      } else if (Array.isArray(queryFilter)) {
-        urlParams.set("filter", JSON.stringify(queryFilter));
-      }
+      filter.forEach((filter) => urlParams.append("filter", filter));
 
       if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
         urlParams.set("search", textSearchFilter);
@@ -134,6 +111,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     }
   }, [
     endDate,
+    JSON.stringify(filter),
     pageNumber,
     pageSize,
     pastHours,
@@ -141,7 +119,6 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     projectId,
     router,
     searchIn,
-    searchParams,
     startDate,
     textSearchFilter,
     toast,
@@ -273,7 +250,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       return;
     }
 
-    if (!enableLiveUpdates) {
+    if (!enableLiveUpdates || filter.length > 0) {
       supabase.removeAllChannels();
       return;
     }
@@ -321,19 +298,26 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     return () => {
       channel.unsubscribe();
     };
-  }, [enableLiveUpdates, projectId, isCurrentTimestampIncluded, supabase]);
+  }, [enableLiveUpdates, projectId, isCurrentTimestampIncluded, supabase, filter.length]);
 
   useEffect(() => {
-    getTraces();
+    if (pastHours || startDate || endDate) {
+      getTraces();
+    } else {
+      // Set default parameters only once without triggering getTraces again
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.set("pastHours", "24");
+      router.replace(`${pathName}?${sp.toString()}`);
+    }
   }, [
     projectId,
     pageNumber,
     pageSize,
-    filter,
     pastHours,
     startDate,
     endDate,
     textSearchFilter,
+    JSON.stringify(filter),
     JSON.stringify(searchIn),
   ]);
 
@@ -362,10 +346,6 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
         description: e instanceof Error ? e.message : "Failed to delete traces. Please try again.",
       });
     }
-  };
-
-  const handleUpdateFilters = (newFilters: DatatableFilter[]) => {
-    setActiveFilters(newFilters);
   };
 
   const handleRowClick = useCallback(
@@ -405,19 +385,20 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       onPageChange={onPageChange}
       totalItemsCount={totalCount}
       enableRowSelection
+      childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
       selectionPanel={(selectedRowIds) => (
         <div className="flex flex-col space-y-2">
           <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTraces} entityName="traces" />
         </div>
       )}
     >
-      <DataTableFilter possibleFilters={filters} activeFilters={activeFilters} updateFilters={handleUpdateFilters} />
-      <DateRangeFilter />
-      <Button onClick={getTraces} variant="outline" className="text-xs">
-        <RefreshCcw size={14} className="mr-2" />
-        Refresh
-      </Button>
-      <SearchTracesInput />
+      <div className="flex flex-1 w-full space-x-2">
+        <DataTableFilter columns={filters} />
+        <DateRangeFilter />
+        <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getTraces} variant="outline" className="text-xs" />
+        <SearchTracesInput />
+      </div>
+      <DataTableFilterList />
     </DataTable>
   );
 }

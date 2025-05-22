@@ -39,26 +39,20 @@ export default function TextSearchFilter({ className }: { className?: string }) 
   }, []);
 
   return (
-    <div
-      className={cn(
-        "flex align-middle items-center space-x-1 border px-2 rounded-md h-8",
-        { "ring-1": inputFocused },
-        className
-      )}
-    >
-      <Search size={18} className="text-secondary-foreground flex-grow" />
+    <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary", className)}>
+      <Search className="min-w-4 w-4 text-secondary-foreground" />
       <Input
         onFocus={() => setInputFocused(true)}
         onBlur={() => setInputFocused(false)}
         placeholder="Search"
         type="text"
-        className="max-h-4 border-none focus-visible:ring-0"
+        className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs"
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyPress}
       />
       <X
-        size={20}
+        size={16}
         className="text-secondary-foreground cursor-pointer"
         onClick={() => {
           setInputValue("");
