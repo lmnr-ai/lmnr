@@ -394,18 +394,18 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               />
             ) : (
               <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
-                <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6">
-                  <Search className="mr-2" size={16} />
+                <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6 text-xs px-1.5">
+                  <Search size={14} className="mr-1" />
                   <span>Search</span>
                 </Button>
                 <Button
                   onClick={() => setShowTimeline((prev) => !prev)}
                   variant="outline"
-                  className={cn("h-6", {
+                  className={cn("h-6 text-xs px-1.5", {
                     "border-primary text-primary": showTimeline,
                   })}
                 >
-                  <ChartNoAxesGantt className="w-4 h-4 mr-2" />
+                  <ChartNoAxesGantt size={14} className="mr-1" />
                   <span>Timeline</span>
                 </Button>
                 {showTimeline && (

@@ -6,29 +6,17 @@ import React, { KeyboardEventHandler, memo, useCallback, useRef, useState } from
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
-const SearchTracesInput = ({ className, filterBoxClassName }: { className?: string; filterBoxClassName?: string }) => {
-  const [open, setOpen] = useState(false);
+const SearchEvaluationInput = ({ className }: { className?: string }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const posthog = usePostHog();
 
-  const searchIn = searchParams.getAll("searchIn");
   const inputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState<string>(searchIn?.length === 1 ? searchIn?.[0] : "all");
   const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
-
-  const handleWindow = useCallback(
-    (open: boolean) => () => {
-      setOpen(open);
-    },
-    []
-  );
 
   const submit = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -38,30 +26,25 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
       params.set("search", inputRef?.current?.value);
     }
 
-    if (params.get("searchIn")) {
+    // Always search in all fields
+    if (params.has("searchIn")) {
       params.delete("searchIn");
     }
-
-    if (value === "all") {
-      params.append("searchIn", "input");
-      params.append("searchIn", "output");
-    } else {
-      params.append("searchIn", value);
-    }
+    // Include all search fields
+    params.append("searchIn", "data");
+    params.append("searchIn", "target");
+    params.append("searchIn", "scores");
+    params.append("searchIn", "span_input");
+    params.append("searchIn", "span_output");
 
     router.push(`${pathName}?${params.toString()}`);
     inputRef.current?.blur();
     if (isFeatureEnabled(Feature.POSTHOG)) {
-      posthog.capture("traces_list_searched", {
+      posthog.capture("evaluation_results_searched", {
         searchParams: searchParams.toString(),
       });
     }
-  }, [pathName, posthog, router, searchParams, value]);
-
-  const handleBlur = useCallback(() => {
-    submit();
-    handleWindow(false)();
-  }, [handleWindow, submit]);
+  }, [pathName, posthog, router, searchParams]);
 
   const handleKeyPress: KeyboardEventHandler<HTMLInputElement> = useCallback(
     (e) => {
@@ -83,18 +66,17 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
   }, [submit]);
 
   return (
-    <div className="flex flex-col flex-1 relative">
-      <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary", className)}>
+    <div className="flex flex-1 relative">
+      <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary w-full", className)}>
         <Search size={16} className="text-secondary-foreground" />
         <Input
           defaultValue={searchParams.get("search") ?? ""}
           className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs"
           type="text"
-          placeholder="Search in traces..."
+          placeholder="Search in data, targets, scores and spans..."
           onKeyDown={handleKeyPress}
           ref={inputRef}
-          onBlur={handleBlur}
-          onFocus={handleWindow(true)}
+          onBlur={submit}
           onChange={(e) => setInputValue(e.target.value)}
         />
         {inputValue && (
@@ -103,33 +85,8 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
           </Button>
         )}
       </div>
-      {open && (
-        <div
-          className={cn(
-            "absolute z-50 top-10 bg-background flex flex-col gap-2 w-full rounded p-2 border",
-            filterBoxClassName
-          )}
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          <span className="text-secondary-foreground text-xs">Search in</span>
-          <RadioGroup value={value} onValueChange={setValue} defaultValue="all">
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="all" id="all" />
-              <Label htmlFor="all">All</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="input" id="input" />
-              <Label htmlFor="input">Input</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="output" id="output" />
-              <Label htmlFor="output">Output</Label>
-            </div>
-          </RadioGroup>
-        </div>
-      )}
     </div>
   );
 };
 
-export default memo(SearchTracesInput);
+export default memo(SearchEvaluationInput);

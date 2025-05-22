@@ -8,7 +8,7 @@ import LabelsContextProvider from "@/components/labels/labels-context";
 import LabelsList from "@/components/labels/labels-list";
 import LabelsTrigger from "@/components/labels/labels-trigger";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
-import ExportSpansDialog from "@/components/traces/export-spans-dialog";
+import ExportSpansPopover from "@/components/traces/export-spans-popover";
 import SpanInput from "@/components/traces/span-input";
 import SpanOutput from "@/components/traces/span-output";
 import { Button } from "@/components/ui/button";
@@ -107,7 +107,7 @@ export function SpanView({ spanId }: SpanViewProps) {
                 {new Date(span.startTime).toLocaleString()}
               </div>
             </div>
-            <LabelsContextProvider>
+            <LabelsContextProvider spanId={spanId}>
               <div className="flex gap-2 items-center">
                 <LabelsTrigger />
                 <AddToLabelingQueuePopover
@@ -118,7 +118,7 @@ export function SpanView({ spanId }: SpanViewProps) {
                     },
                   ]}
                 />
-                <ExportSpansDialog span={span} />
+                <ExportSpansPopover span={span} />
               </div>
               <LabelsList />
             </LabelsContextProvider>

@@ -4,6 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useProjectContext } from "@/contexts/project-context";
 import { DatasetInfo } from "@/lib/dataset/types";
@@ -101,7 +102,9 @@ export default function Datasets() {
       <Header path="datasets" />
       <div className="flex justify-between items-center p-4 flex-none">
         <h1 className="scroll-m-20 text-2xl font-medium">Datasets</h1>
-        <CreateDatasetDialog />
+        <CreateDatasetDialog>
+          <Button variant="outline">New dataset</Button>
+        </CreateDatasetDialog>
       </div>
       <div className="flex-grow">
         <DataTable

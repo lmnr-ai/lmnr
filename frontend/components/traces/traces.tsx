@@ -21,7 +21,7 @@ enum SelectedTab {
 }
 
 export default function Traces() {
-  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
   const { email } = useUserContext();
@@ -29,14 +29,15 @@ export default function Traces() {
   const selectedView = searchParams.get("view") ?? SelectedTab.TRACES;
 
   const resetUrlParams = (newView: string) => {
-    searchParams.delete("filter");
-    searchParams.delete("textSearch");
-    searchParams.delete("traceId");
-    searchParams.delete("spanId");
-    searchParams.set("view", newView);
+    const params = new URLSearchParams(searchParams);
+    params.delete("filter");
+    params.delete("textSearch");
+    params.delete("traceId");
+    params.delete("spanId");
+    params.set("view", newView);
     setIsSidePanelOpen(false);
     setTraceId(null);
-    router.push(`${pathName}?${searchParams.toString()}`);
+    router.push(`${pathName}?${params.toString()}`);
   };
 
   if (isFeatureEnabled(Feature.POSTHOG)) {
@@ -57,7 +58,7 @@ export default function Traces() {
         className="flex flex-col h-full w-full"
         onValueChange={(value) => resetUrlParams(value)}
       >
-        <TabsList className="w-full flex px-4 border-b">
+        <TabsList className="w-full flex px-4 border-b text-sm">
           <TabsTrigger value="traces">Traces</TabsTrigger>
           <TabsTrigger value="spans">Spans</TabsTrigger>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
@@ -84,9 +85,10 @@ export default function Traces() {
           >
             <TraceView
               onClose={() => {
-                searchParams.delete("traceId");
-                searchParams.delete("spanId");
-                router.push(`${pathName}?${searchParams.toString()}`);
+                const params = new URLSearchParams(searchParams);
+                params.delete("traceId");
+                params.delete("spanId");
+                router.push(`${pathName}?${params.toString()}`);
                 setIsSidePanelOpen(false);
                 setTraceId(null);
               }}

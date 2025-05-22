@@ -173,13 +173,13 @@ function Timeline({
     <ScrollArea className="h-full w-full relative" ref={ref}>
       <div
         style={{ width: `${100 * zoomLevel}%` }}
-        className="sticky top-0 z-30 bg-background flex flex-1 text-xs border-b h-8 px-4"
+        className="sticky top-0 z-20 bg-background flex flex-1 text-xs border-b h-8 px-4"
       >
         {browserSessionTime && (
           <div
             className="absolute top-0 bg-primary z-50 w-[1px]"
             style={{
-              left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds * 100) + "%",
+              left: ((browserSessionTime - startTime) / timelineWidthInMilliseconds) * 100 + "%",
               height: virtualizer.getTotalSize() + 32,
             }}
           />

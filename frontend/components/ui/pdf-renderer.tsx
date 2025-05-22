@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
 // import { useResizeObserver } from '@wojtekmaj/react-hooks';
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
-import 'pdfjs-dist/build/pdf.worker.min.mjs';
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+import "pdfjs-dist/build/pdf.worker.min.mjs";
 
-import { ChevronDown, ChevronUp, Maximize } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Document, Page } from 'react-pdf';
+import { ChevronDown, ChevronUp, Maximize } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Document, Page } from "react-pdf";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
-import { Button } from './button';
-import DownloadButton from './download-button';
-import { ScrollArea } from './scroll-area';
-import { Sheet, SheetContent, SheetTrigger } from './sheet';
-import { Skeleton } from './skeleton';
+import { Button } from "./button";
+import DownloadButton from "./download-button";
+import { ScrollArea } from "./scroll-area";
+import { Sheet, SheetContent, SheetTrigger } from "./sheet";
+import { Skeleton } from "./skeleton";
 
 // const options = {
 //   cMapUrl: '/cmaps/',
@@ -51,18 +51,15 @@ export default function PdfRenderer({ url, maxWidth, className }: PdfRendererPro
   };
 
   useEffect(() => {
-    fetch(url).then(response => response.blob()).then(blob => {
-      setFile(blob);
-    });
+    fetch(url)
+      .then((response) => response.blob())
+      .then((blob) => {
+        setFile(blob);
+      });
   }, [url]);
 
   return (
-    <div className={
-      cn(
-        "flex flex-col space-y-2 px-1 pb-2",
-        className,
-        isCollapsed && "h-8"
-      )} ref={setContainerRef}>
+    <div className={cn("flex flex-col space-y-2 px-1 pb-2", className, isCollapsed && "h-8")} ref={setContainerRef}>
       <div className="flex justify-between">
         <div className="flex space-x-2">
           <DownloadButton
@@ -126,10 +123,10 @@ function PdfDocumentContainer({
   onDocumentLoadSuccess,
   className,
 }: {
-  file: PDFFile,
-  numPages: number,
-  onDocumentLoadSuccess: (document: any) => void,
-  className?: string
+  file: PDFFile;
+  numPages: number;
+  onDocumentLoadSuccess: (document: any) => void;
+  className?: string;
 }) {
   return (
     <Document
@@ -150,15 +147,11 @@ function PdfDocumentContainer({
           <Skeleton className="w-full h-12" />
         </div>
       }
-    // options={options}
+      // options={options}
     >
       <ScrollArea className="w-full h-full flex flex-col">
         {Array.from(new Array(numPages), (_el, index) => (
-          <Page
-            key={`page_${index + 1}`}
-            pageNumber={index + 1}
-            className="w-full"
-          />
+          <Page key={`page_${index + 1}`} pageNumber={index + 1} className="w-full overflow-auto" />
         ))}
       </ScrollArea>
     </Document>

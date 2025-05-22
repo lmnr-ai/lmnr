@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   let urlParamFilters: FilterDef[] = [];
   try {
-    urlParamFilters = JSON.parse(req.nextUrl.searchParams.get("filter") ?? "[]") as FilterDef[];
+    urlParamFilters = req.nextUrl.searchParams.getAll("filter").map((f) => JSON.parse(f) as FilterDef);
   } catch (e) {
     urlParamFilters = [];
   }
@@ -193,20 +193,21 @@ export async function DELETE(
   const params = await props.params;
   const projectId = params.projectId;
 
-  const { searchParams } = new URL(req.url);
-  const traceId = searchParams.get("traceId")?.split(",");
+  const searchParams = req.nextUrl.searchParams;
+  const traceIds = searchParams.getAll("traceId");
 
-  if (!traceId) {
-    return new Response("At least one Trace ID is required", { status: 400 });
+  if (traceIds?.length === 0) {
+    return new Response("At least one trace id is required", { status: 400 });
   }
 
   try {
-    await db.delete(traces).where(and(inArray(traces.id, traceId), eq(traces.projectId, projectId)));
+    await db.transaction(async (tx) => {
+      await tx.delete(spans).where(and(inArray(spans.traceId, traceIds), eq(spans.projectId, projectId)));
+      await tx.delete(traces).where(and(inArray(traces.id, traceIds), eq(traces.projectId, projectId)));
+    });
 
-    await db.delete(spans).where(and(inArray(traces.id, traceId), eq(traces.projectId, projectId)));
-
-    return new Response("Traces deleted successfully", { status: 200 });
+    return new Response("Traces deleted successfully.", { status: 200 });
   } catch (error) {
-    return new Response("Error deleting traces", { status: 500 });
+    return new Response(error instanceof Error ? error.message : "Error deleting traces.", { status: 500 });
   }
 }

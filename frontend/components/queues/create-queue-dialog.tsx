@@ -59,13 +59,14 @@ export default function CreateQueueDialog({
 
       toast({ title: "Successfully created queue" });
       setIsDialogOpen(false);
-      setIsLoading(false);
     } catch (e) {
       toast({
         variant: "destructive",
         title: "Error",
         description: e instanceof Error ? e.message : "Failed to create the queue. Please try again.",
       });
+    } finally {
+      setIsLoading(false);
     }
   }, [mutate, newQueueName, onSuccess, projectId, toast]);
 
