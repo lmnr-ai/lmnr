@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 export default function CreateDatasetDialog({
   children,
   onSuccess,
-}: PropsWithChildren<{ onSuccess?: (queue: Dataset) => void }>) {
+}: PropsWithChildren<{ onSuccess?: (dataset: Dataset) => void }>) {
   const [newDatasetName, setNewDatasetName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -40,7 +40,6 @@ export default function CreateDatasetDialog({
 
       if (!res.ok) {
         toast({ variant: "destructive", title: "Error", description: "Failed to create the dataset" });
-        setIsLoading(false);
         return;
       }
 

@@ -38,10 +38,10 @@ const RenameEvaluationDialog = ({ urlKey, children }: PropsWithChildren<{ urlKey
         await mutate<EvaluationResultsInfo>(
           urlKey,
           (data) => {
-            console.log("hererro", data, urlKey);
             if (data) {
               return { ...data, evaluation: { ...data.evaluation, name } };
             }
+            return data;
           },
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );

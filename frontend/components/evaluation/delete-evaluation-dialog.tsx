@@ -40,7 +40,6 @@ const DeleteEvaluationDialog = ({ children }: PropsWithChildren) => {
         toast({ title: "Successfully deleted evaluation." });
         router.push(`/project/${projectId}/evaluations`);
       }
-      setOpen(false);
     } catch (e) {
       toast({
         title: "Error",
@@ -49,6 +48,7 @@ const DeleteEvaluationDialog = ({ children }: PropsWithChildren) => {
       });
     } finally {
       setIsLoading(false);
+      setOpen(false);
     }
   }, [evaluationId, projectId, router, toast]);
 

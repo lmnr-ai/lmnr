@@ -45,7 +45,7 @@ const EvaluationHeader = ({ evaluations, urlKey }: { evaluations: EvaluationType
           </SelectTrigger>
           <SelectContent>
             {evaluations
-              .filter((item) => item.id != evaluationId)
+              .filter((item) => item.id !== evaluationId)
               .map((item) => (
                 <SelectItem className="truncate" key={item.id} value={item.id}>
                   <span>
@@ -65,7 +65,7 @@ const EvaluationHeader = ({ evaluations, urlKey }: { evaluations: EvaluationType
           key={String(evaluationId)}
           value={String(evaluationId)}
           onValueChange={(value) => {
-            router.push(`/project/${projectId}/evaluations/${value}?${searchParams}`);
+            router.push(`/project/${projectId}/evaluations/${value}?${searchParams.toString()}`);
           }}
         >
           <SelectTrigger className="flex font-medium text-secondary-foreground">
@@ -73,7 +73,7 @@ const EvaluationHeader = ({ evaluations, urlKey }: { evaluations: EvaluationType
           </SelectTrigger>
           <SelectContent>
             {evaluations
-              .filter((item) => item.id != targetId)
+              .filter((item) => item.id !== targetId)
               .map((item) => (
                 <SelectItem key={item.id} value={item.id}>
                   <span>

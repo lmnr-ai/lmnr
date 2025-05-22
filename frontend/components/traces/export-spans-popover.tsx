@@ -132,8 +132,6 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
           sourceSpanId: span.spanId,
         }),
       });
-      setIsLoading(false);
-      setOpen(false);
       if (!res.ok) {
         toast({
           title: "Failed to export span. Please try again.",
@@ -157,11 +155,14 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
           ),
         });
       }
+      setOpen(false);
     } catch (e) {
       toast({
         title: e instanceof Error ? e.message : "Failed to export span. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   }, [data, projectId, selectedDataset, span.spanId, toast]);
 
