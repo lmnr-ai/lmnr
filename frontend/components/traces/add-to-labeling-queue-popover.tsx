@@ -1,5 +1,6 @@
 import { Loader2, Pen, Plus } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
 import useSWR from "swr";
 
@@ -8,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue } from "@/lib/queue/types";
 import { PaginatedResponse } from "@/lib/types";
@@ -25,7 +25,7 @@ export default function AddToLabelingQueuePopover({
   const [selectedQueue, setSelectedQueue] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
   const { toast } = useToast();
 
   const { data: labelingQueues, isLoading: isQueuesLoading } = useSWR<PaginatedResponse<LabelingQueue>>(

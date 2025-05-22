@@ -1,5 +1,4 @@
 "use client";
-import { ArrowRight } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -14,6 +13,7 @@ import {
   getScoreColumns,
 } from "@/components/evaluation/columns";
 import CompareChart from "@/components/evaluation/compare-chart";
+import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,10 +26,8 @@ import {
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
-import { Button } from "../ui/button";
 import { DataTable } from "../ui/datatable";
 import DataTableFilter, { ColumnFilter, DataTableFilterList } from "../ui/datatable-filter";
-import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
@@ -111,6 +109,11 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores)];
   }, [scores, targetId]);
 
+  const columnFilters = useMemo<ColumnFilter[]>(
+    () => [...filters, ...scores.map((score) => ({ key: `score:${score}`, name: score, dataType: "number" as const }))],
+    [scores]
+  );
+
   const tableData = useMemo(() => {
     if (targetId) {
       return (data?.results || []).map((original, index) => {
@@ -142,16 +145,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     const params = new URLSearchParams(searchParams);
     params.set("datapointId", row.id);
     params.set("traceId", row.traceId);
-    push(`${pathName}?${params}`);
-  };
-
-  const handleChange = (value?: string) => {
-    const params = new URLSearchParams(searchParams);
-    if (value) {
-      params.set("targetId", value);
-    } else {
-      params.delete("targetId");
-    }
     push(`${pathName}?${params}`);
   };
 
@@ -209,73 +202,8 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   return (
     <div className="h-full flex flex-col relative">
-      <Header path={`evaluations/${evaluationName}`} />
-      <div className="flex-none flex space-x-2 h-12 px-4 items-center border-b justify-start">
-        <div>
-          <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
-            <SelectTrigger
-              disabled={evaluations.length <= 1}
-              className="flex font-medium text-secondary-foreground truncate"
-            >
-              <SelectValue placeholder="Select compared evaluation" />
-            </SelectTrigger>
-            <SelectContent>
-              {evaluations
-                .filter((item) => item.id != evaluationId)
-                .map((item) => (
-                  <SelectItem className="truncate" key={item.id} value={item.id}>
-                    <span>
-                      {item.name}
-                      <span className="text-secondary-foreground text-xs ml-2">{formatTimestamp(item.createdAt)}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex-none text-secondary-foreground">
-          <ArrowRight size={16} />
-        </div>
-        <div>
-          <Select
-            key={evaluationId}
-            value={evaluationId}
-            onValueChange={(value) => {
-              push(`/project/${params?.projectId}/evaluations/${value}?${searchParams}`);
-            }}
-          >
-            <SelectTrigger className="flex font-medium text-secondary-foreground">
-              <SelectValue placeholder="Select evaluation" />
-            </SelectTrigger>
-            <SelectContent>
-              {evaluations
-                .filter((item) => item.id != targetId)
-                .map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    <span>
-                      {item.name}
-                      <span className="text-secondary-foreground text-xs ml-2">{formatTimestamp(item.createdAt)}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          {targetId && (
-            <Button className="h-6" variant={"secondary"} onClick={() => handleChange(undefined)}>
-              Reset
-            </Button>
-          )}
-        </div>
-        {!targetId && (
-          <DownloadButton
-            uri={`/api/projects/${params?.projectId}/evaluations/${evaluationId}/download`}
-            filenameFallback={`evaluation-results-${evaluationId}`}
-            supportedFormats={["csv", "json"]}
-          />
-        )}
-      </div>
+      <Header path={`evaluations/${data?.evaluation?.name || evaluationName}`} />
+      <EvaluationHeader urlKey={evaluationUrl} evaluations={evaluations} />
       <div className="flex flex-grow flex-col">
         <div className="flex flex-col flex-grow">
           <div className="flex flex-row space-x-4 p-4">
@@ -315,7 +243,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
               childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
             >
               <div className="flex flex-1 w-full space-x-2">
-                <DataTableFilter columns={filters} />
+                <DataTableFilter columns={columnFilters} />
                 <SearchEvaluationInput />
               </div>
               <DataTableFilterList />
