@@ -107,7 +107,7 @@ export function SpanView({ spanId }: SpanViewProps) {
                 {new Date(span.startTime).toLocaleString()}
               </div>
             </div>
-            <LabelsContextProvider>
+            <LabelsContextProvider spanId={spanId}>
               <div className="flex gap-2 items-center">
                 <LabelsTrigger />
                 <AddToLabelingQueuePopover

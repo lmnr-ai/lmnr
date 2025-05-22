@@ -186,7 +186,7 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
             </Badge>
           )}
         </PopoverTrigger>
-        <PopoverContent className="w-80" align="start" side="bottom">
+        <PopoverContent className="w-80" align="end" side="bottom">
           <div className="flex flex-col space-y-4">
             <span className="font-medium">Export span to dataset</span>
             <DatasetSelect onChange={(dataset) => setSelectedDataset(dataset)} />

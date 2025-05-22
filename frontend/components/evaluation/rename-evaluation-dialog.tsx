@@ -10,7 +10,11 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 
-const RenameEvaluationDialog = ({ urlKey, children }: PropsWithChildren<{ urlKey: string }>) => {
+const RenameEvaluationDialog = ({
+  urlKey,
+  defaultValue,
+  children,
+}: PropsWithChildren<{ urlKey: string; defaultValue?: string }>) => {
   const { projectId, evaluationId } = useParams();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -21,6 +25,8 @@ const RenameEvaluationDialog = ({ urlKey, children }: PropsWithChildren<{ urlKey
 
   const submit = useCallback(async () => {
     try {
+      if (!name) return;
+
       setIsLoading(true);
 
       const response = await fetch(`/api/projects/${projectId}/evaluations/${evaluationId}`, {
@@ -61,19 +67,24 @@ const RenameEvaluationDialog = ({ urlKey, children }: PropsWithChildren<{ urlKey
   }, [evaluationId, mutate, name, projectId, router, toast, urlKey]);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(open) => {
+        setOpen(open);
+        setName("");
+      }}
+    >
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Rename evaluation</DialogTitle>
         </DialogHeader>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New evaluation name" />
-
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={defaultValue} />
         <DialogFooter>
           <Button variant="secondary" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button handleEnter disabled={isLoading || name.trim() === ""} onClick={submit}>
+          <Button handleEnter disabled={isLoading || name?.trim() === ""} onClick={submit}>
             {isLoading && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
             Save
           </Button>

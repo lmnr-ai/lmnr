@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { createContext, PropsWithChildren, useContext, useMemo } from "react";
 import useSWR, { KeyedMutator } from "swr";
 
@@ -13,6 +13,7 @@ type LabelsContextType = {
   labels: SpanLabel[];
   labelClasses: LabelClass[];
   isLoading: boolean;
+  spanId: string;
 };
 
 const LabelsContext = createContext<LabelsContextType>({
@@ -21,14 +22,13 @@ const LabelsContext = createContext<LabelsContextType>({
   labels: [],
   labelClasses: [],
   isLoading: false,
+  spanId: "",
 });
 
 export const useLabelsContext = () => useContext(LabelsContext);
 
-const LabelsContextProvider = ({ children }: PropsWithChildren) => {
+const LabelsContextProvider = ({ children, spanId }: PropsWithChildren<{ spanId: string }>) => {
   const params = useParams();
-  const searchParams = useSearchParams();
-  const spanId = searchParams.get("spanId");
   const {
     data: labelClasses = [],
     mutate: mutateLabelClass,
@@ -47,8 +47,9 @@ const LabelsContextProvider = ({ children }: PropsWithChildren) => {
       mutateLabelClass,
       labels: data,
       labelClasses,
+      spanId,
     }),
-    [data, isLabelsLoading, isLoading, labelClasses, mutate, mutateLabelClass]
+    [data, isLabelsLoading, isLoading, labelClasses, mutate, mutateLabelClass, spanId]
   );
   return <LabelsContext.Provider value={value}>{children}</LabelsContext.Provider>;
 };

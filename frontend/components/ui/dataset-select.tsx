@@ -40,8 +40,8 @@ export default function DatasetSelect({ onChange, value, className }: DatasetSel
         ))}
         <CreateDatasetDialog>
           <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
-            <Plus className="w-4 h-4 mr-2" />
-            <span>Create new dataset</span>
+            <Plus className="w-3 h-3 mr-2" />
+            <span className="text-xs">Create new dataset</span>
           </div>
         </CreateDatasetDialog>
       </SelectContent>

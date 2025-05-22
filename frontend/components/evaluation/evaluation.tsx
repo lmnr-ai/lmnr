@@ -203,7 +203,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   return (
     <div className="h-full flex flex-col relative">
       <Header path={`evaluations/${data?.evaluation?.name || evaluationName}`} />
-      <EvaluationHeader urlKey={evaluationUrl} evaluations={evaluations} />
+      <EvaluationHeader name={data?.evaluation?.name} urlKey={evaluationUrl} evaluations={evaluations} />
       <div className="flex flex-grow flex-col">
         <div className="flex flex-col flex-grow">
           <div className="flex flex-row space-x-4 p-4">

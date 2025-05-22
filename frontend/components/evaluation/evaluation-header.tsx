@@ -16,7 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Evaluation as EvaluationType } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
 
-const EvaluationHeader = ({ evaluations, urlKey }: { evaluations: EvaluationType[]; urlKey: string }) => {
+const EvaluationHeader = ({
+  evaluations,
+  name,
+  urlKey,
+}: {
+  evaluations: EvaluationType[];
+  name?: string;
+  urlKey: string;
+}) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
@@ -106,7 +114,7 @@ const EvaluationHeader = ({ evaluations, urlKey }: { evaluations: EvaluationType
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <RenameEvaluationDialog urlKey={urlKey}>
+          <RenameEvaluationDialog defaultValue={name} urlKey={urlKey}>
             <DropdownMenuItem className="py-1" onSelect={(e) => e.preventDefault()}>
               <Edit className="w-3 mr-2" />
               <span className="text-xs">Rename</span>
