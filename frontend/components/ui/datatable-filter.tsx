@@ -144,7 +144,13 @@ export default function DataTableFilter({ columns, className }: DataTableFilterP
         </div>
         <div className="flex flex-row-reverse border-t p-2">
           <PopoverClose asChild>
-            <Button onClick={handleApplyFilters} variant="secondary" handleEnter className="ml-auto">
+            <Button
+              disabled={!filter.column || !filter.value || !filter.operator}
+              onClick={handleApplyFilters}
+              variant="secondary"
+              handleEnter
+              className="ml-auto"
+            >
               Add filter
             </Button>
           </PopoverClose>
