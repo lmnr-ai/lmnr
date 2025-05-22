@@ -172,12 +172,12 @@ export const DataTableFilterList = () => {
 
   return (
     <div className="flex gap-2 flex-wrap">
-      {filters.map((f) => (
-        <Tooltip key={`${f.column}-${f.value}-${f.operator}`}>
+      {filters.map((f, index) => (
+        <Tooltip key={`${index}-${f.column}-${f.value}-${f.operator}`}>
           <TooltipTrigger asChild>
-            <Badge className="flex gap-2 border-primary py-1 px-2" variant="outline">
+            <Badge className="flex gap-2 border-primary bg-primary/10 py-1 px-2" variant="outline">
               <ListFilter className="w-3 h-3 text-primary" />
-              <span className="text-xs text-primary truncate">
+              <span className="text-xs text-primary truncate font-mono">
                 {f.column}{" "}
                 {get(
                   find([...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS], ["key", f.operator]),

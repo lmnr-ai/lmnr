@@ -226,6 +226,26 @@ export const filters: ColumnFilter[] = [
     dataType: "number",
   },
   {
+    name: "Total cost",
+    key: "cost",
+    dataType: "number",
+  },
+  {
+    name: "Input tokens",
+    key: "input_token_count",
+    dataType: "number",
+  },
+  {
+    name: "Output tokens",
+    key: "output_token_count",
+    dataType: "number",
+  },
+  {
+    name: "Total tokens",
+    key: "total_token_count",
+    dataType: "number",
+  },
+  {
     name: "Metadata",
     key: "metadata",
     dataType: "json",
