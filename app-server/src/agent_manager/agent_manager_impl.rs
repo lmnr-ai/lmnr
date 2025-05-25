@@ -1,16 +1,16 @@
 use crate::agent_manager::types::ErrorChunkContent;
 
+use super::AgentManagerTrait;
 use super::agent_manager_grpc::{
-    agent_manager_service_client::AgentManagerServiceClient, RunAgentRequest,
+    RunAgentRequest, agent_manager_service_client::AgentManagerServiceClient,
 };
 use super::types::{AgentOutput, RunAgentResponseStreamChunk};
-use super::AgentManagerTrait;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Utc;
 use std::pin::Pin;
 use std::sync::Arc;
-use tonic::{transport::Channel, Request};
+use tonic::{Request, transport::Channel};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -56,6 +56,8 @@ impl AgentManagerTrait for AgentManagerImpl {
             max_steps: params.max_steps,
             thinking_token_budget: params.thinking_token_budget,
             start_url: params.start_url,
+            disable_give_control: Some(params.disable_give_control),
+            user_agent: params.user_agent,
         });
 
         let response = client.run_agent(request).await?;
@@ -85,6 +87,8 @@ impl AgentManagerTrait for AgentManagerImpl {
             max_steps: params.max_steps,
             thinking_token_budget: params.thinking_token_budget,
             start_url: params.start_url,
+            disable_give_control: Some(params.disable_give_control),
+            user_agent: params.user_agent,
         });
 
         match client.run_agent_stream(request).await {
