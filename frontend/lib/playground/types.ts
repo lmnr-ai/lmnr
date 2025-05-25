@@ -77,12 +77,12 @@ export const openAIThinkingModels = [
 
 export const anthropicThinkingModels = [
   "anthropic:claude-3-7-sonnet-20250219:thinking",
-  "anthropic:claude-4-sonnet-20250514",
-  "anthropic:claude-4-opus-20250514",
+  "anthropic:claude-4-sonnet-20250514:thinking",
+  "anthropic:claude-4-opus-20250514:thinking",
 ];
 
 export const googleThinkingModels = [
-  "gemini:gemini-2.5-flash-preview-05-20",
-  "gemini:gemini-2.5-pro-exp-03-25",
-  "gemini:gemini-2.5-pro-preview-05-06",
+  "gemini:gemini-2.5-flash-preview-05-20:thinking",
+  "gemini:gemini-2.5-pro-exp-03-25:thinking",
+  "gemini:gemini-2.5-pro-preview-05-06:thinking",
 ];
