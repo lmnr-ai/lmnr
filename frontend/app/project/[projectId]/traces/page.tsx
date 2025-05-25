@@ -1,7 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { Metadata } from "next";
 
-import SQLEditorButton from "@/components/sql";
 import TracesPagePlaceholder from "@/components/traces/page-placeholder";
 import TracesDashboard from "@/components/traces/traces";
 import Header from "@/components/ui/header";
@@ -23,9 +22,7 @@ export default async function TracesPage(props: { params: Promise<{ projectId: s
   }
   return (
     <>
-      <Header path="traces" childrenContainerClassName="flex-1" className="border-b-0">
-        <SQLEditorButton className="ml-auto mr-4" />
-      </Header>
+      <Header path="traces" className="border-b-0" />
       <TracesDashboard />
     </>
   );

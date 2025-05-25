@@ -75,10 +75,14 @@ export const openAIThinkingModels = [
   "openai:o1-preview",
 ];
 
-export const anthropicThinkingModels = ["anthropic:claude-3-7-sonnet-20250219:thinking"];
+export const anthropicThinkingModels = [
+  "anthropic:claude-3-7-sonnet-20250219:thinking",
+  "anthropic:claude-4-sonnet-20250514",
+  "anthropic:claude-4-opus-20250514",
+];
 
 export const googleThinkingModels = [
-  "gemini:gemini-2.5-flash-preview-04-17",
+  "gemini:gemini-2.5-flash-preview-05-20",
   "gemini:gemini-2.5-pro-exp-03-25",
   "gemini:gemini-2.5-pro-preview-05-06",
 ];

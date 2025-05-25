@@ -34,7 +34,7 @@ const SQLEditorProvider = ({ children }: PropsWithChildren) => {
       <AnimatePresence>
         {open && (
           <motion.div
-            className="absolute top-12 right-0 bottom-0 bg-background z-50 flex"
+            className="absolute top-0 right-0 bottom-0 bg-background z-50 flex"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -45,7 +45,7 @@ const SQLEditorProvider = ({ children }: PropsWithChildren) => {
             }}
           >
             <Resizable
-              className="border-l border-t rounded-tl"
+              className="border-l"
               enable={{
                 left: true,
               }}

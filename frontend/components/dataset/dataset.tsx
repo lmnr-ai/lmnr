@@ -183,7 +183,7 @@ export default function Dataset({ dataset }: DatasetProps) {
         setSelectedDatapoint(datapoint);
       }
     }
-  }, [datapointId, datapoints]);
+  }, []);
 
   return (
     <div className="h-full flex flex-col">
