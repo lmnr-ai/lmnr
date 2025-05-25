@@ -53,7 +53,7 @@ const downloadImage = async (url: string, projectId: string): Promise<{
 };
 
 // Create a semaphore to limit concurrent downloads (adjust the limit as needed)
-const downloadSemaphore = new Semaphore(16);
+const downloadSemaphore = new Semaphore(64);
 
 const toImageBase64 = async (payload: RelativeImageUrl, projectId: string): Promise<ImageBase64 | RelativeImageUrl> => await downloadSemaphore.using(async () => {
   const downloadResult = await downloadImage(payload.url, projectId);
