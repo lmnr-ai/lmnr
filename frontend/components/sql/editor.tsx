@@ -16,6 +16,7 @@ import { DataTable } from "@/components/ui/datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
+
 import { Badge } from "../ui/badge";
 
 const QUERY_STORAGE_KEY = "sql-dashboard-query";

@@ -55,25 +55,23 @@ const downloadImage = async (url: string, projectId: string): Promise<{
 // Create a semaphore to limit concurrent downloads (adjust the limit as needed)
 const downloadSemaphore = new Semaphore(16);
 
-const toImageBase64 = async (payload: RelativeImageUrl, projectId: string): Promise<ImageBase64 | RelativeImageUrl> => {
-  return await downloadSemaphore.using(async () => {
-    const downloadResult = await downloadImage(payload.url, projectId);
-    if (!downloadResult) {
-      return payload;
-    }
-    const { blob, mediaType } = downloadResult;
-    const arrayBuffer = await blob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64 = buffer.toString('base64');
+const toImageBase64 = async (payload: RelativeImageUrl, projectId: string): Promise<ImageBase64 | RelativeImageUrl> => await downloadSemaphore.using(async () => {
+  const downloadResult = await downloadImage(payload.url, projectId);
+  if (!downloadResult) {
+    return payload;
+  }
+  const { blob, mediaType } = downloadResult;
+  const arrayBuffer = await blob.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const base64 = buffer.toString('base64');
 
-    const imageType = inferImageType(base64) ?? mediaType;
-    return {
-      type: 'image',
-      base64: `data:image/${imageType};base64,${base64}`,
-      detail: payload.detail,
-    };
-  });
-};
+  const imageType = inferImageType(base64) ?? mediaType;
+  return {
+    type: 'image',
+    base64: `data:image/${imageType};base64,${base64}`,
+    detail: payload.detail,
+  };
+});
 
 const materializeAttachments = async (payload: JSONValue, projectId: string): Promise<JSONValue> => {
   if (Array.isArray(payload)) {
