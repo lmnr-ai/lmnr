@@ -49,7 +49,7 @@ const WITH_EVAL_DP_DATA_CTE = `
   WITH ${WITH_EVAL_DP_DATA_CTE_NAME}(id, full_data) AS (
     SELECT DISTINCT ON (spans.project_id, span_id)
       evaluation_results.id,
-      spans.input -> 'data' as full_data
+      COALESCE(spans.input -> 'data', spans.input) as full_data
     FROM spans
     JOIN evaluation_results ON spans.trace_id = evaluation_results.trace_id
     WHERE spans.span_type = 'EXECUTOR'
@@ -65,7 +65,7 @@ const WITH_EVAL_DP_TARGET_CTE = `
   WITH ${WITH_EVAL_DP_TARGET_CTE_NAME}(id, target) AS (
     SELECT DISTINCT ON (spans.project_id, span_id)
       evaluation_results.id,
-      spans.input -> 'target' as target
+      COALESCE(spans.input -> 'target', spans.input -> 0, spans.input) as target
     FROM spans
     JOIN evaluation_results ON spans.trace_id = evaluation_results.trace_id
     WHERE spans.span_type = 'EVALUATOR'

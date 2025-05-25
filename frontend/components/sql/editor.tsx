@@ -71,6 +71,11 @@ export default function SQLEditor() {
         });
       }
 
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
       setResults(data.result);
       if (data.result && data.result.length > 0) {
         setColumns(
