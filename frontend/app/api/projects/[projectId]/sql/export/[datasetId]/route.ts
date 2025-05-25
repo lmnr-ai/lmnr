@@ -5,6 +5,7 @@ import { CreateDatapointsSchema } from '@/lib/dataset/types';
 import { db } from '@/lib/db/drizzle';
 import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
 import { downloadS3ObjectHttp } from '@/lib/s3';
+import { Semaphore } from '@/lib/semaphore';
 import { inferImageType } from '@/lib/utils';
 
 type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
@@ -51,22 +52,27 @@ const downloadImage = async (url: string, projectId: string): Promise<{
   }
 };
 
-const toImageBase64 = async (payload: RelativeImageUrl, projectId: string): Promise<ImageBase64 | RelativeImageUrl> => {
-  const downloadResult = await downloadImage(payload.url, projectId);
-  if (!downloadResult) {
-    return payload;
-  }
-  const { blob, mediaType } = downloadResult;
-  const arrayBuffer = await blob.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const base64 = buffer.toString('base64');
+// Create a semaphore to limit concurrent downloads (adjust the limit as needed)
+const downloadSemaphore = new Semaphore(16);
 
-  const imageType = inferImageType(base64) ?? mediaType;
-  return {
-    type: 'image',
-    base64: `data:image/${imageType};base64,${base64}`,
-    detail: payload.detail,
-  };
+const toImageBase64 = async (payload: RelativeImageUrl, projectId: string): Promise<ImageBase64 | RelativeImageUrl> => {
+  return await downloadSemaphore.using(async () => {
+    const downloadResult = await downloadImage(payload.url, projectId);
+    if (!downloadResult) {
+      return payload;
+    }
+    const { blob, mediaType } = downloadResult;
+    const arrayBuffer = await blob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+
+    const imageType = inferImageType(base64) ?? mediaType;
+    return {
+      type: 'image',
+      base64: `data:image/${imageType};base64,${base64}`,
+      detail: payload.detail,
+    };
+  });
 };
 
 const materializeAttachments = async (payload: JSONValue, projectId: string): Promise<JSONValue> => {
@@ -77,9 +83,11 @@ const materializeAttachments = async (payload: JSONValue, projectId: string): Pr
     if (isRelativeImageUrl(payload, projectId)) {
       return await toImageBase64(payload, projectId);
     }
+    const result = { ...payload };
     for (const key in payload) {
-      payload[key] = await materializeAttachments(payload[key], projectId);
+      result[key] = await materializeAttachments(payload[key], projectId);
     }
+    return result;
   }
   return payload;
 };
