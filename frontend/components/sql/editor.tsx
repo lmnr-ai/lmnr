@@ -16,6 +16,7 @@ import { DataTable } from "@/components/ui/datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
+import { Badge } from "../ui/badge";
 
 const QUERY_STORAGE_KEY = "sql-dashboard-query";
 
@@ -110,14 +111,19 @@ export default function SQLEditor() {
 
   return (
     <ResizablePanelGroup direction="vertical" className="flex-grow overflow-hidden">
-      <ResizablePanel className="h-full flex flex-col gap-2" defaultSize={40} minSize={20}>
-        <div className="flex items-center border-b p-2">
-          <h2 className="text-lg font-semibold">SQL Editor</h2>
+      <ResizablePanel className="h-full flex flex-col" defaultSize={40} minSize={20}>
+        <div className="flex items-center border-b min-h-12 px-2">
+          <h2 className="text-lg font-semibold flex items-center">
+            SQL Editor
+            <Badge className="ml-2" variant="outlinePrimary">
+              Beta
+            </Badge>
+          </h2>
           <Button onClick={() => setOpen(false)} className="p-1 h-fit ml-auto" variant="outline">
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="overflow-hidden h-full p-2">
+        <div className="overflow-hidden h-full">
           <CodeEditor
             editable
             value={query}
@@ -132,7 +138,7 @@ export default function SQLEditor() {
       <ResizablePanel className="flex flex-col flex-1 overflow-hidden" defaultSize={60} minSize={20}>
         <Tabs className="flex flex-1 flex-col overflow-hidden" defaultValue="table">
           <div className="flex items-center justify-between border-b px-4">
-            <TabsList className="border-b-0">
+            <TabsList className="border-b-0 text-sm">
               <TabsTrigger value="table">
                 <TableProperties className="mr-2 w-4 h-4" />
                 <span>Table</span>
@@ -144,13 +150,13 @@ export default function SQLEditor() {
             </TabsList>
             <div className="flex items-center gap-2 py-2">
               <ExportSqlDialog results={results}>
-                <Button variant="secondary" className="h-8 w-fit px-2">
+                <Button variant="secondary" className="w-fit px-2">
                   <Database className="size-3.5 mr-2" />
                   Export to Dataset
                 </Button>
               </ExportSqlDialog>
-              <Button disabled={isLoading || !query.trim()} onClick={executeQuery} className="ml-auto h-8 w-fit px-2">
-                {isLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PlayIcon className="w-4 h-4 mr-1" />}
+              <Button disabled={isLoading || !query.trim()} onClick={executeQuery} className="ml-auto w-fit px-2">
+                {isLoading ? <Loader2 size={14} className="mr-1 animate-spin" /> : <PlayIcon size={14} className="mr-1" />}
                 <span className="mr-2">Run</span>
                 <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
               </Button>
@@ -160,6 +166,7 @@ export default function SQLEditor() {
           <TabsContent className="h-full" value="table">
             {!results && !error && <div className="text-center text-gray-500 mt-4">Execute a query to see results</div>}
             {results && !error && <DataTable className="border-t-0" columns={columns} data={results} paginated />}
+            {error && <div className="text-center text-red-500 mt-4">{error}</div>}
           </TabsContent>
           <TabsContent className="flex flex-1 overflow-hidden" value="json">
             {!results && !error && (

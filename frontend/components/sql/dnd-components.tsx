@@ -35,7 +35,7 @@ const PureDraggableColumn = ({ column, category, onRemove }: DraggableColumnProp
       ref={setNodeRef}
       className={cn("mb-2", isDragging ? "opacity-30" : "opacity-100")}
     >
-      <div className="flex items-center p-2 border rounded bg-card shadow-md">
+      <div className="flex items-center p-1 border rounded bg-card shadow-md">
         <Button ref={setActivatorNodeRef} {...listeners} className="p-1 h-fit" variant="ghost">
           <GripVertical className="h-4 w-4 mr-2 flex-shrink-0 text-muted-foreground" />
         </Button>
