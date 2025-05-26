@@ -25,7 +25,7 @@ export default function SQLEditor() {
   const { projectId } = useParams();
   const { setOpen } = useSQLEditorContext();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<Record<string, any>[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [columns, setColumns] = useState<ColumnDef<any>[]>([]);
@@ -157,7 +157,11 @@ export default function SQLEditor() {
                 </Button>
               </ExportSqlDialog>
               <Button disabled={isLoading || !query.trim()} onClick={executeQuery} className="ml-auto w-fit px-2">
-                {isLoading ? <Loader2 size={14} className="mr-1 animate-spin" /> : <PlayIcon size={14} className="mr-1" />}
+                {isLoading ? (
+                  <Loader2 size={14} className="mr-1 animate-spin" />
+                ) : (
+                  <PlayIcon size={14} className="mr-1" />
+                )}
                 <span className="mr-2">Run</span>
                 <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
               </Button>

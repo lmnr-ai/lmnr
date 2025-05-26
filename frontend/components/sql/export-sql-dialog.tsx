@@ -23,7 +23,7 @@ import { Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface ExportResultsDialogProps {
-  results: any[] | null;
+  results: Record<string, any>[] | null;
 }
 
 export default function ExportSqlDialog({ results, children }: PropsWithChildren<ExportResultsDialogProps>) {

@@ -21,10 +21,12 @@ export interface Datapoint {
 }
 
 export const CreateDatapointsSchema = z.object({
-  datapoints: z.array(z.object({
-    data: z.unknown(),
-    target: z.any().optional(),
-    metadata: z.any().optional(),
-  })),
+  datapoints: z.array(
+    z.object({
+      data: z.record(z.string(), z.any()),
+      target: z.record(z.string(), z.any()).optional(),
+      metadata: z.record(z.string(), z.any()).optional(),
+    })
+  ),
   sourceSpanId: z.string().optional(),
 });

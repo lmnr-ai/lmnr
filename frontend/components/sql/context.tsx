@@ -13,7 +13,9 @@ type SQLEditorContextType = {
 
 const SQLEditorContext = createContext<SQLEditorContextType>({
   open: false,
-  setOpen: () => {},
+  setOpen: () => {
+    throw new Error("Cannot call setOpen outside of SQLEditorProvider");
+  },
 });
 
 export const useSQLEditorContext = () => useContext(SQLEditorContext);
