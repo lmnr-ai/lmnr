@@ -5,13 +5,13 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Skeleton } from "@/components/ui/skeleton";
 import { EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
 
-interface CompareChatProps {
+interface CompareChartProps {
   evaluationId: string;
   comparedEvaluationId: string;
   scoreName: string;
   className?: string;
-  distribution?: EvaluationScoreDistributionBucket[] | null;
-  comparedDistribution?: EvaluationScoreDistributionBucket[] | null;
+  distribution: EvaluationScoreDistributionBucket[] | null;
+  comparedDistribution: EvaluationScoreDistributionBucket[] | null;
   isLoading?: boolean;
 }
 
@@ -29,7 +29,7 @@ export default function CompareChart({
   distribution,
   comparedDistribution,
   isLoading = false
-}: CompareChatProps) {
+}: CompareChartProps) {
   // Convert distribution data to the format expected by the chart
   const chartData = distribution ? distribution.map((bucket, index) => ({
     index,

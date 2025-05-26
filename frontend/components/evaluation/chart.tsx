@@ -9,7 +9,7 @@ interface ChartProps {
   evaluationId: string;
   className?: string;
   scoreName: string;
-  distribution?: EvaluationScoreDistributionBucket[] | null;
+  distribution: EvaluationScoreDistributionBucket[] | null;
   isLoading?: boolean;
 }
 

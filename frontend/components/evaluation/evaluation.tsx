@@ -259,8 +259,8 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       evaluationId={evaluationId}
                       comparedEvaluationId={targetId}
                       scoreName={selectedScore}
-                      distribution={data?.distribution}
-                      comparedDistribution={targetData?.distribution}
+                      distribution={data?.distribution ?? null}
+                      comparedDistribution={targetData?.distribution ?? null}
                       isLoading={isLoading}
                     />
                   ) : (
@@ -268,7 +268,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       className="h-full"
                       evaluationId={evaluationId}
                       scoreName={selectedScore}
-                      distribution={data?.distribution}
+                      distribution={data?.distribution ?? null}
                       isLoading={isLoading}
                     />
                   )}

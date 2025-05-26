@@ -5,17 +5,41 @@ import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations, evaluationScores, traces } from "@/lib/db/migrations/schema";
+import { EvaluationScoreDistributionBucket, EvaluationScoreStatistics } from "@/lib/evaluation/types";
 import { DatatableFilter } from "@/lib/types";
 
 // Constants for distribution calculation
 const DEFAULT_LOWER_BOUND = 0.0;
 const DEFAULT_BUCKET_COUNT = 10;
 
+// Type for the evaluation result with scores
+type EvaluationResultWithScores = {
+  id: string;
+  createdAt: string;
+  evaluationId: string;
+  data: unknown;
+  target: unknown;
+  executorOutput: unknown;
+  scores: unknown;
+  index: number;
+  traceId: string;
+  startTime: string | null;
+  endTime: string | null;
+  inputCost: number | null;
+  outputCost: number | null;
+};
+
 // Helper function to calculate score statistics
-function calculateScoreStatistics(results: any[], scoreName: string) {
+function calculateScoreStatistics(
+  results: EvaluationResultWithScores[],
+  scoreName: string
+): EvaluationScoreStatistics {
   const scores = results
-    .map(result => result.scores?.[scoreName])
-    .filter(score => typeof score === 'number' && !isNaN(score));
+    .map(result => {
+      const scoresObj = result.scores as Record<string, number> | null;
+      return scoresObj?.[scoreName];
+    })
+    .filter((score): score is number => typeof score === 'number' && !isNaN(score));
 
   if (scores.length === 0) {
     return { averageValue: 0 };
@@ -28,10 +52,16 @@ function calculateScoreStatistics(results: any[], scoreName: string) {
 }
 
 // Helper function to calculate score distribution
-function calculateScoreDistribution(results: any[], scoreName: string) {
+function calculateScoreDistribution(
+  results: EvaluationResultWithScores[],
+  scoreName: string
+): EvaluationScoreDistributionBucket[] {
   const scores = results
-    .map(result => result.scores?.[scoreName])
-    .filter(score => typeof score === 'number' && !isNaN(score));
+    .map(result => {
+      const scoresObj = result.scores as Record<string, number> | null;
+      return scoresObj?.[scoreName];
+    })
+    .filter((score): score is number => typeof score === 'number' && !isNaN(score));
 
   if (scores.length === 0) {
     // Return empty buckets
@@ -51,21 +81,26 @@ function calculateScoreDistribution(results: any[], scoreName: string) {
 
   // If all scores are the same, put everything in the last bucket
   if (lowerBound === upperBound) {
-    const buckets = Array.from({ length: DEFAULT_BUCKET_COUNT }, (_, i) => ({
-      lowerBound,
-      upperBound,
-      heights: [0]
-    }));
+    const buckets: EvaluationScoreDistributionBucket[] = Array.from(
+      { length: DEFAULT_BUCKET_COUNT },
+      (_, i) => ({
+        lowerBound,
+        upperBound,
+        heights: [0]
+      })
+    );
     buckets[DEFAULT_BUCKET_COUNT - 1].heights = [scores.length];
     return buckets;
   }
 
   const stepSize = (upperBound - lowerBound) / DEFAULT_BUCKET_COUNT;
-  const buckets = [];
+  const buckets: EvaluationScoreDistributionBucket[] = [];
 
   for (let i = 0; i < DEFAULT_BUCKET_COUNT; i++) {
     const bucketLowerBound = lowerBound + (i * stepSize);
-    const bucketUpperBound = i === DEFAULT_BUCKET_COUNT - 1 ? upperBound : lowerBound + ((i + 1) * stepSize);
+    const bucketUpperBound = i === DEFAULT_BUCKET_COUNT - 1
+      ? upperBound
+      : lowerBound + ((i + 1) * stepSize);
 
     const count = scores.filter(score => {
       if (i === DEFAULT_BUCKET_COUNT - 1) {
@@ -246,8 +281,8 @@ export async function GET(
     .orderBy(asc(evaluationResults.index), asc(evaluationResults.createdAt));
 
   // Calculate statistics and distribution for the requested score
-  let statistics = null;
-  let distribution = null;
+  let statistics: EvaluationScoreStatistics | null = null;
+  let distribution: EvaluationScoreDistributionBucket[] | null = null;
 
   if (scoreName) {
     statistics = calculateScoreStatistics(results, scoreName);
