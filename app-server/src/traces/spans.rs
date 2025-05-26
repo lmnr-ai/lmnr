@@ -972,51 +972,66 @@ fn parse_tool_calls(
 fn try_parse_ai_sdk_output(
     attributes: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<serde_json::Value> {
-    let mut out_vals: Vec<serde_json::Value> = Vec::new();
+    let mut messages = Vec::new();
+    // let mut out_vals: Vec<serde_json::Value> = Vec::new();
     if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
-        out_vals.push(serde_json::Value::String(s.clone()));
+        messages.push(ChatMessage {
+            role: "assistant".to_string(),
+            content: ChatMessageContent::Text(s.clone()),
+        });
     } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
-        out_vals.push(
-            serde_json::from_str::<serde_json::Value>(s)
-                .unwrap_or(serde_json::Value::String(s.clone())),
-        );
+        let content = serde_json::from_str::<serde_json::Value>(s)
+            .unwrap_or(serde_json::Value::String(s.clone()));
+        messages.push(ChatMessage {
+            role: "assistant".to_string(),
+            content: ChatMessageContent::Text(json_value_to_string(&content)),
+        });
     } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.toolCalls") {
         if let Ok(tool_call_values) =
             serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
         {
-            out_vals.push(serde_json::Value::Array(parse_ai_sdk_tool_calls(
-                tool_call_values,
-            )));
+            let tool_calls = parse_ai_sdk_tool_calls(tool_call_values)
+                .iter()
+                .map(|tool_call| ChatMessageContentPart::ToolCall(tool_call.clone()))
+                .collect::<Vec<_>>();
+            messages.push(ChatMessage {
+                role: "assistant".to_string(),
+                content: ChatMessageContent::ContentPartList(tool_calls),
+            });
         }
     }
 
-    if out_vals.is_empty() {
+    if messages.is_empty() {
         None
     } else {
-        Some(serde_json::Value::Array(out_vals))
+        Some(serde_json::Value::Array(
+            messages
+                .into_iter()
+                .map(|message| serde_json::to_value(message).unwrap())
+                .collect(),
+        ))
     }
 }
 
-fn parse_ai_sdk_tool_calls(tool_calls: Vec<HashMap<String, serde_json::Value>>) -> Vec<Value> {
+fn parse_ai_sdk_tool_calls(
+    tool_calls: Vec<HashMap<String, serde_json::Value>>,
+) -> Vec<ChatMessageToolCall> {
     tool_calls
         .iter()
-        .map(|tool_call| {
-            if let Some(tool_name) = tool_call.get("toolName") {
+        .filter_map(|tool_call| {
+            tool_call.get("toolName").map(|tool_name| {
                 let args_value = tool_call.get("args").cloned().unwrap_or_default();
                 let args = if let serde_json::Value::String(s) = &args_value {
                     serde_json::from_str::<HashMap<String, serde_json::Value>>(s).ok()
                 } else {
                     serde_json::from_value::<HashMap<String, serde_json::Value>>(args_value).ok()
                 };
-                let parsed = ChatMessageToolCall {
+                ChatMessageToolCall {
                     name: json_value_to_string(tool_name),
                     id: tool_call.get("toolCallId").map(json_value_to_string),
                     arguments: args.map(|args| serde_json::to_value(args).unwrap()),
-                };
-                serde_json::to_value(parsed).unwrap()
-            } else {
-                serde_json::to_value(tool_call).unwrap()
-            }
+                }
+            })
         })
         .collect::<Vec<_>>()
 }
