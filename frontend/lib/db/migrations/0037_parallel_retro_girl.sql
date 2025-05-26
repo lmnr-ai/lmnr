@@ -1,5 +1,3 @@
-
-ALTER TABLE "workspace_invitations" DROP CONSTRAINT "workspace_invitations_workspace_id_email_key";--> statement-breakpoint
 ALTER TABLE "agent_sessions" ALTER COLUMN "session_id" SET DEFAULT gen_random_uuid();--> statement-breakpoint
 ALTER TABLE "traces" ALTER COLUMN "visibility" SET DEFAULT '';--> statement-breakpoint
 ALTER TABLE "workspace_invitations" ALTER COLUMN "workspace_id" SET DEFAULT gen_random_uuid();--> statement-breakpoint
