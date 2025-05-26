@@ -94,6 +94,7 @@ pub async fn record_span_to_db(
     });
 
     trace_attributes.update_session_id(span_attributes.session_id());
+    trace_attributes.update_user_id(span_attributes.user_id());
     trace_attributes.update_trace_type(span_attributes.trace_type());
     trace_attributes.set_metadata(span_attributes.metadata());
     if let Some(has_browser_session) = span_attributes.has_browser_session() {
