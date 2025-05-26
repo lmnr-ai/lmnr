@@ -87,7 +87,13 @@ export default function CreateDatasetDialog({
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <Label>Name</Label>
-            <Input autoFocus placeholder="Name" onChange={(e) => setNewDatasetName(e.target.value)} />
+            <Input
+              autoFocus
+              placeholder="Name"
+              value={newDatasetName}
+              onChange={(e) => setNewDatasetName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createNewDataset()}
+            />
           </div>
           <DialogFooter>
             <Button onClick={createNewDataset} disabled={!newDatasetName || isLoading} handleEnter>

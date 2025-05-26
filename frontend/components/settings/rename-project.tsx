@@ -1,6 +1,6 @@
 'use client';
 
-import { Edit,Loader2 } from 'lucide-react';
+import { Edit, Loader2 } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { useState } from 'react';
 
@@ -20,9 +20,9 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 
-interface RenameProjectProps {}
+interface RenameProjectProps { }
 
-export default function RenameProject({}: RenameProjectProps) {
+export default function RenameProject({ }: RenameProjectProps) {
   const { projectId, projectName } = useProjectContext();
   const router = useRouter();
 

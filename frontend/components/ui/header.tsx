@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import SQLEditorButton from "@/components/sql";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useProjectContext } from "@/contexts/project-context";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,7 @@ export default function Header({
 
   return (
     <div className={`font-medium flex items-center justify-between flex-none h-12 border-b w-full ${className}`}>
-      <div className={cn("flex items-center", childrenContainerClassName)}>
+      <div className={cn("flex flex-1 items-center", childrenContainerClassName)}>
         {showSidebarTrigger && <SidebarTrigger className="ml-2 -mr-2 hover:bg-secondary" />}
         {projectName && (
           <div className="flex items-center pl-4 space-x-3 text-secondary-foreground">
@@ -51,6 +52,7 @@ export default function Header({
           </div>
         ))}
         {children}
+        {projectId && <SQLEditorButton className="ml-auto mr-4" />}
       </div>
     </div>
   );

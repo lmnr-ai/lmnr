@@ -9,7 +9,7 @@ export async function register() {
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-      const { llmPrices, pipelineTemplates, subscriptionTiers, userSubscriptionTiers } = await import("lib/db/migrations/schema");
+      const { llmPrices, subscriptionTiers, userSubscriptionTiers } = await import("lib/db/migrations/schema");
       const { db } = await import("lib/db/drizzle");
 
       const initializeData = async () => {
@@ -43,9 +43,7 @@ export async function register() {
       await migrate(db, { migrationsFolder: "lib/db/migrations" });
       await initializeData();
     } else {
-      console.log("Local DB is not enabled, skipping migrations and seeding");
+      console.log("Local DB is not enabled, skipping migrations and initial data");
     }
   }
 }
-
-// pull -> generate

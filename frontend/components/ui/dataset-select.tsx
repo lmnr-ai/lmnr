@@ -29,7 +29,7 @@ export default function DatasetSelect({ onChange, value, className }: DatasetSel
 
   return (
     <Select disabled={isLoading} value={value} onValueChange={onValueChange}>
-      <SelectTrigger className={cn("font-medium", className)}>
+      <SelectTrigger className={cn("font-medium focus:ring-0", className)}>
         <SelectValue placeholder="Select dataset" />
       </SelectTrigger>
       <SelectContent>

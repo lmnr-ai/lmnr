@@ -159,7 +159,7 @@ export default function Evaluations() {
                 aggregationFunction={aggregationFunction}
               />
             </ResizablePanel>
-            <ResizableHandle className="z-50" />
+            <ResizableHandle className="z-30" />
             <ResizablePanel className="flex-grow" minSize={40} defaultSize={40}>
               <DataTable
                 enableRowSelection

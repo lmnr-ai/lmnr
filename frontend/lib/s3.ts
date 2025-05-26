@@ -41,3 +41,37 @@ function getContentTypeFromFilename(filename: string): string {
   if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
   return "application/octet-stream"; // safe default
 }
+
+export const downloadS3ObjectHttp = async (projectId: string, payloadId: string, payloadType: string | null): Promise<{
+  bytes: Uint8Array;
+  headers: Headers;
+}> => {
+  const { bytes, contentType } = await getS3Object(projectId, payloadId);
+  const headers = new Headers();
+
+  if (payloadType === "image") {
+    headers.set("Content-Type", contentType);
+    headers.set("Content-Disposition", "inline");
+    return {
+      bytes,
+      headers,
+    };
+  } else if (payloadType === "raw") {
+    headers.set("Content-Type", contentType);
+    return {
+      bytes,
+      headers,
+    };
+  } else if (payloadId.endsWith(".pdf")) {
+    headers.set("Content-Type", "application/pdf");
+  } else {
+    headers.set("Content-Type", "application/octet-stream");
+  }
+
+  headers.set("Content-Disposition", `attachment; filename="${payloadId}"`);
+
+  return {
+    bytes,
+    headers,
+  };
+};
