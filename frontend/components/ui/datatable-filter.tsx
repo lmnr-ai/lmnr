@@ -140,7 +140,7 @@ export default function DataTableFilter({ columns, className }: DataTableFilterP
           {currentDataType === "json" ? (
             <>
               <Input
-                type={columns.find((c) => c.key === filter.column)?.dataType === "number" ? "number" : "text"}
+                type="text"
                 className="h-7 hide-arrow"
                 placeholder="key"
                 onChange={(e) => {
@@ -149,7 +149,7 @@ export default function DataTableFilter({ columns, className }: DataTableFilterP
                 }}
               />
               <Input
-                type={columns.find((c) => c.key === filter.column)?.dataType === "number" ? "number" : "text"}
+                type="text"
                 className="h-7 hide-arrow"
                 placeholder="value"
                 onChange={(e) => {
