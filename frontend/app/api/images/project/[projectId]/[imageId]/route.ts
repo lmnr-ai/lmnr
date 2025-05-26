@@ -4,7 +4,7 @@ export async function GET(
   req: Request,
   props: {
     params: Promise<{ projectId: string; imageId: string }>,
-    searchParams: Promise<{ payloadType: string }>
+    searchParams: Promise<{ payloadType?: string }>
   }
 ): Promise<Response> {
   const params = await props.params;
