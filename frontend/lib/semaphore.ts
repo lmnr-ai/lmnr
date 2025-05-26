@@ -23,7 +23,7 @@ export class Semaphore {
   async acquire() {
     if (this._value > 0) {
       this._value--;
-      return;
+      return Promise.resolve();
     }
 
     // Create a promise that will be resolved when a permit becomes available
