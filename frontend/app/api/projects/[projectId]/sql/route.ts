@@ -9,7 +9,7 @@ export async function POST(
     const { sqlQuery } = await request.json();
     const projectId = (await params).projectId;
 
-    if (!sqlQuery) {
+    if (!sqlQuery?.trim()) {
       return NextResponse.json(
         { error: "SQL query is required" },
         { status: 400 }
