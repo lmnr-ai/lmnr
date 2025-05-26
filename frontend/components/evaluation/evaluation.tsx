@@ -56,12 +56,19 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const filter = searchParams.getAll("filter");
   const searchIn = searchParams.getAll("searchIn");
 
+  const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
+  const [traceId, setTraceId] = useState<string | undefined>(undefined);
+
   const evaluationUrl = useMemo(() => {
     let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}`;
     const urlParams = new URLSearchParams();
 
     if (search) {
       urlParams.set("search", search);
+    }
+
+    if (selectedScore) {
+      urlParams.set("scoreName", selectedScore);
     }
 
     searchIn.forEach((value) => {
@@ -75,17 +82,39 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     }
 
     return url;
-  }, [params?.projectId, evaluationId, search, JSON.stringify(searchIn), JSON.stringify(filter)]);
+  }, [params?.projectId, evaluationId, search, selectedScore, JSON.stringify(searchIn), JSON.stringify(filter)]);
 
   const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(evaluationUrl, swrFetcher);
 
-  const { data: targetData } = useSWR<EvaluationResultsInfo>(
-    () => (targetId ? `/api/projects/${params?.projectId}/evaluations/${targetId}` : null),
-    swrFetcher
-  );
+  const targetUrl = useMemo(() => {
+    if (!targetId) return null;
 
-  const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
-  const [traceId, setTraceId] = useState<string | undefined>(undefined);
+    let url = `/api/projects/${params?.projectId}/evaluations/${targetId}`;
+    const urlParams = new URLSearchParams();
+
+    if (search) {
+      urlParams.set("search", search);
+    }
+
+    if (selectedScore) {
+      urlParams.set("scoreName", selectedScore);
+    }
+
+    searchIn.forEach((value) => {
+      urlParams.append("searchIn", value);
+    });
+
+    filter.forEach((f) => urlParams.append("filter", f));
+
+    if (urlParams.toString()) {
+      url += `?${urlParams.toString()}`;
+    }
+
+    return url;
+  }, [params?.projectId, targetId, search, selectedScore, JSON.stringify(searchIn), JSON.stringify(filter)]);
+
+  const { data: targetData } = useSWR<EvaluationResultsInfo>(targetUrl, swrFetcher);
+
   const evaluation = data?.evaluation;
 
   const onClose = useCallback(() => {
@@ -215,7 +244,14 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
             ) : (
               <>
                 <div className="flex-none w-72">
-                  <ScoreCard scores={scores} selectedScore={selectedScore} setSelectedScore={setSelectedScore} />
+                  <ScoreCard
+                    scores={scores}
+                    selectedScore={selectedScore}
+                    setSelectedScore={setSelectedScore}
+                    statistics={data?.statistics}
+                    comparedStatistics={targetData?.statistics}
+                    isLoading={isLoading}
+                  />
                 </div>
                 <div className="flex-grow">
                   {targetId ? (
@@ -223,9 +259,18 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       evaluationId={evaluationId}
                       comparedEvaluationId={targetId}
                       scoreName={selectedScore}
+                      distribution={data?.distribution}
+                      comparedDistribution={targetData?.distribution}
+                      isLoading={isLoading}
                     />
                   ) : (
-                    <Chart className="h-full" evaluationId={evaluationId} scoreName={selectedScore} />
+                    <Chart
+                      className="h-full"
+                      evaluationId={evaluationId}
+                      scoreName={selectedScore}
+                      distribution={data?.distribution}
+                      isLoading={isLoading}
+                    />
                   )}
                 </div>
               </>

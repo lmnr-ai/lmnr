@@ -1,18 +1,18 @@
-import { useParams } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
-import useSWR from "swr";
 
 import { renderTick } from "@/components/evaluation/graphs-utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BucketRow } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
+import { EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
 
 interface CompareChatProps {
   evaluationId: string;
   comparedEvaluationId: string;
   scoreName: string;
   className?: string;
+  distribution?: EvaluationScoreDistributionBucket[] | null;
+  comparedDistribution?: EvaluationScoreDistributionBucket[] | null;
+  isLoading?: boolean;
 }
 
 const chartConfig = {
@@ -21,14 +21,21 @@ const chartConfig = {
   },
 };
 
-export default function CompareChart({ evaluationId, comparedEvaluationId, scoreName, className }: CompareChatProps) {
-  const params = useParams();
-
-  const { data, isLoading } = useSWR<BucketRow[]>(
-    `/api/projects/${params?.projectId}/evaluation-score-distribution?` +
-      `evaluationIds=${evaluationId},${comparedEvaluationId}&scoreName=${scoreName}`,
-    swrFetcher
-  );
+export default function CompareChart({
+  evaluationId,
+  comparedEvaluationId,
+  scoreName,
+  className,
+  distribution,
+  comparedDistribution,
+  isLoading = false
+}: CompareChatProps) {
+  // Convert distribution data to the format expected by the chart
+  const chartData = distribution ? distribution.map((bucket, index) => ({
+    index,
+    height: bucket.heights[0],
+    comparedHeight: comparedDistribution?.[index]?.heights[0] || 0,
+  })) : [];
 
   return (
     <div className={className}>
@@ -38,11 +45,7 @@ export default function CompareChart({ evaluationId, comparedEvaluationId, score
         <ChartContainer config={chartConfig} className="max-h-48 w-full">
           <BarChart
             accessibilityLayer
-            data={(data ?? []).map((row: BucketRow, index: number) => ({
-              index,
-              height: row.heights[0],
-              comparedHeight: row.heights[1],
-            }))}
+            data={chartData}
             barSize="4%"
           >
             <CartesianGrid vertical={false} />

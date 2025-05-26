@@ -1,17 +1,16 @@
-import { useParams } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import useSWR from "swr";
 
 import { renderTick } from "@/components/evaluation/graphs-utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BucketRow } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
+import { EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
 
 interface ChartProps {
   evaluationId: string;
   className?: string;
   scoreName: string;
+  distribution?: EvaluationScoreDistributionBucket[] | null;
+  isLoading?: boolean;
 }
 
 const newChartConfig = {
@@ -20,14 +19,12 @@ const newChartConfig = {
   },
 };
 
-export default function Chart({ evaluationId, className, scoreName }: ChartProps) {
-  const params = useParams();
-
-  const { data, isLoading } = useSWR<BucketRow[]>(
-    `/api/projects/${params?.projectId}/evaluation-score-distribution?` +
-      `evaluationIds=${evaluationId}&scoreName=${scoreName}`,
-    swrFetcher
-  );
+export default function Chart({ evaluationId, className, scoreName, distribution, isLoading = false }: ChartProps) {
+  // Convert distribution data to the format expected by the chart
+  const chartData = distribution ? distribution.map((bucket, index) => ({
+    index,
+    height: bucket.heights[0],
+  })) : [];
 
   return (
     <div className={className}>
@@ -37,10 +34,7 @@ export default function Chart({ evaluationId, className, scoreName }: ChartProps
         <ChartContainer config={newChartConfig} className="max-h-48 w-full">
           <BarChart
             accessibilityLayer
-            data={(data ?? []).map((row: BucketRow, index: number) => ({
-              index,
-              height: row.heights[0],
-            }))}
+            data={chartData}
             barSize="4%"
           >
             <CartesianGrid vertical={false} />
