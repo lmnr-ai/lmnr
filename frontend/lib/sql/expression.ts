@@ -36,15 +36,17 @@ export function getExpressionASTs(expression: ExpressionValue | ExprList): AST[]
   if (expression.type === 'case') {
     const args = (expression as unknown as Case).args;
     if (args) {
-      for (const arg of args) {
+      return args.flatMap(arg => {
         if (arg.type === 'when') {
-          return getExpressionASTs(arg.cond);
+          return [...getExpressionASTs(arg.cond), ...getExpressionASTs(arg.result)];
         }
         if (arg.type === 'else') {
           return getExpressionASTs(arg.result);
         }
-      }
+        return [];
+      });
     }
+  }
   }
 
   if (expression.type === 'binary_expr') {
