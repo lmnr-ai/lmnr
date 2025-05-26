@@ -1,5 +1,5 @@
 {
-  "id": "9a4d5059-5b44-42c7-b71b-f42413218940",
+  "id": "a8267706-30fd-4a8d-9fdc-5910f3533f9f",
   "prevId": "6744f0d4-c9df-4bbf-994a-cd343943e8d8",
   "version": "7",
   "dialect": "postgresql",
@@ -109,19 +109,6 @@
         }
       },
       "foreignKeys": {
-        "agent_chats_user_id_fkey": {
-          "name": "agent_chats_user_id_fkey",
-          "tableFrom": "agent_chats",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "agent_chats_session_id_fkey": {
           "name": "agent_chats_session_id_fkey",
           "tableFrom": "agent_chats",
@@ -134,11 +121,34 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "cascade"
+        },
+        "agent_chats_user_id_fkey": {
+          "name": "agent_chats_user_id_fkey",
+          "tableFrom": "agent_chats",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "select_by_next_api_key": {
+          "name": "select_by_next_api_key",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "is_user_id_accessible_for_api_key(api_key(), user_id)"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -166,19 +176,19 @@
           "primaryKey": false,
           "notNull": true
         },
-        "message_type": {
-          "name": "message_type",
-          "type": "agent_message_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
         "content": {
           "name": "content",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false,
           "default": "'{}'::jsonb"
+        },
+        "message_type": {
+          "name": "message_type",
+          "type": "agent_message_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
         },
         "trace_id": {
           "name": "trace_id",
@@ -248,7 +258,8 @@
           "name": "session_id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "cdp_url": {
           "name": "cdp_url",
@@ -396,7 +407,18 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "Enable insert for authenticated users only": {
+          "name": "Enable insert for authenticated users only",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "service_role"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -693,12 +715,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -736,7 +752,18 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "select_by_next_api_key": {
+          "name": "select_by_next_api_key",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "anon",
+            "authenticated"
+          ],
+          "using": "is_evaluation_id_accessible_for_api_key(api_key(), evaluation_id)"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -906,7 +933,18 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "select_by_next_api_key": {
+          "name": "select_by_next_api_key",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "anon",
+            "authenticated"
+          ],
+          "using": "is_evaluation_id_accessible_for_api_key(api_key(), id)"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -928,12 +966,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "span_id": {
-          "name": "span_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
         "timestamp": {
           "name": "timestamp",
           "type": "timestamp with time zone",
@@ -953,6 +985,12 @@
           "notNull": true,
           "default": "'{}'::jsonb"
         },
+        "span_id": {
+          "name": "span_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "project_id": {
           "name": "project_id",
           "type": "uuid",
@@ -965,14 +1003,14 @@
           "name": "events_span_id_project_id_idx",
           "columns": [
             {
-              "expression": "span_id",
+              "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last",
               "opclass": "uuid_ops"
             },
             {
-              "expression": "project_id",
+              "expression": "span_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last",
@@ -1373,14 +1411,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "labels_span_id_class_id_key": {
-          "name": "labels_span_id_class_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "class_id",
-            "span_id"
-          ]
-        },
         "labels_span_id_class_id_user_id_key": {
           "name": "labels_span_id_class_id_user_id_key",
           "nullsNotDistinct": false,
@@ -1388,6 +1418,14 @@
             "class_id",
             "span_id",
             "user_id"
+          ]
+        },
+        "labels_span_id_class_id_key": {
+          "name": "labels_span_id_class_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "class_id",
+            "span_id"
           ]
         }
       },
@@ -1749,7 +1787,18 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "all_actions_by_next_api_key": {
+          "name": "all_actions_by_next_api_key",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "anon",
+            "authenticated"
+          ],
+          "using": "is_pipeline_id_accessible_for_api_key(api_key(), pipeline_id)"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -1919,20 +1968,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "tools": {
-          "name": "tools",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "''"
-        },
-        "tool_choice": {
-          "name": "tool_choice",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'none'"
-        },
         "max_tokens": {
           "name": "max_tokens",
           "type": "integer",
@@ -1942,10 +1977,10 @@
         },
         "temperature": {
           "name": "temperature",
-          "type": "double precision",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
-          "default": 1
+          "default": "'1'"
         },
         "provider_options": {
           "name": "provider_options",
@@ -1953,6 +1988,20 @@
           "primaryKey": false,
           "notNull": false,
           "default": "'{}'::jsonb"
+        },
+        "tool_choice": {
+          "name": "tool_choice",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'none'"
+        },
+        "tools": {
+          "name": "tools",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "''"
         }
       },
       "indexes": {},
@@ -2383,6 +2432,105 @@
           "method": "btree",
           "with": {}
         },
+        "spans_partial_evaluator_trace_id_project_id_start_time_span_id_": {
+          "name": "spans_partial_evaluator_trace_id_project_id_start_time_span_id_",
+          "columns": [
+            {
+              "expression": "trace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            },
+            {
+              "expression": "start_time",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "timestamptz_ops"
+            },
+            {
+              "expression": "span_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            }
+          ],
+          "isUnique": false,
+          "where": "(span_type = 'EVALUATOR'::span_type)",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "spans_partial_executor_trace_id_project_id_start_time_span_id_i": {
+          "name": "spans_partial_executor_trace_id_project_id_start_time_span_id_i",
+          "columns": [
+            {
+              "expression": "trace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "timestamptz_ops"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            },
+            {
+              "expression": "start_time",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            },
+            {
+              "expression": "span_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "timestamptz_ops"
+            }
+          ],
+          "isUnique": false,
+          "where": "(span_type = 'EXECUTOR'::span_type)",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "spans_project_id_created_at_idx": {
+          "name": "spans_project_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "timestamptz_ops"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "spans_project_id_idx": {
           "name": "spans_project_id_idx",
           "columns": [
@@ -2397,6 +2545,29 @@
           "isUnique": false,
           "concurrently": false,
           "method": "hash",
+          "with": {}
+        },
+        "spans_project_id_start_time_idx": {
+          "name": "spans_project_id_start_time_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            },
+            {
+              "expression": "start_time",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
           "with": {}
         },
         "spans_project_id_trace_id_start_time_idx": {
@@ -2414,7 +2585,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "uuid_ops"
             },
             {
               "expression": "start_time",
@@ -2451,7 +2622,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "uuid_ops"
             },
             {
               "expression": "trace_id",
@@ -2564,7 +2735,17 @@
           ]
         }
       },
-      "policies": {},
+      "policies": {
+        "select_by_next_api_key": {
+          "name": "select_by_next_api_key",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "public"
+          ],
+          "using": "is_project_id_accessible_for_api_key(api_key(), project_id)"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -2859,10 +3040,17 @@
           "name": "visibility",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": "''"
         },
         "status": {
           "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2893,7 +3081,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "uuid_ops"
+              "opclass": "timestamptz_ops"
             },
             {
               "expression": "project_id",
@@ -2905,9 +3093,9 @@
             {
               "expression": "start_time",
               "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "asc": false,
+              "nulls": "first",
+              "opclass": "uuid_ops"
             }
           ],
           "isUnique": false,
@@ -2940,7 +3128,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "uuid_ops"
+              "opclass": "timestamptz_ops"
             },
             {
               "expression": "start_time",
@@ -2954,7 +3142,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "uuid_ops"
+              "opclass": "timestamptz_ops"
             }
           ],
           "isUnique": false,
@@ -3020,7 +3208,18 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "select_by_next_api_key": {
+          "name": "select_by_next_api_key",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "anon",
+            "authenticated"
+          ],
+          "using": "is_project_id_accessible_for_api_key(api_key(), project_id)"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -3356,7 +3555,17 @@
           ]
         }
       },
-      "policies": {},
+      "policies": {
+        "Enable insert for authenticated users only": {
+          "name": "Enable insert for authenticated users only",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "service_role"
+          ],
+          "withCheck": "true"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -3371,24 +3580,26 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         }
       },
       "indexes": {},
@@ -3408,16 +3619,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "workspace_invitations_workspace_id_email_key": {
-          "name": "workspace_invitations_workspace_id_email_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "workspace_id",
-            "email"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -3454,27 +3656,6 @@
           "notNull": true,
           "default": "'0'"
         },
-        "step_count": {
-          "name": "step_count",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
-        "step_count_since_reset": {
-          "name": "step_count_since_reset",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
-        "prev_step_count": {
-          "name": "prev_step_count",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
         "reset_time": {
           "name": "reset_time",
           "type": "timestamp with time zone",
@@ -3488,6 +3669,48 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'signup'"
+        },
+        "step_count": {
+          "name": "step_count",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "prev_step_count": {
+          "name": "prev_step_count",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "step_count_since_reset": {
+          "name": "step_count_since_reset",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "bytes_ingested": {
+          "name": "bytes_ingested",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "bytes_ingested_since_reset": {
+          "name": "bytes_ingested_since_reset",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "prev_bytes_ingested": {
+          "name": "prev_bytes_ingested",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
         }
       },
       "indexes": {},

@@ -59,7 +59,8 @@ pub async fn update_trace_attributes(
             metadata,
             has_browser_session,
             top_span_id,
-            status
+            status,
+            user_id
         )
         VALUES (
             $1,
@@ -77,7 +78,8 @@ pub async fn update_trace_attributes(
             $13,
             $14,
             $15,
-            $16
+            $16,
+            $17
         )
         ON CONFLICT(id) DO
         UPDATE
@@ -95,7 +97,8 @@ pub async fn update_trace_attributes(
             metadata = COALESCE($13, traces.metadata),
             has_browser_session = COALESCE($14, traces.has_browser_session),
             top_span_id = COALESCE(traces.top_span_id, $15),
-            status = CASE WHEN $16 = 'error' THEN $16 ELSE COALESCE($16, traces.status) END
+            status = CASE WHEN $16 = 'error' THEN $16 ELSE COALESCE($16, traces.status) END,
+            user_id = COALESCE(traces.user_id, $17)
         "
     )
     .bind(attributes.id)
@@ -114,6 +117,7 @@ pub async fn update_trace_attributes(
     .bind(attributes.has_browser_session)
     .bind(attributes.top_span_id)
     .bind(&attributes.status)
+    .bind(&attributes.user_id)
     .execute(pool)
     .await?;
     Ok(())
