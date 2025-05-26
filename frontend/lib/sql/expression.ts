@@ -7,7 +7,8 @@ import {
   ExpressionValue,
   ExprList,
   Function as NodeSqlFunction,
-  TableColumnAst} from "node-sql-parser";
+  TableColumnAst
+} from "node-sql-parser";
 
 /**
  * Extract AST nodes from an expression
@@ -46,7 +47,6 @@ export function getExpressionASTs(expression: ExpressionValue | ExprList): AST[]
         return [];
       });
     }
-  }
   }
 
   if (expression.type === 'binary_expr') {

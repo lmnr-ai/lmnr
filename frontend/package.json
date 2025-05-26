@@ -11,8 +11,8 @@
     "preview": "next build && next start",
     "type-check": "tsc --noEmit",
     "format:write": "prettier --write \"{app,lib,components}/**/*.{ts,tsx,mdx}\" --cache",
-    "format:check": "prettier --check \"{app,lib,components}**/*.{ts,tsx,mdx}\" --cache",
-    "test": "tsx --test tests/**.test.ts"
+    "format:check": "prettier --check \"{app,lib,components}/**/*.{ts,tsx,mdx}\" --cache",
+    "test": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^2.2.8",

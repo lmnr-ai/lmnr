@@ -5,7 +5,7 @@ import { AllowedTableNameForJoin } from "./with";
 
 export type Arg = {
   name: string,
-  value: any
+  value: unknown
 }
 
 export type TranspiledQuery = {
@@ -58,7 +58,7 @@ export interface ExtendedCast extends Omit<Cast, 'symbol' | 'expr'> {
   target: {
     dataType: string;
     length?: number;
-    suffix?: any[];
+    suffix?: unknown[];
   }[];
 }
 
@@ -88,7 +88,8 @@ export interface JoinASTNode extends BaseFrom {
 // Extend the base ExpressionValue type to include our custom types
 export type ExpressionValue = BaseExpressionValue | Extract;
 
-const camelCaseToSnakeCase = (str: string) => str.replace(/([A-Z])/g, '_$1').toLowerCase();
+const camelCaseToSnakeCase = (str: string) =>
+  str.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
 
 export const ALLOWED_TABLES_AND_SCHEMA: Record<TableName, string[]> = {
   spans: Object.keys(spans).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),

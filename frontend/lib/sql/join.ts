@@ -425,7 +425,7 @@ const applyJoins = (node: Select, rule: AutoJoinRule): void => {
     if (node.orderby) {
       node.orderby = node.orderby.map(order => ({
         ...order,
-        expr: replaceColumnReferences(order.expr, rule) as any
+        expr: replaceColumnReferences(order.expr, rule)
       }));
     }
   }

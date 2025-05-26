@@ -78,7 +78,9 @@ export const replaceJsonbFields = (
     if (tables.includes('evaluation_results') &&
       !EVALUATION_RESULTS_COLUMNS.has(columnName) &&
       !TRACES_COLUMNS.has(columnName) &&
-      !aliases.includes(columnName)) {
+      !aliases.includes(columnName) &&
+      !['scores'].includes(columnName)
+    ) {
       return createDynamicScoreColumn(columnName);
     }
 
