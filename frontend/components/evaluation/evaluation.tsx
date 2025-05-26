@@ -38,7 +38,6 @@ interface EvaluationProps {
 }
 
 const filters: ColumnFilter[] = [
-  { key: "id", name: "ID", dataType: "string" },
   { key: "index", name: "Index", dataType: "number" },
   { key: "traceId", name: "Trace ID", dataType: "string" },
   { key: "startTime", name: "Start Time", dataType: "string" },
@@ -55,6 +54,9 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const search = searchParams.get("search");
   const filter = searchParams.getAll("filter");
   const searchIn = searchParams.getAll("searchIn");
+
+  const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
+  const [traceId, setTraceId] = useState<string | undefined>(undefined);
 
   const evaluationUrl = useMemo(() => {
     let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}`;
@@ -79,13 +81,31 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(evaluationUrl, swrFetcher);
 
-  const { data: targetData } = useSWR<EvaluationResultsInfo>(
-    () => (targetId ? `/api/projects/${params?.projectId}/evaluations/${targetId}` : null),
-    swrFetcher
-  );
+  const targetUrl = useMemo(() => {
+    if (!targetId) return null;
 
-  const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
-  const [traceId, setTraceId] = useState<string | undefined>(undefined);
+    let url = `/api/projects/${params?.projectId}/evaluations/${targetId}`;
+    const urlParams = new URLSearchParams();
+
+    if (search) {
+      urlParams.set("search", search);
+    }
+
+    searchIn.forEach((value) => {
+      urlParams.append("searchIn", value);
+    });
+
+    filter.forEach((f) => urlParams.append("filter", f));
+
+    if (urlParams.toString()) {
+      url += `?${urlParams.toString()}`;
+    }
+
+    return url;
+  }, [params?.projectId, targetId, search, JSON.stringify(searchIn), JSON.stringify(filter)]);
+
+  const { data: targetData } = useSWR<EvaluationResultsInfo>(targetUrl, swrFetcher);
+
   const evaluation = data?.evaluation;
 
   const onClose = useCallback(() => {
@@ -116,7 +136,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   const tableData = useMemo(() => {
     if (targetId) {
-      return (data?.results || []).map((original, index) => {
+      return data?.results?.map((original, index) => {
         const compared = targetData?.results[index];
 
         return {
@@ -215,7 +235,14 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
             ) : (
               <>
                 <div className="flex-none w-72">
-                  <ScoreCard scores={scores} selectedScore={selectedScore} setSelectedScore={setSelectedScore} />
+                  <ScoreCard
+                    scores={scores}
+                    selectedScore={selectedScore}
+                    setSelectedScore={setSelectedScore}
+                    statistics={selectedScore ? data?.allStatistics?.[selectedScore] ?? null : null}
+                    comparedStatistics={selectedScore ? targetData?.allStatistics?.[selectedScore] ?? null : null}
+                    isLoading={isLoading}
+                  />
                 </div>
                 <div className="flex-grow">
                   {targetId ? (
@@ -223,9 +250,21 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       evaluationId={evaluationId}
                       comparedEvaluationId={targetId}
                       scoreName={selectedScore}
+                      distribution={selectedScore ?
+                        data?.allDistributions?.[selectedScore] ?? null : null}
+                      comparedDistribution={selectedScore ?
+                        targetData?.allDistributions?.[selectedScore] ?? null : null}
+                      isLoading={isLoading}
                     />
                   ) : (
-                    <Chart className="h-full" evaluationId={evaluationId} scoreName={selectedScore} />
+                    <Chart
+                      className="h-full"
+                      evaluationId={evaluationId}
+                      scoreName={selectedScore}
+                      distribution={selectedScore ?
+                        data?.allDistributions?.[selectedScore] ?? null : null}
+                      isLoading={isLoading}
+                    />
                   )}
                 </div>
               </>

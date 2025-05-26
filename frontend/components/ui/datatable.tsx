@@ -238,6 +238,7 @@ export function DataTable<TData>({
     </TableRow>
   );
 
+  console.log(data);
   const content = (
     <Table
       className="border-separate border-spacing-0 relative"
