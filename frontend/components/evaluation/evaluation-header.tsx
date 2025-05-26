@@ -95,7 +95,7 @@ const EvaluationHeader = ({
       </div>
       <div>
         {targetId && (
-          <Button className="h-6" variant={"secondary"} onClick={() => handleChange(undefined)}>
+          <Button variant="secondaryLight" className="text-xs" onClick={() => handleChange(undefined)}>
             Reset
           </Button>
         )}

@@ -51,9 +51,21 @@ export type EvaluationStats = {
   averageScores: Record<string, number>;
 };
 
+export type EvaluationScoreStatistics = {
+  averageValue: number;
+};
+
+export type EvaluationScoreDistributionBucket = {
+  lowerBound: number;
+  upperBound: number;
+  heights: number[];
+};
+
 export type EvaluationResultsInfo = {
   evaluation: Evaluation;
   results: EvaluationDatapointPreview[];
+  allStatistics?: Record<string, EvaluationScoreStatistics>;
+  allDistributions?: Record<string, EvaluationScoreDistributionBucket[]>;
 };
 
 export type EvaluationTimeProgression = {
@@ -61,4 +73,21 @@ export type EvaluationTimeProgression = {
   evaluationId: string;
   names: string[];
   values: string[];
+};
+
+// Type for the evaluation result with scores
+export type EvaluationResultWithScores = {
+  id: string;
+  createdAt: string;
+  evaluationId: string;
+  data: unknown;
+  target: unknown;
+  executorOutput: unknown;
+  scores: unknown;
+  index: number;
+  traceId: string;
+  startTime: string | null;
+  endTime: string | null;
+  inputCost: number | null;
+  outputCost: number | null;
 };

@@ -5,7 +5,101 @@ import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations, evaluationScores, traces } from "@/lib/db/migrations/schema";
+import {
+  EvaluationResultWithScores,
+  EvaluationScoreDistributionBucket,
+  EvaluationScoreStatistics,
+} from "@/lib/evaluation/types";
 import { DatatableFilter } from "@/lib/types";
+
+// Constants for distribution calculation
+const DEFAULT_LOWER_BOUND = 0.0;
+const DEFAULT_BUCKET_COUNT = 10;
+
+// Helper function to calculate score statistics
+function calculateScoreStatistics(results: EvaluationResultWithScores[], scoreName: string): EvaluationScoreStatistics {
+  const scores = results
+    .map((result) => {
+      const scoresObj = result.scores as Record<string, number> | null;
+      return scoresObj?.[scoreName];
+    })
+    .filter((score): score is number => typeof score === "number" && !isNaN(score));
+
+  if (scores.length === 0) {
+    return { averageValue: 0 };
+  }
+
+  const sum = scores.reduce((acc, score) => acc + score, 0);
+  const averageValue = sum / scores.length;
+
+  return { averageValue };
+}
+
+// Helper function to calculate score distribution
+function calculateScoreDistribution(
+  results: EvaluationResultWithScores[],
+  scoreName: string
+): EvaluationScoreDistributionBucket[] {
+  const scores = results
+    .map((result) => {
+      const scoresObj = result.scores as Record<string, number> | null;
+      return scoresObj?.[scoreName];
+    })
+    .filter((score): score is number => typeof score === "number" && !isNaN(score));
+
+  if (scores.length === 0) {
+    // Return empty buckets
+    return Array.from({ length: DEFAULT_BUCKET_COUNT }, (_, i) => ({
+      lowerBound: (i * 1) / DEFAULT_BUCKET_COUNT,
+      upperBound: ((i + 1) * 1) / DEFAULT_BUCKET_COUNT,
+      heights: [0],
+    }));
+  }
+
+  const minScore = Math.min(...scores);
+  const maxScore = Math.max(...scores);
+
+  // Use default lower bound if min is higher
+  const lowerBound = Math.min(minScore, DEFAULT_LOWER_BOUND);
+  const upperBound = maxScore;
+
+  // If all scores are the same, put everything in the last bucket
+  if (lowerBound === upperBound) {
+    const buckets: EvaluationScoreDistributionBucket[] = Array.from({ length: DEFAULT_BUCKET_COUNT }, (_, i) => ({
+      lowerBound,
+      upperBound,
+      heights: [0],
+    }));
+    buckets[DEFAULT_BUCKET_COUNT - 1].heights = [scores.length];
+    return buckets;
+  }
+
+  const stepSize = (upperBound - lowerBound) / DEFAULT_BUCKET_COUNT;
+  const buckets: EvaluationScoreDistributionBucket[] = [];
+
+  for (let i = 0; i < DEFAULT_BUCKET_COUNT; i++) {
+    const bucketLowerBound = lowerBound + i * stepSize;
+    const bucketUpperBound = i === DEFAULT_BUCKET_COUNT - 1 ? upperBound : lowerBound + (i + 1) * stepSize;
+
+    const count = scores.filter((score) => {
+      if (i === DEFAULT_BUCKET_COUNT - 1) {
+        // Last bucket includes upper bound
+        return score >= bucketLowerBound && score <= bucketUpperBound;
+      } else {
+        // Other buckets exclude upper bound
+        return score >= bucketLowerBound && score < bucketUpperBound;
+      }
+    }).length;
+
+    buckets.push({
+      lowerBound: bucketLowerBound,
+      upperBound: bucketUpperBound,
+      heights: [count],
+    });
+  }
+
+  return buckets;
+}
 
 export async function GET(
   req: NextRequest,
@@ -15,7 +109,7 @@ export async function GET(
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;
 
-  // Get search params
+  // Get search params (removed scoreName)
   const search = req.nextUrl.searchParams.get("search");
 
   // Get filters
@@ -104,81 +198,47 @@ export async function GET(
       const value = filter.value;
       const operator = filter.operator;
 
+      // Operator mapping for numeric comparisons
+      const opMap: Record<string, string> = {
+        gt: ">",
+        gte: ">=",
+        lt: "<",
+        lte: "<=",
+        eq: "=",
+        ne: "!=",
+      };
+
       // Handle different column types
       if (column === "index") {
         whereConditions.push(eq(evaluationResults.index, parseInt(value)));
       } else if (column === "traceId") {
         whereConditions.push(eq(evaluationResults.traceId, value));
       } else if (column === "duration") {
-        if (operator === "gt") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${durationExpr} > ${numValue}`);
-        } else if (operator === "gte") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${durationExpr} >= ${numValue}`);
-        } else if (operator === "lt") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${durationExpr} < ${numValue}`);
-        } else if (operator === "lte") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${durationExpr} <= ${numValue}`);
-        } else if (operator === "eq") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${durationExpr} = ${numValue}`);
-        } else {
-          // Default to equals if no operator specified
-          const numValue = parseFloat(value);
-          if (!isNaN(numValue)) {
-            whereConditions.push(sql`${durationExpr} = ${numValue}`);
-          }
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          const opSymbol = opMap[operator] || "=";
+          whereConditions.push(sql`${durationExpr} ${sql.raw(opSymbol)} ${numValue}`);
         }
       } else if (column === "cost") {
-        // Handle cost filtering with comparison operators
-        if (operator === "gt") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${costExpr} > ${numValue}`);
-        } else if (operator === "gte") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${costExpr} >= ${numValue}`);
-        } else if (operator === "lt") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${costExpr} < ${numValue}`);
-        } else if (operator === "lte") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${costExpr} <= ${numValue}`);
-        } else if (operator === "eq") {
-          const numValue = parseFloat(value);
-          whereConditions.push(sql`${costExpr} = ${numValue}`);
-        } else {
-          // Default to equals if no operator specified
-          const numValue = parseFloat(value);
-          if (!isNaN(numValue)) {
-            whereConditions.push(sql`${costExpr} = ${numValue}`);
-          }
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          const opSymbol = opMap[operator] || "=";
+          whereConditions.push(sql`${costExpr} ${sql.raw(opSymbol)} ${numValue}`);
         }
       } else if (column.startsWith("score:")) {
         const scoreName = column.split(":")[1];
         const numValue = parseFloat(value);
 
         if (scoreName && !isNaN(numValue)) {
-          const opMap: Record<string, string> = {
-            gt: ">",
-            gte: ">=",
-            lt: "<",
-            lte: "<=",
-            eq: "=",
-            ne: "!=",
-          };
-
           const opSymbol = opMap[operator] || "=";
 
           whereConditions.push(
             sql`${evaluationResults.id} IN (
-                    SELECT ${evaluationScores.resultId}
-                    FROM   ${evaluationScores}
-                    WHERE  ${evaluationScores.name} = ${scoreName}
-                    AND    ${evaluationScores.score} ${sql.raw(opSymbol)} ${numValue}
-                  )`
+                  SELECT ${evaluationScores.resultId}
+                  FROM   ${evaluationScores}
+                  WHERE  ${evaluationScores.name} = ${scoreName}
+                  AND    ${evaluationScores.score} ${sql.raw(opSymbol)} ${numValue}
+                )`
           );
         }
       } else {
@@ -187,7 +247,7 @@ export async function GET(
       }
     });
 
-  const getEvaluationResults = db
+  const results = await db
     .with(subQueryScoreCte)
     .select({
       id: evaluationResults.id,
@@ -211,11 +271,30 @@ export async function GET(
     .where(and(...whereConditions))
     .orderBy(asc(evaluationResults.index), asc(evaluationResults.createdAt));
 
-  const results = await getEvaluationResults;
+  // Get all unique score names from the results
+  const allScoreNames = [
+    ...new Set(
+      results.flatMap((result) => {
+        const scoresObj = result.scores as Record<string, number> | null;
+        return scoresObj ? Object.keys(scoresObj) : [];
+      })
+    ),
+  ];
+
+  // Calculate statistics and distributions for ALL scores
+  const allStatistics: Record<string, EvaluationScoreStatistics> = {};
+  const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
+
+  allScoreNames.forEach((scoreName) => {
+    allStatistics[scoreName] = calculateScoreStatistics(results, scoreName);
+    allDistributions[scoreName] = calculateScoreDistribution(results, scoreName);
+  });
 
   const result = {
     evaluation: evaluation,
     results,
+    allStatistics,
+    allDistributions,
   };
 
   return Response.json(result);
