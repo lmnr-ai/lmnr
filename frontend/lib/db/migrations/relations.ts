@@ -128,6 +128,13 @@ export const userSubscriptionInfoRelations = relations(userSubscriptionInfo, ({o
   }),
 }));
 
+export const workspaceUsageRelations = relations(workspaceUsage, ({one}) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceUsage.workspaceId],
+    references: [workspaces.id]
+  }),
+}));
+
 export const labelingQueueItemsRelations = relations(labelingQueueItems, ({one}) => ({
   labelingQueue: one(labelingQueues, {
     fields: [labelingQueueItems.queueId],
@@ -140,13 +147,6 @@ export const labelingQueuesRelations = relations(labelingQueues, ({one, many}) =
   project: one(projects, {
     fields: [labelingQueues.projectId],
     references: [projects.id]
-  }),
-}));
-
-export const workspaceUsageRelations = relations(workspaceUsage, ({one}) => ({
-  workspace: one(workspaces, {
-    fields: [workspaceUsage.workspaceId],
-    references: [workspaces.id]
   }),
 }));
 

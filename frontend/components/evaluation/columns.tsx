@@ -53,6 +53,10 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
     accessorFn: (row) => (row.target ? JSON.stringify(row.target) : "-"),
     header: "Target",
   },
+  {
+    accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata) : "-"),
+    header: "Metadata",
+  },
 ];
 
 export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
@@ -66,7 +70,7 @@ export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewW
       const comparisonValue =
         row.original.comparedEndTime && row.original.comparedStartTime
           ? (new Date(row.original.comparedEndTime).getTime() - new Date(row.original.comparedStartTime).getTime()) /
-          1000
+            1000
           : undefined;
 
       return (

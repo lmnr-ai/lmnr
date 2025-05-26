@@ -39,6 +39,16 @@ export async function GET(
   // Build all where conditions
   const whereConditions = [eq(evaluationResults.evaluationId, evaluationId)];
 
+  // Extract metadata filters
+  const metadataFilters = urlParamFilters
+    .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
+    .map((filter) => {
+      const [key, value] = filter.value.split(/=(.*)/);
+      return sql`${evaluationResults.metadata} @> ${JSON.stringify({ [key]: value })}`;
+    });
+
+  whereConditions.push(...metadataFilters);
+
   // span search
   let searchTraceIds: string[] = [];
   if (search && search.trim() !== "") {
@@ -87,93 +97,95 @@ export async function GET(
   const costExpr = sql`(COALESCE(${traces.inputCost}, 0) + COALESCE(${traces.outputCost}, 0))`;
 
   // Add filter conditions
-  urlParamFilters.forEach((filter) => {
-    const column = filter.column;
-    const value = filter.value;
-    const operator = filter.operator;
+  urlParamFilters
+    .filter((filter) => filter.column !== "metadata") // Skip metadata filters as they're handled separately
+    .forEach((filter) => {
+      const column = filter.column;
+      const value = filter.value;
+      const operator = filter.operator;
 
-    // Handle different column types
-    if (column === "index") {
-      whereConditions.push(eq(evaluationResults.index, parseInt(value)));
-    } else if (column === "traceId") {
-      whereConditions.push(eq(evaluationResults.traceId, value));
-    } else if (column === "duration") {
-      if (operator === "gt") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${durationExpr} > ${numValue}`);
-      } else if (operator === "gte") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${durationExpr} >= ${numValue}`);
-      } else if (operator === "lt") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${durationExpr} < ${numValue}`);
-      } else if (operator === "lte") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${durationExpr} <= ${numValue}`);
-      } else if (operator === "eq") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${durationExpr} = ${numValue}`);
-      } else {
-        // Default to equals if no operator specified
-        const numValue = parseFloat(value);
-        if (!isNaN(numValue)) {
+      // Handle different column types
+      if (column === "index") {
+        whereConditions.push(eq(evaluationResults.index, parseInt(value)));
+      } else if (column === "traceId") {
+        whereConditions.push(eq(evaluationResults.traceId, value));
+      } else if (column === "duration") {
+        if (operator === "gt") {
+          const numValue = parseFloat(value);
+          whereConditions.push(sql`${durationExpr} > ${numValue}`);
+        } else if (operator === "gte") {
+          const numValue = parseFloat(value);
+          whereConditions.push(sql`${durationExpr} >= ${numValue}`);
+        } else if (operator === "lt") {
+          const numValue = parseFloat(value);
+          whereConditions.push(sql`${durationExpr} < ${numValue}`);
+        } else if (operator === "lte") {
+          const numValue = parseFloat(value);
+          whereConditions.push(sql`${durationExpr} <= ${numValue}`);
+        } else if (operator === "eq") {
+          const numValue = parseFloat(value);
           whereConditions.push(sql`${durationExpr} = ${numValue}`);
+        } else {
+          // Default to equals if no operator specified
+          const numValue = parseFloat(value);
+          if (!isNaN(numValue)) {
+            whereConditions.push(sql`${durationExpr} = ${numValue}`);
+          }
         }
-      }
-    } else if (column === "cost") {
-      // Handle cost filtering with comparison operators
-      if (operator === "gt") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${costExpr} > ${numValue}`);
-      } else if (operator === "gte") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${costExpr} >= ${numValue}`);
-      } else if (operator === "lt") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${costExpr} < ${numValue}`);
-      } else if (operator === "lte") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${costExpr} <= ${numValue}`);
-      } else if (operator === "eq") {
-        const numValue = parseFloat(value);
-        whereConditions.push(sql`${costExpr} = ${numValue}`);
-      } else {
-        // Default to equals if no operator specified
-        const numValue = parseFloat(value);
-        if (!isNaN(numValue)) {
+      } else if (column === "cost") {
+        // Handle cost filtering with comparison operators
+        if (operator === "gt") {
+          const numValue = parseFloat(value);
+          whereConditions.push(sql`${costExpr} > ${numValue}`);
+        } else if (operator === "gte") {
+          const numValue = parseFloat(value);
+          whereConditions.push(sql`${costExpr} >= ${numValue}`);
+        } else if (operator === "lt") {
+          const numValue = parseFloat(value);
+          whereConditions.push(sql`${costExpr} < ${numValue}`);
+        } else if (operator === "lte") {
+          const numValue = parseFloat(value);
+          whereConditions.push(sql`${costExpr} <= ${numValue}`);
+        } else if (operator === "eq") {
+          const numValue = parseFloat(value);
           whereConditions.push(sql`${costExpr} = ${numValue}`);
+        } else {
+          // Default to equals if no operator specified
+          const numValue = parseFloat(value);
+          if (!isNaN(numValue)) {
+            whereConditions.push(sql`${costExpr} = ${numValue}`);
+          }
         }
+      } else if (column.startsWith("score:")) {
+        const scoreName = column.split(":")[1];
+        const numValue = parseFloat(value);
+
+        if (scoreName && !isNaN(numValue)) {
+          const opMap: Record<string, string> = {
+            gt: ">",
+            gte: ">=",
+            lt: "<",
+            lte: "<=",
+            eq: "=",
+            ne: "!=",
+          };
+
+          const opSymbol = opMap[operator] || "=";
+
+          whereConditions.push(
+            sql`${evaluationResults.id} IN (
+                    SELECT ${evaluationScores.resultId}
+                    FROM   ${evaluationScores}
+                    WHERE  ${evaluationScores.name} = ${scoreName}
+                    AND    ${evaluationScores.score} ${sql.raw(opSymbol)} ${numValue}
+                  )`
+          );
+        }
+      } else {
+        // Default text search for ID
+        whereConditions.push(sql`${evaluationResults.id}::text ILIKE ${"%" + value + "%"}`);
       }
-    } else if (column.startsWith("score:")) {
-      const scoreName = column.split(":")[1];
-      const numValue = parseFloat(value);
-
-      if (scoreName && !isNaN(numValue)) {
-        const opMap: Record<string, string> = {
-          gt: ">",
-          gte: ">=",
-          lt: "<",
-          lte: "<=",
-          eq: "=",
-          ne: "!=",
-        };
-
-        const opSymbol = opMap[operator] || "=";
-
-        whereConditions.push(
-          sql`${evaluationResults.id} IN (
-                  SELECT ${evaluationScores.resultId}
-                  FROM   ${evaluationScores}
-                  WHERE  ${evaluationScores.name} = ${scoreName}
-                  AND    ${evaluationScores.score} ${sql.raw(opSymbol)} ${numValue}
-                )`
-        );
-      }
-    } else {
-      // Default text search for ID
-      whereConditions.push(sql`${evaluationResults.id}::text ILIKE ${"%" + value + "%"}`);
-    }
-  });
+    });
 
   const getEvaluationResults = db
     .with(subQueryScoreCte)
@@ -191,6 +203,7 @@ export async function GET(
       endTime: traces.endTime,
       inputCost: traces.inputCost,
       outputCost: traces.outputCost,
+      metadata: evaluationResults.metadata,
     })
     .from(evaluationResults)
     .leftJoin(traces, eq(evaluationResults.traceId, traces.id))

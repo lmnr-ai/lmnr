@@ -44,6 +44,7 @@ const filters: ColumnFilter[] = [
   { key: "startTime", name: "Start Time", dataType: "string" },
   { key: "duration", name: "Duration", dataType: "number" },
   { key: "cost", name: "Cost", dataType: "number" },
+  { key: "metadata", name: "Metadata", dataType: "json" },
 ];
 
 export default function Evaluation({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
