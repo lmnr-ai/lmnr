@@ -38,7 +38,6 @@ interface EvaluationProps {
 }
 
 const filters: ColumnFilter[] = [
-  { key: "id", name: "ID", dataType: "string" },
   { key: "index", name: "Index", dataType: "number" },
   { key: "traceId", name: "Trace ID", dataType: "string" },
   { key: "startTime", name: "Start Time", dataType: "string" },
@@ -137,7 +136,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   const tableData = useMemo(() => {
     if (targetId) {
-      return (data?.results || []).map((original, index) => {
+      return data?.results?.map((original, index) => {
         const compared = targetData?.results[index];
 
         return {
