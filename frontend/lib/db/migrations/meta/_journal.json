@@ -260,6 +260,13 @@
       "when": 1747667493376,
       "tag": "0036_gigantic_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1748249109875,
+      "tag": "0037_parallel_retro_girl",
+      "breakpoints": true
     }
   ]
 }

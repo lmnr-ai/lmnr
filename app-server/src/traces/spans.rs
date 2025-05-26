@@ -96,20 +96,24 @@ impl SpanAttributes {
     }
 
     pub fn session_id(&self) -> Option<String> {
-        match self
+        let session_id_val = self
             .attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id").as_str())
-        {
+            .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id"))
+            .or(self.attributes.get("ai.telemetry.metadata.session_id"))
+            .or(self.attributes.get("ai.telemetry.metadata.sessionId"));
+        match session_id_val {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
     }
 
     pub fn user_id(&self) -> Option<String> {
-        match self
+        let user_id_val = self
             .attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.user_id").as_str())
-        {
+            .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.user_id"))
+            .or(self.attributes.get("ai.telemetry.metadata.userId"))
+            .or(self.attributes.get("ai.telemetry.metadata.user_id"));
+        match user_id_val {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
@@ -498,6 +502,16 @@ impl Span {
                 if let Some(output) = try_parse_ai_sdk_output(&attributes) {
                     span.output = Some(output);
                 }
+
+                // Rename AI SDK spans to what's set by telemetry.functionId
+                if let Some(Value::String(s)) = span.attributes.get("operation.name") {
+                    if s.starts_with(&format!("{} ", span.name)) {
+                        span.name = s
+                            .strip_prefix(&format!("{} ", span.name))
+                            .unwrap_or(&span.name)
+                            .to_string();
+                    }
+                }
             }
         }
 
@@ -539,6 +553,15 @@ impl Span {
                 span.input = Some(serde_json::to_value(messages).unwrap());
             }
             span.output = span.output.or(try_parse_ai_sdk_output(&attributes));
+            // Rename AI SDK spans to what's set by telemetry.functionId
+            if let Some(Value::String(s)) = span.attributes.get("operation.name") {
+                if s.starts_with(&format!("{} ", span.name)) {
+                    span.name = s
+                        .strip_prefix(&format!("{} ", span.name))
+                        .unwrap_or(&span.name)
+                        .to_string();
+                }
+            }
         }
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
