@@ -67,10 +67,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
       urlParams.set("search", search);
     }
 
-    if (selectedScore) {
-      urlParams.set("scoreName", selectedScore);
-    }
-
     searchIn.forEach((value) => {
       urlParams.append("searchIn", value);
     });
@@ -80,9 +76,9 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     if (urlParams.toString()) {
       url += `?${urlParams.toString()}`;
     }
-
+    console.log(url);
     return url;
-  }, [params?.projectId, evaluationId, search, selectedScore, JSON.stringify(searchIn), JSON.stringify(filter)]);
+  }, [params?.projectId, evaluationId, search, JSON.stringify(searchIn), JSON.stringify(filter)]);
 
   const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(evaluationUrl, swrFetcher);
 
@@ -96,10 +92,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
       urlParams.set("search", search);
     }
 
-    if (selectedScore) {
-      urlParams.set("scoreName", selectedScore);
-    }
-
     searchIn.forEach((value) => {
       urlParams.append("searchIn", value);
     });
@@ -111,7 +103,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     }
 
     return url;
-  }, [params?.projectId, targetId, search, selectedScore, JSON.stringify(searchIn), JSON.stringify(filter)]);
+  }, [params?.projectId, targetId, search, JSON.stringify(searchIn), JSON.stringify(filter)]);
 
   const { data: targetData } = useSWR<EvaluationResultsInfo>(targetUrl, swrFetcher);
 
@@ -248,8 +240,8 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                     scores={scores}
                     selectedScore={selectedScore}
                     setSelectedScore={setSelectedScore}
-                    statistics={data?.statistics}
-                    comparedStatistics={targetData?.statistics}
+                    statistics={selectedScore ? data?.allStatistics?.[selectedScore] ?? null : null}
+                    comparedStatistics={selectedScore ? targetData?.allStatistics?.[selectedScore] ?? null : null}
                     isLoading={isLoading}
                   />
                 </div>
@@ -259,8 +251,10 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       evaluationId={evaluationId}
                       comparedEvaluationId={targetId}
                       scoreName={selectedScore}
-                      distribution={data?.distribution ?? null}
-                      comparedDistribution={targetData?.distribution ?? null}
+                      distribution={selectedScore ?
+                        data?.allDistributions?.[selectedScore] ?? null : null}
+                      comparedDistribution={selectedScore ?
+                        targetData?.allDistributions?.[selectedScore] ?? null : null}
                       isLoading={isLoading}
                     />
                   ) : (
@@ -268,7 +262,8 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       className="h-full"
                       evaluationId={evaluationId}
                       scoreName={selectedScore}
-                      distribution={data?.distribution ?? null}
+                      distribution={selectedScore ?
+                        data?.allDistributions?.[selectedScore] ?? null : null}
                       isLoading={isLoading}
                     />
                   )}

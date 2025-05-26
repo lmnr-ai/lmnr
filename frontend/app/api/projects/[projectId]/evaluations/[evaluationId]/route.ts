@@ -5,29 +5,12 @@ import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations, evaluationScores, traces } from "@/lib/db/migrations/schema";
-import { EvaluationScoreDistributionBucket, EvaluationScoreStatistics } from "@/lib/evaluation/types";
+import { EvaluationResultWithScores, EvaluationScoreDistributionBucket, EvaluationScoreStatistics } from "@/lib/evaluation/types";
 import { DatatableFilter } from "@/lib/types";
 
 // Constants for distribution calculation
 const DEFAULT_LOWER_BOUND = 0.0;
 const DEFAULT_BUCKET_COUNT = 10;
-
-// Type for the evaluation result with scores
-type EvaluationResultWithScores = {
-  id: string;
-  createdAt: string;
-  evaluationId: string;
-  data: unknown;
-  target: unknown;
-  executorOutput: unknown;
-  scores: unknown;
-  index: number;
-  traceId: string;
-  startTime: string | null;
-  endTime: string | null;
-  inputCost: number | null;
-  outputCost: number | null;
-};
 
 // Helper function to calculate score statistics
 function calculateScoreStatistics(
@@ -66,8 +49,8 @@ function calculateScoreDistribution(
   if (scores.length === 0) {
     // Return empty buckets
     return Array.from({ length: DEFAULT_BUCKET_COUNT }, (_, i) => ({
-      lowerBound: i * 0.1,
-      upperBound: (i + 1) * 0.1,
+      lowerBound: i * 1 / DEFAULT_BUCKET_COUNT,
+      upperBound: (i + 1) * 1 / DEFAULT_BUCKET_COUNT,
       heights: [0]
     }));
   }
@@ -130,9 +113,8 @@ export async function GET(
   const projectId = params.projectId;
   const evaluationId = params.evaluationId;
 
-  // Get search params
+  // Get search params (removed scoreName)
   const search = req.nextUrl.searchParams.get("search");
-  const scoreName = req.nextUrl.searchParams.get("scoreName");
 
   // Get filters
   let urlParamFilters: DatatableFilter[] = [];
@@ -280,20 +262,28 @@ export async function GET(
     .where(and(...whereConditions))
     .orderBy(asc(evaluationResults.index), asc(evaluationResults.createdAt));
 
-  // Calculate statistics and distribution for the requested score
-  let statistics: EvaluationScoreStatistics | null = null;
-  let distribution: EvaluationScoreDistributionBucket[] | null = null;
+  // Get all unique score names from the results
+  const allScoreNames = [...new Set(
+    results.flatMap(result => {
+      const scoresObj = result.scores as Record<string, number> | null;
+      return scoresObj ? Object.keys(scoresObj) : [];
+    })
+  )];
 
-  if (scoreName) {
-    statistics = calculateScoreStatistics(results, scoreName);
-    distribution = calculateScoreDistribution(results, scoreName);
-  }
+  // Calculate statistics and distributions for ALL scores
+  const allStatistics: Record<string, EvaluationScoreStatistics> = {};
+  const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
+
+  allScoreNames.forEach(scoreName => {
+    allStatistics[scoreName] = calculateScoreStatistics(results, scoreName);
+    allDistributions[scoreName] = calculateScoreDistribution(results, scoreName);
+  });
 
   const result = {
     evaluation: evaluation,
     results,
-    statistics,
-    distribution,
+    allStatistics,
+    allDistributions,
   };
 
   return Response.json(result);

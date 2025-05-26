@@ -10,7 +10,7 @@ interface ScoreCardProps {
   scores: string[];
   selectedScore: string;
   setSelectedScore: (score: string) => void;
-  statistics?: EvaluationScoreStatistics | null;
+  statistics: EvaluationScoreStatistics | null;
   comparedStatistics?: EvaluationScoreStatistics | null;
   isLoading?: boolean;
 }
