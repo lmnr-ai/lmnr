@@ -76,7 +76,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     if (urlParams.toString()) {
       url += `?${urlParams.toString()}`;
     }
-    console.log(url);
+
     return url;
   }, [params?.projectId, evaluationId, search, JSON.stringify(searchIn), JSON.stringify(filter)]);
 

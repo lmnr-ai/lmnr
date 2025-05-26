@@ -82,7 +82,7 @@ export type EvaluationResultWithScores = {
   data: unknown;
   target: unknown;
   executorOutput: unknown;
-  scores: Record<string, number>;
+  scores: unknown;
   index: number;
   traceId: string;
   startTime: string | null;
