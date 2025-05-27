@@ -1,4 +1,7 @@
-use std::sync::{Arc, LazyLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock},
+};
 
 use anyhow::Result;
 use regex::Regex;
@@ -8,7 +11,7 @@ use uuid::Uuid;
 use crate::storage::{Storage, StorageTrait};
 
 static DATA_URL_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^data:(image/[a-zA-Z]+);base64,.*$").unwrap());
+    LazyLock::new(|| Regex::new(r"^data:((?:application|image)/[a-zA-Z-]+);base64,.*$").unwrap());
 
 #[derive(Deserialize)]
 pub struct ImageUrl {
@@ -43,29 +46,64 @@ pub struct ChatMessageImage {
     pub data: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessageAISDKV2File {
+    #[allow(dead_code)]
     #[serde(default)]
     pub filename: Option<String>,
     pub data: String,
     pub media_type: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessageAISDKV1File {
+    #[allow(dead_code)]
     #[serde(default)]
     pub filename: Option<String>,
     pub data: String,
     pub mime_type: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
+pub struct ChatMessageOpenAIFileBase64 {
+    // Filename key is an indicator for OpenAI of the payload type (vs file_id)
+    // but we don't use it.
+    #[allow(dead_code)]
+    pub filename: String,
+    pub file_data: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ChatMessageOpenAIFileId {
+    pub file_id: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum ChatMessageOpenAIFileContent {
+    FileId(ChatMessageOpenAIFileId),
+    Base64(ChatMessageOpenAIFileBase64),
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ChatMessageOpenAIFile {
+    pub file: ChatMessageOpenAIFileContent,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum ChatMessageAISDKFile {
     V1(ChatMessageAISDKV1File),
     V2(ChatMessageAISDKV2File),
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum ChatMessageFile {
+    OpenAI(ChatMessageOpenAIFile),
+    AiSdk(ChatMessageAISDKFile),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -203,7 +241,7 @@ pub enum InstrumentationChatMessageContentPart {
     ImageUrl(InstrumentationChatMessageImageUrl),
     Image(InstrumentationChatMessageImage),
     Document(InstrumentationChatMessageDocument),
-    File(ChatMessageAISDKFile),
+    File(ChatMessageFile),
 }
 
 impl ChatMessageContentPart {
@@ -255,7 +293,7 @@ impl ChatMessageContentPart {
                     })
                 }
             },
-            InstrumentationChatMessageContentPart::File(file) => {
+            InstrumentationChatMessageContentPart::File(ChatMessageFile::AiSdk(file)) => {
                 let media_type = match &file {
                     ChatMessageAISDKFile::V1(file) => &file.mime_type,
                     ChatMessageAISDKFile::V2(file) => &file.media_type,
@@ -277,6 +315,36 @@ impl ChatMessageContentPart {
                             data: data.clone(),
                         },
                     })
+                }
+            }
+            InstrumentationChatMessageContentPart::File(ChatMessageFile::OpenAI(file)) => {
+                match file.file {
+                    // We can't download the file contents from the OpenAI storage,
+                    // so just return the file id as text
+                    ChatMessageOpenAIFileContent::FileId(file_id) => {
+                        ChatMessageContentPart::Text(ChatMessageText {
+                            text: serde_json::to_string(&HashMap::from([(
+                                "file_id".to_string(),
+                                file_id.file_id.clone(),
+                            )]))
+                            .unwrap(),
+                        })
+                    }
+                    ChatMessageOpenAIFileContent::Base64(file_base64) => {
+                        let media_type = DATA_URL_REGEX
+                            .captures(&file_base64.file_data)
+                            .map(|captures| captures.get(1).unwrap().as_str())
+                            .unwrap_or("application/octet-stream");
+                        let data = raw_base64_from_data_url(&file_base64.file_data)
+                            .unwrap_or(&file_base64.file_data);
+                        ChatMessageContentPart::Document(ChatMessageDocument {
+                            source: ChatMessageDocumentSource {
+                                document_type: "base64".to_string(),
+                                media_type: media_type.to_string(),
+                                data: data.to_string(),
+                            },
+                        })
+                    }
                 }
             }
         }
