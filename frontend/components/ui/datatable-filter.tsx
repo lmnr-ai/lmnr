@@ -99,6 +99,22 @@ export default function DataTableFilter({ columns, className }: DataTableFilterP
     }
   }, [columns]);
 
+  const currentDataType = useMemo(
+    () => get(find(columns, ["key", filter.column]), "dataType", "string"),
+    [columns, filter.column]
+  );
+
+  const { currentKey, currentValue } = useMemo(() => {
+    const equalIndex = filter.value.indexOf("=");
+    if (equalIndex === -1) {
+      return { currentKey: filter.value, currentValue: "" };
+    }
+    return {
+      currentKey: filter.value.substring(0, equalIndex),
+      currentValue: filter.value.substring(equalIndex + 1),
+    };
+  }, [filter.value]);
+
   return (
     <Popover>
       <PopoverTrigger asChild className={className}>
@@ -121,26 +137,52 @@ export default function DataTableFilter({ columns, className }: DataTableFilterP
               ))}
             </SelectContent>
           </Select>
-          <Select value={filter.operator} onValueChange={(value) => handleValueChange({ field: "operator", value })}>
-            <SelectTrigger className="font-medium w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {dataTypeOperationsMap[get(find(columns, ["key", filter.column]), "dataType", "string")].map(
-                ({ key, label }) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                )
-              )}
-            </SelectContent>
-          </Select>
-          <Input
-            type={columns.find((c) => c.key === filter.column)?.dataType === "number" ? "number" : "text"}
-            className="h-7 hide-arrow"
-            placeholder="value"
-            onChange={(e) => handleValueChange({ field: "value", value: e.target.value })}
-          />
+          {currentDataType === "json" ? (
+            <>
+              <Input
+                type="text"
+                className="h-7 hide-arrow"
+                placeholder="key"
+                onChange={(e) => {
+                  const newValue = `${e.target.value}=${currentValue}`;
+                  handleValueChange({ field: "value", value: newValue });
+                }}
+              />
+              <Input
+                type="text"
+                className="h-7 hide-arrow"
+                placeholder="value"
+                onChange={(e) => {
+                  const newValue = `${currentKey}=${e.target.value}`;
+                  handleValueChange({ field: "value", value: newValue });
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <Select
+                value={filter.operator}
+                onValueChange={(value) => handleValueChange({ field: "operator", value })}
+              >
+                <SelectTrigger className="font-medium w-fit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {dataTypeOperationsMap[currentDataType].map(({ key, label }) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type={columns.find((c) => c.key === filter.column)?.dataType === "number" ? "number" : "text"}
+                className="h-7 hide-arrow"
+                placeholder="value"
+                onChange={(e) => handleValueChange({ field: "value", value: e.target.value })}
+              />
+            </>
+          )}
         </div>
         <div className="flex flex-row-reverse border-t p-2">
           <PopoverClose asChild>

@@ -26,6 +26,7 @@ export type EvaluationDatapointPreview = {
   scores?: Record<string, any>;
   data: any;
   target: any;
+  metadata?: Record<string, any>;
   executorOutput: any;
   traceId: string;
   index: number;

@@ -5,7 +5,11 @@ import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations, evaluationScores, traces } from "@/lib/db/migrations/schema";
-import { EvaluationResultWithScores, EvaluationScoreDistributionBucket, EvaluationScoreStatistics } from "@/lib/evaluation/types";
+import {
+  EvaluationResultWithScores,
+  EvaluationScoreDistributionBucket,
+  EvaluationScoreStatistics,
+} from "@/lib/evaluation/types";
 import { DatatableFilter } from "@/lib/types";
 
 // Constants for distribution calculation
@@ -13,16 +17,13 @@ const DEFAULT_LOWER_BOUND = 0.0;
 const DEFAULT_BUCKET_COUNT = 10;
 
 // Helper function to calculate score statistics
-function calculateScoreStatistics(
-  results: EvaluationResultWithScores[],
-  scoreName: string
-): EvaluationScoreStatistics {
+function calculateScoreStatistics(results: EvaluationResultWithScores[], scoreName: string): EvaluationScoreStatistics {
   const scores = results
-    .map(result => {
+    .map((result) => {
       const scoresObj = result.scores as Record<string, number> | null;
       return scoresObj?.[scoreName];
     })
-    .filter((score): score is number => typeof score === 'number' && !isNaN(score));
+    .filter((score): score is number => typeof score === "number" && !isNaN(score));
 
   if (scores.length === 0) {
     return { averageValue: 0 };
@@ -40,18 +41,18 @@ function calculateScoreDistribution(
   scoreName: string
 ): EvaluationScoreDistributionBucket[] {
   const scores = results
-    .map(result => {
+    .map((result) => {
       const scoresObj = result.scores as Record<string, number> | null;
       return scoresObj?.[scoreName];
     })
-    .filter((score): score is number => typeof score === 'number' && !isNaN(score));
+    .filter((score): score is number => typeof score === "number" && !isNaN(score));
 
   if (scores.length === 0) {
     // Return empty buckets
     return Array.from({ length: DEFAULT_BUCKET_COUNT }, (_, i) => ({
-      lowerBound: i * 1 / DEFAULT_BUCKET_COUNT,
-      upperBound: (i + 1) * 1 / DEFAULT_BUCKET_COUNT,
-      heights: [0]
+      lowerBound: (i * 1) / DEFAULT_BUCKET_COUNT,
+      upperBound: ((i + 1) * 1) / DEFAULT_BUCKET_COUNT,
+      heights: [0],
     }));
   }
 
@@ -64,14 +65,11 @@ function calculateScoreDistribution(
 
   // If all scores are the same, put everything in the last bucket
   if (lowerBound === upperBound) {
-    const buckets: EvaluationScoreDistributionBucket[] = Array.from(
-      { length: DEFAULT_BUCKET_COUNT },
-      (_, i) => ({
-        lowerBound,
-        upperBound,
-        heights: [0]
-      })
-    );
+    const buckets: EvaluationScoreDistributionBucket[] = Array.from({ length: DEFAULT_BUCKET_COUNT }, (_, i) => ({
+      lowerBound,
+      upperBound,
+      heights: [0],
+    }));
     buckets[DEFAULT_BUCKET_COUNT - 1].heights = [scores.length];
     return buckets;
   }
@@ -80,12 +78,10 @@ function calculateScoreDistribution(
   const buckets: EvaluationScoreDistributionBucket[] = [];
 
   for (let i = 0; i < DEFAULT_BUCKET_COUNT; i++) {
-    const bucketLowerBound = lowerBound + (i * stepSize);
-    const bucketUpperBound = i === DEFAULT_BUCKET_COUNT - 1
-      ? upperBound
-      : lowerBound + ((i + 1) * stepSize);
+    const bucketLowerBound = lowerBound + i * stepSize;
+    const bucketUpperBound = i === DEFAULT_BUCKET_COUNT - 1 ? upperBound : lowerBound + (i + 1) * stepSize;
 
-    const count = scores.filter(score => {
+    const count = scores.filter((score) => {
       if (i === DEFAULT_BUCKET_COUNT - 1) {
         // Last bucket includes upper bound
         return score >= bucketLowerBound && score <= bucketUpperBound;
@@ -98,7 +94,7 @@ function calculateScoreDistribution(
     buckets.push({
       lowerBound: bucketLowerBound,
       upperBound: bucketUpperBound,
-      heights: [count]
+      heights: [count],
     });
   }
 
@@ -136,6 +132,16 @@ export async function GET(
 
   // Build all where conditions
   const whereConditions = [eq(evaluationResults.evaluationId, evaluationId)];
+
+  // Extract metadata filters
+  const metadataFilters = urlParamFilters
+    .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
+    .map((filter) => {
+      const [key, value] = filter.value.split(/=(.*)/);
+      return sql`${evaluationResults.metadata} @> ${JSON.stringify({ [key]: value })}`;
+    });
+
+  whereConditions.push(...metadataFilters);
 
   // span search
   let searchTraceIds: string[] = [];
@@ -185,59 +191,61 @@ export async function GET(
   const costExpr = sql`(COALESCE(${traces.inputCost}, 0) + COALESCE(${traces.outputCost}, 0))`;
 
   // Add filter conditions
-  urlParamFilters.forEach((filter) => {
-    const column = filter.column;
-    const value = filter.value;
-    const operator = filter.operator;
+  urlParamFilters
+    .filter((filter) => filter.column !== "metadata") // Skip metadata filters as they're handled separately
+    .forEach((filter) => {
+      const column = filter.column;
+      const value = filter.value;
+      const operator = filter.operator;
 
-    // Operator mapping for numeric comparisons
-    const opMap: Record<string, string> = {
-      gt: ">",
-      gte: ">=",
-      lt: "<",
-      lte: "<=",
-      eq: "=",
-      ne: "!=",
-    };
+      // Operator mapping for numeric comparisons
+      const opMap: Record<string, string> = {
+        gt: ">",
+        gte: ">=",
+        lt: "<",
+        lte: "<=",
+        eq: "=",
+        ne: "!=",
+      };
 
-    // Handle different column types
-    if (column === "index") {
-      whereConditions.push(eq(evaluationResults.index, parseInt(value)));
-    } else if (column === "traceId") {
-      whereConditions.push(eq(evaluationResults.traceId, value));
-    } else if (column === "duration") {
-      const numValue = parseFloat(value);
-      if (!isNaN(numValue)) {
-        const opSymbol = opMap[operator] || "=";
-        whereConditions.push(sql`${durationExpr} ${sql.raw(opSymbol)} ${numValue}`);
-      }
-    } else if (column === "cost") {
-      const numValue = parseFloat(value);
-      if (!isNaN(numValue)) {
-        const opSymbol = opMap[operator] || "=";
-        whereConditions.push(sql`${costExpr} ${sql.raw(opSymbol)} ${numValue}`);
-      }
-    } else if (column.startsWith("score:")) {
-      const scoreName = column.split(":")[1];
-      const numValue = parseFloat(value);
+      // Handle different column types
+      if (column === "index") {
+        whereConditions.push(eq(evaluationResults.index, parseInt(value)));
+      } else if (column === "traceId") {
+        whereConditions.push(eq(evaluationResults.traceId, value));
+      } else if (column === "duration") {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          const opSymbol = opMap[operator] || "=";
+          whereConditions.push(sql`${durationExpr} ${sql.raw(opSymbol)} ${numValue}`);
+        }
+      } else if (column === "cost") {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          const opSymbol = opMap[operator] || "=";
+          whereConditions.push(sql`${costExpr} ${sql.raw(opSymbol)} ${numValue}`);
+        }
+      } else if (column.startsWith("score:")) {
+        const scoreName = column.split(":")[1];
+        const numValue = parseFloat(value);
 
-      if (scoreName && !isNaN(numValue)) {
-        const opSymbol = opMap[operator] || "=";
+        if (scoreName && !isNaN(numValue)) {
+          const opSymbol = opMap[operator] || "=";
 
-        whereConditions.push(
-          sql`${evaluationResults.id} IN (
+          whereConditions.push(
+            sql`${evaluationResults.id} IN (
                   SELECT ${evaluationScores.resultId}
                   FROM   ${evaluationScores}
                   WHERE  ${evaluationScores.name} = ${scoreName}
                   AND    ${evaluationScores.score} ${sql.raw(opSymbol)} ${numValue}
                 )`
-        );
+          );
+        }
+      } else {
+        // Default text search for ID
+        whereConditions.push(sql`${evaluationResults.id}::text ILIKE ${"%" + value + "%"}`);
       }
-    } else {
-      // Default text search for ID
-      whereConditions.push(sql`${evaluationResults.id}::text ILIKE ${"%" + value + "%"}`);
-    }
-  });
+    });
 
   const results = await db
     .with(subQueryScoreCte)
@@ -255,6 +263,7 @@ export async function GET(
       endTime: traces.endTime,
       inputCost: traces.inputCost,
       outputCost: traces.outputCost,
+      metadata: evaluationResults.metadata,
     })
     .from(evaluationResults)
     .leftJoin(traces, eq(evaluationResults.traceId, traces.id))
@@ -263,18 +272,20 @@ export async function GET(
     .orderBy(asc(evaluationResults.index), asc(evaluationResults.createdAt));
 
   // Get all unique score names from the results
-  const allScoreNames = [...new Set(
-    results.flatMap(result => {
-      const scoresObj = result.scores as Record<string, number> | null;
-      return scoresObj ? Object.keys(scoresObj) : [];
-    })
-  )];
+  const allScoreNames = [
+    ...new Set(
+      results.flatMap((result) => {
+        const scoresObj = result.scores as Record<string, number> | null;
+        return scoresObj ? Object.keys(scoresObj) : [];
+      })
+    ),
+  ];
 
   // Calculate statistics and distributions for ALL scores
   const allStatistics: Record<string, EvaluationScoreStatistics> = {};
   const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
 
-  allScoreNames.forEach(scoreName => {
+  allScoreNames.forEach((scoreName) => {
     allStatistics[scoreName] = calculateScoreStatistics(results, scoreName);
     allDistributions[scoreName] = calculateScoreDistribution(results, scoreName);
   });

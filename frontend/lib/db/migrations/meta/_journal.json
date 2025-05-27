@@ -267,6 +267,13 @@
       "when": 1748249109875,
       "tag": "0037_parallel_retro_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1748268083265,
+      "tag": "0038_clumsy_johnny_storm",
+      "breakpoints": true
     }
   ]
 }
