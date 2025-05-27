@@ -24,7 +24,7 @@ import { parseSystemMessages } from "@/lib/playground/utils";
 import { ProviderApiKey } from "@/lib/settings/types";
 import { cn } from "@/lib/utils";
 
-export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: ProviderApiKey[] }) {
+export default function PlaygroundPanel({ id, apiKeys, onTraceSelect }: { id: string; apiKeys: ProviderApiKey[]; onTraceSelect?: (traceId: string) => void }) {
   const params = useParams();
   const { toast } = useToast();
   const [output, setOutput] = useState<{ text: string; reasoning: string; toolCalls: string[] }>({
@@ -38,6 +38,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
   }>();
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [refreshHistory, setRefreshHistory] = useState(0);
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
 
@@ -100,6 +101,11 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
           onToolResultPart: appendToolCalls,
           onToolCallDeltaPart: appendToolCalls,
         });
+
+        // Refresh history table if it's open
+        if (showHistory) {
+          setRefreshHistory(prev => prev + 1);
+        }
       } catch (e) {
         if (e instanceof Error) {
           toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -108,7 +114,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
         setIsLoading(false);
       }
     },
-    [params?.projectId, toast, id]
+    [params?.projectId, toast, id, showHistory]
   );
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {
@@ -207,7 +213,11 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
                 <h3 className="text-sm font-medium">Playground runs history</h3>
               </div>
               <div className="flex-1 overflow-auto">
-                <PlaygroundHistoryTable playgroundId={id} />
+                <PlaygroundHistoryTable
+                  playgroundId={id}
+                  onTraceSelect={onTraceSelect}
+                  refreshTrigger={refreshHistory}
+                />
               </div>
             </ResizablePanel>
           </>

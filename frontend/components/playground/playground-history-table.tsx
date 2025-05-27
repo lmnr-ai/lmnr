@@ -132,9 +132,16 @@ const columns: ColumnDef<Trace, any>[] = [
 interface PlaygroundHistoryTableProps {
   playgroundId: string;
   onRowClick?: (trace: Trace) => void;
+  onTraceSelect?: (traceId: string) => void;
+  refreshTrigger?: number;
 }
 
-export default function PlaygroundHistoryTable({ playgroundId, onRowClick }: PlaygroundHistoryTableProps) {
+export default function PlaygroundHistoryTable({
+  playgroundId,
+  onRowClick,
+  onTraceSelect,
+  refreshTrigger
+}: PlaygroundHistoryTableProps) {
   const { projectId } = useParams();
   const { toast } = useToast();
   const router = useRouter();
@@ -193,15 +200,18 @@ export default function PlaygroundHistoryTable({ playgroundId, onRowClick }: Pla
     getTraces();
   }, [getTraces]);
 
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      getTraces();
+    }
+  }, [refreshTrigger, getTraces]);
+
   const handleRowClick = useCallback(
     (row: Row<Trace>) => {
       onRowClick?.(row.original);
-      const params = new URLSearchParams(searchParams);
-      params.set("traceId", row.id);
-      params.delete("spanId");
-      router.push(`${pathname}?${params.toString()}`);
+      onTraceSelect?.(row.original.id);
     },
-    [onRowClick, pathname, router, searchParams]
+    [onRowClick, onTraceSelect]
   );
 
   const onPageChange = useCallback(

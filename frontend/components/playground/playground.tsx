@@ -3,11 +3,13 @@ import { debounce, isEmpty } from "lodash";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { Resizable } from "re-resizable";
 import useSWR from "swr";
 
 import PlaygroundPanel from "@/components/playground/playground-panel";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import TraceView from "@/components/traces/trace-view";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
 import { ProviderApiKey } from "@/lib/settings/types";
@@ -28,6 +30,10 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   const searchParams = useSearchParams();
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
+
+  // Trace view state (not synced with URL)
+  const [traceId, setTraceId] = useState<string | null>(null);
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(false);
 
   const methods = useForm<PlaygroundForm>({
     defaultValues: {
@@ -117,6 +123,10 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     };
   }, [params?.projectId, playground.id, updatePlaygroundData, watch]);
 
+  useEffect(() => {
+    setIsSidePanelOpen(traceId != null);
+  }, [traceId]);
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <Header path={`playgrounds/${playground.name}`}>
@@ -133,8 +143,28 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         </div>
       ) : (
         <FormProvider {...methods}>
-          <PlaygroundPanel id={playground.id} apiKeys={apiKeys ?? []} />
+          <PlaygroundPanel id={playground.id} apiKeys={apiKeys ?? []} onTraceSelect={setTraceId} />
         </FormProvider>
+      )}
+      {isSidePanelOpen && (
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
+          <Resizable
+            enable={{
+              left: true,
+            }}
+            defaultSize={{
+              width: "65vw",
+            }}
+          >
+            <TraceView
+              onClose={() => {
+                setIsSidePanelOpen(false);
+                setTraceId(null);
+              }}
+              traceId={traceId!}
+            />
+          </Resizable>
+        </div>
       )}
     </div>
   );
