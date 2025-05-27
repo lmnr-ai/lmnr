@@ -123,7 +123,6 @@ export const manageUserSubscriptionEvent = async ({
     stripeCustomerId,
     activated: true
   }).where(eq(userSubscriptionInfo.stripeCustomerId, stripeCustomerId));
-  console.log(productId);
 
   await db.update(users).set({
     tierId: sql`CASE
