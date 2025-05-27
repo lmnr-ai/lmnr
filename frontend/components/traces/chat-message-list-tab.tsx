@@ -4,8 +4,8 @@ import { ChevronDown } from "lucide-react";
 import { memo, useCallback, useMemo, useRef } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import CodeHighlighter from "@/components/traces/code-highlighter";
 import { Button } from "@/components/ui/button";
+import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
 
@@ -132,7 +132,7 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
   return (
     <ScrollArea
       ref={parentRef}
-      className="h-full relative overflow-y-auto p-4"
+      className="h-full relative overflow-y-auto"
       style={{
         width: "100%",
         contain: "strict",
@@ -147,12 +147,9 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
       >
         <div
           style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
             transform: `translateY(${items[0]?.start ?? 0}px)`,
           }}
+          className="p-4 absolute top-0 left-0 w-full"
         >
           {items.map((virtualRow) => {
             const message = messages[virtualRow.index];

@@ -75,7 +75,7 @@ const SearchSpansInput = ({
   }, [handleClearInput, handleSubmit, setSearchEnabled]);
 
   return (
-    <div className="flex flex-col flex-1 top-0 sticky bg-background z-50 box-border">
+    <div className="flex flex-col top-0 sticky bg-background z-30 box-border">
       <div
         className={cn(
           "flex items-center gap-x-1 border px-2 rounded-md text-secondary-foreground min-w-[18px] py-[3.5px] box-border",

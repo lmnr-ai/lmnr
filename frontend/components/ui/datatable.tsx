@@ -58,6 +58,7 @@ interface DataTableProps<TData> {
   onSelectAllAcrossPages?: (selectAll: boolean) => void;
   selectionPanel?: (selectedRowIds: string[]) => React.ReactNode;
   pageSizeOptions?: number[];
+  childrenClassName?: string;
 }
 
 const checkboxColumn = <TData,>(
@@ -124,6 +125,7 @@ export function DataTable<TData>({
   children,
   selectionPanel,
   pageSizeOptions = [10, 20, 50, 100, 200, 500],
+  childrenClassName,
 }: PropsWithChildren<DataTableProps<TData>>) {
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = useState(false);
@@ -236,6 +238,7 @@ export function DataTable<TData>({
     </TableRow>
   );
 
+  console.log(data);
   const content = (
     <Table
       className="border-separate border-spacing-0 relative"
@@ -326,7 +329,9 @@ export function DataTable<TData>({
           {selectionPanel?.(Object.keys(rowSelection))}
         </div>
       )}
-      {children && <div className="flex items-center space-x-2 h-12 px-4 border-b">{children}</div>}
+      {children && (
+        <div className={cn("flex items-center space-x-2 h-12 px-4 border-b", childrenClassName)}>{children}</div>
+      )}
       <ScrollArea className="flex-grow overflow-auto">
         <div className="max-h-0">{content}</div>
         <ScrollBar orientation="horizontal" />

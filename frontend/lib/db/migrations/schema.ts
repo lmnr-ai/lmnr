@@ -316,49 +316,6 @@ export const userSubscriptionInfo = pgTable(
   ]
 );
 
-export const workspaceUsage = pgTable(
-  "workspace_usage",
-  {
-    workspaceId: uuid("workspace_id").defaultRandom().primaryKey().notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    spanCount: bigint("span_count", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    spanCountSinceReset: bigint("span_count_since_reset", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    prevSpanCount: bigint("prev_span_count", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    stepCount: bigint("step_count", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    stepCountSinceReset: bigint("step_count_since_reset", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    prevStepCount: bigint("prev_step_count", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    resetReason: text("reset_reason").default("signup").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.workspaceId],
-      foreignColumns: [workspaces.id],
-      name: "user_usage_workspace_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    unique("user_usage_workspace_id_key").on(table.workspaceId),
-  ]
-);
-
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   id: bigint({ mode: "number" })
@@ -434,6 +391,61 @@ export const labelingQueues = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+  ]
+);
+
+export const workspaceUsage = pgTable(
+  "workspace_usage",
+  {
+    workspaceId: uuid("workspace_id").defaultRandom().primaryKey().notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    spanCount: bigint("span_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    spanCountSinceReset: bigint("span_count_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    prevSpanCount: bigint("prev_span_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    stepCount: bigint("step_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    stepCountSinceReset: bigint("step_count_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    prevStepCount: bigint("prev_step_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    resetReason: text("reset_reason").default("signup").notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    bytesIngested: bigint("bytes_ingested", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    bytesIngestedSinceReset: bigint("bytes_ingested_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    prevBytesIngested: bigint("prev_bytes_ingested", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "user_usage_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("user_usage_workspace_id_key").on(table.workspaceId),
   ]
 );
 
@@ -600,6 +612,7 @@ export const evaluationResults = pgTable(
     indexInBatch: bigint("index_in_batch", { mode: "number" }),
     traceId: uuid("trace_id").notNull(),
     index: integer().default(0).notNull(),
+    metadata: jsonb(),
   },
   (table) => [
     index("evaluation_results_evaluation_id_idx").using("btree", table.evaluationId.asc().nullsLast().op("uuid_ops")),

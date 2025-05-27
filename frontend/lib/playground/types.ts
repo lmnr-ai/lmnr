@@ -5,10 +5,8 @@ import { DataContent, ToolChoice, ToolSet } from "ai";
 import { Provider } from "@/components/playground/types";
 import { playgrounds } from "@/lib/db/migrations/schema";
 
-import { ChatMessage } from "../types";
-
 export type Playground = typeof playgrounds.$inferSelect & {
-  promptMessages: ChatMessage[];
+  promptMessages: Message[];
   toolChoice: ToolChoice<any>;
   tools: string;
 };
@@ -25,9 +23,23 @@ export interface TextPart {
   text: string;
 }
 
+export interface ToolResultPart {
+  type: "tool-result";
+  toolCallId: string;
+  toolName: string;
+  result: any;
+}
+
+export interface ToolCallPart {
+  type: "tool-call";
+  toolCallId: string;
+  toolName: string;
+  args: unknown;
+}
+
 export interface Message {
-  role: "system" | "user" | "assistant";
-  content: Array<ImagePart | TextPart>;
+  role: "system" | "user" | "assistant" | "tool";
+  content: Array<ImagePart | TextPart | ToolResultPart | ToolCallPart>;
 }
 
 type OpenAIProviderOptions = {
@@ -63,10 +75,14 @@ export const openAIThinkingModels = [
   "openai:o1-preview",
 ];
 
-export const anthropicThinkingModels = ["anthropic:claude-3-7-sonnet-20250219:thinking"];
+export const anthropicThinkingModels = [
+  "anthropic:claude-3-7-sonnet-20250219:thinking",
+  "anthropic:claude-4-sonnet-20250514:thinking",
+  "anthropic:claude-4-opus-20250514:thinking",
+];
 
 export const googleThinkingModels = [
-  "gemini:gemini-2.5-flash-preview-04-17",
-  "gemini:gemini-2.5-pro-exp-03-25",
-  "gemini:gemini-2.5-pro-preview-05-06",
+  "gemini:gemini-2.5-flash-preview-05-20:thinking",
+  "gemini:gemini-2.5-pro-exp-03-25:thinking",
+  "gemini:gemini-2.5-pro-preview-05-06:thinking",
 ];

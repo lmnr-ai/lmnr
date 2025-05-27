@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   let urlParamFilters: FilterDef[] = [];
   try {
-    urlParamFilters = JSON.parse(req.nextUrl.searchParams.get("filter") ?? "[]") as FilterDef[];
+    urlParamFilters = req.nextUrl.searchParams.getAll("filter").map((f) => JSON.parse(f) as FilterDef);
   } catch (e) {
     urlParamFilters = [];
   }

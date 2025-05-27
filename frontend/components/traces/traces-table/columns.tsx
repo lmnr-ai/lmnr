@@ -4,6 +4,7 @@ import { ArrowRight, CircleCheck, CircleX, X } from "lucide-react";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
+import { ColumnFilter } from "@/components/ui/datatable-filter";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -129,7 +130,7 @@ export const columns: ColumnDef<Trace, any>[] = [
               </div>
             </div>
           </TooltipTrigger>
-          {row.getValue() != undefined && (
+          {row.getValue() !== undefined && (
             <TooltipContent side="bottom" className="p-2 border">
               <div>
                 <div className="flex justify-between space-x-2">
@@ -181,7 +182,7 @@ export const columns: ColumnDef<Trace, any>[] = [
               </div>
             </div>
           </TooltipTrigger>
-          {row.getValue() != undefined && (
+          {row.getValue() !== undefined && (
             <TooltipContent side="bottom" className="p-2 border">
               <div className="whitespace-pre-wrap">{row.getValue()}</div>
             </TooltipContent>
@@ -193,42 +194,65 @@ export const columns: ColumnDef<Trace, any>[] = [
   },
 ];
 
-export const filters = [
+export const filters: ColumnFilter[] = [
   {
     name: "ID",
-    id: "id",
+    key: "id",
+    dataType: "string",
   },
   {
     name: "Latency",
-    id: "latency",
+    key: "latency",
+    dataType: "number",
   },
-  // TODO: alias span_type and name to top_span_type and top_span_name in
-  // the DB query
   {
     name: "Top level span",
-    id: "span_type",
-    restrictOperators: ["eq"],
+    key: "span_type",
+    dataType: "json",
   },
   {
     name: "Top span name",
-    id: "name",
+    key: "name",
+    dataType: "string",
   },
   {
     name: "Input cost",
-    id: "input_cost",
+    key: "input_cost",
+    dataType: "number",
   },
   {
     name: "Output cost",
-    id: "output_cost",
+    key: "output_cost",
+    dataType: "number",
+  },
+  {
+    name: "Total cost",
+    key: "cost",
+    dataType: "number",
+  },
+  {
+    name: "Input tokens",
+    key: "input_token_count",
+    dataType: "number",
+  },
+  {
+    name: "Output tokens",
+    key: "output_token_count",
+    dataType: "number",
+  },
+  {
+    name: "Total tokens",
+    key: "total_token_count",
+    dataType: "number",
   },
   {
     name: "Metadata",
-    id: "metadata",
-    restrictOperators: ["eq"],
+    key: "metadata",
+    dataType: "json",
   },
   {
     name: "Labels",
-    id: "labels",
-    restrictOperators: ["eq"],
+    key: "labels",
+    dataType: "json",
   },
 ];

@@ -1,7 +1,9 @@
+import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 import useSWR from "swr";
 
+import CreateDatasetDialog from "@/components/datasets/create-dataset-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dataset } from "@/lib/dataset/types";
 import { PaginatedResponse } from "@/lib/types";
@@ -27,7 +29,7 @@ export default function DatasetSelect({ onChange, value, className }: DatasetSel
 
   return (
     <Select disabled={isLoading} value={value} onValueChange={onValueChange}>
-      <SelectTrigger className={cn("font-medium", className)}>
+      <SelectTrigger className={cn("font-medium focus:ring-0", className)}>
         <SelectValue placeholder="Select dataset" />
       </SelectTrigger>
       <SelectContent>
@@ -36,6 +38,12 @@ export default function DatasetSelect({ onChange, value, className }: DatasetSel
             {dataset.name}
           </SelectItem>
         ))}
+        <CreateDatasetDialog>
+          <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
+            <Plus className="w-3 h-3 mr-2" />
+            <span className="text-xs">Create new dataset</span>
+          </div>
+        </CreateDatasetDialog>
       </SelectContent>
     </Select>
   );

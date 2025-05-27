@@ -2,7 +2,7 @@
 import { CheckedState } from "@radix-ui/react-checkbox";
 import { isEmpty } from "lodash";
 import { Plus } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Dispatch, SetStateAction, useMemo } from "react";
 
 import { useLabelsContext } from "@/components/labels/labels-context";
@@ -19,8 +19,7 @@ interface PickLabelProps {
 }
 const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
   const params = useParams();
-  const searchParams = useSearchParams();
-  const { labels, labelClasses, mutate } = useLabelsContext();
+  const { labels, labelClasses, mutate, spanId } = useLabelsContext();
   const { toast } = useToast();
   const { selected, available, hasExactMatch } = useMemo(() => {
     const selectedIds = labels.map(({ classId }) => classId);
@@ -43,7 +42,7 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
   const handleCheckLabel = (labelClass: LabelClass) => async (checked: CheckedState) => {
     try {
       if (Boolean(checked)) {
-        const res = await fetch(`/api/projects/${params?.projectId}/spans/${searchParams.get("spanId")}/labels`, {
+        const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/labels`, {
           method: "POST",
           body: JSON.stringify({
             classId: labelClass.id,
@@ -71,7 +70,7 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
   };
 
   const deleteLabel = async (label: SpanLabel) => {
-    await fetch(`/api/projects/${params?.projectId}/spans/${searchParams.get("spanId")}/labels/${label.id}`, {
+    await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/labels/${label.id}`, {
       method: "DELETE",
     });
     return [label];

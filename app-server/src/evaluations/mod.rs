@@ -38,6 +38,7 @@ pub async fn save_evaluation_scores(
             &columns.scores,
             &columns.datas,
             &columns.targets,
+            &columns.metadatas,
             &columns.executor_outputs,
             &columns.trace_ids,
             &columns.indices,

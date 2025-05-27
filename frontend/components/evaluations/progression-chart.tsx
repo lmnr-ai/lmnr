@@ -1,4 +1,3 @@
-import { Minus } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
@@ -47,9 +46,8 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
     return (
       data?.map(({ timestamp, evaluationId, names, values }) => {
         const extendedNames = [...names, ADDITIONAL_NAME];
-        const extendedValues = values.length > 0
-          ? [...values, values.reduce((acc, curr) => acc + Number(curr), 0) / values.length]
-          : [0];
+        const extendedValues =
+          values.length > 0 ? [...values, values.reduce((acc, curr) => acc + Number(curr), 0) / values.length] : [0];
         return {
           timestamp,
           evaluationId,
@@ -132,7 +130,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
                 ))}
             </LineChart>
           </ChartContainer>
-          <div className="flex flex-row justify-center w-full mt-2 space-x-2 items-center">
+          <div className="flex flex-row justify-center w-full mt-2 gap-2 items-center">
             {[...Array.from(keys), ADDITIONAL_NAME].map((key) => (
               <div
                 key={key}
@@ -146,7 +144,6 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
                 }
                 onClick={() => handleClick(key)}
               >
-                <Minus className="h-4 w-4 mt-1" />
                 <Label className="cursor-pointer">{key}</Label>
               </div>
             ))}

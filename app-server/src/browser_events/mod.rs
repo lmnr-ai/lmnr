@@ -6,10 +6,12 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::browser_sessions::{
-        EventBatch, BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
+        BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY, EventBatch,
     },
     ch::browser_events::insert_browser_events,
+    db::{DB, stats::increment_project_data_ingested},
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
+    utils::estimate_json_size,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -19,16 +21,25 @@ pub struct QueueBrowserEventMessage {
 }
 
 pub async fn process_browser_events(
+    db: Arc<DB>,
     clickhouse: clickhouse::Client,
     browser_events_message_queue: Arc<MessageQueue>,
 ) {
     loop {
-        inner_process_browser_events(clickhouse.clone(), browser_events_message_queue.clone())
-            .await;
+        inner_process_browser_events(
+            db.clone(),
+            clickhouse.clone(),
+            browser_events_message_queue.clone(),
+        )
+        .await;
     }
 }
 
-async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc<MessageQueue>) {
+async fn inner_process_browser_events(
+    db: Arc<DB>,
+    clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
+) {
     let mut receiver = queue
         .get_receiver(
             BROWSER_SESSIONS_QUEUE,
@@ -82,6 +93,13 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
 
         match backoff::future::retry(exponential_backoff, insert_browser_events).await {
             Ok(_) => {
+                let recorded_bytes =
+                    estimate_json_size(&serde_json::to_value(&batch.events).unwrap_or_default());
+                if let Err(e) =
+                    increment_project_data_ingested(&db.pool, &project_id, recorded_bytes).await
+                {
+                    log::error!("Failed to increment project data ingested: {:?}", e);
+                }
                 if let Err(e) = acker.ack().await {
                     log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
                 }

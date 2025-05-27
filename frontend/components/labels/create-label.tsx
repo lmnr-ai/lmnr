@@ -1,5 +1,5 @@
 "use client";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { useLabelsContext } from "@/components/labels/labels-context";
@@ -53,7 +53,6 @@ interface CreateLabelProps {
 
 const CreateLabel = ({ name }: CreateLabelProps) => {
   const [query, setQuery] = useState("");
-  const searchParams = useSearchParams();
   const params = useParams();
   const colors = useMemo(
     () => defaultColors.filter((label) => label.name.toLowerCase().includes(query.toLowerCase())),
@@ -61,7 +60,7 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
   );
 
   const { toast } = useToast();
-  const { labelClasses, mutateLabelClass, mutate, labels } = useLabelsContext();
+  const { labelClasses, mutateLabelClass, mutate, labels, spanId } = useLabelsContext();
 
   const handleCreateLabelClass = async (color: string) => {
     try {
@@ -86,7 +85,7 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
       });
 
       // attach label right away
-      const res = await fetch(`/api/projects/${params?.projectId}/spans/${searchParams.get("spanId")}/labels`, {
+      const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/labels`, {
         method: "POST",
         body: JSON.stringify({
           classId: data.id,

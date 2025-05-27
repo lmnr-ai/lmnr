@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import React, { createContext, use } from "react";
+import React, { createContext, useContext } from "react";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/const";
 
@@ -24,13 +24,12 @@ export const UserContext = createContext<UserContextType>({
 type UserContextProviderProps = {
   id: string;
   email: string;
-  username: string; // User's name, not unique
+  username: string;
   imageUrl: string;
   children: React.ReactNode;
   supabaseAccessToken: string;
 };
 
-// This should not grow by too much, because there is one token per user
 const clients: { [key: string]: SupabaseClient } = {};
 
 export const UserContextProvider = ({
@@ -59,5 +58,9 @@ export const UserContextProvider = ({
 };
 
 export function useUserContext() {
-  return use(UserContext);
+  const context = useContext(UserContext);
+  if (context === undefined) {
+    throw new Error("useUserContext must be used within a UserContextProvider");
+  }
+  return context;
 }

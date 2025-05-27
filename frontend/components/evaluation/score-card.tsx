@@ -1,8 +1,7 @@
 import { ArrowRight } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
-import useSWR from "swr";
 
-import { cn, isValidNumber, swrFetcher } from "@/lib/utils";
+import { EvaluationScoreStatistics } from "@/lib/evaluation/types";
+import { cn, isValidNumber } from "@/lib/utils";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Skeleton } from "../ui/skeleton";
@@ -11,27 +10,21 @@ interface ScoreCardProps {
   scores: string[];
   selectedScore: string;
   setSelectedScore: (score: string) => void;
+  statistics: EvaluationScoreStatistics | null;
+  comparedStatistics?: EvaluationScoreStatistics | null;
+  isLoading?: boolean;
 }
 
-export default function ScoreCard({ scores, selectedScore, setSelectedScore }: ScoreCardProps) {
-  const searchParams = useSearchParams();
-  const params = useParams();
-  const targetId = searchParams.get("targetId");
-
-  const { data, isLoading } = useSWR<{ averageValue?: number }>(
-    `/api/projects/${params?.projectId}/evaluation-score-stats?evaluationId=${params?.evaluationId}&scoreName=${selectedScore}`,
-    swrFetcher
-  );
-
-  const { data: comparedData, isLoading: isComparedLoading } = useSWR<{ averageValue?: number }>(
-    targetId
-      ? `/api/projects/${params?.projectId}/evaluation-score-stats?evaluationId=${targetId}&scoreName=${selectedScore}`
-      : null,
-    swrFetcher
-  );
-
-  const average = data?.averageValue;
-  const comparedAverage = comparedData?.averageValue;
+export default function ScoreCard({
+  scores,
+  selectedScore,
+  setSelectedScore,
+  statistics,
+  comparedStatistics,
+  isLoading = false
+}: ScoreCardProps) {
+  const average = statistics?.averageValue;
+  const comparedAverage = comparedStatistics?.averageValue;
 
   const getPercentageChange = (average: number, comparedAverage: number) =>
     (((average - comparedAverage) / comparedAverage) * 100).toFixed(2);
@@ -41,12 +34,12 @@ export default function ScoreCard({ scores, selectedScore, setSelectedScore }: S
 
   return (
     <div className="rounded-lg shadow-md h-full">
-      {isLoading || isComparedLoading ? (
+      {isLoading ? (
         <Skeleton className="h-full w-full" />
       ) : (
         <>
           <Select value={selectedScore} onValueChange={setSelectedScore}>
-            <SelectTrigger className="w-fit font-medium max-w-40 text-secondary-foreground h-7">
+            <SelectTrigger className="w-fit font-medium text-secondary-foreground h-7">
               <SelectValue placeholder="select score" className="text-lg" />
             </SelectTrigger>
             <SelectContent>

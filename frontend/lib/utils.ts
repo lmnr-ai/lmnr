@@ -279,3 +279,18 @@ export function generateRandomKey(length: number): string {
     .map((value) => chars[value % chars.length])
     .join("");
 }
+
+export const inferImageType = (base64: string): `image/${string}` | null => {
+  if (base64.startsWith("/9j/")) {
+    return "image/jpeg";
+  } else if (base64.startsWith("iVBORw0KGgo")) {
+    return "image/png";
+  } else if (base64.startsWith("R0lGODlh")) {
+    return "image/gif";
+  } else if (base64.startsWith("UklGR")) {
+    return "image/webp";
+  } else if (base64.startsWith("PHN2Zz")) {
+    return "image/svg+xml";
+  }
+  return null;
+};

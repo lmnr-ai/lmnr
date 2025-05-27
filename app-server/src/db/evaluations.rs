@@ -77,31 +77,40 @@ pub async fn set_evaluation_results(
     scores: &Vec<HashMap<String, f64>>,
     datas: &Vec<Value>,
     targets: &Vec<Value>,
+    metadatas: &Vec<HashMap<String, Value>>,
     executor_outputs: &Vec<Option<Value>>,
     trace_ids: &Vec<Uuid>,
     indices: &Vec<i32>,
 ) -> Result<()> {
-    let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
+
+       let metadata_values: Vec<Value> = metadatas
+        .iter()
+        .map(|m| serde_json::to_value(m).unwrap_or(Value::Null))
+        .collect();
+    
+        let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
         r"INSERT INTO evaluation_results (
             id,
             evaluation_id,
             data,
             target,
+            metadata,
             executor_output,
             trace_id,
             index
         )
         SELECT
             id,
-            $7 as evaluation_id,
+            $8 as evaluation_id,
             data,
             target,
+            metadata,
             executor_output,
             trace_id,
             index
         FROM
-        UNNEST ($1::uuid[], $2::jsonb[], $3::jsonb[], $4::jsonb[], $5::uuid[], $6::int8[])
-        AS tmp_table(id, data, target, executor_output, trace_id, index)
+        UNNEST ($1::uuid[], $2::jsonb[], $3::jsonb[], $4::jsonb[], $5::jsonb[], $6::uuid[], $7::int8[])
+        AS tmp_table(id, data, target, metadata, executor_output, trace_id, index)
         ON CONFLICT (id) DO UPDATE
             SET executor_output = EXCLUDED.executor_output
         RETURNING id, created_at, evaluation_id, trace_id
@@ -110,6 +119,7 @@ pub async fn set_evaluation_results(
     .bind(ids)
     .bind(datas)
     .bind(targets)
+    .bind(metadata_values)
     .bind(executor_outputs)
     .bind(trace_ids)
     .bind(indices)

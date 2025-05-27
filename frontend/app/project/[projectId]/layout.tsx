@@ -10,6 +10,7 @@ import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
 import ProjectSidebar from "@/components/project/project-sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
+import SQLEditorProvider from "@/components/sql/context";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
@@ -139,7 +140,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                   agentStepsLimit={project.agentStepsLimit}
                 />
               )}
-              {children}
+              <SQLEditorProvider>{children}</SQLEditorProvider>
             </SidebarInset>
           </SidebarProvider>
         </div>

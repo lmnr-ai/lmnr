@@ -53,6 +53,10 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
     accessorFn: (row) => (row.target ? JSON.stringify(row.target) : "-"),
     header: "Target",
   },
+  {
+    accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata) : "-"),
+    header: "Metadata",
+  },
 ];
 
 export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [

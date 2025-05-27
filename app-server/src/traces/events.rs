@@ -10,9 +10,9 @@ use crate::{
 pub async fn record_events(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
-    event_payloads: Vec<Event>,
+    event_payloads: &Vec<Event>,
 ) -> Result<()> {
-    db::events::insert_events(&db.pool, &event_payloads).await?;
+    db::events::insert_events(&db.pool, event_payloads).await?;
     let ch_events = event_payloads
         .iter()
         .map(|e| CHEvent::from_db_event(e))

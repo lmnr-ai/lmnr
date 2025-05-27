@@ -1,5 +1,6 @@
 import { Loader2, Pen, Plus } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
 import useSWR from "swr";
 
@@ -8,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue } from "@/lib/queue/types";
 import { PaginatedResponse } from "@/lib/types";
@@ -25,7 +25,7 @@ export default function AddToLabelingQueuePopover({
   const [selectedQueue, setSelectedQueue] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
   const { toast } = useToast();
 
   const { data: labelingQueues, isLoading: isQueuesLoading } = useSWR<PaginatedResponse<LabelingQueue>>(
@@ -89,7 +89,7 @@ export default function AddToLabelingQueuePopover({
         {children || (
           <Badge className="cursor-pointer h-fit flex-nowrap min-w-8" variant="secondary">
             <Pen className="size-3 min-w-3" />
-            <span className="ml-2 text-xs truncate block flex-1">Add to labeling queue</span>
+            <span className="ml-2 text-xs truncate block min-w-0">Add to labeling queue</span>
           </Badge>
         )}
       </PopoverTrigger>
@@ -110,8 +110,8 @@ export default function AddToLabelingQueuePopover({
                 ))}
               <CreateQueueDialog>
                 <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  <span>Create new queue</span>
+                  <Plus className="w-3 h-3 mr-2" />
+                  <span className="text-xs">Create new queue</span>
                 </div>
               </CreateQueueDialog>
             </SelectContent>

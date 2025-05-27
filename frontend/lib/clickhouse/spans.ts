@@ -144,7 +144,7 @@ export const getSpansCountInProject = async (projectId: string): Promise<{ count
   return await result.json();
 };
 
-const DEFAULT_LIMIT: number = 200;
+const DEFAULT_LIMIT: number = 1000;
 
 export const searchSpans = async ({
   projectId,

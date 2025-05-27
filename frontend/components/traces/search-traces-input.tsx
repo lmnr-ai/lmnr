@@ -88,9 +88,9 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
         <Search size={16} className="text-secondary-foreground" />
         <Input
           defaultValue={searchParams.get("search") ?? ""}
-          className="focus-visible:ring-0 border-none max-h-8 px-1"
+          className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs"
           type="text"
-          placeholder="Search"
+          placeholder="Search in traces..."
           onKeyDown={handleKeyPress}
           ref={inputRef}
           onBlur={handleBlur}
@@ -103,30 +103,31 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
           </Button>
         )}
       </div>
-      <div
-        className={cn(
-          "absolute z-50 top-10 bg-background flex flex-col gap-2 w-full rounded transition-all duration-100 ease-linear",
-          open ? "h-auto p-2 border" : "h-0 p-0 border-none opacity-0 z-auto",
-          filterBoxClassName
-        )}
-        onMouseDown={(e) => e.preventDefault()}
-      >
-        <span className="text-secondary-foreground text-xs">Search in</span>
-        <RadioGroup value={value} onValueChange={setValue} defaultValue="all">
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="all" id="all" />
-            <Label htmlFor="all">All</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="input" id="input" />
-            <Label htmlFor="input">Input</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="output" id="output" />
-            <Label htmlFor="output">Output</Label>
-          </div>
-        </RadioGroup>
-      </div>
+      {open && (
+        <div
+          className={cn(
+            "absolute z-50 top-10 bg-background flex flex-col gap-2 w-full rounded p-2 border",
+            filterBoxClassName
+          )}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <span className="text-secondary-foreground text-xs">Search in</span>
+          <RadioGroup value={value} onValueChange={setValue} defaultValue="all">
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="all" id="all" />
+              <Label htmlFor="all">All</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="input" id="input" />
+              <Label htmlFor="input">Input</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="output" id="output" />
+              <Label htmlFor="output">Output</Label>
+            </div>
+          </RadioGroup>
+        </div>
+      )}
     </div>
   );
 };
