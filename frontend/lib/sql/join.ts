@@ -389,16 +389,20 @@ const applyJoins = (node: Select, rule: AutoJoinRule): void => {
         if (column.expr.type === 'column_ref') {
           const columnRef = column.expr as ColumnRefItem;
           if (typeof columnRef.column === 'string') {
-            newAs = newAs ?? columnRef.column;
+            const columnName = columnRef.column;
+            newAs = newAs ?? (columnName !== '*' ? columnName : null);
           } else {
-            newAs = newAs ?? (columnRef.column.expr?.value as string);
+            const columnName = columnRef.column.expr?.value as string;
+            newAs = newAs ?? (columnName !== '*' ? columnName : null);
           }
         } else if (column.expr.type === 'expr') {
           const innerColumnRef = (column.expr as unknown as ColumnRefExpr).expr as ColumnRefItem;
           if (typeof innerColumnRef.column === 'string') {
-            newAs = newAs ?? innerColumnRef.column;
+            const columnName = innerColumnRef.column;
+            newAs = newAs ?? (columnName !== '*' ? columnName : null);
           } else {
-            newAs = newAs ?? (innerColumnRef.column.expr?.value as string);
+            const columnName = innerColumnRef.column.expr?.value as string;
+            newAs = newAs ?? (columnName !== '*' ? columnName : null);
           }
         }
         return {
