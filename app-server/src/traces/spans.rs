@@ -461,33 +461,51 @@ impl Span {
             parent_span_id,
             name: otel_span.name,
             attributes: serde_json::Value::Object(
-                attributes
-                    .clone()
-                    .into_iter()
-                    .filter_map(|(k, v)| {
-                        if should_keep_attribute(&k) {
-                            let converted_val = convert_attribute(&k, v);
-                            Some((k, converted_val))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect(),
+                attributes.clone(), // .into_iter()
+                                    // .filter_map(|(k, v)| {
+                                    //     if should_keep_attribute(&k) {
+                                    //         let converted_val = convert_attribute(&k, v);
+                                    //         Some((k, converted_val))
+                                    //     } else {
+                                    //         None
+                                    //     }
+                                    // })
+                                    // .collect(),
             ),
             start_time: Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64),
             end_time: Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64),
             ..Default::default()
         };
 
+        // Only set span type and handle basic attribute overrides - keep this lightweight
         span.span_type = span.get_attributes().span_type();
 
-        if span.span_type == SpanType::LLM {
+        // Spans with this attribute are wrapped in a NonRecordingSpan that, and we only
+        // do that when we add a new span to a trace as a root span.
+        if let Some(Value::Bool(true)) = attributes.get(OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME) {
+            span.parent_span_id = None;
+        }
+
+        span
+    }
+
+    /// Parse and enrich span attributes for input/output extraction.
+    /// This is called on the consumer side where we can afford heavier processing.
+    pub fn parse_and_enrich_attributes(&mut self) {
+        // Get the raw attributes map for parsing
+        let attributes = if let serde_json::Value::Object(ref attrs) = self.attributes {
+            attrs.clone()
+        } else {
+            return;
+        };
+
+        if self.span_type == SpanType::LLM {
             if attributes.get("gen_ai.prompt.0.content").is_some() {
                 let input_messages =
                     input_chat_messages_from_prompt_content(&attributes, "gen_ai.prompt");
 
-                span.input = Some(json!(input_messages));
-                span.output = output_from_completion_content(&attributes);
+                self.input = Some(json!(input_messages));
+                self.output = output_from_completion_content(&attributes);
             } else if let Some(stringified_value) = attributes
                 .get("ai.prompt.messages")
                 .and_then(|v| v.as_str())
@@ -495,20 +513,20 @@ impl Span {
                 if let Ok(prompt_messages_val) = serde_json::from_str::<Value>(stringified_value) {
                     if let Ok(input_messages) = input_chat_messages_from_json(&prompt_messages_val)
                     {
-                        span.input = Some(json!(input_messages));
+                        self.input = Some(json!(input_messages));
                     }
                 }
 
                 if let Some(output) = try_parse_ai_sdk_output(&attributes) {
-                    span.output = Some(output);
+                    self.output = Some(output);
                 }
 
                 // Rename AI SDK spans to what's set by telemetry.functionId
-                if let Some(Value::String(s)) = span.attributes.get("operation.name") {
-                    if s.starts_with(&format!("{} ", span.name)) {
-                        span.name = s
-                            .strip_prefix(&format!("{} ", span.name))
-                            .unwrap_or(&span.name)
+                if let Some(Value::String(s)) = self.attributes.get("operation.name") {
+                    if s.starts_with(&format!("{} ", self.name)) {
+                        self.name = s
+                            .strip_prefix(&format!("{} ", self.name))
+                            .unwrap_or(&self.name)
                             .to_string();
                     }
                 }
@@ -516,14 +534,16 @@ impl Span {
         }
 
         // try parsing LiteLLM inner span for well-known providers
-        if span.name == "raw_gen_ai_request" {
-            span.input = span
+        if self.name == "raw_gen_ai_request" {
+            self.input = self
                 .input
+                .take()
                 .or(attributes.get("llm.openai.messages").cloned())
                 .or(attributes.get("llm.anthropic.messages").cloned());
 
-            span.output = span
+            self.output = self
                 .output
+                .take()
                 .or(attributes.get("llm.openai.choices").cloned())
                 .or(attributes.get("llm.anthropic.content").cloned());
         }
@@ -550,15 +570,15 @@ impl Span {
                         },
                     );
                 }
-                span.input = Some(serde_json::to_value(messages).unwrap());
+                self.input = Some(serde_json::to_value(messages).unwrap());
             }
-            span.output = span.output.or(try_parse_ai_sdk_output(&attributes));
+            self.output = self.output.take().or(try_parse_ai_sdk_output(&attributes));
             // Rename AI SDK spans to what's set by telemetry.functionId
-            if let Some(Value::String(s)) = span.attributes.get("operation.name") {
-                if s.starts_with(&format!("{} ", span.name)) {
-                    span.name = s
-                        .strip_prefix(&format!("{} ", span.name))
-                        .unwrap_or(&span.name)
+            if let Some(Value::String(s)) = self.attributes.get("operation.name") {
+                if s.starts_with(&format!("{} ", self.name)) {
+                    self.name = s
+                        .strip_prefix(&format!("{} ", self.name))
+                        .unwrap_or(&self.name)
                         .to_string();
                 }
             }
@@ -566,21 +586,23 @@ impl Span {
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
         // Take their values if input/output are not already set.
-        span.input = span
+        self.input = self
             .input
+            .take()
             .or(attributes.get("traceloop.entity.input").cloned());
-        span.output = span
+        self.output = self
             .output
+            .take()
             .or(attributes.get("traceloop.entity.output").cloned());
 
         // Ignore inputs for Traceloop Langchain RunnableSequence spans
-        if span.name.starts_with("RunnableSequence")
+        if self.name.starts_with("RunnableSequence")
             && attributes
                 .get("traceloop.entity.name")
                 .map(|s| json_value_to_string(s) == "RunnableSequence")
                 .unwrap_or(false)
         {
-            span.input = None;
+            self.input = None;
         }
 
         // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
@@ -589,36 +611,41 @@ impl Span {
         if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
             let input =
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
-            if span.span_type == SpanType::LLM {
+            if self.span_type == SpanType::LLM {
                 let input_messages = input_chat_messages_from_json(&input);
                 if let Ok(input_messages) = input_messages {
-                    span.input = Some(json!(input_messages));
+                    self.input = Some(json!(input_messages));
                 } else {
-                    span.input = Some(input);
+                    self.input = Some(input);
                 }
             } else {
-                span.input = Some(input);
+                self.input = Some(input);
             }
         }
         if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
             // TODO: try parse output as ChatMessage with tool calls
-            span.output = Some(
+            self.output = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
         }
 
-        // Spans with this attribute are wrapped in a NonRecordingSpan that, and we only
-        // do that when we add a new span to a trace as a root span.
-        if let Some(Value::Bool(true)) = attributes.get(OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME) {
-            span.parent_span_id = None;
+        if let Some(TracingLevel::MetaOnly) = self.get_attributes().tracing_level() {
+            self.input = None;
+            self.output = None;
         }
-
-        if let Some(TracingLevel::MetaOnly) = span.get_attributes().tracing_level() {
-            span.input = None;
-            span.output = None;
-        }
-
-        span
+        self.attributes = serde_json::Value::Object(
+            attributes
+                .into_iter()
+                .filter_map(|(k, v)| {
+                    if should_keep_attribute(&k) {
+                        let converted_val = convert_attribute(&k, v);
+                        Some((k, converted_val))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        );
     }
 
     pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
