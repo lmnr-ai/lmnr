@@ -24,3 +24,8 @@ pub fn estimate_json_size(v: &Value) -> usize {
         Value::Object(o) => o.iter().map(|(k, v)| k.len() + estimate_json_size(v)).sum(),
     }
 }
+
+/// Check if a string is a URL (http, https, or data URL)
+pub fn is_url(data: &str) -> bool {
+    data.starts_with("http://") || data.starts_with("https://") || data.starts_with("data:")
+}
