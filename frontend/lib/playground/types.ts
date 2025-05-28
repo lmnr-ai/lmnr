@@ -77,8 +77,8 @@ export const openAIThinkingModels = [
 
 export const anthropicThinkingModels = [
   "anthropic:claude-3-7-sonnet-20250219:thinking",
-  "anthropic:claude-4-sonnet-20250514:thinking",
-  "anthropic:claude-4-opus-20250514:thinking",
+  "anthropic:claude-sonnet-4-20250514:thinking",
+  "anthropic:claude-opus-4-20250514:thinking",
 ];
 
 export const googleThinkingModels = [

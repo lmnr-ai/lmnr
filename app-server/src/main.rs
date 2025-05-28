@@ -506,12 +506,12 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(project_auth.clone())
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
-                                .service(api::v1::evaluations::create_evaluation)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::queues::push_to_queue)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
                                 .service(api::v1::evals::save_eval_datapoints)
+                                .service(api::v1::tag::tag_trace)
                                 .service(api::v1::agent::run_agent_manager),
                         )
                         // Scopes with generic auth
@@ -544,7 +544,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::labels::get_registered_label_classes_for_path)
                                 .service(routes::labels::update_label_class)
                                 .service(routes::traces::get_traces_metrics)
-                                .service(routes::provider_api_keys::save_api_key),
+                                .service(routes::provider_api_keys::save_api_key)
+                                .service(routes::spans::create_span),
                         )
                         .service(routes::probes::check_health)
                         .service(routes::probes::check_ready)
