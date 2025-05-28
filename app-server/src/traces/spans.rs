@@ -460,18 +460,7 @@ impl Span {
             trace_id,
             parent_span_id,
             name: otel_span.name,
-            attributes: serde_json::Value::Object(
-                attributes.clone(), // .into_iter()
-                                    // .filter_map(|(k, v)| {
-                                    //     if should_keep_attribute(&k) {
-                                    //         let converted_val = convert_attribute(&k, v);
-                                    //         Some((k, converted_val))
-                                    //     } else {
-                                    //         None
-                                    //     }
-                                    // })
-                                    // .collect(),
-            ),
+            attributes: serde_json::Value::Object(attributes.clone()),
             start_time: Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64),
             end_time: Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64),
             ..Default::default()
