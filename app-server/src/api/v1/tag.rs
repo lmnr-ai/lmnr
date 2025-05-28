@@ -45,6 +45,9 @@ pub async fn tag_trace(
         TagRequest::WithTraceId(req) => &req.names,
         TagRequest::WithSpanId(req) => &req.names,
     };
+    if names.is_empty() {
+        return Ok(HttpResponse::BadRequest().body("No names provided"));
+    }
     let span_id = match &req {
         TagRequest::WithTraceId(req) => {
             db::spans::get_root_span_id(&db.pool, &req.trace_id, &project_api_key.project_id)
