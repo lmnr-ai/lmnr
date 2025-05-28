@@ -32,6 +32,7 @@ use traces::{
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
+use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
 use sodiumoxide;
 use std::{
     env,
@@ -49,6 +50,7 @@ mod ch;
 mod datasets;
 mod db;
 mod evaluations;
+mod evaluators;
 mod features;
 mod labels;
 mod language_model;
@@ -250,7 +252,47 @@ fn main() -> anyhow::Result<()> {
         Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
     };
 
-    // ==== 3.3 Agent worker message queue ====
+    // ==== 3.3 Evaluators message queue ====
+    let evaluators_message_queue: Arc<MessageQueue> = if let Some(connection) = connection.as_ref()
+    {
+        runtime_handle.block_on(async {
+            let channel = connection.create_channel().await.unwrap();
+
+            channel
+                .exchange_declare(
+                    EVALUATORS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    EVALUATORS_QUEUE,
+                    QueueDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(64);
+
+            log::info!("RabbitMQ evaluators channels: {}", max_channel_pool_size);
+
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
+            Arc::new(rabbit_mq.into())
+        })
+    } else {
+        log::info!("Using tokio mpsc evaluators queue");
+        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
+    };
+
+    // ==== 3.4 Agent worker message queue ====
     let agent_manager_workers = Arc::new(AgentManagerWorkers::new());
 
     let runtime_handle_for_http = runtime_handle.clone();
@@ -344,6 +386,33 @@ fn main() -> anyhow::Result<()> {
                 // == Name generator ==
                 let name_generator = Arc::new(NameGenerator::new());
 
+                // == Evaluator client ==
+                let evaluator_client = {
+                    let modal_secret_key = env::var("MODAL_SECRET_KEY").expect("MODAL_SECRET_KEY must be set");
+
+                    // Create default headers with authorization
+                    let mut headers = reqwest::header::HeaderMap::new();
+                    headers.insert(
+                        reqwest::header::AUTHORIZATION,
+                        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", modal_secret_key))
+                            .expect("Invalid MODAL_SECRET_KEY format")
+                    );
+                    headers.insert(
+                        reqwest::header::CONTENT_TYPE,
+                        reqwest::header::HeaderValue::from_static("application/json")
+                    );
+
+                    Arc::new(
+                        reqwest::Client::builder()
+                            .user_agent("lmnr-evaluator/1.0")
+                            .default_headers(headers)
+                            .build()
+                            .expect("Failed to create evaluator HTTP client")
+                    )
+                };
+    
+                let lambda_url: String = env::var("LAMBDA_URL").expect("LAMBDA_URL must be set");
+
                 let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
                     .unwrap_or(String::from("4"))
                     .parse::<u8>()
@@ -355,10 +424,17 @@ fn main() -> anyhow::Result<()> {
                         .parse::<u8>()
                         .unwrap_or(4);
 
+                let num_evaluators_workers_per_thread =
+                    env::var("NUM_EVALUATORS_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("4"))
+                        .parse::<u8>()
+                        .unwrap_or(4);
+
                 log::info!(
-                    "Spans workers per thread: {}, Browser events workers per thread: {}",
+                    "Spans workers per thread: {}, Browser events workers per thread: {}, Evaluators workers per thread: {}",
                     num_spans_workers_per_thread,
-                    num_browser_events_workers_per_thread
+                    num_browser_events_workers_per_thread,
+                    num_evaluators_workers_per_thread
                 );
 
                 HttpServer::new(move || {
@@ -370,6 +446,7 @@ fn main() -> anyhow::Result<()> {
                             db_for_http.clone(),
                             cache_for_http.clone(),
                             spans_mq_for_http.clone(),
+                            evaluators_message_queue.clone(),
                             clickhouse.clone(),
                             storage.clone(),
                         ));
@@ -380,6 +457,15 @@ fn main() -> anyhow::Result<()> {
                             db_for_http.clone(),
                             clickhouse.clone(),
                             browser_events_message_queue.clone(),
+                        ));
+                    }
+
+                    for _ in 0..num_evaluators_workers_per_thread {
+                        tokio::spawn(process_evaluators(
+                            db_for_http.clone(),
+                            evaluators_message_queue.clone(),
+                            evaluator_client.clone(),
+                            lambda_url.clone(),
                         ));
                     }
 
@@ -396,6 +482,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(machine_manager.clone()))
                         .app_data(web::Data::new(browser_events_message_queue.clone()))
+                        .app_data(web::Data::new(evaluators_message_queue.clone()))
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))

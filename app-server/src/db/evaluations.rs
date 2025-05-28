@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::{prelude::FromRow, PgPool};
+use sqlx::{PgPool, prelude::FromRow};
 use uuid::Uuid;
 
 #[derive(Serialize, FromRow)]
@@ -82,13 +82,12 @@ pub async fn set_evaluation_results(
     trace_ids: &Vec<Uuid>,
     indices: &Vec<i32>,
 ) -> Result<()> {
-
-       let metadata_values: Vec<Value> = metadatas
+    let metadata_values: Vec<Value> = metadatas
         .iter()
         .map(|m| serde_json::to_value(m).unwrap_or(Value::Null))
         .collect();
-    
-        let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
+
+    let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
         r"INSERT INTO evaluation_results (
             id,
             evaluation_id,

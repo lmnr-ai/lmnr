@@ -60,7 +60,10 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
         .map(|point| point.target.clone())
         .collect::<Vec<_>>();
 
-    let metadatas = points.iter().map(|point| point.metadata.clone()).collect::<Vec<_>>();
+    let metadatas = points
+        .iter()
+        .map(|point| point.metadata.clone())
+        .collect::<Vec<_>>();
 
     let executor_outputs = points
         .iter()
