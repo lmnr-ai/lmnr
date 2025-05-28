@@ -627,7 +627,7 @@ export const playgrounds = pgTable("playgrounds", {
   temperature: real().default(sql`'1'`),
   providerOptions: jsonb("provider_options").default({}),
   toolChoice: jsonb("tool_choice").default("none"),
-  tools: jsonb(),
+  tools: jsonb().default({}),
 }, (table) => [
   foreignKey({
     columns: [table.projectId],
