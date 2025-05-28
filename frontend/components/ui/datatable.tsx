@@ -336,7 +336,7 @@ export function DataTable<TData>({
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
       {paginated && (
-        <div className="flex-none p-4 border-t">
+        <div className="flex-none px-4 py-2 border-t">
           <DataTablePagination
             table={table}
             pageSizeOptions={pageSizeOptions}

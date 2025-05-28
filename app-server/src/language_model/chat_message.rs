@@ -8,7 +8,10 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::storage::{Storage, StorageTrait};
+use crate::{
+    storage::{Storage, StorageTrait},
+    utils::is_url,
+};
 
 static DATA_URL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^data:((?:application|image)/[a-zA-Z-]+);base64,.*$").unwrap());
@@ -23,6 +26,11 @@ pub struct ImageUrl {
 #[derive(Deserialize)]
 pub struct OpenAIImageUrl {
     pub image_url: ImageUrl,
+}
+
+#[derive(Deserialize)]
+pub struct AnthropicImageUrl {
+    pub source: ImageUrl,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -190,7 +198,7 @@ pub struct ChatMessageImageAISDKRawBytes {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ChatMessageImageAISDKRawBase64 {
+pub struct ChatMessageImageAISDKImageData {
     pub image: String,
     #[serde(default)]
     pub mime_type: Option<String>,
@@ -201,7 +209,8 @@ pub struct ChatMessageImageAISDKRawBase64 {
 pub enum InstrumentationChatMessageImage {
     WithSource(InstrumentationChatMessageImageWithSource),
     AISDKRawBytes(ChatMessageImageAISDKRawBytes),
-    AISDKRawBase64(ChatMessageImageAISDKRawBase64),
+    AISDKImageData(ChatMessageImageAISDKImageData),
+    AnthropicImageUrl(AnthropicImageUrl),
 }
 
 #[derive(Deserialize)]
@@ -271,12 +280,26 @@ impl ChatMessageContentPart {
                         mime_type: image_raw_bytes.mime_type,
                     })
                 }
-                InstrumentationChatMessageImage::AISDKRawBase64(image_raw_base64) => {
-                    ChatMessageContentPart::Image(ChatMessageImage {
-                        data: image_raw_base64.image,
-                        media_type: image_raw_base64
-                            .mime_type
-                            .unwrap_or("image/png".to_string()),
+                InstrumentationChatMessageImage::AISDKImageData(image_data) => {
+                    // Check if the image data is actually a URL
+                    if is_url(&image_data.image) {
+                        // If it's a URL, create an ImageUrl
+                        ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                            url: image_data.image,
+                            detail: None,
+                        })
+                    } else {
+                        // Otherwise, treat as base64 data and create an Image
+                        ChatMessageContentPart::Image(ChatMessageImage {
+                            data: image_data.image,
+                            media_type: image_data.mime_type.unwrap_or("image/png".to_string()),
+                        })
+                    }
+                }
+                InstrumentationChatMessageImage::AnthropicImageUrl(image_url) => {
+                    ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                        url: image_url.source.url,
+                        detail: image_url.source.detail,
                     })
                 }
             },
@@ -360,14 +383,24 @@ impl ChatMessageContentPart {
     ) -> Result<ChatMessageContentPart> {
         match self {
             ChatMessageContentPart::Image(image) => {
-                let key = crate::storage::create_key(project_id, &None);
-                let data = crate::storage::base64_to_bytes(&image.data)?;
-                let media_type = image.media_type.clone();
-                let url = storage.store(data, &key).await?;
-                Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
-                    url,
-                    detail: Some(format!("media_type:{};base64", media_type)),
-                }))
+                // Check if the data is actually a URL (not base64)
+                if is_url(&image.data) {
+                    // If it's already a URL, convert to ImageUrl directly
+                    Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                        url: image.data.clone(),
+                        detail: Some(format!("media_type:{}", image.media_type)),
+                    }))
+                } else {
+                    // Otherwise, treat as base64 data and store it
+                    let key = crate::storage::create_key(project_id, &None);
+                    let data = crate::storage::base64_to_bytes(&image.data)?;
+                    let media_type = image.media_type.clone();
+                    let url = storage.store(data, &key).await?;
+                    Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                        url,
+                        detail: Some(format!("media_type:{};base64", media_type)),
+                    }))
+                }
             }
             ChatMessageContentPart::Document(document) => {
                 let file_extension = if &document.source.media_type == "application/pdf" {

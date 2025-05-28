@@ -457,7 +457,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::labels::get_registered_label_classes_for_path)
                                 .service(routes::labels::update_label_class)
                                 .service(routes::traces::get_traces_metrics)
-                                .service(routes::provider_api_keys::save_api_key),
+                                .service(routes::provider_api_keys::save_api_key)
+                                .service(routes::spans::create_span),
                         )
                         .service(routes::probes::check_health)
                         .service(routes::probes::check_ready)

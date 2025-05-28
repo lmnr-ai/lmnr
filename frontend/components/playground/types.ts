@@ -132,23 +132,23 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Claude 3.7 Sonnet (Thinking)",
       },
       {
-        id: "anthropic:claude-4-sonnet-20250514",
-        name: "claude-4-sonnet-20250514",
+        id: "anthropic:claude-sonnet-4-20250514",
+        name: "claude-sonnet-4-20250514",
         label: "Claude 4 Sonnet",
       },
       {
-        id: "anthropic:claude-4-sonnet-20250514:thinking",
-        name: "claude-4-sonnet-20250514",
+        id: "anthropic:claude-sonnet-4-20250514:thinking",
+        name: "claude-sonnet-4-20250514",
         label: "Claude 4 Sonnet (Thinking)",
       },
       {
-        id: "anthropic:claude-4-opus-20250514",
-        name: "claude-4-opus-20250514",
+        id: "anthropic:claude-opus-4-20250514",
+        name: "claude-opus-4-20250514",
         label: "Claude 4 Opus",
       },
       {
-        id: "anthropic:claude-4-opus-20250514:thinking",
-        name: "claude-4-opus-20250514",
+        id: "anthropic:claude-opus-4-20250514:thinking",
+        name: "claude-opus-4-20250514",
         label: "Claude 4 Opus (Thinking)",
       }
     ],

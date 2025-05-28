@@ -8,6 +8,7 @@ pub mod limits;
 pub mod probes;
 pub mod projects;
 pub mod provider_api_keys;
+pub mod spans;
 pub mod traces;
 pub mod types;
 pub mod workspace;
@@ -15,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use types::*;
 
 use crate::{
-    ch::{modifiers::GroupByInterval, Aggregation},
+    ch::{Aggregation, modifiers::GroupByInterval},
     db::modifiers::DateRange,
 };
 

@@ -29,8 +29,26 @@ export async function getS3Object(projectId: string, payloadId: string) {
 
   return {
     bytes,
-    contentType: blob.ContentType || getContentTypeFromFilename(payloadId),
+    contentType: inferContentTypeFromBytes(bytes) || getContentTypeFromFilename(payloadId),
   };
+}
+
+function inferContentTypeFromBytes(bytes: Uint8Array): string | null {
+  if (bytes.length < 4) return null;
+
+  // Convert first few bytes to hex for magic number detection
+  const hex = Array.from(bytes.slice(0, 12))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  // Check magic numbers for common file types
+  if (hex.startsWith('89504e47')) return 'image/png';           // PNG: 89 50 4E 47
+  if (hex.startsWith('ffd8ff')) return 'image/jpeg';            // JPEG: FF D8 FF
+  if (hex.startsWith('47494638')) return 'image/gif';           // GIF: 47 49 46 38
+  if (hex.startsWith('52494646') && hex.substring(16, 24) === '57454250') return 'image/webp'; // WEBP: RIFF...WEBP
+  if (hex.startsWith('25504446')) return 'application/pdf';     // PDF: 25 50 44 46
+
+  return null;
 }
 
 function getContentTypeFromFilename(filename: string): string {
