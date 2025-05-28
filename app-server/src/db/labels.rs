@@ -138,8 +138,22 @@ pub async fn update_span_label(
     let class_id = match class_id {
         Some(class_id) => class_id,
         None => {
+            // https://stackoverflow.com/a/62205017/18249562
+            // `ON CONFLICT DO NOTHING RETURNING` does not return if there is
+            // a conflict, so we union with selecting the existing class id
             sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO label_classes (project_id, name) VALUES ($1, $2) ON CONFLICT (project_id, name) DO NOTHING RETURNING id",
+                "
+                WITH insertion AS (
+                    INSERT INTO label_classes (project_id, name)
+                    VALUES ($1, $2)
+                    ON CONFLICT (project_id, name) DO NOTHING
+                    RETURNING id
+                )
+                SELECT * FROM insertion
+                UNION
+                    SELECT id FROM label_classes
+                    WHERE project_id = $1 AND name = $2
+                ",
             )
             .bind(project_id)
             .bind(label_name)
@@ -158,7 +172,16 @@ pub async fn update_span_label(
             reasoning,
             project_id
         )
-        VALUES ($1, $2, $3, (SELECT id FROM users WHERE email = $4 LIMIT 1), now(), $5, $6, $7)
+        VALUES (
+            $1,
+            $2,
+            $3,
+            (SELECT id FROM users WHERE email = $4 AND email IS NOT NULL LIMIT 1), 
+            now(),
+            $5,
+            $6,
+            $7
+        )
         ON CONFLICT (span_id, class_id)
         DO UPDATE SET
             updated_at = now(),

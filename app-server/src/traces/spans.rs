@@ -701,7 +701,6 @@ fn should_keep_attribute(attribute: &str) -> bool {
 
     // OpenLLMetry
     // remove gen_ai.prompt/completion attributes as they are stored in LLM span's input/output
-
     if GEN_AI_CONTENT_OR_ROLE_ATTRIBUTE_REGEX.is_match(attribute) {
         return false;
     }
