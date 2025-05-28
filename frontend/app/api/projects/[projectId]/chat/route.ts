@@ -76,6 +76,7 @@ export async function POST(req: Request) {
             "operation.name": "ai.streamText playground-chat",
             "ai.operationId": "ai.streamText",
             "lmnr.span.type": "LLM",
+            "lmnr.association.properties.trace_type": "PLAYGROUND",
             "lmnr.association.properties.metadata.playgroundId": playgroundId,
           };
 

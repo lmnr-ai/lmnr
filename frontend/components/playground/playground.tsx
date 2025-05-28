@@ -1,15 +1,15 @@
 "use client";
 import { debounce, isEmpty } from "lodash";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
-import { Resizable } from "re-resizable";
 import useSWR from "swr";
 
 import PlaygroundPanel from "@/components/playground/playground-panel";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
-import { Skeleton } from "@/components/ui/skeleton";
 import TraceView from "@/components/traces/trace-view";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
 import { ProviderApiKey } from "@/lib/settings/types";

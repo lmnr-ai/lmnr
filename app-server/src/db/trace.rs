@@ -14,6 +14,7 @@ pub enum TraceType {
     DEFAULT,
     EVENT,
     EVALUATION,
+    PLAYGROUND,
 }
 
 #[derive(Serialize, sqlx::FromRow, Clone, Debug)]

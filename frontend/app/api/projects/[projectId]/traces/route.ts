@@ -16,6 +16,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const endTime = req.nextUrl.searchParams.get("endDate");
   const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
   const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
+  const traceTypeParam = req.nextUrl.searchParams.get("traceType");
+  const traceType = (traceTypeParam === "DEFAULT" || traceTypeParam === "EVALUATION" || traceTypeParam === "EVENT" || traceTypeParam === "PLAYGROUND")
+    ? traceTypeParam as "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND"
+    : "DEFAULT" as const;
   const projectId = params.projectId;
 
   let searchTraceIds = null;
@@ -95,7 +99,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       .where(
         and(
           eq(traces.projectId, projectId),
-          eq(traces.traceType, "DEFAULT"),
+          eq(traces.traceType, traceType),
           isNotNull(traces.startTime),
           isNotNull(traces.endTime),
           ...getDateRangeFilters(startTime, endTime, pastHours)

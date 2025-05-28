@@ -162,6 +162,7 @@ export default function PlaygroundHistoryTable({
       urlParams.set("pageNumber", pageNumber.toString());
       urlParams.set("pageSize", pageSize.toString());
       urlParams.set("pastHours", "168"); // Last week
+      urlParams.set("traceType", "PLAYGROUND"); // Playground traces use DEFAULT trace type
 
       // Filter by playground metadata using the correct format for JSON data type
       urlParams.append("filter", JSON.stringify({
@@ -239,4 +240,4 @@ export default function PlaygroundHistoryTable({
       enableRowSelection={false}
     />
   );
-} 
+}
