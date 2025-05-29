@@ -15,7 +15,7 @@ import { PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface EvaluatorsTableProps {
-    projectId: string;
+  projectId: string;
 }
 
 const columns: ColumnDef<Evaluator>[] = [
@@ -123,7 +123,7 @@ export default function EvaluatorsTable({ projectId }: EvaluatorsTableProps) {
         emptyRow={
           <TableRow>
             <TableCell colSpan={columns.length} className="text-center text">
-                            No evaluators found. Create your first evaluator to get started.
+              No evaluators found. Create your first evaluator to get started.
             </TableCell>
           </TableRow>
         }

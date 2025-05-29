@@ -28,7 +28,7 @@ export const spanType = pgEnum("span_type", [
   "EVALUATION",
   "TOOL",
 ]);
-export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION"]);
+export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION", "PLAYGROUND"]);
 export const workspaceRole = pgEnum("workspace_role", ["member", "owner"]);
 
 export const llmPrices = pgTable("llm_prices", {
@@ -355,26 +355,6 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
     .notNull(),
 });
 
-export const labelingQueueItems = pgTable(
-  "labeling_queue_items",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    queueId: uuid("queue_id").defaultRandom().notNull(),
-    metadata: jsonb().default({}),
-    payload: jsonb().default({}),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.queueId],
-      foreignColumns: [labelingQueues.id],
-      name: "labelling_queue_items_queue_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
 export const labelingQueues = pgTable(
   "labeling_queues",
   {
@@ -391,61 +371,6 @@ export const labelingQueues = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-  ]
-);
-
-export const workspaceUsage = pgTable(
-  "workspace_usage",
-  {
-    workspaceId: uuid("workspace_id").defaultRandom().primaryKey().notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    spanCount: bigint("span_count", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    spanCountSinceReset: bigint("span_count_since_reset", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    prevSpanCount: bigint("prev_span_count", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    stepCount: bigint("step_count", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    stepCountSinceReset: bigint("step_count_since_reset", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    prevStepCount: bigint("prev_step_count", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    resetReason: text("reset_reason").default("signup").notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    bytesIngested: bigint("bytes_ingested", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    bytesIngestedSinceReset: bigint("bytes_ingested_since_reset", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    prevBytesIngested: bigint("prev_bytes_ingested", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.workspaceId],
-      foreignColumns: [workspaces.id],
-      name: "user_usage_workspace_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    unique("user_usage_workspace_id_key").on(table.workspaceId),
   ]
 );
 
@@ -523,35 +448,6 @@ export const evaluationScores = pgTable(
   ]
 );
 
-export const playgrounds = pgTable(
-  "playgrounds",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    projectId: uuid("project_id").notNull(),
-    promptMessages: jsonb("prompt_messages")
-      .default([{ role: "user", content: "" }])
-      .notNull(),
-    modelId: text("model_id").default("").notNull(),
-    outputSchema: text("output_schema"),
-    tools: jsonb().default(""),
-    toolChoice: jsonb("tool_choice").default("none"),
-    maxTokens: integer("max_tokens").default(1024),
-    temperature: doublePrecision().default(1),
-    providerOptions: jsonb("provider_options").default({}),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "playgrounds_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
 export const events = pgTable(
   "events",
   {
@@ -593,33 +489,6 @@ export const renderTemplates = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "render_templates_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const evaluationResults = pgTable(
-  "evaluation_results",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    evaluationId: uuid("evaluation_id").notNull(),
-    data: jsonb().notNull(),
-    target: jsonb().default({}).notNull(),
-    executorOutput: jsonb("executor_output"),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    indexInBatch: bigint("index_in_batch", { mode: "number" }),
-    traceId: uuid("trace_id").notNull(),
-    index: integer().default(0).notNull(),
-    metadata: jsonb(),
-  },
-  (table) => [
-    index("evaluation_results_evaluation_id_idx").using("btree", table.evaluationId.asc().nullsLast().op("uuid_ops")),
-    foreignKey({
-      columns: [table.evaluationId],
-      foreignColumns: [evaluations.id],
-      name: "evaluation_results_evaluation_id_fkey1",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
@@ -741,25 +610,6 @@ export const userCookies = pgTable(
   ]
 );
 
-export const evaluators = pgTable(
-  "evaluators",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
-    evaluatorType: text("evaluator_type").notNull(),
-    definition: jsonb().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "evaluators_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
 export const userUsage = pgTable(
   "user_usage",
   {
@@ -837,14 +687,6 @@ export const agentChats = pgTable(
   ]
 );
 
-export const evaluatorScores = pgTable("evaluator_scores", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  evaluatorId: uuid("evaluator_id").notNull(),
-  spanId: uuid("span_id").notNull(),
-  score: doublePrecision().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-});
-
 export const workspaceInvitations = pgTable(
   "workspace_invitations",
   {
@@ -884,6 +726,110 @@ export const users = pgTable(
       name: "users_tier_id_fkey",
     }),
     unique("users_email_key").on(table.email),
+  ]
+);
+
+export const playgrounds = pgTable(
+  "playgrounds",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    promptMessages: jsonb("prompt_messages")
+      .default([{ role: "user", content: "" }])
+      .notNull(),
+    modelId: text("model_id").default("").notNull(),
+    outputSchema: text("output_schema"),
+    tools: jsonb().default({}),
+    toolChoice: jsonb("tool_choice").default("none"),
+    maxTokens: integer("max_tokens").default(1024),
+    temperature: doublePrecision().default(1),
+    providerOptions: jsonb("provider_options").default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "playgrounds_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const labelingQueueItems = pgTable(
+  "labeling_queue_items",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    queueId: uuid("queue_id").defaultRandom().notNull(),
+    metadata: jsonb().default({}),
+    payload: jsonb().default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.queueId],
+      foreignColumns: [labelingQueues.id],
+      name: "labelling_queue_items_queue_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const workspaceUsage = pgTable(
+  "workspace_usage",
+  {
+    workspaceId: uuid("workspace_id").defaultRandom().primaryKey().notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    spanCount: bigint("span_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    spanCountSinceReset: bigint("span_count_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    prevSpanCount: bigint("prev_span_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    stepCount: bigint("step_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    stepCountSinceReset: bigint("step_count_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    prevStepCount: bigint("prev_step_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    resetReason: text("reset_reason").default("signup").notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    bytesIngested: bigint("bytes_ingested", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    bytesIngestedSinceReset: bigint("bytes_ingested_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    prevBytesIngested: bigint("prev_bytes_ingested", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "user_usage_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("user_usage_workspace_id_key").on(table.workspaceId),
   ]
 );
 
@@ -958,6 +904,60 @@ export const traces = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+  ]
+);
+
+export const evaluationResults = pgTable(
+  "evaluation_results",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    evaluationId: uuid("evaluation_id").notNull(),
+    data: jsonb().notNull(),
+    target: jsonb().default({}).notNull(),
+    executorOutput: jsonb("executor_output"),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    indexInBatch: bigint("index_in_batch", { mode: "number" }),
+    traceId: uuid("trace_id").notNull(),
+    index: integer().default(0).notNull(),
+    metadata: jsonb(),
+  },
+  (table) => [
+    index("evaluation_results_evaluation_id_idx").using("btree", table.evaluationId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.evaluationId],
+      foreignColumns: [evaluations.id],
+      name: "evaluation_results_evaluation_id_fkey1",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const evaluatorScores = pgTable("evaluator_scores", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  evaluatorId: uuid("evaluator_id").notNull(),
+  spanId: uuid("span_id").notNull(),
+  score: doublePrecision().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+});
+
+export const evaluators = pgTable(
+  "evaluators",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    evaluatorType: text("evaluator_type").notNull(),
+    definition: jsonb().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluators_project_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 

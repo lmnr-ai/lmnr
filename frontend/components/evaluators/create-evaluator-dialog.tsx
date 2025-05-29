@@ -7,6 +7,7 @@ import { Loader2, PlayIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useSWRConfig } from "swr";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const EVALUATOR_TYPES = [{ value: "python", label: "Python" }];
@@ -58,6 +60,7 @@ export default function CreateEvaluatorDialog({
 
   const { projectId } = useParams();
   const { toast } = useToast();
+  const { mutate } = useSWRConfig();
 
   const {
     control,
@@ -103,6 +106,15 @@ export default function CreateEvaluatorDialog({
         }
 
         const newEvaluator = (await res.json()) as Evaluator;
+
+        await mutate<PaginatedResponse<Evaluator>>(
+          `/api/projects/${projectId}/evaluators`,
+          (currentData) =>
+            currentData
+              ? { items: [newEvaluator, ...currentData.items], totalCount: currentData.totalCount + 1 }
+              : { items: [newEvaluator], totalCount: 1 },
+          { revalidate: false, populateCache: true, rollbackOnError: true }
+        );
 
         if (onSuccess) {
           onSuccess(newEvaluator);
