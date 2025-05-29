@@ -8,11 +8,15 @@ use super::DB;
 #[derive(sqlx::FromRow, Debug)]
 pub struct Evaluator {
     pub id: Uuid,
+    #[allow(dead_code)]
     pub project_id: Uuid,
+    #[allow(dead_code)]
     pub name: String,
+    #[allow(dead_code)]
     pub evaluator_type: String,
     #[sqlx(json)]
     pub definition: HashMap<String, Value>,
+    #[allow(dead_code)]
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
