@@ -509,18 +509,6 @@ impl Span {
                 if let Some(output) = try_parse_ai_sdk_output(&attributes) {
                     self.output = Some(output);
                 }
-
-                // Rename AI SDK spans to what's set by telemetry.functionId
-                if let Some(Value::String(s)) = attributes.get("operation.name") {
-                    if s.starts_with(&format!("{} ", self.name)) {
-                        let new_name = s
-                            .strip_prefix(&format!("{} ", self.name))
-                            .unwrap_or(&self.name)
-                            .to_string();
-                        rename_last_span_in_path(&mut attributes, &self.name, &new_name);
-                        self.name = new_name;
-                    }
-                }
             }
         }
 
