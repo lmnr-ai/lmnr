@@ -8,7 +8,7 @@ use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use regex::Regex;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
 use crate::{
@@ -482,7 +482,7 @@ impl Span {
     /// This is called on the consumer side where we can afford heavier processing.
     pub fn parse_and_enrich_attributes(&mut self) {
         // Get the raw attributes map for parsing
-        let attributes = if let serde_json::Value::Object(ref attrs) = self.attributes {
+        let mut attributes = if let serde_json::Value::Object(ref attrs) = self.attributes {
             attrs.clone()
         } else {
             return;
@@ -511,12 +511,14 @@ impl Span {
                 }
 
                 // Rename AI SDK spans to what's set by telemetry.functionId
-                if let Some(Value::String(s)) = self.attributes.get("operation.name") {
+                if let Some(Value::String(s)) = attributes.get("operation.name") {
                     if s.starts_with(&format!("{} ", self.name)) {
-                        self.name = s
+                        let new_name = s
                             .strip_prefix(&format!("{} ", self.name))
                             .unwrap_or(&self.name)
                             .to_string();
+                        rename_last_span_in_path(&mut attributes, &self.name, &new_name);
+                        self.name = new_name;
                     }
                 }
             }
@@ -563,12 +565,14 @@ impl Span {
             }
             self.output = self.output.take().or(try_parse_ai_sdk_output(&attributes));
             // Rename AI SDK spans to what's set by telemetry.functionId
-            if let Some(Value::String(s)) = self.attributes.get("operation.name") {
+            if let Some(Value::String(s)) = attributes.get("operation.name") {
                 if s.starts_with(&format!("{} ", self.name)) {
-                    self.name = s
+                    let new_name = s
                         .strip_prefix(&format!("{} ", self.name))
                         .unwrap_or(&self.name)
                         .to_string();
+                    rename_last_span_in_path(&mut attributes, &self.name, &new_name);
+                    self.name = new_name;
                 }
             }
         }
@@ -1072,4 +1076,16 @@ fn parse_ai_sdk_tool_calls(
             })
         })
         .collect::<Vec<_>>()
+}
+
+fn rename_last_span_in_path(attributes: &mut Map<String, Value>, from: &str, to: &str) {
+    if let Some(path_value) = attributes.get_mut("lmnr.span.path") {
+        if let Some(path_array) = path_value.as_array_mut() {
+            if let Some(last) = path_array.last_mut() {
+                if last.as_str() == Some(from) {
+                    *last = serde_json::Value::String(to.to_string());
+                }
+            }
+        }
+    }
 }
