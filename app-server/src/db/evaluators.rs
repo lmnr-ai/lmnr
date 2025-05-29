@@ -19,17 +19,19 @@ pub struct Evaluator {
 pub async fn insert_evaluator_score(
     db: &DB,
     id: Uuid,
+    project_id: Uuid,
     span_id: Uuid,
     evaluator_id: Uuid,
     score: f64,
 ) -> Result<(), sqlx::Error> {
  sqlx::query(
         r#"
-        INSERT INTO evaluator_scores (id, span_id, evaluator_id, score)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO evaluator_scores (id, project_id, span_id, evaluator_id, score)
+        VALUES ($1, $2, $3, $4, $5)
         "#,
     )
     .bind(id)
+    .bind(project_id)
     .bind(span_id)
     .bind(evaluator_id)
     .bind(score)

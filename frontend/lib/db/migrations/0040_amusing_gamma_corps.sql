@@ -10,6 +10,7 @@ CREATE TABLE "evaluator_scores" (
 CREATE TABLE "evaluator_span_paths" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"evaluator_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
 	"span_path" jsonb DEFAULT '{}'::jsonb
 );
 --> statement-breakpoint
@@ -21,7 +22,8 @@ CREATE TABLE "evaluators" (
 	"definition" jsonb DEFAULT '{}'::jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
-
+--> statement-breakpoint
 ALTER TABLE "evaluator_scores" ADD CONSTRAINT "evaluator_scores_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evaluator_span_paths" ADD CONSTRAINT "evaluator_span_paths_evaluator_id_fkey" FOREIGN KEY ("evaluator_id") REFERENCES "public"."evaluators"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evaluator_span_paths" ADD CONSTRAINT "evaluator_span_paths_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evaluators" ADD CONSTRAINT "evaluators_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

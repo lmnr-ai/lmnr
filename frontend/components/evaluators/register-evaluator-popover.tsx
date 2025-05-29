@@ -1,4 +1,4 @@
-import { Loader2, Percent } from "lucide-react";
+import { Gauge, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { ReactNode, useState } from "react";
 import useSWR from "swr";
@@ -82,7 +82,7 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
       <PopoverTrigger asChild>
         {children || (
           <Badge className="cursor-pointer min-w-8" variant="secondary">
-            <Percent className="size-3 min-w-3 mr-2" />
+            <Gauge className="size-3 min-w-3 mr-2" />
             <span className="text-xs truncate min-w-0 block">Register evaluator</span>
           </Badge>
         )}

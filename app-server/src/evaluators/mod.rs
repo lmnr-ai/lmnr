@@ -71,7 +71,7 @@ pub async fn inner_process_evaluators(
     {
         Ok(receiver) => receiver,
         Err(e) => {
-            log::error!("Failed to get receiver for observations queue: {:?}", e);
+            log::error!("Failed to get receiver for evaluator queue: {:?}", e);
             return;
         }
     };
@@ -128,6 +128,7 @@ pub async fn inner_process_evaluators(
                                     if let Err(e) = insert_evaluator_score(
                                         &db,
                                         score_id,
+                                        message.project_id,
                                         message.span_id,
                                         message.id,
                                         score,
@@ -145,6 +146,7 @@ pub async fn inner_process_evaluators(
                                     if let Err(e) = insert_evaluator_score_ch(
                                         clickhouse.clone(),
                                         score_id,
+                                        message.project_id,
                                         message.span_id,
                                         message.id,
                                         score,

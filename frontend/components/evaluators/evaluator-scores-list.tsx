@@ -39,7 +39,7 @@ const EvaluatorScoresList = ({ spanId }: EvaluatorScoresListProps) => {
       {scores.map((score) => (
         <Tooltip key={score.id}>
           <TooltipTrigger>
-            <Badge key={score.id} className="flex gap-1 items-center rounded-3xl" variant="outline">
+            <Badge className="flex gap-1 items-center rounded-3xl" variant="outline">
               <Gauge className="w-3 h-3" />
               <span className="text-secondary-foreground">{score.evaluatorName}</span>
               <span>{score.score}</span>

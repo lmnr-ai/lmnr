@@ -11,6 +11,8 @@ pub struct CHEvaluatorScore {
     #[serde(with = "clickhouse::serde::uuid")]
     pub id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
+    project_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub evaluator_id: Uuid,
@@ -22,12 +24,14 @@ pub struct CHEvaluatorScore {
 impl CHEvaluatorScore {
     pub fn new(
         id: Uuid,
+        project_id: Uuid,
         span_id: Uuid,
         evaluator_id: Uuid,
         score: f64
     ) -> Self {
         Self { 
             id,
+            project_id,
             span_id,
             evaluator_id, 
             score, 
@@ -39,6 +43,7 @@ impl CHEvaluatorScore {
 pub async fn insert_evaluator_score_ch(
     clickhouse: clickhouse::Client,
     id: Uuid,
+    project_id: Uuid,
     span_id: Uuid,
     evaluator_id: Uuid,
     score: f64,
@@ -46,7 +51,7 @@ pub async fn insert_evaluator_score_ch(
     let ch_insert = clickhouse.insert("evaluator_scores");
     match ch_insert {
         Ok(mut ch_insert) => {
-            ch_insert.write(&CHEvaluatorScore::new(id, span_id, evaluator_id, score)).await?;
+            ch_insert.write(&CHEvaluatorScore::new(id, project_id, span_id, evaluator_id, score)).await?;
             let ch_insert_end_res = ch_insert.end().await;
             match ch_insert_end_res {
                 Ok(_) => Ok(()),

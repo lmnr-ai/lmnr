@@ -729,6 +729,25 @@ export const users = pgTable(
   ]
 );
 
+export const evaluatorScores = pgTable(
+  "evaluator_scores",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    evaluatorId: uuid("evaluator_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    spanId: uuid("span_id").notNull(),
+    score: doublePrecision().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluator_scores_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const evaluators = pgTable(
   "evaluators",
   {
@@ -753,6 +772,7 @@ export const evaluatorSpanPaths = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     evaluatorId: uuid("evaluator_id").notNull(),
+    projectId: uuid("project_id").notNull(),
     spanPath: jsonb("span_path").default({}),
   },
   (table) => [
@@ -761,24 +781,10 @@ export const evaluatorSpanPaths = pgTable(
       foreignColumns: [evaluators.id],
       name: "evaluator_span_paths_evaluator_id_fkey",
     }).onDelete("cascade"),
-  ]
-);
-
-export const evaluatorScores = pgTable(
-  "evaluator_scores",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    evaluatorId: uuid("evaluator_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    spanId: uuid("span_id").notNull(),
-    score: doublePrecision().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "evaluator_scores_project_id_fkey",
+      name: "evaluator_span_paths_project_id_fkey",
     }).onDelete("cascade"),
   ]
 );

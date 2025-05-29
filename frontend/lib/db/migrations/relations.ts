@@ -24,8 +24,9 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   evaluations: many(evaluations),
   renderTemplates: many(renderTemplates),
   labelClasses: many(labelClasses),
-  evaluators: many(evaluators),
   evaluatorScores: many(evaluatorScores),
+  evaluators: many(evaluators),
+  evaluatorSpanPaths: many(evaluatorSpanPaths),
   playgrounds: many(playgrounds),
   traces: many(traces),
   machines: many(machines),
@@ -254,6 +255,13 @@ export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, (
   users: many(users),
 }));
 
+export const evaluatorScoresRelations = relations(evaluatorScores, ({one}) => ({
+  project: one(projects, {
+    fields: [evaluatorScores.projectId],
+    references: [projects.id]
+  }),
+}));
+
 export const evaluatorsRelations = relations(evaluators, ({one, many}) => ({
   project: one(projects, {
     fields: [evaluators.projectId],
@@ -267,11 +275,8 @@ export const evaluatorSpanPathsRelations = relations(evaluatorSpanPaths, ({one})
     fields: [evaluatorSpanPaths.evaluatorId],
     references: [evaluators.id]
   }),
-}));
-
-export const evaluatorScoresRelations = relations(evaluatorScores, ({one}) => ({
   project: one(projects, {
-    fields: [evaluatorScores.projectId],
+    fields: [evaluatorSpanPaths.projectId],
     references: [projects.id]
   }),
 }));

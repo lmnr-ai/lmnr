@@ -1,4 +1,4 @@
-import { omit } from "lodash";
+import { get, omit } from "lodash";
 import { PlayCircle } from "lucide-react";
 import Link from "next/link";
 import React, { useMemo } from "react";
@@ -121,7 +121,7 @@ export function SpanView({ spanId }: SpanViewProps) {
                   ]}
                 />
                 <ExportSpansPopover span={span} />
-                <RegisterEvaluatorPopover spanPath={span.attributes["lmnr.span.path"]} />
+                <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
               </div>
               <LabelsList />
               <EvaluatorScoresList spanId={spanId} />

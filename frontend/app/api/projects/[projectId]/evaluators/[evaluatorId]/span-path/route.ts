@@ -17,6 +17,7 @@ export async function POST(
   try {
     const params = await props.params;
     const evaluatorId = params.evaluatorId;
+    const projectId = params.projectId;
 
     const body = await req.json();
     const { spanPath } = requestBodySchema.parse(body);
@@ -25,6 +26,7 @@ export async function POST(
       .insert(evaluatorSpanPaths)
       .values({
         evaluatorId,
+        projectId,
         spanPath,
       })
       .returning();

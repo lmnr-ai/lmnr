@@ -4,7 +4,7 @@ import { python } from "@codemirror/lang-python";
 import { zodResolver } from "@hookform/resolvers/zod";
 import CodeMirror from "@uiw/react-codemirror";
 import { Loader2, PlayIcon } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useSWRConfig } from "swr";
@@ -53,6 +53,7 @@ export default function CreateEvaluatorDialog({
   children,
   onSuccess,
 }: PropsWithChildren<{ onSuccess?: (evaluator: Evaluator) => void }>) {
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -107,8 +108,11 @@ export default function CreateEvaluatorDialog({
 
         const newEvaluator = (await res.json()) as Evaluator;
 
+        const pageSize = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 25;
+        const pageNumber = searchParams.get("pageNumber") ? Number(searchParams.get("pageNumber")) : 0;
+
         await mutate<PaginatedResponse<Evaluator>>(
-          `/api/projects/${projectId}/evaluators`,
+          `/api/projects/${projectId}/evaluators?pageNumber=${pageNumber}&pageSize=${pageSize}`,
           (currentData) =>
             currentData
               ? { items: [newEvaluator, ...currentData.items], totalCount: currentData.totalCount + 1 }
@@ -134,7 +138,7 @@ export default function CreateEvaluatorDialog({
         setIsLoading(false);
       }
     },
-    [onSuccess, projectId, toast, reset]
+    [projectId, mutate, searchParams, onSuccess, toast, reset]
   );
 
   const testEvaluator = useCallback(async () => {

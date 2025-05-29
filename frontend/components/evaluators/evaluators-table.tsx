@@ -122,7 +122,7 @@ export default function EvaluatorsTable({ projectId }: EvaluatorsTableProps) {
         )}
         emptyRow={
           <TableRow>
-            <TableCell colSpan={columns.length} className="text-center text">
+            <TableCell colSpan={columns.length} className="text-center">
               No evaluators found. Create your first evaluator to get started.
             </TableCell>
           </TableRow>

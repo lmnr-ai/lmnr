@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { db } from "@/lib/db/drizzle";
@@ -9,7 +9,7 @@ export async function GET(
   props: { params: Promise<{ projectId: string; spanId: string }> }
 ): Promise<Response> {
   const params = await props.params;
-  const { spanId } = params;
+  const { spanId, projectId } = params;
 
   try {
     const scores = await db
@@ -23,12 +23,11 @@ export async function GET(
       })
       .from(evaluatorScores)
       .leftJoin(evaluators, eq(evaluatorScores.evaluatorId, evaluators.id))
-      .where(eq(evaluatorScores.spanId, spanId))
+      .where(and(eq(evaluatorScores.spanId, spanId), eq(evaluatorScores.projectId, projectId)))
       .orderBy(evaluatorScores.createdAt);
 
     return Response.json(scores);
   } catch (error) {
-    console.error("Error fetching evaluator scores:", error);
     return Response.json({ error: "Failed to fetch evaluator scores" }, { status: 500 });
   }
 }

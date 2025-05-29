@@ -1,5 +1,5 @@
 {
-  "id": "467cf08e-baa6-480e-9fde-2d081ae8fedb",
+  "id": "87bbb715-e68e-40b3-9bc0-32617d0d68f5",
   "prevId": "a58ad4a9-5331-4bfe-8db2-d7e7a7df304d",
   "version": "7",
   "dialect": "postgresql",
@@ -993,6 +993,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "span_path": {
           "name": "span_path",
           "type": "jsonb",
@@ -1009,6 +1015,19 @@
           "tableTo": "evaluators",
           "columnsFrom": [
             "evaluator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "evaluator_span_paths_project_id_fkey": {
+          "name": "evaluator_span_paths_project_id_fkey",
+          "tableFrom": "evaluator_span_paths",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
           ],
           "columnsTo": [
             "id"
