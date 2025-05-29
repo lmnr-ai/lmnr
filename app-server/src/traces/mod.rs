@@ -45,7 +45,6 @@ pub async fn process_spans_and_events(
     if let Some(span_path) = span.get_attributes().path() {
         match get_evaluators_by_path(&db, *project_id, span_path.clone()).await {
             Ok(evaluators) => {
-                log::info!("Evaluators here {:?}", evaluators);
                 if !evaluators.is_empty() {
                     let span_output = span.output.clone().unwrap_or(serde_json::Value::Null);
                     

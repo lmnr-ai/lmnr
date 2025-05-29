@@ -12,6 +12,8 @@ pub enum Feature {
     MachineManager,
     /// Browser agent
     AgentManager,
+    /// Evaluators
+    Evaluators
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -31,6 +33,9 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::AgentManager => {
             env::var("AGENT_MANAGER_URL").is_ok()
             // && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
+        },
+        Feature::Evaluators => {
+            env::var("ONLINE_EVALUATORS_SECRET_KEY").is_ok()
         }
     }
 }

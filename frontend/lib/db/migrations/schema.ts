@@ -729,6 +729,60 @@ export const users = pgTable(
   ]
 );
 
+export const evaluators = pgTable(
+  "evaluators",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    evaluatorType: text("evaluator_type").notNull(),
+    definition: jsonb().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluators_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const evaluatorSpanPaths = pgTable(
+  "evaluator_span_paths",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    evaluatorId: uuid("evaluator_id").notNull(),
+    spanPath: jsonb("span_path").default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.evaluatorId],
+      foreignColumns: [evaluators.id],
+      name: "evaluator_span_paths_evaluator_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const evaluatorScores = pgTable(
+  "evaluator_scores",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    evaluatorId: uuid("evaluator_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    spanId: uuid("span_id").notNull(),
+    score: doublePrecision().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluator_scores_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const playgrounds = pgTable(
   "playgrounds",
   {
@@ -931,49 +985,6 @@ export const evaluationResults = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-  ]
-);
-
-export const evaluatorScores = pgTable("evaluator_scores", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  evaluatorId: uuid("evaluator_id").notNull(),
-  spanId: uuid("span_id").notNull(),
-  score: doublePrecision().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-});
-
-export const evaluators = pgTable(
-  "evaluators",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
-    evaluatorType: text("evaluator_type").notNull(),
-    definition: jsonb().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "evaluators_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const evaluatorSpanPaths = pgTable(
-  "evaluator_span_paths",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    evaluatorId: uuid("evaluator_id").notNull(),
-    spanPath: jsonb("span_path").default({}),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.evaluatorId],
-      foreignColumns: [evaluators.id],
-      name: "evaluator_span_paths_evaluator_id_fkey",
-    }).onDelete("cascade"),
   ]
 );
 

@@ -14,8 +14,8 @@ const evaluatorResponseSchema = z.object({
 });
 
 const environmentSchema = z.object({
-  MODAL_SECRET_KEY: z.string().min(1, "MODAL_SECRET_KEY is required"),
-  LAMBDA_URL: z.string().url("LAMBDA_URL must be a valid URL"),
+  ONLINE_EVALUATORS_SECRET_KEY: z.string().min(1, "ONLINE_EVALUATORS_SECRET_KEY is required"),
+  PYTHON_ONLINE_EVALUATOR_URL: z.string().url("PYTHON_ONLINE_EVALUATOR_URL must be a valid URL"),
 });
 
 type EvaluatorRequest = {
@@ -27,8 +27,8 @@ type EvaluatorResponse = z.infer<typeof evaluatorResponseSchema>;
 
 function validateEnvironment() {
   const env = {
-    MODAL_SECRET_KEY: process.env.MODAL_SECRET_KEY,
-    LAMBDA_URL: process.env.LAMBDA_URL,
+    ONLINE_EVALUATORS_SECRET_KEY: process.env.ONLINE_EVALUATORS_SECRET_KEY,
+    PYTHON_ONLINE_EVALUATOR_URL: process.env.PYTHON_ONLINE_EVALUATOR_URL,
   };
 
   try {
@@ -88,7 +88,7 @@ async function callEvaluatorService(
 
 export async function POST(req: NextRequest): Promise<Response> {
   try {
-    const { MODAL_SECRET_KEY, LAMBDA_URL } = validateEnvironment();
+    const { ONLINE_EVALUATORS_SECRET_KEY, PYTHON_ONLINE_EVALUATOR_URL } = validateEnvironment();
     const body = await req.json();
     const { input, definition } = requestBodySchema.parse(body);
 
@@ -97,9 +97,9 @@ export async function POST(req: NextRequest): Promise<Response> {
       input,
     };
 
-    const headers = createRequestHeaders(MODAL_SECRET_KEY);
+    const headers = createRequestHeaders(ONLINE_EVALUATORS_SECRET_KEY);
 
-    const evaluatorResponse = await callEvaluatorService(LAMBDA_URL, headers, evaluatorRequest);
+    const evaluatorResponse = await callEvaluatorService(PYTHON_ONLINE_EVALUATOR_URL, headers, evaluatorRequest);
 
     if (evaluatorResponse.error) {
       return Response.json({ error: evaluatorResponse.error }, { status: 400 });

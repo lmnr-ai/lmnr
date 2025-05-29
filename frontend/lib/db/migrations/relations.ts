@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { agentChats, agentMessages, agentSessions, apiKeys, datapointToSpan,datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorSpanPaths, events, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, spans, subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, userSubscriptionTiers, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { agentChats, agentMessages, agentSessions, apiKeys, datapointToSpan,datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, events, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, spans, subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, userSubscriptionTiers, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
 export const datasetsRelations = relations(datasets, ({one, many}) => ({
   project: one(projects, {
@@ -24,9 +24,10 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   evaluations: many(evaluations),
   renderTemplates: many(renderTemplates),
   labelClasses: many(labelClasses),
+  evaluators: many(evaluators),
+  evaluatorScores: many(evaluatorScores),
   playgrounds: many(playgrounds),
   traces: many(traces),
-  evaluators: many(evaluators),
   machines: many(machines),
   spans: many(spans),
 }));
@@ -253,6 +254,28 @@ export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, (
   users: many(users),
 }));
 
+export const evaluatorsRelations = relations(evaluators, ({one, many}) => ({
+  project: one(projects, {
+    fields: [evaluators.projectId],
+    references: [projects.id]
+  }),
+  evaluatorSpanPaths: many(evaluatorSpanPaths),
+}));
+
+export const evaluatorSpanPathsRelations = relations(evaluatorSpanPaths, ({one}) => ({
+  evaluator: one(evaluators, {
+    fields: [evaluatorSpanPaths.evaluatorId],
+    references: [evaluators.id]
+  }),
+}));
+
+export const evaluatorScoresRelations = relations(evaluatorScores, ({one}) => ({
+  project: one(projects, {
+    fields: [evaluatorScores.projectId],
+    references: [projects.id]
+  }),
+}));
+
 export const playgroundsRelations = relations(playgrounds, ({one}) => ({
   project: one(projects, {
     fields: [playgrounds.projectId],
@@ -278,21 +301,6 @@ export const tracesRelations = relations(traces, ({one}) => ({
   project: one(projects, {
     fields: [traces.projectId],
     references: [projects.id]
-  }),
-}));
-
-export const evaluatorsRelations = relations(evaluators, ({one, many}) => ({
-  project: one(projects, {
-    fields: [evaluators.projectId],
-    references: [projects.id]
-  }),
-  evaluatorSpanPaths: many(evaluatorSpanPaths),
-}));
-
-export const evaluatorSpanPathsRelations = relations(evaluatorSpanPaths, ({one}) => ({
-  evaluator: one(evaluators, {
-    fields: [evaluatorSpanPaths.evaluatorId],
-    references: [evaluators.id]
   }),
 }));
 

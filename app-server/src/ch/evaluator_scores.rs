@@ -56,11 +56,9 @@ pub async fn insert_evaluator_score_ch(
                 )),
             }
         }
-        Err(e) => {
-            return Err(anyhow::anyhow!(
+        Err(e) => Err(anyhow::anyhow!(
                 "Failed to insert evaluator score into Clickhouse: {:?}",
                 e
-            ));
-        }
+            ))
     }
 }

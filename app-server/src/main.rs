@@ -387,15 +387,14 @@ fn main() -> anyhow::Result<()> {
                 let name_generator = Arc::new(NameGenerator::new());
 
                 // == Evaluator client ==
-                let evaluator_client = {
-                    let modal_secret_key = env::var("MODAL_SECRET_KEY").expect("MODAL_SECRET_KEY must be set");
-
-                    // Create default headers with authorization
+                let evaluator_client = if is_feature_enabled(Feature::Evaluators) {
+                    let online_evaluators_secret_key = env::var("ONLINE_EVALUATORS_SECRET_KEY").expect("ONLINE_EVALUATORS_SECRET_KEY must be set");
                     let mut headers = reqwest::header::HeaderMap::new();
+
                     headers.insert(
                         reqwest::header::AUTHORIZATION,
-                        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", modal_secret_key))
-                            .expect("Invalid MODAL_SECRET_KEY format")
+                        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", online_evaluators_secret_key))
+                            .expect("Invalid ONLINE_EVALUATORS_SECRET_KEY format")
                     );
                     headers.insert(
                         reqwest::header::CONTENT_TYPE,
@@ -409,9 +408,17 @@ fn main() -> anyhow::Result<()> {
                             .build()
                             .expect("Failed to create evaluator HTTP client")
                     )
+                } else {
+                    log::info!("Using mock evaluator client");
+                    Arc::new(
+                        reqwest::Client::builder()
+                        .user_agent("lmnr-evaluator-mock/1.0")
+                        .build()
+                        .expect("Failed to create mock evaluator HTTP client")
+                    )
                 };
     
-                let lambda_url: String = env::var("LAMBDA_URL").expect("LAMBDA_URL must be set");
+                let python_online_evaluator_url: String = env::var("PYTHON_ONLINE_EVALUATOR_URL").expect("PYTHON_ONLINE_EVALUATOR_URL must be set");
 
                 let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
                     .unwrap_or(String::from("4"))
@@ -466,7 +473,7 @@ fn main() -> anyhow::Result<()> {
                             clickhouse.clone(),
                             evaluators_message_queue.clone(),
                             evaluator_client.clone(),
-                            lambda_url.clone(),
+                            python_online_evaluator_url.clone(),
                         ));
                     }
 

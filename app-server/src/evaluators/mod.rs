@@ -40,7 +40,7 @@ pub async fn process_evaluators(
     clickhouse: clickhouse::Client,
     evaluators_message_queue: Arc<MessageQueue>,
     client: Arc<reqwest::Client>,
-    lambda_url: String,
+    python_online_evaluator_url: String,
 ) -> () {
     loop {
         inner_process_evaluators(
@@ -48,7 +48,7 @@ pub async fn process_evaluators(
             clickhouse.clone(),
             evaluators_message_queue.clone(),
             client.clone(),
-            &lambda_url,
+            &python_online_evaluator_url,
         )
         .await;
     }
@@ -59,16 +59,22 @@ pub async fn inner_process_evaluators(
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     client: Arc<reqwest::Client>,
-    lambda_url: &str,
+    python_online_evaluator_url: &str,
 ) {
-    let mut receiver = queue
+    let mut receiver = match queue
         .get_receiver(
             EVALUATORS_QUEUE,
             EVALUATORS_EXCHANGE,
             EVALUATORS_ROUTING_KEY,
         )
         .await
-        .unwrap();
+    {
+        Ok(receiver) => receiver,
+        Err(e) => {
+            log::error!("Failed to get receiver for observations queue: {:?}", e);
+            return;
+        }
+    };
 
     while let Some(delivery) = receiver.receive().await {
         if let Err(e) = delivery {
@@ -101,7 +107,7 @@ pub async fn inner_process_evaluators(
         };
 
         // For now we call only python, later check for evaluator_type and call corresponing url
-        let response = client.post(lambda_url).json(&body).send().await;
+        let response = client.post(python_online_evaluator_url).json(&body).send().await;
 
         match response {
             Ok(resp) => {
@@ -172,7 +178,7 @@ pub async fn inner_process_evaluators(
                     }
                 } else if status.is_server_error() {
                     log::error!(
-                        "Evaluator lambda returned server error {}: retrying",
+                        "Evaluator lambda returned server error {}",
                         status
                     );
                     let _ = acker.reject(false).await;

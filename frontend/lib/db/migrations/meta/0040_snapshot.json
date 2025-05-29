@@ -1,5 +1,5 @@
 {
-  "id": "a4eaeb4c-c9f4-4eb9-864e-e685e51a83e1",
+  "id": "467cf08e-baa6-480e-9fde-2d081ae8fedb",
   "prevId": "a58ad4a9-5331-4bfe-8db2-d7e7a7df304d",
   "version": "7",
   "dialect": "postgresql",
@@ -928,6 +928,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "span_id": {
           "name": "span_id",
           "type": "uuid",
@@ -949,7 +955,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "evaluator_scores_project_id_fkey": {
+          "name": "evaluator_scores_project_id_fkey",
+          "tableFrom": "evaluator_scores",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -2083,7 +2103,7 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false,
-          "default": "''"
+          "default": "'{}'::jsonb"
         },
         "tool_choice": {
           "name": "tool_choice",
@@ -3948,7 +3968,8 @@
       "values": [
         "DEFAULT",
         "EVENT",
-        "EVALUATION"
+        "EVALUATION",
+        "PLAYGROUND"
       ]
     },
     "public.workspace_role": {
