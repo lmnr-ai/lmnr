@@ -123,7 +123,7 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
               }}
             >
               <Plus size={16} className="mr-2" />
-              Create new label: <span className="text-left">&#34;{query}&#34;</span>
+              Create new tag: <span className="text-left">&#34;{query}&#34;</span>
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </>
