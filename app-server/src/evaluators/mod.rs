@@ -180,13 +180,13 @@ pub async fn inner_process_evaluators(
                     }
                 } else if status.is_server_error() {
                     log::error!(
-                        "Evaluator lambda returned server error {}",
+                        "Evaluator service returned server error {}",
                         status
                     );
                     let _ = acker.reject(false).await;
                 } else if status.is_client_error() {
                     log::error!(
-                        "Evaluator lambda returned client error {}: not retrying",
+                        "Evaluator service returned client error {}: not retrying",
                         status
                     );
                     match resp.text().await {
@@ -195,12 +195,12 @@ pub async fn inner_process_evaluators(
                     }
                     let _ = acker.reject(false).await;
                 } else {
-                    log::error!("Evaluator lambda returned unexpected status {}", status);
+                    log::error!("Evaluator service returned unexpected status {}", status);
                     let _ = acker.reject(false).await;
                 }
             }
             Err(e) => {
-                log::error!("Failed to send request to evaluator lambda: {:?}", e);
+                log::error!("Failed to send request to evaluator service: {:?}", e);
                 let _ = acker.reject(false).await;
             }
         }

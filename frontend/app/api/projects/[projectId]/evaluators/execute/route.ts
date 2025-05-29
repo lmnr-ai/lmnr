@@ -39,20 +39,20 @@ function validateEnvironment() {
   }
 }
 
-function createRequestHeaders(modalSecretKey: string) {
+function createRequestHeaders(token: string) {
   return {
-    Authorization: `Bearer ${modalSecretKey}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
     "User-Agent": "lmnr-evaluator/1.0",
   };
 }
 
 async function callEvaluatorService(
-  lambdaUrl: string,
+  url: string,
   headers: Record<string, string>,
   evaluatorRequest: EvaluatorRequest
 ): Promise<EvaluatorResponse> {
-  const response = await fetch(lambdaUrl, {
+  const response = await fetch(url, {
     method: "POST",
     headers,
     body: JSON.stringify(evaluatorRequest),
@@ -61,24 +61,24 @@ async function callEvaluatorService(
   if (!response.ok) {
     const status = response.status;
 
-    let lambdaError: string | null;
+    let error: string | null;
     try {
       const errorResponse = await response.json();
-      lambdaError = errorResponse.error;
+      error = errorResponse.error;
     } catch {
       try {
-        lambdaError = await response.text();
+        error = await response.text();
       } catch {
-        lambdaError = null;
+        error = null;
       }
     }
 
     if (status >= 500) {
-      throw new Error(lambdaError || "Evaluator service temporarily unavailable");
+      throw new Error(error || "Evaluator service temporarily unavailable");
     } else if (status >= 400) {
-      throw new Error(lambdaError || "Invalid request to evaluator service");
+      throw new Error(error || "Invalid request to evaluator service");
     } else {
-      throw new Error(lambdaError || "Unexpected response from evaluator service");
+      throw new Error(error || "Unexpected response from evaluator service");
     }
   }
 
