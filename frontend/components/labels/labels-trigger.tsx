@@ -10,7 +10,7 @@ const LabelsTrigger = () => (
     <DropdownMenuTrigger asChild>
       <Badge className="cursor-pointer min-w-8" variant="secondary">
         <Tag className="size-3 min-w-3 mr-2" />
-        <span className="text-xs truncate">Add labels</span>
+        <span className="text-xs truncate">Add tags</span>
       </Badge>
     </DropdownMenuTrigger>
   </ManageLabels>
