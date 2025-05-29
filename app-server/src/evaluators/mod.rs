@@ -1,11 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    db::{
-        DB,
-        evaluators::{get_evaluator, save_evaluator_score},
-    },
-    mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
+    ch::evaluator_scores::insert_evaluator_score_ch, db::{
+        evaluators::{get_evaluator, insert_evaluator_score}, DB
+    }, mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait}
 };
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -26,19 +24,20 @@ pub struct EvaluatorsQueueMessage {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct EvaluatorRequest {
-    pub data: HashMap<String,Value>,
+    pub definition: HashMap<String,Value>,
     pub input: Value,
 }
 
 #[derive(Deserialize)]
 pub struct EvaluatorResponse {
-    pub score: Option<i32>,
+    pub score: Option<f64>,
     #[serde(default)]
     pub error: Option<String>,
 }
 
 pub async fn process_evaluators(
     db: Arc<DB>,
+    clickhouse: clickhouse::Client,
     evaluators_message_queue: Arc<MessageQueue>,
     client: Arc<reqwest::Client>,
     lambda_url: String,
@@ -46,6 +45,7 @@ pub async fn process_evaluators(
     loop {
         inner_process_evaluators(
             db.clone(),
+            clickhouse.clone(),
             evaluators_message_queue.clone(),
             client.clone(),
             &lambda_url,
@@ -56,6 +56,7 @@ pub async fn process_evaluators(
 
 pub async fn inner_process_evaluators(
     db: Arc<DB>,
+    clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     client: Arc<reqwest::Client>,
     lambda_url: &str,
@@ -89,13 +90,13 @@ pub async fn inner_process_evaluators(
             Ok(evaluator) => evaluator,
             Err(e) => {
                 log::error!("Failed to get evaluator {}: {:?}", message.id, e);
-                let _ = acker.reject(true).await;
+                let _ = acker.reject(false).await;
                 continue;
             }
         };
 
         let body = EvaluatorRequest {
-            data: evaluator.data,
+            definition: evaluator.definition,
             input: message.span_output,
         };
 
@@ -116,36 +117,44 @@ pub async fn inner_process_evaluators(
 
                             match evaluator_response.score {
                                 Some(score) => {
-                                    log::info!(
-                                        "Received score {} for span_id: {} from evaluator_id: {}",
-                                        score,
-                                        message.span_id,
-                                        message.id
-                                    );
+                                    let score_id = Uuid::new_v4();
 
-                                    match save_evaluator_score(
+                                    if let Err(e) = insert_evaluator_score(
                                         &db,
+                                        score_id,
                                         message.span_id,
                                         message.id,
                                         score,
                                     )
                                     .await
                                     {
-                                        Ok(()) => {
-                                            log::info!(
-                                                "Successfully saved evaluator score for span_id: {}",
-                                                message.span_id
-                                            );
-                                            let _ = acker.ack().await;
-                                        }
-                                        Err(e) => {
-                                            log::error!(
-                                                "Failed to save evaluator score to database: {:?}",
-                                                e
-                                            );
-                                            let _ = acker.reject(true).await;
-                                        }
+                                        log::error!(
+                                            "Failed to save evaluator score to database: {:?}",
+                                            e
+                                        );
+                                        let _ = acker.reject(false).await;
+                                        continue;
                                     }
+
+                                    if let Err(e) = insert_evaluator_score_ch(
+                                        clickhouse.clone(),
+                                        score_id,
+                                        message.span_id,
+                                        message.id,
+                                        score,
+                                    )
+                                    .await
+                                    {
+                                        log::error!(
+                                            "Failed to save evaluator score to ClickHouse: {:?}",
+                                            e
+                                        );
+                                        let _ = acker.reject(false).await;
+                                        continue;
+                                    }
+
+                                    let _ = acker.ack().await;
+
                                 }
                                 None => {
                                     log::info!(
@@ -166,7 +175,7 @@ pub async fn inner_process_evaluators(
                         "Evaluator lambda returned server error {}: retrying",
                         status
                     );
-                    let _ = acker.reject(true).await;
+                    let _ = acker.reject(false).await;
                 } else if status.is_client_error() {
                     log::error!(
                         "Evaluator lambda returned client error {}: not retrying",
@@ -179,12 +188,12 @@ pub async fn inner_process_evaluators(
                     let _ = acker.reject(false).await;
                 } else {
                     log::error!("Evaluator lambda returned unexpected status {}", status);
-                    let _ = acker.reject(true).await;
+                    let _ = acker.reject(false).await;
                 }
             }
             Err(e) => {
                 log::error!("Failed to send request to evaluator lambda: {:?}", e);
-                let _ = acker.reject(true).await;
+                let _ = acker.reject(false).await;
             }
         }
     }

@@ -463,6 +463,7 @@ fn main() -> anyhow::Result<()> {
                     for _ in 0..num_evaluators_workers_per_thread {
                         tokio::spawn(process_evaluators(
                             db_for_http.clone(),
+                            clickhouse.clone(),
                             evaluators_message_queue.clone(),
                             evaluator_client.clone(),
                             lambda_url.clone(),

@@ -1,0 +1,128 @@
+import { NextRequest } from "next/server";
+import { z } from "zod";
+
+const requestBodySchema = z.object({
+  input: z.any(),
+  definition: z.object({
+    function_code: z.string().min(1, "Function code is required"),
+  }),
+});
+
+const evaluatorResponseSchema = z.object({
+  score: z.number().nullable().optional(),
+  error: z.string().nullable().optional(),
+});
+
+const environmentSchema = z.object({
+  MODAL_SECRET_KEY: z.string().min(1, "MODAL_SECRET_KEY is required"),
+  LAMBDA_URL: z.string().url("LAMBDA_URL must be a valid URL"),
+});
+
+type EvaluatorRequest = {
+  definition: Record<string, unknown>;
+  input: unknown;
+};
+
+type EvaluatorResponse = z.infer<typeof evaluatorResponseSchema>;
+
+function validateEnvironment() {
+  const env = {
+    MODAL_SECRET_KEY: process.env.MODAL_SECRET_KEY,
+    LAMBDA_URL: process.env.LAMBDA_URL,
+  };
+
+  try {
+    return environmentSchema.parse(env);
+  } catch (error) {
+    console.error("Environment validation failed:", error);
+    throw new Error("Server configuration error");
+  }
+}
+
+function createRequestHeaders(modalSecretKey: string) {
+  return {
+    Authorization: `Bearer ${modalSecretKey}`,
+    "Content-Type": "application/json",
+    "User-Agent": "lmnr-evaluator/1.0",
+  };
+}
+
+async function callEvaluatorService(
+  lambdaUrl: string,
+  headers: Record<string, string>,
+  evaluatorRequest: EvaluatorRequest
+): Promise<EvaluatorResponse> {
+  const response = await fetch(lambdaUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(evaluatorRequest),
+  });
+
+  if (!response.ok) {
+    const status = response.status;
+
+    let lambdaError: string | null;
+    try {
+      const errorResponse = await response.json();
+      lambdaError = errorResponse.error;
+    } catch {
+      try {
+        lambdaError = await response.text();
+      } catch {
+        lambdaError = null;
+      }
+    }
+
+    if (status >= 500) {
+      throw new Error(lambdaError || "Evaluator service temporarily unavailable");
+    } else if (status >= 400) {
+      throw new Error(lambdaError || "Invalid request to evaluator service");
+    } else {
+      throw new Error(lambdaError || "Unexpected response from evaluator service");
+    }
+  }
+
+  const responseData = await response.json();
+  return evaluatorResponseSchema.parse(responseData);
+}
+
+export async function POST(req: NextRequest): Promise<Response> {
+  try {
+    const { MODAL_SECRET_KEY, LAMBDA_URL } = validateEnvironment();
+    const body = await req.json();
+    const { input, definition } = requestBodySchema.parse(body);
+
+    const evaluatorRequest: EvaluatorRequest = {
+      definition,
+      input,
+    };
+
+    const headers = createRequestHeaders(MODAL_SECRET_KEY);
+
+    const evaluatorResponse = await callEvaluatorService(LAMBDA_URL, headers, evaluatorRequest);
+
+    if (evaluatorResponse.error) {
+      return Response.json({ error: evaluatorResponse.error }, { status: 400 });
+    }
+
+    return Response.json({
+      score: evaluatorResponse.score,
+    });
+  } catch (error) {
+    console.error("Failed to execute evaluator:", error);
+
+    if (error instanceof z.ZodError) {
+      return Response.json({ error: "Validation error", details: error.errors }, { status: 400 });
+    }
+
+    if (error instanceof SyntaxError) {
+      return Response.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
+
+    if (error instanceof Error) {
+      return Response.json({ error: error.message }, { status: 400 });
+    }
+
+    return Response.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

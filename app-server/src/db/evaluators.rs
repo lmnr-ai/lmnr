@@ -5,33 +5,31 @@ use uuid::Uuid;
 use sqlx::QueryBuilder;
 use super::DB;
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug)]
 pub struct Evaluator {
     pub id: Uuid,
     pub project_id: Uuid,
     pub name: String,
     pub evaluator_type: String,
     #[sqlx(json)]
-    pub data: HashMap<String, Value>,
-    pub target: Value,
+    pub definition: HashMap<String, Value>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-pub async fn save_evaluator_score(
+pub async fn insert_evaluator_score(
     db: &DB,
+    id: Uuid,
     span_id: Uuid,
     evaluator_id: Uuid,
-    score: i32,
+    score: f64,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query(
+ sqlx::query(
         r#"
-        INSERT INTO evaluator_scores (span_id, evaluator_id, score)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (span_id, evaluator_id) 
-        DO UPDATE SET 
-            score = EXCLUDED.score,
+        INSERT INTO evaluator_scores (id, span_id, evaluator_id, score)
+        VALUES ($1, $2, $3, $4)
         "#,
     )
+    .bind(id)
     .bind(span_id)
     .bind(evaluator_id)
     .bind(score)
@@ -44,7 +42,7 @@ pub async fn save_evaluator_score(
 pub async fn get_evaluator(db: &DB, id: Uuid, project_id: Uuid) -> Result<Evaluator, sqlx::Error> {
     sqlx::query_as::<_, Evaluator>(
         r#"
-        SELECT id, project_id, name, evaluator_type, data, target, created_at
+        SELECT id, project_id, name, evaluator_type, definition, created_at
         FROM evaluators 
         WHERE id = $1 AND project_id = $2
         "#,
@@ -60,20 +58,21 @@ pub async fn get_evaluators_by_path(db: &DB, project_id: Uuid, path: Vec<String>
     
     let mut query_builder = QueryBuilder::new(
         r#"
-        SELECT id, project_id, evaluator_type, data, target
-        FROM evaluators 
-        WHERE project_id = 
+        SELECT e.id, e.project_id, e.name, e.evaluator_type, e.definition, e.created_at
+        FROM evaluators e
+        JOIN evaluator_span_paths esp ON e.id = esp.evaluator_id
+        WHERE e.project_id = 
         "#
     );
     
     query_builder.push_bind(project_id);
-    query_builder.push(" AND jsonb_array_length(target) = ");
+    query_builder.push(" AND jsonb_array_length(esp.span_path) = ");
     query_builder.push_bind(path_length);
     
     for (i, element) in path.iter().enumerate() {
-        query_builder.push(&format!(" AND target->{} = ", i));
+        // Use ->> operator to extract as text, avoiding JSON casting issues
+        query_builder.push(&format!(" AND esp.span_path->>{} = ", i));
         query_builder.push_bind(element);
-        query_builder.push("::jsonb");
     }
     
     query_builder
