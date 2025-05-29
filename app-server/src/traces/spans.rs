@@ -1079,7 +1079,7 @@ fn parse_ai_sdk_tool_calls(
 }
 
 fn rename_last_span_in_path(attributes: &mut Map<String, Value>, from: &str, to: &str) {
-    if let Some(path_value) = attributes.get_mut("lmnr.span.path") {
+    if let Some(path_value) = attributes.get_mut(SPAN_PATH) {
         if let Some(path_array) = path_value.as_array_mut() {
             if let Some(last) = path_array.last_mut() {
                 if last.as_str() == Some(from) {
