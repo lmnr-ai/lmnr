@@ -98,6 +98,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       }
 
       const data = (await res.json()) as PaginatedResponse<Trace>;
+      console.log(data.items);
       setTraces(data.items);
       setTotalCount(data.totalCount);
     } catch (error) {
@@ -146,6 +147,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     topSpanType: null,
     topSpanPath: null,
     status: row.status,
+    userId: row.user_id,
   });
 
   const getTraceTopSpanInfo = useCallback(

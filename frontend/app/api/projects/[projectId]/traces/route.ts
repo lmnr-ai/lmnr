@@ -87,6 +87,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
         topSpanName: topLevelSpans.name,
         topSpanType: topLevelSpans.spanType,
         status: traces.status,
+        userId: traces.userId,
         latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
       })
       .from(traces)
@@ -129,6 +130,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       topSpanName: baseQuery.topSpanName,
       topSpanType: baseQuery.topSpanType,
       status: baseQuery.status,
+      userId: baseQuery.userId,
     })
     .from(baseQuery);
 
