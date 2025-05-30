@@ -418,7 +418,11 @@ fn main() -> anyhow::Result<()> {
                     )
                 };
     
-                let python_online_evaluator_url: String = env::var("PYTHON_ONLINE_EVALUATOR_URL").expect("PYTHON_ONLINE_EVALUATOR_URL must be set");
+                let python_online_evaluator_url: String = if is_feature_enabled(Feature::Evaluators) {
+                    env::var("PYTHON_ONLINE_EVALUATOR_URL").expect("PYTHON_ONLINE_EVALUATOR_URL must be set")
+                } else {
+                    String::new()
+                };
 
                 let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
                     .unwrap_or(String::from("4"))
