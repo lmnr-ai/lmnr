@@ -1,22 +1,15 @@
 use std::sync::Arc;
 
+use utils::prepare_span_for_recording;
 use uuid::Uuid;
 
 use crate::{
-    cache::Cache,
-    ch::{self, spans::CHSpan},
-    db::{
-        DB,
-        events::Event,
-        spans::Span,
-        stats::{add_spans_to_project_usage_stats, increment_project_data_ingested},
-    },
-    mq::MessageQueueAcker,
-    traces::{
+    cache::Cache, ch::{self, spans::CHSpan}, db::{
+        evaluators::get_evaluators_by_path, events::Event, spans::Span, stats::{add_spans_to_project_usage_stats, increment_project_data_ingested}, DB
+    }, evaluators::push_to_evaluators_queue, mq::{MessageQueue, MessageQueueAcker}, traces::{
         events::record_events,
         utils::{get_llm_usage_for_span, record_labels_to_db_and_ch, record_span_to_db},
-    },
-    utils::estimate_json_size,
+    }, utils::estimate_json_size
 };
 
 pub mod attributes;
@@ -42,12 +35,49 @@ pub async fn process_spans_and_events(
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     acker: MessageQueueAcker,
+    evaluators_queue: Arc<MessageQueue>,
 ) {
     let span_usage =
         get_llm_usage_for_span(&mut span.get_attributes(), db.clone(), cache.clone()).await;
 
+    let trace_attributes = prepare_span_for_recording(span, &span_usage, &events);
+
+    if let Some(span_path) = span.get_attributes().path() {
+        match get_evaluators_by_path(&db, *project_id, span_path.clone()).await {
+            Ok(evaluators) => {
+                if !evaluators.is_empty() {
+                    let span_output = span.output.clone().unwrap_or(serde_json::Value::Null);
+                    
+                    for evaluator in evaluators {
+                        if let Err(e) = push_to_evaluators_queue(
+                            span.span_id,
+                            *project_id,
+                            evaluator.id,
+                            span_output.clone(),
+                            evaluators_queue.clone(),
+                        ).await {
+                            log::error!(
+                                "Failed to push evaluator {} to queue for span {}: {:?}",
+                                evaluator.id,
+                                span.span_id,
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!(
+                    "Failed to get evaluators by path for span {}: {:?}",
+                    span.span_id,
+                    e
+                );
+            }
+        }
+    }
+
     let recorded_span_bytes =
-        match record_span_to_db(db.clone(), &span_usage, &project_id, span, &events).await {
+        match record_span_to_db(db.clone(), &project_id, span, &trace_attributes).await {
             Ok(_) => {
                 let _ = acker.ack().await.map_err(|e| {
                     log::error!("Failed to ack MQ delivery (span): {:?}", e);

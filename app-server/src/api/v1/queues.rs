@@ -17,7 +17,7 @@ use crate::{
     evaluations::utils::LabelingQueueEntry,
     features::{is_feature_enabled, Feature},
     routes::types::ResponseResult,
-    traces::span_attributes::ASSOCIATION_PROPERTIES_PREFIX,
+    traces::{span_attributes::ASSOCIATION_PROPERTIES_PREFIX, utils::{prepare_span_for_recording, record_span_to_db}},
 };
 
 #[derive(Deserialize)]
@@ -114,7 +114,9 @@ async fn push_to_queue(
         )
         .await;
 
-        crate::traces::utils::record_span_to_db(db.clone(), &span_usage, &project_id, &mut span, &Vec::new())
+        let trace_attributes = prepare_span_for_recording(&mut span, &span_usage, &vec![]);
+
+        record_span_to_db(db.clone(), &project_id, &span, &trace_attributes)
             .await?;
         span_ids.push(span.span_id);
     }

@@ -1,9 +1,11 @@
-import { omit } from "lodash";
+import { get, omit } from "lodash";
 import { PlayCircle } from "lucide-react";
 import Link from "next/link";
 import React, { useMemo } from "react";
 import useSWR from "swr";
 
+import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
+import RegisterEvaluatorPopover from "@/components/evaluators/register-evaluator-popover";
 import LabelsContextProvider from "@/components/labels/labels-context";
 import LabelsList from "@/components/labels/labels-list";
 import LabelsTrigger from "@/components/labels/labels-trigger";
@@ -108,7 +110,7 @@ export function SpanView({ spanId }: SpanViewProps) {
               </div>
             </div>
             <LabelsContextProvider spanId={spanId}>
-              <div className="flex gap-2 items-center">
+              <div className="flex gap-2 flex-wrap items-center">
                 <LabelsTrigger />
                 <AddToLabelingQueuePopover
                   data={[
@@ -119,8 +121,10 @@ export function SpanView({ spanId }: SpanViewProps) {
                   ]}
                 />
                 <ExportSpansPopover span={span} />
+                <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
               </div>
               <LabelsList />
+              <EvaluatorScoresList spanId={spanId} />
             </LabelsContextProvider>
           </div>
           <TabsList className="border-none text-sm px-4">

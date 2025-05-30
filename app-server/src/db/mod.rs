@@ -5,6 +5,7 @@ pub mod agent_messages;
 pub mod datapoints;
 pub mod datasets;
 pub mod evaluations;
+pub mod evaluators;
 pub mod events;
 pub mod labeling_queues;
 pub mod labels;
