@@ -1,0 +1,450 @@
+---
+description: When user asks about adding instrumentation with Laminar or creating an eval with Laminar
+globs: 
+alwaysApply: false
+---
+# Laminar AI Observability and Evaluation Platform - Cursor Rules
+
+## Overview
+Laminar is an open-source platform for observability and evaluations of AI applications. It provides comprehensive LLM tracing based on OpenTelemetry, powerful evaluation tools.
+
+### Always Follow These Patterns:
+- Analyze the project structure and initialize Laminar once at application entry point with `Laminar.initialize()`
+- Use environment variables for API keys (`LMNR_PROJECT_API_KEY`)
+- Prefer automatic instrumentation over manual when possible
+- Use `@observe()` decorator for custom function tracing in Python
+- Use `observe()` wrapper for custom function tracing in JavaScript/TypeScript
+- Call `Laminar.shutdown()` in JavaScript/TypeScript before process exit if it is a single script
+- Group related spans into traces using parent spans
+- Use sessions to group related traces for user interactions
+- If needed add user IDs and metadata for comprehensive tracking
+
+## Installation & Setup
+
+### JavaScript/TypeScript
+```bash
+npm add @lmnr-ai/lmnr
+```
+
+### Python
+```bash
+pip install 'lmnr[all]'
+```
+
+## Environment Variables
+```bash
+LMNR_PROJECT_API_KEY=your_project_api_key_here
+```
+
+## Initialization Patterns
+
+### JavaScript/TypeScript - Standard Setup
+```javascript
+import { Laminar } from '@lmnr-ai/lmnr';
+
+Laminar.initialize({
+  projectApiKey: process.env.LMNR_PROJECT_API_KEY
+});
+
+// At application exit if a single script
+await Laminar.shutdown();
+```
+
+### Next.js Setup - instrumentation.ts
+```javascript
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { Laminar } = await import('@lmnr-ai/lmnr');
+    Laminar.initialize({
+      projectApiKey: process.env.LMNR_PROJECT_API_KEY,
+    });
+  }
+}
+```
+
+### Next.js Configuration - next.config.js
+```javascript
+const nextConfig = {
+  experimental: {
+    serverExternalPackages: ['@lmnr-ai/lmnr']
+  }
+};
+module.exports = nextConfig;
+```
+
+### Python Setup
+```python
+from lmnr import Laminar
+import os
+
+Laminar.initialize(
+    project_api_key=os.environ["LMNR_PROJECT_API_KEY"]
+)
+```
+
+### Self-Hosted Configuration
+```javascript
+// JavaScript/TypeScript
+Laminar.initialize({
+  projectApiKey: process.env.LMNR_PROJECT_API_KEY,
+  baseUrl: "http://localhost",
+  httpPort: 8000,
+  grpcPort: 8001
+});
+```
+
+## Instrumentation and Manual Span Creation
+
+### Automatic Instrumentation
+Laminar automatically instruments these libraries when initialized:
+- OpenAI, Anthropic, Google Gemini, Mistral, Groq
+- LangChain, LlamaIndex
+- Browser Use, Stagehand, Playwright
+- Vector databases (Pinecone, Chroma, Qdrant, Weaviate)
+
+### Manual Function Tracing with @observe
+
+#### Python with @observe decorator
+```python
+from lmnr import observe
+
+@observe()
+def my_ai_function(prompt):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
+
+@observe(name="custom_function_name")
+def custom_function(data):
+    return process_data(data)
+```
+
+#### JavaScript with observe wrapper
+```javascript
+import { observe } from '@lmnr-ai/lmnr';
+
+const myAiFunction = observe(
+  { name: 'myAiFunction' },
+  async (prompt) => {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }]
+    });
+    return response.choices[0].message.content;
+  }
+);
+```
+
+### Manual Span Creation
+
+#### Python Manual Spans
+```python
+from lmnr import Laminar
+
+# Context manager (recommended)
+with Laminar.start_as_current_span(
+    name="my_custom_span",
+    input={"user_query": "example input"},
+    span_type="DEFAULT"
+) as span:
+    result = process_data()
+    Laminar.set_span_output(result)
+
+# Manual span management
+span = Laminar.start_span(
+    name="manual_span",
+    input={"data": "input_data"},
+    span_type="LLM"
+)
+try:
+    output = perform_operation()
+    Laminar.set_span_output(output)
+    span.set_attributes({"custom.metric": 42})
+finally:
+    span.end()
+```
+
+#### JavaScript Manual Spans  
+```javascript
+import { Laminar } from '@lmnr-ai/lmnr';
+
+// Async context (recommended)
+await Laminar.withSpan(
+  {
+    name: "my_custom_span",
+    input: { userQuery: "example input" },
+    spanType: "DEFAULT"
+  },
+  async (span) => {
+    const result = await processData();
+    Laminar.setSpanOutput(result);
+    return result;
+  }
+);
+```
+
+## Session Management and User ID Tracking
+
+### Python Session Management
+```python
+from lmnr import Laminar, observe
+
+# Set session globally
+Laminar.set_session(session_id="session_123")
+
+@observe()
+def process_user_request(user_id, request_data):
+    result = handle_request(request_data)
+    return result
+
+Laminar.clear_session()
+
+# Set session with user ID
+Laminar.set_session(
+    session_id="conversation_789",
+    user_id="user_123"
+)
+```
+
+### JavaScript Session Management
+```javascript
+import { Laminar } from "@lmnr-ai/lmnr";
+
+// Using withSession wrapper
+await Laminar.withSession(
+  { 
+    sessionId: "session123",
+    userId: "user456"
+  }, 
+  async () => {
+    const result = await processUserRequest();
+    return result;
+  }
+);
+
+// Set session globally
+Laminar.setSession({
+  sessionId: "conversation_789",
+  userId: "user_123"
+});
+```
+
+## Metadata and Attributes Management
+
+### Adding Metadata to Spans
+
+#### Python Metadata Patterns
+```python
+from lmnr import Laminar, observe
+
+# Add metadata during span creation
+with Laminar.start_as_current_span(
+    name="data_processing",
+    input={"data": "input_value"},
+    metadata={
+        "operation_type": "batch_processing",
+        "user_id": "user_123",
+        "custom.metric": 42.5
+    }
+) as span:
+    result = process_batch_data()
+    Laminar.set_span_output(result)
+
+# Add metadata during execution
+@observe()
+def api_call_with_metadata(endpoint, payload):
+    response = make_api_call(endpoint, payload)
+    
+    current_span = Laminar.get_current_span()
+    if current_span:
+        current_span.set_attributes({
+            "http.status_code": response.status_code,
+            "api.endpoint": endpoint,
+            "response.success": response.ok
+        })
+    
+    return response.json()
+```
+
+#### JavaScript Metadata Patterns
+```javascript
+import { Laminar } from '@lmnr-ai/lmnr';
+
+// Add metadata during span creation
+await Laminar.withSpan(
+  {
+    name: "data_processing",
+    input: { data: "input_value" },
+    metadata: {
+      operationType: "batch_processing",
+      userId: "user_123",
+      "custom.metric": 42.5
+    }
+  },
+  async (span) => {
+    const result = await processBatchData();
+    Laminar.setSpanOutput(result);
+    return result;
+  }
+);
+```
+
+### OpenTelemetry Semantic Conventions
+
+#### LLM Semantic Attributes
+```python
+# Python - OpenTelemetry semantic conventions for LLM calls
+with Laminar.start_as_current_span(
+    name="llm_completion",
+    input={"prompt": "Your prompt here"},
+    span_type="LLM",
+    metadata={
+        "gen_ai.system": "openai",
+        "gen_ai.request.model": "gpt-4o-mini",
+        "gen_ai.usage.input_tokens": 42,
+        "gen_ai.usage.output_tokens": 369,
+        "app.user_id": "user_123"
+    }
+):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "Your prompt"}]
+    )
+    Laminar.set_span_output(response.choices[0].message.content)
+```
+
+## Advanced Instrumentation Patterns
+
+### Selective Instrumentation
+```javascript
+import { Laminar, Instruments } from '@lmnr-ai/lmnr';
+
+Laminar.initialize({
+  projectApiKey: process.env.LMNR_PROJECT_API_KEY,
+  instruments: new Set([Instruments.OPENAI, Instruments.ANTHROPIC])
+});
+```
+
+### Dynamic Tracing Control
+```javascript
+import { withTracingLevel, TracingLevel } from "@lmnr-ai/lmnr";
+
+withTracingLevel(TracingLevel.OFF, () => {
+    performSensitiveOperation();
+});
+
+withTracingLevel(TracingLevel.META_ONLY, () => {
+    performOperationWithoutDataCapture();
+});
+```
+
+## Evaluation Integration
+
+### Basic Evaluation Setup
+```javascript
+import { evaluate } from '@lmnr-ai/lmnr';
+
+const writePoem = (data) => {
+  return `This is a poem about ${data.topic}`;
+};
+
+const containsPoem = (output, target) => {
+  return output.includes(target) ? 1 : 0;
+};
+
+evaluate({
+  data: [{ data: { topic: 'flowers' }, target: 'flowers' }],
+  executor: writePoem,
+  evaluators: { "contains_poem": containsPoem }
+});
+```
+
+## Error Handling & Troubleshooting
+
+### Common Issues
+```javascript
+// Issue: Auto-instrumentation not working
+// Solution: Import modules after Laminar initialization
+import { Laminar } from '@lmnr-ai/lmnr';
+
+Laminar.initialize({
+  projectApiKey: process.env.LMNR_PROJECT_API_KEY,
+  instrumentModules: {
+    openai: await import('openai')
+  }
+});
+```
+
+### Disable Noisy Spans (Node.js)
+```bash
+export OTEL_NODE_DISABLED_INSTRUMENTATIONS="fs,http,dns,undici,express"
+```
+
+## Best Practices
+
+### Do:
+- Initialize Laminar once at application startup
+- Use environment variables for sensitive data
+- Call `Laminar.shutdown()` before Node.js process exit
+- Use `@observe()` for custom function tracing
+- Group related spans into traces with parent spans
+- Use sessions for user interaction grouping
+- Set user IDs for all user-facing operations
+- Add meaningful metadata to spans for better debugging
+- Use automatic instrumentation when possible
+- Set up evaluations for iterative AI development
+
+### Don't:
+- Initialize Laminar multiple times
+- Hardcode API keys in source code
+- Forget to handle JavaScript process exit properly
+- Use `@observe()` on async generators in Python
+- Skip session management for conversational applications
+- Forget to end manually created spans
+- Add sensitive data to span metadata without proper controls
+
+### Performance & Security:
+- Use gRPC transport (default) over HTTP for better performance
+- Store API keys in environment variables
+- Use `TracingLevel.META_ONLY` or `TracingLevel.OFF` when needed
+- Implement proper sampling for high-volume applications
+
+## OpenTelemetry Compatibility
+Configure existing OpenTelemetry exporters to send to Laminar:
+
+```javascript
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
+import { Metadata } from '@grpc/grpc-js';
+
+const metadata = new Metadata();
+metadata.set('authorization', `Bearer ${process.env.LMNR_PROJECT_API_KEY}`);
+
+const exporter = new OTLPTraceExporter({
+  url: "https://api.lmnr.ai:8443/v1/traces",
+  metadata,
+});
+```
+
+## File Structure Examples
+
+### Next.js Project Structure
+```
+nextjs-app/
+├── .env.local                 # LMNR_PROJECT_API_KEY
+├── instrumentation.ts         # Laminar initialization
+├── next.config.js            # serverExternalPackages config
+├── app/api/chat/route.ts     # API route with AI SDK
+└── components/chat-ui.tsx    # UI components
+```
+
+### Python Project Structure
+```
+python-app/
+├── .env                      # LMNR_PROJECT_API_KEY
+├── main.py                   # Entry point with Laminar.initialize()
+├── ai_functions.py           # Functions with @observe decorators
+├── evals/eval_*.py # Custom evaluator functions
+└── requirements.txt          # lmnr and provider dependencies
+```
