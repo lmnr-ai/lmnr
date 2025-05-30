@@ -1,5 +1,5 @@
 ---
-description: When user asks about adding instrumentation with Laminar or creating an eval with Laminar
+description: Use it when user asks about adding instrumentation with Laminar or creating an eval with Laminar
 globs: 
 alwaysApply: false
 ---
@@ -448,3 +448,7 @@ python-app/
 ├── evals/eval_*.py # Custom evaluator functions
 └── requirements.txt          # lmnr and provider dependencies
 ```
+
+---
+## Migrating from Langfuse to Laminar
+
