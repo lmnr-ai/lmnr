@@ -14,9 +14,20 @@ export default async function SignUpPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
-  const callbackUrl: string | undefined = Array.isArray(searchParams?.callbackUrl)
+  let callbackUrl: string | undefined = Array.isArray(searchParams?.callbackUrl)
     ? searchParams.callbackUrl[0]
     : (searchParams?.callbackUrl ?? "/onboarding");
+
+  if (callbackUrl) {
+    try {
+      const url = new URL(callbackUrl);
+      if (url.pathname === "/" || url.pathname === "") {
+        callbackUrl = "/onboarding";
+      }
+    } catch {
+      callbackUrl = "/onboarding";
+    }
+  }
 
   if (session?.user) {
     const [{ count }] = await db
