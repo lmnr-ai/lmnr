@@ -1,5 +1,5 @@
 ---
-description: Use it when user asks about adding instrumentation with Laminar or creating an eval with Laminar
+description: Use it when user asks about adding instrumentation with Laminar, creating an eval with Laminar or migrating from Langfuse to Laminar instrumentation.
 globs: 
 alwaysApply: false
 ---
@@ -199,24 +199,18 @@ def process_user_request(user_id, request_data):
     result = handle_request(request_data)
     return result
 
+# optionally clear session
 Laminar.clear_session()
-
-# Set session with user ID
-Laminar.set_session(
-    session_id="conversation_789",
-    user_id="user_123"
-)
 ```
 
 ### JavaScript Session Management
 ```javascript
-import { Laminar } from "@lmnr-ai/lmnr";
+import { Laminar, observe } from "@lmnr-ai/lmnr";
 
 // Using withSession wrapper
 await Laminar.withSession(
   { 
     sessionId: "session123",
-    userId: "user456"
   }, 
   async () => {
     const result = await processUserRequest();
@@ -224,95 +218,75 @@ await Laminar.withSession(
   }
 );
 
-// Set session globally
-Laminar.setSession({
-  sessionId: "conversation_789",
-  userId: "user_123"
-});
+// Set session ID in the observe wrapper
+await observe(
+  {
+    name: "myFunction",
+    sessionId: "session123"
+  },
+  async () => { ... }
+);
 ```
 
-## Metadata and Attributes Management
+## Trace Metadata Management
 
-### Adding Metadata to Spans
+**Important**: Metadata is key-value information attached to an entire trace, not individual spans.
+
+### Adding Metadata to Traces
+
+#### JavaScript/TypeScript Metadata Patterns
+```javascript
+import { Laminar, observe } from '@lmnr-ai/lmnr';
+
+// Option 1: Using withMetadata wrapper (applies to all traces in scope)
+Laminar.withMetadata({
+    environment: 'production',
+    featureFlag: 'new-algorithm-v2',
+    region: 'us-west'
+}, () => {
+    // All traces created inside this function will have the metadata
+    ...
+});
+```
 
 #### Python Metadata Patterns
 ```python
 from lmnr import Laminar, observe
 
-# Add metadata during span creation
-with Laminar.start_as_current_span(
-    name="data_processing",
-    input={"data": "input_value"},
-    metadata={
-        "operation_type": "batch_processing",
-        "user_id": "user_123",
-        "custom.metric": 42.5
-    }
-) as span:
-    result = process_batch_data()
-    Laminar.set_span_output(result)
-
-# Add metadata during execution
+# Option 1: Using set_metadata within a span context (MUST be within active span)
 @observe()
-def api_call_with_metadata(endpoint, payload):
-    response = make_api_call(endpoint, payload)
+def my_function():
+    # IMPORTANT: set_metadata must be called within an active span context
+    # Here, the @observe decorator creates that context
+    Laminar.set_metadata({
+        'environment': 'production',
+        'feature_flag': 'new-algorithm-v2',
+        'region': 'us-west'
+    })
     
-    current_span = Laminar.get_current_span()
-    if current_span:
-        current_span.set_attributes({
-            "http.status_code": response.status_code,
-            "api.endpoint": endpoint,
-            "response.success": response.ok
+    # rest of the code
+
+# Option 2: Using start_as_current_span
+def process_request():
+    with Laminar.start_as_current_span(name="process_request") as span:
+        # Now we have an active span context
+        Laminar.set_metadata({
+            'environment': 'production',
+            'feature_flag': 'new-algorithm-v2'
         })
-    
-    return response.json()
+        
+        # rest of the code
 ```
 
-#### JavaScript Metadata Patterns
-```javascript
-import { Laminar } from '@lmnr-ai/lmnr';
-
-// Add metadata during span creation
-await Laminar.withSpan(
-  {
-    name: "data_processing",
-    input: { data: "input_value" },
-    metadata: {
-      operationType: "batch_processing",
-      userId: "user_123",
-      "custom.metric": 42.5
-    }
-  },
-  async (span) => {
-    const result = await processBatchData();
-    Laminar.setSpanOutput(result);
-    return result;
-  }
-);
-```
-
-### OpenTelemetry Semantic Conventions
-
-#### LLM Semantic Attributes
+#### ❌ Incorrect Python Usage
 ```python
-# Python - OpenTelemetry semantic conventions for LLM calls
-with Laminar.start_as_current_span(
-    name="llm_completion",
-    input={"prompt": "Your prompt here"},
-    span_type="LLM",
-    metadata={
-        "gen_ai.system": "openai",
-        "gen_ai.request.model": "gpt-4o-mini",
-        "gen_ai.usage.input_tokens": 42,
-        "gen_ai.usage.output_tokens": 369,
-        "app.user_id": "user_123"
-    }
-):
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": "Your prompt"}]
-    )
-    Laminar.set_span_output(response.choices[0].message.content)
+# This won't work because it's outside any span context
+Laminar.set_metadata({'environment': 'production'})
+
+@observe()
+def my_function():
+    # The metadata set above won't be applied here
+    pass
 ```
 
 ## Advanced Instrumentation Patterns
@@ -399,17 +373,11 @@ export OTEL_NODE_DISABLED_INSTRUMENTATIONS="fs,http,dns,undici,express"
 ### Don't:
 - Initialize Laminar multiple times
 - Hardcode API keys in source code
-- Forget to handle JavaScript process exit properly
+- Forget to handle JavaScript process exit properly if it is a single script
 - Use `@observe()` on async generators in Python
 - Skip session management for conversational applications
 - Forget to end manually created spans
 - Add sensitive data to span metadata without proper controls
-
-### Performance & Security:
-- Use gRPC transport (default) over HTTP for better performance
-- Store API keys in environment variables
-- Use `TracingLevel.META_ONLY` or `TracingLevel.OFF` when needed
-- Implement proper sampling for high-volume applications
 
 ## OpenTelemetry Compatibility
 Configure existing OpenTelemetry exporters to send to Laminar:
@@ -607,7 +575,6 @@ Laminar.set_session(
 ```javascript
 const trace = langfuse.trace({
   sessionId: "session_123",
-  userId: "user_456"
 });
 ```
 
@@ -615,8 +582,7 @@ const trace = langfuse.trace({
 ```javascript
 await Laminar.withSession(
   { 
-    sessionId: "session_123",
-    userId: "user_456"
+    sessionId: "session_123"
   }, 
   async () => {
     // Your traced operations here
@@ -626,8 +592,11 @@ await Laminar.withSession(
 
 ### 7. Metadata and Tags Migration
 
+**Langfuse Metadata/Tags → Laminar Trace Metadata**
+
 **Langfuse Metadata:**
 ```python
+# Langfuse attaches metadata to individual spans
 span = trace.span(
     name="my_span",
     metadata={"key": "value"},
@@ -635,17 +604,40 @@ span = trace.span(
 )
 ```
 
-**Laminar Metadata:**
+**Laminar Trace Metadata:**
 ```python
-with Laminar.start_as_current_span(
-    name="my_span",
-    metadata={
-        "key": "value",
-        "tags": ["tag1", "tag2"]  # Tags as metadata
-    }
-) as span:
-    pass
+# Laminar attaches metadata to entire traces
+
+@observe()
+def my_function():
+    Laminar.set_metadata({
+        "key": "value"
+    })
+    return process_data()
 ```
+
+**Langfuse JavaScript:**
+```javascript
+const span = trace.span({
+  name: "my_span",
+  metadata: { key: "value" }
+});
+```
+
+**Laminar JavaScript:**
+```javascript
+Laminar.withMetadata({
+    key: "value"
+}, () => {
+    return processData();
+});
+```
+
+### Key Metadata Migration Points
+
+1. **Scope Change**: Langfuse metadata applies to individual spans; Laminar metadata applies to entire traces
+2. **Python Requirements**: Laminar's `set_metadata()` must be called within an active span context
+3. **No Manual Flushing**: Laminar handles metadata persistence automatically
 
 ### 8. Flushing and Shutdown Migration
 
