@@ -69,10 +69,7 @@ export async function DELETE(
       sql`${evaluatorSpanPaths.spanPath} = ${JSON.stringify(spanPath)}`,
     ];
 
-    await db
-      .delete(evaluatorSpanPaths)
-      .where(and(...conditions))
-      .returning();
+    await db.delete(evaluatorSpanPaths).where(and(...conditions));
 
     return Response.json("Evaluator detached from span path successfully");
   } catch (error) {
