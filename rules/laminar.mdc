@@ -366,7 +366,7 @@ export OTEL_NODE_DISABLED_INSTRUMENTATIONS="fs,http,dns,undici,express"
 - Group related spans into traces with parent spans
 - Use sessions for user interaction grouping
 - Set user IDs for all user-facing operations
-- Add meaningful metadata to spans for better debugging
+- Add meaningful metadata to traces for better debugging
 - Use automatic instrumentation when possible
 - Set up evaluations for iterative AI development
 
@@ -693,4 +693,5 @@ langfuse = Langfuse(
 - [ ] Remove framework-specific callback handlers (auto-instrumented)
 - [ ] Test that automatic instrumentation captures your LLM calls
 - [ ] Verify metadata and user tracking in Laminar dashboard
+
 
