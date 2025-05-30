@@ -76,20 +76,20 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
           (current) =>
             current
               ? [
-                ...current,
-                {
-                  id: newEvaluator.id,
-                  name: newEvaluator.name,
-                  evaluatorType: newEvaluator.evaluatorType,
-                },
-              ]
+                  ...current,
+                  {
+                    id: newEvaluator.id,
+                    name: newEvaluator.name,
+                    evaluatorType: newEvaluator.evaluatorType,
+                  },
+                ]
               : [
-                {
-                  id: newEvaluator.id,
-                  name: newEvaluator.name,
-                  evaluatorType: newEvaluator.evaluatorType,
-                },
-              ],
+                  {
+                    id: newEvaluator.id,
+                    name: newEvaluator.name,
+                    evaluatorType: newEvaluator.evaluatorType,
+                  },
+                ],
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );
       }
@@ -115,7 +115,7 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
       });
 
       if (!response.ok) {
-        throw new Error("Failed to register evaluator");
+        throw new Error("Failed to remove evaluator");
       }
 
       await mutateAttachedEvaluators((current) => (current ? current.filter((e) => e.id !== id) : []), {
