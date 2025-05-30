@@ -427,28 +427,278 @@ const exporter = new OTLPTraceExporter({
 });
 ```
 
-## File Structure Examples
-
-### Next.js Project Structure
-```
-nextjs-app/
-├── .env.local                 # LMNR_PROJECT_API_KEY
-├── instrumentation.ts         # Laminar initialization
-├── next.config.js            # serverExternalPackages config
-├── app/api/chat/route.ts     # API route with AI SDK
-└── components/chat-ui.tsx    # UI components
-```
-
-### Python Project Structure
-```
-python-app/
-├── .env                      # LMNR_PROJECT_API_KEY
-├── main.py                   # Entry point with Laminar.initialize()
-├── ai_functions.py           # Functions with @observe decorators
-├── evals/eval_*.py # Custom evaluator functions
-└── requirements.txt          # lmnr and provider dependencies
-```
-
 ---
 ## Migrating from Langfuse to Laminar
+
+### 1. Installation & Setup Migration
+
+**Langfuse:**
+```bash
+# Python
+pip install langfuse
+
+# JavaScript/TypeScript  
+npm install langfuse
+```
+
+**Laminar:**
+```bash
+# Python
+pip install 'lmnr[all]'
+
+# JavaScript/TypeScript
+npm add @lmnr-ai/lmnr
+```
+
+### 2. Environment Variables Migration
+
+**Langfuse:**
+```bash
+LANGFUSE_SECRET_KEY=your_secret_key
+LANGFUSE_PUBLIC_KEY=your_public_key  
+LANGFUSE_HOST=your_host_url
+```
+
+**Laminar:**
+```bash
+LMNR_PROJECT_API_KEY=your_project_api_key_here
+# Optional for self-hosted
+LMNR_BASE_URL=your_base_url
+```
+
+### 3. Initialization Migration
+
+**Langfuse Python:**
+```python
+from langfuse import Langfuse
+langfuse = Langfuse()
+```
+
+**Laminar Python:**
+```python
+from lmnr import Laminar
+import os
+
+Laminar.initialize(
+    project_api_key=os.environ["LMNR_PROJECT_API_KEY"]
+)
+```
+
+**Langfuse JavaScript:**
+```javascript
+import { Langfuse } from "langfuse";
+const langfuse = new Langfuse();
+```
+
+**Laminar JavaScript:**
+```javascript
+import { Laminar } from '@lmnr-ai/lmnr';
+
+Laminar.initialize({
+  projectApiKey: process.env.LMNR_PROJECT_API_KEY
+});
+```
+
+### 4. Manual Tracing Migration
+
+**Langfuse Traces/Observations → Laminar Spans**
+
+**Langfuse Python:**
+```python
+# Creating trace and spans
+trace = langfuse.trace(name="my_trace")
+span = trace.span(name="my_span", input={"key": "value"})
+span.end(output={"result": "value"})
+```
+
+**Laminar Python:**
+```python
+# Using context manager (recommended)
+with Laminar.start_as_current_span(
+    name="my_span",
+    input={"key": "value"},
+    span_type="DEFAULT"
+) as span:
+    result = {"result": "value"}
+    Laminar.set_span_output(result)
+```
+
+**Langfuse JavaScript:**
+```javascript
+const trace = langfuse.trace({ name: "my_trace" });
+const span = trace.span({
+  name: "my_span",
+  input: { key: "value" }
+});
+span.end({ output: { result: "value" } });
+```
+
+**Laminar JavaScript:**
+```javascript
+await Laminar.withSpan(
+  {
+    name: "my_span",
+    input: { key: "value" },
+    spanType: "DEFAULT"
+  },
+  async (span) => {
+    const result = { result: "value" };
+    Laminar.setSpanOutput(result);
+    return result;
+  }
+);
+```
+
+### 5. Decorator/Wrapper Migration
+
+**Langfuse Python Decorators:**
+```python
+from langfuse.decorators import observe
+
+@observe()
+def my_function(param):
+    return process(param)
+```
+
+**Laminar Python:**
+```python
+from lmnr import observe
+
+@observe()
+def my_function(param):
+    return process(param)
+```
+
+**Langfuse JavaScript:**
+```javascript
+// No built-in decorator, manual tracing required
+```
+
+**Laminar JavaScript:**
+```javascript
+import { observe } from '@lmnr-ai/lmnr';
+
+const myFunction = observe(
+  { name: 'myFunction' },
+  async (param) => {
+    return process(param);
+  }
+);
+```
+
+### 6. Sessions Migration
+
+**Langfuse Sessions:**
+```python
+# Python
+trace = langfuse.trace(session_id="session_123", user_id="user_456")
+```
+
+**Laminar Sessions:**
+```python
+# Python
+Laminar.set_session(
+    session_id="session_123",
+    user_id="user_456"
+)
+```
+
+**Langfuse JavaScript:**
+```javascript
+const trace = langfuse.trace({
+  sessionId: "session_123",
+  userId: "user_456"
+});
+```
+
+**Laminar JavaScript:**
+```javascript
+await Laminar.withSession(
+  { 
+    sessionId: "session_123",
+    userId: "user_456"
+  }, 
+  async () => {
+    // Your traced operations here
+  }
+);
+```
+
+### 7. Metadata and Tags Migration
+
+**Langfuse Metadata:**
+```python
+span = trace.span(
+    name="my_span",
+    metadata={"key": "value"},
+    tags=["tag1", "tag2"]
+)
+```
+
+**Laminar Metadata:**
+```python
+with Laminar.start_as_current_span(
+    name="my_span",
+    metadata={
+        "key": "value",
+        "tags": ["tag1", "tag2"]  # Tags as metadata
+    }
+) as span:
+    pass
+```
+
+### 8. Flushing and Shutdown Migration
+
+**Langfuse Flushing:**
+```python
+# Python
+langfuse.flush()
+langfuse.shutdown()
+```
+
+```javascript
+// JavaScript
+await langfuse.flushAsync();
+await langfuse.shutdownAsync();
+```
+
+### 9. Framework Integration Migration
+
+**Langfuse Framework Integration:**
+- Requires explicit integration setup for each framework
+- Uses framework-specific handlers (e.g., `LangchainCallbackHandler`)
+
+**Laminar Framework Integration:**
+- Automatic instrumentation when initialized
+- No additional setup required for supported frameworks
+- Auto-instruments: OpenAI, Anthropic, LangChain, LlamaIndex, etc.
+
+### 10. Configuration Migration
+
+**Langfuse Batching Config:**
+```python
+langfuse = Langfuse(
+    flush_at=10,
+    flush_interval=1.0
+)
+```
+
+**Laminar Configuration:**
+```python
+# Automatic batching, no manual configuration needed
+# Laminar handles optimal batching internally
+```
+
+### Migration Checklist
+
+- [ ] Replace Langfuse dependencies with Laminar
+- [ ] Update environment variables to use `LMNR_PROJECT_API_KEY`
+- [ ] Replace `Langfuse()` initialization with `Laminar.initialize()`
+- [ ] Convert manual trace/span creation to Laminar span patterns
+- [ ] Replace Langfuse decorators with `@observe()` 
+- [ ] Update session management to use Laminar session APIs
+- [ ] Remove manual flushing calls (handled automatically)
+- [ ] Remove framework-specific callback handlers (auto-instrumented)
+- [ ] Test that automatic instrumentation captures your LLM calls
+- [ ] Verify metadata and user tracking in Laminar dashboard
 
