@@ -101,7 +101,6 @@ export const manageWorkspaceSubscriptionEvent = async ({
   // If the workspace is upgrading from the free tier, reset the usage
   if (currentTier.tierId === 1) {
     await db.update(workspaceUsage).set({
-      prevSpanCount: workspaceUsage.spanCount,
       spanCountSinceReset: 0,
       resetTime: sql`now()`,
       resetReason: 'subscription_change'

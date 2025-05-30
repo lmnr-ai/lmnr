@@ -64,10 +64,17 @@ pub struct CHSpan {
     pub path: String,
     pub input: String,
     pub output: String,
+    #[serde(default)]
+    pub size_bytes: u64,
 }
 
 impl CHSpan {
-    pub fn from_db_span(span: &Span, usage: SpanUsage, project_id: Uuid) -> Self {
+    pub fn from_db_span(
+        span: &Span,
+        usage: SpanUsage,
+        project_id: Uuid,
+        size_bytes: usize,
+    ) -> Self {
         let span_attributes = span.get_attributes();
 
         let span_input_string = json_value_to_string(
@@ -110,6 +117,7 @@ impl CHSpan {
                 .unwrap_or(String::from("<null>")),
             input: span_input_string,
             output: span_output_string,
+            size_bytes: size_bytes as u64,
         }
     }
 }

@@ -4,12 +4,22 @@ use utils::prepare_span_for_recording;
 use uuid::Uuid;
 
 use crate::{
-    cache::Cache, ch::{self, spans::CHSpan}, db::{
-        evaluators::get_evaluators_by_path, events::Event, spans::Span, stats::{add_spans_to_project_usage_stats, increment_project_data_ingested}, DB
-    }, evaluators::push_to_evaluators_queue, mq::{MessageQueue, MessageQueueAcker}, traces::{
+    cache::Cache,
+    ch::{self, spans::CHSpan},
+    db::{
+        DB,
+        evaluators::get_evaluators_by_path,
+        events::Event,
+        spans::Span,
+        stats::{add_spans_to_project_usage_stats, increment_project_spans_bytes_ingested},
+    },
+    evaluators::push_to_evaluators_queue,
+    mq::{MessageQueue, MessageQueueAcker},
+    traces::{
         events::record_events,
         utils::{get_llm_usage_for_span, record_labels_to_db_and_ch, record_span_to_db},
-    }, utils::estimate_json_size
+    },
+    utils::estimate_json_size,
 };
 
 pub mod attributes;
@@ -47,7 +57,7 @@ pub async fn process_spans_and_events(
             Ok(evaluators) => {
                 if !evaluators.is_empty() {
                     let span_output = span.output.clone().unwrap_or(serde_json::Value::Null);
-                    
+
                     for evaluator in evaluators {
                         if let Err(e) = push_to_evaluators_queue(
                             span.span_id,
@@ -55,7 +65,9 @@ pub async fn process_spans_and_events(
                             evaluator.id,
                             span_output.clone(),
                             evaluators_queue.clone(),
-                        ).await {
+                        )
+                        .await
+                        {
                             log::error!(
                                 "Failed to push evaluator {} to queue for span {}: {:?}",
                                 evaluator.id,
@@ -116,7 +128,7 @@ pub async fn process_spans_and_events(
         }
     };
 
-    if let Err(e) = increment_project_data_ingested(
+    if let Err(e) = increment_project_spans_bytes_ingested(
         &db.pool,
         &project_id,
         recorded_span_bytes + recorded_events_bytes,
@@ -137,7 +149,7 @@ pub async fn process_spans_and_events(
         );
     }
 
-    let ch_span = CHSpan::from_db_span(span, span_usage, *project_id);
+    let ch_span = CHSpan::from_db_span(span, span_usage, *project_id, recorded_span_bytes);
 
     if let Err(e) = ch::spans::insert_span(clickhouse.clone(), &ch_span).await {
         log::error!(

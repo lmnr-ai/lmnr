@@ -15,21 +15,6 @@ pub struct Workspace {
     pub is_free_tier: bool,
 }
 
-// create an error type with multiple variants
-#[derive(thiserror::Error, Debug)]
-pub enum WorkspaceError {
-    #[error("Not allowed")]
-    NotAllowed,
-    #[error("{0}")]
-    UnhandledError(#[from] anyhow::Error),
-    #[error("Hit limit of maximum {entity:?}: {limit:?}, current usage: {usage:?}")]
-    LimitReached {
-        entity: String,
-        limit: i64,
-        usage: i64,
-    },
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceWithProjects {
@@ -89,29 +74,6 @@ pub async fn get_all_workspaces_of_user(
     Ok(workspaces_with_projects)
 }
 
-pub async fn get_owned_workspaces(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<Vec<Workspace>> {
-    let workspaces = sqlx::query_as::<_, Workspace>(
-        "SELECT
-            workspaces.id,
-            workspaces.name,
-            subscription_tiers.name as tier_name,
-            tier_id = 1 as is_free_tier
-        FROM
-            workspaces
-            JOIN subscription_tiers on workspaces.tier_id = subscription_tiers.id
-        WHERE workspaces.id IN (
-            SELECT workspace_id
-            FROM members_of_workspaces
-            WHERE user_id = $1 AND member_role = 'owner'::workspace_role
-        )",
-    )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(workspaces)
-}
-
 pub async fn create_new_workspace(
     pool: &PgPool,
     id: Uuid,
@@ -145,25 +107,6 @@ pub async fn add_owner_to_workspace(
     .bind(workspace_id)
     .execute(pool)
     .await?;
-
-    Ok(())
-}
-
-pub async fn add_user_to_workspace_by_email(
-    pool: &PgPool,
-    user_email: &str,
-    workspace_id: &Uuid,
-) -> anyhow::Result<()> {
-    sqlx::query(
-        "INSERT INTO members_of_workspaces (user_id, workspace_id, member_role)
-        SELECT id, $2 as workspace_id, 'member'::workspace_role FROM users
-        WHERE users.email = $1",
-    )
-    .bind(user_email)
-    .bind(workspace_id)
-    .execute(pool)
-    .await
-    .map_err(|e| WorkspaceError::UnhandledError(e.into()))?;
 
     Ok(())
 }

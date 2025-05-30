@@ -1,16 +1,9 @@
-use actix_web::{get, post, web, HttpResponse};
+use actix_web::{HttpResponse, get, post, web};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::error::workspace_error_to_http_error;
 use crate::{
-    db::{
-        self, stats,
-        user::User,
-        workspace::{WorkspaceError, WorkspaceWithProjects},
-        DB,
-    },
-    features::{is_feature_enabled, Feature},
+    db::{self, DB, user::User, workspace::WorkspaceWithProjects},
     routes::ResponseResult,
 };
 
@@ -27,11 +20,6 @@ async fn get_workspace(path: web::Path<Uuid>, db: web::Data<DB>) -> ResponseResu
     let workspace = db::workspace::get_workspace(&db.pool, &workspace_id).await?;
 
     Ok(HttpResponse::Ok().json(workspace))
-}
-
-#[derive(Deserialize)]
-struct AddUserRequest {
-    email: String,
 }
 
 #[derive(Deserialize)]
@@ -80,40 +68,4 @@ async fn create_workspace(
     };
 
     Ok(HttpResponse::Ok().json(response))
-}
-
-#[post("{workspace_id}/users")]
-async fn add_user_to_workspace(
-    db: web::Data<DB>,
-    req_user: User,
-    path: web::Path<Uuid>,
-    req: web::Json<AddUserRequest>,
-) -> ResponseResult {
-    let workspace_id = path.into_inner();
-    let email = req.into_inner().email;
-
-    if is_feature_enabled(Feature::UsageLimit) {
-        let limits = stats::get_workspace_stats(&db.pool, &workspace_id).await?;
-        let user_limit = limits.members_limit;
-        let num_users = limits.members;
-
-        if num_users >= user_limit {
-            return Err(workspace_error_to_http_error(
-                WorkspaceError::LimitReached {
-                    entity: "users".to_string(),
-                    limit: user_limit,
-                    usage: num_users,
-                },
-            ));
-        }
-    }
-
-    let owned_workspaces = db::workspace::get_owned_workspaces(&db.pool, &req_user.id).await?;
-    if !owned_workspaces.iter().any(|w| w.id == workspace_id) {
-        return Err(workspace_error_to_http_error(WorkspaceError::NotAllowed));
-    }
-
-    db::workspace::add_user_to_workspace_by_email(&db.pool, &email, &workspace_id).await?;
-
-    Ok(HttpResponse::Ok().finish())
 }

@@ -5,11 +5,11 @@ use sqlx::PgPool;
 use crate::{
     api::utils::get_api_key_from_raw_value,
     cache::Cache,
-    db::{project_api_keys::DBProjectApiKey, DB},
-    features::{is_feature_enabled, Feature},
+    db::{DB, project_api_keys::DBProjectApiKey},
+    features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
-        trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
+        ExportTraceServiceRequest, ExportTraceServiceResponse, trace_service_server::TraceService,
     },
 };
 use tonic::{Request, Response, Status};
@@ -52,9 +52,8 @@ impl TraceService for ProcessTracesService {
                 Status::internal("Failed to get workspace limits")
             })?;
 
-            // TODO: do the same for events
-            if limits_exceeded.spans {
-                return Err(Status::resource_exhausted("Workspace span limit exceeded"));
+            if limits_exceeded.bytes_ingested {
+                return Err(Status::resource_exhausted("Workspace data limit exceeded"));
             }
         }
 

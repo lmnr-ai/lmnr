@@ -1,6 +1,6 @@
-use actix_web::{get, web, HttpResponse};
+use actix_web::{HttpResponse, get, web};
 
-use crate::db::{self, user::User, DB};
+use crate::db::{self, DB};
 
 use super::ResponseResult;
 
@@ -11,11 +11,5 @@ pub async fn get_workspace_stats(
 ) -> ResponseResult {
     let workspace_id = workspace_id.into_inner();
     let stats = db::stats::get_workspace_stats(&db.pool, &workspace_id).await?;
-    Ok(HttpResponse::Ok().json(stats))
-}
-
-#[get("workspace/{workspace_id}/storage")]
-pub async fn get_workspace_storage_stats(user: User, db: web::Data<DB>) -> ResponseResult {
-    let stats = db::stats::get_workspace_storage_stats(&db.pool, &user.id).await?;
     Ok(HttpResponse::Ok().json(stats))
 }

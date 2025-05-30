@@ -2,7 +2,7 @@ use clickhouse::Row;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::api::v1::browser_sessions::EventBatch;
+use crate::{api::v1::browser_sessions::EventBatch, utils::estimate_json_size};
 
 #[derive(Row, Serialize)]
 pub struct BrowserEventCHRow {
@@ -17,13 +17,15 @@ pub struct BrowserEventCHRow {
     pub data: Vec<u8>,
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
+    #[serde(default)]
+    pub size_bytes: u64,
 }
 
 pub async fn insert_browser_events(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     event_batch: &EventBatch,
-) -> Result<(), clickhouse::error::Error> {
+) -> Result<usize, clickhouse::error::Error> {
     let mut insert = clickhouse
         .insert("browser_session_events")
         .map_err(|e| {
@@ -39,7 +41,10 @@ pub async fn insert_browser_events(
         .with_option("async_insert", "1")
         .with_option("wait_for_async_insert", "1");
 
+    let mut total_size_bytes = 0;
+
     for event in event_batch.events.iter() {
+        let size_bytes = estimate_json_size(&serde_json::to_value(event).unwrap());
         insert
             .write(&BrowserEventCHRow {
                 event_id: Uuid::new_v4(),
@@ -49,6 +54,7 @@ pub async fn insert_browser_events(
                 event_type: event.event_type,
                 data: event.data.clone(),
                 project_id: project_id,
+                size_bytes: size_bytes as u64,
             })
             .await
             .map_err(|e| {
@@ -58,6 +64,8 @@ pub async fn insert_browser_events(
                 );
                 e
             })?;
+
+        total_size_bytes += size_bytes;
     }
 
     insert.end().await.map_err(|e| {
@@ -66,5 +74,7 @@ pub async fn insert_browser_events(
             e
         );
         e
-    })
+    })?;
+
+    Ok(total_size_bytes)
 }

@@ -9,9 +9,8 @@ use crate::{
         BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY, EventBatch,
     },
     ch::browser_events::insert_browser_events,
-    db::{DB, stats::increment_project_data_ingested},
+    db::{DB, stats::increment_project_browser_events_bytes_ingested},
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
-    utils::estimate_json_size,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -73,12 +72,12 @@ async fn inner_process_browser_events(
         }
 
         let insert_browser_events = || async {
-            insert_browser_events(&clickhouse, project_id, &batch).await.map_err(|e| {
+            let size_bytes = insert_browser_events(&clickhouse, project_id, &batch).await.map_err(|e| {
                 log::error!("Failed attempt to insert browser events. Will retry according to backoff policy. Error: {:?}", e);
                 backoff::Error::transient(e)
-            })?;
+                })?;
 
-            Ok::<(), backoff::Error<clickhouse::error::Error>>(())
+            Ok::<usize, backoff::Error<clickhouse::error::Error>>(size_bytes)
         };
         // Starting with 1 second delay, delay multiplies by random factor between 1 and 2
         // up to 1 minute and until the total elapsed time is 1 minute
@@ -92,13 +91,18 @@ async fn inner_process_browser_events(
             .build();
 
         match backoff::future::retry(exponential_backoff, insert_browser_events).await {
-            Ok(_) => {
-                let recorded_bytes =
-                    estimate_json_size(&serde_json::to_value(&batch.events).unwrap_or_default());
-                if let Err(e) =
-                    increment_project_data_ingested(&db.pool, &project_id, recorded_bytes).await
+            Ok(recorded_bytes) => {
+                if let Err(e) = increment_project_browser_events_bytes_ingested(
+                    &db.pool,
+                    &project_id,
+                    recorded_bytes,
+                )
+                .await
                 {
-                    log::error!("Failed to increment project data ingested: {:?}", e);
+                    log::error!(
+                        "Failed to increment project browser events bytes ingested: {:?}",
+                        e
+                    );
                 }
                 if let Err(e) = acker.ack().await {
                     log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
