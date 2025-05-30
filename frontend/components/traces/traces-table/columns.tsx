@@ -192,6 +192,12 @@ export const columns: ColumnDef<Trace, any>[] = [
     ),
     size: 100,
   },
+  {
+    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    header: "User ID",
+    accessorKey: "userId",
+    id: "user_id",
+  },
 ];
 
 export const filters: ColumnFilter[] = [
@@ -254,5 +260,10 @@ export const filters: ColumnFilter[] = [
     name: "Labels",
     key: "labels",
     dataType: "json",
+  },
+  {
+    name: "User ID",
+    key: "user_id",
+    dataType: "string",
   },
 ];

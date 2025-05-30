@@ -146,6 +146,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     topSpanType: null,
     topSpanPath: null,
     status: row.status,
+    userId: row.user_id,
   });
 
   const getTraceTopSpanInfo = useCallback(
