@@ -5,7 +5,6 @@ import React, { memo } from "react";
 import useSWR from "swr";
 
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { EvaluatorScore } from "@/lib/evaluators/types";
 import { swrFetcher } from "@/lib/utils";
@@ -17,20 +16,10 @@ interface EvaluatorScoresListProps {
 const EvaluatorScoresList = ({ spanId }: EvaluatorScoresListProps) => {
   const { projectId } = useParams();
 
-  const { data: scores, isLoading } = useSWR<(EvaluatorScore & { evaluatorName: string })[]>(
+  const { data: scores } = useSWR<(EvaluatorScore & { evaluatorName: string })[]>(
     `/api/projects/${projectId}/spans/${spanId}/evaluator-scores`,
   swrFetcher
   );
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-wrap w-fit items-center gap-2">
-        <Skeleton className="h-5 w-12 rounded-3xl" />
-        <Skeleton className="h-5 w-12 rounded-3xl" />
-        <Skeleton className="h-5 w-12 rounded-3xl" />
-      </div>
-    );
-  }
 
   if (!scores?.length) return null;
 

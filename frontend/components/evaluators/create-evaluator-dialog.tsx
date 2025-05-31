@@ -18,7 +18,6 @@ import { IconPython } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PaginatedResponse } from "@/lib/types";
@@ -216,28 +215,28 @@ export default function CreateEvaluatorDialog({
               {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="type">Type</Label>
-              <Controller
-                name="evaluatorType"
-                control={control}
-                render={({ field }) => (
-                  <Select disabled onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select evaluator type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EVALUATOR_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.evaluatorType && <p className="text-sm text-red-500">{errors.evaluatorType.message}</p>}
-            </div>
+            {/*<div className="grid gap-2">*/}
+            {/*  <Label htmlFor="type">Type</Label>*/}
+            {/*  <Controller*/}
+            {/*    name="evaluatorType"*/}
+            {/*    control={control}*/}
+            {/*    render={({ field }) => (*/}
+            {/*      <Select disabled onValueChange={field.onChange} defaultValue={field.value}>*/}
+            {/*        <SelectTrigger>*/}
+            {/*          <SelectValue placeholder="Select evaluator type" />*/}
+            {/*        </SelectTrigger>*/}
+            {/*        <SelectContent>*/}
+            {/*          {EVALUATOR_TYPES.map((type) => (*/}
+            {/*            <SelectItem key={type.value} value={type.value}>*/}
+            {/*              {type.label}*/}
+            {/*            </SelectItem>*/}
+            {/*          ))}*/}
+            {/*        </SelectContent>*/}
+            {/*      </Select>*/}
+            {/*    )}*/}
+            {/*  />*/}
+            {/*  {errors.evaluatorType && <p className="text-sm text-red-500">{errors.evaluatorType.message}</p>}*/}
+            {/*</div>*/}
 
             <div className="grid gap-2">
               <Label className="flex gap-1 items-center" htmlFor="definition">
