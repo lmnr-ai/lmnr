@@ -78,39 +78,39 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
 
           return spanPathEvaluators
             ? [
-              ...spanPathEvaluators,
-              {
-                id: newEvaluator.id,
-                name: newEvaluator.name,
-                evaluatorType: newEvaluator.evaluatorType,
-              },
-            ]
-            : [
-              {
-                id: newEvaluator.id,
-                name: newEvaluator.name,
-                evaluatorType: newEvaluator.evaluatorType,
-              },
-            ];
-        },
-        {
-          optimisticData: (current) =>
-            current
-              ? [
-                ...current,
+                ...spanPathEvaluators,
                 {
                   id: newEvaluator.id,
                   name: newEvaluator.name,
                   evaluatorType: newEvaluator.evaluatorType,
                 },
               ]
-              : [
+            : [
                 {
                   id: newEvaluator.id,
                   name: newEvaluator.name,
                   evaluatorType: newEvaluator.evaluatorType,
                 },
-              ],
+              ];
+        },
+        {
+          optimisticData: (current) =>
+            current
+              ? [
+                  ...current,
+                  {
+                    id: newEvaluator.id,
+                    name: newEvaluator.name,
+                    evaluatorType: newEvaluator.evaluatorType,
+                  },
+                ]
+              : [
+                  {
+                    id: newEvaluator.id,
+                    name: newEvaluator.name,
+                    evaluatorType: newEvaluator.evaluatorType,
+                  },
+                ],
           rollbackOnError: true,
           revalidate: false,
         }
@@ -160,7 +160,7 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
   };
 
   return (
-    <DropdownMenu onOpenChange={() => {}}>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {children || (
           <Badge className="cursor-pointer min-w-8" variant="secondary">
