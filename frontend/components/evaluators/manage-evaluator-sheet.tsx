@@ -229,6 +229,7 @@ export default function ManageEvaluatorSheet({
                 control={control}
                 render={({ field }) => (
                   <CodeHighlighter
+                    defaultMode="json"
                     placeholder='"This response is very relevant, accurate, and helpful"'
                     className="min-h-20"
                     value={field.value}
