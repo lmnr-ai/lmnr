@@ -1,6 +1,6 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, Row } from "@tanstack/react-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import useSWR from "swr";
@@ -16,6 +16,7 @@ import { swrFetcher } from "@/lib/utils";
 
 interface EvaluatorsTableProps {
   projectId: string;
+  onRowClick: (row: Row<Evaluator>) => void;
 }
 
 const columns: ColumnDef<Evaluator>[] = [
@@ -36,7 +37,7 @@ const columns: ColumnDef<Evaluator>[] = [
   },
 ];
 
-export default function EvaluatorsTable({ projectId }: EvaluatorsTableProps) {
+export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -104,6 +105,7 @@ export default function EvaluatorsTable({ projectId }: EvaluatorsTableProps) {
         data={data?.items}
         getRowId={(row) => row.id}
         paginated
+        onRowClick={onRowClick}
         manualPagination
         pageCount={Math.ceil((data?.totalCount || 0) / page.size)}
         defaultPageSize={page.size}

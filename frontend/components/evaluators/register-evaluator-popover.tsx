@@ -1,5 +1,5 @@
 import { includes, isEmpty, map, partition } from "lodash";
-import { Gauge } from "lucide-react";
+import { ArrowDown, SquareFunction } from "lucide-react";
 import { useParams } from "next/navigation";
 import { ReactNode, useMemo } from "react";
 import useSWR from "swr";
@@ -11,6 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -56,43 +57,64 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
 
   const handleRegisterEvaluator = async (id: string) => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/evaluators/${id}/span-path`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          spanPath,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to register evaluator");
-      }
-
       const newEvaluator = data?.items.find((e) => e.id === id);
-      if (newEvaluator) {
-        await mutateAttachedEvaluators(
-          (current) =>
+      if (!newEvaluator) return;
+
+      await mutateAttachedEvaluators(
+        async () => {
+          const response = await fetch(`/api/projects/${projectId}/evaluators/${id}/span-path`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              spanPath,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to register evaluator");
+          }
+
+          return spanPathEvaluators
+            ? [
+              ...spanPathEvaluators,
+              {
+                id: newEvaluator.id,
+                name: newEvaluator.name,
+                evaluatorType: newEvaluator.evaluatorType,
+              },
+            ]
+            : [
+              {
+                id: newEvaluator.id,
+                name: newEvaluator.name,
+                evaluatorType: newEvaluator.evaluatorType,
+              },
+            ];
+        },
+        {
+          optimisticData: (current) =>
             current
               ? [
-                  ...current,
-                  {
-                    id: newEvaluator.id,
-                    name: newEvaluator.name,
-                    evaluatorType: newEvaluator.evaluatorType,
-                  },
-                ]
+                ...current,
+                {
+                  id: newEvaluator.id,
+                  name: newEvaluator.name,
+                  evaluatorType: newEvaluator.evaluatorType,
+                },
+              ]
               : [
-                  {
-                    id: newEvaluator.id,
-                    name: newEvaluator.name,
-                    evaluatorType: newEvaluator.evaluatorType,
-                  },
-                ],
-          { revalidate: false, populateCache: true, rollbackOnError: true }
-        );
-      }
+                {
+                  id: newEvaluator.id,
+                  name: newEvaluator.name,
+                  evaluatorType: newEvaluator.evaluatorType,
+                },
+              ],
+          rollbackOnError: true,
+          revalidate: false,
+        }
+      );
     } catch (e) {
       toast({
         title: "Error",
@@ -104,25 +126,30 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
 
   const handleUnregisterEvaluator = async (id: string) => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/evaluators/${id}/span-path`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
+      await mutateAttachedEvaluators(
+        async () => {
+          const response = await fetch(`/api/projects/${projectId}/evaluators/${id}/span-path`, {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              spanPath,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to remove evaluator");
+          }
+
+          return spanPathEvaluators ? spanPathEvaluators.filter((e) => e.id !== id) : [];
         },
-        body: JSON.stringify({
-          spanPath,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to remove evaluator");
-      }
-
-      await mutateAttachedEvaluators((current) => (current ? current.filter((e) => e.id !== id) : []), {
-        revalidate: false,
-        populateCache: true,
-        rollbackOnError: true,
-      });
+        {
+          optimisticData: (current) => (current ? current.filter((e) => e.id !== id) : []),
+          rollbackOnError: true,
+          revalidate: false,
+        }
+      );
     } catch (e) {
       toast({
         title: "Error",
@@ -137,13 +164,30 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
       <DropdownMenuTrigger asChild>
         {children || (
           <Badge className="cursor-pointer min-w-8" variant="secondary">
-            <Gauge className="size-3 min-w-3 mr-2" />
+            <SquareFunction className="size-3 min-w-3 mr-2" />
             <span className="text-xs truncate min-w-0 block">Evaluators</span>
           </Badge>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="bottom" align="start">
-        <EvaluatorsList checked evaluators={attachedEvaluators} onCheck={handleUnregisterEvaluator} />
+      <DropdownMenuContent side="bottom" align="end">
+        <DropdownMenuLabel className="text-xs p-1">
+          <div className="space-y-0.5">
+            {spanPath.map((path, index) => (
+              <div key={`${path}-${index}`} className="flex items-center">
+                <ArrowDown className="size-3 mr-1 text-muted-foreground" />
+                <span className="text-[10px] text-secondary-foreground">{path}</span>
+              </div>
+            ))}
+          </div>
+        </DropdownMenuLabel>
+
+        {(!isEmpty(attachedEvaluators) || !isEmpty(unattachedEvaluators)) && <DropdownMenuSeparator />}
+        <EvaluatorsList
+          label="Registered evaluators"
+          checked
+          evaluators={attachedEvaluators}
+          onCheck={handleUnregisterEvaluator}
+        />
         {!isEmpty(attachedEvaluators) && !isEmpty(unattachedEvaluators) && <DropdownMenuSeparator />}
         <EvaluatorsList evaluators={unattachedEvaluators} onCheck={handleRegisterEvaluator} />
       </DropdownMenuContent>
@@ -157,27 +201,32 @@ const EvaluatorsList = ({
   evaluators,
   checked,
   onCheck,
+  label,
 }: {
   evaluators: Evaluator[];
   checked?: boolean;
   onCheck: (id: string) => void;
+  label?: string;
 }) => {
   if (isEmpty(evaluators)) {
     return null;
   }
 
   return (
-    <DropdownMenuGroup>
-      {evaluators.map((evaluator) => (
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={evaluator.id}>
-          <Checkbox
-            checked={checked}
-            onCheckedChange={() => onCheck(evaluator.id)}
-            className="border border-secondary mr-2"
-          />
-          <span className="ml-1.5">{evaluator.name}</span>
-        </DropdownMenuItem>
-      ))}
-    </DropdownMenuGroup>
+    <>
+      {label && <DropdownMenuLabel className="text-xs text-secondary-foreground p-1">{label}</DropdownMenuLabel>}
+      <DropdownMenuGroup>
+        {evaluators.map((evaluator) => (
+          <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={evaluator.id}>
+            <Checkbox
+              checked={checked}
+              onCheckedChange={() => onCheck(evaluator.id)}
+              className="border border-secondary mr-2"
+            />
+            <span className="ml-1.5">{evaluator.name}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuGroup>
+    </>
   );
 };

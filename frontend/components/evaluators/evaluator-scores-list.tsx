@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Gauge } from "lucide-react";
+import { SquareFunction } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { memo } from "react";
 import useSWR from "swr";
@@ -29,7 +29,7 @@ const EvaluatorScoresList = ({ spanId }: EvaluatorScoresListProps) => {
         <Tooltip key={score.id}>
           <TooltipTrigger>
             <Badge className="flex gap-1 items-center rounded-3xl" variant="outline">
-              <Gauge className="w-3 h-3" />
+              <SquareFunction className="w-3 h-3" />
               <span className="text-secondary-foreground">{score.evaluatorName}</span>
               <span>{score.score}</span>
             </Badge>
