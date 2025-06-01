@@ -318,6 +318,11 @@ export default function Pricing() {
   // Add FAQ data
   const faqItems = [
     {
+      id: 'data-calculation',
+      question: 'How is data usage calculated?',
+      answer: 'Data usage is calculated from text and image data processed in traces, evaluations, and datasets. Note that pricing calculator does not take into account stored images and is an approximation of the total data usage.'
+    },
+    {
       id: 'span',
       question: 'What is a span?',
       answer: 'A span represents a unit of work or operation in your application. In the context of tracing, single LLM call or function tool call is a span. In case of evaluations, executor run and evaluator run are spans.'
@@ -326,7 +331,7 @@ export default function Pricing() {
       id: 'agent-steps',
       question: 'What is an agent step?',
       answer: 'An agent step is a single step of an execution of the Index browser agent when it is called via API.'
-    }
+    },
   ];
 
   return (
