@@ -337,7 +337,7 @@ export default function Pricing() {
   return (
     <div className="flex flex-col items-center mt-32 w-full h-full">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 md:p-16">
-        <div className="p-8 border flex flex-col space-y-4">
+        <div className="p-8 border flex flex-col justify-between">
           <PricingCard
             className="text-secondary-foreground"
             title="Free"
@@ -356,7 +356,7 @@ export default function Pricing() {
             </Button>
           </Link>
         </div>
-        <div className="p-8 border flex flex-col space-y-4">
+        <div className="p-8 border flex flex-col justify-between">
           <PricingCard
             className="text-secondary-foreground"
             title="Hobby"
@@ -381,7 +381,7 @@ export default function Pricing() {
             </Button>
           </Link>
         </div>
-        <div className="h-full w-full p-8 flex flex-col z-20 border border-primary bg-primary">
+        <div className="h-full w-full p-8 flex flex-col justify-between z-20 border border-primary bg-primary">
           <PricingCard
             className="text-white z-20"
             title="Pro"
@@ -409,7 +409,7 @@ export default function Pricing() {
             </Button>
           </Link>
         </div>
-        <div className="p-8 border flex flex-col space-y-4">
+        <div className="p-8 border flex flex-col justify-between">
           <PricingCard
             className="text-secondary-foreground"
             title="Enterprise"
