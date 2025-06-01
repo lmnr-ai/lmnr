@@ -2,7 +2,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Row } from "@tanstack/react-table";
 import { get } from "lodash";
-import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
@@ -66,10 +65,7 @@ const Evaluators = () => {
         <div className="flex justify-between items-center p-4">
           <h1 className="text-2xl font-semibold">Evaluators</h1>
           <ManageEvaluatorSheet open={open} setOpen={setOpen}>
-            <Button variant="outline">
-              <Plus size={16} className="mr-2" />
-              New evaluator
-            </Button>
+            <Button variant="outline">New evaluator</Button>
           </ManageEvaluatorSheet>
         </div>
         <EvaluatorsTable onRowClick={handleRowClick} projectId={projectId as string} />
