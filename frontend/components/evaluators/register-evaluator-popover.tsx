@@ -78,39 +78,39 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
 
           return spanPathEvaluators
             ? [
-                ...spanPathEvaluators,
+              ...spanPathEvaluators,
+              {
+                id: newEvaluator.id,
+                name: newEvaluator.name,
+                evaluatorType: newEvaluator.evaluatorType,
+              },
+            ]
+            : [
+              {
+                id: newEvaluator.id,
+                name: newEvaluator.name,
+                evaluatorType: newEvaluator.evaluatorType,
+              },
+            ];
+        },
+        {
+          optimisticData: (current) =>
+            current
+              ? [
+                ...current,
                 {
                   id: newEvaluator.id,
                   name: newEvaluator.name,
                   evaluatorType: newEvaluator.evaluatorType,
                 },
               ]
-            : [
+              : [
                 {
                   id: newEvaluator.id,
                   name: newEvaluator.name,
                   evaluatorType: newEvaluator.evaluatorType,
                 },
-              ];
-        },
-        {
-          optimisticData: (current) =>
-            current
-              ? [
-                  ...current,
-                  {
-                    id: newEvaluator.id,
-                    name: newEvaluator.name,
-                    evaluatorType: newEvaluator.evaluatorType,
-                  },
-                ]
-              : [
-                  {
-                    id: newEvaluator.id,
-                    name: newEvaluator.name,
-                    evaluatorType: newEvaluator.evaluatorType,
-                  },
-                ],
+              ],
           rollbackOnError: true,
           revalidate: false,
         }
