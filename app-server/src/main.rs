@@ -515,7 +515,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::metrics::process_metrics)
-                                .service(api::v1::queues::push_to_queue)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
                                 .service(api::v1::evals::save_eval_datapoints)
@@ -528,14 +527,12 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(auth.clone())
                                 .service(routes::workspace::get_all_workspaces_of_user)
                                 .service(routes::workspace::get_workspace)
-                                .service(routes::workspace::create_workspace)
-                                .service(routes::workspace::add_user_to_workspace),
+                                .service(routes::workspace::create_workspace),
                         )
                         .service(
                             web::scope("/api/v1/limits")
                                 .wrap(auth.clone())
-                                .service(routes::limits::get_workspace_stats)
-                                .service(routes::limits::get_workspace_storage_stats),
+                                .service(routes::limits::get_workspace_stats),
                         )
                         .service(
                             // auth on path projects/{project_id} is handled by middleware on Next.js

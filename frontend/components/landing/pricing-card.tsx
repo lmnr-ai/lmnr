@@ -33,10 +33,10 @@ export default function PricingCard({
           <div key={index}>
             <div key={index} className="flex items-center">
               <Check className="mr-4" size={16} strokeWidth={3} />
-              <div className={cn("flex flex-col text-lg", featureClassName)}>{feature}</div>
+              <div className={cn("flex flex-col text-white", featureClassName)}>{feature}</div>
             </div>
             {subfeatures && subfeatures[index] && (
-              <div className={cn("text-sm ml-9", subfeatureClassName)}>{subfeatures[index]}</div>
+              <div className={cn("text-sm ml-8", subfeatureClassName)}>{subfeatures[index]}</div>
             )}
           </div>
         ))}

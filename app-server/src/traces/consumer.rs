@@ -90,7 +90,7 @@ async fn inner_process_queue_spans(
                 }
                 // ignore the span if the limit is exceeded
                 Ok(limits_exceeded) => {
-                    if limits_exceeded.spans {
+                    if limits_exceeded.bytes_ingested {
                         let _ = acker
                             .ack()
                             .await

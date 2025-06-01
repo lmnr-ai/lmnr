@@ -4,6 +4,5 @@ pub mod datasets;
 pub mod evals;
 pub mod machine_manager;
 pub mod metrics;
-pub mod queues;
 pub mod tag;
 pub mod traces;
