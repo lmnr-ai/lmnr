@@ -1,5 +1,5 @@
 import { includes, isEmpty, map, partition } from "lodash";
-import { ArrowDown, SquareFunction } from "lucide-react";
+import { ChevronDown, SquareFunction } from "lucide-react";
 import { useParams } from "next/navigation";
 import { ReactNode, useMemo } from "react";
 import useSWR from "swr";
@@ -170,12 +170,13 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="end">
-        <DropdownMenuLabel className="text-xs p-1">
-          <div className="space-y-0.5">
+        <DropdownMenuLabel className="text-xs p-1 flex flex-col">
+          <span className="text-xs font-normal pb-1">Span path</span>
+          <div className="flex flex-col gap-1">
             {spanPath.map((path, index) => (
-              <div key={`${path}-${index}`} className="flex items-center">
-                <ArrowDown className="size-3 mr-1 text-muted-foreground" />
-                <span className="text-[10px] text-secondary-foreground">{path}</span>
+              <div key={`${path}-${index}`} className="flex items-center gap-1">
+                <ChevronDown className="text-muted-foreground" size={16} />
+                <span className="text-xs text-secondary-foreground font-normal">{path}</span>
               </div>
             ))}
           </div>
@@ -183,7 +184,7 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
 
         {(!isEmpty(attachedEvaluators) || !isEmpty(unattachedEvaluators)) && <DropdownMenuSeparator />}
         <EvaluatorsList
-          label="Registered evaluators"
+          label="Registered evaluators at path"
           checked
           evaluators={attachedEvaluators}
           onCheck={handleUnregisterEvaluator}
@@ -214,7 +215,7 @@ const EvaluatorsList = ({
 
   return (
     <>
-      {label && <DropdownMenuLabel className="text-xs text-secondary-foreground p-1">{label}</DropdownMenuLabel>}
+      {label && <DropdownMenuLabel className="text-xs p-1 font-normal">{label}</DropdownMenuLabel>}
       <DropdownMenuGroup>
         {evaluators.map((evaluator) => (
           <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={evaluator.id}>
