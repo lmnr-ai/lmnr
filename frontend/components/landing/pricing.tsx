@@ -25,21 +25,18 @@ function PricingCalculator() {
 
   // Convert tokens to GB (1 token = 3.5 bytes)
   const tokensToGB = (tokenCount: number) => {
-    const bytes = tokenCount * 3.5;
+    const bytes = tokenCount * 4;
     const gb = bytes / (1024 * 1024 * 1024); // Convert bytes to GB
     return gb;
   };
 
   // Logarithmic slider mapping
   const tokenRanges = [
-    // Range 0-1M: step 250k (5 positions: 0-4)
-    { min: 0, max: 1_000_000, step: 250_000, positions: 5 },
-    // Range 1M-10M: step 1M (9 positions: 5-13)
-    { min: 1_000_000, max: 10_000_000, step: 1_000_000, positions: 9 },
+
     // Range 10M-100M: step 10M (9 positions: 14-22)
     { min: 10_000_000, max: 100_000_000, step: 10_000_000, positions: 9 },
     // Range 100M-1B: step 100M (9 positions: 23-31)
-    { min: 100_000_000, max: 1_000_000_000, step: 100_000_000, positions: 9 },
+    { min: 100_000_000, max: 1_000_000_000, step: 50_000_000, positions: 20 },
     // Range 1B-10B: step 1B (9 positions: 32-40)
     { min: 1_000_000_000, max: 10_000_000_000, step: 1_000_000_000, positions: 10 }
   ];
@@ -115,9 +112,9 @@ function PricingCalculator() {
       let additionalDataCost = 0;
       let additionalStepsCost = 0;
 
-      // Additional data cost
+      // Additional data cost - changed to $2 per GB
       if (dataCount > 2) {
-        additionalDataCost = dataCount - 2;
+        additionalDataCost = (dataCount - 2) * 2;
       }
 
       // Additional agent steps cost
@@ -140,18 +137,18 @@ function PricingCalculator() {
       return { tier: 'Hobby', price: total, breakdown };
     }
 
-    // Pro tier: 10GB data, 3+ team members, 5000 agent steps
-    const basePrice = 100;
+    // Pro tier: 5GB data, 5+ team members, 5000 agent steps
+    const basePrice = 50;
     let additionalDataCost = 0;
     let additionalMembersCost = 0;
     let additionalStepsCost = 0;
 
-    // Additional data cost
-    if (dataCount > 10) {
-      additionalDataCost = dataCount - 10;
+    // Additional data cost - changed to $2 per GB
+    if (dataCount > 5) {
+      additionalDataCost = (dataCount - 5) * 2;
     }
 
-    // Additional team members cost
+    // Additional team members cost - changed to 5 included members
     if (teamMembers > 3) {
       additionalMembersCost = (teamMembers - 3) * 25;
     }
@@ -197,8 +194,8 @@ function PricingCalculator() {
 
   return (
     <div className="w-full max-w-2xl mt-16 px-4">
-      <div className="p-8 border rounded-lg space-y-6 bg-card">
-        <div className="text-center space-y-2">
+      <div className="p-8 border space-y-6">
+        <div className="text-center space-y-2 flex items-center justify-between">
           <h3 className="text-xl font-semibold">Pricing calculator</h3>
           <div className="flex justify-center items-center gap-2">
             <Badge
@@ -221,6 +218,9 @@ function PricingCalculator() {
             </div>
             <div className="text-sm text-muted-foreground mb-2">
               ≈ {toFixedIfFloat(estimatedGB)} GB
+            </div>
+            <div className="text-xs text-muted-foreground mb-2">
+              * Based on ~4 bytes per token (approximation, excludes stored images)
             </div>
             <Slider
               value={[currentPosition]}
@@ -249,7 +249,7 @@ function PricingCalculator() {
 
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span>Agent steps per month</span>
+              <span>Index agent steps per month</span>
               <span className="font-medium">{agentSteps.toLocaleString()}</span>
             </div>
             <Slider
@@ -275,14 +275,14 @@ function PricingCalculator() {
 
               {breakdown.additionalData > 0 && (
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Additional data ({toFixedIfFloat(breakdown.additionalData)}GB)</span>
+                  <span>Additional data ({toFixedIfFloat(breakdown.additionalData / 2)}GB)</span>
                   <span>+${toFixedIfFloat(breakdown.additionalData)}</span>
                 </div>
               )}
 
               {breakdown.additionalMembers > 0 && (
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Additional team members ({teamMembers - 3})</span>
+                  <span>Additional team members ({teamMembers - 5})</span>
                   <span>+${toFixedIfFloat(breakdown.additionalMembers)}</span>
                 </div>
               )}
@@ -331,8 +331,8 @@ export default function Pricing() {
 
   return (
     <div className="flex flex-col items-center mt-32 w-full h-full">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:p-16">
-        <div className="p-8 border rounded-lg flex flex-col space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 md:p-16">
+        <div className="p-8 border flex flex-col space-y-4">
           <PricingCard
             className="text-secondary-foreground"
             title="Free"
@@ -351,7 +351,7 @@ export default function Pricing() {
             </Button>
           </Link>
         </div>
-        <div className="p-8 border rounded-lg flex flex-col space-y-4">
+        <div className="p-8 border flex flex-col space-y-4">
           <PricingCard
             className="text-secondary-foreground"
             title="Hobby"
@@ -364,7 +364,7 @@ export default function Pricing() {
               'Priority email support',
             ]}
             subfeatures={[
-              'then $1 per 1GB of additional data',
+              'then $2 per 1GB of additional data',
               null,
               null,
               'then $10 per 1k steps'
@@ -376,20 +376,20 @@ export default function Pricing() {
             </Button>
           </Link>
         </div>
-        <div className="h-full w-full rounded p-8 flex flex-col z-20 border border-primary bg-primary">
+        <div className="h-full w-full p-8 flex flex-col z-20 border border-primary bg-primary">
           <PricingCard
             className="text-white z-20"
             title="Pro"
-            price="$100 / month"
+            price="$50 / month"
             features={[
-              '10GB data / month included',
+              '5GB data / month included',
               '90 day data retention',
-              '3 team members included',
+              '5 team members included',
               '5000 Index agent steps / month',
               'Private Slack channel',
             ]}
             subfeatures={[
-              'then $1 per 1GB of additional data',
+              'then $2 per 1GB of additional data',
               null,
               'then $25 per additional team member',
               'then $10 per 1k steps'
@@ -401,6 +401,25 @@ export default function Pricing() {
               variant="outline"
             >
               Get started
+            </Button>
+          </Link>
+        </div>
+        <div className="p-8 border flex flex-col space-y-4">
+          <PricingCard
+            className="text-secondary-foreground"
+            title="Enterprise"
+            price="Custom"
+            features={[
+              'Custom data retention',
+              'Custom team members',
+              'Custom agent steps',
+              'On-premise deployment',
+              'Dedicated support',
+            ]}
+          />
+          <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry">
+            <Button variant="secondary" className="w-full h-10">
+              Contact us
             </Button>
           </Link>
         </div>
@@ -417,7 +436,7 @@ export default function Pricing() {
           {faqItems.map((item) => (
             <AccordionItem key={item.id} value={item.id}>
               <AccordionTrigger
-                className="text-2xl"
+                className="text-xl"
                 onClick={() => handleQuestionClick(item.question)}
               >
                 {item.question}
