@@ -1,61 +1,34 @@
 "use client";
 
 import { python } from "@codemirror/lang-python";
-import { zodResolver } from "@hookform/resolvers/zod";
 import CodeMirror from "@uiw/react-codemirror";
 import { Loader2, PlayIcon } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { useSWRConfig } from "swr";
-import { z } from "zod";
 
+import { defaultValues, ManageEvaluatorForm } from "@/components/evaluators/evaluators";
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { theme } from "@/components/ui/code-highlighter/utils";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { IconPython } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const EVALUATOR_TYPES = [{ value: "python", label: "Python" }];
-
-const createEvaluatorSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  evaluatorType: z.string().min(1, "Evaluator type is required"),
-  code: z.string().min(1, "Code is required"),
-  testInput: z.string(),
-});
-
-type CreateEvaluatorForm = z.infer<typeof createEvaluatorSchema>;
-
-const defaultValues: CreateEvaluatorForm = {
-  name: "",
-  evaluatorType: "python",
-  code: `def evaluate(input):
-    if not input:
-        return 0
-    
-    keywords = ["relevant", "accurate", "helpful"]
-    score = sum(1 for keyword in keywords if keyword.lower() in str(input).lower())
-    
-    return min(score * 33, 100)`,
-  testInput: "",
-};
-
-export default function CreateEvaluatorDialog({
+export default function ManageEvaluatorSheet({
   children,
-  onSuccess,
-}: PropsWithChildren<{ onSuccess?: (evaluator: Evaluator) => void }>) {
+  open,
+  setOpen,
+}: PropsWithChildren<{ open: boolean; setOpen: (open: boolean) => void }>) {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [testOutput, setTestOutput] = useState("");
 
@@ -70,13 +43,15 @@ export default function CreateEvaluatorDialog({
     getValues,
     watch,
     formState: { errors, isValid },
-  } = useForm<CreateEvaluatorForm>({
-    resolver: zodResolver(createEvaluatorSchema),
-    defaultValues,
+  } = useFormContext<ManageEvaluatorForm>();
+
+  const id = useWatch({
+    name: "id",
+    control,
   });
 
-  const createNewEvaluator = useCallback(
-    async (data: CreateEvaluatorForm) => {
+  const submit = useCallback(
+    async (data: ManageEvaluatorForm) => {
       try {
         setIsLoading(true);
 
@@ -88,8 +63,14 @@ export default function CreateEvaluatorDialog({
           },
         };
 
-        const res = await fetch(`/api/projects/${projectId}/evaluators`, {
-          method: "POST",
+        const isUpdate = !!data.id;
+        const url = isUpdate
+          ? `/api/projects/${projectId}/evaluators/${data.id}`
+          : `/api/projects/${projectId}/evaluators`;
+        const method = isUpdate ? "PUT" : "POST";
+
+        const res = await fetch(url, {
+          method,
           headers: {
             "Content-Type": "application/json",
           },
@@ -101,44 +82,54 @@ export default function CreateEvaluatorDialog({
           toast({
             variant: "destructive",
             title: "Error",
-            description: errorText || "Failed to create the evaluator",
+            description: errorText || `Failed to ${isUpdate ? "update" : "create"} the evaluator`,
           });
           return;
         }
 
-        const newEvaluator = (await res.json()) as Evaluator;
+        const resultEvaluator = (await res.json()) as Evaluator;
 
         const pageSize = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 25;
         const pageNumber = searchParams.get("pageNumber") ? Number(searchParams.get("pageNumber")) : 0;
 
         await mutate<PaginatedResponse<Evaluator>>(
           `/api/projects/${projectId}/evaluators?pageNumber=${pageNumber}&pageSize=${pageSize}`,
-          (currentData) =>
-            currentData
-              ? { items: [newEvaluator, ...currentData.items], totalCount: currentData.totalCount + 1 }
-              : { items: [newEvaluator], totalCount: 1 },
+          (currentData) => {
+            if (!currentData) return currentData;
+
+            if (isUpdate) {
+              return {
+                ...currentData,
+                items: currentData.items.map((item) => (item.id === resultEvaluator.id ? resultEvaluator : item)),
+              };
+            } else {
+              return {
+                items: [resultEvaluator, ...currentData.items],
+                totalCount: currentData.totalCount + 1,
+              };
+            }
+          },
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );
 
-        if (onSuccess) {
-          onSuccess(newEvaluator);
-        }
-
-        toast({ title: "Successfully created evaluator" });
-        setIsDialogOpen(false);
+        toast({ title: `Successfully ${isUpdate ? "updated" : "created"} evaluator` });
+        setOpen(false);
         reset();
         setTestOutput("");
       } catch (e) {
         toast({
           variant: "destructive",
           title: "Error",
-          description: e instanceof Error ? e.message : "Failed to create the evaluator. Please try again.",
+          description:
+            e instanceof Error
+              ? e.message
+              : `Failed to ${data.id ? "update" : "create"} the evaluator. Please try again.`,
         });
       } finally {
         setIsLoading(false);
       }
     },
-    [projectId, mutate, searchParams, onSuccess, toast, reset]
+    [projectId, searchParams, mutate, toast, setOpen, reset]
   );
 
   const testEvaluator = useCallback(async () => {
@@ -188,23 +179,23 @@ export default function CreateEvaluatorDialog({
   }, [getValues, projectId]);
 
   return (
-    <Dialog
-      open={isDialogOpen}
+    <Sheet
+      open={open}
       onOpenChange={(open) => {
-        setIsDialogOpen(open);
+        setOpen(open);
         if (!open) {
           reset(defaultValues);
           setTestOutput("");
         }
       }}
     >
-      <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-3xl max-h-[80vh] p-0 flex flex-col">
-        <DialogHeader className="px-6 pt-6">
-          <DialogTitle>Create new evaluator</DialogTitle>
-        </DialogHeader>
-        <ScrollArea className="flex-1 px-4 overflow-y-auto">
-          <form onSubmit={handleSubmit(createNewEvaluator)} className="grid gap-4 py-4 px-2">
+      <SheetTrigger asChild>{children}</SheetTrigger>
+      <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0">
+        <SheetHeader className="pt-4 px-4">
+          <SheetTitle>{id ? getValues("name") : "Create new evaluator"}</SheetTitle>
+        </SheetHeader>
+        <ScrollArea className="flex-1">
+          <form onSubmit={handleSubmit(submit)} className="grid gap-4 p-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Name</Label>
               <Controller
@@ -215,30 +206,6 @@ export default function CreateEvaluatorDialog({
               />
               {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="type">Type</Label>
-              <Controller
-                name="evaluatorType"
-                control={control}
-                render={({ field }) => (
-                  <Select disabled onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select evaluator type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EVALUATOR_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.evaluatorType && <p className="text-sm text-red-500">{errors.evaluatorType.message}</p>}
-            </div>
-
             <div className="grid gap-2">
               <Label className="flex gap-1 items-center" htmlFor="definition">
                 <IconPython className="fill-white" /> Python code
@@ -262,6 +229,7 @@ export default function CreateEvaluatorDialog({
                 control={control}
                 render={({ field }) => (
                   <CodeHighlighter
+                    defaultMode="json"
                     placeholder='"This response is very relevant, accurate, and helpful"'
                     className="min-h-20"
                     value={field.value}
@@ -295,15 +263,15 @@ export default function CreateEvaluatorDialog({
               )}
             </div>
 
-            <DialogFooter className="sticky bottom-0">
+            <div className="flex justify-end pt-4 border-t">
               <Button type="submit" disabled={isLoading || !isValid} handleEnter>
                 <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
-                Create
+                {id ? "Save" : "Create"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </ScrollArea>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -2,20 +2,9 @@ import { memo } from "react";
 
 import { useLabelsContext } from "@/components/labels/labels-context";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const LabelsList = () => {
-  const { labels, labelClasses, isLoading } = useLabelsContext();
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-wrap w-fit items-center gap-2">
-        <Skeleton className="h-5 w-12 rounded-3xl" />
-        <Skeleton className="h-5 w-12 rounded-3xl" />
-        <Skeleton className="h-5 w-12 rounded-3xl" />
-      </div>
-    );
-  }
+  const { labels, labelClasses } = useLabelsContext();
 
   if (!labels?.length) return null;
 

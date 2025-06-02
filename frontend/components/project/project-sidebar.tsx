@@ -1,6 +1,17 @@
 "use client";
 
-import { Book, Database, FlaskConical, Gauge, LayoutGrid, Pen, PlayCircle, Rows4, Settings, X } from "lucide-react";
+import {
+  Book,
+  Database,
+  FlaskConical,
+  LayoutGrid,
+  Pen,
+  PlayCircle,
+  Rows4,
+  Settings,
+  SquareFunction,
+  X,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -67,7 +78,7 @@ export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: P
       {
         name: "evaluators",
         href: `/project/${projectId}/evaluators`,
-        icon: Gauge,
+        icon: SquareFunction,
       },
       {
         name: "datasets",

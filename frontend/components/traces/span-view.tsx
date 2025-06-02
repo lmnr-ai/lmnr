@@ -119,6 +119,7 @@ export function SpanView({ spanId }: SpanViewProps) {
             <LabelsContextProvider spanId={spanId}>
               <div className="flex gap-2 flex-wrap items-center">
                 <LabelsTrigger />
+                <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
                 <AddToLabelingQueuePopover
                   data={[
                     {
@@ -128,7 +129,6 @@ export function SpanView({ spanId }: SpanViewProps) {
                   ]}
                 />
                 <ExportSpansPopover span={span} />
-                <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
               </div>
               <LabelsList />
               <EvaluatorScoresList spanId={spanId} />

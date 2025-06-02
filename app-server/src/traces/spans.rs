@@ -357,10 +357,13 @@ impl SpanAttributes {
     }
 
     pub fn labels(&self) -> Vec<String> {
-        match self
+        let attr_tags = self
             .attributes
-            .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels").as_str())
-        {
+            .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.tags"));
+        let attr_labels = self
+            .attributes
+            .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels"));
+        match attr_tags.or(attr_labels) {
             Some(Value::Array(arr)) => arr.iter().map(|v| json_value_to_string(v)).collect(),
             _ => Vec::new(),
         }
