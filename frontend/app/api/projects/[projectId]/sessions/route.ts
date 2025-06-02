@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const labelFilters = urlParamFilters
     .filter((filter) => filter.column === "tags" && ["eq", "ne"].includes(filter.operator))
     .map((filter) => {
-      const labelName = filter.value.split(/=(.*)/)?.[0];
+      const labelName = filter.value;
       const inArrayFilter = inArray(
         sql`id`,
         db
