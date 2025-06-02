@@ -4,13 +4,13 @@
 use std::sync::Arc;
 
 use super::{
-    process_spans_and_events, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, process_spans_and_events,
 };
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    db::{spans::Span, DB},
-    features::{is_feature_enabled, Feature},
+    db::{DB, spans::Span},
+    features::{Feature, is_feature_enabled},
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
     storage::Storage,
 };
@@ -19,6 +19,7 @@ pub async fn process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
+    evaluators_queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
 ) {
@@ -27,6 +28,7 @@ pub async fn process_queue_spans(
             db.clone(),
             cache.clone(),
             queue.clone(),
+            evaluators_queue.clone(),
             clickhouse.clone(),
             storage.clone(),
         )
@@ -39,6 +41,7 @@ async fn inner_process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
+    evaluators_queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
 ) {
@@ -87,7 +90,7 @@ async fn inner_process_queue_spans(
                 }
                 // ignore the span if the limit is exceeded
                 Ok(limits_exceeded) => {
-                    if limits_exceeded.spans {
+                    if limits_exceeded.bytes_ingested {
                         let _ = acker
                             .ack()
                             .await
@@ -99,6 +102,10 @@ async fn inner_process_queue_spans(
         }
 
         let mut span: Span = rabbitmq_span_message.span;
+
+        // Parse and enrich span attributes for input/output extraction
+        // This heavy processing is done on the consumer side
+        span.parse_and_enrich_attributes();
 
         if is_feature_enabled(Feature::Storage) {
             if let Err(e) = span
@@ -124,6 +131,7 @@ async fn inner_process_queue_spans(
             clickhouse.clone(),
             cache.clone(),
             acker,
+            evaluators_queue.clone(),
         )
         .await;
     }

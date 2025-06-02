@@ -5,10 +5,10 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::{
-    ch::evaluation_scores::{insert_evaluation_scores, EvaluationScore},
+    ch::evaluation_scores::{EvaluationScore, insert_evaluation_scores},
     db::{self, DB},
 };
-use utils::{datapoints_to_labeling_queues, get_columns_from_points, EvaluationDatapointResult};
+use utils::{EvaluationDatapointResult, datapoints_to_labeling_queues, get_columns_from_points};
 
 pub mod utils;
 

@@ -99,6 +99,12 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     id: "trace_count",
     size: 120,
   },
+  {
+    accessorFn: (row) => (row.type === "session" ? "-" : (row.data as Trace).userId),
+    header: "User ID",
+    id: "user_id",
+    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+  },
 ];
 
 export const filters: ColumnFilter[] = [
@@ -161,5 +167,10 @@ export const filters: ColumnFilter[] = [
     key: "labels",
     name: "Labels",
     dataType: "json",
+  },
+  {
+    key: "user_id",
+    name: "User ID",
+    dataType: "string",
   },
 ];

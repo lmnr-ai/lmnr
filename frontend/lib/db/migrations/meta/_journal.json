@@ -274,6 +274,27 @@
       "when": 1748268083265,
       "tag": "0038_clumsy_johnny_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1748447854017,
+      "tag": "0039_late_stone_men",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1748545429856,
+      "tag": "0040_amusing_gamma_corps",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1748615661679,
+      "tag": "0041_silent_midnight",
+      "breakpoints": true
     }
   ]
 }

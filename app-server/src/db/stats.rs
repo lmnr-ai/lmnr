@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 #[derive(Clone, Serialize, Deserialize, FromRow)]
 pub struct WorkspaceLimitsExceeded {
-    pub spans: bool,
     pub steps: bool,
+    pub bytes_ingested: bool,
 }
 
 pub async fn create_usage_stats_for_workspace(pool: &PgPool, workspace_id: &Uuid) -> Result<()> {
@@ -42,15 +42,15 @@ pub async fn add_spans_to_project_usage_stats(
     Ok(())
 }
 
-pub async fn increment_project_data_ingested(
+pub async fn increment_project_spans_bytes_ingested(
     pool: &PgPool,
     project_id: &Uuid,
-    size: usize,
+    spans_bytes: usize,
 ) -> Result<()> {
     sqlx::query(
         "UPDATE workspace_usage
-        SET bytes_ingested = bytes_ingested + $2,
-            bytes_ingested_since_reset = bytes_ingested_since_reset + $2
+        SET spans_bytes_ingested = spans_bytes_ingested + $2,
+            spans_bytes_ingested_since_reset = spans_bytes_ingested_since_reset + $2
         WHERE workspace_id = (
             SELECT workspace_id
             FROM projects
@@ -58,7 +58,30 @@ pub async fn increment_project_data_ingested(
             LIMIT 1)",
     )
     .bind(project_id)
-    .bind(size as i64)
+    .bind(spans_bytes as i64)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn increment_project_browser_events_bytes_ingested(
+    pool: &PgPool,
+    project_id: &Uuid,
+    browser_events_bytes: usize,
+) -> Result<()> {
+    sqlx::query(
+        "UPDATE workspace_usage
+        SET browser_session_events_bytes_ingested = browser_session_events_bytes_ingested + $2,
+            browser_session_events_bytes_ingested_since_reset = browser_session_events_bytes_ingested_since_reset + $2
+        WHERE workspace_id = (
+            SELECT workspace_id
+            FROM projects
+            WHERE id = $1
+            LIMIT 1)",
+    )
+    .bind(project_id)
+    .bind(browser_events_bytes as i64)
     .execute(pool)
     .await?;
 
@@ -92,26 +115,6 @@ pub async fn add_agent_steps_to_project_usage_stats(
 #[serde(rename_all = "camelCase")]
 pub struct StorageStats {
     pub storage_mib: Option<f64>,
-}
-
-pub async fn get_workspace_storage_stats(
-    pool: &PgPool,
-    workspace_id: &Uuid,
-) -> anyhow::Result<StorageStats> {
-    let storage_stats = sqlx::query_as::<_, StorageStats>(
-        "SELECT (sum(pg_column_size(data)) + sum(pg_column_size(target)))::float8 / 1024 / 1024 as storage_mib
-        FROM dataset_datapoints 
-        WHERE dataset_id in (
-            SELECT id FROM datasets WHERE project_id in (
-                SELECT id FROM projects where workspace_id = $1
-            )
-        )",
-    )
-    .bind(workspace_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(storage_stats)
 }
 
 #[derive(Debug, FromRow, Serialize)]
@@ -201,10 +204,11 @@ pub async fn is_workspace_over_limit(
         "WITH workspace_stats AS (
             SELECT
                 subscription_tiers.name as tier_name,
-                subscription_tiers.spans as spans_limit,
-                workspace_usage.span_count as spans_this_month,
                 subscription_tiers.steps as steps_limit,
-                workspace_usage.step_count as steps_this_month
+                subscription_tiers.bytes_ingested as ingested_bytes_limit,
+                workspace_usage.step_count_since_reset as steps_this_month,
+                workspace_usage.spans_bytes_ingested_since_reset as spans_bytes_this_month,
+                workspace_usage.browser_session_events_bytes_ingested_since_reset as browser_events_bytes_this_month
             FROM
                 workspaces
             JOIN subscription_tiers ON subscription_tiers.id = workspaces.tier_id
@@ -213,8 +217,9 @@ pub async fn is_workspace_over_limit(
                 workspace_id = $1
         )
         SELECT
-            spans_this_month >= spans_limit AND LOWER(TRIM(tier_name)) = 'free' as spans,
-            steps_this_month >= steps_limit AND LOWER(TRIM(tier_name)) = 'free' as steps
+            steps_this_month >= steps_limit AND LOWER(TRIM(tier_name)) = 'free' as steps,
+            spans_bytes_this_month + browser_events_bytes_this_month >= ingested_bytes_limit
+                AND LOWER(TRIM(tier_name)) = 'free' as bytes_ingested
         FROM
             workspace_stats",
     )

@@ -74,6 +74,7 @@ export type Trace = {
   agentSessionId: string | null;
   visibility?: string;
   status: string | null;
+  userId: string | null;
 };
 
 export type TraceEvent = {

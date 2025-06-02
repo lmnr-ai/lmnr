@@ -14,6 +14,7 @@ pub enum TraceType {
     DEFAULT,
     EVENT,
     EVALUATION,
+    PLAYGROUND,
 }
 
 #[derive(Serialize, sqlx::FromRow, Clone, Debug)]
@@ -41,6 +42,10 @@ pub async fn update_trace_attributes(
     project_id: &Uuid,
     attributes: &TraceAttributes,
 ) -> Result<()> {
+    let metadata_value = attributes
+        .metadata
+        .as_ref()
+        .and_then(|m| serde_json::to_value(m).ok());
     sqlx::query(
         "
         INSERT INTO traces (
@@ -92,13 +97,13 @@ pub async fn update_trace_attributes(
             cost = traces.cost + COALESCE($8, 0),
             start_time = CASE WHEN traces.start_time IS NULL OR traces.start_time > $9 THEN $9 ELSE traces.start_time END,
             end_time = CASE WHEN traces.end_time IS NULL OR traces.end_time < $10 THEN $10 ELSE traces.end_time END,
-            session_id = COALESCE(traces.session_id, $11),
-            trace_type = CASE WHEN $12 IS NULL THEN traces.trace_type ELSE COALESCE($12, 'DEFAULT'::trace_type) END,
+            session_id = COALESCE($11, traces.session_id),
+            trace_type = COALESCE($12, traces.trace_type),
             metadata = COALESCE($13, traces.metadata),
             has_browser_session = COALESCE($14, traces.has_browser_session),
             top_span_id = COALESCE(traces.top_span_id, $15),
             status = CASE WHEN $16 = 'error' THEN $16 ELSE COALESCE($16, traces.status) END,
-            user_id = COALESCE(traces.user_id, $17)
+            user_id = COALESCE($17, traces.user_id)
         "
     )
     .bind(attributes.id)
@@ -113,7 +118,7 @@ pub async fn update_trace_attributes(
     .bind(attributes.end_time)
     .bind(&attributes.session_id)
     .bind(&attributes.trace_type)
-    .bind(&serde_json::to_value(&attributes.metadata)?)
+    .bind(&metadata_value)
     .bind(attributes.has_browser_session)
     .bind(attributes.top_span_id)
     .bind(&attributes.status)

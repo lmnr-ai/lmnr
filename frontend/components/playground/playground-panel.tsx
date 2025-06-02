@@ -1,7 +1,7 @@
 "use client";
 import { processDataStream, ToolCall, ToolResult } from "ai";
 import { isEmpty } from "lodash";
-import { Loader2, PlayIcon } from "lucide-react";
+import { History, Loader2, PlayIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
@@ -11,6 +11,7 @@ import Messages from "@/components/playground/messages";
 import LlmSelect from "@/components/playground/messages/llm-select";
 import ParamsPopover from "@/components/playground/messages/params-popover";
 import ToolsDialog from "@/components/playground/messages/tools-dialog";
+import PlaygroundHistoryTable from "@/components/playground/playground-history-table";
 import ProvidersAlert from "@/components/playground/providers-alert";
 import { Provider } from "@/components/playground/types";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
@@ -23,7 +24,7 @@ import { parseSystemMessages } from "@/lib/playground/utils";
 import { ProviderApiKey } from "@/lib/settings/types";
 import { cn } from "@/lib/utils";
 
-export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: ProviderApiKey[] }) {
+export default function PlaygroundPanel({ id, apiKeys, onTraceSelect }: { id: string; apiKeys: ProviderApiKey[]; onTraceSelect?: (traceId: string) => void }) {
   const params = useParams();
   const { toast } = useToast();
   const [output, setOutput] = useState<{ text: string; reasoning: string; toolCalls: string[] }>({
@@ -36,6 +37,8 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
     completionTokens: number;
   }>();
   const [isLoading, setIsLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [refreshHistory, setRefreshHistory] = useState(0);
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
 
@@ -57,6 +60,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
           method: "POST",
           body: JSON.stringify({
             projectId: params?.projectId,
+            playgroundId: id,
             model: form.model,
             maxTokens: form.maxTokens,
             temperature: form.temperature,
@@ -97,6 +101,11 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
           onToolResultPart: appendToolCalls,
           onToolCallDeltaPart: appendToolCalls,
         });
+
+        // Refresh history table if it's open
+        if (showHistory) {
+          setRefreshHistory(prev => prev + 1);
+        }
       } catch (e) {
         if (e instanceof Error) {
           toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -105,7 +114,7 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
         setIsLoading(false);
       }
     },
-    [params?.projectId, toast]
+    [params?.projectId, toast, id, showHistory]
   );
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {
@@ -152,37 +161,67 @@ export default function PlaygroundPanel({ id, apiKeys }: { id: string; apiKeys: 
         />
         <ParamsPopover />
         <ToolsDialog />
+        <Button
+          variant={showHistory ? "outlinePrimary" : "outline"}
+          size="sm"
+          onClick={() => setShowHistory(!showHistory)}
+          className="h-8 w-fit px-2"
+        >
+          <History className="w-4 h-4 mr-1" />
+          History
+        </Button>
         <Button disabled={isLoading} onClick={handleSubmit(submit)} className="ml-auto h-8 w-fit px-2">
           {isLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PlayIcon className="w-4 h-4 mr-1" />}
           <span className="mr-2">Run</span>
           <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
         </Button>
       </div>
-      <ResizablePanelGroup autoSaveId={`playground:${id}`} direction="horizontal" className="flex flex-1 pb-4">
-        <ResizablePanel minSize={30} className="flex flex-col flex-1 gap-2">
-          <Messages />
-        </ResizablePanel>
-        <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
-        <ResizablePanel minSize={20} className="flex-1 flex flex-col px-4">
-          <div className="flex flex-1 overflow-hidden">
-            <CodeHighlighter
-              codeEditorClassName="rounded-b"
-              className="rounded"
-              value={structuredOutput}
-              defaultMode="json"
-            />
-          </div>
-          {!!usage && (
-            <div className={cn("mt-2 flex flex-col gap-1")}>
-              {!isNaN(usage?.promptTokens) && (
-                <span className="text-xs text-secondary-foreground">Prompt Tokens: {usage.promptTokens}</span>
+      <ResizablePanelGroup autoSaveId={`playground:${id}`} direction="vertical" className="flex flex-1">
+        <ResizablePanel minSize={30} className="flex flex-col pb-4">
+          <ResizablePanelGroup autoSaveId={`playground-main:${id}`} direction="horizontal" className="flex flex-1">
+            <ResizablePanel minSize={30} className="flex flex-col flex-1 gap-2">
+              <Messages />
+            </ResizablePanel>
+            <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
+            <ResizablePanel minSize={20} className="flex-1 flex flex-col px-4">
+              <div className="flex flex-1 overflow-hidden">
+                <CodeHighlighter
+                  codeEditorClassName="rounded-b"
+                  className="rounded"
+                  value={structuredOutput}
+                  defaultMode="json"
+                />
+              </div>
+              {!!usage && (
+                <div className={cn("mt-2 flex flex-col gap-1")}>
+                  {!isNaN(usage?.promptTokens) && (
+                    <span className="text-xs text-secondary-foreground">Prompt Tokens: {usage.promptTokens}</span>
+                  )}
+                  {!isNaN(usage?.completionTokens) && (
+                    <span className="text-xs text-secondary-foreground">Completion Tokens: {usage.completionTokens}</span>
+                  )}
+                </div>
               )}
-              {!isNaN(usage?.completionTokens) && (
-                <span className="text-xs text-secondary-foreground">Completion Tokens: {usage.completionTokens}</span>
-              )}
-            </div>
-          )}
+            </ResizablePanel>
+          </ResizablePanelGroup>
         </ResizablePanel>
+        {showHistory && (
+          <>
+            <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
+            <ResizablePanel minSize={20} defaultSize={30} className="flex flex-col">
+              <div className="px-4 py-2 border-b">
+                <h3 className="text-sm font-medium">Playground runs history</h3>
+              </div>
+              <div className="flex-1 overflow-auto">
+                <PlaygroundHistoryTable
+                  playgroundId={id}
+                  onTraceSelect={onTraceSelect}
+                  refreshTrigger={refreshHistory}
+                />
+              </div>
+            </ResizablePanel>
+          </>
+        )}
       </ResizablePanelGroup>
     </>
   );

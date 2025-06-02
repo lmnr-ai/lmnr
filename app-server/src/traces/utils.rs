@@ -74,68 +74,10 @@ pub async fn get_llm_usage_for_span(
 
 pub async fn record_span_to_db(
     db: Arc<DB>,
-    span_usage: &SpanUsage,
     project_id: &Uuid,
-    span: &mut Span,
-    events: &Vec<Event>,
+    span: &Span,
+    trace_attributes: &TraceAttributes,
 ) -> anyhow::Result<()> {
-    let mut trace_attributes = TraceAttributes::new(span.trace_id);
-
-    trace_attributes.update_start_time(span.start_time);
-    trace_attributes.update_end_time(span.end_time);
-
-    let mut span_attributes = span.get_attributes();
-
-    events.iter().for_each(|event| {
-        // Check if it's an exception event
-        if event.name == "exception" {
-            trace_attributes.set_status("error".to_string());
-        }
-    });
-
-    trace_attributes.update_session_id(span_attributes.session_id());
-    trace_attributes.update_user_id(span_attributes.user_id());
-    trace_attributes.update_trace_type(span_attributes.trace_type());
-    trace_attributes.set_metadata(span_attributes.metadata());
-    if let Some(has_browser_session) = span_attributes.has_browser_session() {
-        trace_attributes.set_has_browser_session(has_browser_session);
-    }
-
-    if span.span_type == SpanType::LLM {
-        trace_attributes.add_input_cost(span_usage.input_cost);
-        trace_attributes.add_output_cost(span_usage.output_cost);
-        trace_attributes.add_total_cost(span_usage.total_cost);
-
-        trace_attributes.add_input_tokens(span_usage.input_tokens);
-        trace_attributes.add_output_tokens(span_usage.output_tokens);
-        trace_attributes.add_total_tokens(span_usage.total_tokens);
-        span_attributes.set_usage(&span_usage);
-    }
-
-    span_attributes.extend_span_path(&span.name);
-    span_attributes.ids_path().map(|path| {
-        // set the parent to the second last id in the path
-        if path.len() > 1 {
-            let parent_id = path
-                .get(path.len() - 2)
-                .and_then(|id| Uuid::parse_str(id).ok());
-            if let Some(parent_id) = parent_id {
-                span.parent_span_id = Some(parent_id);
-            }
-        }
-    });
-
-    if is_top_span(&span, &span_attributes) {
-        span.parent_span_id = None;
-    }
-
-    // Once we've set the parent span id, check if it's the top span
-    if span.parent_span_id.is_none() {
-        trace_attributes.set_top_span_id(span.span_id);
-    }
-    span_attributes.update_path();
-    span.set_attributes(&span_attributes);
-
     let insert_span = || async {
         db::spans::record_span(&db.pool, &span, project_id)
             .await
@@ -242,4 +184,69 @@ fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
             .unwrap_or_default();
 
     first_in_ids && first_in_path
+}
+
+pub fn prepare_span_for_recording(
+    span: &mut Span,
+    span_usage: &SpanUsage,
+    events: &Vec<Event>,
+) -> TraceAttributes {
+    let mut trace_attributes = TraceAttributes::new(span.trace_id);
+
+    trace_attributes.update_start_time(span.start_time);
+    trace_attributes.update_end_time(span.end_time);
+
+    let mut span_attributes = span.get_attributes();
+
+    events.iter().for_each(|event| {
+        // Check if it's an exception event
+        if event.name == "exception" {
+            trace_attributes.set_status("error".to_string());
+        }
+    });
+
+    trace_attributes.update_session_id(span_attributes.session_id());
+    trace_attributes.update_user_id(span_attributes.user_id());
+    trace_attributes.update_trace_type(span_attributes.trace_type());
+    trace_attributes.set_metadata(span_attributes.metadata());
+    if let Some(has_browser_session) = span_attributes.has_browser_session() {
+        trace_attributes.set_has_browser_session(has_browser_session);
+    }
+
+    if span.span_type == SpanType::LLM {
+        trace_attributes.add_input_cost(span_usage.input_cost);
+        trace_attributes.add_output_cost(span_usage.output_cost);
+        trace_attributes.add_total_cost(span_usage.total_cost);
+
+        trace_attributes.add_input_tokens(span_usage.input_tokens);
+        trace_attributes.add_output_tokens(span_usage.output_tokens);
+        trace_attributes.add_total_tokens(span_usage.total_tokens);
+        span_attributes.set_usage(&span_usage);
+    }
+
+    span_attributes.extend_span_path(&span.name);
+    span_attributes.ids_path().map(|path| {
+        // set the parent to the second last id in the path
+        if path.len() > 1 {
+            let parent_id = path
+                .get(path.len() - 2)
+                .and_then(|id| Uuid::parse_str(id).ok());
+            if let Some(parent_id) = parent_id {
+                span.parent_span_id = Some(parent_id);
+            }
+        }
+    });
+
+    if is_top_span(&span, &span_attributes) {
+        span.parent_span_id = None;
+    }
+
+    // Once we've set the parent span id, check if it's the top span
+    if span.parent_span_id.is_none() {
+        trace_attributes.set_top_span_id(span.span_id);
+    }
+    span_attributes.update_path();
+    span.set_attributes(&span_attributes);
+
+    trace_attributes
 }
