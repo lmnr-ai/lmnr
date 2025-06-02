@@ -101,7 +101,7 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
         autoFocus
         onKeyDown={(e) => e.stopPropagation()}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Add labels..."
+        placeholder="Add tags..."
         className="border-none bg-transparent focus-visible:ring-0 flex-1 h-fit rounded-none"
       />
 

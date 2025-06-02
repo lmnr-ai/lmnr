@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, not, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { searchSpans } from "@/lib/clickhouse/spans";
@@ -146,10 +146,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     filters.push(inArray(baseQuery.id, searchTraceIds));
   }
   const labelFilters = urlParamFilters
-    .filter((filter) => filter.column === "labels" && filter.operator === "eq")
+    .filter((filter) => filter.column === "tags" && ["eq", "ne"].includes(filter.operator))
     .map((filter) => {
       const labelName = filter.value.split(/=(.*)/)?.[0];
-      return inArray(
+      const inArrayFilter = inArray(
         sql`id`,
         db
           .select({ id: spans.traceId })
@@ -158,6 +158,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
           .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
           .where(and(eq(labelClasses.name, labelName)))
       );
+      return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
     });
   const metadataFilters = urlParamFilters
     .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
@@ -166,7 +167,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       return sql`metadata @> ${JSON.stringify({ [key]: value })}`;
     });
   const otherFilters = urlParamFilters
-    .filter((filter) => filter.column !== "labels" && filter.column !== "metadata")
+    .filter((filter) => filter.column !== "tags" && filter.column !== "metadata")
     .map((filter) => {
       if (filter.column === "traceType") {
         filter.castType = "trace_type";

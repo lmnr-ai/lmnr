@@ -1,4 +1,4 @@
-import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, not, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { searchSpans } from "@/lib/clickhouse/spans";
@@ -31,10 +31,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   }
 
   const labelFilters = urlParamFilters
-    .filter((filter) => filter.column === "labels" && filter.operator === "eq")
+    .filter((filter) => filter.column === "tags" && ["eq", "ne"].includes(filter.operator))
     .map((filter) => {
       const labelName = filter.value.split(/=(.*)/)?.[0];
-      return inArray(
+      const inArrayFilter = inArray(
         sql`span_id`,
         db
           .select({ span_id: spans.spanId })
@@ -43,6 +43,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
           .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
           .where(and(eq(labelClasses.name, labelName)))
       );
+      return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
     });
 
   let searchSpanIds = null;
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   urlParamFilters = urlParamFilters
     // labels are handled separately above
-    .filter((filter) => filter.column !== "labels")
+    .filter((filter) => filter.column !== "tags")
     .map((filter) => {
       if (filter.column === "span_id") {
         filter.value = filter.value.startsWith("00000000-0000-0000-")
