@@ -10,6 +10,7 @@ import LabelsContextProvider from "@/components/labels/labels-context";
 import LabelsList from "@/components/labels/labels-list";
 import LabelsTrigger from "@/components/labels/labels-trigger";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
+import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
 import SpanInput from "@/components/traces/span-input";
 import SpanOutput from "@/components/traces/span-output";
@@ -19,6 +20,7 @@ import { useProjectContext } from "@/contexts/project-context";
 import { Event } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span, SpanType } from "@/lib/traces/types";
+import { ErrorEventAttributes } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 import Formatter from "../ui/formatter";
@@ -48,6 +50,11 @@ export function SpanView({ spanId }: SpanViewProps) {
       });
     }
   };
+
+  const errorEventAttributes = useMemo(
+    () => cleanedEvents?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
+    [cleanedEvents]
+  );
 
   if (isLoading || !span) {
     return (
@@ -126,6 +133,7 @@ export function SpanView({ spanId }: SpanViewProps) {
               <LabelsList />
               <EvaluatorScoresList spanId={spanId} />
             </LabelsContextProvider>
+            {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
           </div>
           <TabsList className="border-none text-sm px-4">
             <TabsTrigger value="span-input" className="truncate">

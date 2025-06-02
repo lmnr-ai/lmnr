@@ -202,6 +202,7 @@ pub fn prepare_span_for_recording(
         // Check if it's an exception event
         if event.name == "exception" {
             trace_attributes.set_status("error".to_string());
+            span.status = Some("error".to_string());
         }
     });
 
