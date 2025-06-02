@@ -164,9 +164,9 @@ export const filters: ColumnFilter[] = [
     dataType: "json",
   },
   {
-    key: "labels",
-    name: "Labels",
-    dataType: "json",
+    key: "tags",
+    name: "Tags",
+    dataType: "string",
   },
   {
     key: "user_id",

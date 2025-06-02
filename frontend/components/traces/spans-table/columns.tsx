@@ -58,9 +58,9 @@ export const filters: ColumnFilter[] = [
     dataType: "number",
   },
   {
-    key: "labels",
-    name: "Labels",
-    dataType: "json",
+    key: "tags",
+    name: "Tags",
+    dataType: "string",
   },
   {
     key: "model",
