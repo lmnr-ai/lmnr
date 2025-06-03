@@ -92,7 +92,6 @@ class SQLValidator {
       }
       // Transpile the query
       const transpiled = this.transpileQuery(ast, projectId);
-
       return {
         valid: true,
         sql: transpiled.sql,
@@ -203,26 +202,30 @@ class SQLValidator {
       node.columns.forEach((column: Column) => {
         const aliases: string[] = [];
         column.expr = qualifyColumnReferences(column.expr, fromTables);
-        column.expr = replaceJsonbFields(column.expr, fromTables, aliases);
+        column.expr = replaceJsonbFields(column.expr, fromTables, aliases, true);
         column.as = aliases[0] ?? column.as ?? null;
       });
 
       if (node.groupby?.columns) {
         node.groupby.columns = node.groupby.columns.map((column: ColumnRef) =>
-          replaceJsonbFields(column, fromTables, []) as ExpressionValue as ColumnRef
+          replaceJsonbFields(column, fromTables, [], false) as ExpressionValue as ColumnRef
         );
       }
 
       if (node.orderby) {
         node.orderby = node.orderby.map((order: OrderBy) => ({
           ...order,
-          expr: replaceJsonbFields(order.expr, fromTables, []) as ExpressionValue,
+          expr: replaceJsonbFields(order.expr, fromTables, [], false) as ExpressionValue,
         }));
       }
 
       // Process all potential subqueries in this select statement
       if (node.with) {
         for (const withItem of node.with) {
+          // TODO: Investigate why if we pass
+          // `withItem.stmt.ast ?? withItem.stmt`, it adds the
+          // same filter multiple times
+          applyProjectIdToStatement(withItem.stmt as unknown as AST);
           this.processSubqueries(withItem.stmt.ast, newProcessedNodes);
         }
       }
@@ -249,8 +252,8 @@ class SQLValidator {
           }
           node.where = {
             ...node.where,
-            left: replaceJsonbFields(node.where.left, fromTables, []) as ExpressionValue,
-            right: replaceJsonbFields(node.where.right, fromTables, []) as ExpressionValue,
+            left: replaceJsonbFields(node.where.left, fromTables, [], false) as ExpressionValue,
+            right: replaceJsonbFields(node.where.right, fromTables, [], false) as ExpressionValue,
           };
         } else if (node.where.type === 'function') {
           const args = (node.where as NodeSqlFunction).args;
@@ -263,7 +266,7 @@ class SQLValidator {
               ...node.where,
               args: {
                 ...args,
-                value: args.value.map(item => replaceJsonbFields(item, fromTables, []) as ExpressionValue),
+                value: args.value.map(item => replaceJsonbFields(item, fromTables, [], false) as ExpressionValue),
               },
             };
           }
@@ -273,7 +276,7 @@ class SQLValidator {
       if (node.groupby) {
         node.groupby.columns = node.groupby.columns?.map((column: ColumnRef) => {
           const qualifiedColumn = qualifyColumnReferences(column, fromTables);
-          return replaceJsonbFields(qualifiedColumn, fromTables, []) as ExpressionValue as ColumnRef;
+          return replaceJsonbFields(qualifiedColumn, fromTables, [], false) as ExpressionValue as ColumnRef;
         }) ?? [];
       }
 
@@ -282,14 +285,14 @@ class SQLValidator {
           const qualifiedExpr = qualifyColumnReferences(order.expr as ExpressionValue, fromTables);
           return {
             ...order,
-            expr: replaceJsonbFields(qualifiedExpr, fromTables, []) as ExpressionValue,
+            expr: replaceJsonbFields(qualifiedExpr, fromTables, [], false) as ExpressionValue,
           };
         });
       }
 
       // Now apply the project_id condition to this select statement
       const mainTable = findMainTable(node);
-      if (this.allowedTables.has(mainTable)) {
+      if (mainTable && this.allowedTables.has(mainTable)) {
         applyProjectIdToStatement(node);
       }
       return node;

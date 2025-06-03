@@ -11,14 +11,13 @@ import {
  * @param {AST} statement - SQL statement object
  * @returns {string} - Table name
  */
-export function findMainTable(statement: AST): string {
+export function findMainTable(statement: AST): string | undefined {
   if ((statement as Select).from
     && Array.isArray((statement as Select).from)
     && ((statement as Select).from as From[]).length > 0
   ) {
     return (((statement as Select).from as From[])[0] as BaseFrom).table;
   }
-  return '';
 }
 
 /**
@@ -29,10 +28,11 @@ export function applyProjectIdToStatement(statement: AST) {
   if (statement.type !== 'select') return;
 
   const mainTable = findMainTable(statement);
+  if (!mainTable) return;
   let projectIdCondition: Binary;
 
   // Create the appropriate condition based on the table
-  if (['spans', 'traces', 'evaluations', 'datasets'].includes(mainTable)) {
+  if (['spans', 'traces', 'evaluations', 'datasets', 'label_classes', 'evaluators'].includes(mainTable)) {
     // Direct project_id condition for tables with project_id column
     projectIdCondition = {
       type: 'binary_expr',
@@ -177,6 +177,78 @@ export function applyProjectIdToStatement(statement: AST) {
         }]
       }
     };
+  } else if (mainTable === 'evaluator_scores') {
+    // Nested query for evaluator_scores
+    projectIdCondition = {
+      type: 'binary_expr',
+      operator: 'IN',
+      left: {
+        type: 'column_ref',
+        table: mainTable,
+        column: 'evaluator_id'
+      },
+      right: {
+        type: 'expr_list',
+        value: [{
+          type: 'select',
+          columns: [{
+            expr: { type: 'column_ref', table: '', column: 'id' },
+            as: null
+          }],
+          from: [{ table: 'evaluators', as: null }],
+          where: {
+            type: 'binary_expr',
+            operator: '=',
+            left: {
+              type: 'column_ref',
+              table: '',
+              column: 'project_id'
+            },
+            right: {
+              type: 'param',
+              value: 1,
+              prefix: '$'
+            }
+          }
+        }]
+      }
+    };
+  } else if (mainTable === 'labels') {
+    // Nested query for label_classes
+    projectIdCondition = {
+      type: 'binary_expr',
+      operator: 'IN',
+      left: {
+        type: 'column_ref',
+        table: mainTable,
+        column: 'class_id'
+      },
+      right: {
+        type: 'expr_list',
+        value: [{
+          type: 'select',
+          columns: [{
+            expr: { type: 'column_ref', table: '', column: 'id' },
+            as: null
+          }],
+          from: [{ table: 'label_classes', as: null }],
+          where: {
+            type: 'binary_expr',
+            operator: '=',
+            left: {
+              type: 'column_ref',
+              table: '',
+              column: 'project_id'
+            },
+            right: {
+              type: 'param',
+              value: 1,
+              prefix: '$'
+            }
+          }
+        }]
+      }
+    };
   } else {
     // A fallback condition for tables we don't recognize
     // It's better if this results in an error or empty result, than if
@@ -211,3 +283,4 @@ export function applyProjectIdToStatement(statement: AST) {
     (statement as Select).where = projectIdCondition;
   }
 }
+

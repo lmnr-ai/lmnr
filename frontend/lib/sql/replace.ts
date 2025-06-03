@@ -10,8 +10,9 @@ import {
   Function as NodeSqlFunction
 } from "node-sql-parser";
 
-import { REPLACE_JSONB_FIELDS } from "./modifier-consts";
+import { REPLACE_STATIC_FIELDS } from "./modifier-consts";
 import { ALLOWED_TABLES_AND_SCHEMA, TableName } from "./types";
+import { WITH_EVALUATOR_SCORES_CTE_NAME } from "./with";
 
 // Define valid columns for evaluation_results and traces tables
 const EVALUATION_RESULTS_COLUMNS = new Set(
@@ -22,10 +23,18 @@ const TRACES_COLUMNS = new Set(
 );
 
 // Creates a dynamic column expression for accessing JSONB fields in evaluation_results.scores
-const createDynamicScoreColumn = (columnName: string): ExpressionValue => ({
+const createDynamicScoreColumn = ({
+  columnName,
+  // addAlias = false,
+  table = 'evaluation_results',
+}: {
+  columnName: string,
+  addAlias?: boolean,
+  table?: string,
+}): ExpressionValue => ({
   type: "cast",
   symbol: "::",
-  as: columnName,
+  // as: addAlias ? columnName : undefined,
   target: [
     {
       dataType: "FLOAT",
@@ -39,11 +48,11 @@ const createDynamicScoreColumn = (columnName: string): ExpressionValue => ({
     operator: "->>",
     left: {
       type: "column_ref",
-      table: "evaluation_results",
+      table,
       column: {
         expr: {
           type: "default",
-          value: "scores"
+          value: 'scores'
         }
       },
       collate: null
@@ -60,11 +69,14 @@ export const replaceJsonbFields = (
   columnExpression: ExpressionValue | ExprList,
   fromTables: string[] = [],
   aliases: string[] = [],
+  addAlias: boolean = false
 ): ExpressionValue | ExprList => {
   if (columnExpression.type === 'expr_list' && Array.isArray(columnExpression.value)) {
     return {
       ...columnExpression,
-      value: columnExpression.value.map(item => replaceJsonbFields(item, fromTables, aliases))
+      value: columnExpression.value.map(
+        item => replaceJsonbFields(item, fromTables, aliases, addAlias)
+      )
     };
   }
 
@@ -74,19 +86,24 @@ export const replaceJsonbFields = (
     const column = innerExpr.column;
     const columnName = typeof column === 'string' ? column : column.expr.value as string;
 
-    // Check for dynamic scores column in evaluation_results
-    if (tables.includes('evaluation_results') &&
-      !EVALUATION_RESULTS_COLUMNS.has(columnName) &&
-      !TRACES_COLUMNS.has(columnName) &&
-      !aliases.includes(columnName) &&
-      !['scores'].includes(columnName)
-    ) {
-      return createDynamicScoreColumn(columnName);
+    // Check for evaluation_scores table prefix to create dynamic score column
+    if (innerExpr.table === 'evaluation_scores') {
+      return createDynamicScoreColumn({
+        columnName,
+        addAlias,
+        table: 'evaluation_results',
+      });
+    } else if (innerExpr.table === 'evaluator_scores') {
+      return createDynamicScoreColumn({
+        columnName,
+        addAlias,
+        table: WITH_EVALUATOR_SCORES_CTE_NAME,
+      });
     }
 
     for (const table of tables) {
-      if (table && columnName && REPLACE_JSONB_FIELDS[table as TableName]?.[columnName]) {
-        const mapping = REPLACE_JSONB_FIELDS[table as TableName]?.[columnName]!;
+      if (table && columnName && REPLACE_STATIC_FIELDS[table as TableName]?.[columnName]) {
+        const mapping = REPLACE_STATIC_FIELDS[table as TableName]?.[columnName]!;
         aliases.push(mapping.as ?? columnName);
         return mapping.replaceWith as unknown as ExpressionValue;
       }
@@ -95,25 +112,28 @@ export const replaceJsonbFields = (
   }
 
   if (columnExpression.type === "column_ref") {
-    const tables = (columnExpression as unknown as ColumnRefItem).table ? [
-      (columnExpression as unknown as ColumnRefItem).table
-    ] : fromTables;
+    const referredTable = (columnExpression as unknown as ColumnRefItem).table
+    const tables = referredTable ? [referredTable] : fromTables;
     const column = (columnExpression as unknown as ColumnRefItem).column;
     const columnName = typeof column === 'string' ? column : column.expr.value as string;
 
-    // Check for dynamic scores column in evaluation_results
-    if (tables.includes('evaluation_results') &&
-      !EVALUATION_RESULTS_COLUMNS.has(columnName) &&
-      !TRACES_COLUMNS.has(columnName) &&
-      !aliases.includes(columnName) &&
-      !['scores'].includes(columnName)
-    ) {
-      return createDynamicScoreColumn(columnName);
+    if (referredTable === 'evaluation_scores') {
+      return createDynamicScoreColumn({
+        columnName,
+        addAlias,
+        table: 'evaluation_results',
+      });
+    } else if (referredTable === 'evaluator_scores') {
+      return createDynamicScoreColumn({
+        columnName,
+        addAlias,
+        table: WITH_EVALUATOR_SCORES_CTE_NAME,
+      });
     }
 
     for (const table of tables) {
-      if (table && columnName && REPLACE_JSONB_FIELDS[table as TableName]?.[columnName]) {
-        const mapping = REPLACE_JSONB_FIELDS[table as TableName]?.[columnName]!;
+      if (table && columnName && REPLACE_STATIC_FIELDS[table as TableName]?.[columnName]) {
+        const mapping = REPLACE_STATIC_FIELDS[table as TableName]?.[columnName]!;
         aliases.push(mapping.as ?? columnName);
         return mapping.replaceWith as unknown as ExpressionValue;
       }
@@ -129,7 +149,9 @@ export const replaceJsonbFields = (
         ...functionExpression,
         args: {
           ...args,
-          value: args.value.map(item => replaceJsonbFields(item, fromTables, aliases))
+          value: args.value.map(
+            item => replaceJsonbFields(item, fromTables, aliases, addAlias)
+          )
         }
       };
     }
@@ -145,13 +167,18 @@ export const replaceJsonbFields = (
         if (item.type === "when") {
           return {
             ...item,
-            cond: replaceJsonbFields(item.cond, fromTables, aliases) as ExpressionValue as Binary,
-            result: replaceJsonbFields(item.result, fromTables, aliases)
+            cond: replaceJsonbFields(
+              item.cond,
+              fromTables,
+              aliases,
+              addAlias
+            ) as ExpressionValue as Binary,
+            result: replaceJsonbFields(item.result, fromTables, aliases, addAlias)
           };
         } else if (item.type === "else") {
           return {
             ...item,
-            result: replaceJsonbFields(item.result, fromTables, aliases)
+            result: replaceJsonbFields(item.result, fromTables, aliases, addAlias)
           };
         }
         return item;
@@ -163,8 +190,8 @@ export const replaceJsonbFields = (
     const binaryExpression = columnExpression as unknown as Binary;
     return {
       ...binaryExpression,
-      left: replaceJsonbFields(binaryExpression.left, fromTables, aliases),
-      right: replaceJsonbFields(binaryExpression.right, fromTables, aliases)
+      left: replaceJsonbFields(binaryExpression.left, fromTables, aliases, addAlias),
+      right: replaceJsonbFields(binaryExpression.right, fromTables, aliases, addAlias)
     };
   }
 
@@ -174,7 +201,7 @@ export const replaceJsonbFields = (
       ...aggrFunc,
       args: {
         ...aggrFunc.args,
-        expr: replaceJsonbFields(aggrFunc.args.expr, fromTables, aliases)
+        expr: replaceJsonbFields(aggrFunc.args.expr, fromTables, aliases, addAlias)
       }
     };
   }
@@ -183,7 +210,7 @@ export const replaceJsonbFields = (
     const cast = columnExpression as unknown as Cast;
     return {
       ...cast,
-      expr: replaceJsonbFields(cast.expr, fromTables, aliases)
+      expr: replaceJsonbFields(cast.expr, fromTables, aliases, addAlias)
     };
   }
 
