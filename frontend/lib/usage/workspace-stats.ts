@@ -1,11 +1,13 @@
 import { count, eq, sql } from "drizzle-orm";
+
 import { db } from "@/lib/db/drizzle";
 import {
-  workspaceUsage,
   membersOfWorkspaces,
-  workspaces,
   subscriptionTiers,
+  workspaces,
+  workspaceUsage,
 } from "@/lib/db/migrations/schema";
+
 import { WorkspaceStats } from "./types";
 
 export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceStats> {
@@ -52,9 +54,7 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   const stats = result[0];
 
   // Convert bytes to GB (1 GB = 1024^3 bytes)
-  const bytesToGB = (bytes: number): number => {
-    return bytes / (1024 * 1024 * 1024);
-  };
+  const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
 
   const totalGBUsed = bytesToGB(Number(stats.totalBytesIngested));
   const gbUsedThisMonth = bytesToGB(Number(stats.bytesIngestedThisMonth));
@@ -86,4 +86,4 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
     gbOverLimit,
     gbOverLimitCost,
   };
-} 
+}
