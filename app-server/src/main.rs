@@ -534,11 +534,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::workspace::create_workspace),
                         )
                         .service(
-                            web::scope("/api/v1/limits")
-                                .wrap(auth.clone())
-                                .service(routes::limits::get_workspace_stats),
-                        )
-                        .service(
                             // auth on path projects/{project_id} is handled by middleware on Next.js
                             web::scope("/api/v1/projects/{project_id}")
                                 .service(routes::api_keys::create_project_api_key)

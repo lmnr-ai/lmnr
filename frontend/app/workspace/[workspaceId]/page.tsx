@@ -16,21 +16,13 @@ import {
   workspaces,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { WorkspaceStats } from "@/lib/usage/types";
-import { cn, fetcherJSON } from "@/lib/utils";
+import { getWorkspaceStats } from "@/lib/usage/workspace-stats";
+import { cn } from "@/lib/utils";
 import { WorkspaceWithUsers } from "@/lib/workspaces/types";
 
 export const metadata: Metadata = {
   title: "Workspace",
 };
-
-const getWorkspaceStats = async (workspaceId: string, apiKey: string): Promise<WorkspaceStats> =>
-  (await fetcherJSON(`/limits/workspace/${workspaceId}`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-  })) as WorkspaceStats;
 
 export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
   const params = await props.params;
@@ -85,7 +77,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
 
   const isOwner = workspace.users.find((u) => u.email === user.email)?.role === "owner";
 
-  const stats = await getWorkspaceStats(params.workspaceId, user.apiKey);
+  const stats = await getWorkspaceStats(params.workspaceId);
 
   const invitations = await db.query.workspaceInvitations.findMany({
     where: eq(workspaceInvitations.workspaceId, params.workspaceId),
