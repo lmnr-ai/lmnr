@@ -1,6 +1,6 @@
 import "@/app/globals.css";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -54,18 +54,25 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
     .select({
       spanCountSinceReset: workspaceUsage.spanCountSinceReset,
       stepCountSinceReset: workspaceUsage.stepCountSinceReset,
+      // Get bytes ingested for GB calculation
+      bytesIngestedThisMonth: sql<number>`${workspaceUsage.spansBytesIngestedSinceReset} + ${workspaceUsage.browserSessionEventsBytesIngestedSinceReset}`,
     })
     .from(workspaceUsage)
     .where(eq(workspaceUsage.workspaceId, project.workspaceId))
     .limit(1);
 
-  const usage = usageResult.length > 0 ? usageResult[0] : { spanCountSinceReset: 0, stepCountSinceReset: 0 };
+  const usage = usageResult.length > 0 ? usageResult[0] : {
+    spanCountSinceReset: 0,
+    stepCountSinceReset: 0,
+    bytesIngestedThisMonth: 0
+  };
 
   const tierResult = await db
     .select({
       name: subscriptionTiers.name,
       spansLimit: subscriptionTiers.spans,
       stepsLimit: subscriptionTiers.steps,
+      bytesLimit: subscriptionTiers.bytesIngested,
     })
     .from(subscriptionTiers)
     .where(eq(subscriptionTiers.id, workspace.tierId))
@@ -76,12 +83,24 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
   }
   const tier = tierResult[0];
 
+  // Convert bytes to GB (1 GB = 1024^3 bytes)
+  const bytesToGB = (bytes: number): number => {
+    return bytes / (1024 * 1024 * 1024);
+  };
+
+  const gbUsedThisMonth = bytesToGB(Number(usage.bytesIngestedThisMonth));
+  const gbLimit = bytesToGB(Number(tier.bytesLimit));
+
   return {
     id: project.id,
     name: project.name,
     workspaceId: project.workspaceId,
+    // Legacy span fields (for backward compatibility)
     spansThisMonth: Number(usage.spanCountSinceReset),
     spansLimit: Number(tier.spansLimit),
+    // New GB-based usage fields
+    gbUsedThisMonth,
+    gbLimit,
     agentStepsThisMonth: Number(usage.stepCountSinceReset),
     agentStepsLimit: Number(tier.stepsLimit),
     isFreeTier: tier.name.toLowerCase().trim() === "free",
@@ -106,7 +125,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const showBanner =
     isFeatureEnabled(Feature.WORKSPACE) &&
     project.isFreeTier &&
-    ((project.spansLimit > 0 && project.spansThisMonth >= 0.8 * project.spansLimit) ||
+    ((project.gbLimit > 0 && project.gbUsedThisMonth >= 0.8 * project.gbLimit) ||
       (project.agentStepsLimit > 0 && project.agentStepsThisMonth >= 0.8 * project.agentStepsLimit));
 
   const posthog = PostHogClient();
@@ -134,8 +153,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
               {showBanner && (
                 <ProjectUsageBanner
                   workspaceId={project.workspaceId}
-                  spansThisMonth={project.spansThisMonth}
-                  spansLimit={project.spansLimit}
+                  gbUsedThisMonth={project.gbUsedThisMonth}
+                  gbLimit={project.gbLimit}
                   agentStepsThisMonth={project.agentStepsThisMonth}
                   agentStepsLimit={project.agentStepsLimit}
                 />
