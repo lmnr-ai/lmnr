@@ -1,4 +1,4 @@
-import { AutoJoinRule, AutoJoinColumnRule, AutoJoinTableRule, ExtendedCast, JsonbFieldMapping, TableName } from "./types";
+import { AutoJoinColumnRule, AutoJoinRule, AutoJoinTableRule, ExtendedCast, JsonbFieldMapping, TableName } from "./types";
 import { WITH_EVAL_DP_DATA_CTE_NAME, WITH_EVAL_DP_TARGET_CTE_NAME, WITH_EVALUATOR_SCORES_CTE_NAME } from "./with";
 
 export const REPLACE_STATIC_FIELDS: Partial<Record<TableName, Record<string, JsonbFieldMapping>>> = {
@@ -202,7 +202,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         }
       }
     ]
-  } as AutoJoinColumnRule,
+  },
   {
     triggerTables: ['spans'] as TableName[],
     triggerColumns: ['evaluation_name'],
@@ -229,7 +229,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         }
       }
     ]
-  } as AutoJoinColumnRule,
+  },
   {
     triggerTables: ['spans'] as TableName[],
     triggerColumns: ['tag'],
@@ -256,7 +256,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         }
       }
     ]
-  } as AutoJoinColumnRule,
+  },
   {
     triggerTables: ['traces'] as TableName[],
     triggerColumns: ['evaluation_id'],
@@ -283,7 +283,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         }
       }
     ]
-  } as AutoJoinColumnRule,
+  },
   {
     triggerTables: ['traces'] as TableName[],
     triggerColumns: ['evaluation_name'],
@@ -310,7 +310,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         }
       }
     ]
-  } as AutoJoinColumnRule,
+  },
   {
     triggerTables: ['evaluation_results'] as TableName[],
     triggerColumns: ['cost', 'duration', 'total_token_count', 'start_time', 'end_time'],
@@ -389,7 +389,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         }
       }
     ]
-  } as AutoJoinColumnRule,
+  },
   {
     triggerTables: ['evaluation_results'] as TableName[],
     triggerColumns: ['data'],
@@ -410,7 +410,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         }
       }
     ]
-  } as AutoJoinColumnRule,
+  },
   {
     triggerTables: ['evaluation_results'] as TableName[],
     triggerColumns: ['target'],
@@ -431,7 +431,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         }
       }
     ]
-  } as AutoJoinColumnRule,
+  },
   {
     // Rule to join spans -> evaluator_scores when any column from evaluator_scores is referenced
     triggerTables: ['spans'] as TableName[],
@@ -444,5 +444,5 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         rightColumn: 'span_id'
       }
     ]
-  } as AutoJoinTableRule
+  }
 ];

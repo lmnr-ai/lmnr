@@ -112,7 +112,7 @@ export const replaceJsonbFields = (
   }
 
   if (columnExpression.type === "column_ref") {
-    const referredTable = (columnExpression as unknown as ColumnRefItem).table
+    const referredTable = (columnExpression as unknown as ColumnRefItem).table;
     const tables = referredTable ? [referredTable] : fromTables;
     const column = (columnExpression as unknown as ColumnRefItem).column;
     const columnName = typeof column === 'string' ? column : column.expr.value as string;

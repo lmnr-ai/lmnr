@@ -17,8 +17,8 @@ import {
 import { AUTO_JOIN_RULES } from "./modifier-consts";
 import {
   ALLOWED_TABLES_AND_SCHEMA,
-  AutoJoinRule,
   AutoJoinColumnRule,
+  AutoJoinRule,
   AutoJoinTableRule,
   JoinCondition,
   TableName
@@ -515,6 +515,11 @@ const hasColumnReference = (expression: ExpressionValue, columns: string[]): boo
     );
   }
 
+  if (expression.type === 'cast') {
+    const extractExpr = expression as Cast;
+    return hasColumnReference(extractExpr.expr, columns);
+  }
+
   return false;
 };
 
@@ -575,6 +580,11 @@ const hasTableReference = (expression: ExpressionValue, tables: string[]): boole
     return (expression as ExprList).value.some(item =>
       hasTableReference(item as ExpressionValue, tables)
     );
+  }
+
+  if (expression.type === 'cast') {
+    const castExpr = expression as Cast;
+    return hasTableReference(castExpr.expr, tables);
   }
 
   return false;
