@@ -23,7 +23,8 @@ CREATE TABLE default.spans
     -- Add materialized columns for case-insensitive search
     input_lower String MATERIALIZED lower(input) CODEC(ZSTD(3)),
     output_lower String MATERIALIZED lower(output) CODEC(ZSTD(3)),
-    size_bytes UInt64 DEFAULT 0
+    size_bytes UInt64 DEFAULT 0,
+    spans String DEFAULT '<null>'
 )
 ENGINE = MergeTree()
 ORDER BY (project_id, start_time, trace_id, span_id)
@@ -105,5 +106,3 @@ ENGINE = MergeTree()
 PRIMARY KEY (project_id, evaluator_id)
 ORDER BY (project_id, evaluator_id, created_at)
 SETTINGS index_granularity = 8192;
-
-ALTER TABLE default.spans ADD COLUMN "status" text DEFAULT '<null>';
