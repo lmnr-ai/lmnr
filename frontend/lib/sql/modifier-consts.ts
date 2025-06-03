@@ -1,4 +1,4 @@
-import { AutoJoinColumnRule, AutoJoinRule, AutoJoinTableRule, ExtendedCast, JsonbFieldMapping, TableName } from "./types";
+import { AutoJoinRule, ExtendedCast, JsonbFieldMapping, TableName } from "./types";
 import { WITH_EVAL_DP_DATA_CTE_NAME, WITH_EVAL_DP_TARGET_CTE_NAME, WITH_EVALUATOR_SCORES_CTE_NAME } from "./with";
 
 export const REPLACE_STATIC_FIELDS: Partial<Record<TableName, Record<string, JsonbFieldMapping>>> = {
