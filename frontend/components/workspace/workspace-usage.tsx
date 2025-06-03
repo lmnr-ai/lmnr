@@ -16,27 +16,27 @@ interface WorkspaceUsageProps {
   isOwner: boolean;
 }
 
-const TIER_SPAN_HINTS = {
+const TIER_USAGE_HINTS = {
   free: {
-    spans: "50k",
-    steps: "100",
+    data: "1GB",
+    steps: "500",
     isOverageAllowed: false,
   },
   hobby: {
-    spans: "100k",
-    steps: "1000",
+    data: "2GB",
+    steps: "2500",
     isOverageAllowed: true,
   },
   pro: {
-    spans: "200k",
-    steps: "3000",
+    data: "5GB",
+    steps: "5000",
     isOverageAllowed: true,
   },
 };
 
 export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: WorkspaceUsageProps) {
-  const spansThisMonth = workspaceStats?.spansThisMonth ?? 0;
-  const spansLimit = workspaceStats?.spansLimit ?? 1;
+  const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
+  const gbLimit = workspaceStats?.gbLimit ?? 1;
   const stepsThisMonth = workspaceStats?.stepsThisMonth ?? 0;
   const stepsLimit = workspaceStats?.stepsLimit ?? 1;
   const resetTime = workspaceStats.resetTime;
@@ -47,16 +47,23 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
     maximumFractionDigits: 2,
   });
 
-  const tierHintInfo = TIER_SPAN_HINTS[workspaceStats.tierName.toLowerCase().trim() as keyof typeof TIER_SPAN_HINTS];
+  const formatGB = (gb: number) => {
+    if (gb < 0.001) {
+      return `${(gb * 1024).toFixed(2)} MB`;
+    }
+    return `${gb.toFixed(2)} GB`;
+  };
+
+  const tierHintInfo = TIER_USAGE_HINTS[workspaceStats.tierName.toLowerCase().trim() as keyof typeof TIER_USAGE_HINTS];
   const tierHint =
-    `${workspaceStats.tierName} tier comes with ${tierHintInfo?.spans ?? "unlimited"} spans and ` +
-    `${tierHintInfo?.steps ?? "unlimited"} agent steps included per month.`;
+    `${workspaceStats.tierName} tier comes with ${tierHintInfo?.data ?? "unlimited"} data and ` +
+    `${tierHintInfo?.steps ?? "unlimited"} Index agent steps included per month.`;
 
   const tierHintOverages =
     "If you exceed this limit, " +
     (tierHintInfo?.isOverageAllowed
-      ? "you will be charged for overages."
-      : "you won't be able to send any more spans during current billing cycle.");
+      ? "you will be charged $2 per GB for additional data and $10 per 1k agent steps."
+      : "you won't be able to send any more data during current billing cycle.");
 
   return (
     <div className="p-4 flex flex-col gap-4 w-2/3">
@@ -86,7 +93,7 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
             </Button>
           </DialogTrigger>
           <DialogTitle className="sr-only">Manage billing</DialogTitle>
-          <DialogContent className="max-w-7xl">
+          <DialogContent className="max-w-[90vw] p-0 border-none">
             <PricingDialog
               workspaceTier={workspaceStats.tierName.toLowerCase().trim()}
               workspaceId={workspace.id}
@@ -107,21 +114,21 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
         <div className="grid grid-cols-1 max-w-xl md:grid-cols-2 sm:divide-y md:divide-y-0 md:divide-x">
           <div className="flex justify-between px-4 py-2">
             <div className="flex flex-col gap-2">
-              <span className="text-sm">Spans</span>
+              <span className="text-sm">Data usage</span>
               <span className="text-sm text-secondary-foreground">
-                {spansThisMonth} / {spansLimit} ({formatter.format(spansThisMonth / spansLimit)})
+                {formatGB(gbUsedThisMonth)} / {formatGB(gbLimit)} ({formatter.format(gbUsedThisMonth / gbLimit)})
               </span>
             </div>
             <UsageProgressDisc
-              data={[{ fill: "hsl(var(--chart-1))", spans: spansThisMonth }]}
-              dataKey="spans"
-              value={spansThisMonth}
-              maxValue={spansLimit}
+              data={[{ fill: "hsl(var(--chart-1))", usage: gbUsedThisMonth }]}
+              dataKey="usage"
+              value={gbUsedThisMonth}
+              maxValue={gbLimit}
             />
           </div>
           <div className="flex justify-between px-4 py-2">
             <div className="flex flex-col gap-2">
-              <span className="text-sm">Agent steps</span>
+              <span className="text-sm">Index agent steps</span>
               <span className="text-sm text-secondary-foreground">
                 {stepsThisMonth} / {stepsLimit} ({formatter.format(stepsThisMonth / stepsLimit)})
               </span>

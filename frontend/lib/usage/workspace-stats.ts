@@ -34,6 +34,10 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
       membersLimit: sql<number>`${subscriptionTiers.membersPerWorkspace} + ${workspaces.additionalSeats}`,
       storageLimit: subscriptionTiers.storageMib,
       resetTime: workspaceUsage.resetTime,
+      // Bytes ingested fields for GB calculation
+      totalBytesIngested: sql<number>`${workspaceUsage.spansBytesIngested} + ${workspaceUsage.browserSessionEventsBytesIngested}`,
+      bytesIngestedThisMonth: sql<number>`${workspaceUsage.spansBytesIngestedSinceReset} + ${workspaceUsage.browserSessionEventsBytesIngestedSinceReset}`,
+      bytesLimit: subscriptionTiers.bytesIngested,
     })
     .from(workspaceUsage)
     .innerJoin(workspaces, eq(workspaces.id, workspaceUsage.workspaceId))
@@ -46,6 +50,19 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   }
 
   const stats = result[0];
+
+  // Convert bytes to GB (1 GB = 1024^3 bytes)
+  const bytesToGB = (bytes: number): number => {
+    return bytes / (1024 * 1024 * 1024);
+  };
+
+  const totalGBUsed = bytesToGB(Number(stats.totalBytesIngested));
+  const gbUsedThisMonth = bytesToGB(Number(stats.bytesIngestedThisMonth));
+  const gbLimit = bytesToGB(Number(stats.bytesLimit));
+
+  // Calculate GB overages
+  const gbOverLimit = Math.max(gbUsedThisMonth - gbLimit, 0);
+  const gbOverLimitCost = gbOverLimit * 2; // $2 per GB overage based on pricing
 
   return {
     tierName: stats.tierName,
@@ -62,5 +79,11 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
     stepsOverLimit: Number(stats.stepsOverLimit),
     stepsOverLimitCost: Number(stats.stepsOverLimitCost),
     stepsThisMonth: Number(stats.stepsThisMonth),
+    // GB usage fields
+    totalGBUsed,
+    gbUsedThisMonth,
+    gbLimit,
+    gbOverLimit,
+    gbOverLimitCost,
   };
 } 

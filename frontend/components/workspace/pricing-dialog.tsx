@@ -22,56 +22,79 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
 
   return (
     <div className="flex flex-col items-center w-full">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:p-16">
-        <div className="p-8 border rounded-lg flex flex-col space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="p-8 border flex flex-col justify-between">
           <PricingCard
             className="text-secondary-foreground"
             title="Free"
             price="0 / month"
             features={[
-              "50K spans / month",
+              "1GB data / month",
               "15 day data retention",
               "1 team member",
-              "100 agent steps / month",
+              "500 Index agent steps / month",
               "Community support",
             ]}
           />
+          {workspaceTier === "free" && (
+            <div className="mt-4">
+              <Button variant="secondary" className="w-full h-10" disabled>
+                Current plan
+              </Button>
+            </div>
+          )}
         </div>
-        <div className="p-8 border rounded-lg flex flex-col space-y-4">
+
+        <div className="p-8 border flex flex-col justify-between">
           <PricingCard
             className="text-secondary-foreground"
             title="Hobby"
             price="$25 / month"
             features={[
-              "100k spans / month",
+              "2GB data / month included",
               "30 day data retention",
               "2 team members",
-              "1000 agent steps / month",
-              "Community support",
+              "2500 Index agent steps / month",
+              "Priority email support",
             ]}
-            subfeatures={["then $5 per 100k of additional spans", null, null]}
+            subfeatures={[
+              "then $2 per 1GB of additional data",
+              null,
+              null,
+              "then $10 per 1k steps",
+              null,
+            ]}
           />
-          <Link href={workspaceTier === "hobby" ? "/checkout/portal" : addWorkspaceToLink(TIER_LINKS.hobby)}>
-            <Button variant="secondary" className="w-full h-10">
-              {workspaceTier === "hobby" ? "Manage billing" : "Upgrade to Hobby"}
-            </Button>
-          </Link>
+          <div className="mt-4">
+            <Link href={workspaceTier === "hobby" ? "/checkout/portal" : addWorkspaceToLink(TIER_LINKS.hobby)}>
+              <Button variant="secondary" className="w-full h-10">
+                {workspaceTier === "hobby" ? "Manage billing" : "Upgrade to Hobby"}
+              </Button>
+            </Link>
+          </div>
         </div>
-        <div className="h-full w-full rounded p-8 flex flex-col z-20 border border-primary bg-primary">
+
+        <div className="h-full w-full p-8 flex flex-col justify-between z-20 border border-primary bg-primary">
           <PricingCard
             className="text-white z-20"
             title="Pro"
-            price={"$50 / month"}
+            price="$50 / month"
             features={[
-              "200k spans / month included",
+              "5GB data / month included",
               "90 day data retention",
-              "3 team members included",
-              "3000 agent steps / month",
+              "5 team members included",
+              "5000 Index agent steps / month",
               "Private Slack channel",
             ]}
-            subfeatures={["then $5 per 100k of additional spans", null, "$25 per additional team member", null]}
+            subfeatures={[
+              "then $2 per 1GB of additional data",
+              null,
+              "then $25 per additional team member",
+              "then $10 per 1k steps",
+              null,
+            ]}
           />
-          <div className="space-y-4 z-20 flex flex-col">
+          <div className="mt-4 z-20">
             <Link
               href={isTierPaid(workspaceTier) ? "/checkout/portal" : addWorkspaceToLink(TIER_LINKS.pro)}
               className="w-full z-20"
@@ -81,16 +104,39 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
                 variant="outline"
               >
                 {isTierPaid(workspaceTier)
-                  ? workspaceTier === "hobby"
+                  ? workspaceTier === "pro"
                     ? "Manage billing"
-                    : "Upgrade to Pro"
+                    : workspaceTier === "hobby"
+                      ? "Upgrade to Pro"
+                      : "Upgrade to Pro"
                   : "Upgrade to Pro"}
               </Button>
             </Link>
           </div>
         </div>
+
+        <div className="p-8 border flex flex-col justify-between">
+          <PricingCard
+            className="text-secondary-foreground"
+            title="Enterprise"
+            price="Custom"
+            features={[
+              "Custom data retention",
+              "Custom team members",
+              "Custom agent steps",
+              "On-premise deployment",
+              "Dedicated support",
+            ]}
+          />
+          <div className="mt-4">
+            <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry">
+              <Button variant="secondary" className="w-full h-10">
+                Contact us
+              </Button>
+            </Link>
+          </div>
+        </div>
       </div>
-      <div className="flex-grow"></div>
     </div>
   );
 }
