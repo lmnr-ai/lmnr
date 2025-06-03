@@ -106,4 +106,4 @@ PRIMARY KEY (project_id, evaluator_id)
 ORDER BY (project_id, evaluator_id, created_at)
 SETTINGS index_granularity = 8192;
 
-ALTER TABLE default.spans ADD COLUMN "status" text;
+ALTER TABLE default.spans ADD COLUMN "status" text DEFAULT '<null>';
