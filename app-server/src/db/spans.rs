@@ -55,6 +55,7 @@ pub struct Span {
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub events: Option<Value>,
+    pub status: Option<String>,
     pub labels: Option<Value>,
     pub input_url: Option<String>,
     pub output_url: Option<String>,
@@ -108,6 +109,7 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             output_preview,
             input_url,
             output_url,
+            status,
             project_id
         )
         VALUES(
@@ -125,7 +127,8 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             $12,
             $13,
             $14,
-            $15)
+            $15,
+            $16)
         ON CONFLICT (span_id, project_id) DO UPDATE SET
             trace_id = EXCLUDED.trace_id,
             parent_span_id = EXCLUDED.parent_span_id,
@@ -139,7 +142,8 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             input_preview = EXCLUDED.input_preview,
             output_preview = EXCLUDED.output_preview,
             input_url = EXCLUDED.input_url,
-            output_url = EXCLUDED.output_url
+            output_url = EXCLUDED.output_url,
+            status = EXCLUDED.status
     ",
     )
     .bind(&span.span_id)
@@ -156,6 +160,7 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
     .bind(&output_preview)
     .bind(&span.input_url as &Option<String>)
     .bind(&span.output_url as &Option<String>)
+    .bind(&span.status)
     .bind(&project_id)
     .execute(pool)
     .await?;
