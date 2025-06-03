@@ -1,6 +1,18 @@
 import { BaseFrom, Binary, Cast, ExpressionValue as BaseExpressionValue } from "node-sql-parser";
 
-import { datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, spans, traces } from "../db/migrations/schema";
+import {
+  datasetDatapoints,
+  datasets,
+  evaluationResults,
+  evaluations,
+  evaluationScores,
+  evaluators,
+  evaluatorScores,
+  labelClasses,
+  labels,
+  spans,
+  traces
+} from "../db/migrations/schema";
 import { AllowedTableNameForJoin } from "./with";
 
 export type Arg = {
@@ -23,7 +35,11 @@ export type TableName =
   | 'evaluation_results'
   | 'evaluation_scores'
   | 'datasets'
-  | 'dataset_datapoints';
+  | 'dataset_datapoints'
+  | 'labels'
+  | 'label_classes'
+  | 'evaluator_scores'
+  | 'evaluators';
 
 export interface JsonbFieldMapping {
   replaceWith: unknown;
@@ -39,6 +55,38 @@ export interface JoinCondition {
   additionalConditions?: Binary[];
   lateral?: boolean;
 }
+
+// Base interface for common properties
+interface AutoJoinRuleBase {
+  // Tables that trigger this join rule
+  triggerTables: TableName[];
+  // The join chain to add (in order)
+  joinChain: JoinCondition[];
+  // Column replacements to apply after joining
+  columnReplacements?: {
+    original: string;
+    replacement: {
+      table: AllowedTableNameForJoin;
+      column: string;
+      as?: string;
+    } | Binary | ExpressionValue | ExtendedCast;
+  }[];
+}
+
+// Rule triggered by specific column references
+export interface AutoJoinColumnRule extends AutoJoinRuleBase {
+  // Column references that trigger this join rule
+  triggerColumns: string[];
+}
+
+// Rule triggered by any column reference from specified tables
+export interface AutoJoinTableRule extends AutoJoinRuleBase {
+  // Tables whose column references trigger this join rule
+  triggerReferencedTables: AllowedTableNameForJoin[];
+}
+
+// Union type for auto join rules
+export type AutoJoinRule = AutoJoinColumnRule | AutoJoinTableRule;
 
 // types.d.ts in the library are slightly outdated, so we need to extend the types here
 export interface Extract {
@@ -62,24 +110,6 @@ export interface ExtendedCast extends Omit<Cast, 'symbol' | 'expr'> {
   }[];
 }
 
-export interface AutoJoinRule {
-  // Tables that trigger this join rule
-  triggerTables: TableName[];
-  // Column references that trigger this join rule
-  triggerColumns: string[];
-  // The join chain to add (in order)
-  joinChain: JoinCondition[];
-  // Column replacements to apply after joining
-  columnReplacements?: {
-    original: string;
-    replacement: {
-      table: AllowedTableNameForJoin;
-      column: string;
-      as?: string;
-    } | Binary | ExpressionValue | ExtendedCast;
-  }[];
-}
-
 export interface JoinASTNode extends BaseFrom {
   join: string;
   on: Binary;
@@ -98,7 +128,11 @@ export const ALLOWED_TABLES_AND_SCHEMA: Record<TableName, string[]> = {
   evaluation_results: Object.keys(evaluationResults).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
   evaluation_scores: Object.keys(evaluationScores).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
   datasets: Object.keys(datasets).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
-  dataset_datapoints: Object.keys(datasetDatapoints).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase)
+  dataset_datapoints: Object.keys(datasetDatapoints).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  labels: Object.keys(labels).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  label_classes: Object.keys(labelClasses).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  evaluator_scores: Object.keys(evaluatorScores).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
+  evaluators: Object.keys(evaluators).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
 };
 
 export const ALLOWED_TABLES: Set<TableName> = new Set(Object.keys(ALLOWED_TABLES_AND_SCHEMA) as TableName[]);
