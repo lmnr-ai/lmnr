@@ -140,62 +140,6 @@ pub struct WorkspaceStats {
     pub storage_limit: i64,
 }
 
-pub async fn get_workspace_stats(pool: &PgPool, workspace_id: &Uuid) -> Result<WorkspaceStats> {
-    let workspace_stats = sqlx::query_as::<_, WorkspaceStats>(
-        "WITH members_per_workspace AS (
-            SELECT
-                workspace_id,
-                count(user_id)::int8 as members
-            FROM
-                members_of_workspaces
-            WHERE
-                workspace_id = $1
-            GROUP BY workspace_id
-        )
-        SELECT
-            subscription_tiers.name as tier_name,
-            subscription_tiers.members_per_workspace as seats_included_in_tier,
-            workspace_usage.span_count as total_spans,
-            workspace_usage.span_count_since_reset as spans_this_month,
-            workspace_usage.step_count as total_steps,
-            workspace_usage.step_count_since_reset as steps_this_month,
-            subscription_tiers.spans as spans_limit,
-            subscription_tiers.steps as steps_limit,
-            GREATEST(
-                workspace_usage.span_count_since_reset - subscription_tiers.spans, 
-                0
-            ) as spans_over_limit,
-            GREATEST(
-                workspace_usage.span_count_since_reset - subscription_tiers.spans,
-                0
-            )::float8 * subscription_tiers.extra_span_price as spans_over_limit_cost,
-            GREATEST(
-                workspace_usage.step_count_since_reset - subscription_tiers.steps,
-                0
-            ) as steps_over_limit,
-            GREATEST(
-                workspace_usage.step_count_since_reset - subscription_tiers.steps,
-                0
-            )::float8 * subscription_tiers.extra_step_price as steps_over_limit_cost,
-            members_per_workspace.members,
-            subscription_tiers.members_per_workspace +
-                workspaces.additional_seats as members_limit,
-            subscription_tiers.storage_mib as storage_limit,
-            workspace_usage.reset_time
-        FROM
-            workspace_usage
-            JOIN members_per_workspace
-                ON members_per_workspace.workspace_id = workspace_usage.workspace_id
-            JOIN workspaces ON workspaces.id = workspace_usage.workspace_id
-            JOIN subscription_tiers ON subscription_tiers.id = workspaces.tier_id",
-    )
-    .bind(workspace_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(workspace_stats)
-}
-
 pub async fn is_workspace_over_limit(
     pool: &PgPool,
     workspace_id: &Uuid,

@@ -82,7 +82,7 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
             features={[
               "5GB data / month included",
               "90 day data retention",
-              "5 team members included",
+              "3 team members included",
               "5000 Index agent steps / month",
               "Private Slack channel",
             ]}
