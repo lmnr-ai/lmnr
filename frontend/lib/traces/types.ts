@@ -49,6 +49,7 @@ export type Span = {
   inputUrl: string | null;
   outputUrl: string | null;
   pending?: boolean;
+  status?: string;
 };
 
 export type Trace = {

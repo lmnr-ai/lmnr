@@ -1,4 +1,4 @@
-import { Activity, ArrowRight, Bolt, Braces, Gauge, MessageCircleMore } from "lucide-react";
+import { Activity, ArrowRight, Bolt, Braces, CircleAlert, Gauge, MessageCircleMore } from "lucide-react";
 
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
@@ -11,6 +11,7 @@ interface SpanTypeIconProps {
   size?: number;
   className?: string;
   iconClassName?: string;
+  status?: string;
 }
 
 const DEFAULT_CONTAINER_SIZE = 22;
@@ -23,22 +24,41 @@ export default function SpanTypeIcon({
   size = DEFAULT_ICON_SIZE,
   className,
   iconClassName,
+  status,
 }: SpanTypeIconProps) {
+  const renderIcon = () => {
+    if (status === "error") {
+      return <CircleAlert className={iconClassName} size={size} />;
+    }
+
+    switch (spanType) {
+      case SpanType.DEFAULT:
+        return <Braces className={iconClassName} size={size} />;
+      case SpanType.LLM:
+        return <MessageCircleMore className={iconClassName} size={size} />;
+      case SpanType.EXECUTOR:
+        return <Activity className={iconClassName} size={size} />;
+      case SpanType.EVALUATOR:
+        return <ArrowRight className={iconClassName} size={size} />;
+      case SpanType.EVALUATION:
+        return <Gauge className={iconClassName} size={size} />;
+      case SpanType.TOOL:
+        return <Bolt className={iconClassName} size={size} />;
+      default:
+        return <Braces className={iconClassName} size={size} />;
+    }
+  };
+
   return (
     <div
       className={cn("flex items-center justify-center z-10 rounded", className)}
       style={{
-        backgroundColor: SPAN_TYPE_TO_COLOR[spanType],
+        backgroundColor: status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[spanType], // Red background for errors
         width: containerWidth,
         height: containerHeight,
       }}
     >
-      {spanType === SpanType.DEFAULT && <Braces className={iconClassName} size={size} />}
-      {spanType === SpanType.LLM && <MessageCircleMore className={iconClassName} size={size} />}
-      {spanType === SpanType.EXECUTOR && <Activity className={iconClassName} size={size} />}
-      {spanType === SpanType.EVALUATOR && <ArrowRight className={iconClassName} size={size} />}
-      {spanType === SpanType.EVALUATION && <Gauge className={iconClassName} size={size} />}
-      {spanType === SpanType.TOOL && <Bolt className={iconClassName} size={size} />}
+      {renderIcon()}
     </div>
   );
 }
