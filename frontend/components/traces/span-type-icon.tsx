@@ -1,4 +1,5 @@
 import { Activity, ArrowRight, Bolt, Braces, CircleAlert, Gauge, MessageCircleMore } from "lucide-react";
+import { ReactNode } from "react";
 
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
@@ -17,6 +18,26 @@ interface SpanTypeIconProps {
 const DEFAULT_CONTAINER_SIZE = 22;
 const DEFAULT_ICON_SIZE = 16;
 
+export const createSpanTypeIcon = (type: SpanType, iconClassName: string = "w-4 h-4", size: number = 16): ReactNode => {
+  const iconProps = { className: iconClassName, size };
+
+  switch (type) {
+    case SpanType.DEFAULT:
+      return <Braces {...iconProps} />;
+    case SpanType.LLM:
+      return <MessageCircleMore {...iconProps} />;
+    case SpanType.EXECUTOR:
+      return <Activity {...iconProps} />;
+    case SpanType.EVALUATOR:
+      return <ArrowRight {...iconProps} />;
+    case SpanType.EVALUATION:
+      return <Gauge {...iconProps} />;
+    case SpanType.TOOL:
+      return <Bolt {...iconProps} />;
+    default:
+      return <Braces {...iconProps} />;
+  }
+};
 export default function SpanTypeIcon({
   spanType,
   containerWidth = DEFAULT_CONTAINER_SIZE,
@@ -31,22 +52,7 @@ export default function SpanTypeIcon({
       return <CircleAlert className={iconClassName} size={size} />;
     }
 
-    switch (spanType) {
-      case SpanType.DEFAULT:
-        return <Braces className={iconClassName} size={size} />;
-      case SpanType.LLM:
-        return <MessageCircleMore className={iconClassName} size={size} />;
-      case SpanType.EXECUTOR:
-        return <Activity className={iconClassName} size={size} />;
-      case SpanType.EVALUATOR:
-        return <ArrowRight className={iconClassName} size={size} />;
-      case SpanType.EVALUATION:
-        return <Gauge className={iconClassName} size={size} />;
-      case SpanType.TOOL:
-        return <Bolt className={iconClassName} size={size} />;
-      default:
-        return <Braces className={iconClassName} size={size} />;
-    }
+    return createSpanTypeIcon(spanType, className, size);
   };
 
   return (

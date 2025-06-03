@@ -30,7 +30,7 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
           outputCost={trace.outputCost}
           cost={trace.cost}
         />
-        <div className="flex gap-2 ml-auto">
+        <div className="flex flex-1 gap-2 justify-end mr-2">
           {trace?.hasBrowserSession && (
             <Tooltip>
               <TooltipTrigger asChild>

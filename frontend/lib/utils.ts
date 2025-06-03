@@ -1,8 +1,10 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
+
 import { GroupByInterval } from "./clickhouse/modifiers";
-import { ChatMessageContentPart, DatatableFilter } from "./types";
+import { ChatMessageContentPart } from "./types";
 
 export const TIME_MILLISECONDS_FORMAT = "timeMilliseconds";
 

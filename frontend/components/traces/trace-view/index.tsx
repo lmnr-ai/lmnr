@@ -1,10 +1,12 @@
-import { ChartNoAxesGantt, Minus, Plus, Search } from "lucide-react";
+import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
-import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
+import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
+import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -394,43 +396,54 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                 className="rounded-none border-0 border-b ring-0"
               />
             ) : (
-              <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
-                <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6 text-xs px-1.5">
-                  <Search size={14} className="mr-1" />
-                  <span>Search</span>
-                </Button>
-                <Button
-                  onClick={() => setShowTimeline((prev) => !prev)}
-                  variant="outline"
-                  className={cn("h-6 text-xs px-1.5", {
-                    "border-primary text-primary": showTimeline,
-                  })}
-                >
-                  <ChartNoAxesGantt size={14} className="mr-1" />
-                  <span>Timeline</span>
-                </Button>
-                {showTimeline && (
-                  <>
-                    <Button
-                      disabled={zoomLevel === MAX_ZOOM}
-                      className="h-6 w-6 ml-auto"
-                      variant="outline"
-                      size="icon"
-                      onClick={handleZoomIn}
-                    >
-                      <Plus className="w-4 h-4" />
+              <div className="flex flex-col gap-1 px-2 py-2 border-b box-border">
+                <FiltersContextProvider>
+                  <div className="flex items-center gap-2">
+                    <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6 text-xs px-1.5">
+                      <Search size={14} className="mr-1" />
+                      <span>Search</span>
                     </Button>
                     <Button
-                      disabled={zoomLevel === MIN_ZOOM}
-                      className="h-6 w-6"
+                      onClick={() => setShowTimeline((prev) => !prev)}
                       variant="outline"
-                      size="icon"
-                      onClick={handleZoomOut}
+                      className={cn("h-6 text-xs px-1.5", {
+                        "border-primary text-primary": showTimeline,
+                      })}
                     >
-                      <Minus className="w-4 h-4" />
+                      <ChartNoAxesGantt size={14} className="mr-1" />
+                      <span>Timeline</span>
                     </Button>
-                  </>
-                )}
+                    <StatefulFilter columns={filterColumns}>
+                      <Button variant="outline" className="h-6 text-xs">
+                        <ListFilter size={14} className="mr-1" />
+                        Filters
+                      </Button>
+                    </StatefulFilter>
+                    {showTimeline && (
+                      <>
+                        <Button
+                          disabled={zoomLevel === MAX_ZOOM}
+                          className="h-6 w-6 ml-auto"
+                          variant="outline"
+                          size="icon"
+                          onClick={handleZoomIn}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          disabled={zoomLevel === MIN_ZOOM}
+                          className="h-6 w-6"
+                          variant="outline"
+                          size="icon"
+                          onClick={handleZoomOut}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                  <StatefulFilterList className="py-[3px] text-xs px-1" />
+                </FiltersContextProvider>
               </div>
             )}
             {showTimeline ? (

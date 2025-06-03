@@ -1,3 +1,5 @@
+import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import { Span, SpanType } from "@/lib/traces/types";
 
 export const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
@@ -85,3 +87,16 @@ export const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
 
   return [...nonPendingExistingSpans, ...pendingSpans.values()];
 };
+
+export const filterColumns: ColumnFilter[] = [
+  {
+    name: "Span Type",
+    dataType: "enum",
+    key: "spanType",
+    options: Object.values(SpanType).map((v) => ({
+      label: v,
+      value: v,
+      icon: createSpanTypeIcon(v, "w-4 h-4", 14),
+    })),
+  },
+];
