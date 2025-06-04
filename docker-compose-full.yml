@@ -26,14 +26,9 @@ services:
       - type: volume
         source: clickhouse-logs
         target: /var/log/clickhouse-server/
-      - type: bind
-        source: ./clickhouse/config/users.xml
-        target: /etc/clickhouse-server/users.d/users.xml
-        read_only: true
-      - type: bind
-        source: ./clickhouse/001000-initial.sql
-        target: /docker-entrypoint-initdb.d/001000-initial.sql
-        read_only: true
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
     cap_add:
       - SYS_NICE
       - NET_ADMIN
@@ -104,6 +99,7 @@ services:
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
@@ -130,6 +126,7 @@ services:
       ENVIRONMENT: FULL
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
 volumes:
