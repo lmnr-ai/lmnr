@@ -1,5 +1,6 @@
 "use client";
 
+import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
 import CodeMirror from "@uiw/react-codemirror";
 import { Loader2, PlayIcon } from "lucide-react";
@@ -10,7 +11,6 @@ import { useSWRConfig } from "swr";
 
 import { defaultValues, ManageEvaluatorForm } from "@/components/evaluators/evaluators";
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { theme } from "@/components/ui/code-highlighter/utils";
 import { IconPython } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
@@ -228,13 +228,15 @@ export default function ManageEvaluatorSheet({
                 name="testInput"
                 control={control}
                 render={({ field }) => (
-                  <CodeHighlighter
-                    defaultMode="json"
-                    placeholder='"This response is very relevant, accurate, and helpful"'
-                    className="min-h-20"
-                    value={field.value}
-                    onChange={field.onChange}
-                  />
+                  <div className="border rounded-md bg-muted/50 overflow-hidden">
+                    <CodeMirror
+                      placeholder='"This response is very relevant, accurate, and helpful"'
+                      value={field.value}
+                      onChange={field.onChange}
+                      extensions={[json()]}
+                      theme={theme}
+                    />
+                  </div>
                 )}
               />
               {errors.testInput && <p className="text-sm text-red-500">{errors.testInput.message}</p>}
