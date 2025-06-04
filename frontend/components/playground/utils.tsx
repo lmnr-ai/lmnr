@@ -58,7 +58,7 @@ export const envVarsToIconMap: Record<EnvVars, ReactNode> = {
   [EnvVars.GOOGLE_SEARCH_API_KEY]: <IconGoogle />,
 };
 
-export const defaultMaxTokens = 65536;
+export const defaultMaxTokens = 1024;
 export const defaultTemperature = 1;
 
 export const getDefaultThinkingModelProviderOptions = <P extends Provider, K extends string>(
