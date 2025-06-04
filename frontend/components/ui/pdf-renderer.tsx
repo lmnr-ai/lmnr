@@ -1,6 +1,5 @@
 "use client";
 
-// import { useResizeObserver } from '@wojtekmaj/react-hooks';
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import "pdfjs-dist/build/pdf.worker.min.mjs";
@@ -17,11 +16,6 @@ import { ScrollArea } from "./scroll-area";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./sheet";
 import { Skeleton } from "./skeleton";
 
-// const options = {
-//   cMapUrl: '/cmaps/',
-//   standardFontDataUrl: '/standard_fonts/',
-// };
-
 type PDFFile = string | File | Blob | null;
 
 interface PdfRendererProps {
@@ -33,18 +27,7 @@ interface PdfRendererProps {
 export default function PdfRenderer({ url, maxWidth, className }: PdfRendererProps) {
   const [file, setFile] = useState<PDFFile>(null);
   const [numPages, setNumPages] = useState<number>(0);
-  const [containerRef, setContainerRef] = useState<HTMLElement | null>(null);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
-
-  // const onResize = useCallback<ResizeObserverCallback>((entries) => {
-  //   const [entry] = entries;
-
-  //   if (entry) {
-  //     setContainerWidth(entry.contentRect.width);
-  //   }
-  // }, []);
-
-  // useResizeObserver(containerRef, resizeObserverOptions, onResize);
 
   const onDocumentLoadSuccess = ({ numPages: nextNumPages }: any): void => {
     setNumPages(nextNumPages);
@@ -59,7 +42,7 @@ export default function PdfRenderer({ url, maxWidth, className }: PdfRendererPro
   }, [url]);
 
   return (
-    <div className={cn("flex flex-col space-y-2 px-1 pb-2", className, isCollapsed && "h-8")} ref={setContainerRef}>
+    <div className={cn("flex flex-col space-y-2 px-1 pb-2", className, isCollapsed && "h-8")}>
       <div className="flex justify-between">
         <div className="flex space-x-2">
           <DownloadButton
@@ -94,13 +77,9 @@ export default function PdfRenderer({ url, maxWidth, className }: PdfRendererPro
               <Maximize className="h-3.5 w-3.5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
+          <SheetContent side="right" className="flex flex-col overflow-auto gap-0 min-w-[50vw]">
             <SheetTitle className="sr-only">Full-screen PDF View</SheetTitle>
-            <PdfDocumentContainer
-              file={file}
-              numPages={numPages}
-              onDocumentLoadSuccess={onDocumentLoadSuccess}
-            />
+            <PdfDocumentContainer file={file} numPages={numPages} onDocumentLoadSuccess={onDocumentLoadSuccess} />
           </SheetContent>
         </Sheet>
       </div>
@@ -146,7 +125,6 @@ function PdfDocumentContainer({
           <Skeleton className="w-full h-12" />
         </div>
       }
-    // options={options}
     >
       <ScrollArea className="w-full h-full flex flex-col">
         {Array.from(new Array(numPages), (_el, index) => (
