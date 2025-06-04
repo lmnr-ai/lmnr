@@ -64,7 +64,7 @@ services:
       GRPC_PORT: 8001
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
-      CLICKHOUSE_URL: http://clickhouse:812
+      CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq
