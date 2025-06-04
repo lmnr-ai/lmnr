@@ -7,7 +7,13 @@ on:
       - opened
       - reopened
     paths:
-      - "app-server/**"
+      # Explicit list prevents triggering build on changes such as
+      # README, .env.example.
+      - "app-server/src/**"
+      - "app-server/proto/**"
+      - "app-server/**/*.rs"
+      - "app-server/Cargo.lock"
+      - "app-server/Cargo.toml"
 
 jobs:
   build:
