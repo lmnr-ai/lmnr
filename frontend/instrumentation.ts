@@ -60,6 +60,7 @@ export async function register() {
             }
           } catch (error) {
             console.log("Could not check for existing tables, proceeding with all migrations");
+            console.log("Schema creation may take a while, please wait...");
           }
 
           let migrationFiles = readdirSync("lib/clickhouse/migrations");
@@ -79,7 +80,6 @@ export async function register() {
               .filter(s => s.length > 0);
 
             for (const statement of statements) {
-              await clickhouseClient.exec({ query: statement });
               if (statement.toLowerCase().startsWith("create table")) {
                 // Make CREATE TABLE statements idempotent
                 const idempotentStatement = statement.replace(
