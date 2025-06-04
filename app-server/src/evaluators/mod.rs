@@ -61,20 +61,14 @@ pub async fn inner_process_evaluators(
     client: Arc<reqwest::Client>,
     python_online_evaluator_url: &str,
 ) {
-    let mut receiver = match queue
+    let mut receiver = queue
         .get_receiver(
             EVALUATORS_QUEUE,
             EVALUATORS_EXCHANGE,
             EVALUATORS_ROUTING_KEY,
         )
         .await
-    {
-        Ok(receiver) => receiver,
-        Err(e) => {
-            log::error!("Failed to get receiver for evaluator queue: {:?}", e);
-            return;
-        }
-    };
+        .unwrap();
 
     while let Some(delivery) = receiver.receive().await {
         if let Err(e) = delivery {
