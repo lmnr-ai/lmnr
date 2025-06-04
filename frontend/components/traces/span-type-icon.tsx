@@ -52,7 +52,7 @@ export default function SpanTypeIcon({
       return <CircleAlert className={iconClassName} size={size} />;
     }
 
-    return createSpanTypeIcon(spanType, className, size);
+    return createSpanTypeIcon(spanType, iconClassName, size);
   };
 
   return (
