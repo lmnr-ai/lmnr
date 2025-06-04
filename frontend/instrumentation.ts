@@ -45,31 +45,10 @@ export async function register() {
       const initializeClickHouse = async () => {
         try {
           const { clickhouseClient } = await import("lib/clickhouse/client");
-
           const { readFileSync, readdirSync } = await import("fs");
           const { join } = await import("path");
 
-          // Check if any tables already exist
-          let hasExistingTables = false;
-          try {
-            const result = await clickhouseClient.query({ query: "SHOW TABLES" });
-            const tables = await result.json();
-            hasExistingTables = tables.data && tables.data.length > 0;
-            if (hasExistingTables) {
-              console.log("Existing ClickHouse tables detected, skipping initial schema file");
-            }
-          } catch (error) {
-            console.log("Could not check for existing tables, proceeding with all migrations");
-          }
-
-          let migrationFiles = readdirSync("lib/clickhouse/migrations");
-
-          // Skip initial schema file if tables already exist
-          if (hasExistingTables) {
-            migrationFiles = migrationFiles.filter(file => file !== INITIAL_CH_SCHEMA_FILE);
-          }
-
-          for (const file of migrationFiles) {
+          for (const file of readdirSync("lib/clickhouse/migrations")) {
             const schemaSql = readFileSync(join(process.cwd(), "lib/clickhouse/migrations", file), "utf-8");
             const statements = schemaSql
               .split(";")
@@ -77,30 +56,22 @@ export async function register() {
               .filter(s => s.length > 0);
 
             for (const statement of statements) {
-              if (statement.toLowerCase().startsWith("create table")) {
-                // Make CREATE TABLE statements idempotent
-                const idempotentStatement = statement.replace(
-                  /CREATE TABLE(?!\s+IF NOT EXISTS)/i, "CREATE TABLE IF NOT EXISTS"
-                );
-                await clickhouseClient.exec({ query: idempotentStatement });
-              } else {
-                try {
-                  await clickhouseClient.exec({ query: statement });
-                } catch (error) {
-                  if ((error as { type: string }).type === "DUPLICATE_COLUMN") {
-                    console.warn(
-                      "Failed to apply ClickHouse statement:",
-                      statement,
-                      "because column already exists"
-                    );
-                    continue;
-                  } else {
-                    throw error;
-                  }
+              try {
+                await clickhouseClient.exec({ query: statement });
+              } catch (error) {
+                if ((error as { type: string }).type === "DUPLICATE_COLUMN") {
+                  console.warn(
+                    "Failed to apply ClickHouse statement:",
+                    statement,
+                    "because column already exists"
+                  );
+                  continue;
+                } else {
+                  throw error;
                 }
               }
-            }
 
+            }
           }
         } catch (error) {
           console.error("Failed to apply ClickHouse schema:", error);
