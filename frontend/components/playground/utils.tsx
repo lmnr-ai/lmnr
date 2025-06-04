@@ -58,6 +58,9 @@ export const envVarsToIconMap: Record<EnvVars, ReactNode> = {
   [EnvVars.GOOGLE_SEARCH_API_KEY]: <IconGoogle />,
 };
 
+export const defaultMaxTokens = 65536;
+export const defaultTemperature = 1;
+
 export const getDefaultThinkingModelProviderOptions = <P extends Provider, K extends string>(
   value: `${P}:${K}`
 ): ProviderOptions => {
@@ -229,8 +232,8 @@ export const getPlaygroundConfig = (
     modelId: foundModel ? foundModel : "openai:gpt-4o-mini",
     tools: parsedTools,
     toolChoice: parsedToolChoice || (parsedTools ? "auto" : undefined),
-    maxTokens: get(span, ["attributes", "gen_ai.request.max_tokens"]) as number | undefined,
-    temperature: get(span, ["attributes", "gen_ai.request.temperature"]) as number | undefined,
+    maxTokens: get(span, ["attributes", "gen_ai.request.max_tokens"], defaultMaxTokens),
+    temperature: get(span, ["attributes", "gen_ai.request.temperature"], defaultTemperature),
   };
 
   return pickBy(result, (value) => value !== undefined) as typeof result;
