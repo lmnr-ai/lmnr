@@ -60,7 +60,6 @@ export async function register() {
             }
           } catch (error) {
             console.log("Could not check for existing tables, proceeding with all migrations");
-            console.log("Schema creation may take a while, please wait...");
           }
 
           let migrationFiles = readdirSync("lib/clickhouse/migrations");
@@ -69,8 +68,6 @@ export async function register() {
           if (hasExistingTables) {
             migrationFiles = migrationFiles.filter(file => file !== INITIAL_CH_SCHEMA_FILE);
           }
-
-          console.log(`Processing ${migrationFiles.length} ClickHouse migration files...`);
 
           for (const file of migrationFiles) {
             const schemaSql = readFileSync(join(process.cwd(), "lib/clickhouse/migrations", file), "utf-8");
@@ -86,7 +83,7 @@ export async function register() {
                   /CREATE TABLE(?!\s+IF NOT EXISTS)/i, "CREATE TABLE IF NOT EXISTS"
                 );
                 await clickhouseClient.exec({ query: idempotentStatement });
-              } else if (statement.toLowerCase().startsWith("alter table")) {
+              } else {
                 try {
                   await clickhouseClient.exec({ query: statement });
                 } catch (error) {
