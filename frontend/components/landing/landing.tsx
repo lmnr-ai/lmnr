@@ -7,12 +7,13 @@ import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
 
 import browserAgentObservability from "@/assets/landing/browser-agent-observability.png";
-import browserSession from "@/assets/landing/browser-session.png";
 import clarum from "@/assets/landing/companies/clarum.png";
 import remo from "@/assets/landing/companies/remo.avif";
 import saturn from "@/assets/landing/companies/saturn.png";
 import evals from "@/assets/landing/evals.png";
-import index from "@/assets/landing/index.png";
+import labeling from "@/assets/landing/labeling.png";
+import playground from "@/assets/landing/playground.png";
+import llmPlayground from "@/assets/landing/llm-playground.png";
 import traces from "@/assets/landing/traces.png";
 import yc from "@/assets/landing/yc.svg";
 import logo from "@/assets/logo/icon.svg";
@@ -23,6 +24,7 @@ import { Button } from "../ui/button";
 import CodeHighlighter from "../ui/code-highlighter";
 import { IconAmazonBedrock, IconAnthropic, IconBrowserUse, IconCrewAI, IconGemini, IconLangchain, IconMistral, IconOpenAI, IconOpenTelemetry, IconPlaywright, IconVercel } from "../ui/icons";
 import Footer from "./footer";
+import DatasetsAnimation from "./datasets-animation";
 
 interface Section {
   id: string;
@@ -95,41 +97,57 @@ evaluate({
     callToAction: "Bring rigor to your LLM app",
   },
   {
-    id: "browser-agent-api",
-    title: "Browser Agent API",
-    description: `Index - our SOTA open-source browser agent is available as an API on Laminar platform.
-    With a single prompt, you can now interact with any website via API and automate any task on the web.`,
-    image: browserSession,
-    docsLink: "https://docs.lmnr.ai/laminar-index/introduction",
-    callToAction: "Use Index via API",
-    tsCodeExample: `import { LaminarClient } from '@lmnr-ai/lmnr';
-
-const client = new LaminarClient({ projectApiKey: "..." });
-
-// Execute a browser agent task
-const response = await client.agent.run({
-  prompt: "Go to ycombinator.com, search for Laminar and give a summary of the company.",
-});`,
-    pythonCodeExample: `from lmnr import LaminarClient
-
-client = LaminarClient(project_api_key="...")
-
-# Execute a browser agent task
-response = client.agent.run(
-    prompt="Go to ycombinator.com, search for Laminar and give a summary of the company."
-)`,
-    isNew: true,
+    id: "playground",
+    title: "Playground",
+    description: `Playground is a tool that allows you to test your LLM app.`,
+    image: playground,
+    docsLink: "https://docs.lmnr.ai/playground/introduction",
+    callToAction: "Try out Laminar Playground",
   },
   {
-    id: "index",
-    title: "Browser Agent UI",
-    description: `Index - our SOTA open-source browser agent is available as a chat interface on Laminar platform.
-    Index can autonomously perform complex tasks on the web. In the chat interface, you can see the agent's steps, leave agent to work in the background and take control of the browser when you need to.`,
-    image: index,
-    docsLink: "/chat",
-    callToAction: "Use Index via chat",
-    isNew: true,
+    id: "labeling",
+    title: "Labeling",
+    description: `Labeling is a tool that allows you to label your data.`,
+    image: labeling,
+    docsLink: "https://docs.lmnr.ai/labeling/introduction",
+    callToAction: "Label your data",
   },
+  //   {
+  //     id: "browser-agent-api",
+  //     title: "Browser Agent API",
+  //     description: `Index - our SOTA open-source browser agent is available as an API on Laminar platform.
+  //     With a single prompt, you can now interact with any website via API and automate any task on the web.`,
+  //     image: browserSession,
+  //     docsLink: "https://docs.lmnr.ai/laminar-index/introduction",
+  //     callToAction: "Use Index via API",
+  //     tsCodeExample: `import { LaminarClient } from '@lmnr-ai/lmnr';
+
+  // const client = new LaminarClient({ projectApiKey: "..." });
+
+  // // Execute a browser agent task
+  // const response = await client.agent.run({
+  //   prompt: "Go to ycombinator.com, search for Laminar and give a summary of the company.",
+  // });`,
+  //     pythonCodeExample: `from lmnr import LaminarClient
+
+  // client = LaminarClient(project_api_key="...")
+
+  // # Execute a browser agent task
+  // response = client.agent.run(
+  //     prompt="Go to ycombinator.com, search for Laminar and give a summary of the company."
+  // )`,
+  //     isNew: true,
+  //   },
+  //   {
+  //     id: "index",
+  //     title: "Browser Agent UI",
+  //     description: `Index - our SOTA open-source browser agent is available as a chat interface on Laminar platform.
+  //     Index can autonomously perform complex tasks on the web. In the chat interface, you can see the agent's steps, leave agent to work in the background and take control of the browser when you need to.`,
+  //     image: index,
+  //     docsLink: "/chat",
+  //     callToAction: "Use Index via chat",
+  //     isNew: true,
+  //   },
 ];
 
 export default function Landing() {
@@ -191,57 +209,33 @@ export default function Landing() {
             </div>
           </div>
         </div>
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] border border-x-0 md:border-x">
-          <div className="flex flex-col w-full relative md:pb-0">
-            <div className="flex flex-wrap border-none gap-2 sm:gap-4 font-medium col-span-1 p-4 sm:p-8 pb-0 overflow-x-auto">
-              {sections.map((section, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSectionSelect(section)}
-                  className={`border border-white/20 h-8 px-2 sm:px-3 rounded transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${selectedSection.id === section.id
-                    ? "bg-white/90 text-black border-b-2"
-                    : "text-white/80 hover:bg-white/10 "
-                  }`}
-                >
-                  {section.title}
-                  {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
-                </button>
-              ))}
-            </div>
-            <div className="z-20 text-white gap-4 sm:gap-8 grid grid-cols-1 md:grid-cols-2 p-4 sm:p-8">
-              <div key={selectedSection.id} className="grid grid-cols-1 gap-4 sm:gap-8 col-span-2 md:grid-cols-2">
-                <div className="flex flex-col space-y-4 sm:space-y-6 animate-in fade-in fade-out duration-700">
-                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold text-white/90">
-                    {selectedSection.title}
-                  </h1>
-                  <p className="text-sm sm:text-base tracking-normal text-white/70">{selectedSection.description}</p>
-                  {selectedSection.docsLink && (
-                    <div className="flex flex-col space-y-2 justify-start">
-                      <Link href={selectedSection.docsLink} target="_blank">
-                        <Button variant="light" className="h-8">
-                          {selectedSection.callToAction}
-                          <ArrowUpRight className="ml-1 h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </div>
-                  )}
-                </div>
-                {(selectedSection.pythonCodeExample || selectedSection.tsCodeExample) && (
-                  <div className="flex flex-col w-full h-full border">
-                    <CodeTabs pythonCode={selectedSection.pythonCodeExample} tsCode={selectedSection.tsCodeExample} />
-                  </div>
-                )}
-              </div>
-            </div>
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px]">
+
+          <div className="flex flex-col w-full relative md:pb-0 rounded">
             <div
               key={selectedSection.id}
-              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary px-4 pt-4 sm:px-8 sm:pt-8 md:pt-16"
+              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary px-4 sm:px-8 pt-8 rounded-lg"
             >
+              <div className="flex flex-wrap border-none gap-2 sm:gap-4 font-medium col-span-1 overflow-x-auto justify-center pb-8">
+                {sections.map((section, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSectionSelect(section)}
+                    className={`border-[1.5px] border-white/80 h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${selectedSection.id === section.id
+                      ? "bg-white/90 text-black/90 border-b-2"
+                      : "text-white hover:bg-white/20 "
+                      }`}
+                  >
+                    {section.title}
+                    {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
+                  </button>
+                ))}
+              </div>
               <Image
                 alt={selectedSection.title}
                 src={selectedSection.image}
                 priority
-                className="rounded-t-lg w-full bg-background object-cover object-top h-[300px] md:h-[400px] lg:h-[550px]"
+                className="rounded-t-lg w-full bg-background object-cover object-top h-[300px] md:h-[400px] lg:h-[600px]"
               />
             </div>
           </div>
@@ -554,11 +548,16 @@ This drastically improves the debugging experience and allows you to fix issues 
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="grid grid-cols-1">
                   <InfoCard
-                    title="LLM playground"
-                    description="Open LLM spans in the playground to experiment with prompts and models."
+                    title="Open LLM spans in the Playground"
+                    description="Open LLM spans in the Playground to experiment with prompts and models."
                     animationOrder={0}
                     className="border-b"
-                  />
+                  >
+                    <div className="relative">
+                      <Image src={llmPlayground} alt="LLM playground" quality={100} />
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black pointer-events-none" />
+                    </div>
+                  </InfoCard>
                   <InfoCard
                     title="Datasets"
                     description="Build datasets from span data for evals, fine-tuning and prompt engineering."
@@ -568,11 +567,13 @@ This drastically improves the debugging experience and allows you to fix issues 
                 </div>
                 <div className="grid grid-cols-1">
                   <InfoCard
-                    title="Labels"
-                    description="Label your spans with custom tags to make them more informative."
+                    title="Label data to create eval datasets"
+                    description="Use labeling queues to quickly label data and create eval datasets."
                     animationOrder={1}
                     className="md:border-l border-b"
-                  />
+                  >
+                    <DatasetsAnimation />
+                  </InfoCard>
                   <InfoCard
                     title="Open-Source and easy to self-host"
                     description="Laminar is fully open-source and easy to self-host."
@@ -702,14 +703,14 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
         <button
           onClick={() => setSelectedLang("typescript")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
-          }`}
+            }`}
         >
           TypeScript
         </button>
         <button
           onClick={() => setSelectedLang("python")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
-          }`}
+            }`}
         >
           Python
         </button>
