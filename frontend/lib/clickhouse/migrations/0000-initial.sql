@@ -1,4 +1,4 @@
-CREATE TABLE default.spans
+CREATE TABLE IF NOT EXISTS default.spans
 (
     span_id UUID,
     name String,
@@ -22,15 +22,13 @@ CREATE TABLE default.spans
     output String CODEC(ZSTD(3)),
     -- Add materialized columns for case-insensitive search
     input_lower String MATERIALIZED lower(input) CODEC(ZSTD(3)),
-    output_lower String MATERIALIZED lower(output) CODEC(ZSTD(3)),
-    size_bytes UInt64 DEFAULT 0,
-    status String DEFAULT '<null>'
+    output_lower String MATERIALIZED lower(output) CODEC(ZSTD(3))
 )
 ENGINE = MergeTree()
 ORDER BY (project_id, start_time, trace_id, span_id)
 SETTINGS index_granularity = 8192;
 
-CREATE TABLE default.events
+CREATE TABLE IF NOT EXISTS default.events
 (
     `id` UUID,
     `project_id` UUID,
@@ -42,7 +40,7 @@ ENGINE MergeTree
 ORDER BY (project_id, name, timestamp, span_id)
 SETTINGS index_granularity = 8192;
 
-CREATE TABLE default.evaluation_scores (
+CREATE TABLE IF NOT EXISTS default.evaluation_scores (
     project_id UUID,
     group_id String,
     timestamp DateTime64(9, 'UTC'),
@@ -56,7 +54,7 @@ ORDER BY (project_id, group_id, timestamp, evaluation_id, name)
 SETTINGS index_granularity = 8192
 SETTINGS flatten_nested=0;
 
-CREATE TABLE default.labels
+CREATE TABLE IF NOT EXISTS default.labels
 (
     `project_id` UUID,
     `class_id` UUID,
@@ -71,7 +69,7 @@ PRIMARY KEY (project_id, class_id, span_id)
 ORDER BY (project_id, class_id, span_id, created_at, id)
 SETTINGS index_granularity = 8192;
 
-CREATE TABLE default.browser_session_events
+CREATE TABLE IF NOT EXISTS default.browser_session_events
 (
     `event_id` UUID,
     `trace_id` UUID,
@@ -80,7 +78,6 @@ CREATE TABLE default.browser_session_events
     `event_type` UInt8,
     `data` String CODEC(ZSTD(3)),
     `project_id` UUID,
-    `size_bytes` UInt64 DEFAULT 0
 )
 ENGINE = MergeTree
 PARTITION BY (toYYYYMM(timestamp), project_id)
@@ -90,19 +87,5 @@ SETTINGS index_granularity = 8192;
 
 ALTER TABLE default.spans
     -- Improved index configuration
-    ADD INDEX input_case_insensitive_idx input_lower TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4,
-    ADD INDEX output_case_insensitive_idx output_lower TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4;
-
-CREATE TABLE default.evaluator_scores
-(
-    `id` UUID,
-    `span_id` UUID,
-    `project_id` UUID,
-    `evaluator_id` UUID,
-    `score` Float64,
-    `created_at` DateTime64(9, 'UTC')
-)
-ENGINE = MergeTree()
-PRIMARY KEY (project_id, evaluator_id)
-ORDER BY (project_id, evaluator_id, created_at)
-SETTINGS index_granularity = 8192;
+    ADD INDEX IF NOT EXISTS input_case_insensitive_idx input_lower TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4,
+    ADD INDEX IF NOT EXISTS output_case_insensitive_idx output_lower TYPE tokenbf_v1(3, 4, 0) GRANULARITY 4;

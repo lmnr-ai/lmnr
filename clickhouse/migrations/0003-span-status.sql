@@ -1,1 +1,0 @@
-ALTER TABLE default.spans ADD COLUMN "status" text DEFAULT '<null>';
