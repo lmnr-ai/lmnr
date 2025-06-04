@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import DownloadButton from "./download-button";
 import { ScrollArea } from "./scroll-area";
-import { Sheet, SheetContent, SheetTrigger } from "./sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./sheet";
 import { Skeleton } from "./skeleton";
 
 // const options = {
@@ -95,12 +95,11 @@ export default function PdfRenderer({ url, maxWidth, className }: PdfRendererPro
             </Button>
           </SheetTrigger>
           <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
+            <SheetTitle className="sr-only">Full-screen PDF View</SheetTitle>
             <PdfDocumentContainer
               file={file}
               numPages={numPages}
               onDocumentLoadSuccess={onDocumentLoadSuccess}
-              // TODO: remove pt-8 after we return the sheet to the original state
-              className="pt-8"
             />
           </SheetContent>
         </Sheet>
@@ -147,7 +146,7 @@ function PdfDocumentContainer({
           <Skeleton className="w-full h-12" />
         </div>
       }
-      // options={options}
+    // options={options}
     >
       <ScrollArea className="w-full h-full flex flex-col">
         {Array.from(new Array(numPages), (_el, index) => (
