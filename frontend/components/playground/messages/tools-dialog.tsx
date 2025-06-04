@@ -105,7 +105,6 @@ export default function ToolsDialog({ className }: { className?: string }) {
     );
   }, [className, model, setValue, toolsCount]);
 
-  console.log(watch("toolChoice"));
   return (
     <Dialog>
       <Tooltip>

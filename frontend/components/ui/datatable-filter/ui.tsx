@@ -38,6 +38,7 @@ const FilterPopover = ({ columns, className, onAddFilter, filters, children }: P
   const handleValueChange = useCallback(({ field, value }: { field: keyof DatatableFilter; value: string }) => {
     setFilter((prev) => ({
       ...prev,
+      ...(field === "column" ? { value: "" } : {}),
       [field]: value,
     }));
   }, []);
@@ -241,7 +242,10 @@ const PureFilterList = ({
       {filters.map((f, index) => (
         <Tooltip key={`${index}-${f.column}-${f.value}-${f.operator}`}>
           <TooltipTrigger asChild>
-            <Badge className={cn("flex gap-2 border-primary bg-primary/10 py-1 px-2", className)} variant="outline">
+            <Badge
+              className={cn("flex gap-2 border-primary bg-primary/10 py-1 px-2 min-w-8", className)}
+              variant="outline"
+            >
               <ListFilter className="w-3 h-3 text-primary" />
               <span className="text-xs text-primary truncate font-mono">
                 {f.column}{" "}

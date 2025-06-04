@@ -16,6 +16,7 @@ import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
+import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
@@ -333,7 +334,9 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                   </Select>
                 </div>
               )}
-              <TraceView onClose={onClose} traceId={traceId} />
+              <FiltersContextProvider>
+                <TraceView onClose={onClose} traceId={traceId} />
+              </FiltersContextProvider>
             </div>
           </Resizable>
         </div>

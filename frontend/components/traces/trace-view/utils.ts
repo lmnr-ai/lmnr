@@ -1,3 +1,5 @@
+import { capitalize } from "lodash";
+
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import { Span, SpanType } from "@/lib/traces/types";
@@ -90,13 +92,57 @@ export const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
 
 export const filterColumns: ColumnFilter[] = [
   {
-    name: "Span Type",
+    key: "span_id",
+    name: "ID",
+    dataType: "string",
+  },
+  {
+    name: "Type",
     dataType: "enum",
-    key: "spanType",
+    key: "span_type",
     options: Object.values(SpanType).map((v) => ({
       label: v,
       value: v,
       icon: createSpanTypeIcon(v, "w-4 h-4", 14),
     })),
+  },
+  {
+    name: "Status",
+    dataType: "enum",
+    key: "status",
+    options: ["success", "error"].map((v) => ({
+      label: capitalize(v),
+      value: v,
+    })),
+  },
+  {
+    key: "name",
+    name: "Name",
+    dataType: "string",
+  },
+  {
+    key: "latency",
+    name: "Latency",
+    dataType: "number",
+  },
+  {
+    key: "tokens",
+    name: "Tokens",
+    dataType: "number",
+  },
+  {
+    key: "cost",
+    name: "Cost",
+    dataType: "number",
+  },
+  {
+    key: "tags",
+    name: "Tags",
+    dataType: "string",
+  },
+  {
+    key: "model",
+    name: "Model",
+    dataType: "string",
   },
 ];

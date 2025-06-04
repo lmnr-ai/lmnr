@@ -9,6 +9,7 @@ import ShareTraceButton from "@/components/traces/share-trace-button";
 import StatsShields from "@/components/traces/stats-shields";
 import TraceView, { TraceViewHandle } from "@/components/traces/trace-view";
 import { Button } from "@/components/ui/button";
+import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import Header from "@/components/ui/header";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Trace as TraceType } from "@/lib/traces/types";
@@ -56,7 +57,9 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
           <ShareTraceButton trace={{ id: trace.id, visibility: trace.visibility }} projectId={projectId} />
         </div>
       </Header>
-      <TraceView ref={traceViewRef} propsTrace={trace} fullScreen onClose={() => {}} traceId={trace.id} />
+      <FiltersContextProvider>
+        <TraceView ref={traceViewRef} propsTrace={trace} fullScreen onClose={() => {}} traceId={trace.id} />
+      </FiltersContextProvider>
     </>
   );
 };
