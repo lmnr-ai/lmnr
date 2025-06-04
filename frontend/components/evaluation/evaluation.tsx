@@ -16,6 +16,8 @@ import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
+import FiltersContextProvider from "@/components/ui/datatable-filter/context";
+import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import {
@@ -27,7 +29,7 @@ import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
 import { DataTable } from "../ui/datatable";
-import DataTableFilter, { ColumnFilter, DataTableFilterList } from "../ui/datatable-filter";
+import DataTableFilter, { DataTableFilterList } from "../ui/datatable-filter";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
@@ -240,8 +242,8 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                     scores={scores}
                     selectedScore={selectedScore}
                     setSelectedScore={setSelectedScore}
-                    statistics={selectedScore ? data?.allStatistics?.[selectedScore] ?? null : null}
-                    comparedStatistics={selectedScore ? targetData?.allStatistics?.[selectedScore] ?? null : null}
+                    statistics={selectedScore ? (data?.allStatistics?.[selectedScore] ?? null) : null}
+                    comparedStatistics={selectedScore ? (targetData?.allStatistics?.[selectedScore] ?? null) : null}
                     isLoading={isLoading}
                   />
                 </div>
@@ -251,10 +253,10 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       evaluationId={evaluationId}
                       comparedEvaluationId={targetId}
                       scoreName={selectedScore}
-                      distribution={selectedScore ?
-                        data?.allDistributions?.[selectedScore] ?? null : null}
-                      comparedDistribution={selectedScore ?
-                        targetData?.allDistributions?.[selectedScore] ?? null : null}
+                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
+                      comparedDistribution={
+                        selectedScore ? (targetData?.allDistributions?.[selectedScore] ?? null) : null
+                      }
                       isLoading={isLoading}
                     />
                   ) : (
@@ -262,8 +264,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       className="h-full"
                       evaluationId={evaluationId}
                       scoreName={selectedScore}
-                      distribution={selectedScore ?
-                        data?.allDistributions?.[selectedScore] ?? null : null}
+                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
                       isLoading={isLoading}
                     />
                   )}
@@ -333,7 +334,9 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                   </Select>
                 </div>
               )}
-              <TraceView onClose={onClose} traceId={traceId} />
+              <FiltersContextProvider>
+                <TraceView onClose={onClose} traceId={traceId} />
+              </FiltersContextProvider>
             </div>
           </Resizable>
         </div>

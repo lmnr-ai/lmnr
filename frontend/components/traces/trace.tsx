@@ -9,6 +9,7 @@ import ShareTraceButton from "@/components/traces/share-trace-button";
 import StatsShields from "@/components/traces/stats-shields";
 import TraceView, { TraceViewHandle } from "@/components/traces/trace-view";
 import { Button } from "@/components/ui/button";
+import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import Header from "@/components/ui/header";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Trace as TraceType } from "@/lib/traces/types";
@@ -30,7 +31,7 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
           outputCost={trace.outputCost}
           cost={trace.cost}
         />
-        <div className="flex gap-2 ml-auto">
+        <div className="flex flex-1 gap-2 justify-end mr-2">
           {trace?.hasBrowserSession && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -56,7 +57,9 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
           <ShareTraceButton trace={{ id: trace.id, visibility: trace.visibility }} projectId={projectId} />
         </div>
       </Header>
-      <TraceView ref={traceViewRef} propsTrace={trace} fullScreen onClose={() => {}} traceId={trace.id} />
+      <FiltersContextProvider>
+        <TraceView ref={traceViewRef} propsTrace={trace} fullScreen onClose={() => {}} traceId={trace.id} />
+      </FiltersContextProvider>
     </>
   );
 };

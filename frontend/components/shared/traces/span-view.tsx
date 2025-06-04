@@ -1,6 +1,8 @@
 "use client";
+import React, { useMemo } from "react";
 import useSWR from "swr";
 
+import ErrorCard from "@/components/traces/error-card";
 import SpanInput from "@/components/traces/span-input";
 import SpanOutput from "@/components/traces/span-output";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
@@ -11,6 +13,7 @@ import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Event } from "@/lib/events/types";
 import { Span, SpanLabel } from "@/lib/traces/types";
+import { ErrorEventAttributes } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface SpanViewProps {
@@ -28,10 +31,19 @@ export function SpanView({ span, traceId }: SpanViewProps) {
     swrFetcher
   );
 
-  const cleanedEvents = events?.map((event) => {
-    const { spanId, projectId, ...rest } = event;
-    return rest;
-  });
+  const cleanedEvents = useMemo(
+    () =>
+      events?.map((event) => {
+        const { spanId, projectId, ...rest } = event;
+        return rest;
+      }),
+    [events]
+  );
+
+  const errorEventAttributes = useMemo(
+    () => cleanedEvents?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
+    [cleanedEvents]
+  );
 
   return (
     <>
@@ -63,6 +75,7 @@ export function SpanView({ span, traceId }: SpanViewProps) {
                 {new Date(span.startTime).toLocaleString()}
               </div>
             </div>
+            {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
             <div className="flex flex-wrap w-fit items-center gap-2">
               {labels.map((l) => (
                 <Badge key={l.id} className="rounded-3xl" variant="outline">

@@ -12,7 +12,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { PlaygroundForm } from "@/lib/playground/types";
 import { cn, pluralize } from "@/lib/utils";
 
-const toolChoices = ["None", "Auto", "Required", "Function name"];
+enum ToolChoices {
+  None = "None",
+  Auto = "Auto",
+  Required = "Required",
+  FunctionName = "Function name",
+}
 const exampleTools = {
   weather: {
     description: "User profile information",
@@ -42,7 +47,7 @@ export default function ToolsDialog({ className }: { className?: string }) {
 
   const handleToolChoiceChange = useCallback(
     (onChange: ControllerRenderProps["onChange"]) => (value: string) => {
-      if (value !== "Function name") {
+      if (value !== ToolChoices.FunctionName) {
         onChange(value);
       } else {
         onChange({
@@ -185,15 +190,19 @@ export default function ToolsDialog({ className }: { className?: string }) {
               <Controller
                 render={({ field: { onChange } }) => (
                   <Select
-                    value={typeof watch("toolChoice") === "object" ? "function name" : (watch("toolChoice") as string)}
+                    value={
+                      typeof watch("toolChoice") === "object"
+                        ? ToolChoices.FunctionName
+                        : (watch("toolChoice") as string)
+                    }
                     onValueChange={handleToolChoiceChange(onChange)}
                   >
                     <SelectTrigger className="w-fit">
                       <SelectValue placeholder="Select a tool choice" />
                     </SelectTrigger>
                     <SelectContent>
-                      {toolChoices.map((item) => (
-                        <SelectItem key={item} value={item.toLowerCase()}>
+                      {Object.values(ToolChoices).map((item) => (
+                        <SelectItem key={item} value={item}>
                           {item}
                         </SelectItem>
                       ))}
@@ -207,7 +216,7 @@ export default function ToolsDialog({ className }: { className?: string }) {
                 <Controller
                   control={control}
                   render={({ field: { value, onChange } }) => (
-                    <Input className="h-7" defaultValue={value} onBlur={onChange} />
+                    <Input placeholder="name" className="h-7" defaultValue={value} onBlur={onChange} />
                   )}
                   name="toolChoice.toolName"
                 />

@@ -3,6 +3,7 @@ import { useSearchParams } from "next/navigation";
 import React, { KeyboardEventHandler, memo, PropsWithChildren, useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -14,7 +15,7 @@ const SearchSpansInput = ({
   filterBoxClassName,
   setSearchEnabled,
 }: PropsWithChildren<{
-  submit: (search: string, searchIn: string[]) => Promise<void>;
+  submit: (search: string, searchIn: string[], filters: DatatableFilter[]) => Promise<void>;
   className?: string;
   filterBoxClassName?: string;
   setSearchEnabled: (v: boolean) => void;
@@ -40,7 +41,7 @@ const SearchSpansInput = ({
 
   const handleSubmit = useCallback(() => {
     if (inputRef.current) {
-      submit(inputRef?.current?.value, value === "all" ? ["input", "output"] : [value]);
+      submit(inputRef?.current?.value, value === "all" ? ["input", "output"] : [value], []);
     }
     inputRef?.current?.blur();
   }, [submit, value]);

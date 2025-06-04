@@ -83,6 +83,7 @@ export default async function SharedTracePage(props: {
       output: spans.output,
       inputUrl: spans.inputUrl,
       outputUrl: spans.outputUrl,
+      status: spans.status,
     })
     .from(spans)
     .leftJoin(spanEventsQuery, and(eq(spans.spanId, spanEventsQuery.spanId)))
