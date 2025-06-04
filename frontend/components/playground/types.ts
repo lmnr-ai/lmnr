@@ -150,7 +150,7 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         id: "anthropic:claude-opus-4-20250514:thinking",
         name: "claude-opus-4-20250514",
         label: "Claude 4 Opus (Thinking)",
-      }
+      },
     ],
   },
   {
@@ -167,7 +167,7 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Gemini 1.5 Pro",
       },
       {
-        id: "gemini:gemini-2.5-flash-preview-05-20",
+        id: "gemini:gemini-2.5-flash-preview-05-20:thinking",
         name: "gemini-2.5-flash-preview-05-20",
         label: "Gemini 2.5 Flash Preview",
       },
@@ -177,14 +177,9 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Gemini 2.5 Pro Experimental",
       },
       {
-        id: "gemini:gemini-2.5-pro-preview-05-06",
-        name: "gemini-2.5-pro-preview-05-06",
-        label: "Gemini 2.5 Pro Preview",
-      },
-      {
         id: "gemini:gemini-2.5-pro-preview-05-06:thinking",
         name: "gemini-2.5-pro-preview-05-06",
-        label: "Gemini 2.5 Pro Preview (Thinking)",
+        label: "Gemini 2.5 Pro Preview",
       },
     ],
   },
