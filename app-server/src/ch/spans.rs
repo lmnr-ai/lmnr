@@ -64,6 +64,7 @@ pub struct CHSpan {
     pub path: String,
     pub input: String,
     pub output: String,
+    pub status: String,
     #[serde(default)]
     pub size_bytes: u64,
 }
@@ -117,6 +118,7 @@ impl CHSpan {
                 .unwrap_or(String::from("<null>")),
             input: span_input_string,
             output: span_output_string,
+            status: span.status.clone().unwrap_or(String::from("<null>")),
             size_bytes: size_bytes as u64,
         }
     }

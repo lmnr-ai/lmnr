@@ -59,6 +59,7 @@ pub async fn create_span(
         span_type: request.span_type.unwrap_or(SpanType::LLM),
         start_time: request.start_time,
         end_time: request.end_time,
+        status: None,
         events: None,
         labels: None,
         input_url: None,

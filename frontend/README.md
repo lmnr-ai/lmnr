@@ -16,3 +16,9 @@
 To start in dev mode
 
 `pnpm run dev`
+
+## Unit tests
+
+Run
+
+`pnpm test`

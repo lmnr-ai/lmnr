@@ -139,9 +139,10 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         setSpans(spans);
 
         const spanIdFromUrl = searchParams.get("spanId");
-        const spanToSelect = spanIdFromUrl ? spans.find((span: Span) => span.spanId === spanIdFromUrl) ?? spans[0] : spans[0];
+        const spanToSelect = spanIdFromUrl
+          ? (spans.find((span: Span) => span.spanId === spanIdFromUrl) ?? spans[0])
+          : spans[0];
         setSelectedSpan(spanToSelect);
-
       } catch (e) {
         console.error(e);
       } finally {
@@ -329,7 +330,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) { }
+    } catch (e) {}
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);

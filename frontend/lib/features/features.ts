@@ -14,11 +14,11 @@ export const enum Feature {
 // right now all managed-version features are disabled in local environment
 export const isFeatureEnabled = (feature: Feature) => {
   if (feature === Feature.EMAIL_AUTH) {
-    return process.env.ENVIRONMENT === "PRODUCTION" ? false : true;
+    return process.env.ENVIRONMENT !== "PRODUCTION";
   }
 
   if (feature === Feature.LOCAL_DB) {
-    return process.env.ENVIRONMENT === "PRODUCTION" ? false : true;
+    return process.env.ENVIRONMENT !== "PRODUCTION" || process.env.FORCE_RUN_MIGRATIONS === "true";
   }
 
   if (feature === Feature.GITHUB_AUTH) {

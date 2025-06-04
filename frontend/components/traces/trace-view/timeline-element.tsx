@@ -71,9 +71,7 @@ const TimelineElement = ({
     const textContent = (
       <>
         {segment.span.name}{" "}
-        <span className="text-white/70">
-          {getDurationString(segment.span.startTime, segment.span.endTime)}
-        </span>
+        <span className="text-white/70">{getDurationString(segment.span.startTime, segment.span.endTime)}</span>
       </>
     );
 
@@ -160,7 +158,8 @@ const TimelineElement = ({
         ref={blockRef}
         className="rounded relative z-20 flex items-center"
         style={{
-          backgroundColor: SPAN_TYPE_TO_COLOR[segment.span.spanType],
+          backgroundColor:
+            segment.span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[segment.span.spanType],
           marginLeft: segment.left + "%",
           width: `max(${segment.width}%, 2px)`,
           height: 24,

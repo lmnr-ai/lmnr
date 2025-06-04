@@ -1,7 +1,7 @@
 import { AutoJoinRule, ExtendedCast, JsonbFieldMapping, TableName } from "./types";
-import { WITH_EVAL_DP_DATA_CTE_NAME, WITH_EVAL_DP_TARGET_CTE_NAME } from "./with";
+import { WITH_EVAL_DP_DATA_CTE_NAME, WITH_EVAL_DP_TARGET_CTE_NAME, WITH_EVALUATOR_SCORES_CTE_NAME } from "./with";
 
-export const REPLACE_JSONB_FIELDS: Partial<Record<TableName, Record<string, JsonbFieldMapping>>> = {
+export const REPLACE_STATIC_FIELDS: Partial<Record<TableName, Record<string, JsonbFieldMapping>>> = {
   spans: {
     // SELECT string_agg(value::TEXT, '.') FROM jsonb_array_elements_text(spans.attributes->'lmnr.span.path') as path
     path: {
@@ -120,7 +120,56 @@ export const REPLACE_JSONB_FIELDS: Partial<Record<TableName, Record<string, Json
       },
       as: "path"
     },
-  }
+  },
+  // EXTRACT(EPOCH FROM end_time - start_time)
+  traces: {
+    duration: {
+      replaceWith: {
+        tableList: [
+          "traces"
+        ],
+        columnList: [
+          "select::null::value",
+          "select::traces::end_time",
+          "select::traces::start_time"
+        ],
+        ast: {
+          type: "extract",
+          args: {
+            field: "EPOCH",
+            cast_type: null,
+            source: {
+              type: "binary_expr",
+              operator: "-",
+              left: {
+                type: "column_ref",
+                table: null,
+                column: {
+                  expr: {
+                    type: "default",
+                    value: "end_time"
+                  }
+                },
+                collate: null
+              },
+              right: {
+                type: "column_ref",
+                table: null,
+                column: {
+                  expr: {
+                    type: "default",
+                    value: "start_time"
+                  }
+                },
+                collate: null
+              }
+            }
+          }
+        },
+        as: "duration"
+      }
+    }
+  },
 };
 
 /**
@@ -128,8 +177,7 @@ export const REPLACE_JSONB_FIELDS: Partial<Record<TableName, Record<string, Json
  */
 export const AUTO_JOIN_RULES: AutoJoinRule[] = [
   {
-    // Rule to join spans -> evaluation_results -> evaluations when evaluation_id is referenced
-    triggerTables: ['spans'],
+    triggerTables: ['spans'] as TableName[],
     triggerColumns: ['evaluation_id'],
     joinChain: [
       {
@@ -156,8 +204,61 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
     ]
   },
   {
-    // Rule to join traces -> evaluation_results -> evaluations when evaluation_id is referenced
-    triggerTables: ['traces'],
+    triggerTables: ['spans'] as TableName[],
+    triggerColumns: ['evaluation_name'],
+    joinChain: [
+      {
+        leftTable: 'spans',
+        leftColumn: 'trace_id',
+        rightTable: 'evaluation_results',
+        rightColumn: 'trace_id'
+      },
+      {
+        leftTable: 'evaluation_results',
+        leftColumn: 'evaluation_id',
+        rightTable: 'evaluations',
+        rightColumn: 'id'
+      }
+    ],
+    columnReplacements: [
+      {
+        original: 'evaluation_name',
+        replacement: {
+          table: 'evaluations',
+          column: 'name'
+        }
+      }
+    ]
+  },
+  {
+    triggerTables: ['spans'] as TableName[],
+    triggerColumns: ['tag'],
+    joinChain: [
+      {
+        leftTable: 'spans',
+        leftColumn: 'span_id',
+        rightTable: 'labels',
+        rightColumn: 'span_id',
+      },
+      {
+        leftTable: 'labels',
+        leftColumn: 'class_id',
+        rightTable: 'label_classes',
+        rightColumn: 'id',
+      }
+    ],
+    columnReplacements: [
+      {
+        original: 'tag',
+        replacement: {
+          table: 'label_classes',
+          column: 'name'
+        }
+      }
+    ]
+  },
+  {
+    triggerTables: ['traces'] as TableName[],
     triggerColumns: ['evaluation_id'],
     joinChain: [
       {
@@ -184,7 +285,34 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
     ]
   },
   {
-    triggerTables: ['evaluation_results'],
+    triggerTables: ['traces'] as TableName[],
+    triggerColumns: ['evaluation_name'],
+    joinChain: [
+      {
+        leftTable: 'traces',
+        leftColumn: 'id',
+        rightTable: 'evaluation_results',
+        rightColumn: 'trace_id'
+      },
+      {
+        leftTable: 'evaluation_results',
+        leftColumn: 'evaluation_id',
+        rightTable: 'evaluations',
+        rightColumn: 'id'
+      }
+    ],
+    columnReplacements: [
+      {
+        original: 'evaluation_name',
+        replacement: {
+          table: 'evaluations',
+          column: 'name'
+        }
+      }
+    ]
+  },
+  {
+    triggerTables: ['evaluation_results'] as TableName[],
     triggerColumns: ['cost', 'duration', 'total_token_count', 'start_time', 'end_time'],
     joinChain: [
       {
@@ -206,7 +334,6 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         original: 'duration',
         replacement: {
           type: 'cast',
-          as: 'duration',
           keyword: 'cast',
           symbol: '::',
           target: [
@@ -264,7 +391,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
     ]
   },
   {
-    triggerTables: ['evaluation_results'],
+    triggerTables: ['evaluation_results'] as TableName[],
     triggerColumns: ['data'],
     joinChain: [
       {
@@ -285,7 +412,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
     ]
   },
   {
-    triggerTables: ['evaluation_results'],
+    triggerTables: ['evaluation_results'] as TableName[],
     triggerColumns: ['target'],
     joinChain: [
       {
@@ -302,6 +429,19 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
           table: WITH_EVAL_DP_TARGET_CTE_NAME,
           column: 'target',
         }
+      }
+    ]
+  },
+  {
+    // Rule to join spans -> evaluator_scores when any column from evaluator_scores is referenced
+    triggerTables: ['spans'] as TableName[],
+    triggerReferencedTables: [WITH_EVALUATOR_SCORES_CTE_NAME],
+    joinChain: [
+      {
+        leftTable: 'spans',
+        leftColumn: 'span_id',
+        rightTable: WITH_EVALUATOR_SCORES_CTE_NAME,
+        rightColumn: 'span_id'
       }
     ]
   }

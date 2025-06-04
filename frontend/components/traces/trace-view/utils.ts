@@ -73,6 +73,7 @@ export const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
           inputUrl: null,
           outputUrl: null,
           pending: true,
+          status: span.status,
         } as Span;
         pendingSpans.set(spanId, pendingSpan);
       }

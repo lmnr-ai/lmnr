@@ -2,6 +2,8 @@
 // Apparently, this is the suggested way to run startup hooks in Next.js:
 // https://github.com/vercel/next.js/discussions/15341#discussioncomment-7091594
 
+const INITIAL_CH_SCHEMA_FILE = "0000-initial.sql";
+
 export async function register() {
   // prevent this from running in the edge runtime for the second time
   if (process.env.NEXT_RUNTIME === "nodejs") {
@@ -40,8 +42,50 @@ export async function register() {
         }
       };
 
+      const initializeClickHouse = async () => {
+        try {
+          const { clickhouseClient } = await import("lib/clickhouse/client");
+          const { readFileSync, readdirSync } = await import("fs");
+          const { join } = await import("path");
+
+          for (const file of readdirSync("lib/clickhouse/migrations")) {
+            const schemaSql = readFileSync(join(process.cwd(), "lib/clickhouse/migrations", file), "utf-8");
+            const statements = schemaSql
+              .split(";")
+              .map(s => s.trim())
+              .filter(s => s.length > 0);
+
+            for (const statement of statements) {
+              try {
+                await clickhouseClient.exec({ query: statement });
+              } catch (error) {
+                if ((error as { type: string }).type === "DUPLICATE_COLUMN") {
+                  console.warn(
+                    "Failed to apply ClickHouse statement:",
+                    statement,
+                    "because column already exists"
+                  );
+                  continue;
+                } else {
+                  throw error;
+                }
+              }
+
+            }
+          }
+        } catch (error) {
+          console.error("Failed to apply ClickHouse schema:", error);
+        };
+      }
+      // Run Postgres migrations and data initialization
       await migrate(db, { migrationsFolder: "lib/db/migrations" });
+      console.log("✓ Postgres migrations applied successfully");
       await initializeData();
+      console.log("✓ Postgres data initialized successfully");
+
+      // Run ClickHouse schema application
+      await initializeClickHouse();
+      console.log("✓ ClickHouse schema applied successfully");
     } else {
       console.log("Local DB is not enabled, skipping migrations and initial data");
     }

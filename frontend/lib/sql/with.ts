@@ -15,9 +15,14 @@ const sqlToWithArray = (s: string): With[] => {
 };
 
 const WITH_AGG_SCORES_CTE_NAME = '__ql_cte_agg_json_scores';
+export const WITH_EVALUATOR_SCORES_CTE_NAME = 'evaluator_scores';
 export const WITH_EVAL_DP_DATA_CTE_NAME = '__ql_cte_eval_dp_data';
 export const WITH_EVAL_DP_TARGET_CTE_NAME = '__ql_cte_eval_dp_target';
-export type AllowedTableNameForJoin = TableName | typeof WITH_EVAL_DP_DATA_CTE_NAME | typeof WITH_EVAL_DP_TARGET_CTE_NAME;
+export type AllowedTableNameForJoin =
+  | TableName
+  | typeof WITH_EVAL_DP_DATA_CTE_NAME
+  | typeof WITH_EVAL_DP_TARGET_CTE_NAME
+  | typeof WITH_EVALUATOR_SCORES_CTE_NAME;
 
 const WITH_AGG_SCORES_CTE = `
   WITH ${WITH_AGG_SCORES_CTE_NAME}(result_id, scores) AS (
@@ -43,6 +48,18 @@ const WITH_AGG_SCORES_CTE = `
     ON evaluation_results.id = ${WITH_AGG_SCORES_CTE_NAME}.result_id
   )
   SELECT * from evaluation_results
+`;
+
+const WITH_EVALUATOR_SCORES_CTE = `
+  WITH ${WITH_EVALUATOR_SCORES_CTE_NAME}(span_id, scores) AS (
+    SELECT
+      span_id,
+      jsonb_object_agg(evaluators.name, evaluator_scores.score) as evaluator_scores
+    FROM evaluator_scores
+    JOIN evaluators ON evaluator_scores.evaluator_id = evaluators.id
+    GROUP BY span_id
+  )
+  SELECT * FROM ${WITH_EVALUATOR_SCORES_CTE_NAME}
 `;
 
 const WITH_EVAL_DP_DATA_CTE = `
@@ -77,12 +94,39 @@ const WITH_EVAL_DP_TARGET_CTE = `
   SELECT * FROM ${WITH_EVAL_DP_TARGET_CTE_NAME}
 `;
 
+// Hide most columns from label_classes table
+const WITH_LABEL_CLASSES_CTE = `
+  WITH label_classes(id, name) AS (
+    SELECT
+      label_classes.id,
+      label_classes.name
+    FROM label_classes
+  )
+  SELECT * FROM label_classes
+`;
+
+const WITH_LABEL_CTE = `
+  WITH labels(span_id, class_id) AS (
+    SELECT
+      labels.span_id,
+      labels.class_id
+    FROM labels
+  )
+  SELECT * FROM labels
+`;
+
 const AGG_SCORE_CTE_WITH: With[] = sqlToWithArray(WITH_AGG_SCORES_CTE);
 const EVAL_DP_DATA_CTE_WITH: With[] = sqlToWithArray(WITH_EVAL_DP_DATA_CTE);
 const EVAL_DP_TARGET_CTE_WITH: With[] = sqlToWithArray(WITH_EVAL_DP_TARGET_CTE);
+const EVALUATOR_SCORES_CTE_WITH: With[] = sqlToWithArray(WITH_EVALUATOR_SCORES_CTE);
+const LABEL_CTE_WITH: With[] = sqlToWithArray(WITH_LABEL_CTE);
+const LABEL_CLASSES_CTE_WITH: With[] = sqlToWithArray(WITH_LABEL_CLASSES_CTE);
 
 export const ADDITIONAL_WITH_CTES = [
   ...AGG_SCORE_CTE_WITH,
   ...EVAL_DP_DATA_CTE_WITH,
   ...EVAL_DP_TARGET_CTE_WITH,
+  ...EVALUATOR_SCORES_CTE_WITH,
+  ...LABEL_CTE_WITH,
+  ...LABEL_CLASSES_CTE_WITH,
 ];

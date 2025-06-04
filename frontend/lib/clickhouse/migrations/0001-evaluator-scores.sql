@@ -1,4 +1,4 @@
-CREATE TABLE default.evaluator_scores
+CREATE TABLE IF NOT EXISTS default.evaluator_scores
 (
     `id` UUID,
     `span_id` UUID,

@@ -13,6 +13,12 @@ export type WorkspaceStats = {
   stepsOverLimit: number;
   stepsOverLimitCost: number;
   stepsThisMonth: number;
+  // GB usage fields
+  totalGBUsed: number;
+  gbUsedThisMonth: number;
+  gbLimit: number;
+  gbOverLimit: number;
+  gbOverLimitCost: number;
   // storageLimit: number; // in MiB
 };
 

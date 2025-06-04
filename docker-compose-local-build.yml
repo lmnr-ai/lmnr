@@ -29,10 +29,6 @@ services:
         source: ./clickhouse/config/users.xml
         target: /etc/clickhouse-server/users.d/users.xml
         read_only: true
-      - type: bind
-        source: ./clickhouse/001000-initial.sql
-        target: /docker-entrypoint-initdb.d/001000-initial.sql
-        read_only: true
     ulimits:
       nofile:
         soft: 262144
@@ -104,6 +100,7 @@ services:
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       ENVIRONMENT: FULL
       AGENT_MANAGER_URL: http://agent-manager:8901
   frontend:
@@ -125,6 +122,7 @@ services:
       ENVIRONMENT: FULL
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
 volumes:

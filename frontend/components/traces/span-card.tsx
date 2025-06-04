@@ -90,6 +90,7 @@ export function SpanCard({
             containerWidth={SQUARE_SIZE}
             containerHeight={SQUARE_SIZE}
             size={SQUARE_ICON_SIZE}
+            status={span.status}
             className={cn("min-w-[22px]", { "text-muted-foreground bg-muted ": span.pending })}
           />
           <div

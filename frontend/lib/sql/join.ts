@@ -17,7 +17,9 @@ import {
 import { AUTO_JOIN_RULES } from "./modifier-consts";
 import {
   ALLOWED_TABLES_AND_SCHEMA,
+  AutoJoinColumnRule,
   AutoJoinRule,
+  AutoJoinTableRule,
   JoinCondition,
   TableName
 } from "./types";
@@ -40,23 +42,43 @@ export const applyAutoJoinRules = (node: Select, fromTables: string[]): void => 
 
     if (!hasTriggerTable) continue;
 
-    // Check if any trigger column is referenced
-    let hasTriggerColumn = false;
+    let shouldApplyRule = false;
 
-    // Check columns in SELECT clause
-    for (const column of node.columns) {
-      if (hasColumnReference(column.expr, rule.triggerColumns)) {
-        hasTriggerColumn = true;
-        break;
+    if ('triggerColumns' in rule) {
+      // Handle column-based rule (AutoJoinColumnRule)
+      const columnRule = rule as AutoJoinColumnRule;
+
+      // Check columns in SELECT clause
+      for (const column of node.columns) {
+        if (hasColumnReference(column.expr, columnRule.triggerColumns)) {
+          shouldApplyRule = true;
+          break;
+        }
+      }
+
+      // Check columns in WHERE clause
+      if (!shouldApplyRule && node.where) {
+        shouldApplyRule = hasColumnReference(node.where, columnRule.triggerColumns);
+      }
+    } else if ('triggerReferencedTables' in rule) {
+      // Handle table-based rule (AutoJoinTableRule)
+      const tableRule = rule as AutoJoinTableRule;
+
+      // Check columns in SELECT clause
+      for (const column of node.columns) {
+        if (hasTableReference(column.expr, tableRule.triggerReferencedTables)) {
+          shouldApplyRule = true;
+          break;
+        }
+      }
+
+      // Check columns in WHERE clause
+      if (!shouldApplyRule && node.where) {
+        shouldApplyRule = hasTableReference(node.where, tableRule.triggerReferencedTables);
       }
     }
 
-    // Check columns in WHERE clause
-    if (!hasTriggerColumn && node.where) {
-      hasTriggerColumn = hasColumnReference(node.where, rule.triggerColumns);
-    }
-
-    if (!hasTriggerColumn) continue;
+    if (!shouldApplyRule) continue;
 
     // Rule matched, apply joins
     applyJoins(node, rule);
@@ -491,6 +513,78 @@ const hasColumnReference = (expression: ExpressionValue, columns: string[]): boo
     return (expression as ExprList).value.some(item =>
       hasColumnReference(item as ExpressionValue, columns)
     );
+  }
+
+  if (expression.type === 'cast') {
+    const extractExpr = expression as Cast;
+    return hasColumnReference(extractExpr.expr, columns);
+  }
+
+  return false;
+};
+
+/**
+ * Check if an expression references any column from the specified tables
+ * @param {ExpressionValue} expression - The expression to check
+ * @param {string[]} tables - Table names to look for column references from
+ * @returns {boolean} - Whether any column from these tables is referenced
+ */
+const hasTableReference = (expression: ExpressionValue, tables: string[]): boolean => {
+  if (!expression) return false;
+
+  if (expression.type === 'column_ref') {
+    const columnRef = expression as ColumnRefItem;
+    // Check if the column reference explicitly mentions one of the trigger tables
+    if (columnRef.table && tables.includes(columnRef.table)) {
+      return true;
+    }
+  }
+
+  if (expression.type === 'binary_expr') {
+    const binaryExpr = expression as Binary;
+    return hasTableReference(binaryExpr.left as ExpressionValue, tables) ||
+      hasTableReference(binaryExpr.right as ExpressionValue, tables);
+  }
+
+  if (expression.type === 'expr') {
+    const exprExpr = (expression as unknown as ColumnRefExpr).expr;
+    return exprExpr ? hasTableReference(exprExpr, tables) : false;
+  }
+
+  if (expression.type === 'function') {
+    const funcExpr = expression as NodeSqlFunction;
+    if (funcExpr.args && Array.isArray(funcExpr.args.value)) {
+      return funcExpr.args.value.some(arg =>
+        hasTableReference(arg as ExpressionValue, tables)
+      );
+    }
+  }
+
+  if (expression.type === 'case') {
+    const caseExpr = expression as Case;
+    return caseExpr.args.some(arg => {
+      if (arg.type === 'when') {
+        return hasTableReference(arg.cond, tables) ||
+          hasTableReference(arg.result, tables);
+      }
+      return hasTableReference(arg.result, tables);
+    });
+  }
+
+  if (expression.type === 'aggr_func') {
+    const aggrFuncExpr = expression as AggrFunc;
+    return hasTableReference(aggrFuncExpr.args.expr, tables);
+  }
+
+  if (expression.type === 'expr_list' && Array.isArray((expression as ExprList).value)) {
+    return (expression as ExprList).value.some(item =>
+      hasTableReference(item as ExpressionValue, tables)
+    );
+  }
+
+  if (expression.type === 'cast') {
+    const castExpr = expression as Cast;
+    return hasTableReference(castExpr.expr, tables);
   }
 
   return false;

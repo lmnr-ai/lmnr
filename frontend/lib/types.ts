@@ -132,3 +132,9 @@ export const DownloadFormat = {
 } as const;
 
 export type DownloadFormat = (typeof DownloadFormat)[keyof typeof DownloadFormat];
+
+export interface ErrorEventAttributes {
+  "exception.message": string;
+  "exception.stacktrace": string;
+  "exception.type": string;
+}

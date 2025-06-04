@@ -6,30 +6,30 @@ import { Label } from '../ui/label';
 
 interface ProjectUsageBannerProps {
   workspaceId: string;
-  spansThisMonth: number;
-  spansLimit: number;
+  gbUsedThisMonth: number;
+  gbLimit: number;
   agentStepsThisMonth: number;
   agentStepsLimit: number;
 }
 
 export default function ProjectUsageBanner({
   workspaceId,
-  spansThisMonth,
-  spansLimit,
+  gbUsedThisMonth,
+  gbLimit,
   agentStepsThisMonth,
   agentStepsLimit,
 }: ProjectUsageBannerProps) {
   const router = useRouter();
 
-  const spanPercentage = spansLimit > 0 ? (spansThisMonth / spansLimit) * 100 : 0;
+  const dataPercentage = gbLimit > 0 ? (gbUsedThisMonth / gbLimit) * 100 : 0;
   const agentStepPercentage = agentStepsLimit > 0 ? (agentStepsThisMonth / agentStepsLimit) * 100 : 0;
 
   let usageStrings = [];
-  if (spansLimit > 0) {
-    usageStrings.push(`${spanPercentage.toFixed(1)}% of your trace usage limit`);
+  if (gbLimit > 0) {
+    usageStrings.push(`${dataPercentage.toFixed(1)}% of your data usage limit`);
   }
   if (agentStepsLimit > 0) {
-    usageStrings.push(`${agentStepPercentage.toFixed(1)}% of your agent steps limit`);
+    usageStrings.push(`${agentStepPercentage.toFixed(1)}% of your Index agent steps limit`);
   }
 
   let messageContent = "";
