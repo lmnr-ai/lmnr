@@ -36,8 +36,8 @@ const models: {
     modelProvider: "gemini",
   },
   {
-    model: "claude-3-7-sonnet-20250219",
-    label: "Claude 3.7 Sonnet (thinking)",
+    model: "claude-sonnet-4-20250514",
+    label: "Claude Sonnet 4 (thinking)",
     description: "",
     enableThinking: true,
     icon: <IconAnthropic className="size-3" />,

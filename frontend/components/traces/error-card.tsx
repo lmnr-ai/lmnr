@@ -31,7 +31,7 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
                 </p>
               )}
             </div>
-            <div className="text-muted-foreground ml-2">
+            <div className="self-start mt-2.5 text-muted-foreground ml-2">
               {isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
             </div>
           </div>
