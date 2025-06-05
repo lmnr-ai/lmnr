@@ -935,8 +935,12 @@ fn output_message_from_completion_content(
         }
     } else {
         let mut out_vec = if let Some(Value::String(s)) = msg_content {
-            let text_block = ChatMessageContentPart::Text(ChatMessageText { text: s.clone() });
-            vec![serde_json::to_value(text_block).unwrap()]
+            if s.is_empty() {
+                vec![]
+            } else {
+                let text_block = ChatMessageContentPart::Text(ChatMessageText { text: s.clone() });
+                vec![serde_json::to_value(text_block).unwrap()]
+            }
         } else {
             vec![]
         };
