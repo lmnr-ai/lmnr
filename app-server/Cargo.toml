@@ -56,6 +56,7 @@ tonic = {version = "0.13", features = ["gzip"]}
 url = "2.5.4"
 uuid = {version = "1.16.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"]}
 reqwest = { version = "0.12.15", features = ["json"] }
+itertools = "0.14.0"
 
 [build-dependencies]
 tonic-build = "0.13"

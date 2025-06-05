@@ -31,16 +31,7 @@ pub async fn push_spans_to_queue(
                 let events = otel_span
                     .events
                     .into_iter()
-                    .filter_map(|event| {
-                        // OpenLLMetry auto-instrumentation sends this event for every chunk
-                        // While this is helpful to get TTFT, we don't want to store excessive
-                        // events
-                        if event.name == "llm.content.completion.chunk" {
-                            None
-                        } else {
-                            Some(Event::from_otel(event, span.span_id, project_id))
-                        }
-                    })
+                    .map(|event| Event::from_otel(event, span.span_id, project_id))
                     .collect::<Vec<Event>>();
 
                 if !span.should_save() {
