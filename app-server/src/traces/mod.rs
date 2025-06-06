@@ -51,24 +51,22 @@ pub async fn process_spans_and_events(
     let span_usage =
         get_llm_usage_for_span(&mut span.get_attributes(), db.clone(), cache.clone()).await;
 
-    let mut has_seen_first_token = false;
-
     // OpenLLMetry auto-instrumentation sends this event for every chunk
     // While this is helpful to get TTFT, we don't want to store excessive,
     // so we only keep the first one.
     let events = events
         .into_iter()
         .sorted_by(|a, b| a.timestamp.cmp(&b.timestamp))
-        .filter(|event| {
+        .scan(false, |has_seen_first_token, event| {
             if event.name == "llm.content.completion.chunk" {
-                if !has_seen_first_token {
-                    has_seen_first_token = true;
-                    true
+                if *has_seen_first_token {
+                    None
                 } else {
-                    false
+                    *has_seen_first_token = true;
+                    Some(event)
                 }
             } else {
-                true
+                Some(event)
             }
         })
         .collect();
