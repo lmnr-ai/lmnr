@@ -454,6 +454,7 @@ dependencies = [
  "enum_dispatch",
  "env_logger",
  "futures-util",
+ "itertools 0.14.0",
  "lapin",
  "log",
  "moka",
