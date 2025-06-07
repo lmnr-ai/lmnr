@@ -4,12 +4,12 @@ use futures_util::StreamExt;
 use uuid::Uuid;
 
 use super::{
+    AgentManager, AgentManagerTrait,
     channel::AgentManagerWorkers,
     storage_state,
     types::{ModelProvider, RunAgentResponseStreamChunk},
-    AgentManager, AgentManagerTrait,
 };
-use crate::db::{self, agent_messages::MessageType, DB};
+use crate::db::{self, DB, agent_messages::MessageType};
 
 pub struct RunAgentWorkerOptions {
     pub model_provider: Option<ModelProvider>,
@@ -22,9 +22,11 @@ pub struct RunAgentWorkerOptions {
     pub max_steps: Option<u64>,
     pub thinking_token_budget: Option<u64>,
     pub start_url: Option<String>,
+    pub user_agent: Option<String>,
     pub return_agent_state: bool,
     pub return_storage_state: bool,
     pub return_screenshots: bool,
+    pub disable_give_control: bool,
 }
 
 pub async fn run_agent_worker(
@@ -84,6 +86,8 @@ pub async fn run_agent_worker(
             return_agent_state: options.return_agent_state,
             return_screenshots: options.return_screenshots,
             return_storage_state: options.return_storage_state,
+            disable_give_control: options.disable_give_control,
+            user_agent: options.user_agent,
         })
         .await;
 
