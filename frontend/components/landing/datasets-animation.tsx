@@ -34,10 +34,10 @@ export default function DatasetsAnimation() {
 
           {/* Output datasets */}
           <div className="absolute right-0 flex flex-col space-y-2">
-            <div className="output-dataset-1 w-12 h-3 bg-gradient-to-r from-blue-500/70 to-green-500/70 rounded-sm"></div>
-            <div className="output-dataset-2 w-10 h-3 bg-gradient-to-r from-purple-500/70 to-green-500/70 rounded-sm"></div>
-            <div className="output-dataset-3 w-14 h-3 bg-gradient-to-r from-green-500/70 to-blue-500/70 rounded-sm"></div>
-            <div className="output-dataset-4 w-8 h-3 bg-gradient-to-r from-orange-500/70 to-purple-500/70 rounded-sm"></div>
+            <div className="output-dataset-1 w-12 h-3 bg-green-400/70 rounded-sm"></div>
+            <div className="output-dataset-2 w-10 h-3 bg-red-400/70 rounded-sm"></div>
+            <div className="output-dataset-3 w-14 h-3 bg-green-400/70 rounded-sm"></div>
+            <div className="output-dataset-4 w-8 h-3 bg-red-400/70 rounded-sm"></div>
           </div>
 
           {/* Flow arrows */}
@@ -89,74 +89,100 @@ export default function DatasetsAnimation() {
         
         /* Dataset items animation */
         .dataset-item-1 {
+          opacity: 0;
+          transform: translateX(-100px);
           animation: slideInLeft 6s infinite;
           animation-delay: 0s;
         }
         
         .dataset-item-2 {
+          opacity: 0;
+          transform: translateX(-100px);
           animation: slideInLeft 6s infinite;
           animation-delay: 0.3s;
         }
         
         .dataset-item-3 {
+          opacity: 0;
+          transform: translateX(-100px);
           animation: slideInLeft 6s infinite;
           animation-delay: 0.6s;
         }
         
         .dataset-item-4 {
+          opacity: 0;
+          transform: translateX(-100px);
           animation: slideInLeft 6s infinite;
           animation-delay: 0.9s;
         }
         
         /* Labeling icons animation */
         .tick-icon-1 {
+          opacity: 0;
+          transform: scale(0);
           animation: popIcon 6s infinite;
           animation-delay: 1.5s;
         }
         
         .cross-icon-1 {
+          opacity: 0;
+          transform: scale(0);
           animation: popIcon 6s infinite;
           animation-delay: 1.8s;
         }
         
         .tick-icon-2 {
+          opacity: 0;
+          transform: scale(0);
           animation: popIcon 6s infinite;
           animation-delay: 2.1s;
         }
         
         .cross-icon-2 {
+          opacity: 0;
+          transform: scale(0);
           animation: popIcon 6s infinite;
           animation-delay: 2.4s;
         }
         
         /* Output datasets animation */
         .output-dataset-1 {
+          opacity: 0;
+          transform: translateX(0);
           animation: slideOutRight 6s infinite;
           animation-delay: 3s;
         }
         
         .output-dataset-2 {
+          opacity: 0;
+          transform: translateX(0);
           animation: slideOutRight 6s infinite;
           animation-delay: 3.3s;
         }
         
         .output-dataset-3 {
+          opacity: 0;
+          transform: translateX(0);
           animation: slideOutRight 6s infinite;
           animation-delay: 3.6s;
         }
         
         .output-dataset-4 {
+          opacity: 0;
+          transform: translateX(0);
           animation: slideOutRight 6s infinite;
           animation-delay: 3.9s;
         }
         
         /* Flow arrows animation */
         .flow-arrow-1 {
+          opacity: 0;
           animation: flowArrow 6s infinite;
           animation-delay: 1.2s;
         }
         
         .flow-arrow-2 {
+          opacity: 0;
           animation: flowArrow 6s infinite;
           animation-delay: 2.7s;
         }

@@ -14,6 +14,7 @@ import evals from "@/assets/landing/evals.png";
 import labeling from "@/assets/landing/labeling.png";
 import playground from "@/assets/landing/playground.png";
 import llmPlayground from "@/assets/landing/llm-playground.png";
+import datasets from "@/assets/landing/datasets.png";
 import traces from "@/assets/landing/traces.png";
 import yc from "@/assets/landing/yc.svg";
 import logo from "@/assets/logo/icon.svg";
@@ -522,10 +523,9 @@ export default function Landing() {
               <InfoCard
                 title="Browser agent observability"
                 description={`
-Laminar automatically records high-quality browser sessions and syncs them with agent traces to help you see what the browser agent sees.
-This drastically improves the debugging experience and allows you to fix issues 10x faster.`}
-                linkUrl="https://docs.lmnr.ai/tracing/introduction"
-                actionText="Learn more"
+Laminar automatically records high-quality browser sessions and syncs them with agent traces to help you see what the browser agent sees.`}
+                linkUrl="https://docs.lmnr.ai/tracing/browser-agent-observability"
+                actionText="Learn about browser agent observability"
                 image={browserAgentObservability}
                 animationOrder={2}
                 className="border-b items-center"
@@ -548,46 +548,77 @@ This drastically improves the debugging experience and allows you to fix issues 
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="grid grid-cols-1">
                   <InfoCard
-                    title="Open LLM spans in the Playground"
+                    title="Experiment with LLM spans in the Playground"
                     description="Open LLM spans in the Playground to experiment with prompts and models."
                     animationOrder={0}
                     className="border-b"
+                    actionText="Learn about playgrounds"
+                    linkUrl="https://docs.lmnr.ai/playground/quickstart"
                   >
-                    <div className="relative">
+                    <div className="h-[141px] relative">
                       <Image src={llmPlayground} alt="LLM playground" quality={100} />
-                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black pointer-events-none" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/70 to-background pointer-events-none" />
                     </div>
                   </InfoCard>
                   <InfoCard
-                    title="Datasets"
-                    description="Build datasets from span data for evals, fine-tuning and prompt engineering."
+                    title="Manage eval datasets in a single place"
+                    description="Build datasets from span data and use them for evals and prompt engineering."
                     animationOrder={2}
-                    className="border-b md:border-b-0"
-                  />
+                    className="border-b md:border-b-0 bg-background"
+                    actionText="Learn about datasets"
+                    linkUrl="https://docs.lmnr.ai/datasets/quickstart"
+                  >
+                    <div className="relative">
+                      <Image src={datasets} alt="Datasets" quality={100} />
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background pointer-events-none" />
+                    </div>
+                  </InfoCard>
                 </div>
                 <div className="grid grid-cols-1">
                   <InfoCard
-                    title="Label data to create eval datasets"
+                    title="Create eval datasets from labeled data"
                     description="Use labeling queues to quickly label data and create eval datasets."
                     animationOrder={1}
                     className="md:border-l border-b"
+                    actionText="Learn about labeling queues"
+                    linkUrl="https://docs.lmnr.ai/queues/quickstart"
                   >
                     <DatasetsAnimation />
                   </InfoCard>
                   <InfoCard
-                    title="Open-Source and easy to self-host"
-                    description="Laminar is fully open-source and easy to self-host."
+                    title="Fully Open Source"
+                    description="Laminar is fully open source and easy to self-host. Easy to deploy locally or on your own infrastructure with docker compose or helm charts."
                     animationOrder={3}
                     className="md:border-l"
-                  ></InfoCard>
+                  >
+                    <div className="flex flex-col space-y-4">
+                      <Link href="https://github.com/lmnr-ai/lmnr" target="_blank">
+                        <div className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-200 cursor-pointer group">
+                          <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
+                            <svg viewBox="0 0 24 24" className="w-6 h-6 text-white group-hover:text-gray-200 transition-colors" fill="currentColor">
+                              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-white group-hover:text-gray-200 transition-colors">Open Source</div>
+                            <div className="text-xs text-white/60 group-hover:text-white/80 transition-colors">Apache 2.0 License</div>
+                          </div>
+                          <div className="text-xs text-white/80 hover:text-white transition-colors flex items-center">
+                            View on GitHub
+                            <ArrowUpRight className="ml-1 h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
+                  </InfoCard>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </div >
 
         <Footer />
-      </div>
+      </div >
     </>
   );
 }
@@ -622,7 +653,7 @@ function InfoCard({
     <div
       ref={ref}
       className={`grid transition-all
-        relative overflow-hidden group ${className}
+        relative overflow-hidden ${className}
         ${image ? "grid-cols-2" : ""}
       `}
       style={{
@@ -633,7 +664,7 @@ function InfoCard({
     >
       <div className="p-10 space-y-2 flex flex-col">
         <h3
-          className="text-2xl font-medium group-hover:text-white transition-all"
+          className="text-2xl font-medium transition-all"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
@@ -643,7 +674,7 @@ function InfoCard({
           {title}
         </h3>
         <p
-          className="text-secondary-foreground/80 group-hover:text-white/80 transition-all text-sm"
+          className="text-secondary-foreground/80 transition-all text-sm"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
@@ -651,16 +682,6 @@ function InfoCard({
         >
           {description}
         </p>
-        {children && inView && (
-          <div
-            style={{
-              opacity: inView ? 1 : 0,
-              transition: `opacity 500ms ease ${baseDelay + 300}ms`,
-            }}
-          >
-            {children}
-          </div>
-        )}
         {linkUrl && (
           <div
             style={{
@@ -674,6 +695,16 @@ function InfoCard({
                 {actionText} <ArrowUpRight className="ml-2 h-4 w-4" />
               </div>
             </Link>
+          </div>
+        )}
+        {children && inView && (
+          <div
+            style={{
+              opacity: inView ? 1 : 0,
+              transition: `opacity 500ms ease ${baseDelay + 300}ms`,
+            }}
+          >
+            {children}
           </div>
         )}
       </div>
