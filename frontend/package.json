@@ -74,6 +74,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "dagre": "^0.8.5",
     "date-fns": "^3.6.0",
     "dotenv": "^16.5.0",
     "drizzle-orm": "^0.41.0",
@@ -121,6 +122,7 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.16",
+    "@types/dagre": "^0.7.52",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/node": "^22.14.1",

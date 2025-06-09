@@ -1,6 +1,3 @@
-import type { Edge, Node } from "@xyflow/react";
-
-// Types for LangGraph structure
 export interface LangGraphNode {
   id: string;
   type: "schema" | "runnable";
@@ -29,15 +26,15 @@ export interface LangGraphStructure {
   edges: LangGraphEdge[];
 }
 
-// Use react-flow's built-in types with our custom data
-export type GraphNode = Node<{
-  label: string;
-  nodeType: "schema" | "runnable";
-  originalData: any;
-  isStart?: boolean;
-  isEnd?: boolean;
-}>;
+export const NODE_DIMENSIONS = {
+  width: 180,
+  maxHeight: 80,
+  minHeight: 50,
+  rankSep: 80,
+  nodeSep: 60,
+} as const;
 
-export type GraphEdge = Edge<{
-  label?: string;
-}>;
+export const SPAN_KEYS = {
+  NODES: "lmnr.association.properties.langgraph.nodes",
+  EDGES: "lmnr.association.properties.langgraph.edges",
+} as const;

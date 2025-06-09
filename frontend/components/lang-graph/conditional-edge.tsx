@@ -1,6 +1,7 @@
 import { BaseEdge, EdgeLabelRenderer, EdgeProps, getBezierPath } from "@xyflow/react";
+import { memo } from "react";
 
-export default function ConditionalEdge({
+const ConditionalEdge = ({
   sourceX,
   sourceY,
   targetX,
@@ -10,7 +11,7 @@ export default function ConditionalEdge({
   style = {},
   markerEnd,
   label,
-}: EdgeProps) {
+}: EdgeProps) => {
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -40,4 +41,6 @@ export default function ConditionalEdge({
       )}
     </>
   );
-}
+};
+
+export default memo(ConditionalEdge);
