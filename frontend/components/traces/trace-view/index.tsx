@@ -1,10 +1,10 @@
 import { has } from "lodash";
 import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import Header from "@/components/traces/trace-view/header";
-import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
 import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
@@ -41,6 +41,10 @@ interface TraceViewProps {
 const MAX_ZOOM = 3;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
+
+const LangGraphView = dynamic(() => import("@/components/traces/trace-view/lang-graph-view"), {
+  ssr: false,
+});
 
 export default function TraceView({
   traceId,
