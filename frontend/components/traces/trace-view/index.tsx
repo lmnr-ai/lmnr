@@ -26,6 +26,7 @@ import Tree from "./tree";
 
 export interface TraceViewHandle {
   toggleBrowserSession: () => void;
+  toggleLangGraph: () => void;
 }
 
 interface TraceViewProps {
@@ -34,13 +35,21 @@ interface TraceViewProps {
   onClose: () => void;
   fullScreen?: boolean;
   ref?: Ref<TraceViewHandle>;
+  onLangGraphDetected?: (detected: boolean) => void;
 }
 
 const MAX_ZOOM = 3;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
 
-export default function TraceView({ traceId, onClose, propsTrace, fullScreen = false, ref }: TraceViewProps) {
+export default function TraceView({
+  traceId,
+  onClose,
+  onLangGraphDetected,
+  propsTrace,
+  fullScreen = false,
+  ref,
+}: TraceViewProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -64,12 +73,17 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     [spans]
   );
 
-  console.log(hasLangGraph);
+  useEffect(() => {
+    if (hasLangGraph) {
+      onLangGraphDetected?.(true);
+    }
+  }, [hasLangGraph, onLangGraphDetected]);
 
   useImperativeHandle(
     ref,
     () => ({
       toggleBrowserSession: () => setShowBrowserSession((prev) => !prev),
+      toggleLangGraph: () => setShowLangGraph((prev) => !prev),
     }),
     []
   );

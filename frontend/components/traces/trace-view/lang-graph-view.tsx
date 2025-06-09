@@ -32,10 +32,6 @@ const LangGraphView = ({ spans }: LangGraphViewerProps) => {
     };
   }, [spans]);
 
-  if (isEmptyLangGraph) {
-    return null;
-  }
-
   return (
     <>
       <ResizableHandle className="z-50" withHandle />
