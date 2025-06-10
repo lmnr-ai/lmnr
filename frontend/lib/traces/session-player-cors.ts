@@ -1,6 +1,8 @@
 interface CorsPluginCleanup {
   observer: MutationObserver;
   resizeObserver: ResizeObserver;
+  iframeObservers: Set<MutationObserver>;
+  playerEventCleanup: (() => void) | null;
 }
 
 export interface SessionPlayerCorsPlugin {
@@ -233,8 +235,8 @@ export const createSessionPlayerCorsPlugin = (
         setupCorsHeaders(element);
 
         // Process asynchronously but don't block the build
-        processStyleSheets(element).catch(() => {
-          // Silently handle errors
+        processStyleSheets(element).catch((error) => {
+          console.error('Error processing stylesheets:', error);
         });
       }
     }
@@ -251,6 +253,7 @@ export const createSessionPlayerCorsPlugin = (
     }
 
     const targetElement = replayerWrapper || playerContainer;
+    const iframeObservers = new Set<MutationObserver>();
 
     // Process initial content
     staticContentPlugin.onBuild(targetElement, {});
@@ -277,9 +280,10 @@ export const createSessionPlayerCorsPlugin = (
 
             // Store for cleanup
             (iframe as any)._corsIframeObserver = iframeObserver;
+            iframeObservers.add(iframeObserver);
           }
         } catch (error) {
-          // Cannot access iframe content
+          console.error('Error processing iframe content:', error);
         }
       };
 
@@ -342,40 +346,50 @@ export const createSessionPlayerCorsPlugin = (
       attributeFilter: ['href', 'src', 'style']
     });
 
-    // Set up event-based monitoring instead of periodic checks
     const setupEventBasedMonitoring = () => {
-      // 1. Listen to rrweb player events
+      let playerEventCleanup: (() => void) | null = null;
+
       if (playerRef.current) {
         // Listen for player state changes that might indicate new content
-        playerRef.current.addEventListener("ui-update-player-state", () => {
+        const stateHandler = () => {
           staticContentPlugin.onBuild(targetElement, {});
-        });
+        };
 
         // Listen for time updates that might indicate frame changes
         let lastProcessTime = 0;
-        playerRef.current.addEventListener("ui-update-current-time", (event: any) => {
+        const timeHandler = (event: any) => {
           const currentTime = event.payload;
           // Process every 1 second of playback to catch content changes
           if (Math.floor(currentTime / 1000) !== Math.floor(lastProcessTime / 1000)) {
             staticContentPlugin.onBuild(targetElement, {});
             lastProcessTime = currentTime;
           }
-        });
+        };
+
+        playerRef.current.addEventListener("ui-update-player-state", stateHandler);
+        playerRef.current.addEventListener("ui-update-current-time", timeHandler);
+
+        // Return cleanup function for event listeners
+        playerEventCleanup = () => {
+          if (playerRef.current) {
+            playerRef.current.removeEventListener("ui-update-player-state", stateHandler);
+            playerRef.current.removeEventListener("ui-update-current-time", timeHandler);
+          }
+        };
       }
 
-      // 3. Use ResizeObserver to detect layout changes that might indicate content updates
       const resizeObserver = new ResizeObserver(() => {
         staticContentPlugin.onBuild(targetElement, {});
       });
       resizeObserver.observe(targetElement);
 
-      return { resizeObserver };
+      return { resizeObserver, playerEventCleanup };
     };
 
-    const { resizeObserver } = setupEventBasedMonitoring();
+    const { resizeObserver, playerEventCleanup } = setupEventBasedMonitoring();
 
     // Store cleanup references
-    cleanupRefs = { observer, resizeObserver };
+    cleanupRefs = { observer, resizeObserver, iframeObservers, playerEventCleanup };
   };
 
   // Start monitoring after player initialization
@@ -385,8 +399,20 @@ export const createSessionPlayerCorsPlugin = (
     onBuild: staticContentPlugin.onBuild,
     cleanup: () => {
       if (cleanupRefs) {
+        // Clean up main observers
         cleanupRefs.observer.disconnect();
         cleanupRefs.resizeObserver.disconnect();
+
+        // Clean up iframe observers
+        cleanupRefs.iframeObservers.forEach(observer => {
+          observer.disconnect();
+        });
+        cleanupRefs.iframeObservers.clear();
+
+        // Clean up player event listeners
+        if (cleanupRefs.playerEventCleanup) {
+          cleanupRefs.playerEventCleanup();
+        }
       }
 
       // Clean up asset cache
