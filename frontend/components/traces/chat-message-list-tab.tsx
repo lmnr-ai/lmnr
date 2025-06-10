@@ -7,7 +7,7 @@ import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
+import { ChatMessage, ChatMessageContentPart, ChatMessageToolCall, OpenAIImageUrl } from "@/lib/types";
 
 import DownloadButton from "../ui/download-button";
 import PdfRenderer from "../ui/pdf-renderer";
@@ -71,7 +71,7 @@ const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
             return <ContentPartImageUrl url={contentPart.url} />;
           } else {
             const openAIImageUrl = contentPart as any as OpenAIImageUrl;
-            return <img src={openAIImageUrl.image_url.url} alt="span image" className="w-full" />;
+            return <ContentPartImageUrl url={openAIImageUrl.image_url.url} />;
           }
         case "document_url":
           return <ContentPartDocumentUrl url={contentPart.url} />;
@@ -112,7 +112,11 @@ const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
 };
 
 interface ChatMessageListTabProps {
-  messages: { role?: ChatMessage["role"]; content: ChatMessageContentPart[] }[];
+  messages: {
+    role?: ChatMessage["role"];
+    content: ChatMessageContentPart[];
+    tool_calls?: Record<string, unknown>[];
+  }[];
   presetKey?: string | null;
 }
 
@@ -166,6 +170,15 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
                   </div>
                 )}
                 <ContentParts presetKey={presetKey} contentParts={message.content} />
+                {message.tool_calls && (
+                  <CodeHighlighter
+                    readOnly
+                    collapsible
+                    value={JSON.stringify(message.tool_calls, null, 2)}
+                    presetKey={presetKey}
+                    className="max-h-[400px] border-none"
+                  />
+                )}
               </div>
             );
           })}

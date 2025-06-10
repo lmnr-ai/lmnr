@@ -1,4 +1,4 @@
-name: Backend build
+name: Backend build and test
 
 on:
   pull_request:
@@ -16,7 +16,7 @@ on:
       - "app-server/Cargo.toml"
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -42,3 +42,8 @@ jobs:
           platforms: linux/amd64
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
+
+      - name: Run tests
+        run: |
+          cd app-server
+          cargo test
