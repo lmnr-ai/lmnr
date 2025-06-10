@@ -8,7 +8,7 @@ import { useInView } from "react-intersection-observer";
 
 import browserAgentObservability from "@/assets/landing/browser-agent-observability.png";
 import clarum from "@/assets/landing/companies/clarum.png";
-import remo from "@/assets/landing/companies/remo.avif";
+import remo from "@/assets/landing/companies/remo.svg";
 import saturn from "@/assets/landing/companies/saturn.png";
 import datasets from "@/assets/landing/datasets.png";
 import evals from "@/assets/landing/evals.png";
@@ -186,7 +186,7 @@ export default function Landing() {
                   How developers <br className="md:hidden" />{" "}
                   <span className="text-primary">build reliable AI products.</span>
                 </p>
-                <p className="text-2xl text-white/80 font-medium">
+                <p className="text-2xl text-white/80 font-medium px-2 md:px-0">
                   The open-source platform for tracing and evaluating AI applications.
                 </p>
                 <div className="flex space-x-4 items-center">
@@ -215,7 +215,7 @@ export default function Landing() {
           <div className="flex flex-col w-full relative md:pb-0 rounded">
             <div
               key={selectedSection.id}
-              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary px-4 sm:px-8 pt-8 rounded-lg"
+              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary px-4 sm:px-8 pt-8 rounded-none md:rounded-lg"
             >
               <div className="flex flex-wrap border-none gap-2 sm:gap-4 font-medium col-span-1 overflow-x-auto justify-center pb-8">
                 {sections.map((section, i) => (
@@ -225,7 +225,7 @@ export default function Landing() {
                     className={`border-[1.5px] border-white/80 h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${selectedSection.id === section.id
                       ? "bg-white/90 text-black/90 border-b-2"
                       : "text-white hover:bg-white/20 "
-                    }`}
+                      }`}
                   >
                     {section.title}
                     {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
@@ -236,7 +236,7 @@ export default function Landing() {
                 alt={selectedSection.title}
                 src={selectedSection.image}
                 priority
-                className="rounded-t-lg w-full bg-background object-cover object-top h-[300px] md:h-[400px] lg:h-[600px]"
+                className="rounded-t-lg w-full bg-background object-cover object-top h-[250px] md:h-[400px] lg:h-[600px]"
               />
             </div>
           </div>
@@ -734,14 +734,14 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
         <button
           onClick={() => setSelectedLang("typescript")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
-          }`}
+            }`}
         >
           TypeScript
         </button>
         <button
           onClick={() => setSelectedLang("python")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
-          }`}
+            }`}
         >
           Python
         </button>
