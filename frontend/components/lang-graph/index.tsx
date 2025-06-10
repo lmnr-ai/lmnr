@@ -44,6 +44,9 @@ export default function LangGraphViewer({ graphData, className }: LangGraphViewe
         edgeTypes={edgeTypes}
         fitView
         connectionLineType={ConnectionLineType.SmoothStep}
+        proOptions={{
+          hideAttribution: true,
+        }}
       />
     </div>
   );
