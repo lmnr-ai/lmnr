@@ -1,7 +1,9 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { has } from "lodash";
 import { ChartNoAxesGantt, Disc, Disc2, Minus, Plus } from "lucide-react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -12,13 +14,19 @@ import SessionPlayer, { SessionPlayerHandle } from "@/components/shared/traces/s
 import { SpanView } from "@/components/shared/traces/span-view";
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import StatsShields from "@/components/traces/stats-shields";
+import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import Timeline from "@/components/traces/trace-view/timeline";
 import Tree from "@/components/traces/trace-view/tree";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
+
+const LangGraphView = dynamic(() => import("@/components/traces/trace-view/lang-graph-view"), {
+  ssr: false,
+});
 
 interface TraceViewProps {
   trace: Trace;
@@ -38,6 +46,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
+  const [showLangGraph, setShowLangGraph] = useState(true);
 
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const handleZoomIn = useCallback(() => {
@@ -47,6 +56,11 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
   const handleZoomOut = useCallback(() => {
     setZoomLevel((prev) => Math.max(prev - ZOOM_INCREMENT, MIN_ZOOM));
   }, []);
+
+  const hasLangGraph = useMemo(
+    () => !!spans.find((s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)),
+    [spans]
+  );
 
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(
     searchParams.get("spanId") ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null : null
@@ -189,6 +203,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
             </Tooltip>
           </TooltipProvider>
         )}
+        {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
         {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
       </div>
       <div className="flex flex-col h-full w-full overflow-hidden">
@@ -312,6 +327,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
               </ResizablePanel>
             </>
           )}
+          {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
         </ResizablePanelGroup>
       </div>
     </div>

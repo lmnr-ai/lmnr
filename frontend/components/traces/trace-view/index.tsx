@@ -1,8 +1,10 @@
+import { has } from "lodash";
 import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import Header from "@/components/traces/trace-view/header";
+import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
 import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
@@ -11,6 +13,7 @@ import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
+import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +26,7 @@ import Tree from "./tree";
 
 export interface TraceViewHandle {
   toggleBrowserSession: () => void;
+  toggleLangGraph: () => void;
 }
 
 interface TraceViewProps {
@@ -31,13 +35,21 @@ interface TraceViewProps {
   onClose: () => void;
   fullScreen?: boolean;
   ref?: Ref<TraceViewHandle>;
+  onLangGraphDetected?: (detected: boolean) => void;
 }
 
 const MAX_ZOOM = 3;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
 
-export default function TraceView({ traceId, onClose, propsTrace, fullScreen = false, ref }: TraceViewProps) {
+export default function TraceView({
+  traceId,
+  onClose,
+  onLangGraphDetected,
+  propsTrace,
+  fullScreen = false,
+  ref,
+}: TraceViewProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -49,16 +61,29 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const [isTraceLoading, setIsTraceLoading] = useState(false);
 
   const [showBrowserSession, setShowBrowserSession] = useState(false);
+  const [showLangGraph, setShowLangGraph] = useState(true);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
   const [trace, setTrace] = useState<Trace | null>(null);
 
   const [spans, setSpans] = useState<Span[]>([]);
 
+  const hasLangGraph = useMemo(
+    () => !!spans.find((s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)),
+    [spans]
+  );
+
+  useEffect(() => {
+    if (hasLangGraph) {
+      onLangGraphDetected?.(true);
+    }
+  }, [hasLangGraph, onLangGraphDetected]);
+
   useImperativeHandle(
     ref,
     () => ({
       toggleBrowserSession: () => setShowBrowserSession((prev) => !prev),
+      toggleLangGraph: () => setShowLangGraph((prev) => !prev),
     }),
     []
   );
@@ -393,6 +418,9 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               showBrowserSession={showBrowserSession}
               setShowBrowserSession={setShowBrowserSession}
               handleFetchTrace={handleFetchTrace}
+              hasLangGraph={hasLangGraph}
+              setShowLangGraph={setShowLangGraph}
+              showLangGraph={showLangGraph}
             />
             {searchEnabled ? (
               <SearchSpansInput
@@ -525,6 +553,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
             </ResizablePanel>
           </>
         )}
+        {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
       </ResizablePanelGroup>
     </div>
   );
