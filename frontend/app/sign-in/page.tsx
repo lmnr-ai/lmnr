@@ -21,7 +21,7 @@ export default async function SignInPage(props: {
   if (callbackUrl) {
     try {
       const url = new URL(callbackUrl);
-      const currentOrigin = process.env.NEXTAUTH_URL || "http://localhost:3000";
+      const currentOrigin = process.env.NEXTAUTH_URL;
       if (url.origin === currentOrigin && (url.pathname === "/" || url.pathname === "")) {
         callbackUrl = "/onboarding";
       }
