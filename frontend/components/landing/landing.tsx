@@ -113,42 +113,6 @@ evaluate({
     docsLink: "https://docs.lmnr.ai/labeling/introduction",
     callToAction: "Label your data",
   },
-  //   {
-  //     id: "browser-agent-api",
-  //     title: "Browser Agent API",
-  //     description: `Index - our SOTA open-source browser agent is available as an API on Laminar platform.
-  //     With a single prompt, you can now interact with any website via API and automate any task on the web.`,
-  //     image: browserSession,
-  //     docsLink: "https://docs.lmnr.ai/laminar-index/introduction",
-  //     callToAction: "Use Index via API",
-  //     tsCodeExample: `import { LaminarClient } from '@lmnr-ai/lmnr';
-
-  // const client = new LaminarClient({ projectApiKey: "..." });
-
-  // // Execute a browser agent task
-  // const response = await client.agent.run({
-  //   prompt: "Go to ycombinator.com, search for Laminar and give a summary of the company.",
-  // });`,
-  //     pythonCodeExample: `from lmnr import LaminarClient
-
-  // client = LaminarClient(project_api_key="...")
-
-  // # Execute a browser agent task
-  // response = client.agent.run(
-  //     prompt="Go to ycombinator.com, search for Laminar and give a summary of the company."
-  // )`,
-  //     isNew: true,
-  //   },
-  //   {
-  //     id: "index",
-  //     title: "Browser Agent UI",
-  //     description: `Index - our SOTA open-source browser agent is available as a chat interface on Laminar platform.
-  //     Index can autonomously perform complex tasks on the web. In the chat interface, you can see the agent's steps, leave agent to work in the background and take control of the browser when you need to.`,
-  //     image: index,
-  //     docsLink: "/chat",
-  //     callToAction: "Use Index via chat",
-  //     isNew: true,
-  //   },
 ];
 
 export default function Landing() {
@@ -158,7 +122,7 @@ export default function Landing() {
   const handleSectionSelect = (section: Section) => {
     setSelectedSection(section);
     setAutoRotate(false);
-    setTimeout(() => setAutoRotate(true), 20000);
+    setTimeout(() => setAutoRotate(true), 10000);
   };
 
   useEffect(() => {
@@ -170,7 +134,7 @@ export default function Landing() {
         const nextIndex = (currentIndex + 1) % sections.length;
         return sections[nextIndex];
       });
-    }, 15000);
+    }, 3000);
 
     return () => clearInterval(timer);
   }, [autoRotate]);
