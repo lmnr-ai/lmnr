@@ -10,7 +10,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import Messages from "@/components/playground/messages";
 import LlmSelect from "@/components/playground/messages/llm-select";
 import ParamsPopover from "@/components/playground/messages/params-popover";
-import ToolsDialog from "@/components/playground/messages/tools-dialog";
+import ToolsSheet from "@/components/playground/messages/tools-sheet";
 import PlaygroundHistoryTable from "@/components/playground/playground-history-table";
 import ProvidersAlert from "@/components/playground/providers-alert";
 import { Provider } from "@/components/playground/types";
@@ -24,7 +24,15 @@ import { parseSystemMessages } from "@/lib/playground/utils";
 import { ProviderApiKey } from "@/lib/settings/types";
 import { cn } from "@/lib/utils";
 
-export default function PlaygroundPanel({ id, apiKeys, onTraceSelect }: { id: string; apiKeys: ProviderApiKey[]; onTraceSelect?: (traceId: string) => void }) {
+export default function PlaygroundPanel({
+  id,
+  apiKeys,
+  onTraceSelect,
+}: {
+  id: string;
+  apiKeys: ProviderApiKey[];
+  onTraceSelect?: (traceId: string) => void;
+}) {
   const params = useParams();
   const { toast } = useToast();
   const [output, setOutput] = useState<{ text: string; reasoning: string; toolCalls: string[] }>({
@@ -104,7 +112,7 @@ export default function PlaygroundPanel({ id, apiKeys, onTraceSelect }: { id: st
 
         // Refresh history table if it's open
         if (showHistory) {
-          setRefreshHistory(prev => prev + 1);
+          setRefreshHistory((prev) => prev + 1);
         }
       } catch (e) {
         if (e instanceof Error) {
@@ -160,7 +168,7 @@ export default function PlaygroundPanel({ id, apiKeys, onTraceSelect }: { id: st
           control={control}
         />
         <ParamsPopover />
-        <ToolsDialog />
+        <ToolsSheet />
         <Button
           variant={showHistory ? "outlinePrimary" : "outline"}
           size="sm"
@@ -198,7 +206,9 @@ export default function PlaygroundPanel({ id, apiKeys, onTraceSelect }: { id: st
                     <span className="text-xs text-secondary-foreground">Prompt Tokens: {usage.promptTokens}</span>
                   )}
                   {!isNaN(usage?.completionTokens) && (
-                    <span className="text-xs text-secondary-foreground">Completion Tokens: {usage.completionTokens}</span>
+                    <span className="text-xs text-secondary-foreground">
+                      Completion Tokens: {usage.completionTokens}
+                    </span>
                   )}
                 </div>
               )}
