@@ -24,7 +24,7 @@ pub struct EvaluationDatapointResult {
     #[serde(default)]
     pub target: Value,
     #[serde(default)]
-    pub metadata: HashMap<String, Value>,
+    pub metadata: Option<HashMap<String, Value>>,
     #[serde(default)]
     pub executor_output: Option<Value>,
     #[serde(default)]
@@ -62,7 +62,7 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
 
     let metadatas = points
         .iter()
-        .map(|point| point.metadata.clone())
+        .map(|point| point.metadata.clone().unwrap_or_default())
         .collect::<Vec<_>>();
 
     let executor_outputs = points
