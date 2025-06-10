@@ -179,7 +179,7 @@ export default function Landing() {
           <div className="flex flex-col w-full relative md:pb-0 rounded">
             <div
               key={selectedSection.id}
-              className="z-20 animate-in fade-in fade-out duration-700 col-span-2 md:block border bg-primary px-4 sm:px-8 pt-8 rounded-none md:rounded-lg"
+              className="z-20 col-span-2 md:block border bg-primary px-4 sm:px-8 pt-8 rounded-none md:rounded-lg"
             >
               <div className="flex flex-wrap border-none gap-2 sm:gap-4 font-medium col-span-1 overflow-x-auto justify-center pb-8">
                 {sections.map((section, i) => (
@@ -200,7 +200,7 @@ export default function Landing() {
                 alt={selectedSection.title}
                 src={selectedSection.image}
                 priority
-                className="rounded-t-lg w-full bg-background object-cover object-top h-[250px] md:h-[400px] lg:h-[600px]"
+                className="animate-in fade-in duration-500 rounded-t-lg w-full bg-background object-cover object-top h-[250px] md:h-[400px] lg:h-[600px]"
               />
             </div>
           </div>
