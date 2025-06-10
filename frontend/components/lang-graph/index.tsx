@@ -2,20 +2,13 @@
 
 import "@xyflow/react/dist/style.css";
 
-import {
-  Background,
-  BackgroundVariant,
-  ConnectionLineType,
-  ReactFlow,
-  useEdgesState,
-  useNodesState,
-} from "@xyflow/react";
+import { ConnectionLineType, ReactFlow, useEdgesState, useNodesState } from "@xyflow/react";
 
 import { LangGraphStructure } from "@/lib/lang-graph/types";
 import { convertToReactFlow, getLayoutedElements } from "@/lib/lang-graph/utils";
 import { cn } from "@/lib/utils";
 
-import ConditionalEdge from "./conditional-edge";
+import Edge from "./edge";
 import RunnableNode from "./runnable-node";
 import SchemaNode from "./schema-node";
 
@@ -25,7 +18,7 @@ const nodeTypes = {
 };
 
 const edgeTypes = {
-  conditional: ConditionalEdge,
+  default: Edge,
 };
 
 interface LangGraphViewerProps {
@@ -51,9 +44,7 @@ export default function LangGraphViewer({ graphData, className }: LangGraphViewe
         edgeTypes={edgeTypes}
         fitView
         connectionLineType={ConnectionLineType.SmoothStep}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-      </ReactFlow>
+      />
     </div>
   );
 }

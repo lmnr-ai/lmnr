@@ -42,8 +42,12 @@ const SchemaNode = memo(({ data, selected }: SchemaNodeProps) => {
         </div>
       </div>
 
-      {!isStart && <Handle type="target" position={Position.Top} className="w-3 h-3 border-2 border-gray-400" />}
-      {!isEnd && <Handle type="source" position={Position.Bottom} className="w-3 h-3 border-2 border-gray-400" />}
+      {!isStart && (
+        <Handle type="target" position={Position.Top} className="invisible w-3 h-3 border-2 border-gray-400" />
+      )}
+      {!isEnd && (
+        <Handle type="source" position={Position.Bottom} className="invisible w-3 h-3 border-2 border-gray-400" />
+      )}
     </div>
   );
 });

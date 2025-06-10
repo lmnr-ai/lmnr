@@ -46,7 +46,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
   const [showBrowserSession, setShowBrowserSession] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
-  const [showLangGraph, setShowLangGraph] = useState(false);
+  const [showLangGraph, setShowLangGraph] = useState(true);
 
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const handleZoomIn = useCallback(() => {
@@ -327,7 +327,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
               </ResizablePanel>
             </>
           )}
-          {showLangGraph && <LangGraphView spans={spans} />}
+          {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
         </ResizablePanelGroup>
       </div>
     </div>

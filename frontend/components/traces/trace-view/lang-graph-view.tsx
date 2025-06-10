@@ -1,5 +1,5 @@
 import { has, isEmpty } from "lodash";
-import React, { useMemo } from "react";
+import React, { memo, useMemo } from "react";
 
 import LangGraphViewer from "@/components/lang-graph";
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable";
@@ -11,7 +11,7 @@ interface LangGraphViewerProps {
   spans: Span[];
 }
 const LangGraphView = ({ spans }: LangGraphViewerProps) => {
-  const { langGraphData, isEmptyLangGraph } = useMemo(() => {
+  const { langGraphData } = useMemo(() => {
     const span = spans.find(
       (s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)
     );
@@ -42,4 +42,4 @@ const LangGraphView = ({ spans }: LangGraphViewerProps) => {
   );
 };
 
-export default LangGraphView;
+export default memo(LangGraphView);
