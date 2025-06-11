@@ -70,7 +70,19 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
-  const [heatmapEnabled, setHeatmapEnabled] = useState<boolean>(false);
+  const [heatmapEnabled, setHeatmapEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("evaluation-heatmap-enabled");
+      return stored ? JSON.parse(stored) : false;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("evaluation-heatmap-enabled", JSON.stringify(heatmapEnabled));
+    }
+  }, [heatmapEnabled]);
 
   const evaluationUrl = useMemo(() => {
     let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}`;

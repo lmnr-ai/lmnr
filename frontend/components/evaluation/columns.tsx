@@ -116,6 +116,9 @@ const ChangeIndicator = ({ originalValue, comparisonValue }: { originalValue: nu
       ) : (
         <span className="text-destructive">▼</span>
       )}
+      <span className={originalValue >= comparisonValue ? "text-green-300" : "text-destructive"}>
+        ({calculatePercentageChange(originalValue, comparisonValue)}%)
+      </span>
     </span>
   </div>
 );
@@ -143,12 +146,9 @@ const HeatmapComparisonCell = ({
         <ArrowRight className="font-bold min-w-3 text-gray-400" size={12} />
         <span className="text-current">{original ?? "-"}</span>
         {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
-          <span className="text-secondary-foreground text-sm ml-1 font-medium">
-            {originalValue >= comparisonValue ? (
-              <span className="text-green-300">▲</span>
-            ) : (
-              <span className="text-destructive">▼</span>
-            )}
+          <span className="text-secondary-foreground">
+            {originalValue >= comparisonValue ? "▲" : "▼"} ({calculatePercentageChange(originalValue, comparisonValue)}
+            %)
           </span>
         )}
       </div>
@@ -219,12 +219,16 @@ const createStandardScoreComparison = (original: ScoreValue, comparison: ScoreVa
 
   return (
     <div className="flex items-center space-x-2">
-      <div className="text-green-300">{comparison ?? "-"}</div>
+      <div title={String(comparison)} className="text-green-300">
+        {isValidScore(comparison) ? formatScoreValue(comparison) : "-"}
+      </div>
       <ArrowRight className="font-bold min-w-3" size={12} />
-      <div className="text-blue-300">{original ?? "-"}</div>
+      <div title={String(original)} className="text-blue-300">
+        {isValidScore(original) ? formatScoreValue(original) : "-"}
+      </div>
       {showComparison && isValidScore(original) && isValidScore(comparison) && (
         <span className="text-secondary-foreground">
-          {original >= comparison ? "▲" : "▼"} ({original - comparison})
+          {original >= comparison ? "▲" : "▼"} ({calculatePercentageChange(original, comparison)}%)
         </span>
       )}
     </div>
