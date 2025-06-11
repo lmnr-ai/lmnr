@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useProjectContext } from "@/contexts/project-context";
+import { createSessionPlayerCorsPlugin, SessionPlayerCorsPlugin } from "@/lib/traces/session-player-cors";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
@@ -48,6 +49,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const { projectId } = useProjectContext();
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const corsPluginRef = useRef<SessionPlayerCorsPlugin | null>(null);
 
     // Add resize observer effect
     useEffect(() => {
@@ -63,6 +65,13 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       resizeObserver.observe(containerRef.current);
 
       return () => resizeObserver.disconnect();
+    }, []);
+
+    // Cleanup effect
+    useEffect(() => () => {
+      if (corsPluginRef.current) {
+        corsPluginRef.current.cleanup();
+      }
     }, []);
 
     const getEvents = async () => {
@@ -147,6 +156,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     useEffect(() => {
       if (!events?.length || !playerContainerRef.current) return;
 
+      // Cleanup previous plugin if it exists
+      if (corsPluginRef.current) {
+        corsPluginRef.current.cleanup();
+        corsPluginRef.current = null;
+      }
+
       try {
         playerRef.current = new rrwebPlayer({
           target: playerContainerRef.current,
@@ -179,6 +194,9 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           setCurrentTime(event.payload / 1000);
           onTimelineChange(startTime + event.payload);
         });
+
+        // Set up CORS plugin
+        corsPluginRef.current = createSessionPlayerCorsPlugin(playerRef, playerContainerRef);
       } catch (e) {
         console.error("Error initializing player:", e);
       }
