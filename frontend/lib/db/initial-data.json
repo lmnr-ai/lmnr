@@ -321,6 +321,19 @@
         "additional_prices": {}
       },
       {
+        "id": "1a88a73b-42f9-495c-b4f7-9faac1f3e98f",
+        "created_at": "2025-06-10 21:28:57.248088+00",
+        "updated_at": "2025-06-10 21:28:57.248088+00",
+        "provider": "anthropic",
+        "model": "claude-4-sonnet-20250514",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
         "id": "e40c2c10-6f84-414e-b15d-3a6bd406aea1",
         "created_at": "2024-10-16 17:36:24.312254+00",
         "updated_at": "2024-10-16 17:36:24.312254+00",
@@ -341,6 +354,32 @@
         "output_price_per_million": 2.4,
         "input_cached_price_per_million": null,
         "additional_prices": {}
+      },
+      {
+        "id": "57caaf0f-5701-4d46-b989-45dfe2ffdfb7",
+        "created_at": "2025-05-22 20:56:16.63397+00",
+        "updated_at": "2025-05-22 20:56:16.63397+00",
+        "provider": "anthropic",
+        "model": "claude-opus-4-20250514",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "5844f3f1-e937-4a6e-a7b5-5c3eaa244b81",
+        "created_at": "2025-05-22 20:54:41.392959+00",
+        "updated_at": "2025-05-22 20:54:41.392959+00",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-20250514",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
+        }
       },
       {
         "id": "1427ff14-26d4-4723-92d9-dbfd939b1ea3",
@@ -717,6 +756,28 @@
         "additional_prices": {}
       },
       {
+        "id": "909e462b-9f5e-4c60-a9b0-6f99e7df1725",
+        "created_at": "2025-06-11 20:50:24.016064+00",
+        "updated_at": "2025-06-11 20:50:24.016064+00",
+        "provider": "azure-openai",
+        "model": "o3",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 40.0,
+        "input_cached_price_per_million": 2.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "9c740adb-5e43-46aa-97fb-82b191b0a7fa",
+        "created_at": "2025-06-11 20:49:55.275261+00",
+        "updated_at": "2025-06-11 20:49:55.275261+00",
+        "provider": "azure-openai",
+        "model": "o3-2025-04-16",
+        "input_price_per_million": 10.0,
+        "output_price_per_million": 40.0,
+        "input_cached_price_per_million": 2.5,
+        "additional_prices": {}
+      },
+      {
         "id": "30f3f183-aae3-46da-8fc9-ff05e3e38a98",
         "created_at": "2025-04-21 13:25:21.978809+00",
         "updated_at": "2025-04-21 13:25:21.978809+00",
@@ -736,6 +797,28 @@
         "input_price_per_million": 1.1,
         "output_price_per_million": 4.4,
         "input_cached_price_per_million": 0.55,
+        "additional_prices": {}
+      },
+      {
+        "id": "2e26c5cd-5a64-484a-b127-6ed632a605d4",
+        "created_at": "2025-06-11 20:51:40.784784+00",
+        "updated_at": "2025-06-11 20:51:40.784784+00",
+        "provider": "azure-openai",
+        "model": "o4-mini",
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.28,
+        "additional_prices": {}
+      },
+      {
+        "id": "92856532-b9ba-4812-b2b9-c2a222f45a77",
+        "created_at": "2025-06-11 20:51:14.217265+00",
+        "updated_at": "2025-06-11 20:51:14.217265+00",
+        "provider": "azure-openai",
+        "model": "o4-mini-2025-04-16",
+        "input_price_per_million": 1.1,
+        "output_price_per_million": 4.4,
+        "input_cached_price_per_million": 0.28,
         "additional_prices": {}
       },
       {
@@ -964,6 +1047,58 @@
         "additional_prices": {}
       },
       {
+        "id": "6f7133fe-299e-47b8-b96e-7d29edba7288",
+        "created_at": "2025-06-11 20:59:27.893352+00",
+        "updated_at": "2025-06-11 20:59:27.893352+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-opus-4",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "cef567e2-e85d-471a-a0a1-b69c69df30d3",
+        "created_at": "2025-06-11 20:59:04.824836+00",
+        "updated_at": "2025-06-11 20:59:04.824836+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-opus-4-20250514-v1:0",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "2124705e-fd6d-4d10-ba6c-74b870be4e85",
+        "created_at": "2025-06-11 20:59:42.88303+00",
+        "updated_at": "2025-06-11 20:59:42.88303+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-sonnet-4",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "3dbeee1b-2236-497d-9838-e76756ccf2f4",
+        "created_at": "2025-06-11 20:59:04.824836+00",
+        "updated_at": "2025-06-11 20:59:04.824836+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-sonnet-4-20250514-v1:0",
+        "input_price_per_million": 3.0,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.3,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
         "id": "e0b915d8-5b18-4ea8-8351-42cfa09f3558",
         "created_at": "2024-10-16 17:54:35.25255+00",
         "updated_at": "2024-10-16 17:54:35.25255+00",
@@ -1081,12 +1216,12 @@
       {
         "id": "49c09368-3d95-4bfe-b157-6b2e7087ae7c",
         "created_at": "2025-02-24 05:05:05.173049+00",
-        "updated_at": "2025-02-24 05:05:05.173049+00",
+        "updated_at": "2025-06-11 20:25:00+00",
         "provider": "gemini",
         "model": "gemini-2.0-flash-lite",
         "input_price_per_million": 0.075,
         "output_price_per_million": 0.3,
-        "input_cached_price_per_million": 0.01875,
+        "input_cached_price_per_million": null,
         "additional_prices": {
           "input_caching_storage_price_per_million_per_hour": 1
         }
@@ -1138,7 +1273,7 @@
         "model": "gemini-2.5-flash-preview",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -1151,7 +1286,20 @@
         "model": "gemini-2.5-flash-preview-04-17",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.0375,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "c87f92c3-53a5-4a84-949a-f980142476d5",
+        "created_at": "2025-06-11 20:17:03.094028+00",
+        "updated_at": "2025-06-11 20:17:03.094028+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-flash-preview-05-20",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -1181,23 +1329,23 @@
       {
         "id": "331e3752-9f6d-464f-b299-a25e911e85f3",
         "created_at": "2025-04-21 13:42:10.717327+00",
-        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-06-11 20:30:25+00",
         "provider": "gemini",
         "model": "gemini-2.5-pro-preview",
         "input_price_per_million": 1.25,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.31,
         "additional_prices": {}
       },
       {
         "id": "d622ad1f-bce7-4d78-9866-ab12b2ed08ed",
         "created_at": "2025-04-21 13:42:54.81621+00",
-        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-06-11 20:30:27+00",
         "provider": "gemini",
         "model": "gemini-2.5-pro-preview--long-context",
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -1220,6 +1368,50 @@
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "6d528da5-4ac5-418e-9ad4-d3cb1c16976d",
+        "created_at": "2025-05-08 10:30:14.806005+00",
+        "updated_at": "2025-05-08 10:30:14.806005+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-preview-05-06",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "43460fd0-db2b-4ccd-9b4a-04482ebd5142",
+        "created_at": "2025-05-08 10:30:14.806005+00",
+        "updated_at": "2025-05-08 10:30:14.806005+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-preview-05-06--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "a4dbd1f9-cc4b-4906-9d89-435c63951038",
+        "created_at": "2025-06-10 21:25:43.550587+00",
+        "updated_at": "2025-06-10 21:25:43.550587+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-preview-06-05",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.31,
+        "additional_prices": {}
+      },
+      {
+        "id": "5549bfca-ff73-43dc-8361-27fad69bfcd6",
+        "created_at": "2025-06-11 20:30:00.551078+00",
+        "updated_at": "2025-06-11 20:30:00.551078+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-pro-preview-06-05--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -1392,12 +1584,12 @@
       {
         "id": "70678c85-f752-4fc3-ab16-9aa01bf0ccc4",
         "created_at": "2025-04-21 13:50:17.447978+00",
-        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-06-11 20:34:31+00",
         "provider": "gemini",
         "model": "models/gemini-2.5-flash-preview",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -1411,6 +1603,19 @@
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
         "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "2e987727-6998-4f60-a57c-ac0e62411a99",
+        "created_at": "2025-06-11 20:17:03.094028+00",
+        "updated_at": "2025-06-11 20:17:03.094028+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-flash-preview-05-20",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -1445,7 +1650,7 @@
         "model": "models/gemini-2.5-pro-preview",
         "input_price_per_million": 1.25,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.31,
         "additional_prices": {}
       },
       {
@@ -1456,7 +1661,7 @@
         "model": "models/gemini-2.5-pro-preview--long-context",
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -1479,6 +1684,50 @@
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b6e9f8d9-d8ba-4ce1-9a97-4df13724d4ce",
+        "created_at": "2025-05-08 10:30:14.806005+00",
+        "updated_at": "2025-05-08 10:30:14.806005+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-preview-05-06",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "8a98ed6b-15f4-445a-93c9-d39fc5a656a9",
+        "created_at": "2025-05-08 10:30:14.806005+00",
+        "updated_at": "2025-05-08 10:30:14.806005+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-preview-05-06--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "39be489b-99d9-49b8-99be-37a85462c5ec",
+        "created_at": "2025-06-11 20:11:10.806838+00",
+        "updated_at": "2025-06-11 20:11:10.806838+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-preview-06-05",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.31,
+        "additional_prices": {}
+      },
+      {
+        "id": "32ccbc1f-70f6-46d7-a1e9-4fef2ee507d6",
+        "created_at": "2025-06-11 20:35:50.199357+00",
+        "updated_at": "2025-06-11 20:35:50.199357+00",
+        "provider": "gemini",
+        "model": "models/gemini-2.5-pro-preview-06-05--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -1651,12 +1900,12 @@
       {
         "id": "abac95fe-84e4-4c92-9f5f-43692f6765b1",
         "created_at": "2025-04-21 13:50:17.447978+00",
-        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-06-11 20:37:49+00",
         "provider": "google",
         "model": "gemini-2.5-flash-preview",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -1670,6 +1919,19 @@
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
         "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "4e212309-5713-4723-8b94-67e7a43238e4",
+        "created_at": "2025-06-11 20:16:54.674202+00",
+        "updated_at": "2025-06-11 20:16:54.674202+00",
+        "provider": "google",
+        "model": "gemini-2.5-flash-preview-05-20",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -1704,7 +1966,7 @@
         "model": "gemini-2.5-pro-preview",
         "input_price_per_million": 1.25,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.31,
         "additional_prices": {}
       },
       {
@@ -1715,7 +1977,7 @@
         "model": "gemini-2.5-pro-preview--long-context",
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -1738,6 +2000,50 @@
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "df60638c-bae9-4d33-8dd5-2713fe0f2ec5",
+        "created_at": "2025-05-08 10:29:04.476666+00",
+        "updated_at": "2025-05-08 10:29:04.476666+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-preview-05-06",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "a6722e6a-ced7-4c7e-9c92-038dc3ed7695",
+        "created_at": "2025-05-08 10:29:04.476666+00",
+        "updated_at": "2025-05-08 10:29:04.476666+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-preview-05-06--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "ba19b086-21dc-43c8-9662-b5a9e63764da",
+        "created_at": "2025-06-11 20:12:42.879703+00",
+        "updated_at": "2025-06-11 20:12:42.879703+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-preview-06-05",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "cce38515-ecfe-46dd-a6d1-392eb8db852b",
+        "created_at": "2025-06-11 20:39:12.326094+00",
+        "updated_at": "2025-06-11 20:39:12.326094+00",
+        "provider": "google",
+        "model": "gemini-2.5-pro-preview-06-05--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -1915,7 +2221,7 @@
         "model": "models/gemini-2.5-flash-preview",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -1929,6 +2235,19 @@
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
         "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "83ce8655-54b8-4db2-9ce4-4c47f2afad5f",
+        "created_at": "2025-06-11 20:16:54.674202+00",
+        "updated_at": "2025-06-11 20:16:54.674202+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-flash-preview-05-20",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -1958,23 +2277,23 @@
       {
         "id": "592608c4-ac26-4e18-aab4-322dfcd5972c",
         "created_at": "2025-04-21 13:42:10.717327+00",
-        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-06-11 20:43:24+00",
         "provider": "google",
         "model": "models/gemini-2.5-pro-preview",
         "input_price_per_million": 1.25,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.31,
         "additional_prices": {}
       },
       {
         "id": "ecf3553b-fa5a-4b8e-8071-9cf7986a15ba",
         "created_at": "2025-04-21 13:42:54.81621+00",
-        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-06-11 20:43:26+00",
         "provider": "google",
         "model": "models/gemini-2.5-pro-preview--long-context",
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -1997,6 +2316,50 @@
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "7275d502-e3f5-4718-94a6-4cc745512dc4",
+        "created_at": "2025-05-08 10:29:04.476666+00",
+        "updated_at": "2025-05-08 10:29:04.476666+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-preview-05-06",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "d037d4c2-666e-4b89-a3f0-aba1f5806e14",
+        "created_at": "2025-05-08 10:29:04.476666+00",
+        "updated_at": "2025-05-08 10:29:04.476666+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-preview-05-06--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "041379db-6136-47b0-b493-eab7369ac38b",
+        "created_at": "2025-06-11 20:12:42.879703+00",
+        "updated_at": "2025-06-11 20:12:42.879703+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-preview-06-05",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.31,
+        "additional_prices": {}
+      },
+      {
+        "id": "315705ea-f89c-4375-83a0-9432c6327cdd",
+        "created_at": "2025-06-11 20:42:40.603919+00",
+        "updated_at": "2025-06-11 20:42:40.603919+00",
+        "provider": "google",
+        "model": "models/gemini-2.5-pro-preview-06-05--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -2169,12 +2532,12 @@
       {
         "id": "94a97e12-be34-4182-b0c1-4ea6525ca7ac",
         "created_at": "2025-04-21 13:50:17.447978+00",
-        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-06-11 20:43:53+00",
         "provider": "google_genai",
         "model": "gemini-2.5-flash-preview",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -2188,6 +2551,19 @@
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
         "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "e8c6747f-fc30-4660-904c-39b1b0b9b51f",
+        "created_at": "2025-06-11 20:14:51.198313+00",
+        "updated_at": "2025-06-11 20:14:51.198313+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-flash-preview-05-20",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -2217,23 +2593,23 @@
       {
         "id": "3ea57ef8-e5ac-4990-aa7c-dca3d2aaab0b",
         "created_at": "2025-04-21 13:42:10.717327+00",
-        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-06-11 20:44:23+00",
         "provider": "google_genai",
         "model": "gemini-2.5-pro-preview",
         "input_price_per_million": 1.25,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.31,
         "additional_prices": {}
       },
       {
         "id": "c4bd7701-3d64-426e-a5b0-8430d5e27d29",
         "created_at": "2025-04-21 13:42:54.81621+00",
-        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-06-11 20:44:21+00",
         "provider": "google_genai",
         "model": "gemini-2.5-pro-preview--long-context",
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -2256,6 +2632,50 @@
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "6a37b755-1d71-46b4-b0a3-5ab17d3bee42",
+        "created_at": "2025-05-08 10:30:10.658081+00",
+        "updated_at": "2025-05-08 10:30:10.658081+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-preview-05-06",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "fd6a9542-0b26-4578-99a7-8d269e9dfe2c",
+        "created_at": "2025-05-08 10:30:10.658081+00",
+        "updated_at": "2025-05-08 10:30:10.658081+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-preview-05-06--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "89301f74-0b55-45cb-99bd-64df2b469d82",
+        "created_at": "2025-06-11 20:12:32.109451+00",
+        "updated_at": "2025-06-11 20:12:32.109451+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-preview-06-05",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.31,
+        "additional_prices": {}
+      },
+      {
+        "id": "8e04e467-4a99-4887-8b02-7f78010746bd",
+        "created_at": "2025-06-11 20:45:18.103629+00",
+        "updated_at": "2025-06-11 20:45:18.103629+00",
+        "provider": "google_genai",
+        "model": "gemini-2.5-pro-preview-06-05--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -2428,12 +2848,12 @@
       {
         "id": "1ff8f517-3eea-4bf2-a943-df66a6a4d3eb",
         "created_at": "2025-04-21 13:50:17.447978+00",
-        "updated_at": "2025-04-21 13:50:17.447978+00",
+        "updated_at": "2025-06-11 20:46:11+00",
         "provider": "google_genai",
         "model": "models/gemini-2.5-flash-preview",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -2447,6 +2867,19 @@
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
         "input_cached_price_per_million": null,
+        "additional_prices": {
+          "output_thinking_price_per_million": 3.5
+        }
+      },
+      {
+        "id": "4c6c19e0-c9d8-47a5-82a8-a39d54287c15",
+        "created_at": "2025-06-10 13:09:39.642404+00",
+        "updated_at": "2025-06-10 13:09:39.642404+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-flash-preview-05-20",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -2476,23 +2909,23 @@
       {
         "id": "5e76b5d0-ea45-4524-b1ca-0ab3ab0d3473",
         "created_at": "2025-04-21 13:42:10.717327+00",
-        "updated_at": "2025-04-21 13:42:10.717327+00",
+        "updated_at": "2025-06-11 20:46:39+00",
         "provider": "google_genai",
         "model": "models/gemini-2.5-pro-preview",
         "input_price_per_million": 1.25,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.31,
         "additional_prices": {}
       },
       {
         "id": "37756036-5ae9-4f17-b997-89feeea1f1fc",
         "created_at": "2025-04-21 13:42:54.81621+00",
-        "updated_at": "2025-04-21 13:42:54.81621+00",
+        "updated_at": "2025-06-11 20:46:41+00",
         "provider": "google_genai",
         "model": "models/gemini-2.5-pro-preview--long-context",
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
@@ -2515,6 +2948,50 @@
         "input_price_per_million": 2.5,
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "f0884554-0c92-43cd-be9d-4e8524b9d8d4",
+        "created_at": "2025-05-08 10:30:10.658081+00",
+        "updated_at": "2025-05-08 10:30:10.658081+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-preview-05-06",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "3d419ef8-14f7-4657-99c2-35fce7150a35",
+        "created_at": "2025-05-08 10:30:10.658081+00",
+        "updated_at": "2025-05-08 10:30:10.658081+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-preview-05-06--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "25bc3824-29c7-423c-8822-d4b8cc2fe524",
+        "created_at": "2025-06-11 20:12:32.109451+00",
+        "updated_at": "2025-06-11 20:12:32.109451+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-preview-06-05",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.31,
+        "additional_prices": {}
+      },
+      {
+        "id": "a4d9dc11-2b29-4c33-80f4-1617d05c4ac1",
+        "created_at": "2025-06-11 20:47:24.338312+00",
+        "updated_at": "2025-06-11 20:47:24.338312+00",
+        "provider": "google_genai",
+        "model": "models/gemini-2.5-pro-preview-06-05--long-context",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 15.0,
+        "input_cached_price_per_million": 0.625,
         "additional_prices": {}
       },
       {
