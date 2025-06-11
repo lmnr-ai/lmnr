@@ -111,10 +111,11 @@ export function SpanView({ spanId }: SpanViewProps) {
                 startTime={span.startTime}
                 endTime={span.endTime}
                 attributes={span.attributes}
-              />
-              <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
-                {new Date(span.startTime).toLocaleString()}
-              </div>
+              >
+                <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
+                  {new Date(span.startTime).toLocaleString()}
+                </div>
+              </SpanStatsShields>
             </div>
             <LabelsContextProvider spanId={spanId}>
               <div className="flex gap-2 flex-wrap items-center">

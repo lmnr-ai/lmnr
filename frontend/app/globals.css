@@ -79,6 +79,9 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
+    --tool: 42 93% 46%;
+    --llm: 262 83% 58%;
+    --llm-foreground: 272 100% 74%;
   }
 
   .dark {
