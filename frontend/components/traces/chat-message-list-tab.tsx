@@ -7,7 +7,7 @@ import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChatMessage, ChatMessageContentPart, ChatMessageToolCall, OpenAIImageUrl } from "@/lib/types";
+import { ChatMessage, ChatMessageContentPart, OpenAIImageUrl } from "@/lib/types";
 
 import DownloadButton from "../ui/download-button";
 import PdfRenderer from "../ui/pdf-renderer";
