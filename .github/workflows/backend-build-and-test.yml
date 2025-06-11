@@ -42,8 +42,11 @@ jobs:
           platforms: linux/amd64
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
+          target: builder
+          tags: app-server-test:latest
+          load: true
 
-      - name: Run tests
+      - name: Run tests inside container
         run: |
-          cd app-server
-          cargo test
+          echo "Running tests inside Docker container..."
+          docker run --rm -t app-server-test:latest cargo test -- --nocapture
