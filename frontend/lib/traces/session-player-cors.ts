@@ -2,6 +2,7 @@ interface CorsPluginCleanup {
   observer: MutationObserver;
   resizeObserver: ResizeObserver;
   iframeObservers: Set<MutationObserver>;
+  iframeCleanupFunctions: Set<() => void>;
   playerEventCleanup: (() => void) | null;
 }
 
@@ -239,7 +240,6 @@ export const createSessionPlayerCorsPlugin = (
   };
 
   const setupPlayerEventCleanup = (
-    targetElement: Element,
     stateHandler: () => void,
     timeHandler: (event: any) => void
   ): (() => void) | null => {
@@ -250,8 +250,8 @@ export const createSessionPlayerCorsPlugin = (
 
     return () => {
       if (playerRef.current) {
-        playerRef.current.removeEventListener("ui-update-player-state", stateHandler);
-        playerRef.current.removeEventListener("ui-update-current-time", timeHandler);
+        playerRef.current.removeEventListener?.("ui-update-player-state", stateHandler);
+        playerRef.current.removeEventListener?.("ui-update-current-time", timeHandler);
       }
     };
   };
@@ -298,6 +298,13 @@ export const createSessionPlayerCorsPlugin = (
       };
 
       iframe.addEventListener('load', processIframeContent);
+
+      // Track cleanup function for this iframe's load event listener
+      const iframeCleanup = () => {
+        iframe.removeEventListener('load', processIframeContent);
+      };
+      cleanupRefs?.iframeCleanupFunctions.add(iframeCleanup);
+
       if (iframe.contentDocument?.readyState === 'complete') {
         processIframeContent();
       }
@@ -351,7 +358,7 @@ export const createSessionPlayerCorsPlugin = (
         }
       };
 
-      const playerEventCleanup = setupPlayerEventCleanup(targetElement, stateHandler, timeHandler);
+      const playerEventCleanup = setupPlayerEventCleanup(stateHandler, timeHandler);
 
       const resizeObserver = new ResizeObserver(() => {
         staticContentPlugin.onBuild(targetElement, {});
@@ -362,7 +369,7 @@ export const createSessionPlayerCorsPlugin = (
     };
 
     const { resizeObserver, playerEventCleanup } = setupEventBasedMonitoring();
-    cleanupRefs = { observer, resizeObserver, iframeObservers, playerEventCleanup };
+    cleanupRefs = { observer, resizeObserver, iframeObservers, iframeCleanupFunctions: new Set(), playerEventCleanup };
   };
 
   setTimeout(setupMonitoring, MONITORING_SETUP_DELAY_MS);
@@ -375,6 +382,8 @@ export const createSessionPlayerCorsPlugin = (
         cleanupRefs.resizeObserver.disconnect();
         cleanupRefs.iframeObservers.forEach(observer => observer.disconnect());
         cleanupRefs.iframeObservers.clear();
+        cleanupRefs.iframeCleanupFunctions.forEach(cleanup => cleanup());
+        cleanupRefs.iframeCleanupFunctions.clear();
         cleanupRefs.playerEventCleanup?.();
       }
 
