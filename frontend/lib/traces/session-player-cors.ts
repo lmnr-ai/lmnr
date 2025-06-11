@@ -267,6 +267,7 @@ export const createSessionPlayerCorsPlugin = (
 
     const targetElement = replayerWrapper || playerContainer;
     const iframeObservers = new Set<MutationObserver>();
+    const iframeCleanupFunctions = new Set<() => void>();
 
     staticContentPlugin.onBuild(targetElement, {});
 
@@ -303,7 +304,7 @@ export const createSessionPlayerCorsPlugin = (
       const iframeCleanup = () => {
         iframe.removeEventListener('load', processIframeContent);
       };
-      cleanupRefs?.iframeCleanupFunctions.add(iframeCleanup);
+      iframeCleanupFunctions.add(iframeCleanup);
 
       if (iframe.contentDocument?.readyState === 'complete') {
         processIframeContent();
@@ -369,7 +370,7 @@ export const createSessionPlayerCorsPlugin = (
     };
 
     const { resizeObserver, playerEventCleanup } = setupEventBasedMonitoring();
-    cleanupRefs = { observer, resizeObserver, iframeObservers, iframeCleanupFunctions: new Set(), playerEventCleanup };
+    cleanupRefs = { observer, resizeObserver, iframeObservers, iframeCleanupFunctions, playerEventCleanup };
   };
 
   setTimeout(setupMonitoring, MONITORING_SETUP_DELAY_MS);
