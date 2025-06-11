@@ -93,12 +93,12 @@ export default async function CheckoutPage(props: {
   const successUrl =
     typeParam === "workspace"
       ? `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${urlEncodedWorkspaceName}&lookupKey=${lookupKey}`
-      : `${process.env.NEXT_PUBLIC_URL}/chat?sessionId={CHECKOUT_SESSION_ID}&userId=${userId}&lookupKey=${lookupKey}`;
+      : `https://index.lmnr.ai/chat?sessionId={CHECKOUT_SESSION_ID}&userId=${userId}&lookupKey=${lookupKey}`;
 
   const cancelUrl =
     typeParam === "workspace"
       ? `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}`
-      : `${process.env.NEXT_PUBLIC_URL}/chat`;
+      : `https://index.lmnr.ai/chat`;
 
   const session = await s.checkout.sessions.create({
     customer: customerId,
