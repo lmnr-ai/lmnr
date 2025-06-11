@@ -3,6 +3,7 @@ import { SlidersHorizontal } from "lucide-react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import ReasoningField from "@/components/playground/messages/reasoning-field";
+import { defaultMaxTokens, defaultTemperature } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -14,9 +15,6 @@ import { cn } from "@/lib/utils";
 interface ParamsPopoverProps {
   className?: string;
 }
-
-const defaultMaxTokens = 1024;
-const defaultTemperature = 1;
 
 const ParamsPopover = ({ className }: ParamsPopoverProps) => {
   const { control, watch } = useFormContext<PlaygroundForm>();

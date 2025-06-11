@@ -105,25 +105,9 @@ export const flattenContentOfMessages = (
   return [{ content: [{ type: "text", text: JSON.stringify(messages) }] }];
 };
 
-export type DatatableFilter = {
-  column: string;
-  operator: string;
-  value: string;
-};
-
 export type PaginatedResponse<T> = {
   items: T[];
   totalCount: number;
-};
-
-export type PaginatedGetResponseWithProjectPresenceFlag<T> = PaginatedResponse<T> & {
-  anyInProject: boolean;
-};
-
-export type BucketRow = {
-  lowerBound: number;
-  upperBound: number;
-  heights: number[];
 };
 
 export const DownloadFormat = {

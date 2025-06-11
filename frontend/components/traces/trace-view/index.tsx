@@ -1,13 +1,19 @@
-import { ChartNoAxesGantt, Minus, Plus, Search } from "lucide-react";
+import { has } from "lodash";
+import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import Header from "@/components/traces/trace-view/header";
+import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
-import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
+import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
+import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
+import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
+import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +26,7 @@ import Tree from "./tree";
 
 export interface TraceViewHandle {
   toggleBrowserSession: () => void;
+  toggleLangGraph: () => void;
 }
 
 interface TraceViewProps {
@@ -28,33 +35,55 @@ interface TraceViewProps {
   onClose: () => void;
   fullScreen?: boolean;
   ref?: Ref<TraceViewHandle>;
+  onLangGraphDetected?: (detected: boolean) => void;
 }
 
 const MAX_ZOOM = 3;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
 
-export default function TraceView({ traceId, onClose, propsTrace, fullScreen = false, ref }: TraceViewProps) {
+export default function TraceView({
+  traceId,
+  onClose,
+  onLangGraphDetected,
+  propsTrace,
+  fullScreen = false,
+  ref,
+}: TraceViewProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
   const { toast } = useToast();
 
+  const { value: filters } = useFiltersContextProvider();
   const [isSpansLoading, setIsSpansLoading] = useState(false);
   const [isTraceLoading, setIsTraceLoading] = useState(false);
 
   const [showBrowserSession, setShowBrowserSession] = useState(false);
+  const [showLangGraph, setShowLangGraph] = useState(true);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
   const [trace, setTrace] = useState<Trace | null>(null);
 
   const [spans, setSpans] = useState<Span[]>([]);
 
+  const hasLangGraph = useMemo(
+    () => !!spans.find((s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)),
+    [spans]
+  );
+
+  useEffect(() => {
+    if (hasLangGraph) {
+      onLangGraphDetected?.(true);
+    }
+  }, [hasLangGraph, onLangGraphDetected]);
+
   useImperativeHandle(
     ref,
     () => ({
       toggleBrowserSession: () => setShowBrowserSession((prev) => !prev),
+      toggleLangGraph: () => setShowLangGraph((prev) => !prev),
     }),
     []
   );
@@ -119,7 +148,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   }, [handleFetchTrace, projectId, traceId]);
 
   const fetchSpans = useCallback(
-    async (search: string, searchIn: string[]) => {
+    async (search: string, searchIn: string[], filters: DatatableFilter[]) => {
       try {
         setIsSpansLoading(true);
 
@@ -131,6 +160,11 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         if (searchIn && searchIn.length > 0) {
           searchIn.forEach((val) => params.append("searchIn", val));
         }
+
+        if (filters && filters.length > 0) {
+          filters.forEach((filter) => params.append("filter", JSON.stringify(filter)));
+        }
+
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
         const results = await response.json();
@@ -149,22 +183,21 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
         setIsSpansLoading(false);
       }
     },
-    [projectId, traceId, setSpans, setSelectedSpan, searchParams, router, pathName]
+    [projectId, traceId, setSpans, setSelectedSpan, searchParams]
   );
 
   useEffect(() => {
     const search = searchParams.get("search") || "";
     const searchIn = searchParams.getAll("searchIn");
 
-    fetchSpans(search, searchIn);
+    fetchSpans(search, searchIn, filters);
 
     return () => {
-      setTrace(null);
       setSpans([]);
       setShowBrowserSession(false);
       setSearchEnabled(false);
     };
-  }, [traceId, projectId, router]);
+  }, [traceId, projectId, router, filters]);
 
   useEffect(() => {
     const childSpans = {} as { [key: string]: Span[] };
@@ -385,6 +418,9 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               showBrowserSession={showBrowserSession}
               setShowBrowserSession={setShowBrowserSession}
               handleFetchTrace={handleFetchTrace}
+              hasLangGraph={hasLangGraph}
+              setShowLangGraph={setShowLangGraph}
+              showLangGraph={showLangGraph}
             />
             {searchEnabled ? (
               <SearchSpansInput
@@ -394,43 +430,52 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                 className="rounded-none border-0 border-b ring-0"
               />
             ) : (
-              <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
-                <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6 text-xs px-1.5">
-                  <Search size={14} className="mr-1" />
-                  <span>Search</span>
-                </Button>
-                <Button
-                  onClick={() => setShowTimeline((prev) => !prev)}
-                  variant="outline"
-                  className={cn("h-6 text-xs px-1.5", {
-                    "border-primary text-primary": showTimeline,
-                  })}
-                >
-                  <ChartNoAxesGantt size={14} className="mr-1" />
-                  <span>Timeline</span>
-                </Button>
-                {showTimeline && (
-                  <>
-                    <Button
-                      disabled={zoomLevel === MAX_ZOOM}
-                      className="h-6 w-6 ml-auto"
-                      variant="outline"
-                      size="icon"
-                      onClick={handleZoomIn}
-                    >
-                      <Plus className="w-4 h-4" />
+              <div className="flex flex-col gap-1 px-2 py-2 border-b box-border">
+                <div className="flex items-center gap-2">
+                  <StatefulFilter columns={filterColumns}>
+                    <Button variant="outline" className="h-6 text-xs">
+                      <ListFilter size={14} className="mr-1" />
+                      Filters
                     </Button>
-                    <Button
-                      disabled={zoomLevel === MIN_ZOOM}
-                      className="h-6 w-6"
-                      variant="outline"
-                      size="icon"
-                      onClick={handleZoomOut}
-                    >
-                      <Minus className="w-4 h-4" />
-                    </Button>
-                  </>
-                )}
+                  </StatefulFilter>
+                  <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6 text-xs px-1.5">
+                    <Search size={14} className="mr-1" />
+                    <span>Search</span>
+                  </Button>
+                  <Button
+                    onClick={() => setShowTimeline((prev) => !prev)}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": showTimeline,
+                    })}
+                  >
+                    <ChartNoAxesGantt size={14} className="mr-1" />
+                    <span>Timeline</span>
+                  </Button>
+                  {showTimeline && (
+                    <>
+                      <Button
+                        disabled={zoomLevel === MAX_ZOOM}
+                        className="h-6 w-6 ml-auto"
+                        variant="outline"
+                        size="icon"
+                        onClick={handleZoomIn}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        disabled={zoomLevel === MIN_ZOOM}
+                        className="h-6 w-6"
+                        variant="outline"
+                        size="icon"
+                        onClick={handleZoomOut}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <StatefulFilterList className="py-[3px] text-xs px-1" />
               </div>
             )}
             {showTimeline ? (
@@ -508,6 +553,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
             </ResizablePanel>
           </>
         )}
+        {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
       </ResizablePanelGroup>
     </div>
   );

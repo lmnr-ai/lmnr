@@ -58,6 +58,9 @@ export const envVarsToIconMap: Record<EnvVars, ReactNode> = {
   [EnvVars.GOOGLE_SEARCH_API_KEY]: <IconGoogle />,
 };
 
+export const defaultMaxTokens = 1024;
+export const defaultTemperature = 1;
+
 export const getDefaultThinkingModelProviderOptions = <P extends Provider, K extends string>(
   value: `${P}:${K}`
 ): ProviderOptions => {
@@ -77,6 +80,7 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
         return {
           google: {
             thinkingConfig: {
+              includeThoughts: true,
               thinkingBudget: 1024,
             },
           },
@@ -171,6 +175,9 @@ export const parseToolsFromLLMRequest = (span: Span) => {
     if (paramsToParse) {
       try {
         const parameters = JSON.parse(paramsToParse);
+        if (parameters && typeof parameters === "object" && !("additionalProperties" in parameters)) {
+          parameters.additionalProperties = false;
+        }
         functions.push({
           name,
           description,
@@ -210,10 +217,10 @@ export const getPlaygroundConfig = (
   maxTokens?: number;
   temperature?: number;
 } => {
-  const provider = get(span, ["attributes", "gen_ai.system"]) as string | undefined;
   const model = get(span, ["attributes", "gen_ai.response.model"]) as string | undefined;
 
   const existingModels = providers.flatMap((p) => p.models).map((p) => p.name);
+  const models = providers.flatMap((p) => p.models);
 
   const tools = get(span, ["attributes", "ai.prompt.tools"]);
   const parsedTools = tools ? parseToolsFromSpan(tools) : parseToolsFromLLMRequest(span);
@@ -221,14 +228,15 @@ export const getPlaygroundConfig = (
   const toolChoice = get(span, ["attributes", "ai.prompt.toolChoice"]);
   const parsedToolChoice = parseToolChoiceFromSpan(toolChoice);
 
-  const foundModel = model && existingModels.find((existingModel) => model.includes(existingModel));
+  const referenceModel = model && existingModels.find((existingModel) => model.includes(existingModel));
+  const foundModel = models.find((m) => m.name === referenceModel)?.id;
 
   const result = {
-    modelId: foundModel && provider ? `${provider}:${foundModel}` : "openai:gpt-4o-mini",
+    modelId: foundModel ? foundModel : "openai:gpt-4o-mini",
     tools: parsedTools,
     toolChoice: parsedToolChoice || (parsedTools ? "auto" : undefined),
-    maxTokens: get(span, ["attributes", "gen_ai.request.max_tokens"]) as number | undefined,
-    temperature: get(span, ["attributes", "gen_ai.request.temperature"]) as number | undefined,
+    maxTokens: get(span, ["attributes", "gen_ai.request.max_tokens"], defaultMaxTokens),
+    temperature: get(span, ["attributes", "gen_ai.request.temperature"], defaultTemperature),
   };
 
   return pickBy(result, (value) => value !== undefined) as typeof result;

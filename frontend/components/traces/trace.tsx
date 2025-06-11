@@ -2,19 +2,23 @@
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Disc2 } from "lucide-react";
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import StatsShields from "@/components/traces/stats-shields";
 import TraceView, { TraceViewHandle } from "@/components/traces/trace-view";
 import { Button } from "@/components/ui/button";
+import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import Header from "@/components/ui/header";
+import { IconLangGraph } from "@/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Trace as TraceType } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) => {
   const traceViewRef = useRef<TraceViewHandle>(null);
+  const [hasLangGraph, setHasLangGraph] = useState(false);
 
   return (
     <>
@@ -30,7 +34,7 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
           outputCost={trace.outputCost}
           cost={trace.cost}
         />
-        <div className="flex gap-2 ml-auto">
+        <div className="flex flex-1 gap-2 justify-end mr-2">
           {trace?.hasBrowserSession && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -51,12 +55,41 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
               </TooltipPortal>
             </Tooltip>
           )}
+          {hasLangGraph && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  className="hover:bg-secondary px-1.5"
+                  variant="ghost"
+                  onClick={() => {
+                    if (traceViewRef.current) {
+                      traceViewRef.current.toggleLangGraph();
+                    }
+                  }}
+                >
+                  <IconLangGraph className={cn("w-5 h-5 fill-white")} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent>Toggle LangGraph</TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          )}
 
           {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
           <ShareTraceButton trace={{ id: trace.id, visibility: trace.visibility }} projectId={projectId} />
         </div>
       </Header>
-      <TraceView ref={traceViewRef} propsTrace={trace} fullScreen onClose={() => {}} traceId={trace.id} />
+      <FiltersContextProvider>
+        <TraceView
+          onLangGraphDetected={() => setHasLangGraph(true)}
+          ref={traceViewRef}
+          propsTrace={trace}
+          fullScreen
+          onClose={() => {}}
+          traceId={trace.id}
+        />
+      </FiltersContextProvider>
     </>
   );
 };

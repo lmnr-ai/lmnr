@@ -2,7 +2,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { ColumnFilter } from "@/components/ui/datatable-filter";
+import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { getDurationString } from "@/lib/flow/utils";
 import { SessionPreview, Trace } from "@/lib/traces/types";

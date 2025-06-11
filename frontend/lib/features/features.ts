@@ -9,10 +9,15 @@ export const enum Feature {
   LOCAL_DB = "LOCAL_DB",
   FULL_BUILD = "FULL_BUILD",
   SUBSCRIPTION = "SUBSCRIPTION",
+  LANDING = "LANDING"
 }
 
 // right now all managed-version features are disabled in local environment
 export const isFeatureEnabled = (feature: Feature) => {
+  if (feature === Feature.LANDING) {
+    return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
+  }
+
   if (feature === Feature.EMAIL_AUTH) {
     return process.env.ENVIRONMENT !== "PRODUCTION";
   }

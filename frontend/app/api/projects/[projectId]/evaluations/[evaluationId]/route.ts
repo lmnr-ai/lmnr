@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
+import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
@@ -10,7 +11,6 @@ import {
   EvaluationScoreDistributionBucket,
   EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
-import { DatatableFilter } from "@/lib/types";
 
 // Constants for distribution calculation
 const DEFAULT_LOWER_BOUND = 0.0;

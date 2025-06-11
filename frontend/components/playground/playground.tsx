@@ -60,9 +60,10 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         messages: isEmpty(playground.promptMessages) ? defaultMessages : playground.promptMessages,
         maxTokens: playground.maxTokens ?? undefined,
         temperature: playground.temperature ?? undefined,
-        providerOptions: playground.providerOptions
-          ? playground.providerOptions
-          : getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
+        providerOptions:
+          !isEmpty(playground.providerOptions) && playground.providerOptions
+            ? playground.providerOptions
+            : getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
         tools: JSON.stringify(playground.tools),
         toolChoice: playground.toolChoice as PlaygroundForm["toolChoice"],
       });

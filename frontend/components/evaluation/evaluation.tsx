@@ -1,4 +1,5 @@
 "use client";
+import { Settings as SettingsIcon } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,7 +17,18 @@ import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
+import { Button } from "@/components/ui/button";
+import FiltersContextProvider from "@/components/ui/datatable-filter/context";
+import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useUserContext } from "@/contexts/user-context";
 import {
   Evaluation as EvaluationType,
@@ -27,7 +39,7 @@ import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
 import { DataTable } from "../ui/datatable";
-import DataTableFilter, { ColumnFilter, DataTableFilterList } from "../ui/datatable-filter";
+import DataTableFilter, { DataTableFilterList } from "../ui/datatable-filter";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
@@ -58,6 +70,19 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
+  const [heatmapEnabled, setHeatmapEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("evaluation-heatmap-enabled");
+      return stored ? JSON.parse(stored) : false;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("evaluation-heatmap-enabled", JSON.stringify(heatmapEnabled));
+    }
+  }, [heatmapEnabled]);
 
   const evaluationUrl = useMemo(() => {
     let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}`;
@@ -123,12 +148,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     [data?.results]
   );
 
-  const columns = useMemo(() => {
-    if (targetId) {
-      return [...defaultColumns, ...comparedComplementaryColumns, ...getComparedScoreColumns(scores)];
-    }
-    return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores)];
-  }, [scores, targetId]);
+  // Calculate score ranges for heatmap coloring
 
   const columnFilters = useMemo<ColumnFilter[]>(
     () => [...filters, ...scores.map((score) => ({ key: `score:${score}`, name: score, dataType: "number" as const }))],
@@ -155,6 +175,45 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     }
     return data?.results || undefined;
   }, [data?.results, targetData?.results, targetId]);
+
+  const scoreRanges = useMemo(() => {
+    if (!tableData) return {};
+
+    const isValidNumber = (value: unknown): value is number => typeof value === "number" && !isNaN(value);
+
+    return scores.reduce(
+      (ranges, scoreName) => {
+        const allValues = tableData
+          .flatMap((row) => [
+            row.scores?.[scoreName],
+            ...(targetId ? [(row as EvaluationDatapointPreviewWithCompared).comparedScores?.[scoreName]] : []),
+          ])
+          .filter(isValidNumber);
+
+        return allValues.length > 0
+          ? {
+            ...ranges,
+            [scoreName]: {
+              min: Math.min(...allValues),
+              max: Math.max(...allValues),
+            },
+          }
+          : ranges;
+      },
+      {} as Record<string, { min: number; max: number }>
+    );
+  }, [tableData, scores, targetId]);
+
+  const columns = useMemo(() => {
+    if (targetId) {
+      return [
+        ...defaultColumns,
+        ...comparedComplementaryColumns,
+        ...getComparedScoreColumns(scores, heatmapEnabled, scoreRanges),
+      ];
+    }
+    return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
+  }, [scores, targetId, heatmapEnabled, scoreRanges]);
 
   const selectedRow = useMemo<undefined | EvaluationDatapointPreviewWithCompared>(
     () => tableData?.find((row) => row.id === searchParams.get("datapointId")),
@@ -240,8 +299,8 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                     scores={scores}
                     selectedScore={selectedScore}
                     setSelectedScore={setSelectedScore}
-                    statistics={selectedScore ? data?.allStatistics?.[selectedScore] ?? null : null}
-                    comparedStatistics={selectedScore ? targetData?.allStatistics?.[selectedScore] ?? null : null}
+                    statistics={selectedScore ? (data?.allStatistics?.[selectedScore] ?? null) : null}
+                    comparedStatistics={selectedScore ? (targetData?.allStatistics?.[selectedScore] ?? null) : null}
                     isLoading={isLoading}
                   />
                 </div>
@@ -251,10 +310,10 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       evaluationId={evaluationId}
                       comparedEvaluationId={targetId}
                       scoreName={selectedScore}
-                      distribution={selectedScore ?
-                        data?.allDistributions?.[selectedScore] ?? null : null}
-                      comparedDistribution={selectedScore ?
-                        targetData?.allDistributions?.[selectedScore] ?? null : null}
+                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
+                      comparedDistribution={
+                        selectedScore ? (targetData?.allDistributions?.[selectedScore] ?? null) : null
+                      }
                       isLoading={isLoading}
                     />
                   ) : (
@@ -262,8 +321,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       className="h-full"
                       evaluationId={evaluationId}
                       scoreName={selectedScore}
-                      distribution={selectedScore ?
-                        data?.allDistributions?.[selectedScore] ?? null : null}
+                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
                       isLoading={isLoading}
                     />
                   )}
@@ -284,6 +342,24 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
             >
               <div className="flex flex-1 w-full space-x-2">
                 <DataTableFilter columns={columnFilters} />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="h-7 w-7" variant="outline" size="icon">
+                      <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64">
+                    <DropdownMenuLabel className="text-xs font-medium">Settings</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <div className="flex items-center justify-between px-2 py-2">
+                      <div className="flex flex-col">
+                        <span className="text-xs">Scores Heatmap</span>
+                        <span className="text-xs text-muted-foreground">Color-code score values</span>
+                      </div>
+                      <Switch checked={heatmapEnabled} onCheckedChange={setHeatmapEnabled} />
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <SearchEvaluationInput />
               </div>
               <DataTableFilterList />
@@ -333,7 +409,9 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                   </Select>
                 </div>
               )}
-              <TraceView onClose={onClose} traceId={traceId} />
+              <FiltersContextProvider>
+                <TraceView onClose={onClose} traceId={traceId} />
+              </FiltersContextProvider>
             </div>
           </Resizable>
         </div>

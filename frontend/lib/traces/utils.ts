@@ -1,5 +1,6 @@
+import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
+
 import { SpanMetricGroupBy } from "../clickhouse/types";
-import { DatatableFilter } from "../types";
 import { SpanType } from "./types";
 
 export const SPAN_TYPE_TO_COLOR = {

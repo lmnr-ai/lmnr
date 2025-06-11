@@ -7,6 +7,7 @@ import React, { memo } from "react";
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import StatsShields from "@/components/traces/stats-shields";
+import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -21,6 +22,9 @@ interface HeaderProps {
   showBrowserSession: boolean;
   setShowBrowserSession: (showBrowserSession: boolean) => void;
   handleFetchTrace: () => void;
+  hasLangGraph: boolean;
+  showLangGraph: boolean;
+  setShowLangGraph: (showLangGraph: boolean) => void;
 }
 
 const Header = ({
@@ -31,6 +35,9 @@ const Header = ({
   showBrowserSession,
   setShowBrowserSession,
   handleFetchTrace,
+  hasLangGraph,
+  showLangGraph,
+  setShowLangGraph,
 }: HeaderProps) => {
   const params = useParams();
   const projectId = params?.projectId as string;
@@ -67,10 +74,7 @@ const Header = ({
       <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span
-              className="cursor-pointer"
-              onClick={copyTraceId}
-            >
+            <span className="cursor-pointer" onClick={copyTraceId}>
               Trace
             </span>
           </TooltipTrigger>
@@ -115,7 +119,7 @@ const Header = ({
             </TooltipPortal>
           </Tooltip>
         )}
-
+        {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
         {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
         {trace && (
           <ShareTraceButton

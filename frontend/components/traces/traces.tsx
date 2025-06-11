@@ -5,9 +5,11 @@ import { usePostHog } from "posthog-js/react";
 import { Resizable } from "re-resizable";
 import { useEffect, useState } from "react";
 
+import { filterColumns } from "@/components/traces/trace-view/utils";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
+import FiltersContextProvider from "../ui/datatable-filter/context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
@@ -83,17 +85,19 @@ export default function Traces() {
               width: "65vw",
             }}
           >
-            <TraceView
-              onClose={() => {
-                const params = new URLSearchParams(searchParams);
-                params.delete("traceId");
-                params.delete("spanId");
-                router.push(`${pathName}?${params.toString()}`);
-                setIsSidePanelOpen(false);
-                setTraceId(null);
-              }}
-              traceId={traceId!}
-            />
+            <FiltersContextProvider columns={filterColumns}>
+              <TraceView
+                onClose={() => {
+                  const params = new URLSearchParams(searchParams);
+                  params.delete("traceId");
+                  params.delete("spanId");
+                  router.push(`${pathName}?${params.toString()}`);
+                  setIsSidePanelOpen(false);
+                  setTraceId(null);
+                }}
+                traceId={traceId!}
+              />
+            </FiltersContextProvider>
           </Resizable>
         </div>
       )}

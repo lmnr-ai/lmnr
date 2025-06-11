@@ -12,10 +12,14 @@ import { cn } from "@/lib/utils";
 const SQLEditorButton = ({ className }: { className?: string }) => {
   const { setOpen, open } = useSQLEditorContext();
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={0}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button onClick={() => setOpen((prev) => !prev)} variant="ghost" className={cn("p-1 h-fit", className)}>
+          <Button
+            onClick={() => setOpen((prev) => !prev)}
+            variant="ghost"
+            className={cn("p-1 h-fit hover:bg-secondary", className)}
+          >
             <SquareTerminal
               className={cn("w-5 h-5", {
                 "text-primary": open,

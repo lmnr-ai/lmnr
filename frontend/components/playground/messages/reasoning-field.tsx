@@ -49,7 +49,7 @@ const ReasoningField = () => {
               <div className="flex justify-between">
                 <span className="text-sm font-medium">Thinking Tokens</span>
                 <Input
-                  onChange={onChange}
+                  onChange={(e) => onChange(Number(e.target.value))}
                   value={value ?? 1024}
                   type="number"
                   className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
@@ -74,7 +74,7 @@ const ReasoningField = () => {
               <div className="flex justify-between">
                 <span className="text-sm font-medium">Thinking Tokens</span>
                 <Input
-                  onChange={onChange}
+                  onChange={(e) => onChange(Number(e.target.value))}
                   value={value ?? 1024}
                   type="number"
                   className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
