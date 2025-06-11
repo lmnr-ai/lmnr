@@ -6,7 +6,7 @@ import React, { memo } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
-import StatsShields from "@/components/traces/stats-shields";
+import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -84,16 +84,9 @@ const Header = ({
         </Tooltip>
       </TooltipProvider>
       {trace && (
-        <StatsShields
+        <TraceStatsShields
           className="box-border sticky top-0 bg-background"
-          startTime={trace.startTime}
-          endTime={trace.endTime}
-          totalTokenCount={trace.totalTokenCount}
-          inputTokenCount={trace.inputTokenCount}
-          outputTokenCount={trace.outputTokenCount}
-          inputCost={trace.inputCost}
-          outputCost={trace.outputCost}
-          cost={trace.cost}
+          trace={trace}
         />
       )}
       <div className="flex gap-x-1 items-center ml-auto">

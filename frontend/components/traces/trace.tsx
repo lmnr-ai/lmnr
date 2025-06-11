@@ -6,7 +6,7 @@ import React, { useRef, useState } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
-import StatsShields from "@/components/traces/stats-shields";
+import { TraceStatsShields } from "./stats-shields";
 import TraceView, { TraceViewHandle } from "@/components/traces/trace-view";
 import { Button } from "@/components/ui/button";
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
@@ -23,16 +23,9 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
   return (
     <>
       <Header path={`traces/${trace.id}`} childrenContainerClassName="flex-1 mr-2">
-        <StatsShields
+        <TraceStatsShields
           className="box-border sticky top-0 bg-background"
-          startTime={trace.startTime}
-          endTime={trace.endTime}
-          totalTokenCount={trace.totalTokenCount}
-          inputTokenCount={trace.inputTokenCount}
-          outputTokenCount={trace.outputTokenCount}
-          inputCost={trace.inputCost}
-          outputCost={trace.outputCost}
-          cost={trace.cost}
+          trace={trace}
         />
         <div className="flex flex-1 gap-2 justify-end mr-2">
           {trace?.hasBrowserSession && (
@@ -86,7 +79,7 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
           ref={traceViewRef}
           propsTrace={trace}
           fullScreen
-          onClose={() => {}}
+          onClose={() => { }}
           traceId={trace.id}
         />
       </FiltersContextProvider>

@@ -8,19 +8,28 @@ import { cn } from "@/lib/utils";
 
 import { Label } from "../ui/label";
 
-interface StatsShieldsProps {
-  startTime: string;
-  endTime: string;
-  totalTokenCount: number;
-  inputTokenCount: number;
-  outputTokenCount: number;
-  inputCost: number | null;
-  outputCost: number | null;
-  cost: number | null;
+interface TraceStatsShieldsProps {
+  trace: {
+    startTime: string;
+    endTime: string;
+    totalTokenCount: number;
+    inputTokenCount: number;
+    outputTokenCount: number;
+    inputCost: number | null;
+    outputCost: number | null;
+    cost: number | null;
+  };
   className?: string;
 }
 
-export default function StatsShields({
+interface SpanStatsShieldsProps {
+  startTime: string;
+  endTime: string;
+  attributes: Record<string, any>;
+  className?: string;
+}
+
+function StatsShieldsContent({
   startTime,
   endTime,
   totalTokenCount,
@@ -31,7 +40,17 @@ export default function StatsShields({
   cost,
   className,
   children,
-}: PropsWithChildren<StatsShieldsProps>) {
+}: PropsWithChildren<{
+  startTime: string;
+  endTime: string;
+  totalTokenCount: number;
+  inputTokenCount: number;
+  outputTokenCount: number;
+  inputCost: number | null;
+  outputCost: number | null;
+  cost: number | null;
+  className?: string;
+}>) {
   return (
     <div className={cn("flex items-center gap-2 font-mono min-w-0", className)}>
       <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
@@ -88,5 +107,58 @@ export default function StatsShields({
       </TooltipProvider>
       {children}
     </div>
+  );
+}
+
+export function TraceStatsShields({
+  trace,
+  className,
+  children,
+}: PropsWithChildren<TraceStatsShieldsProps>) {
+  return (
+    <StatsShieldsContent
+      startTime={trace.startTime}
+      endTime={trace.endTime}
+      totalTokenCount={trace.totalTokenCount}
+      inputTokenCount={trace.inputTokenCount}
+      outputTokenCount={trace.outputTokenCount}
+      inputCost={trace.inputCost}
+      outputCost={trace.outputCost}
+      cost={trace.cost}
+      className={className}
+    >
+      {children}
+    </StatsShieldsContent>
+  );
+}
+
+export function SpanStatsShields({
+  startTime,
+  endTime,
+  attributes,
+  className,
+  children,
+}: PropsWithChildren<SpanStatsShieldsProps>) {
+  const inputTokenCount = attributes["gen_ai.usage.input_tokens"] ?? 0;
+  const outputTokenCount = attributes["gen_ai.usage.output_tokens"] ?? 0;
+  const totalTokenCount = inputTokenCount + outputTokenCount;
+  const inputCost = attributes["gen_ai.usage.input_cost"] ?? 0;
+  const outputCost = attributes["gen_ai.usage.output_cost"] ?? 0;
+  const cost = attributes["gen_ai.usage.cost"] ?? 0;
+
+  return (
+    <StatsShieldsContent
+      startTime={startTime}
+      endTime={endTime}
+      totalTokenCount={totalTokenCount}
+      inputTokenCount={inputTokenCount}
+      outputTokenCount={outputTokenCount}
+      inputCost={inputCost}
+      outputCost={outputCost}
+      cost={cost}
+      className={className}
+    >
+      {children}
+    </StatsShieldsContent>
   );
 }
