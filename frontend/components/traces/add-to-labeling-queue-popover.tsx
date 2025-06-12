@@ -90,13 +90,6 @@ export default function AddToLabelingQueuePopover({
     }
   }, [data, datapointIds, datasetId, projectId, selectedQueue, toast, isDatapointMode]);
 
-  const handleValueChange = (value: string) => {
-    if (value === "create-queue") {
-      return;
-    }
-    setSelectedQueue(value);
-  };
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -111,7 +104,7 @@ export default function AddToLabelingQueuePopover({
       <PopoverContent className="w-80" align="start" side="bottom">
         <div className="flex flex-col space-y-4">
           <span className="font-medium">Add to Labeling Queue</span>
-          <Select disabled={isQueuesLoading} value={selectedQueue} onValueChange={handleValueChange}>
+          <Select disabled={isQueuesLoading} value={selectedQueue} onValueChange={setSelectedQueue}>
             <SelectTrigger>
               <SelectValue placeholder="Select a labeling queue" />
             </SelectTrigger>
