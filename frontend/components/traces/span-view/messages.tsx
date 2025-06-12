@@ -1,4 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { CoreMessage } from "ai";
 import { isEqual } from "lodash";
 import { ChevronDown } from "lucide-react";
 import { memo, useRef } from "react";
@@ -6,11 +7,10 @@ import { memo, useRef } from "react";
 import ContentParts from "@/components/traces/span-view/content-parts";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChatMessage, ChatMessageContentPart } from "@/lib/types";
 
 interface ChatMessageListTabProps {
-  messages: { role?: ChatMessage["role"]; content: ChatMessageContentPart[] }[];
-  presetKey?: string | null;
+  messages: CoreMessage[];
+  presetKey?: string;
 }
 
 function PureMessages({ messages, presetKey }: ChatMessageListTabProps) {
@@ -62,7 +62,7 @@ function PureMessages({ messages, presetKey }: ChatMessageListTabProps) {
                     {message.role.toUpperCase()}
                   </div>
                 )}
-                <ContentParts presetKey={presetKey} contentParts={message.content} />
+                <ContentParts presetKey={presetKey} content={message.content} />
               </div>
             );
           })}
