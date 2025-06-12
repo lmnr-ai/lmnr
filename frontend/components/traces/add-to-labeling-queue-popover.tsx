@@ -15,11 +15,15 @@ import { PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface AddToLabelingQueuePopoverProps {
-  data: { metadata: Record<string, unknown>; payload: Record<string, unknown> }[];
+  data?: { metadata: Record<string, unknown>; payload: Record<string, unknown> }[];
+  datapointIds?: string[];
+  datasetId?: string;
 }
 
 export default function AddToLabelingQueuePopover({
   data,
+  datapointIds,
+  datasetId,
   children,
 }: PropsWithChildren<AddToLabelingQueuePopoverProps>) {
   const [selectedQueue, setSelectedQueue] = useState<string>("");
@@ -27,6 +31,8 @@ export default function AddToLabelingQueuePopover({
   const [open, setOpen] = useState(false);
   const { projectId } = useParams();
   const { toast } = useToast();
+
+  const isDatapointMode = datapointIds && datasetId;
 
   const { data: labelingQueues, isLoading: isQueuesLoading } = useSWR<PaginatedResponse<LabelingQueue>>(
     `/api/projects/${projectId}/queues`,
@@ -38,10 +44,18 @@ export default function AddToLabelingQueuePopover({
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/queues/${selectedQueue}/push`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const response = await fetch(
+        isDatapointMode
+          ? `/api/projects/${projectId}/datasets/${datasetId}/datapoints/push-to-queue`
+          : `/api/projects/${projectId}/queues/${selectedQueue}/push`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(isDatapointMode ? { datapointIds, queueId: selectedQueue } : data),
+        }
+      );
 
       if (response.ok) {
         toast({
@@ -74,7 +88,7 @@ export default function AddToLabelingQueuePopover({
     } finally {
       setIsLoading(false);
     }
-  }, [data, projectId, selectedQueue, toast]);
+  }, [data, datapointIds, datasetId, projectId, selectedQueue, toast, isDatapointMode]);
 
   const handleValueChange = (value: string) => {
     if (value === "create-queue") {
