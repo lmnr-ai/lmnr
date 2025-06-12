@@ -15,8 +15,8 @@ export async function GET(
     return new Response(JSON.stringify(datapoint), { status: 200 });
   } catch (error) {
     console.error("Error fetching datapoint:", error);
-    if (error instanceof Error && error.message === "Datapoint not found") {
-      return new Response("Datapoint not found", { status: 404 });
+    if (error instanceof Error) {
+      return new Response(error.message, { status: 404 });
     }
     return new Response("Internal Server Error", { status: 500 });
   }
@@ -56,8 +56,8 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error updating datapoint:", error);
-    if (error instanceof Error && error.message === "Datapoint not found") {
-      return new Response("Datapoint not found", { status: 404 });
+    if (error instanceof Error) {
+      return new Response(error.message, { status: 404 });
     }
     return new Response("Internal Server Error", { status: 500 });
   }
