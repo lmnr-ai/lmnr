@@ -4,7 +4,6 @@ import { z } from "zod";
 import { db } from "@/lib/db/drizzle";
 import { datasetDatapoints } from "@/lib/db/migrations/schema";
 
-// Exported schemas for reuse in routes
 export const GetDatapointSchema = z.object({
   datapointId: z.string(),
   datasetId: z.string(),

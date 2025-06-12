@@ -92,7 +92,6 @@ export default function CreateDatasetDialog({
               placeholder="Name"
               value={newDatasetName}
               onChange={(e) => setNewDatasetName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createNewDataset()}
             />
           </div>
           <DialogFooter>

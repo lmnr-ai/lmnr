@@ -78,7 +78,6 @@ export async function pushDatapointsToQueue(input: z.infer<typeof PushDatapoints
     where: and(inArray(datasetDatapoints.id, datapointIds), eq(datasetDatapoints.datasetId, datasetId)),
   });
 
-  // Map datapoints to queue items format
   const queueItems = datapoints.map((datapoint, index) => ({
     payload: {
       data: datapoint.data,
