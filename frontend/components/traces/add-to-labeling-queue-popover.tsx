@@ -15,11 +15,15 @@ import { PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface AddToLabelingQueuePopoverProps {
-  data: { metadata: Record<string, unknown>; payload: Record<string, unknown> }[];
+  data?: { metadata: Record<string, unknown>; payload: Record<string, unknown> }[];
+  datapointIds?: string[];
+  datasetId?: string;
 }
 
 export default function AddToLabelingQueuePopover({
   data,
+  datapointIds,
+  datasetId,
   children,
 }: PropsWithChildren<AddToLabelingQueuePopoverProps>) {
   const [selectedQueue, setSelectedQueue] = useState<string>("");
@@ -27,6 +31,8 @@ export default function AddToLabelingQueuePopover({
   const [open, setOpen] = useState(false);
   const { projectId } = useParams();
   const { toast } = useToast();
+
+  const isDatapointMode = datapointIds && datasetId;
 
   const { data: labelingQueues, isLoading: isQueuesLoading } = useSWR<PaginatedResponse<LabelingQueue>>(
     `/api/projects/${projectId}/queues`,
@@ -38,10 +44,18 @@ export default function AddToLabelingQueuePopover({
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/queues/${selectedQueue}/push`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const response = await fetch(
+        isDatapointMode
+          ? `/api/projects/${projectId}/datasets/${datasetId}/datapoints/push-to-queue`
+          : `/api/projects/${projectId}/queues/${selectedQueue}/push`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(isDatapointMode ? { datapointIds, queueId: selectedQueue } : data),
+        }
+      );
 
       if (response.ok) {
         toast({
@@ -74,14 +88,7 @@ export default function AddToLabelingQueuePopover({
     } finally {
       setIsLoading(false);
     }
-  }, [data, projectId, selectedQueue, toast]);
-
-  const handleValueChange = (value: string) => {
-    if (value === "create-queue") {
-      return;
-    }
-    setSelectedQueue(value);
-  };
+  }, [data, datapointIds, datasetId, projectId, selectedQueue, toast, isDatapointMode]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -97,7 +104,7 @@ export default function AddToLabelingQueuePopover({
       <PopoverContent className="w-80" align="start" side="bottom">
         <div className="flex flex-col space-y-4">
           <span className="font-medium">Add to Labeling Queue</span>
-          <Select disabled={isQueuesLoading} value={selectedQueue} onValueChange={handleValueChange}>
+          <Select disabled={isQueuesLoading} value={selectedQueue} onValueChange={setSelectedQueue}>
             <SelectTrigger>
               <SelectValue placeholder="Select a labeling queue" />
             </SelectTrigger>
