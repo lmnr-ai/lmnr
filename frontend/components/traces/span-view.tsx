@@ -27,7 +27,7 @@ import Formatter from "../ui/formatter";
 import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SpanTypeIcon from "./span-type-icon";
-import StatsShields from "./stats-shields";
+import SpanStatsShields from "./stats-shields";
 
 interface SpanViewProps {
   spanId: string;
@@ -66,6 +66,14 @@ export function SpanView({ spanId }: SpanViewProps) {
     );
   }
 
+  if (span.attributes["gen_ai.prompt.user"]) {
+    return (
+      <div className="whitespace-pre-wrap p-4 border rounded-md bg-muted/50">
+        {span.attributes["gen_ai.prompt.user"]}
+      </div>
+    );
+  }
+
   return (
     <>
       <Tabs className="flex flex-col h-full w-full overflow-hidden" defaultValue="span-input">
@@ -90,31 +98,24 @@ export function SpanView({ spanId }: SpanViewProps) {
                   href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
                   passHref
                 >
-                  <Button variant="outlinePrimary" className="px-1.5">
-                    <PlayCircle className="mr-2" size={16} />
+                  <Button variant="outlinePrimary" className="px-1.5 text-xs h-6">
+                    <PlayCircle className="mr-1" size={14} />
                     Open in Playground
                   </Button>
                 </Link>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
-              <StatsShields
+              <SpanStatsShields
                 className="flex-wrap"
                 startTime={span.startTime}
                 endTime={span.endTime}
-                totalTokenCount={
-                  (span.attributes["gen_ai.usage.input_tokens"] ?? 0) +
-                  (span.attributes["gen_ai.usage.output_tokens"] ?? 0)
-                }
-                inputTokenCount={span.attributes["gen_ai.usage.input_tokens"] ?? 0}
-                outputTokenCount={span.attributes["gen_ai.usage.output_tokens"] ?? 0}
-                inputCost={span.attributes["gen_ai.usage.input_cost"] ?? 0}
-                outputCost={span.attributes["gen_ai.usage.output_cost"] ?? 0}
-                cost={span.attributes["gen_ai.usage.cost"] ?? 0}
-              />
-              <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
-                {new Date(span.startTime).toLocaleString()}
-              </div>
+                attributes={span.attributes}
+              >
+                <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
+                  {new Date(span.startTime).toLocaleString()}
+                </div>
+              </SpanStatsShields>
             </div>
             <LabelsContextProvider spanId={spanId}>
               <div className="flex gap-2 flex-wrap items-center">

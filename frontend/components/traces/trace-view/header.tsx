@@ -6,13 +6,14 @@ import React, { memo } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
-import StatsShields from "@/components/traces/stats-shields";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
+
+import { TraceStatsShields } from "../stats-shields";
 
 interface HeaderProps {
   selectedSpan: Span | null;
@@ -83,19 +84,7 @@ const Header = ({
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      {trace && (
-        <StatsShields
-          className="box-border sticky top-0 bg-background"
-          startTime={trace.startTime}
-          endTime={trace.endTime}
-          totalTokenCount={trace.totalTokenCount}
-          inputTokenCount={trace.inputTokenCount}
-          outputTokenCount={trace.outputTokenCount}
-          inputCost={trace.inputCost}
-          outputCost={trace.outputCost}
-          cost={trace.cost}
-        />
-      )}
+      {trace && <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />}
       <div className="flex gap-x-1 items-center ml-auto">
         {trace?.hasBrowserSession && (
           <Tooltip>
