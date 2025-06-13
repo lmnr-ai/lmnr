@@ -175,6 +175,8 @@ pub enum ChatMessageContent {
 pub struct ChatMessage {
     pub role: String,
     pub content: ChatMessageContent,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
 }
 
 #[derive(Deserialize)]

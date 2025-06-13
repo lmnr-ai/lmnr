@@ -18,6 +18,7 @@ use crate::{
     mq::{MessageQueue, MessageQueueAcker},
     traces::{
         events::record_events,
+        provider::convert_span_to_provider_format,
         utils::{get_llm_usage_for_span, record_labels_to_db_and_ch, record_span_to_db},
     },
     utils::estimate_json_size,
@@ -28,8 +29,8 @@ pub mod consumer;
 pub mod events;
 pub mod grpc_service;
 pub mod limits;
-
 pub mod producer;
+pub mod provider;
 pub mod span_attributes;
 pub mod spans;
 pub mod utils;
@@ -110,6 +111,8 @@ pub async fn process_spans_and_events(
             }
         }
     }
+
+    convert_span_to_provider_format(span);
 
     let recorded_span_bytes =
         match record_span_to_db(db.clone(), &project_id, span, &trace_attributes).await {
