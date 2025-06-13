@@ -209,7 +209,7 @@ export const urlToBase64 = async (url: string): Promise<string> => {
   }
 };
 
-const isStorageUrl = (url: string) => {
+export const isStorageUrl = (url: string) => {
   const storagePattern = /^\/api\/projects\/[^/]+\/payloads\/[^/]+$/;
   return storagePattern.test(url);
 };

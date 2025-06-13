@@ -8,6 +8,7 @@ import { db } from "@/lib/db/drizzle";
 import { playgrounds, spans } from "@/lib/db/migrations/schema";
 import { Playground as PlaygroundType } from "@/lib/playground/types";
 import { mapMessages } from "@/lib/playground/utils";
+import { convertOpenAIToPlaygroundMessages, OpenAIMessagesSchema } from "@/lib/spans/types";
 import { Span } from "@/lib/traces/types";
 
 export const metadata: Metadata = {
@@ -36,7 +37,12 @@ export default async function PlaygroundPage(props: {
           const parsedSpanId = span.spanId.replace(/[0-]+/g, "");
 
           const config = getPlaygroundConfig(span);
-          const promptMessages = await mapMessages(span.input);
+          const parseResult = OpenAIMessagesSchema.safeParse(span.input);
+
+          const promptMessages = parseResult.success
+            ? await convertOpenAIToPlaygroundMessages(parseResult.data)
+            : await mapMessages(span.input);
+
           const result = await db
             .insert(playgrounds)
             .values({

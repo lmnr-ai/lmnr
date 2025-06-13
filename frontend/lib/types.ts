@@ -1,3 +1,4 @@
+import { CoreMessage } from "ai";
 import { isArray, isNumber, isString } from "lodash";
 
 export interface UserSession {
@@ -62,47 +63,105 @@ export type ChatMessage = {
 
 export const flattenContentOfMessages = (
   messages: ChatMessage[] | Record<string, unknown> | string | undefined
-): {
-  content: ChatMessageContentPart[];
-  role?: "user" | "assistant" | "system" | "tool";
-}[] => {
+): CoreMessage[] => {
   if (isString(messages) || isNumber(messages)) {
-    return [{ content: [{ type: "text", text: String(messages) }] }];
+    return [
+      {
+        role: "user",
+        content: String(messages),
+      },
+    ];
   }
 
   if (isArray(messages)) {
     return messages.map((message) => {
       if (isString(message) || isNumber(message)) {
         return {
-          content: [{ type: "text", text: String(message) }],
-        };
+          role: "user",
+          content: String(message),
+        } as CoreMessage;
       }
 
       if (typeof message === "object" && message !== null) {
         if ("content" in message) {
+          const role = message.role || "user";
+
           if (typeof message.content === "string") {
             return {
-              ...message,
-              content: [{ type: "text", text: message.content }],
-            };
+              role,
+              content: message.content,
+            } as CoreMessage;
           }
-          return message as {
-            content: ChatMessageContentPart[];
-            role: "user" | "assistant" | "system";
-          };
+
+          // Convert ChatMessageContentPart[] to AI SDK format
+          const convertedContent = (message.content as ChatMessageContentPart[]).map((part) => {
+            switch (part.type) {
+              case "text":
+                return {
+                  type: "text" as const,
+                  text: part.text,
+                };
+              case "image_url":
+                return {
+                  type: "image" as const,
+                  image: part.url,
+                };
+              case "image":
+                // Convert base64 data to data URL format
+                const dataUrl = part.data.startsWith("data:")
+                  ? part.data
+                  : `data:${part.mediaType};base64,${part.data}`;
+                return {
+                  type: "image" as const,
+                  image: dataUrl,
+                };
+              case "document_url":
+                return {
+                  type: "file" as const,
+                  data: part.url,
+                  mimeType: part.mediaType,
+                };
+              case "tool_call":
+                return {
+                  type: "tool-call" as const,
+                  toolCallId: part.id || "",
+                  toolName: part.name,
+                  args: part.arguments || {},
+                };
+              default:
+                // Fallback for unknown types
+                return {
+                  type: "text" as const,
+                  text: JSON.stringify(part),
+                };
+            }
+          });
+
+          return {
+            role,
+            content: convertedContent,
+          } as CoreMessage;
         }
+
         return {
-          content: [{ type: "text", text: JSON.stringify(message) }],
-        };
+          role: "user",
+          content: JSON.stringify(message),
+        } as CoreMessage;
       }
 
       return {
-        content: [{ type: "text", text: String(message) }],
-      };
+        role: "user",
+        content: String(message),
+      } as CoreMessage;
     });
   }
 
-  return [{ content: [{ type: "text", text: JSON.stringify(messages) }] }];
+  return [
+    {
+      role: "user",
+      content: JSON.stringify(messages),
+    },
+  ];
 };
 
 export type PaginatedResponse<T> = {

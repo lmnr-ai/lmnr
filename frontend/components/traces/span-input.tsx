@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 
-import ChatMessageListTab from "@/components/traces/chat-message-list-tab";
+import Messages from "@/components/traces/span-view/messages";
+import { convertOpenAIToChatMessages, OpenAIMessagesSchema } from "@/lib/spans/types";
 import { Span } from "@/lib/traces/types";
 import { flattenContentOfMessages } from "@/lib/types";
 
@@ -21,9 +22,15 @@ const SpanInput = ({ span }: { span: Span }) => {
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
   const spanPathArray = typeof spanPath === "string" ? spanPath.split(".") : spanPath;
 
-  const memoizedInput = useMemo(() => flattenContentOfMessages(spanInput), [spanInput]);
+  const memoizedInput = useMemo(() => {
+    const result = OpenAIMessagesSchema.safeParse(spanInput);
+    if (result.success) {
+      return convertOpenAIToChatMessages(result.data);
+    }
+    return flattenContentOfMessages(spanInput);
+  }, [spanInput]);
 
-  return <ChatMessageListTab messages={memoizedInput} presetKey={`input-${spanPathArray.join(".")}`} />;
+  return <Messages messages={memoizedInput} presetKey={`input-${spanPathArray.join(".")}`} />;
 };
 
-export default SpanInput;
+export default memo(SpanInput);
