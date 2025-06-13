@@ -45,7 +45,7 @@ const ToolsList = ({ tools }: { tools: Tool[] }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1 text-xs font-mono border rounded-md p-1 px-2 border-tool bg-tool/20 text-tool hover:bg-tool/30 transition-colors">
+        <button className="flex h-6 items-center gap-1 text-xs font-mono border rounded-md px-2 border-tool bg-tool/20 text-tool hover:bg-tool/30 transition-colors">
           <Bolt size={12} className="min-w-3" />
           <span>{pluralize(tools.length, "tool", "tools")}</span>
           <ChevronDown size={12} />
@@ -135,7 +135,6 @@ function StatsShieldsContent({
             <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
               <Coins className="min-w-3" size={12} />
               <Label className="text-xs truncate">{totalTokenCount}</Label>
-              <InfoIcon size={12} />
             </div>
           </TooltipTrigger>
           <TooltipPortal>
@@ -157,13 +156,15 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">
               <CircleDollarSign className="min-w-3" size={12} />
-              <Label className="text-xs truncate">${cost?.toFixed(5)}</Label>
-              <InfoIcon size={12} />
+              <Label className="text-xs truncate">{cost?.toFixed(3)}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent side="bottom" className="p-2 border">
               <div className="flex-col space-y-1">
+                <Label className="flex text-xs gap-1">
+                  <span className="text-secondary-foreground">Total cost</span> {"$" + cost?.toFixed(5)}
+                </Label>
                 <Label className="flex text-xs gap-1">
                   <span className="text-secondary-foreground">Input cost</span> {"$" + inputCost?.toFixed(5)}
                 </Label>
@@ -229,11 +230,9 @@ const SpanStatsShields = ({
       </StatsShieldsContent>
       <div className="flex flex-wrap gap-1">
         {model && (
-          <div className="">
-            <Label className="text-xs truncate font-mono border rounded-md p-1 px-2 border-llm-foreground bg-llm-foreground/10 text-llm-foreground">
-              {model}
-            </Label>
-          </div>
+          <Label className="h-6 flex items-center text-xs truncate font-mono border rounded-md px-2 border-llm-foreground bg-llm-foreground/10 text-llm-foreground">
+            {model}
+          </Label>
         )}
         <ToolsList tools={tools} />
       </div>

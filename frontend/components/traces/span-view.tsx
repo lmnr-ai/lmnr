@@ -98,8 +98,8 @@ export function SpanView({ spanId }: SpanViewProps) {
                   href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
                   passHref
                 >
-                  <Button variant="outlinePrimary" className="px-1.5">
-                    <PlayCircle className="mr-2" size={16} />
+                  <Button variant="outlinePrimary" className="px-1.5 text-xs h-6">
+                    <PlayCircle className="mr-1" size={14} />
                     Open in Playground
                   </Button>
                 </Link>
