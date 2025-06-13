@@ -42,6 +42,7 @@ const PureTextContentPart = ({ part, presetKey }: { part: TextPart; presetKey?: 
 
 const PureToolCallContentPart = ({ part, presetKey }: { part: ToolCallPart; presetKey?: string }) => (
   <CodeHighlighter
+    readOnly
     collapsible
     value={JSON.stringify(omit(part, "type"), null, 2)}
     presetKey={presetKey}
@@ -51,6 +52,7 @@ const PureToolCallContentPart = ({ part, presetKey }: { part: ToolCallPart; pres
 
 const PureToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey?: string }) => (
   <CodeHighlighter
+    readOnly
     collapsible
     value={JSON.stringify(omit(part, "type"), null, 2)}
     presetKey={presetKey}
@@ -69,18 +71,18 @@ const PureContentParts = ({ content, presetKey }: { content: CoreMessage["conten
     return <TextContentPart presetKey={presetKey} part={{ type: "text", text: content }} />;
   }
 
-  return content.map((part) => {
+  return content.map((part, index) => {
     switch (part.type) {
       case "image":
-        return <ImageContentPart part={part} />;
+        return <ImageContentPart key={`${part.type}-${index}`} part={part} />;
       case "text":
-        return <TextContentPart part={part} presetKey={presetKey} />;
+        return <TextContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
       case "tool-call":
-        return <ToolCallContentPart part={part} presetKey={presetKey} />;
+        return <ToolCallContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
       case "tool-result":
-        return <ToolResultContentPart part={part} presetKey={presetKey} />;
+        return <ToolResultContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
       case "file":
-        return <FileContentPart part={part} />;
+        return <FileContentPart key={`${part.type}-${index}`} part={part} />;
       default:
         return;
     }

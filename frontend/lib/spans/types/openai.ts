@@ -2,6 +2,9 @@ import { CoreMessage } from "ai";
 import { map } from "lodash";
 import { z } from "zod";
 
+import { Message } from "@/lib/playground/types";
+import { isStorageUrl, urlToBase64 } from "@/lib/playground/utils";
+
 /** Part Schemas**/
 const OpenAITextPartSchema = z.object({
   type: z.literal("text"),
@@ -159,4 +162,58 @@ export const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessa
         };
     }
   });
+};
+
+export const convertOpenAIToPlaygroundMessages = async (
+  messages: z.infer<typeof OpenAIMessagesSchema>
+): Promise<Message[]> => {
+  const parsedMessages = convertOpenAIToChatMessages(messages);
+
+  return Promise.all(
+    parsedMessages.map(async (message): Promise<Message> => {
+      if (typeof message.content === "string") {
+        return {
+          role: message.role,
+          content: [{ type: "text" as const, text: message.content }],
+        } as Message;
+      }
+
+      if (Array.isArray(message.content)) {
+        const processedContent = await Promise.all(
+          message.content.map(async (part) => {
+            if (part.type === "image") {
+              const url = String(part.image);
+              try {
+                if (isStorageUrl(url)) {
+                  const base64Image = await urlToBase64(url);
+                  return {
+                    type: "image" as const,
+                    image: base64Image,
+                  };
+                }
+                return {
+                  type: "image" as const,
+                  image: part.image,
+                };
+              } catch (error) {
+                console.error("Error processing image part:", error);
+                return {
+                  type: "text" as const,
+                  text: `[Image processing failed: ${part.image}]`,
+                };
+              }
+            }
+            return part;
+          })
+        );
+
+        return {
+          role: message.role,
+          content: processedContent,
+        } as Message;
+      }
+
+      return message as Message;
+    })
+  );
 };
