@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { compact, sortBy, uniq } from "lodash";
-import { Bolt, ChevronDown, CircleDollarSign, Clock3, Coins, InfoIcon } from "lucide-react";
+import { Bolt, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, PropsWithChildren } from "react";
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
