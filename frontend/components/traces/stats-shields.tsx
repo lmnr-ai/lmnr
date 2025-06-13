@@ -1,18 +1,16 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { CircleDollarSign, Clock3, Coins, InfoIcon, ChevronDown, Bolt } from "lucide-react";
-import { PropsWithChildren } from "react";
+import { compact, sortBy, uniq } from "lodash";
+import { Bolt, ChevronDown, CircleDollarSign, Clock3, Coins, InfoIcon } from "lucide-react";
+import { memo, PropsWithChildren } from "react";
 
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { getDurationString } from "@/lib/flow/utils";
-import { cn } from "@/lib/utils";
+import { cn, pluralize } from "@/lib/utils";
 
-import { Label } from "../ui/label";
 import CodeHighlighter from "../ui/code-highlighter/index";
+import { Label } from "../ui/label";
 
 interface TraceStatsShieldsProps {
   trace: {
@@ -41,7 +39,7 @@ interface Tool {
   parameters?: string;
 }
 
-function ToolsComponent({ tools }: { tools: Tool[] }) {
+const ToolsList = ({ tools }: { tools: Tool[] }) => {
   if (tools.length === 0) return null;
 
   return (
@@ -49,72 +47,57 @@ function ToolsComponent({ tools }: { tools: Tool[] }) {
       <DropdownMenuTrigger asChild>
         <button className="flex items-center gap-1 text-xs font-mono border rounded-md p-1 px-2 border-tool bg-tool/20 text-tool hover:bg-tool/30 transition-colors">
           <Bolt size={12} className="min-w-3" />
-          <span>{tools.length} tool{tools.length !== 1 ? 's' : ''}</span>
+          <span>{pluralize(tools.length, "tool", "tools")}</span>
           <ChevronDown size={12} />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        className="w-96 max-h-[50vh] overflow-y-auto p-2 space-y-2"
-        align="start"
-        side="bottom"
-      >
-        {tools.map((tool, index) => (
-          <div key={index} className="border rounded-md p-2 bg-muted/20">
-            <div className="flex items-center gap-2 mb-1">
-              <Bolt size={10} className="text-tool" />
-              <Label className="text-xs font-mono font-semibold text-tool">
-                {tool.name}
-              </Label>
-            </div>
-            {tool.description && (
-              <p className="text-xs text-muted-foreground mb-2 leading-relaxed">
-                {tool.description}
-              </p>
-            )}
-            {tool.parameters && (
-              <details className="text-xs">
-                <summary className="cursor-pointer text-muted-foreground hover:text-foreground mb-1">
-                  Parameters
-                </summary>
-                <CodeHighlighter value={tool.parameters} defaultMode="json" />
-              </details>
-            )}
+      <DropdownMenuContent className="max-w-96 p-0" align="start" side="bottom">
+        <ScrollArea className="pb-2">
+          <div className="max-h-[50vh] flex flex-col gap-2 p-2">
+            {tools.map((tool, index) => (
+              <div key={index} className="border rounded-md p-2 bg-muted/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <Bolt size={10} className="text-tool" />
+                  <Label className="text-xs font-mono font-semibold text-tool">{tool.name}</Label>
+                </div>
+                {tool.description && (
+                  <p className="text-xs text-muted-foreground mb-2 leading-relaxed">{tool.description}</p>
+                )}
+                {tool.parameters && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground mb-1">
+                      Parameters
+                    </summary>
+                    <CodeHighlighter readOnly value={tool.parameters} defaultMode="json" />
+                  </details>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        </ScrollArea>
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
+};
 
-function extractToolsFromAttributes(attributes: Record<string, any>): Tool[] {
-  const tools: Tool[] = [];
-  const functionIndices = new Set<number>();
+const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => {
+  const functionIndices = uniq(
+    Object.keys(attributes)
+      .map((key) => key.match(/^llm\.request\.functions\.(\d+)\.name$/)?.[1])
+      .filter(Boolean)
+      .map(Number)
+  );
 
-  // Find all function indices
-  Object.keys(attributes).forEach(key => {
-    const match = key.match(/^llm\.request\.functions\.(\d+)\.name$/);
-    if (match) {
-      functionIndices.add(parseInt(match[1]));
-    }
-  });
+  return compact(
+    sortBy(functionIndices).map((index) => {
+      const name = attributes[`llm.request.functions.${index}.name`];
+      const description = attributes[`llm.request.functions.${index}.description`];
+      const parameters = attributes[`llm.request.functions.${index}.parameters`];
 
-  // Extract tools data
-  Array.from(functionIndices).sort().forEach(index => {
-    const name = attributes[`llm.request.functions.${index}.name`];
-    const description = attributes[`llm.request.functions.${index}.description`];
-    const parameters = attributes[`llm.request.functions.${index}.parameters`];
-
-    if (name) {
-      tools.push({
-        name,
-        description,
-        parameters
-      });
-    }
-  });
-
-  return tools;
-}
+      return name ? { name, description, parameters } : null;
+    })
+  );
+};
 
 function StatsShieldsContent({
   startTime,
@@ -197,35 +180,29 @@ function StatsShieldsContent({
   );
 }
 
-export function TraceStatsShields({
-  trace,
-  className,
-  children,
-}: PropsWithChildren<TraceStatsShieldsProps>) {
-  return (
-    <StatsShieldsContent
-      startTime={trace.startTime}
-      endTime={trace.endTime}
-      totalTokenCount={trace.totalTokenCount}
-      inputTokenCount={trace.inputTokenCount}
-      outputTokenCount={trace.outputTokenCount}
-      inputCost={trace.inputCost}
-      outputCost={trace.outputCost}
-      cost={trace.cost}
-      className={className}
-    >
-      {children}
-    </StatsShieldsContent>
-  );
-}
+const PureTraceStatsShields = ({ trace, className, children }: PropsWithChildren<TraceStatsShieldsProps>) => (
+  <StatsShieldsContent
+    startTime={trace.startTime}
+    endTime={trace.endTime}
+    totalTokenCount={trace.totalTokenCount}
+    inputTokenCount={trace.inputTokenCount}
+    outputTokenCount={trace.outputTokenCount}
+    inputCost={trace.inputCost}
+    outputCost={trace.outputCost}
+    cost={trace.cost}
+    className={className}
+  >
+    {children}
+  </StatsShieldsContent>
+);
 
-export function SpanStatsShields({
+const SpanStatsShields = ({
   startTime,
   endTime,
   attributes,
   className,
   children,
-}: PropsWithChildren<SpanStatsShieldsProps>) {
+}: PropsWithChildren<SpanStatsShieldsProps>) => {
   const inputTokenCount = attributes["gen_ai.usage.input_tokens"] ?? 0;
   const outputTokenCount = attributes["gen_ai.usage.output_tokens"] ?? 0;
   const totalTokenCount = inputTokenCount + outputTokenCount;
@@ -258,8 +235,11 @@ export function SpanStatsShields({
             </Label>
           </div>
         )}
-        <ToolsComponent tools={tools} />
+        <ToolsList tools={tools} />
       </div>
     </div>
   );
-}
+};
+
+export const TraceStatsShields = memo(PureTraceStatsShields);
+export default memo(SpanStatsShields);

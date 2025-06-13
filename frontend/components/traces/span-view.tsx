@@ -27,7 +27,7 @@ import Formatter from "../ui/formatter";
 import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SpanTypeIcon from "./span-type-icon";
-import { SpanStatsShields } from "./stats-shields";
+import SpanStatsShields from "./stats-shields";
 
 interface SpanViewProps {
   spanId: string;

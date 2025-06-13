@@ -6,7 +6,6 @@ import React, { useRef, useState } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
-import { TraceStatsShields } from "./stats-shields";
 import TraceView, { TraceViewHandle } from "@/components/traces/trace-view";
 import { Button } from "@/components/ui/button";
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
@@ -15,6 +14,8 @@ import { IconLangGraph } from "@/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Trace as TraceType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
+
+import { TraceStatsShields } from "./stats-shields";
 
 const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) => {
   const traceViewRef = useRef<TraceViewHandle>(null);
