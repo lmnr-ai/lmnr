@@ -20,6 +20,7 @@ pub enum SpanType {
     PIPELINE,
     EXECUTOR,
     EVALUATOR,
+    HUMAN_EVALUATOR,
     EVALUATION,
     TOOL,
 }
@@ -34,6 +35,7 @@ impl FromStr for SpanType {
             "PIPELINE" => Ok(SpanType::PIPELINE),
             "EXECUTOR" => Ok(SpanType::EXECUTOR),
             "EVALUATOR" => Ok(SpanType::EVALUATOR),
+            "HUMAN_EVALUATOR" => Ok(SpanType::HUMAN_EVALUATOR),
             "EVALUATION" => Ok(SpanType::EVALUATION),
             "TOOL" => Ok(SpanType::TOOL),
             _ => Err(anyhow::anyhow!("Invalid span type: {}", s)),

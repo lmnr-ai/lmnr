@@ -32,6 +32,7 @@ impl Into<u8> for SpanType {
             SpanType::EVALUATOR => 4,
             SpanType::EVALUATION => 5,
             SpanType::TOOL => 6,
+            SpanType::HUMAN_EVALUATOR => 7,
         }
     }
 }
