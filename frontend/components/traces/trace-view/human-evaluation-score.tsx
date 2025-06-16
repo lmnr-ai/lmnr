@@ -138,7 +138,7 @@ const HumanEvaluationScore = ({ evaluationId, name, spanId, projectId, resultId 
     <div className="border rounded-lg p-4 space-y-4">
       <div className="space-y-2">
         <Label htmlFor="score" className="text-sm font-medium">
-          Score *
+          Score
         </Label>
         <Input
           disabled={isValidating}
