@@ -58,10 +58,11 @@ export function SpanView({ span, traceId }: SpanViewProps) {
               <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
             </div>
             <div className="flex flex-wrap py-1 gap-2">
-              <SpanStatsShields startTime={span.startTime} endTime={span.endTime} attributes={span.attributes} />
-              <div className="flex flex-row text-xs font-mono space-x-2 rounded-md p-0.5 px-2 border items-center">
-                {new Date(span.startTime).toLocaleString()}
-              </div>
+              <SpanStatsShields startTime={span.startTime} endTime={span.endTime} attributes={span.attributes}>
+                <div className="flex flex-row text-xs font-mono space-x-2 rounded-md p-0.5 px-2 border items-center">
+                  {new Date(span.startTime).toLocaleString()}
+                </div>
+              </SpanStatsShields>
             </div>
             {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
             <div className="flex flex-wrap w-fit items-center gap-2">

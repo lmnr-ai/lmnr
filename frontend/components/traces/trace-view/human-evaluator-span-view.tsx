@@ -6,7 +6,7 @@ import useSWR from "swr";
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanInput from "@/components/traces/span-input";
 import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluation-score";
-import Formatter from "@/components/ui/formatter";
+import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Event } from "@/lib/events/types";
@@ -18,8 +18,9 @@ interface HumanEvaluatorSpanViewProps {
 }
 
 export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) {
-  const { projectId, evaluationId } = useParams();
+  const { projectId, evaluationId: evaluationIdParams } = useParams();
   const searchParams = useSearchParams();
+  const evaluationId = (evaluationIdParams || searchParams.get("evaluationId")) as string | null;
   const datapointId = searchParams.get("datapointId");
   const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
   const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
@@ -45,8 +46,8 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
 
   return (
     <SpanControls span={span}>
-      <Tabs className="flex flex-col h-full w-full overflow-hidden" defaultValue="span">
-        <div className="border-b flex-none">
+      <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
+        <div className="border-b flex-shrink-0">
           <TabsList className="border-none text-sm px-4">
             <TabsTrigger value="span" className="truncate">
               Span
@@ -59,7 +60,7 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
             </TabsTrigger>
           </TabsList>
         </div>
-        <div className="flex-grow flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden">
           <TabsContent value="span" className="w-full h-full">
             <SpanInput key={`${datapointId}-${spanId}`} span={span}>
               {datapointId && evaluationId && (
@@ -75,15 +76,17 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
             </SpanInput>
           </TabsContent>
           <TabsContent value="attributes" className="h-full w-full">
-            <Formatter
-              className="border-none rounded-none"
+            <CodeHighlighter
+              className="border-none"
+              readOnly
               value={JSON.stringify(span.attributes)}
               defaultMode="yaml"
             />
           </TabsContent>
           <TabsContent value="events" className="h-full w-full mt-0">
-            <Formatter
-              className="h-full border-none rounded-none"
+            <CodeHighlighter
+              className="border-none"
+              readOnly
               value={JSON.stringify(cleanedEvents)}
               defaultMode="yaml"
             />

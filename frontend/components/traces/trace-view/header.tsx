@@ -1,8 +1,8 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ChevronDown, ChevronsRight, ChevronUp, Disc, Disc2, Expand } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import React, { memo } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import React, { memo, useMemo } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
@@ -42,9 +42,19 @@ const Header = ({
   setShowLangGraph,
 }: HeaderProps) => {
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
   const { toast } = useToast();
   const { navigateDown, navigateUp } = useTraceViewNavigation();
+
+  const fullScreenParams = useMemo(() => {
+    const ps = new URLSearchParams(searchParams);
+    if (params.evaluationId) {
+      ps.set("evaluationId", params.evaluationId as string);
+    }
+    return ps;
+  }, [params.evaluationId, searchParams]);
+
   const copyTraceId = () => {
     if (trace) {
       navigator.clipboard.writeText(trace.id);
@@ -65,10 +75,7 @@ const Header = ({
       <Button variant={"ghost"} className="px-0" onClick={handleClose}>
         <ChevronsRight />
       </Button>
-      <Link
-        passHref
-        href={`/project/${projectId}/traces/${trace?.id}${selectedSpan ? `?spanId=${selectedSpan.spanId}` : ""}`}
-      >
+      <Link passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
         <Button variant="ghost" className="px-0 mr-1">
           <Expand className="w-4 h-4" size={16} />
         </Button>
