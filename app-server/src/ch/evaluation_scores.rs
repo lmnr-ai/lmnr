@@ -27,7 +27,7 @@ pub struct EvaluationScore {
     pub result_id: Uuid,
     // Note that one evaluator can produce multiple scores
     pub name: String,
-    pub value: Option<f64>,
+    pub value: f64,
     #[serde(serialize_with = "serialize_timestamp")]
     pub timestamp: DateTime<Utc>,
 }
@@ -57,7 +57,12 @@ impl EvaluationScore {
                         evaluation_id,
                         result_id: *result_id,
                         name: name.to_string(),
-                        value: value.clone(),
+                        // Replace None values with 0.0 before inserting because
+                        // we don't want to (and essentially can't) insert NULL values into Clickhouse.
+                        //
+                        // None values are associated with human evaluators which don't immediately
+                        // produce a score.
+                        value: value.unwrap_or(0.0),
                         timestamp,
                     }
                 })
