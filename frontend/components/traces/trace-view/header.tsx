@@ -1,12 +1,13 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronsRight, Disc, Disc2, Expand } from "lucide-react";
+import { ChevronDown, ChevronsRight, ChevronUp, Disc, Disc2, Expand } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import React, { memo } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import React, { memo, useMemo } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
+import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -41,8 +42,18 @@ const Header = ({
   setShowLangGraph,
 }: HeaderProps) => {
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
   const { toast } = useToast();
+  const { navigateDown, navigateUp } = useTraceViewNavigation();
+
+  const fullScreenParams = useMemo(() => {
+    const ps = new URLSearchParams(searchParams);
+    if (params.evaluationId) {
+      ps.set("evaluationId", params.evaluationId as string);
+    }
+    return ps;
+  }, [params.evaluationId, searchParams]);
 
   const copyTraceId = () => {
     if (trace) {
@@ -60,14 +71,11 @@ const Header = ({
   }
 
   return (
-    <div className="h-12 flex py-3 items-center border-b gap-x-2 px-4">
+    <div className="h-12 flex py-3 items-center border-b gap-x-2 px-3">
       <Button variant={"ghost"} className="px-0" onClick={handleClose}>
         <ChevronsRight />
       </Button>
-      <Link
-        passHref
-        href={`/project/${projectId}/traces/${trace?.id}${selectedSpan ? `?spanId=${selectedSpan.spanId}` : ""}`}
-      >
+      <Link passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
         <Button variant="ghost" className="px-0 mr-1">
           <Expand className="w-4 h-4" size={16} />
         </Button>
@@ -86,6 +94,39 @@ const Header = ({
       </TooltipProvider>
       {trace && <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />}
       <div className="flex gap-x-1 items-center ml-auto">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button onClick={navigateDown} className="hover:bg-secondary px-1.5" variant="ghost">
+              <ChevronDown className="w-4 h-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent className="flex items-center">
+              Navigate down (
+              <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
+                j
+              </kbd>
+              )
+            </TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button onClick={navigateUp} className="hover:bg-secondary px-1.5" variant="ghost">
+              <ChevronUp className="w-4 h-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent className="flex items-center">
+              Navigate up (
+              <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
+                k
+              </kbd>
+              )
+            </TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
+
         {trace?.hasBrowserSession && (
           <Tooltip>
             <TooltipTrigger asChild>

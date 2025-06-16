@@ -45,7 +45,7 @@ const ToolsList = ({ tools }: { tools: Tool[] }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex h-6 items-center gap-1 text-xs font-mono border rounded-md px-2 border-tool bg-tool/20 text-tool hover:bg-tool/30 transition-colors">
+        <button className="flex h-6 w-fit items-center gap-1 text-xs font-mono border rounded-md px-2 border-tool bg-tool/20 text-tool hover:bg-tool/30 transition-colors">
           <Bolt size={12} className="min-w-3" />
           <span>{pluralize(tools.length, "tool", "tools")}</span>
           <ChevronDown size={12} />
@@ -214,7 +214,7 @@ const SpanStatsShields = ({
   const tools = extractToolsFromAttributes(attributes);
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-wrap flex-col gap-1.5">
       <StatsShieldsContent
         startTime={startTime}
         endTime={endTime}
@@ -228,14 +228,16 @@ const SpanStatsShields = ({
       >
         {children}
       </StatsShieldsContent>
-      <div className="flex flex-wrap gap-1">
-        {model && (
-          <Label className="h-6 flex items-center text-xs truncate font-mono border rounded-md px-2 border-llm-foreground bg-llm-foreground/10 text-llm-foreground">
-            {model}
-          </Label>
-        )}
-        <ToolsList tools={tools} />
-      </div>
+      {(model || tools?.length > 0) && (
+        <div className="flex flex-wrap gap-2">
+          {model && (
+            <Label className="h-6 w-fit flex items-center text-xs truncate font-mono border rounded-md px-2 border-llm-foreground bg-llm-foreground/10 text-llm-foreground">
+              {model}
+            </Label>
+          )}
+          <ToolsList tools={tools} />
+        </div>
+      )}
     </div>
   );
 };

@@ -30,7 +30,7 @@ pub struct EvaluationDatapointResult {
     #[serde(default)]
     pub trace_id: Uuid,
     #[serde(default)]
-    pub scores: HashMap<String, f64>,
+    pub scores: HashMap<String, Option<f64>>,
     #[serde(default)]
     pub human_evaluators: Vec<HumanEvaluator>,
     #[serde(default)]
@@ -44,7 +44,7 @@ pub struct DatapointColumns {
     pub metadatas: Vec<HashMap<String, Value>>,
     pub executor_outputs: Vec<Option<Value>>,
     pub trace_ids: Vec<Uuid>,
-    pub scores: Vec<HashMap<String, f64>>,
+    pub scores: Vec<HashMap<String, Option<f64>>>,
     pub indices: Vec<i32>,
 }
 
