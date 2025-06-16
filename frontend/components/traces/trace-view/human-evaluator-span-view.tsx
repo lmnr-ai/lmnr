@@ -61,9 +61,10 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
         </div>
         <div className="flex-grow flex overflow-hidden">
           <TabsContent value="span" className="w-full h-full">
-            <SpanInput key={datapointId} span={span}>
+            <SpanInput key={`${datapointId}-${spanId}`} span={span}>
               {datapointId && evaluationId && (
                 <HumanEvaluationScore
+                  key={`${datapointId}-${spanId}`}
                   evaluationId={evaluationId as string}
                   spanId={span.spanId}
                   resultId={datapointId}

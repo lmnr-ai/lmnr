@@ -32,9 +32,12 @@ const HumanEvaluationScore = ({ evaluationId, name, spanId, projectId, resultId 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const { data, mutate, isLoading } = useSWR<EvaluationScore>(
+  const { data, mutate, isLoading, isValidating } = useSWR<EvaluationScore>(
     `/api/projects/${projectId}/evaluation-scores/${resultId}?name=${name}`,
-    swrFetcher
+    swrFetcher,
+    {
+      revalidateOnMount: true,
+    }
   );
 
   const { mutate: mutateGlobal } = useSWRConfig();
@@ -120,9 +123,9 @@ const HumanEvaluationScore = ({ evaluationId, name, spanId, projectId, resultId 
     } finally {
       setIsSubmitting(false);
     }
-  }, [projectId, resultId, data?.name, spanId, mutate, toast]);
+  }, [projectId, resultId, data?.name, spanId, mutate, mutateGlobal, toast, evaluationId]);
 
-  if (isLoading) {
+  if (isLoading || !data) {
     return (
       <div className="border rounded-lg p-4 space-y-3">
         <Skeleton className="h-4 w-32" />
@@ -138,10 +141,11 @@ const HumanEvaluationScore = ({ evaluationId, name, spanId, projectId, resultId 
           Score *
         </Label>
         <Input
+          disabled={isValidating}
           ref={scoreInputRef}
           id="score"
           type="number"
-          placeholder="Enter score (e.g., 4.5, 0.85, 10)"
+          placeholder="Enter numeric score"
           className="w-full hide-arrow"
         />
       </div>
