@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronsRight, ChevronUp, Disc, Disc2, Expand } from "lucide-react";
+import { ChevronDown, ChevronsRight, ChevronUp, Disc, Disc2, Expand } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { memo } from "react";
@@ -96,11 +96,7 @@ const Header = ({
           <TooltipPortal>
             <TooltipContent className="flex items-center">
               Navigate up (
-              <kbd className="mr-1 inline-flex items-center justify-center w-3 h-3 text-sm font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
-                <ArrowUp className="w-3 h-3" />
-              </kbd>
-              or
-              <kbd className="ml-1 inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
+              <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
                 k
               </kbd>
               )
@@ -116,11 +112,7 @@ const Header = ({
           <TooltipPortal>
             <TooltipContent className="flex items-center">
               Navigate down (
-              <kbd className="mr-1 inline-flex items-center justify-center w-3 h-3 text-sm font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
-                <ArrowDown className="w-3 h-3" />
-              </kbd>
-              or
-              <kbd className="ml-1 inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
+              <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
                 j
               </kbd>
               )

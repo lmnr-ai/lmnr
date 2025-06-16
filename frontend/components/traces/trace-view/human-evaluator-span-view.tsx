@@ -18,7 +18,7 @@ interface HumanEvaluatorSpanViewProps {
 }
 
 export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) {
-  const { projectId } = useParams();
+  const { projectId, evaluationId } = useParams();
   const searchParams = useSearchParams();
   const datapointId = searchParams.get("datapointId");
   const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
@@ -61,9 +61,15 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
         </div>
         <div className="flex-grow flex overflow-hidden">
           <TabsContent value="span" className="w-full h-full">
-            <SpanInput span={span}>
-              {datapointId && (
-                <HumanEvaluationScore resultId={datapointId} name={span.name} projectId={projectId as string} />
+            <SpanInput key={datapointId} span={span}>
+              {datapointId && evaluationId && (
+                <HumanEvaluationScore
+                  evaluationId={evaluationId as string}
+                  spanId={span.spanId}
+                  resultId={datapointId}
+                  name={span.name}
+                  projectId={projectId as string}
+                />
               )}
             </SpanInput>
           </TabsContent>

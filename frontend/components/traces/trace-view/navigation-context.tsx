@@ -105,11 +105,11 @@ const TraceViewNavigationProvider = <T,>({
     navigateToItem(nextItem);
   }, [refList, navigateToItem, config]);
 
-  useHotkeys("ArrowUp, k", navigateUp, {
+  useHotkeys("k", navigateUp, {
     preventDefault: true,
   });
 
-  useHotkeys("ArrowDown, j", navigateDown, {
+  useHotkeys("j", navigateDown, {
     preventDefault: true,
   });
 

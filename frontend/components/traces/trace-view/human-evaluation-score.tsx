@@ -1,11 +1,12 @@
 import { Check, Loader2 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
@@ -19,12 +20,14 @@ interface EvaluationScore {
 }
 
 interface HumanEvaluationScoreProps {
+  evaluationId: string;
   name: string;
+  spanId: string;
   resultId: string;
   projectId: string;
 }
 
-const HumanEvaluationScore = ({ name, projectId, resultId }: HumanEvaluationScoreProps) => {
+const HumanEvaluationScore = ({ evaluationId, name, spanId, projectId, resultId }: HumanEvaluationScoreProps) => {
   const scoreInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -33,6 +36,8 @@ const HumanEvaluationScore = ({ name, projectId, resultId }: HumanEvaluationScor
     `/api/projects/${projectId}/evaluation-scores/${resultId}?name=${name}`,
     swrFetcher
   );
+
+  const { mutate: mutateGlobal } = useSWRConfig();
 
   useEffect(() => {
     if (data && scoreInputRef.current) {
@@ -59,7 +64,14 @@ const HumanEvaluationScore = ({ name, projectId, resultId }: HumanEvaluationScor
         }),
       });
 
-      if (!response.ok) {
+      const spanResponse = await fetch(`/api/projects/${projectId}/spans/${spanId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          output: scoreValue,
+        }),
+      });
+
+      if (!response.ok || !spanResponse.ok) {
         throw new Error("Failed to save score");
       }
 
@@ -72,6 +84,29 @@ const HumanEvaluationScore = ({ name, projectId, resultId }: HumanEvaluationScor
         { revalidate: false, populateCache: true, rollbackOnError: true }
       );
 
+      await mutateGlobal(
+        (key) => {
+          const keyString = Array.isArray(key) ? key[0] : key;
+          return (
+            typeof keyString === "string" && keyString.includes(`api/projects/${projectId}/evaluations/${evaluationId}`)
+          );
+        },
+        (currentData: EvaluationResultsInfo | undefined) => {
+          if (!currentData || !data?.name) return currentData;
+
+          return {
+            ...currentData,
+            results: currentData.results.map((result) => ({
+              ...result,
+              scores: {
+                ...result.scores,
+                [data?.name]: scoreValue,
+              },
+            })),
+          };
+        },
+        { revalidate: true }
+      );
       toast({
         description: "Score saved successfully",
       });
@@ -85,7 +120,7 @@ const HumanEvaluationScore = ({ name, projectId, resultId }: HumanEvaluationScor
     } finally {
       setIsSubmitting(false);
     }
-  }, [projectId, resultId, data?.name, mutate, toast]);
+  }, [projectId, resultId, data?.name, spanId, mutate, toast]);
 
   if (isLoading) {
     return (
@@ -112,19 +147,14 @@ const HumanEvaluationScore = ({ name, projectId, resultId }: HumanEvaluationScor
       </div>
 
       <Button
+        handleEnter
         onClick={handleSubmit}
         disabled={isSubmitting}
         variant="outline"
         className="text-pink-400/80 border-pink-400/80"
       >
-        {isSubmitting ? (
-          <Loader2 className="animate-spin h-4 w-4 mr-2" />
-        ) : (
-          <>
-            <Check className="w-4 h-4 mr-2" />
-            <span>Save Score</span>
-          </>
-        )}
+        {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+        <span>Save Score</span>
       </Button>
     </div>
   );
