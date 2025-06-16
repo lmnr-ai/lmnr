@@ -89,22 +89,6 @@ const Header = ({
       <div className="flex gap-x-1 items-center ml-auto">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button onClick={navigateUp} className="hover:bg-secondary px-1.5" variant="ghost">
-              <ChevronUp className="w-4 h-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent className="flex items-center">
-              Navigate up (
-              <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
-                k
-              </kbd>
-              )
-            </TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
             <Button onClick={navigateDown} className="hover:bg-secondary px-1.5" variant="ghost">
               <ChevronDown className="w-4 h-4" />
             </Button>
@@ -114,6 +98,22 @@ const Header = ({
               Navigate down (
               <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
                 j
+              </kbd>
+              )
+            </TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button onClick={navigateUp} className="hover:bg-secondary px-1.5" variant="ghost">
+              <ChevronUp className="w-4 h-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent className="flex items-center">
+              Navigate up (
+              <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
+                k
               </kbd>
               )
             </TooltipContent>
