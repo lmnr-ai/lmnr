@@ -27,7 +27,7 @@ pub struct EvaluationScore {
     pub result_id: Uuid,
     // Note that one evaluator can produce multiple scores
     pub name: String,
-    pub value: f64,
+    pub value: Option<f64>,
     #[serde(serialize_with = "serialize_timestamp")]
     pub timestamp: DateTime<Utc>,
 }

@@ -74,7 +74,7 @@ pub async fn set_evaluation_results(
     pool: &PgPool,
     evaluation_id: Uuid,
     ids: &Vec<Uuid>,
-    scores: &Vec<HashMap<String, f64>>,
+    scores: &Vec<HashMap<String, Option<f64>>>,
     datas: &Vec<Value>,
     targets: &Vec<Value>,
     metadatas: &Vec<HashMap<String, Value>>,
@@ -127,16 +127,18 @@ pub async fn set_evaluation_results(
     .await?;
 
     // Each datapoint can have multiple scores, so unzip the scores and result ids.
-    let (score_result_ids, (score_names, score_values)): (Vec<Uuid>, (Vec<String>, Vec<f64>)) =
-        scores
-            .iter()
-            .zip(results.iter())
-            .flat_map(|(score, result)| {
-                score
-                    .iter()
-                    .map(|(name, value)| (result.id, (name.clone(), value)))
-            })
-            .unzip();
+    let (score_result_ids, (score_names, score_values)): (
+        Vec<Uuid>,
+        (Vec<String>, Vec<Option<f64>>),
+    ) = scores
+        .iter()
+        .zip(results.iter())
+        .flat_map(|(score, result)| {
+            score
+                .iter()
+                .map(|(name, value)| (result.id, (name.clone(), value)))
+        })
+        .unzip();
 
     sqlx::query(
         "INSERT INTO evaluation_scores (result_id, name, score)
