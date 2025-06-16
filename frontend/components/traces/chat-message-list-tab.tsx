@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEqual } from "lodash";
 import { ChevronDown } from "lucide-react";
-import { memo, useCallback, useMemo, useRef } from "react";
+import { memo, PropsWithChildren, useCallback, useMemo, useRef } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,7 @@ const ContentPartImage = memo(PureContentPartImage);
 const ContentPartImageUrl = memo(PureContentPartImageUrl);
 const ContentPartDocumentUrl = memo(PureContentPartDocumentUrl);
 
-const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
+export const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
   const renderContentPart = useCallback(
     (contentPart: ChatMessageContentPart) => {
       switch (contentPart.type) {
@@ -116,7 +116,7 @@ interface ChatMessageListTabProps {
   presetKey?: string | null;
 }
 
-function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps) {
+function PureChatMessageListTab({ messages, presetKey, children }: PropsWithChildren<ChatMessageListTabProps>) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
@@ -169,6 +169,7 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
               </div>
             );
           })}
+          {children}
         </div>
       </div>
       <Button

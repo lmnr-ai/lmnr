@@ -1,0 +1,1 @@
+ALTER TABLE "evaluation_scores" ALTER COLUMN "score" DROP NOT NULL;

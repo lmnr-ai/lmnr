@@ -14,6 +14,7 @@ export enum SpanType {
   EVALUATOR = 4,
   EVALUATION = 5,
   TOOL = 6,
+  HUMAN_EVALUATOR = 7,
 }
 
 export enum SpanMetric {

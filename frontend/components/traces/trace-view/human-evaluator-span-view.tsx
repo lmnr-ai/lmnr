@@ -1,28 +1,28 @@
 import { omit } from "lodash";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanInput from "@/components/traces/span-input";
-import SpanOutput from "@/components/traces/span-output";
+import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluation-score";
+import Formatter from "@/components/ui/formatter";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Event } from "@/lib/events/types";
 import { Span } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
 
-import Formatter from "../ui/formatter";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-
-interface SpanViewProps {
+interface HumanEvaluatorSpanViewProps {
   spanId: string;
 }
 
-export function SpanView({ spanId }: SpanViewProps) {
+export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) {
   const { projectId } = useParams();
+  const searchParams = useSearchParams();
+  const datapointId = searchParams.get("datapointId");
   const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
   const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
-
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
 
   if (isLoading || !span) {
@@ -44,15 +44,12 @@ export function SpanView({ spanId }: SpanViewProps) {
   }
 
   return (
-    <SpanControls events={cleanedEvents} span={span}>
-      <Tabs className="flex flex-col flex-1 w-full" defaultValue="span-input">
-        <div className="border-b flex-shrink-0">
+    <SpanControls span={span}>
+      <Tabs className="flex flex-col h-full w-full overflow-hidden" defaultValue="span">
+        <div className="border-b flex-none">
           <TabsList className="border-none text-sm px-4">
-            <TabsTrigger value="span-input" className="truncate">
-              Span Input
-            </TabsTrigger>
-            <TabsTrigger value="span-output" className="truncate">
-              Span Output
+            <TabsTrigger value="span" className="truncate">
+              Span
             </TabsTrigger>
             <TabsTrigger value="attributes" className="truncate">
               Attributes
@@ -62,12 +59,13 @@ export function SpanView({ spanId }: SpanViewProps) {
             </TabsTrigger>
           </TabsList>
         </div>
-        <div className="flex-1 flex overflow-hidden">
-          <TabsContent value="span-input" className="w-full h-full">
-            <SpanInput span={span} />
-          </TabsContent>
-          <TabsContent value="span-output" className="w-full h-full m-0 data-[state=active]:flex">
-            <SpanOutput span={span} />
+        <div className="flex-grow flex overflow-hidden">
+          <TabsContent value="span" className="w-full h-full">
+            <SpanInput span={span}>
+              {datapointId && (
+                <HumanEvaluationScore resultId={datapointId} name={span.name} projectId={projectId as string} />
+              )}
+            </SpanInput>
           </TabsContent>
           <TabsContent value="attributes" className="h-full w-full">
             <Formatter

@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { memo, PropsWithChildren, useEffect, useMemo, useState } from "react";
 
 import ChatMessageListTab from "@/components/traces/chat-message-list-tab";
 import { Span } from "@/lib/traces/types";
 import { flattenContentOfMessages } from "@/lib/types";
 
-const SpanInput = ({ span }: { span: Span }) => {
+const SpanInput = ({ children, span }: PropsWithChildren<{ span: Span }>) => {
   const [spanInput, setSpanInput] = useState(span.input);
 
   useEffect(() => {
@@ -23,7 +23,11 @@ const SpanInput = ({ span }: { span: Span }) => {
 
   const memoizedInput = useMemo(() => flattenContentOfMessages(spanInput), [spanInput]);
 
-  return <ChatMessageListTab messages={memoizedInput} presetKey={`input-${spanPathArray.join(".")}`} />;
+  return (
+    <ChatMessageListTab messages={memoizedInput} presetKey={`input-${spanPathArray.join(".")}`}>
+      {children}
+    </ChatMessageListTab>
+  );
 };
 
-export default SpanInput;
+export default memo(SpanInput);
