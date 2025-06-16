@@ -175,6 +175,9 @@ export const parseToolsFromLLMRequest = (span: Span) => {
     if (paramsToParse) {
       try {
         const parameters = JSON.parse(paramsToParse);
+        if (parameters && typeof parameters === "object" && !("additionalProperties" in parameters)) {
+          parameters.additionalProperties = false;
+        }
         functions.push({
           name,
           description,

@@ -1,10 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    cache::{keys::LLM_PRICES_CACHE_KEY, Cache, CacheTrait},
+    cache::{Cache, CacheTrait, keys::LLM_PRICES_CACHE_KEY},
     db::{
-        prices::{get_price, DBPriceEntry},
         DB,
+        prices::{DBPriceEntry, get_price},
     },
     traces::spans::InputTokens,
 };
@@ -47,7 +47,7 @@ pub async fn estimate_output_cost(
     let cache_res = cache.get::<LLMPriceEntry>(&cache_key).await.ok()?;
 
     let price_per_million_tokens = match cache_res {
-        Some(price) => price.input_price_per_million,
+        Some(price) => price.output_price_per_million,
         None => {
             let price = get_price(&db.pool, provider, model).await.ok()?;
             let price = LLMPriceEntry::from(price);
