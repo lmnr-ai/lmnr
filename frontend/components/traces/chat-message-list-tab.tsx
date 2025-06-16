@@ -71,7 +71,7 @@ const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
             return <ContentPartImageUrl url={contentPart.url} />;
           } else {
             const openAIImageUrl = contentPart as any as OpenAIImageUrl;
-            return <ContentPartImageUrl url={openAIImageUrl.image_url.url} />;
+            return <img src={openAIImageUrl.image_url.url} alt="span image" className="w-full" />;
           }
         case "document_url":
           return <ContentPartDocumentUrl url={contentPart.url} />;
@@ -112,11 +112,7 @@ const ContentParts = ({ contentParts, presetKey }: ContentPartsProps) => {
 };
 
 interface ChatMessageListTabProps {
-  messages: {
-    role?: ChatMessage["role"];
-    content: ChatMessageContentPart[];
-    tool_calls?: Record<string, unknown>[];
-  }[];
+  messages: { role?: ChatMessage["role"]; content: ChatMessageContentPart[] }[];
   presetKey?: string | null;
 }
 
@@ -170,15 +166,6 @@ function PureChatMessageListTab({ messages, presetKey }: ChatMessageListTabProps
                   </div>
                 )}
                 <ContentParts presetKey={presetKey} contentParts={message.content} />
-                {message.tool_calls && (
-                  <CodeHighlighter
-                    readOnly
-                    collapsible
-                    value={JSON.stringify(message.tool_calls, null, 2)}
-                    presetKey={presetKey}
-                    className="max-h-[400px] border-none"
-                  />
-                )}
               </div>
             );
           })}

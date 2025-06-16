@@ -58,7 +58,6 @@ export type ChatMessageContent = string | ChatMessageContentPart[];
 export type ChatMessage = {
   content: ChatMessageContent;
   role?: "user" | "assistant" | "system" | "tool";
-  tool_calls?: ChatMessageToolCall[];
 };
 
 export const flattenContentOfMessages = (
