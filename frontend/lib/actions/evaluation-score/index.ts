@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { evaluationScores } from "@/lib/db/migrations/schema";
 
@@ -43,6 +44,19 @@ export async function updateEvaluationScore(input: z.infer<typeof UpdateEvaluati
   if (!updatedEvaluationScore) {
     throw new Error("Evaluation score not found");
   }
+
+  await clickhouseClient.command({
+    query: `
+        ALTER TABLE default.evaluation_scores 
+        UPDATE value = {score: Float64}
+        WHERE result_id = {resultId: UUID} AND name = {name: String}
+      `,
+    query_params: {
+      score: score,
+      resultId: evaluationResultId,
+      name: name,
+    },
+  });
 
   return updatedEvaluationScore;
 }

@@ -78,7 +78,7 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
               </Link>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             <SpanStatsShields
               className="flex-wrap"
               startTime={span.startTime}
@@ -89,24 +89,25 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
                 {new Date(span.startTime).toLocaleString()}
               </div>
             </SpanStatsShields>
+            <LabelsContextProvider spanId={span.spanId}>
+              <div className="flex gap-2 flex-wrap items-center">
+                <LabelsTrigger />
+                <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
+                <AddToLabelingQueuePopover
+                  data={[
+                    {
+                      payload: { data: span.input, target: span.output, metadata: {} },
+                      metadata: { source: "span", id: span.spanId, traceId: span.traceId },
+                    },
+                  ]}
+                />
+                <ExportSpansPopover span={span} />
+              </div>
+              <LabelsList />
+              <EvaluatorScoresList spanId={span.spanId} />
+            </LabelsContextProvider>
           </div>
-          <LabelsContextProvider spanId={span.spanId}>
-            <div className="flex gap-2 flex-wrap items-center">
-              <LabelsTrigger />
-              <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
-              <AddToLabelingQueuePopover
-                data={[
-                  {
-                    payload: { data: span.input, target: span.output, metadata: {} },
-                    metadata: { source: "span", id: span.spanId, traceId: span.traceId },
-                  },
-                ]}
-              />
-              <ExportSpansPopover span={span} />
-            </div>
-            <LabelsList />
-            <EvaluatorScoresList spanId={span.spanId} />
-          </LabelsContextProvider>
+
           {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
         </div>
       </div>

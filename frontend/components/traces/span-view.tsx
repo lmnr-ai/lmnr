@@ -6,12 +6,12 @@ import useSWR from "swr";
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanInput from "@/components/traces/span-input";
 import SpanOutput from "@/components/traces/span-output";
+import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Event } from "@/lib/events/types";
 import { Span } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
 
-import Formatter from "../ui/formatter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 interface SpanViewProps {
@@ -45,7 +45,7 @@ export function SpanView({ spanId }: SpanViewProps) {
 
   return (
     <SpanControls events={cleanedEvents} span={span}>
-      <Tabs className="flex flex-col flex-1 w-full" defaultValue="span-input">
+      <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span-input">
         <div className="border-b flex-shrink-0">
           <TabsList className="border-none text-sm px-4">
             <TabsTrigger value="span-input" className="truncate">
@@ -66,19 +66,21 @@ export function SpanView({ spanId }: SpanViewProps) {
           <TabsContent value="span-input" className="w-full h-full">
             <SpanInput span={span} />
           </TabsContent>
-          <TabsContent value="span-output" className="w-full h-full m-0 data-[state=active]:flex">
+          <TabsContent value="span-output" className="w-full h-full">
             <SpanOutput span={span} />
           </TabsContent>
-          <TabsContent value="attributes" className="h-full w-full">
-            <Formatter
-              className="border-none rounded-none"
+          <TabsContent value="attributes" className="w-full h-full">
+            <CodeHighlighter
+              className="border-none"
+              readOnly
               value={JSON.stringify(span.attributes)}
               defaultMode="yaml"
             />
           </TabsContent>
-          <TabsContent value="events" className="h-full w-full mt-0">
-            <Formatter
-              className="h-full border-none rounded-none"
+          <TabsContent value="events" className="w-full h-full">
+            <CodeHighlighter
+              className="border-none"
+              readOnly
               value={JSON.stringify(cleanedEvents)}
               defaultMode="yaml"
             />
