@@ -264,9 +264,9 @@ export const pluralize = (count: number, singular: string, plural: string) => {
   const grammaticalNumber = pluralRules.select(count);
   switch (grammaticalNumber) {
     case "one":
-      return singular;
+      return `${count} ${singular}`;
     default:
-      return plural;
+      return `${count} ${plural}`;
   }
 };
 

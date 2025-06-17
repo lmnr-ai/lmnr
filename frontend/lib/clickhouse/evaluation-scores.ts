@@ -17,7 +17,7 @@ export const getEvaluationTimeProgression = async (
     name,
     ${aggregationFunctionToCh(aggregationFunction)}(value) AS value
   FROM evaluation_scores
-  WHERE project_id = {projectId: UUID} AND group_id = {groupId: String} and evaluation_id in {ids: Array(UUID)}`;
+  WHERE project_id = {projectId: UUID} AND group_id = {groupId: String} and evaluation_id in {ids: Array(UUID)} AND evaluation_scores.value IS NOT NULL`;
   const queryWithTimeRange = addTimeRangeToQuery(query, timeRange, "timestamp");
 
   const finalQuery = `${queryWithTimeRange} GROUP BY evaluation_id, name ORDER BY name

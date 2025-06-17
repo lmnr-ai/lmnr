@@ -4,6 +4,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import Header from "@/components/traces/trace-view/header";
+import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
 import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
@@ -14,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
-import { Span, Trace } from "@/lib/traces/types";
+import { Span, SpanType, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../../ui/button";
@@ -147,6 +148,58 @@ export default function TraceView({
     handleFetchTrace();
   }, [handleFetchTrace, projectId, traceId]);
 
+  // Add span path local storage functions
+  const saveSpanPathToStorage = useCallback((spanPath: string[]) => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("trace-view:span-path", JSON.stringify(spanPath));
+      }
+    } catch (e) {
+      console.error("Failed to save span path:", e);
+    }
+  }, []);
+
+  const loadSpanPathFromStorage = useCallback((): string[] | null => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("trace-view:span-path");
+        return saved ? JSON.parse(saved) : null;
+      }
+      return null;
+    } catch (e) {
+      console.error("Failed to load span path:", e);
+      return null;
+    }
+  }, []);
+
+  // Helper function to compare span paths (arrays)
+  const spanPathsEqual = useCallback((path1: string[] | null, path2: string[] | null): boolean => {
+    if (!path1 || !path2) return false;
+    if (path1.length !== path2.length) return false;
+    return path1.every((item, index) => item === path2[index]);
+  }, []);
+
+  // Create wrapper function for span selection that saves path
+  const handleSpanSelect = useCallback(
+    (span: Span | null) => {
+      if (!span) return;
+
+      setSelectedSpan(span);
+
+      // Save span path to local storage
+      const spanPath = span.attributes?.["lmnr.span.path"];
+      if (spanPath && Array.isArray(spanPath)) {
+        saveSpanPathToStorage(spanPath);
+      }
+
+      // Update URL with spanId
+      const params = new URLSearchParams(searchParams);
+      params.set("spanId", span.spanId);
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [saveSpanPathToStorage, searchParams, router, pathName]
+  );
+
   const fetchSpans = useCallback(
     async (search: string, searchIn: string[], filters: DatatableFilter[]) => {
       try {
@@ -172,18 +225,40 @@ export default function TraceView({
 
         setSpans(spans);
 
-        const spanIdFromUrl = searchParams.get("spanId");
-        const spanToSelect = spanIdFromUrl
-          ? (spans.find((span: Span) => span.spanId === spanIdFromUrl) ?? spans[0])
-          : spans[0];
-        setSelectedSpan(spanToSelect);
+        // Determine which span to select
+        const spanIdFromUrl = spans.find((span) => span.spanId === searchParams.get("spanId")) || null;
+        let spanToSelect: Span | null = null;
+
+        if (spanIdFromUrl) {
+          // First priority: span from URL
+          spanToSelect = spanIdFromUrl;
+        } else {
+          // Second priority: span matching saved path
+          const savedPath = loadSpanPathFromStorage();
+          if (savedPath) {
+            spanToSelect =
+              spans.find((span: Span) => {
+                const spanPath = span.attributes?.["lmnr.span.path"];
+                return spanPath && Array.isArray(spanPath) && spanPathsEqual(spanPath, savedPath);
+              }) || null;
+          }
+        }
+
+        // Fallback to first span
+        if (!spanToSelect && spans.length > 0) {
+          spanToSelect = spans[0];
+        }
+
+        if (spanToSelect) {
+          setSelectedSpan(spanToSelect);
+        }
       } catch (e) {
         console.error(e);
       } finally {
         setIsSpansLoading(false);
       }
     },
-    [projectId, traceId, setSpans, setSelectedSpan, searchParams]
+    [projectId, traceId, searchParams, loadSpanPathFromStorage, spanPathsEqual, router, pathName]
   );
 
   useEffect(() => {
@@ -244,13 +319,6 @@ export default function TraceView({
     },
     [spans]
   );
-
-  useEffect(() => {
-    const selectedSpan = spans.find((span: Span) => span.spanId === searchParams.get("spanId"));
-    if (selectedSpan) {
-      setSelectedSpan(selectedSpan);
-    }
-  }, []);
 
   const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
 
@@ -480,7 +548,7 @@ export default function TraceView({
             )}
             {showTimeline ? (
               <Timeline
-                setSelectedSpan={setSelectedSpan}
+                setSelectedSpan={handleSpanSelect}
                 selectedSpan={selectedSpan}
                 spans={spans}
                 childSpans={childSpans}
@@ -509,12 +577,7 @@ export default function TraceView({
                     return next;
                   });
                 }}
-                onSpanSelect={(span) => {
-                  setSelectedSpan(span);
-                  const params = new URLSearchParams(searchParams);
-                  params.set("spanId", span.spanId);
-                  router.push(`${pathName}?${params.toString()}`);
-                }}
+                onSpanSelect={handleSpanSelect}
                 onSelectTime={(time) => {
                   browserSessionRef.current?.goto(time);
                 }}
@@ -529,7 +592,11 @@ export default function TraceView({
           </div>
           <div className="flex-grow overflow-hidden flex-wrap">
             {selectedSpan ? (
-              <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+              selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+                <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+              ) : (
+                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+              )
             ) : (
               <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
                 <span className="text-xl font-medium mb-2">No span selected</span>

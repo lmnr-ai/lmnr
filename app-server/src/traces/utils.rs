@@ -133,10 +133,13 @@ pub async fn record_labels_to_db_and_ch(
     span: &Span,
     project_id: &Uuid,
 ) -> anyhow::Result<()> {
+    let labels = span.get_attributes().labels();
+    if labels.is_empty() {
+        return Ok(());
+    }
+
     let project_labels =
         db::labels::get_label_classes_by_project_id(&db.pool, *project_id, None).await?;
-
-    let labels = span.get_attributes().labels();
 
     for label_name in labels {
         let label_class = project_labels.iter().find(|l| l.name == label_name);

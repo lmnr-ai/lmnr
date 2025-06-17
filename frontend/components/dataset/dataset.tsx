@@ -202,7 +202,7 @@ export default function Dataset({ dataset }: DatasetProps) {
           />
           <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
           <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
-          <AddToLabelingQueuePopover data={datapointsToLabel}>
+          <AddToLabelingQueuePopover datasetId={dataset.id} datapointIds={datapoints.map(({ id }) => id)}>
             <Badge className="cursor-pointer py-1 px-2" variant="secondary">
               <Pen className="size-3 min-w-3" />
               <span className="ml-2 truncate flex-1">Add all to labeling queue</span>
