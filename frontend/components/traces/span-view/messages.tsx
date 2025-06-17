@@ -86,6 +86,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
         </div>
       </div>
       <Button
+        aria-label="Scroll to bottom"
         variant="outline"
         size="icon"
         className="absolute bottom-3 right-3 rounded-full"
