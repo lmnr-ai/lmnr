@@ -6,7 +6,7 @@ import ErrorCard from "@/components/traces/error-card";
 import SpanInput from "@/components/traces/span-input";
 import SpanOutput from "@/components/traces/span-output";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
-import StatsShields from "@/components/traces/stats-shields";
+import SpanStatsShields from "@/components/traces/stats-shields";
 import { Badge } from "@/components/ui/badge";
 import Formatter from "@/components/ui/formatter";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
@@ -58,22 +58,11 @@ export function SpanView({ span, traceId }: SpanViewProps) {
               <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
             </div>
             <div className="flex flex-wrap py-1 gap-2">
-              <StatsShields
-                startTime={span.startTime}
-                endTime={span.endTime}
-                totalTokenCount={
-                  (span.attributes["gen_ai.usage.input_tokens"] ?? 0) +
-                  (span.attributes["gen_ai.usage.output_tokens"] ?? 0)
-                }
-                inputTokenCount={span.attributes["gen_ai.usage.input_tokens"] ?? 0}
-                outputTokenCount={span.attributes["gen_ai.usage.output_tokens"] ?? 0}
-                inputCost={span.attributes["gen_ai.usage.input_cost"] ?? 0}
-                outputCost={span.attributes["gen_ai.usage.output_cost"] ?? 0}
-                cost={span.attributes["gen_ai.usage.cost"] ?? 0}
-              />
-              <div className="flex flex-row text-xs font-mono space-x-2 rounded-md p-0.5 px-2 border items-center">
-                {new Date(span.startTime).toLocaleString()}
-              </div>
+              <SpanStatsShields startTime={span.startTime} endTime={span.endTime} attributes={span.attributes}>
+                <div className="flex flex-row text-xs font-mono space-x-2 rounded-md p-0.5 px-2 border items-center">
+                  {new Date(span.startTime).toLocaleString()}
+                </div>
+              </SpanStatsShields>
             </div>
             {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
             <div className="flex flex-wrap w-fit items-center gap-2">

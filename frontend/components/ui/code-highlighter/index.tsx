@@ -85,10 +85,11 @@ const PureCodeHighlighter = ({
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
   // Process the value using the enhanced renderText function
-  const { text: renderedValue, imageMap, hasImages } = useMemo(() =>
-    renderText(mode, value, shouldRenderImages),
-  [mode, value, shouldRenderImages]
-  );
+  const {
+    text: renderedValue,
+    imageMap,
+    hasImages,
+  } = useMemo(() => renderText(mode, value, shouldRenderImages), [mode, value, shouldRenderImages]);
 
   const toggleCollapsed = useCallback(() => {
     setIsCollapsed((prev) => !prev);
@@ -106,7 +107,7 @@ const PureCodeHighlighter = ({
 
   // Toggle base64 image rendering
   const toggleImageRendering = useCallback(() => {
-    setShouldRenderImages(prev => !prev);
+    setShouldRenderImages((prev) => !prev);
   }, []);
 
   // Handle changes, restoring original base64 values if needed
@@ -153,7 +154,7 @@ const PureCodeHighlighter = ({
         })}
       >
         <Select value={mode} onValueChange={handleModeChange}>
-          <SelectTrigger className="font-medium text-secondary-foreground h-5 w-fit bg-secondary text-xs border-gray-600">
+          <SelectTrigger className="h-5 [&>span]:mt-0.5 py-1 font-medium text-secondary-foreground w-fit bg-secondary text-xs border-gray-600">
             <SelectValue className="w-fit" placeholder="Select mode" />
           </SelectTrigger>
           <SelectContent>
@@ -208,18 +209,18 @@ const PureCodeHighlighter = ({
           <DropdownMenuContent align="end">
             <DropdownMenuItem className="flex items-center justify-between cursor-default">
               <span>Render base64 images</span>
-              <Switch
-                checked={shouldRenderImages}
-                onCheckedChange={toggleImageRendering}
-                className="ml-2"
-              />
+              <Switch checked={shouldRenderImages} onCheckedChange={toggleImageRendering} className="ml-2" />
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
       <div
-        className={cn("flex-grow flex bg-muted/50 overflow-auto w-full h-fit", { "h-0": isCollapsed }, codeEditorClassName)}
+        className={cn(
+          "flex-grow flex bg-muted/50 overflow-auto w-full h-fit",
+          { "h-0": isCollapsed },
+          codeEditorClassName
+        )}
       >
         <CodeMirror
           ref={editorRef}

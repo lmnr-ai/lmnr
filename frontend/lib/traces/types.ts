@@ -28,6 +28,7 @@ export enum SpanType {
   EVALUATOR = "EVALUATOR",
   EVALUATION = "EVALUATION",
   TOOL = "TOOL",
+  HUMAN_EVALUATOR = "HUMAN_EVALUATOR",
 }
 
 export type Span = {

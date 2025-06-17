@@ -63,7 +63,14 @@ module.exports = {
           'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))'
-        }
+        },
+        tool: {
+          DEFAULT: 'hsl(var(--tool))',
+        },
+        llm: {
+          DEFAULT: 'hsl(var(--llm))',
+          foreground: 'hsl(var(--llm-foreground))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

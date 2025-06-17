@@ -1,12 +1,10 @@
-import React, { memo, useEffect, useMemo, useState } from "react";
+import React, { memo, PropsWithChildren, useEffect, useState } from "react";
 
 import Messages from "@/components/traces/span-view/messages";
-import { convertOpenAIToChatMessages, OpenAIMessagesSchema } from "@/lib/spans/types";
 import { Span } from "@/lib/traces/types";
-import { ChatMessage, flattenContentOfMessages } from "@/lib/types";
 
-const SpanOutput = ({ span }: { span: Span }) => {
-  const [spanOutput, setSpanOutput] = useState<ChatMessage[]>(span.output);
+const SpanOutput = ({ children, span }: PropsWithChildren<{ span: Span }>) => {
+  const [spanOutput, setSpanOutput] = useState(span.output);
 
   useEffect(() => {
     if (span.outputUrl) {
@@ -22,15 +20,11 @@ const SpanOutput = ({ span }: { span: Span }) => {
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
   const spanPathArray = typeof spanPath === "string" ? spanPath.split(".") : spanPath;
 
-  const memoizedOutput = useMemo(() => {
-    const result = OpenAIMessagesSchema.safeParse(spanOutput);
-    if (result.success) {
-      return convertOpenAIToChatMessages(result.data);
-    }
-    return flattenContentOfMessages(spanOutput);
-  }, [spanOutput]);
-
-  return <Messages messages={memoizedOutput} presetKey={`output-${spanPathArray.join(".")}`} />;
+  return (
+    <Messages messages={spanOutput} presetKey={`output-${spanPathArray.join(".")}`}>
+      {children}
+    </Messages>
+  );
 };
 
 export default memo(SpanOutput);

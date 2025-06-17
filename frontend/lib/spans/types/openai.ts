@@ -6,12 +6,12 @@ import { Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/playground/utils";
 
 /** Part Schemas**/
-const OpenAITextPartSchema = z.object({
+export const OpenAITextPartSchema = z.object({
   type: z.literal("text"),
   text: z.string(),
 });
 
-const OpenAIImagePartSchema = z.object({
+export const OpenAIImagePartSchema = z.object({
   type: z.literal("image_url"),
   image_url: z.object({
     url: z.string(),
@@ -19,7 +19,7 @@ const OpenAIImagePartSchema = z.object({
   }),
 });
 
-const OpenAIFilePartSchema = z.object({
+export const OpenAIFilePartSchema = z.object({
   file: z.object({
     file_data: z.string().optional(),
     file_id: z.string().optional(),
@@ -28,7 +28,7 @@ const OpenAIFilePartSchema = z.object({
   type: z.literal("file"),
 });
 
-const OpenAIToolCallPartSchema = z.object({
+export const OpenAIToolCallPartSchema = z.object({
   id: z.string(),
   type: z.literal("function"),
   function: z.object({
@@ -59,7 +59,22 @@ export const OpenAIUserMessageSchema = z.object({
 
 export const OpenAIAssistantMessageSchema = z.object({
   role: z.literal("assistant"),
-  content: z.union([z.string(), z.array(OpenAITextPartSchema)]),
+  audio: z
+    .object({
+      id: z.string(),
+    })
+    .nullable()
+    .optional(),
+  function_call: z
+    .object({
+      arguments: z.string(),
+      name: z.string(),
+    })
+    .nullable()
+    .optional(),
+  annotations: z.array(z.string()).nullable().optional(),
+  refusal: z.string().nullable().optional(),
+  content: z.union([z.string(), z.array(OpenAITextPartSchema)]).nullable(),
   name: z.string().optional(),
   tool_calls: z.array(OpenAIToolCallPartSchema).optional(),
 });
@@ -79,7 +94,7 @@ export const OpenAIMessageSchema = z.union([
 
 export const OpenAIMessagesSchema = z.array(OpenAIMessageSchema);
 
-export const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSchema>): CoreMessage[] => {
+const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSchema>): CoreMessage[] => {
   const store = new Map();
 
   return map(messages, (message) => {
@@ -132,11 +147,11 @@ export const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessa
         return {
           role: message.role,
           content: [
-            ...message.content.map((part) => ({
+            ...(message.content || []).map((part) => ({
               type: "text" as const,
               text: part.text,
             })),
-            ...(message.tool_calls ?? []).map((part) => {
+            ...(message.tool_calls || []).map((part) => {
               store.set(part.id, part.function.name);
               return {
                 type: "tool-call" as const,
