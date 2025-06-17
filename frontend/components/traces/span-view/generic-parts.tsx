@@ -19,7 +19,7 @@ const PureImageContentPart = ({ part }: { part: ImagePart }) => {
 
   return (
     <ImageWithPreview
-      src={`data:image/png;base64,${part.image}`}
+      src={String(part.image)}
       className="object-cover rounded-sm size-16 ml-2 mt-2 mb-1"
       alt="span image"
     />

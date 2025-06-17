@@ -249,9 +249,9 @@ export default function Queue({ queue }: QueueProps) {
               </Button>
             </div>
           </div>
-          <div className={cn("flex flex-col flex-1 relative overflow-hidden z-50")}>
+          <div className={cn("flex flex-col flex-1 relative overflow-hidden")}>
             {!!isLoading && (
-              <div className="z-50 absolute inset-0 bg-background/40 backdrop-blur-sm flex items-center justify-center">
+              <div className="z-30 absolute inset-0 bg-background/40 backdrop-blur-sm flex items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             )}

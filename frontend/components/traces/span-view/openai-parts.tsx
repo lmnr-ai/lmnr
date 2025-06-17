@@ -26,7 +26,7 @@ const PureImageContentPart = ({ part }: { part: z.infer<typeof OpenAIImagePartSc
 
   return (
     <ImageWithPreview
-      src={`data:image/png;base64,${part.image_url.url}`}
+      src={part.image_url.url}
       className="object-cover rounded-sm size-16 ml-2 mt-2 mb-1"
       alt="span image"
     />

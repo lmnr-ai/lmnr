@@ -3,7 +3,7 @@ import { map } from "lodash";
 import { z } from "zod";
 
 import { Message } from "@/lib/playground/types";
-import { isStorageUrl, urlToBase64 } from "@/lib/playground/utils";
+import { isStorageUrl, urlToBase64 } from "@/lib/s3";
 
 /** Part Schemas**/
 export const OpenAITextPartSchema = z.object({
@@ -179,42 +179,33 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
   });
 };
 
-export const convertOpenAIToPlaygroundMessages = async (
+export const downloadOpenAIImages = async (
   messages: z.infer<typeof OpenAIMessagesSchema>
-): Promise<Message[]> => {
-  const parsedMessages = convertOpenAIToChatMessages(messages);
-
-  return Promise.all(
-    parsedMessages.map(async (message): Promise<Message> => {
-      if (typeof message.content === "string") {
-        return {
-          role: message.role,
-          content: [{ type: "text" as const, text: message.content }],
-        } as Message;
-      }
-
-      if (Array.isArray(message.content)) {
+): Promise<z.infer<typeof OpenAIMessagesSchema>> =>
+  Promise.all(
+    messages.map(async (message) => {
+      if (message.role === "user" && Array.isArray(message.content)) {
         const processedContent = await Promise.all(
           message.content.map(async (part) => {
-            if (part.type === "image") {
-              const url = String(part.image);
+            if (part.type === "image_url") {
+              const url = part.image_url.url;
               try {
                 if (isStorageUrl(url)) {
                   const base64Image = await urlToBase64(url);
                   return {
-                    type: "image" as const,
-                    image: base64Image,
+                    ...part,
+                    image_url: {
+                      ...part.image_url,
+                      url: base64Image,
+                    },
                   };
                 }
-                return {
-                  type: "image" as const,
-                  image: part.image,
-                };
+                return part;
               } catch (error) {
                 console.error("Error processing image part:", error);
                 return {
                   type: "text" as const,
-                  text: `[Image processing failed: ${part.image}]`,
+                  text: `[Image processing failed: ${part.image_url.url}]`,
                 };
               }
             }
@@ -222,13 +213,24 @@ export const convertOpenAIToPlaygroundMessages = async (
           })
         );
 
-        return {
-          role: message.role,
-          content: processedContent,
-        } as Message;
+        return { ...message, content: processedContent };
       }
 
-      return message as Message;
+      return message;
     })
   );
+
+export const convertOpenAIToPlaygroundMessages = async (
+  messages: z.infer<typeof OpenAIMessagesSchema>
+): Promise<Message[]> => {
+  const convertedImagesMessages = await downloadOpenAIImages(messages);
+  return convertOpenAIToChatMessages(convertedImagesMessages).map((message) => {
+    if (typeof message.content === "string") {
+      return {
+        ...message,
+        content: [{ type: "text" as const, text: message.content }],
+      } as Message;
+    }
+    return message as Message;
+  });
 };

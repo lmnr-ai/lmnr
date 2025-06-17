@@ -15,15 +15,24 @@ import { PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface AddToLabelingQueuePopoverProps {
-  data?: { metadata: Record<string, unknown>; payload: Record<string, unknown> }[];
+  data?: {
+    metadata: Record<string, unknown>;
+    payload: {
+      data: Record<string, unknown>;
+      target: Record<string, unknown>;
+      metadata: Record<string, unknown> | null;
+    };
+  }[];
   datapointIds?: string[];
   datasetId?: string;
+  spanId?: string;
 }
 
 export default function AddToLabelingQueuePopover({
   data,
   datapointIds,
   datasetId,
+  spanId,
   children,
 }: PropsWithChildren<AddToLabelingQueuePopoverProps>) {
   const [selectedQueue, setSelectedQueue] = useState<string>("");
@@ -33,6 +42,7 @@ export default function AddToLabelingQueuePopover({
   const { toast } = useToast();
 
   const isDatapointMode = datapointIds && datasetId;
+  const isSpanMode = !!spanId;
 
   const { data: labelingQueues, isLoading: isQueuesLoading } = useSWR<PaginatedResponse<LabelingQueue>>(
     `/api/projects/${projectId}/queues`,
@@ -44,18 +54,41 @@ export default function AddToLabelingQueuePopover({
     setIsLoading(true);
 
     try {
-      const response = await fetch(
-        isDatapointMode
-          ? `/api/projects/${projectId}/datasets/${datasetId}/datapoints/push-to-queue`
-          : `/api/projects/${projectId}/queues/${selectedQueue}/push`,
-        {
+      const response = await (async () => {
+        if (isSpanMode) {
+          return fetch(`/api/projects/${projectId}/spans/${spanId}/push`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              queueId: selectedQueue,
+              metadata: {
+                source: "span",
+                id: spanId,
+              },
+            }),
+          });
+        }
+
+        if (isDatapointMode) {
+          return fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/push-to-queue`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ datapointIds, queueId: selectedQueue }),
+          });
+        }
+
+        return fetch(`/api/projects/${projectId}/queues/${selectedQueue}/push`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(isDatapointMode ? { datapointIds, queueId: selectedQueue } : data),
-        }
-      );
+          body: JSON.stringify(data),
+        });
+      })();
 
       if (response.ok) {
         toast({
@@ -88,7 +121,7 @@ export default function AddToLabelingQueuePopover({
     } finally {
       setIsLoading(false);
     }
-  }, [data, datapointIds, datasetId, projectId, selectedQueue, toast, isDatapointMode]);
+  }, [data, datapointIds, datasetId, spanId, projectId, selectedQueue, toast, isDatapointMode, isSpanMode]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
