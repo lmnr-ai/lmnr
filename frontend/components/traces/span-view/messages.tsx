@@ -9,8 +9,7 @@ import ContentParts from "@/components/traces/span-view/generic-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types";
-import { flattenContentOfMessages } from "@/lib/types";
+import { convertToMessages, OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types";
 
 interface MessagesProps {
   messages: any;
@@ -39,7 +38,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
     }
 
     return {
-      messages: flattenContentOfMessages(messages),
+      messages: convertToMessages(messages),
       type: "generic" as const,
     };
   }, [messages]);

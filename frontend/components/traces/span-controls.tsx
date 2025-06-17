@@ -93,14 +93,7 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
               <div className="flex gap-2 flex-wrap items-center">
                 <LabelsTrigger />
                 <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
-                <AddToLabelingQueuePopover
-                  data={[
-                    {
-                      payload: { data: span.input, target: span.output, metadata: {} },
-                      metadata: { source: "span", id: span.spanId, traceId: span.traceId },
-                    },
-                  ]}
-                />
+                <AddToLabelingQueuePopover spanId={span.spanId} />
                 <ExportSpansPopover span={span} />
               </div>
               <LabelsList />
