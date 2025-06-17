@@ -100,9 +100,7 @@ export default function ToolsSheet({
             className={cn("focus-visible:ring-0 h-8 w-fit p-2", className)}
           >
             <Bolt className="w-4 h-4" />
-            <span className="ml-2">
-              {toolsCount} {pluralize(toolsCount, "tool", "tools")}
-            </span>
+            <span className="ml-2">{pluralize(toolsCount, "tool", "tools")}</span>
           </Button>
         </SheetTrigger>
         <Button onClick={() => setValue("tools", "")} className="w-8 h-8" variant="outline" size="icon">
