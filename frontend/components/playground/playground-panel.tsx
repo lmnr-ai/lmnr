@@ -1,9 +1,9 @@
 "use client";
 import { processDataStream, ToolCall, ToolResult } from "ai";
 import { isEmpty } from "lodash";
-import { History, Loader2, PlayIcon } from "lucide-react";
+import { History, Loader, PlayIcon, Square } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
 
@@ -49,6 +49,15 @@ export default function PlaygroundPanel({
   const [refreshHistory, setRefreshHistory] = useState(0);
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const abortRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   const appendToolCalls = (value: ToolCall<any, any> | Partial<ToolResult<any, any, any>>) => {
     setOutput((prev) => ({
@@ -64,7 +73,10 @@ export default function PlaygroundPanel({
         setUsage(undefined);
         setOutput({ text: "", reasoning: "", toolCalls: [] });
 
+        abortControllerRef.current = new AbortController();
+
         const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
+          signal: abortControllerRef.current.signal,
           method: "POST",
           body: JSON.stringify({
             projectId: params?.projectId,
@@ -115,11 +127,12 @@ export default function PlaygroundPanel({
           setRefreshHistory((prev) => prev + 1);
         }
       } catch (e) {
-        if (e instanceof Error) {
+        if (e instanceof Error && e.name !== "AbortError") {
           toast({ title: "Error", description: e.message, variant: "destructive" });
         }
       } finally {
         setIsLoading(false);
+        abortControllerRef.current = null;
       }
     },
     [params?.projectId, toast, id, showHistory]
@@ -178,11 +191,19 @@ export default function PlaygroundPanel({
           <History className="w-4 h-4 mr-1" />
           History
         </Button>
-        <Button disabled={isLoading} onClick={handleSubmit(submit)} className="ml-auto h-8 w-fit px-2">
-          {isLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PlayIcon className="w-4 h-4 mr-1" />}
-          <span className="mr-2">Run</span>
-          <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
-        </Button>
+        {isLoading ? (
+          <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto h-8 w-fit px-2">
+            <Square className="w-4 h-4 mr-2" />
+            <span className="mr-2">Stop</span>
+            <Loader className="animate-spin w-4 h-4" />
+          </Button>
+        ) : (
+          <Button onClick={handleSubmit(submit)} className="ml-auto h-8 w-fit px-2">
+            <PlayIcon className="w-4 h-4 mr-2" />
+            <span className="mr-2">Run</span>
+            <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
+          </Button>
+        )}
       </div>
       <ResizablePanelGroup autoSaveId={`playground:${id}`} direction="vertical" className="flex flex-1">
         <ResizablePanel minSize={30} className="flex flex-col pb-4">
