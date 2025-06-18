@@ -189,6 +189,10 @@ fn tool_calls_from_content_parts(
         .collect()
 }
 
+/// Ok(Some(T)) - Success, return the OpenAI message content part
+/// Ok(None) - Skip, do not include in the OpenAI message, expected, e.g. tool calls inside
+///            content parts.
+/// Err(E) - Error, do not include in the OpenAI message, but log the error
 impl TryInto<Option<OpenAIChatMessageContentPart>> for ChatMessageContentPart {
     type Error = anyhow::Error;
 
