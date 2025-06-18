@@ -40,7 +40,7 @@ export const OpenAIToolCallPartSchema = z.object({
 /** Message Schemas**/
 export const OpenAISystemMessageSchema = z.object({
   role: z.literal("system"),
-  content: z.union([z.string(), OpenAITextPartSchema]),
+  content: z.union([z.string(), z.array(OpenAITextPartSchema)]),
   name: z.string().optional(),
 });
 
