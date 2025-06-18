@@ -127,3 +127,27 @@ pub async fn update_trace_attributes(
     .await?;
     Ok(())
 }
+
+/// Set the trace_type for a specific trace (creates trace if it doesn't exist)
+pub async fn update_trace_type(
+    pool: &PgPool,
+    project_id: &Uuid,
+    trace_id: Uuid,
+    trace_type: TraceType,
+) -> Result<()> {
+    // Use upsert pattern - create trace with EVALUATION type if it doesn't exist,
+    // or update existing trace to EVALUATION type
+    sqlx::query(
+        "INSERT INTO traces (id, project_id, trace_type, input_token_count, output_token_count, total_token_count, input_cost, output_cost, cost)
+         VALUES ($1, $2, $3, 0, 0, 0, 0.0, 0.0, 0.0)
+         ON CONFLICT(id) DO UPDATE
+         SET trace_type = $3"
+    )
+    .bind(trace_id)
+    .bind(project_id)
+    .bind(trace_type)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}

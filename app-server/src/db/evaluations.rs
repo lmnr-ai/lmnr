@@ -42,6 +42,11 @@ pub struct EvaluationDatapointPreview {
     pub trace_id: Uuid,
 }
 
+#[derive(FromRow)]
+pub struct EvaluationInfo {
+    pub group_id: String,
+}
+
 pub async fn create_evaluation(
     pool: &PgPool,
     name: &String,
@@ -154,6 +159,72 @@ pub async fn set_evaluation_results(
     .bind(&score_values)
     .execute(pool)
     .await?;
+
+    Ok(())
+}
+
+/// Get evaluation group_id for ClickHouse operations
+pub async fn get_evaluation_group_id(
+    pool: &PgPool,
+    evaluation_id: Uuid,
+    project_id: Uuid,
+) -> Result<String> {
+    let eval_info = sqlx::query_as::<_, EvaluationInfo>(
+        "SELECT group_id 
+         FROM evaluations
+         WHERE id = $1 AND project_id = $2 LIMIT 1",
+    )
+    .bind(evaluation_id)
+    .bind(project_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(eval_info.group_id)
+}
+
+/// Update executor output and scores for a single evaluation datapoint.
+pub async fn update_evaluation_datapoint(
+    pool: &PgPool,
+    evaluation_id: Uuid,
+    datapoint_id: Uuid,
+    executor_output: Option<Value>,
+    scores: HashMap<String, Option<f64>>,
+) -> Result<()> {
+    // Update the executor output in the evaluation_results table
+    sqlx::query(
+        r"UPDATE evaluation_results 
+        SET executor_output = $1
+        WHERE id = $2 AND evaluation_id = $3",
+    )
+    .bind(&executor_output)
+    .bind(datapoint_id)
+    .bind(evaluation_id)
+    .execute(pool)
+    .await?;
+
+    // Insert new scores into PostgreSQL
+    if !scores.is_empty() {
+        let (score_names, score_values): (Vec<String>, Vec<Option<f64>>) =
+            scores.into_iter().unzip();
+        let score_result_ids = vec![datapoint_id; score_names.len()];
+
+        sqlx::query(
+            "INSERT INTO evaluation_scores (result_id, name, score)
+            SELECT
+                result_id,
+                name,
+                score
+            FROM UNNEST ($1::uuid[], $2::text[], $3::float8[])
+            AS tmp_table(result_id, name, score)
+            ON CONFLICT (result_id, name) DO UPDATE
+                SET score = EXCLUDED.score",
+        )
+        .bind(&score_result_ids)
+        .bind(&score_names)
+        .bind(&score_values)
+        .execute(pool)
+        .await?;
+    }
 
     Ok(())
 }
