@@ -97,15 +97,27 @@ pub async fn update_eval_datapoint(
 ) -> ResponseResult {
     let (eval_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();
+    let scores_clone = req.scores.clone();
 
-    db::evaluations::update_evaluation_datapoint(
+    // Update database (PostgreSQL)
+    let group_id = db::evaluations::update_evaluation_datapoint(
         &db.pool,
         project_api_key.project_id,
         eval_id,
-        clickhouse.into_inner().as_ref().clone(),
         datapoint_id,
         req.executor_output,
         req.scores,
+    )
+    .await?;
+
+    // Update ClickHouse analytics
+    crate::ch::evaluation_scores::insert_updated_evaluation_scores(
+        clickhouse.into_inner().as_ref().clone(),
+        project_api_key.project_id,
+        group_id,
+        eval_id,
+        datapoint_id,
+        scores_clone,
     )
     .await?;
 

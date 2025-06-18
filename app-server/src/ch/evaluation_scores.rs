@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize, Serializer};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::utils::chrono_to_nanoseconds;
@@ -273,4 +274,33 @@ WHERE project_id = ?
         .await?;
 
     Ok(row)
+}
+
+/// Insert updated evaluation scores for a single datapoint
+pub async fn insert_updated_evaluation_scores(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    group_id: String,
+    evaluation_id: Uuid,
+    result_id: Uuid,
+    scores: HashMap<String, Option<f64>>,
+) -> Result<()> {
+    if scores.is_empty() {
+        return Ok(());
+    }
+
+    let ch_evaluation_scores: Vec<EvaluationScore> = scores
+        .into_iter()
+        .map(|(name, value)| EvaluationScore {
+            project_id,
+            group_id: group_id.clone(),
+            evaluation_id,
+            result_id,
+            name,
+            value: value.unwrap_or(0.0), // Replace None with 0.0 for ClickHouse
+            timestamp: Utc::now(),
+        })
+        .collect();
+
+    insert_evaluation_scores(clickhouse, ch_evaluation_scores).await
 }

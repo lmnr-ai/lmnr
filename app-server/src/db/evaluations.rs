@@ -7,9 +7,6 @@ use serde_json::Value;
 use sqlx::{PgPool, prelude::FromRow};
 use uuid::Uuid;
 
-use crate::ch::evaluation_scores::{EvaluationScore, insert_evaluation_scores};
-use crate::db::trace::{TraceType, update_trace_type};
-
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Evaluation {
@@ -167,15 +164,15 @@ pub async fn set_evaluation_results(
 }
 
 /// Update executor output and scores for a single evaluation datapoint.
+/// Returns the group_id needed for ClickHouse operations.
 pub async fn update_evaluation_datapoint(
     pool: &PgPool,
     project_id: Uuid,
     evaluation_id: Uuid,
-    clickhouse: clickhouse::Client,
     datapoint_id: Uuid,
     executor_output: Option<Value>,
     scores: HashMap<String, Option<f64>>,
-) -> Result<()> {
+) -> Result<String> {
     // First, get evaluation information for ClickHouse insertion
     let eval_info = sqlx::query_as::<_, EvaluationInfo>(
         "SELECT group_id 
@@ -199,13 +196,12 @@ pub async fn update_evaluation_datapoint(
     .execute(pool)
     .await?;
 
-    // Insert new scores into PostgreSQL and ClickHouse
+    // Insert new scores into PostgreSQL
     if !scores.is_empty() {
         let (score_names, score_values): (Vec<String>, Vec<Option<f64>>) =
             scores.into_iter().unzip();
         let score_result_ids = vec![datapoint_id; score_names.len()];
 
-        // Insert into PostgreSQL
         sqlx::query(
             "INSERT INTO evaluation_scores (result_id, name, score)
             SELECT
@@ -222,25 +218,7 @@ pub async fn update_evaluation_datapoint(
         .bind(&score_values)
         .execute(pool)
         .await?;
-
-        // Create ClickHouse evaluation scores
-        let ch_evaluation_scores: Vec<EvaluationScore> = score_names
-            .into_iter()
-            .zip(score_values.into_iter())
-            .map(|(name, value)| EvaluationScore {
-                project_id: project_id,
-                group_id: eval_info.group_id.clone(),
-                evaluation_id: evaluation_id,
-                result_id: datapoint_id,
-                name,
-                value: value.unwrap_or(0.0), // Replace None with 0.0 for ClickHouse
-                timestamp: Utc::now(),
-            })
-            .collect();
-
-        // Insert into ClickHouse
-        insert_evaluation_scores(clickhouse, ch_evaluation_scores).await?;
     }
 
-    Ok(())
+    Ok(eval_info.group_id)
 }
