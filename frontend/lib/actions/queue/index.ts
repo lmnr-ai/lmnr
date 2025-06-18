@@ -20,6 +20,7 @@ export const PushQueueItemSchema = z.object({
       payload: z.object({
         data: z.any(),
         target: z.any(),
+        metadata: z.any(),
       }),
       metadata: z.object({
         source: z.enum(["span", "datapoint"]),

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { ExportSpanSchema, exportSpanToDataset } from "@/lib/actions/span";
+import { PushSpanSchema, pushSpanToLabelingQueue } from "@/lib/actions/span";
 
 export async function POST(
   req: NextRequest,
@@ -12,10 +12,10 @@ export async function POST(
 
     const body = await req.json();
 
-    const result = ExportSpanSchema.safeParse({
+    const result = PushSpanSchema.safeParse({
       ...body,
-      spanId,
       projectId,
+      spanId,
     });
 
     if (!result.success) {
@@ -28,14 +28,14 @@ export async function POST(
       );
     }
 
-    await exportSpanToDataset(result.data);
+    await pushSpanToLabelingQueue(result.data);
 
-    return NextResponse.json("Span exported to dataset successfully");
+    return NextResponse.json("Span pushed to labeling queue successfully");
   } catch (error) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ error: "Failed to export span" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to push span to labeling queue" }, { status: 500 });
   }
 }

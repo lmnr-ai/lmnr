@@ -1,11 +1,10 @@
-import React, { memo, PropsWithChildren, useEffect, useMemo, useState } from "react";
+import React, { memo, PropsWithChildren, useEffect, useState } from "react";
 
-import ChatMessageListTab from "@/components/traces/chat-message-list-tab";
+import Messages from "@/components/traces/span-view/messages";
 import { Span } from "@/lib/traces/types";
-import { ChatMessage, flattenContentOfMessages } from "@/lib/types";
 
 const SpanOutput = ({ children, span }: PropsWithChildren<{ span: Span }>) => {
-  const [spanOutput, setSpanOutput] = useState<ChatMessage[]>(span.output);
+  const [spanOutput, setSpanOutput] = useState(span.output);
 
   useEffect(() => {
     if (span.outputUrl) {
@@ -21,12 +20,10 @@ const SpanOutput = ({ children, span }: PropsWithChildren<{ span: Span }>) => {
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
   const spanPathArray = typeof spanPath === "string" ? spanPath.split(".") : spanPath;
 
-  const memoizedOutput = useMemo(() => flattenContentOfMessages(spanOutput), [spanOutput]);
-
   return (
-    <ChatMessageListTab messages={memoizedOutput} presetKey={`output-${spanPathArray.join(".")}`}>
+    <Messages messages={spanOutput} presetKey={`output-${spanPathArray.join(".")}`}>
       {children}
-    </ChatMessageListTab>
+    </Messages>
   );
 };
 
