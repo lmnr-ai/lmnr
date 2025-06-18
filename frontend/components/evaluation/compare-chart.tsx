@@ -28,26 +28,24 @@ export default function CompareChart({
   className,
   distribution,
   comparedDistribution,
-  isLoading = false
+  isLoading = false,
 }: CompareChartProps) {
   // Convert distribution data to the format expected by the chart
-  const chartData = distribution ? distribution.map((bucket, index) => ({
-    index,
-    height: bucket.heights[0],
-    comparedHeight: comparedDistribution?.[index]?.heights[0] || 0,
-  })) : [];
+  const chartData = distribution
+    ? distribution.map((bucket, index) => ({
+      index,
+      height: bucket.heights[0],
+      comparedHeight: comparedDistribution?.[index]?.heights[0] || 0,
+    }))
+    : [];
 
   return (
     <div className={className}>
       {isLoading ? (
         <Skeleton className="h-48 w-full" />
       ) : (
-        <ChartContainer config={chartConfig} className="max-h-48 w-full">
-          <BarChart
-            accessibilityLayer
-            data={chartData}
-            barSize="4%"
-          >
+        <ChartContainer config={chartConfig} className="h-48 w-full">
+          <BarChart accessibilityLayer data={chartData} barSize="4%">
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="index"

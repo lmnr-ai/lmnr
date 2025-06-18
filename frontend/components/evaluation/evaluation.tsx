@@ -132,7 +132,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   }, [data?.results, targetData?.results, targetId]);
 
   const selectedRow = useMemo<undefined | EvaluationDatapointPreviewWithCompared>(
-    () => tableData?.find((row) => row.id === searchParams.get("traceId")),
+    () => tableData?.find((row) => row.id === searchParams.get("datapointId")),
     [searchParams, tableData]
   );
 
@@ -256,7 +256,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
                       />
                     ) : (
                       <Chart
-                        className="h-full"
                         evaluationId={evaluationId}
                         scoreName={selectedScore}
                         distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
