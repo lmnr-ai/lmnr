@@ -33,14 +33,7 @@ export const OpenAIToolCallPartSchema = z.object({
   type: z.literal("function"),
   function: z.object({
     name: z.string(),
-    arguments: z.string().transform((str, ctx): Record<string, unknown> => {
-      try {
-        return JSON.parse(str);
-      } catch (e) {
-        ctx.addIssue({ code: "custom", message: "Invalid JSON in function arguments" });
-        return {};
-      }
-    }),
+    arguments: z.string(),
   }),
 });
 

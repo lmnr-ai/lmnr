@@ -1,4 +1,3 @@
-import { omit } from "lodash";
 import React, { memo } from "react";
 import { z } from "zod";
 
@@ -81,7 +80,7 @@ const PureToolCallContentPart = ({
   <CodeHighlighter
     readOnly
     collapsible
-    value={JSON.stringify(omit(part, "type"), null, 2)}
+    value={JSON.stringify(part, null, 2)}
     presetKey={presetKey}
     className="max-h-[400px] border-none"
   />
