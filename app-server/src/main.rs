@@ -482,7 +482,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     App::new()
-                        .wrap(Logger::default().exclude("/health"))
+                        .wrap(Logger::default().exclude("/health").exclude("/ready"))
                         .wrap(NormalizePath::trim())
                         .app_data(JsonConfig::default().limit(http_payload_limit))
                         .app_data(PayloadConfig::new(http_payload_limit))
