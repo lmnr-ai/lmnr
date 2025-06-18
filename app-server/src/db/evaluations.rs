@@ -163,17 +163,12 @@ pub async fn set_evaluation_results(
     Ok(())
 }
 
-/// Update executor output and scores for a single evaluation datapoint.
-/// Returns the group_id needed for ClickHouse operations.
-pub async fn update_evaluation_datapoint(
+/// Get evaluation group_id for ClickHouse operations
+pub async fn get_evaluation_group_id(
     pool: &PgPool,
-    project_id: Uuid,
     evaluation_id: Uuid,
-    datapoint_id: Uuid,
-    executor_output: Option<Value>,
-    scores: HashMap<String, Option<f64>>,
+    project_id: Uuid,
 ) -> Result<String> {
-    // First, get evaluation information for ClickHouse insertion
     let eval_info = sqlx::query_as::<_, EvaluationInfo>(
         "SELECT group_id 
          FROM evaluations
@@ -184,6 +179,17 @@ pub async fn update_evaluation_datapoint(
     .fetch_one(pool)
     .await?;
 
+    Ok(eval_info.group_id)
+}
+
+/// Update executor output and scores for a single evaluation datapoint.
+pub async fn update_evaluation_datapoint(
+    pool: &PgPool,
+    evaluation_id: Uuid,
+    datapoint_id: Uuid,
+    executor_output: Option<Value>,
+    scores: HashMap<String, Option<f64>>,
+) -> Result<()> {
     // Update the executor output in the evaluation_results table
     sqlx::query(
         r"UPDATE evaluation_results 
@@ -220,5 +226,5 @@ pub async fn update_evaluation_datapoint(
         .await?;
     }
 
-    Ok(eval_info.group_id)
+    Ok(())
 }

@@ -99,10 +99,14 @@ pub async fn update_eval_datapoint(
     let req = req.into_inner();
     let scores_clone = req.scores.clone();
 
+    // Get evaluation info for ClickHouse
+    let group_id =
+        db::evaluations::get_evaluation_group_id(&db.pool, eval_id, project_api_key.project_id)
+            .await?;
+
     // Update database (PostgreSQL)
-    let group_id = db::evaluations::update_evaluation_datapoint(
+    db::evaluations::update_evaluation_datapoint(
         &db.pool,
-        project_api_key.project_id,
         eval_id,
         datapoint_id,
         req.executor_output,
