@@ -143,14 +143,16 @@ fn message_to_openai_format(message: ChatMessage) -> Value {
             parts
                 .into_iter()
                 .filter_map(|v| {
-                    v.try_into()
-                        .map_err(|e| {
+                    v.try_into_openai_format().and_then(|v| {
+                        v.map_err(|e| {
                             log::warn!(
                                 "Error converting chat message content part to OpenAI format: {}",
                                 e
-                            )
+                            );
+                            e
                         })
                         .ok()
+                    })
                 })
                 .collect(),
         ),
@@ -188,48 +190,44 @@ fn tool_calls_from_content_parts(
         .collect()
 }
 
-impl TryInto<OpenAIChatMessageContentPart> for ChatMessageContentPart {
-    type Error = anyhow::Error;
-
-    fn try_into(self) -> Result<OpenAIChatMessageContentPart, Self::Error> {
+impl ChatMessageContentPart {
+    fn try_into_openai_format(self) -> Option<anyhow::Result<OpenAIChatMessageContentPart>> {
         match self {
-            ChatMessageContentPart::Text(text) => Ok(OpenAIChatMessageContentPart::Text(
+            ChatMessageContentPart::Text(text) => Some(Ok(OpenAIChatMessageContentPart::Text(
                 OpenAIChatMessageContentPartText { text: text.text },
-            )),
-            ChatMessageContentPart::ImageUrl(image_url) => Ok(
+            ))),
+            ChatMessageContentPart::ImageUrl(image_url) => Some(Ok(
                 OpenAIChatMessageContentPart::ImageUrl(OpenAIChatMessageContentPartImageUrl {
                     image_url: OpenAIChatMessageContentPartImageUrlInner {
                         url: image_url.url,
                         detail: image_url.detail,
                     },
                 }),
-            ),
-            ChatMessageContentPart::Image(image) => Ok(OpenAIChatMessageContentPart::ImageUrl(
-                OpenAIChatMessageContentPartImageUrl {
+            )),
+            ChatMessageContentPart::Image(image) => Some(Ok(
+                OpenAIChatMessageContentPart::ImageUrl(OpenAIChatMessageContentPartImageUrl {
                     image_url: OpenAIChatMessageContentPartImageUrlInner {
                         url: format!("data:{};base64,{}", image.media_type, image.data),
                         detail: None,
                     },
-                },
+                }),
             )),
-            ChatMessageContentPart::Document(document) => Ok(OpenAIChatMessageContentPart::File(
-                OpenAIChatMessageContentPartFile {
+            ChatMessageContentPart::Document(document) => Some(Ok(
+                OpenAIChatMessageContentPart::File(OpenAIChatMessageContentPartFile {
                     file: OpenAIChatMessageContentPartFileInner {
                         file_data: Some(document.source.data),
                         file_id: None,
                         filename: None,
                     },
-                },
+                }),
             )),
-            ChatMessageContentPart::DocumentUrl(_) => {
-                Err(anyhow::anyhow!("Document URL is not supported in OpenAI"))
-            }
-            ChatMessageContentPart::ToolCall(_) => Err(anyhow::anyhow!(
-                "Tool call is not a valid OpenAI chat message content part"
-            )),
-            ChatMessageContentPart::ImageRawBytes(_) => Err(anyhow::anyhow!(
+            ChatMessageContentPart::DocumentUrl(_) => Some(Err(anyhow::anyhow!(
+                "Document URL is not supported in OpenAI"
+            ))),
+            ChatMessageContentPart::ToolCall(_) => None,
+            ChatMessageContentPart::ImageRawBytes(_) => Some(Err(anyhow::anyhow!(
                 "Image raw bytes is not supported in OpenAI"
-            )),
+            ))),
         }
     }
 }
@@ -641,7 +639,8 @@ mod tests {
         let part = ChatMessageContentPart::Text(ChatMessageText {
             text: "Hello".to_string(),
         });
-        let openai_part: OpenAIChatMessageContentPart = part.try_into().unwrap();
+        let openai_part: OpenAIChatMessageContentPart =
+            part.try_into_openai_format().unwrap().unwrap();
         let serialized = serde_json::to_value(openai_part).unwrap();
 
         assert_eq!(serialized["type"], "text");
@@ -654,7 +653,8 @@ mod tests {
             url: "https://example.com/test.jpg".to_string(),
             detail: Some("low".to_string()),
         });
-        let openai_part: OpenAIChatMessageContentPart = part.try_into().unwrap();
+        let openai_part: OpenAIChatMessageContentPart =
+            part.try_into_openai_format().unwrap().unwrap();
         let serialized = serde_json::to_value(openai_part).unwrap();
 
         assert_eq!(serialized["type"], "image_url");
@@ -671,7 +671,8 @@ mod tests {
             url: "https://example.com/doc.pdf".to_string(),
             media_type: "application/pdf".to_string(),
         });
-        let result: Result<OpenAIChatMessageContentPart, _> = part.try_into();
+        let result: Result<OpenAIChatMessageContentPart, _> =
+            part.try_into_openai_format().unwrap();
         assert!(result.is_err());
         assert!(
             result
@@ -682,20 +683,15 @@ mod tests {
     }
 
     #[test]
-    fn test_content_part_conversion_tool_call_error() {
+    fn test_content_part_conversion_tool_call_none() {
         let part = ChatMessageContentPart::ToolCall(ChatMessageToolCall {
             id: Some("test".to_string()),
             name: "test".to_string(),
             arguments: Some(json!({})),
         });
-        let result: Result<OpenAIChatMessageContentPart, _> = part.try_into();
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Tool call is not a valid OpenAI chat message content part")
-        );
+        let result: Option<anyhow::Result<OpenAIChatMessageContentPart>> =
+            part.try_into_openai_format();
+        assert!(result.is_none());
     }
 
     #[test]
@@ -704,7 +700,8 @@ mod tests {
             image: vec![1, 2, 3, 4],
             mime_type: Some("image/png".to_string()),
         });
-        let result: Result<OpenAIChatMessageContentPart, _> = part.try_into();
+        let result: Result<OpenAIChatMessageContentPart, _> =
+            part.try_into_openai_format().unwrap();
         assert!(result.is_err());
         assert!(
             result
