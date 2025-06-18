@@ -1,9 +1,9 @@
 "use client";
-import { processDataStream, ToolCall, ToolResult } from "ai";
+import { GenerateTextResult, ToolSet } from "ai";
 import { isEmpty } from "lodash";
 import { History, Loader, PlayIcon, Square } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
 
@@ -12,6 +12,7 @@ import LlmSelect from "@/components/playground/messages/llm-select";
 import ParamsPopover from "@/components/playground/messages/params-popover";
 import ToolsSheet from "@/components/playground/messages/tools-sheet";
 import PlaygroundHistoryTable from "@/components/playground/playground-history-table";
+import { usePlaygroundOutput } from "@/components/playground/playground-output";
 import ProvidersAlert from "@/components/playground/providers-alert";
 import { Provider } from "@/components/playground/types";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
@@ -35,18 +36,21 @@ export default function PlaygroundPanel({
 }) {
   const params = useParams();
   const { toast } = useToast();
-  const [output, setOutput] = useState<{ text: string; reasoning: string; toolCalls: string[] }>({
-    text: "",
-    reasoning: "",
-    toolCalls: [],
-  });
-  const [usage, setUsage] = useState<{
-    promptTokens: number;
-    completionTokens: number;
-  }>();
-  const [isLoading, setIsLoading] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [refreshHistory, setRefreshHistory] = useState(0);
+  const {
+    setText,
+    setUsage,
+    setToolCalls,
+    reset,
+    setIsLoading,
+    isLoading,
+    text,
+    toolCalls,
+    setReasoning,
+    reasoning,
+    history,
+    setHistory,
+    usage,
+  } = usePlaygroundOutput();
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -57,21 +61,13 @@ export default function PlaygroundPanel({
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [toast]);
-
-  const appendToolCalls = (value: ToolCall<any, any> | Partial<ToolResult<any, any, any>>) => {
-    setOutput((prev) => ({
-      ...prev,
-      toolCalls: [...prev.toolCalls, JSON.stringify(value)],
-    }));
-  };
+  }, [setIsLoading]);
 
   const submit: SubmitHandler<PlaygroundForm> = useCallback(
     async (form) => {
       try {
+        reset();
         setIsLoading(true);
-        setUsage(undefined);
-        setOutput({ text: "", reasoning: "", toolCalls: [] });
 
         abortControllerRef.current = new AbortController();
 
@@ -91,41 +87,18 @@ export default function PlaygroundPanel({
           }),
         });
 
-        if (!response.body) {
-          throw new Error("No stream found.");
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Request failed");
         }
 
-        await processDataStream({
-          stream: response.body,
-          onErrorPart: (value) => {
-            toast({ variant: "destructive", title: "Error", description: value });
-          },
-          onTextPart: (value) => {
-            setOutput((prev) => ({
-              ...prev,
-              text: prev.text + value,
-            }));
-          },
-          onFinishMessagePart: (part) => {
-            if (part?.usage) {
-              setUsage(part.usage);
-            }
-          },
-          onReasoningPart: (value) => {
-            setOutput((prev) => ({
-              ...prev,
-              reasoning: prev.reasoning + value,
-            }));
-          },
-          onToolCallPart: appendToolCalls,
-          onToolResultPart: appendToolCalls,
-          onToolCallDeltaPart: appendToolCalls,
-        });
+        const result = (await response.json()) as GenerateTextResult<ToolSet, {}>;
 
-        // Refresh history table if it's open
-        if (showHistory) {
-          setRefreshHistory((prev) => prev + 1);
-        }
+        setText(result.text);
+        setToolCalls(result.toolCalls);
+        setReasoning(result.reasoning);
+
+        setUsage(result.usage);
       } catch (e) {
         if (e instanceof Error && e.name !== "AbortError") {
           toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -135,7 +108,7 @@ export default function PlaygroundPanel({
         abortControllerRef.current = null;
       }
     },
-    [params?.projectId, toast, id, showHistory]
+    [reset, setIsLoading, params?.projectId, id, setText, setToolCalls, setReasoning, setUsage, toast]
   );
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {
@@ -154,13 +127,13 @@ export default function PlaygroundPanel({
 
   const structuredOutput = useMemo(() => {
     const sections = [
-      output.reasoning && `<thinking>\n\n${output.reasoning}\n\n</thinking>`,
-      output.toolCalls?.length > 0 && `<tool_calls>\n\n${output.toolCalls.join("\n\n")}\n\n</tool_calls>`,
-      output.text,
+      reasoning && `<thinking>\n\n${reasoning}\n\n</thinking>`,
+      toolCalls?.length > 0 && `<tool_calls>\n\n${toolCalls.join("\n\n")}\n\n</tool_calls>`,
+      text,
     ].filter(Boolean);
 
     return sections.join("\n\n");
-  }, [output]);
+  }, [reasoning, text, toolCalls?.length]);
 
   if (isEmpty(apiKeys)) {
     return (
@@ -183,9 +156,9 @@ export default function PlaygroundPanel({
         <ParamsPopover />
         <ToolsSheet />
         <Button
-          variant={showHistory ? "outlinePrimary" : "outline"}
+          variant={history ? "outlinePrimary" : "outline"}
           size="sm"
-          onClick={() => setShowHistory(!showHistory)}
+          onClick={() => setHistory(!history)}
           className="h-8 w-fit px-2"
         >
           <History className="w-4 h-4 mr-1" />
@@ -221,7 +194,7 @@ export default function PlaygroundPanel({
                   defaultMode="json"
                 />
               </div>
-              {!!usage && (
+              {(!isNaN(usage?.promptTokens) || !isNaN(usage?.completionTokens) || !isNaN(usage.totalTokens)) && (
                 <div className={cn("mt-2 flex flex-col gap-1")}>
                   {!isNaN(usage?.promptTokens) && (
                     <span className="text-xs text-secondary-foreground">Prompt Tokens: {usage.promptTokens}</span>
@@ -231,12 +204,15 @@ export default function PlaygroundPanel({
                       Completion Tokens: {usage.completionTokens}
                     </span>
                   )}
+                  {!isNaN(usage.totalTokens) && (
+                    <span className="text-xs text-secondary-foreground">Total Tokens: {usage.totalTokens}</span>
+                  )}
                 </div>
               )}
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>
-        {showHistory && (
+        {history && (
           <>
             <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
             <ResizablePanel minSize={20} defaultSize={30} className="flex flex-col">
@@ -244,11 +220,7 @@ export default function PlaygroundPanel({
                 <h3 className="text-sm font-medium">Playground runs history</h3>
               </div>
               <div className="flex-1 overflow-auto">
-                <PlaygroundHistoryTable
-                  playgroundId={id}
-                  onTraceSelect={onTraceSelect}
-                  refreshTrigger={refreshHistory}
-                />
+                <PlaygroundHistoryTable playgroundId={id} onTraceSelect={onTraceSelect} />
               </div>
             </ResizablePanel>
           </>
