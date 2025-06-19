@@ -6,8 +6,7 @@ import { memo, PropsWithChildren } from "react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getDurationString } from "@/lib/flow/utils";
-import { cn, pluralize } from "@/lib/utils";
+import { cn, getDurationString, pluralize } from "@/lib/utils";
 
 import CodeHighlighter from "../ui/code-highlighter/index";
 import { Label } from "../ui/label";

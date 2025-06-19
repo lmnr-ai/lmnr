@@ -11,11 +11,19 @@ export type ChatMessageText = {
   text: string;
 };
 
-export type ChatMessageImageUrl = {
-  type: "image_url";
-  url: string;
-  detail: string | null;
-};
+export type ChatMessageImageUrl =
+  | {
+      type: "image_url";
+      url: string;
+      detail: string | null;
+    }
+  | {
+      type: "image_url";
+      image_url: {
+        url: string;
+        detail?: "low" | "medium" | "high";
+      };
+    };
 
 export type ChatMessageImage = {
   type: "image";

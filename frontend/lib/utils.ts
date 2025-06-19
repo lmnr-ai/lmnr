@@ -296,3 +296,15 @@ export const inferImageType = (base64: string): `image/${string}` | null => {
   }
   return null;
 };
+export const getDurationString = (startTime: string, endTime: string) => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const duration = end.getTime() - start.getTime();
+
+  return `${(duration / 1000).toFixed(2)}s`;
+};
+export const getDuration = (startTime: string, endTime: string) => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  return end.getTime() - start.getTime();
+};

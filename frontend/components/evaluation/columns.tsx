@@ -18,7 +18,7 @@ import {
 } from "@/components/evaluation/utils";
 import { type ScoreRange } from "@/lib/colors";
 import { EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
-import { getDurationString } from "@/lib/flow/utils";
+import { getDurationString } from "@/lib/utils";
 
 const shouldShowComparisonIndicator = (originalValue?: number, comparisonValue?: number): boolean =>
   isValidScore(originalValue) &&

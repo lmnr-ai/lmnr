@@ -30,14 +30,22 @@ export const downloadImages = async (
                 switch (part.type) {
                   case "image_url":
                     try {
-                      if (isStorageUrl(part.url)) {
-                        const base64Image = await urlToBase64(part.url);
+                      const imageUrl =
+                        "image_url" in part && part.image_url ? part.image_url.url : "url" in part ? part.url : null;
+
+                      if (!imageUrl) {
+                        return part;
+                      }
+
+                      if (isStorageUrl(imageUrl)) {
+                        const base64Image = await urlToBase64(imageUrl);
                         return {
                           type: "image" as const,
                           mediaType: "image/png",
                           data: base64Image.split(",")[1] || base64Image,
                         } as ChatMessageImage;
                       }
+
                       return part;
                     } catch (error) {
                       console.error("Error downloading image:", error);
@@ -105,6 +113,12 @@ export const convertToMessages = (
                   text: part.text,
                 };
               case "image_url":
+                if ("image_url" in part) {
+                  return {
+                    type: "image" as const,
+                    image: part.image_url.url,
+                  };
+                }
                 return {
                   type: "image" as const,
                   image: part.url,
