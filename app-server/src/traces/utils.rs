@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
+use indexmap::IndexMap;
 use regex::Regex;
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -253,4 +255,18 @@ pub fn prepare_span_for_recording(
     span.set_attributes(&span_attributes);
 
     trace_attributes
+}
+
+pub fn serialize_indexmap<T>(index_map: IndexMap<String, T>) -> Option<Value>
+where
+    T: serde::Serialize,
+{
+    index_map
+        .into_iter()
+        .map(|(key, value)| {
+            Ok::<(String, Value), serde_json::Error>((key, serde_json::to_value(value)?))
+        })
+        .collect::<Result<serde_json::Map<String, Value>, _>>()
+        .ok()
+        .map(Value::Object)
 }
