@@ -6,6 +6,7 @@ use std::{
 
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
+use indexmap::IndexMap;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -23,7 +24,10 @@ use crate::{
     },
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     storage::{Storage, StorageTrait},
-    traces::span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
+    traces::{
+        span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
+        utils::serialize_indexmap,
+    },
     utils::json_value_to_string,
 };
 
@@ -993,9 +997,9 @@ fn parse_tool_calls(
             .or(attributes.get(&format!("{prefix}.function_call.arguments")));
         let tool_call_arguments: Option<Value> = match tool_call_arguments_raw {
             Some(serde_json::Value::String(s)) => {
-                let parsed = serde_json::from_str::<HashMap<String, Value>>(s);
+                let parsed = serde_json::from_str::<IndexMap<String, Value>>(s);
                 if let Ok(parsed) = parsed {
-                    serde_json::to_value(parsed).ok()
+                    serialize_indexmap(parsed)
                 } else {
                     Some(serde_json::Value::String(s.clone()))
                 }
@@ -1075,14 +1079,14 @@ fn parse_ai_sdk_tool_calls(
             tool_call.get("toolName").map(|tool_name| {
                 let args_value = tool_call.get("args").cloned().unwrap_or_default();
                 let args = if let serde_json::Value::String(s) = &args_value {
-                    serde_json::from_str::<HashMap<String, serde_json::Value>>(s).ok()
+                    serde_json::from_str::<IndexMap<String, serde_json::Value>>(s).ok()
                 } else {
-                    serde_json::from_value::<HashMap<String, serde_json::Value>>(args_value).ok()
+                    serde_json::from_value::<IndexMap<String, serde_json::Value>>(args_value).ok()
                 };
                 ChatMessageToolCall {
                     name: json_value_to_string(tool_name),
                     id: tool_call.get("toolCallId").map(json_value_to_string),
-                    arguments: args.map(|args| serde_json::to_value(args).unwrap()),
+                    arguments: args.and_then(serialize_indexmap),
                 }
             })
         })
@@ -1097,6 +1101,56 @@ fn rename_last_span_in_path(attributes: &mut Map<String, Value>, from: &str, to:
                     *last = serde_json::Value::String(to.to_string());
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_tool_calls_preserves_argument_order() {
+        // Create attributes with tool call arguments in specific order (z before a)
+        let mut attributes = serde_json::Map::new();
+        attributes.insert(
+            "gen_ai.completion.0.tool_calls.0.name".to_string(),
+            json!("test_function"),
+        );
+        attributes.insert(
+            "gen_ai.completion.0.tool_calls.0.id".to_string(),
+            json!("call_123"),
+        );
+        attributes.insert(
+            "gen_ai.completion.0.tool_calls.0.arguments".to_string(),
+            json!("{\"z\": 3, \"a\": 1}"),
+        );
+
+        let prefix = "gen_ai.completion.0";
+        let tool_calls = parse_tool_calls(&attributes, prefix);
+
+        assert_eq!(tool_calls.len(), 1);
+        let tool_call = &tool_calls[0];
+
+        assert_eq!(tool_call.name, "test_function");
+        assert_eq!(tool_call.id, Some("call_123".to_string()));
+
+        // Verify arguments preserve order
+        if let Some(arguments) = &tool_call.arguments {
+            let arguments_str = serde_json::to_string(arguments).unwrap();
+            // The serialized JSON should maintain the original order: z before a
+            assert!(
+                arguments_str.find("\"z\"").unwrap() < arguments_str.find("\"a\"").unwrap(),
+                "Expected 'z' to appear before 'a' in serialized arguments, got: {}",
+                arguments_str
+            );
+
+            // Also verify the actual values are correct
+            assert_eq!(arguments.get("z").unwrap(), &json!(3));
+            assert_eq!(arguments.get("a").unwrap(), &json!(1));
+        } else {
+            panic!("Expected arguments to be present");
         }
     }
 }
