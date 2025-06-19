@@ -1,3 +1,4 @@
+mod langchain;
 mod openai;
 
 use serde_json::Value;

@@ -18,8 +18,9 @@ struct OpenAIChatMessageContentPartImageUrlInner {
     detail: Option<String>,
 }
 
+// pub for langchain
 #[derive(Serialize, Debug)]
-struct OpenAIChatMessageContentPartImageUrl {
+pub struct OpenAIChatMessageContentPartImageUrl {
     image_url: OpenAIChatMessageContentPartImageUrlInner,
 }
 
