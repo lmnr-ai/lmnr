@@ -1,20 +1,25 @@
+import { capitalize } from "lodash";
 import React from "react";
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import {
-  anthropicThinkingModels,
-  googleThinkingModels,
-  openAIThinkingModels,
-  PlaygroundForm,
-} from "@/lib/playground/types";
+import { Switch } from "@/components/ui/switch";
+import { anthropicProviderOptionsSettings, anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
+import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
+import { openAIThinkingModels } from "@/lib/playground/providers/openai";
+import { PlaygroundForm } from "@/lib/playground/types";
 
 const ReasoningField = () => {
   const { watch, control } = useFormContext<PlaygroundForm>();
 
-  if (openAIThinkingModels.includes(watch("model"))) {
+  const model = useWatch({
+    control,
+    name: "model",
+  });
+
+  if (openAIThinkingModels.find((o) => o === model)) {
     return (
       <div className="flex justify-between items-center">
         <span className="text-sm">Reasoning Effort</span>
@@ -40,9 +45,11 @@ const ReasoningField = () => {
     );
   }
 
-  if (anthropicThinkingModels.includes(watch("model"))) {
+  if (anthropicThinkingModels.find((a) => a === model)) {
+    const config = anthropicProviderOptionsSettings[model as (typeof anthropicThinkingModels)[number]].thinking;
+
     return (
-      <div className="space-y-2">
+      <div className="flex flex-col gap-4">
         <Controller
           render={({ field: { value, onChange } }) => (
             <>
@@ -50,24 +57,54 @@ const ReasoningField = () => {
                 <span className="text-sm font-medium">Thinking Tokens</span>
                 <Input
                   onChange={(e) => onChange(Number(e.target.value))}
-                  value={value ?? 1024}
+                  value={Number(value)}
                   type="number"
                   className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
                 />
               </div>
-              <Slider value={[value ?? 1024]} min={100} max={65536} step={1} onValueChange={(v) => onChange(v?.[0])} />
+              <Slider
+                value={[Number(value)]}
+                min={config.min}
+                max={watch("maxTokens")}
+                step={1}
+                onValueChange={(v) => onChange(v?.[0])}
+              />
             </>
           )}
           name="providerOptions.anthropic.thinking.budgetTokens"
           control={control}
         />
+
+        <div className="flex justify-between items-center">
+          <span className="text-sm">Thinking Type</span>
+
+          <Controller
+            render={({ field: { value, onChange } }) => (
+              <Select value={value} onValueChange={onChange}>
+                <SelectTrigger className="w-fit">
+                  <SelectValue placeholder="Reasoning type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["enabled", "disabled"].map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {capitalize(item)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            name="providerOptions.anthropic.thinking.type"
+            control={control}
+          />
+        </div>
       </div>
     );
   }
 
-  if (googleThinkingModels.includes(watch("model"))) {
+  if (googleThinkingModels.find((g) => g === model)) {
+    const config = googleProviderOptionsSettings[model as (typeof googleThinkingModels)[number]].thinkingConfig;
     return (
-      <div className="space-y-2">
+      <div className="flex flex-col gap-4">
         <Controller
           render={({ field: { value, onChange } }) => (
             <>
@@ -75,15 +112,31 @@ const ReasoningField = () => {
                 <span className="text-sm font-medium">Thinking Tokens</span>
                 <Input
                   onChange={(e) => onChange(Number(e.target.value))}
-                  value={value ?? 1024}
+                  value={Number(value)}
                   type="number"
                   className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
                 />
               </div>
-              <Slider value={[value ?? 1024]} min={100} max={65536} step={1} onValueChange={(v) => onChange(v?.[0])} />
+              <Slider
+                value={[Number(value)]}
+                min={config.min}
+                max={config.max}
+                step={1}
+                onValueChange={(v) => onChange(v?.[0])}
+              />
             </>
           )}
           name="providerOptions.google.thinkingConfig.thinkingBudget"
+          control={control}
+        />
+        <Controller
+          render={({ field: { onChange, value } }) => (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">Include Thoughts</span>
+              <Switch checked={value || undefined} onCheckedChange={onChange} />
+            </div>
+          )}
+          name="providerOptions.google.thinkingConfig.includeThoughts"
           control={control}
         />
       </div>

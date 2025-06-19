@@ -1,7 +1,7 @@
 "use client";
 import { GenerateTextResult, ToolSet } from "ai";
 import { isEmpty } from "lodash";
-import { History, Loader, PlayIcon, Square } from "lucide-react";
+import { ChevronRight, History, Loader, PlayIcon, Square } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useMemo, useRef } from "react";
 import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
@@ -15,15 +15,17 @@ import PlaygroundHistoryTable from "@/components/playground/playground-history-t
 import { usePlaygroundOutput } from "@/components/playground/playground-output";
 import ProvidersAlert from "@/components/playground/providers-alert";
 import { Provider } from "@/components/playground/types";
+import Usage from "@/components/playground/usage";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
 import { ProviderApiKey } from "@/lib/settings/types";
-import { cn } from "@/lib/utils";
 
 export default function PlaygroundPanel({
   id,
@@ -45,11 +47,15 @@ export default function PlaygroundPanel({
     isLoading,
     text,
     toolCalls,
+    toolResults,
+    setToolResults,
     setReasoning,
     reasoning,
     history,
     setHistory,
     usage,
+    error,
+    setError,
   } = usePlaygroundOutput();
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
@@ -96,11 +102,13 @@ export default function PlaygroundPanel({
 
         setText(result.text);
         setToolCalls(result.toolCalls);
+        setToolResults(result.toolResults);
         setReasoning(result.reasoning);
 
         setUsage(result.usage);
       } catch (e) {
         if (e instanceof Error && e.name !== "AbortError") {
+          setError(e);
           toast({ title: "Error", description: e.message, variant: "destructive" });
         }
       } finally {
@@ -108,7 +116,19 @@ export default function PlaygroundPanel({
         abortControllerRef.current = null;
       }
     },
-    [reset, setIsLoading, params?.projectId, id, setText, setToolCalls, setReasoning, setUsage, toast]
+    [
+      reset,
+      setIsLoading,
+      params?.projectId,
+      id,
+      setText,
+      setToolCalls,
+      setToolResults,
+      setReasoning,
+      setUsage,
+      setError,
+      toast,
+    ]
   );
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {
@@ -127,13 +147,12 @@ export default function PlaygroundPanel({
 
   const structuredOutput = useMemo(() => {
     const sections = [
-      reasoning && `<thinking>\n\n${reasoning}\n\n</thinking>`,
-      toolCalls?.length > 0 && `<tool_calls>\n\n${toolCalls.join("\n\n")}\n\n</tool_calls>`,
+      toolCalls?.length > 0 && `<ToolCalls>\n\n${JSON.stringify(toolCalls)}\n\n</ToolCalls>`,
       text,
     ].filter(Boolean);
 
     return sections.join("\n\n");
-  }, [reasoning, text, toolCalls?.length]);
+  }, [text, toolCalls]);
 
   if (isEmpty(apiKeys)) {
     return (
@@ -185,7 +204,24 @@ export default function PlaygroundPanel({
               <Messages />
             </ResizablePanel>
             <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
-            <ResizablePanel minSize={20} className="flex-1 flex flex-col px-4">
+            <ResizablePanel minSize={20} className="flex-1 flex flex-col gap-2 px-4">
+              {reasoning && (
+                <Collapsible className="group">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="focus-visible:ring-0 justify-start w-full rounded-b-none p-0">
+                      <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
+                      <span>Reasoning</span>
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="overflow-hidden p-1 pb-2">
+                    <ScrollArea className="border-l pl-2">
+                      <div className="max-h-40">
+                        <span className="font-mono text-xs">{reasoning}</span>
+                      </div>
+                    </ScrollArea>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
               <div className="flex flex-1 overflow-hidden">
                 <CodeHighlighter
                   codeEditorClassName="rounded-b"
@@ -194,21 +230,7 @@ export default function PlaygroundPanel({
                   defaultMode="json"
                 />
               </div>
-              {(!isNaN(usage?.promptTokens) || !isNaN(usage?.completionTokens) || !isNaN(usage.totalTokens)) && (
-                <div className={cn("mt-2 flex flex-col gap-1")}>
-                  {!isNaN(usage?.promptTokens) && (
-                    <span className="text-xs text-secondary-foreground">Prompt Tokens: {usage.promptTokens}</span>
-                  )}
-                  {!isNaN(usage?.completionTokens) && (
-                    <span className="text-xs text-secondary-foreground">
-                      Completion Tokens: {usage.completionTokens}
-                    </span>
-                  )}
-                  {!isNaN(usage.totalTokens) && (
-                    <span className="text-xs text-secondary-foreground">Total Tokens: {usage.totalTokens}</span>
-                  )}
-                </div>
-              )}
+              <Usage usage={usage} />
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>
