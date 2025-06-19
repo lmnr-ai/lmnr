@@ -1,10 +1,9 @@
 import { ChevronDown, ChevronRight, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { getDuration, getDurationString } from "@/lib/flow/utils";
 import { Span } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils";
-import { cn, formatSecondsToMinutesAndSeconds } from "@/lib/utils";
+import { cn, formatSecondsToMinutesAndSeconds, getDuration, getDurationString } from "@/lib/utils";
 
 import { Skeleton } from "../ui/skeleton";
 import { NoSpanTooltip } from "./no-span-tooltip";
