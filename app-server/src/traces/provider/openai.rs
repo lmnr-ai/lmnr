@@ -11,17 +11,18 @@ struct OpenAIChatMessageContentPartText {
     text: String,
 }
 
+// pub for langchain
 #[derive(Serialize, Debug)]
-struct OpenAIChatMessageContentPartImageUrlInner {
-    url: String,
+pub struct OpenAIChatMessageContentPartImageUrlInner {
+    pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    detail: Option<String>,
+    pub detail: Option<String>,
 }
 
 // pub for langchain
 #[derive(Serialize, Debug)]
 pub struct OpenAIChatMessageContentPartImageUrl {
-    image_url: OpenAIChatMessageContentPartImageUrlInner,
+    pub image_url: OpenAIChatMessageContentPartImageUrlInner,
 }
 
 #[derive(Serialize, Debug)]

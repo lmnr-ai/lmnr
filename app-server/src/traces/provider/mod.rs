@@ -3,7 +3,10 @@ mod openai;
 
 use serde_json::Value;
 
-use crate::db::spans::{Span, SpanType};
+use crate::{
+    db::spans::{Span, SpanType},
+    traces::provider::langchain::is_langchain_span,
+};
 
 pub fn convert_span_to_provider_format(span: &mut Span) {
     if span.span_type != SpanType::LLM {
@@ -18,6 +21,12 @@ pub fn convert_span_to_provider_format(span: &mut Span) {
     }
     if is_litellm_span(span) {
         openai::convert_span_to_openai(span);
+        return;
+    }
+    if is_langchain_span(span) {
+        // TODO: uncomment this once the frontend is ready to parse
+        // langchain spans
+        // langchain::convert_span_to_langchain(span);
         return;
     }
     match provider_name {
