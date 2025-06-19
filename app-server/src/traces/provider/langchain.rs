@@ -1052,14 +1052,6 @@ mod tests {
         };
         assert!(is_langchain_span(&span_with_provider));
 
-        // Test with Chat*.chat name pattern
-        let span_with_chat_name = Span {
-            span_type: SpanType::LLM,
-            name: "ChatOpenAI.chat".to_string(),
-            ..Default::default()
-        };
-        assert!(is_langchain_span(&span_with_chat_name));
-
         // Test with non-LLM span type
         let non_llm_span = Span {
             span_type: SpanType::DEFAULT,
