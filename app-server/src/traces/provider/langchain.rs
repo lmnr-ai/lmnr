@@ -1,3 +1,18 @@
+//! Convert chat messages to LangChain format.
+//!
+//! We try to be close to the LangChain Python SDK, but slightly more permissive.
+//!
+//! Things we log and silently skip:
+//! - Image raw bytes content part (AI SDK outer span)
+//! - Tool call content part - this is because we parse any openllmetry attributes
+//!   to this format, which is closer to anthropic. LangChain supports these,
+//!   but it *also* supports tool calls besides content (OpenAI format), and that's
+//!   what we collect tool calls to.
+//!
+//! Things we do not allow
+//! - A tool message without a `tool_call_id`
+//! - Tool calls in an assistant message that do not have an `id`
+
 use anyhow::Result;
 use indexmap::IndexMap;
 use serde::Serialize;
@@ -60,6 +75,10 @@ enum LangChainChatMessageContentPart {
     )]
     String,
     Text(LangChainChatMessageContentPartText),
+    #[allow(
+        dead_code,
+        reason = "While LangChain supports OpenAI-style image URLs, we convert to LangChain-style image, source_type=url"
+    )]
     ImageUrl(OpenAIChatMessageContentPartImageUrl),
     Image(LangChainChatMessageContentPartImage),
     File(LangChainChatMessageContentPartFile),
@@ -86,7 +105,9 @@ struct LangChainUserChatMessage {
 struct LangChainChatMessageToolCall {
     id: String,
     name: String,
-    args: IndexMap<String, serde_json::Value>,
+    /// Even though LangChain `ToolCall` takes `args` field,
+    /// when parsing the dicts, it looks for `arguments` field.
+    arguments: IndexMap<String, serde_json::Value>,
     #[serde(rename = "type")]
     block_type: String, // always "tool_call"
 }
@@ -189,7 +210,7 @@ fn convert_system_message(message: ChatMessage) -> Result<LangChainChatMessage> 
 fn convert_tool_message(message: ChatMessage) -> Result<LangChainChatMessage> {
     let tool_call_id = message
         .tool_call_id
-        .ok_or(anyhow::anyhow!("Tool call ID is required"))?;
+        .ok_or(anyhow::anyhow!("Tool call ID is required in tool message"))?;
     Ok(LangChainChatMessage::Tool(LangChainToolChatMessage {
         content: Value::Null,
         tool_call_id,
@@ -256,7 +277,7 @@ fn tool_calls_from_content_parts(
                 let id = tool_call
                     .id
                     .clone()
-                    .ok_or(anyhow::anyhow!("Tool call ID is required"));
+                    .ok_or(anyhow::anyhow!("Tool call ID is required in tool call"));
                 Some(id.map(|id| {
                     let args = match tool_call.arguments.clone() {
                         Some(Value::String(s)) => {
@@ -268,7 +289,7 @@ fn tool_calls_from_content_parts(
                     LangChainChatMessageToolCall {
                         id,
                         name: tool_call.name.clone(),
-                        args,
+                        arguments: args,
                         block_type: "tool_call".to_string(),
                     }
                 }))
@@ -291,12 +312,9 @@ impl TryInto<Option<LangChainChatMessageContentPart>> for ChatMessageContentPart
                 LangChainChatMessageContentPartText { text: text.text },
             ))),
             ChatMessageContentPart::ImageUrl(image_url) => Ok(Some(
-                LangChainChatMessageContentPart::ImageUrl(OpenAIChatMessageContentPartImageUrl {
-                    image_url: OpenAIChatMessageContentPartImageUrlInner {
-                        url: image_url.url,
-                        detail: image_url.detail,
-                    },
-                }),
+                LangChainChatMessageContentPart::Image(LangChainChatMessageContentPartImage::Url(
+                    LangChainChatMessageContentPartImageOrFileUrl { url: image_url.url },
+                )),
             )),
             ChatMessageContentPart::Image(image) => {
                 Ok(Some(LangChainChatMessageContentPart::Image(
@@ -454,12 +472,9 @@ mod tests {
         assert_eq!(content_array[0]["type"], "text");
         assert_eq!(content_array[0]["text"], "What's in this image?");
 
-        assert_eq!(content_array[1]["type"], "image_url");
-        assert_eq!(
-            content_array[1]["image_url"]["url"],
-            "https://example.com/image.jpg"
-        );
-        assert_eq!(content_array[1]["image_url"]["detail"], "high");
+        assert_eq!(content_array[1]["type"], "image");
+        assert_eq!(content_array[1]["url"], "https://example.com/image.jpg");
+        assert_eq!(content_array[1]["source_type"], "url");
     }
 
     #[test]
@@ -477,12 +492,9 @@ mod tests {
         let langchain_message = message_to_langchain_format(message).unwrap();
 
         let content_array = langchain_message["content"].as_array().unwrap();
-        assert_eq!(content_array[0]["type"], "image_url");
-        assert_eq!(
-            content_array[0]["image_url"]["url"],
-            "https://example.com/simple.jpg"
-        );
-        assert!(content_array[0]["image_url"]["detail"].is_null());
+        assert_eq!(content_array[0]["type"], "image");
+        assert_eq!(content_array[0]["url"], "https://example.com/simple.jpg");
+        assert_eq!(content_array[0]["source_type"], "url");
     }
 
     #[test]
@@ -593,7 +605,7 @@ mod tests {
         assert_eq!(tool_calls[0]["name"], "get_weather");
 
         // LangChain uses args as an object, not a JSON string like OpenAI
-        let args = &tool_calls[0]["args"];
+        let args = &tool_calls[0]["arguments"];
         assert_eq!(args["location"], "San Francisco");
         assert_eq!(args["unit"], "celsius");
     }
@@ -628,11 +640,11 @@ mod tests {
 
         assert_eq!(tool_calls[0]["id"], "call_1");
         assert_eq!(tool_calls[0]["name"], "function_1");
-        assert_eq!(tool_calls[0]["args"]["param"], "value1");
+        assert_eq!(tool_calls[0]["arguments"]["param"], "value1");
 
         assert_eq!(tool_calls[1]["id"], "call_2");
         assert_eq!(tool_calls[1]["name"], "function_2");
-        assert_eq!(tool_calls[1]["args"]["param"], "value2");
+        assert_eq!(tool_calls[1]["arguments"]["param"], "value2");
     }
 
     #[test]
@@ -690,7 +702,7 @@ mod tests {
         let langchain_message = message_to_langchain_format(message).unwrap();
 
         let tool_calls = langchain_message["tool_calls"].as_array().unwrap();
-        let args = &tool_calls[0]["args"];
+        let args = &tool_calls[0]["arguments"];
         assert_eq!(*args, complex_args);
     }
 
@@ -712,7 +724,7 @@ mod tests {
         let langchain_message = message_to_langchain_format(message).unwrap();
 
         let tool_calls = langchain_message["tool_calls"].as_array().unwrap();
-        let args = &tool_calls[0]["args"];
+        let args = &tool_calls[0]["arguments"];
         assert_eq!(args["key"], "value");
     }
 
@@ -746,7 +758,9 @@ mod tests {
         let content_array = langchain_message["content"].as_array().unwrap();
         assert_eq!(content_array.len(), 2);
         assert_eq!(content_array[0]["type"], "text");
-        assert_eq!(content_array[1]["type"], "image_url");
+        assert_eq!(content_array[1]["type"], "image");
+        assert_eq!(content_array[1]["source_type"], "url");
+        assert_eq!(content_array[1]["url"], "https://example.com/analyze.jpg");
 
         // Check tool_calls
         let tool_calls = langchain_message["tool_calls"].as_array().unwrap();
@@ -777,11 +791,9 @@ mod tests {
         assert_eq!(content_array.len(), 2);
 
         // First should be image_url type (OpenAI format)
-        assert_eq!(content_array[0]["type"], "image_url");
-        assert_eq!(
-            content_array[0]["image_url"]["url"],
-            "https://example.com/image.jpg"
-        );
+        assert_eq!(content_array[0]["type"], "image");
+        assert_eq!(content_array[0]["url"], "https://example.com/image.jpg");
+        assert_eq!(content_array[0]["source_type"], "url");
 
         // Second should be image type (LangChain format)
         assert_eq!(content_array[1]["type"], "image");
@@ -839,12 +851,9 @@ mod tests {
         let langchain_part = langchain_part.unwrap();
         let serialized = serde_json::to_value(langchain_part).unwrap();
 
-        assert_eq!(serialized["type"], "image_url");
-        assert_eq!(
-            serialized["image_url"]["url"],
-            "https://example.com/test.jpg"
-        );
-        assert_eq!(serialized["image_url"]["detail"], "low");
+        assert_eq!(serialized["type"], "image");
+        assert_eq!(serialized["source_type"], "url");
+        assert_eq!(serialized["url"], "https://example.com/test.jpg");
     }
 
     #[test]
@@ -1036,7 +1045,8 @@ mod tests {
         let input_content = input_array[0]["content"].as_array().unwrap();
         assert_eq!(input_content.len(), 3);
         assert_eq!(input_content[0]["type"], "text");
-        assert_eq!(input_content[1]["type"], "image_url");
+        assert_eq!(input_content[1]["type"], "image");
+        assert_eq!(input_content[1]["source_type"], "url");
         assert_eq!(input_content[2]["type"], "file");
         assert_eq!(input_content[2]["source_type"], "url");
 
@@ -1050,7 +1060,7 @@ mod tests {
         let tool_calls = output_array[0]["tool_calls"].as_array().unwrap();
         assert_eq!(tool_calls.len(), 1);
         assert_eq!(tool_calls[0]["name"], "search");
-        assert_eq!(tool_calls[0]["args"]["query"], "rust programming");
+        assert_eq!(tool_calls[0]["arguments"]["query"], "rust programming");
     }
 
     // Serialization format tests
@@ -1097,10 +1107,10 @@ mod tests {
         assert_eq!(tool_call_obj["type"], "tool_call");
         assert!(tool_call_obj["id"].is_string());
         assert!(tool_call_obj["name"].is_string());
-        assert!(tool_call_obj["args"].is_object());
+        assert!(tool_call_obj["arguments"].is_object());
 
         // Arguments should be object, not string like OpenAI
-        assert_eq!(tool_call_obj["args"]["timezone"], "UTC");
+        assert_eq!(tool_call_obj["arguments"]["timezone"], "UTC");
     }
 
     #[test]
@@ -1455,6 +1465,8 @@ mod tests {
         let content_array = langchain_message["content"].as_array().unwrap();
         assert_eq!(content_array.len(), 2);
         assert_eq!(content_array[0]["type"], "text");
-        assert_eq!(content_array[1]["type"], "image_url");
+        assert_eq!(content_array[1]["type"], "image");
+        assert_eq!(content_array[1]["source_type"], "url");
+        assert_eq!(content_array[1]["url"], "https://example.com/image.jpg");
     }
 }

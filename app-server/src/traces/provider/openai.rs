@@ -1,3 +1,21 @@
+//! Convert chat messages to OpenAI format.
+//!
+//! We try to be close to the OpenAI API, but slightly more permissive.
+//! This conversion is supposed to happen after checking for other indicators
+//! that this is an OpenAI span: not AI SDK, not LangChain, and provider is
+//! OpenAI.
+//!
+//! Things we log and silently skip:
+//! - Document URL content part
+//! - Image raw bytes content part (AI SDK outer span)
+//! - Tool call content part - this is because we parse any openllmetry attributes
+//!   to this format, which is closer to anthropic.
+//!
+//! Things we do not allow
+//! - A tool message without a `tool_call_id`
+//! - System or developer messages with non-text content parts
+//! - Tool calls in an assistant message that do not have an `id`
+
 use crate::{
     db::spans::Span,
     language_model::{ChatMessage, ChatMessageContent, ChatMessageContentPart},
