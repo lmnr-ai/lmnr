@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowRight, CircleCheck, CircleX, X } from "lucide-react";
+import { ArrowRight, Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
@@ -24,9 +24,9 @@ export const columns: ColumnDef<Trace, any>[] = [
     cell: (row) => (
       <div className="flex h-full justify-center items-center w-10">
         {row.getValue() ? (
-          <CircleX className="self-center text-red-500" size={20} />
+          <X className="self-center text-destructive" size={18} />
         ) : (
-          <CircleCheck className="text-green-500/80" size={20} />
+          <Check className="text-success" size={18} />
         )}
       </div>
     ),

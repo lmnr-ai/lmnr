@@ -14,12 +14,10 @@ import {
   IconOpenAI,
 } from "@/components/ui/icons";
 import { EnvVars } from "@/lib/env/utils";
-import {
-  anthropicThinkingModels,
-  googleThinkingModels,
-  openAIThinkingModels,
-  ProviderOptions,
-} from "@/lib/playground/types";
+import { anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
+import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
+import { openAIThinkingModels } from "@/lib/playground/providers/openai";
+import { ProviderOptions } from "@/lib/playground/types";
 import { Span } from "@/lib/traces/types";
 
 export const providerIconMap: Record<Provider, ReactNode> = {
@@ -65,23 +63,26 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
   value: `${P}:${K}`
 ): ProviderOptions => {
   const [provider] = value.split(":") as [P, K];
-  if ([...anthropicThinkingModels, ...googleThinkingModels, ...openAIThinkingModels].includes(value)) {
+  if (
+    [...anthropicThinkingModels, ...googleThinkingModels, ...openAIThinkingModels].find((m) => m === (value as string))
+  ) {
     switch (provider) {
       case "anthropic":
         return {
           anthropic: {
             thinking: {
-              type: "enabled",
+              type: "disabled",
               budgetTokens: 1024,
             },
           },
         };
       case "gemini":
+        const config = googleProviderOptionsSettings[value as (typeof googleThinkingModels)[number]].thinkingConfig;
         return {
           google: {
             thinkingConfig: {
-              includeThoughts: true,
-              thinkingBudget: 1024,
+              includeThoughts: false,
+              thinkingBudget: config?.min,
             },
           },
         };

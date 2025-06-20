@@ -102,11 +102,6 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Claude 3 Haiku",
       },
       {
-        id: "anthropic:claude-3-sonnet-20240229",
-        name: "claude-3-sonnet-20240229",
-        label: "Claude 3 Sonnet",
-      },
-      {
         id: "anthropic:claude-3-opus-20240229",
         name: "claude-3-opus-20240229",
         label: "Claude 3 Opus",
@@ -127,29 +122,14 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Claude 3.7 Sonnet",
       },
       {
-        id: "anthropic:claude-3-7-sonnet-20250219:thinking",
-        name: "claude-3-7-sonnet-20250219",
-        label: "Claude 3.7 Sonnet (Thinking)",
-      },
-      {
         id: "anthropic:claude-sonnet-4-20250514",
         name: "claude-sonnet-4-20250514",
         label: "Claude 4 Sonnet",
       },
       {
-        id: "anthropic:claude-sonnet-4-20250514:thinking",
-        name: "claude-sonnet-4-20250514",
-        label: "Claude 4 Sonnet (Thinking)",
-      },
-      {
         id: "anthropic:claude-opus-4-20250514",
         name: "claude-opus-4-20250514",
         label: "Claude 4 Opus",
-      },
-      {
-        id: "anthropic:claude-opus-4-20250514:thinking",
-        name: "claude-opus-4-20250514",
-        label: "Claude 4 Opus (Thinking)",
       },
     ],
   },
@@ -167,7 +147,7 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Gemini 1.5 Pro",
       },
       {
-        id: "gemini:gemini-2.5-flash-preview-05-20:thinking",
+        id: "gemini:gemini-2.5-flash-preview-05-20",
         name: "gemini-2.5-flash-preview-05-20",
         label: "Gemini 2.5 Flash Preview",
       },
@@ -177,14 +157,19 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Gemini 2.5 Pro Experimental",
       },
       {
-        id: "gemini:gemini-2.5-pro-preview-05-06:thinking",
+        id: "gemini:gemini-2.5-pro-preview-05-06",
         name: "gemini-2.5-pro-preview-05-06",
         label: "Gemini 2.5 Pro Preview (05-06)",
       },
       {
-        id: "gemini:gemini-2.5-pro-preview-06-05:thinking",
+        id: "gemini:gemini-2.5-pro-preview-06-05",
         name: "gemini-2.5-pro-preview-06-05",
         label: "Gemini 2.5 Pro Preview (06-05)",
+      },
+      {
+        id: "gemini:gemini-2.5-pro",
+        name: "gemini-2.5-pro",
+        label: "Gemini 2.5 Pro",
       },
     ],
   },

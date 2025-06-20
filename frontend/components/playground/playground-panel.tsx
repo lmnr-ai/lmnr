@@ -1,9 +1,9 @@
 "use client";
-import { processDataStream, ToolCall, ToolResult } from "ai";
+import { GenerateTextResult, ToolSet } from "ai";
 import { isEmpty } from "lodash";
-import { History, Loader2, PlayIcon } from "lucide-react";
+import { Bolt, ChevronRight, History, Loader, PlayIcon, Square } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useRef } from "react";
 import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
 
@@ -12,17 +12,19 @@ import LlmSelect from "@/components/playground/messages/llm-select";
 import ParamsPopover from "@/components/playground/messages/params-popover";
 import ToolsSheet from "@/components/playground/messages/tools-sheet";
 import PlaygroundHistoryTable from "@/components/playground/playground-history-table";
+import { usePlaygroundOutput } from "@/components/playground/playground-output";
 import ProvidersAlert from "@/components/playground/providers-alert";
 import { Provider } from "@/components/playground/types";
+import Usage from "@/components/playground/usage";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
 import { ProviderApiKey } from "@/lib/settings/types";
-import { cn } from "@/lib/utils";
 
 export default function PlaygroundPanel({
   id,
@@ -35,36 +37,43 @@ export default function PlaygroundPanel({
 }) {
   const params = useParams();
   const { toast } = useToast();
-  const [output, setOutput] = useState<{ text: string; reasoning: string; toolCalls: string[] }>({
-    text: "",
-    reasoning: "",
-    toolCalls: [],
-  });
-  const [usage, setUsage] = useState<{
-    promptTokens: number;
-    completionTokens: number;
-  }>();
-  const [isLoading, setIsLoading] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [refreshHistory, setRefreshHistory] = useState(0);
+  const {
+    setText,
+    setUsage,
+    setToolCalls,
+    reset,
+    setIsLoading,
+    isLoading,
+    text,
+    toolCalls,
+    setReasoning,
+    reasoning,
+    history,
+    setHistory,
+    usage,
+  } = usePlaygroundOutput();
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const appendToolCalls = (value: ToolCall<any, any> | Partial<ToolResult<any, any, any>>) => {
-    setOutput((prev) => ({
-      ...prev,
-      toolCalls: [...prev.toolCalls, JSON.stringify(value)],
-    }));
-  };
+  const abortRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+  }, [setIsLoading]);
 
   const submit: SubmitHandler<PlaygroundForm> = useCallback(
     async (form) => {
       try {
+        reset();
         setIsLoading(true);
-        setUsage(undefined);
-        setOutput({ text: "", reasoning: "", toolCalls: [] });
+
+        abortControllerRef.current = new AbortController();
 
         const response = await fetch(`/api/projects/${params?.projectId}/chat`, {
+          signal: abortControllerRef.current.signal,
           method: "POST",
           body: JSON.stringify({
             projectId: params?.projectId,
@@ -79,50 +88,28 @@ export default function PlaygroundPanel({
           }),
         });
 
-        if (!response.body) {
-          throw new Error("No stream found.");
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Request failed");
         }
 
-        await processDataStream({
-          stream: response.body,
-          onErrorPart: (value) => {
-            toast({ variant: "destructive", title: "Error", description: value });
-          },
-          onTextPart: (value) => {
-            setOutput((prev) => ({
-              ...prev,
-              text: prev.text + value,
-            }));
-          },
-          onFinishMessagePart: (part) => {
-            if (part?.usage) {
-              setUsage(part.usage);
-            }
-          },
-          onReasoningPart: (value) => {
-            setOutput((prev) => ({
-              ...prev,
-              reasoning: prev.reasoning + value,
-            }));
-          },
-          onToolCallPart: appendToolCalls,
-          onToolResultPart: appendToolCalls,
-          onToolCallDeltaPart: appendToolCalls,
-        });
+        const result = (await response.json()) as GenerateTextResult<ToolSet, {}>;
 
-        // Refresh history table if it's open
-        if (showHistory) {
-          setRefreshHistory((prev) => prev + 1);
-        }
+        setText(result.text);
+        setToolCalls(result.toolCalls);
+        setReasoning(result.reasoning);
+
+        setUsage(result.usage);
       } catch (e) {
-        if (e instanceof Error) {
+        if (e instanceof Error && e.name !== "AbortError") {
           toast({ title: "Error", description: e.message, variant: "destructive" });
         }
       } finally {
         setIsLoading(false);
+        abortControllerRef.current = null;
       }
     },
-    [params?.projectId, toast, id, showHistory]
+    [reset, setIsLoading, params?.projectId, id, setText, setToolCalls, setReasoning, setUsage, toast]
   );
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {
@@ -138,16 +125,6 @@ export default function PlaygroundPanel({
       },
     [setValue]
   );
-
-  const structuredOutput = useMemo(() => {
-    const sections = [
-      output.reasoning && `<thinking>\n\n${output.reasoning}\n\n</thinking>`,
-      output.toolCalls?.length > 0 && `<tool_calls>\n\n${output.toolCalls.join("\n\n")}\n\n</tool_calls>`,
-      output.text,
-    ].filter(Boolean);
-
-    return sections.join("\n\n");
-  }, [output]);
 
   if (isEmpty(apiKeys)) {
     return (
@@ -170,52 +147,94 @@ export default function PlaygroundPanel({
         <ParamsPopover />
         <ToolsSheet />
         <Button
-          variant={showHistory ? "outlinePrimary" : "outline"}
+          variant={history ? "outlinePrimary" : "outline"}
           size="sm"
-          onClick={() => setShowHistory(!showHistory)}
+          onClick={() => setHistory(!history)}
           className="h-8 w-fit px-2"
         >
           <History className="w-4 h-4 mr-1" />
           History
         </Button>
-        <Button disabled={isLoading} onClick={handleSubmit(submit)} className="ml-auto h-8 w-fit px-2">
-          {isLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PlayIcon className="w-4 h-4 mr-1" />}
-          <span className="mr-2">Run</span>
-          <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
-        </Button>
+        {isLoading ? (
+          <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto h-8 w-fit px-2">
+            <Square className="w-4 h-4 mr-2" />
+            <span className="mr-2">Stop</span>
+            <Loader className="animate-spin w-4 h-4" />
+          </Button>
+        ) : (
+          <Button onClick={handleSubmit(submit)} className="ml-auto h-8 w-fit px-2">
+            <PlayIcon className="w-4 h-4 mr-2" />
+            <span className="mr-2">Run</span>
+            <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
+          </Button>
+        )}
       </div>
       <ResizablePanelGroup autoSaveId={`playground:${id}`} direction="vertical" className="flex flex-1">
         <ResizablePanel minSize={30} className="flex flex-col pb-4">
           <ResizablePanelGroup autoSaveId={`playground-main:${id}`} direction="horizontal" className="flex flex-1">
-            <ResizablePanel minSize={30} className="flex flex-col flex-1 gap-2">
+            <ResizablePanel minSize={30} className="flex flex-col flex-1">
               <Messages />
             </ResizablePanel>
             <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
-            <ResizablePanel minSize={20} className="flex-1 flex flex-col px-4">
-              <div className="flex flex-1 overflow-hidden">
-                <CodeHighlighter
-                  codeEditorClassName="rounded-b"
-                  className="rounded"
-                  value={structuredOutput}
-                  defaultMode="json"
-                />
-              </div>
-              {!!usage && (
-                <div className={cn("mt-2 flex flex-col gap-1")}>
-                  {!isNaN(usage?.promptTokens) && (
-                    <span className="text-xs text-secondary-foreground">Prompt Tokens: {usage.promptTokens}</span>
-                  )}
-                  {!isNaN(usage?.completionTokens) && (
-                    <span className="text-xs text-secondary-foreground">
-                      Completion Tokens: {usage.completionTokens}
+            <ResizablePanel minSize={20} className="flex-1 flex flex-col gap-2 px-4">
+              {reasoning && (
+                <Collapsible defaultOpen className="group flex overflow-hidden flex-col border rounded divide-y">
+                  <CollapsibleTrigger className="flex items-center">
+                    <span className="font-medium text-sm text-secondary-foreground p-2 rounded-t mr-auto">
+                      Reasoning
                     </span>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="flex flex-1 overflow-hidden max-h-40">
+                    <CodeHighlighter
+                      codeEditorClassName="rounded-b border-none"
+                      className="rounded-b border-none"
+                      value={reasoning}
+                      defaultMode="json"
+                    />
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+              <div className="flex flex-col flex-1 overflow-hidden border rounded divide-y">
+                <span className="font-medium text-sm text-secondary-foreground p-2 rounded-t">Output</span>
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  {!isEmpty(toolCalls) ? (
+                    text && (
+                      <CodeHighlighter
+                        codeEditorClassName="border-b"
+                        className="border-none h-fit border-b"
+                        value={text}
+                        defaultMode="json"
+                      />
+                    )
+                  ) : (
+                    <CodeHighlighter
+                      codeEditorClassName="rounded-b border-none"
+                      className="rounded-b border-none"
+                      value={text}
+                      defaultMode="json"
+                    />
+                  )}
+                  {!isEmpty(toolCalls) && (
+                    <>
+                      <span className="flex items-center font-medium text-sm text-secondary-foreground px-2 py-1.5">
+                        <Bolt size={12} className="min-w-3 mr-2" /> Tool Calls
+                      </span>
+                      <CodeHighlighter
+                        codeEditorClassName="rounded-b"
+                        className="rounded-b border-x-0 border-b-0"
+                        value={JSON.stringify(toolCalls)}
+                        defaultMode="json"
+                      />
+                    </>
                   )}
                 </div>
-              )}
+              </div>
+              <Usage usage={usage} />
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>
-        {showHistory && (
+        {history && (
           <>
             <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
             <ResizablePanel minSize={20} defaultSize={30} className="flex flex-col">
@@ -223,11 +242,7 @@ export default function PlaygroundPanel({
                 <h3 className="text-sm font-medium">Playground runs history</h3>
               </div>
               <div className="flex-1 overflow-auto">
-                <PlaygroundHistoryTable
-                  playgroundId={id}
-                  onTraceSelect={onTraceSelect}
-                  refreshTrigger={refreshHistory}
-                />
+                <PlaygroundHistoryTable playgroundId={id} onTraceSelect={onTraceSelect} />
               </div>
             </ResizablePanel>
           </>

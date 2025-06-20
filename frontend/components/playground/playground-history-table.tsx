@@ -1,8 +1,9 @@
 "use client";
 import { ColumnDef, Row } from "@tanstack/react-table";
-import { ArrowRight, CircleCheck, CircleX } from "lucide-react";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRight, Check, X } from "lucide-react";
+import { useParams } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
+import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
@@ -12,6 +13,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { Trace } from "@/lib/traces/types";
 import { PaginatedResponse } from "@/lib/types";
 
+// ... existing columns definition (unchanged) ...
 const renderCost = (val: any) => {
   if (val == null) {
     return "-";
@@ -25,9 +27,9 @@ const columns: ColumnDef<Trace, any>[] = [
     cell: (row) => (
       <div className="flex h-full justify-center items-center w-10">
         {row.getValue() ? (
-          <CircleX className="self-center text-red-500" size={20} />
+          <X className="self-center text-destructive" size={18} />
         ) : (
-          <CircleCheck className="text-green-500/80" size={20} />
+          <Check className="text-success" size={18} />
         )}
       </div>
     ),
@@ -50,9 +52,7 @@ const columns: ColumnDef<Trace, any>[] = [
     cell: (row) => (
       <div className="cursor-pointer flex gap-2 items-center">
         <div className="flex items-center gap-2">
-          {row.row.original.topSpanName && (
-            <SpanTypeIcon className="z-10" spanType={row.getValue()} />
-          )}
+          {row.row.original.topSpanName && <SpanTypeIcon className="z-10" spanType={row.getValue()} />}
         </div>
         {row.row.original.topSpanName && (
           <div className="flex text-sm text-ellipsis overflow-hidden whitespace-nowrap">
@@ -65,9 +65,7 @@ const columns: ColumnDef<Trace, any>[] = [
   },
   {
     cell: (row) => (
-      <div className="text-ellipsis overflow-hidden whitespace-nowrap max-w-[200px]">
-        {row.getValue()}
-      </div>
+      <div className="text-ellipsis overflow-hidden whitespace-nowrap max-w-[200px]">{row.getValue()}</div>
     ),
     accessorKey: "topSpanInputPreview",
     header: "Input",
@@ -76,9 +74,7 @@ const columns: ColumnDef<Trace, any>[] = [
   },
   {
     cell: (row) => (
-      <div className="text-ellipsis overflow-hidden whitespace-nowrap max-w-[200px]">
-        {row.getValue()}
-      </div>
+      <div className="text-ellipsis overflow-hidden whitespace-nowrap max-w-[200px]">{row.getValue()}</div>
     ),
     accessorKey: "topSpanOutputPreview",
     header: "Output",
@@ -133,79 +129,67 @@ interface PlaygroundHistoryTableProps {
   playgroundId: string;
   onRowClick?: (trace: Trace) => void;
   onTraceSelect?: (traceId: string) => void;
-  refreshTrigger?: number;
 }
+
+const fetchTraces = async (url: string): Promise<PaginatedResponse<Trace>> => {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
+  }
+
+  return res.json();
+};
 
 export default function PlaygroundHistoryTable({
   playgroundId,
   onRowClick,
   onTraceSelect,
-  refreshTrigger
 }: PlaygroundHistoryTableProps) {
   const { projectId } = useParams();
   const { toast } = useToast();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
 
-  const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
-  const [totalCount, setTotalCount] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(0);
   const [pageSize, setPageSize] = useState(25);
 
-  const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
+  const swrKey = useMemo(() => {
+    if (!projectId || !playgroundId) return null;
 
-  const getTraces = useCallback(async () => {
-    try {
-      setTraces(undefined);
-      const urlParams = new URLSearchParams();
-      urlParams.set("pageNumber", pageNumber.toString());
-      urlParams.set("pageSize", pageSize.toString());
-      urlParams.set("pastHours", "168"); // Last week
-      urlParams.set("traceType", "PLAYGROUND"); // Playground traces use DEFAULT trace type
+    const urlParams = new URLSearchParams();
+    urlParams.set("pageNumber", pageNumber.toString());
+    urlParams.set("pageSize", pageSize.toString());
+    urlParams.set("pastHours", "168");
+    urlParams.set("traceType", "PLAYGROUND");
 
-      // Filter by playground metadata using the correct format for JSON data type
-      urlParams.append("filter", JSON.stringify({
+    urlParams.append(
+      "filter",
+      JSON.stringify({
         column: "metadata",
         operator: "eq",
-        value: `playgroundId=${playgroundId}`
-      }));
+        value: `playgroundId=${playgroundId}`,
+      })
+    );
 
-      const url = `/api/projects/${projectId}/traces?${urlParams.toString()}`;
+    return `/api/projects/${projectId}/traces?${urlParams.toString()}`;
+  }, [projectId, playgroundId, pageNumber, pageSize]);
 
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
-      }
-
-      const data = (await res.json()) as PaginatedResponse<Trace>;
-      setTraces(data.items);
-      setTotalCount(data.totalCount);
-    } catch (error) {
+  const { data } = useSWR(swrKey, fetchTraces, {
+    onError: (_) => {
       toast({
         title: "Failed to load playground history. Please try again.",
         variant: "destructive",
       });
-      setTraces([]);
-      setTotalCount(0);
-    }
-  }, [pageNumber, pageSize, playgroundId, projectId, toast]);
+    },
+  });
 
-  useEffect(() => {
-    getTraces();
-  }, [getTraces]);
-
-  useEffect(() => {
-    if (refreshTrigger && refreshTrigger > 0) {
-      getTraces();
-    }
-  }, [refreshTrigger, getTraces]);
+  const traces = data?.items;
+  const totalCount = data?.totalCount ?? 0;
+  const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
 
   const handleRowClick = useCallback(
     (row: Row<Trace>) => {
@@ -215,13 +199,10 @@ export default function PlaygroundHistoryTable({
     [onRowClick, onTraceSelect]
   );
 
-  const onPageChange = useCallback(
-    (newPageNumber: number, newPageSize: number) => {
-      setPageNumber(newPageNumber);
-      setPageSize(newPageSize);
-    },
-    []
-  );
+  const onPageChange = useCallback((newPageNumber: number, newPageSize: number) => {
+    setPageNumber(newPageNumber);
+    setPageSize(newPageSize);
+  }, []);
 
   return (
     <DataTable

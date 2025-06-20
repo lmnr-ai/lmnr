@@ -117,10 +117,8 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4">
-            <div className="font-medium text-sm text-secondary-foreground p-2 border-b">
-              {message.role.toUpperCase()}
-            </div>
+          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
+            <div className="font-medium text-sm text-secondary-foreground p-2">{message.role.toUpperCase()}</div>
             <OpenAIContentParts presetKey={presetKey} message={message} />
           </div>
         );
@@ -129,11 +127,9 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4">
+          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
             {message?.role && (
-              <div className="font-medium text-sm text-secondary-foreground p-2 border-b">
-                {message.role.toUpperCase()}
-              </div>
+              <div className="font-medium text-sm text-secondary-foreground p-2">{message.role.toUpperCase()}</div>
             )}
             <ContentParts presetKey={presetKey} content={message.content} />
           </div>

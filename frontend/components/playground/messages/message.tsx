@@ -1,8 +1,8 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ImagePart, TextPart, ToolCallPart } from "ai";
 import { capitalize } from "lodash";
-import { Bolt, ChevronDown, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
-import { useState } from "react";
+import { Bolt, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
+import React from "react";
 import { Controller, ControllerRenderProps, useFieldArray, UseFieldArrayReturn, useFormContext } from "react-hook-form";
 
 import MessageParts from "@/components/playground/messages/message-parts";
@@ -11,7 +11,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlaygroundForm } from "@/lib/playground/types";
-import { cn } from "@/lib/utils";
 
 interface MessageProps {
   insert: UseFieldArrayReturn<PlaygroundForm, "messages">["insert"];
@@ -51,7 +50,6 @@ const defaultToolCallPart: ToolCallPart = {
 const buttonClassName =
   "size-fit p-[5px] bg-muted/50 transition-opacity duration-200 opacity-0 group-hover:opacity-100";
 const Message = ({ insert, remove, update, index, deletable = true }: MessageProps) => {
-  const [open, setOpen] = useState(true);
   const { control, watch } = useFormContext<PlaygroundForm>();
 
   const {
@@ -73,8 +71,8 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
     };
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="px-2 py-3 rounded-md border-[1px] bg-muted/50 group">
-      <div className={cn("flex items-center gap-1", { "mb-2": open })}>
+    <Collapsible defaultOpen className="px-2 py-3 rounded-md border-[1px] bg-muted/50 group">
+      <div className="flex items-center gap-1 group-data-[state=open]:mb-2">
         <Controller
           render={({ field: { value, onChange } }) => (
             <Select value={value} onValueChange={handleUpdateRole(onChange)}>
@@ -173,7 +171,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
         )}
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="icon" className="w-6 h-6 ml-auto">
-            {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
           </Button>
         </CollapsibleTrigger>
       </div>

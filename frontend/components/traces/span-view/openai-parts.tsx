@@ -1,7 +1,9 @@
+import { Bolt } from "lucide-react";
 import React, { memo } from "react";
 import { z } from "zod";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
+import { Badge } from "@/components/ui/badge";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
@@ -55,19 +57,9 @@ const PureTextContentPart = ({
   presetKey?: string;
 }) => {
   if (typeof part === "string") {
-    return (
-      <CodeHighlighter readOnly collapsible value={part} presetKey={presetKey} className="max-h-[400px] border-none" />
-    );
+    return <CodeHighlighter readOnly value={part} presetKey={presetKey} className="max-h-[400px] border-0" />;
   }
-  return (
-    <CodeHighlighter
-      readOnly
-      collapsible
-      value={part.text}
-      presetKey={presetKey}
-      className="max-h-[400px] border-none"
-    />
-  );
+  return <CodeHighlighter readOnly value={part.text} presetKey={presetKey} className="max-h-[400px] border-0" />;
 };
 
 const PureToolCallContentPart = ({
@@ -77,13 +69,19 @@ const PureToolCallContentPart = ({
   part: z.infer<typeof OpenAIToolCallPartSchema>;
   presetKey?: string;
 }) => (
-  <CodeHighlighter
-    readOnly
-    collapsible
-    value={JSON.stringify(part, null, 2)}
-    presetKey={presetKey}
-    className="max-h-[400px] border-none"
-  />
+  <div className="flex flex-col gap-2 p-2 bg-background">
+    <span className="flex items-center text-xs">
+      <Bolt size={12} className="min-w-3 mr-2" />
+      {part.function.name}
+    </span>
+    <CodeHighlighter
+      readOnly
+      codeEditorClassName="rounded"
+      value={JSON.stringify(part, null, 2)}
+      presetKey={presetKey}
+      className="max-h-[400px] border-0"
+    />
+  </div>
 );
 
 const ImageContentPart = memo(PureImageContentPart);
@@ -139,11 +137,23 @@ const PureOpenAIContentParts = ({
       });
     case "tool":
       if (typeof message.content === "string") {
-        return <TextContentPart part={message.content} presetKey={presetKey} />;
+        return (
+          <div className="flex flex-col">
+            <Badge className="w-fit m-1 font-medium" variant="secondary">
+              ID: {message.tool_call_id}
+            </Badge>
+            <TextContentPart part={message.content} presetKey={presetKey} />
+          </div>
+        );
       }
 
       return message.content.map((part, index) => (
-        <TextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+        <div key={`${part.type}-${message.tool_call_id}`} className="flex flex-col">
+          <Badge className="w-fit m-1 font-medium" variant="secondary">
+            ID: {message.tool_call_id}
+          </Badge>
+          <TextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+        </div>
       ));
 
     default:
