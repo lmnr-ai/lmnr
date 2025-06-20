@@ -123,17 +123,17 @@ export const parseToolsFromSpan = (
 ) =>
   tools
     ? JSON.stringify(
-        tools.reduce(
-          (acc, tool) => ({
-            ...acc,
-            [tool.name]: {
-              description: tool.description || "",
-              parameters: tool.parameters,
-            },
-          }),
-          {}
-        )
+      tools.reduce(
+        (acc, tool) => ({
+          ...acc,
+          [tool.name]: {
+            description: tool.description || "",
+            parameters: tool.parameters,
+          },
+        }),
+        {}
       )
+    )
     : undefined;
 
 export const parseToolChoiceFromSpan = (toolChoice?: string) => {
@@ -195,17 +195,17 @@ export const parseToolsFromLLMRequest = (span: Span) => {
   // If we found any functions, format them the same way as parseToolsFromSpan
   return functions.length > 0
     ? JSON.stringify(
-        functions.reduce(
-          (acc, tool) => ({
-            ...acc,
-            [tool.name]: {
-              description: tool.description || "",
-              parameters: tool.parameters,
-            },
-          }),
-          {}
-        )
+      functions.reduce(
+        (acc, tool) => ({
+          ...acc,
+          [tool.name]: {
+            description: tool.description || "",
+            parameters: tool.parameters,
+          },
+        }),
+        {}
       )
+    )
     : undefined;
 };
 
