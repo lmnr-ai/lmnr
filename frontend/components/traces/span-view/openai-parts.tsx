@@ -98,57 +98,66 @@ const PureOpenAIContentParts = ({
   message: z.infer<typeof OpenAIMessageSchema>;
   presetKey?: string;
 }) => {
-  switch (message.role) {
-    case "system":
-      return typeof message.content === "string" ? (
-        <TextContentPart part={message.content} presetKey={presetKey} />
-      ) : (
-        (message.content || []).map((part, index) => (
-          <TextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
-        ))
-      );
-    case "assistant":
-      return (
-        <>
-          {typeof message.content === "string" ? (
-            <TextContentPart part={message.content} presetKey={presetKey} />
-          ) : (
-            (message.content || []).map((part, index) => (
-              <TextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
-            ))
-          )}
-          {(message?.tool_calls || []).map((part) => (
-            <ToolCallContentPart key={part.id} part={part} presetKey={presetKey} />
-          ))}
-        </>
-      );
-    case "user":
-      if (typeof message.content === "string") {
-        return <TextContentPart part={message.content} presetKey={presetKey} />;
-      }
-
-      return message.content.map((part, index) => {
-        switch (part.type) {
-          case "text":
-            return <TextContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
-          case "file":
-            return <FileContentPart key={`${part.type}-${index}`} part={part} />;
-          case "image_url":
-            return <ImageContentPart key={`${part.type}-${index}`} part={part} />;
+  const getParts = () => {
+    switch (message.role) {
+      case "system":
+        return typeof message.content === "string" ? (
+          <TextContentPart part={message.content} presetKey={presetKey} />
+        ) : (
+          (message.content || []).map((part, index) => (
+            <TextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+          ))
+        );
+      case "assistant":
+        return (
+          <>
+            {typeof message.content === "string" ? (
+              <TextContentPart part={message.content} presetKey={presetKey} />
+            ) : (
+              (message.content || []).map((part, index) => (
+                <TextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+              ))
+            )}
+            {(message?.tool_calls || []).map((part) => (
+              <ToolCallContentPart key={part.id} part={part} presetKey={presetKey} />
+            ))}
+          </>
+        );
+      case "user":
+        if (typeof message.content === "string") {
+          return <TextContentPart part={message.content} presetKey={presetKey} />;
         }
-      });
-    case "tool":
-      if (typeof message.content === "string") {
-        return <TextContentPart part={message.content} presetKey={presetKey} />;
-      }
 
-      return message.content.map((part, index) => (
-        <TextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
-      ));
+        return message.content.map((part, index) => {
+          switch (part.type) {
+            case "text":
+              return <TextContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
+            case "file":
+              return <FileContentPart key={`${part.type}-${index}`} part={part} />;
+            case "image_url":
+              return <ImageContentPart key={`${part.type}-${index}`} part={part} />;
+          }
+        });
+      case "tool":
+        if (typeof message.content === "string") {
+          return <TextContentPart part={message.content} presetKey={presetKey} />;
+        }
 
-    default:
-      return null;
-  }
+        return message.content.map((part, index) => (
+          <TextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+        ));
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      <div className="font-medium text-sm text-secondary-foreground p-2 border-b">{message.role.toUpperCase()}</div>
+      {getParts()}
+    </>
+  );
 };
 
 const OpenAIContentParts = memo(PureOpenAIContentParts);

@@ -66,27 +66,44 @@ const TextContentPart = memo(PureTextContentPart);
 const ToolCallContentPart = memo(PureToolCallContentPart);
 const ToolResultContentPart = memo(PureToolResultContentPart);
 
-const PureContentParts = ({ content, presetKey }: { content: CoreMessage["content"]; presetKey?: string }) => {
-  if (typeof content === "string") {
-    return <TextContentPart presetKey={presetKey} part={{ type: "text", text: content }} />;
-  }
-
-  return content.map((part, index) => {
-    switch (part.type) {
-      case "image":
-        return <ImageContentPart key={`${part.type}-${index}`} part={part} />;
-      case "text":
-        return <TextContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
-      case "tool-call":
-        return <ToolCallContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
-      case "tool-result":
-        return <ToolResultContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
-      case "file":
-        return <FileContentPart key={`${part.type}-${index}`} part={part} />;
-      default:
-        return;
+const PureContentParts = ({
+  message,
+  presetKey,
+}: {
+  message: Omit<CoreMessage, "role"> & { role?: CoreMessage["role"] };
+  presetKey?: string;
+}) => {
+  const getParts = () => {
+    if (typeof message.content === "string") {
+      return <TextContentPart presetKey={presetKey} part={{ type: "text", text: message.content }} />;
     }
-  });
+
+    return message.content.map((part, index) => {
+      switch (part.type) {
+        case "image":
+          return <ImageContentPart key={`${part.type}-${index}`} part={part} />;
+        case "text":
+          return <TextContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
+        case "tool-call":
+          return <ToolCallContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
+        case "tool-result":
+          return <ToolResultContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
+        case "file":
+          return <FileContentPart key={`${part.type}-${index}`} part={part} />;
+        default:
+          return;
+      }
+    });
+  };
+
+  return (
+    <>
+      {message?.role && (
+        <div className="font-medium text-sm text-secondary-foreground p-2 border-b">{message.role.toUpperCase()}</div>
+      )}
+      {getParts()}
+    </>
+  );
 };
 
 export default memo(PureContentParts);
