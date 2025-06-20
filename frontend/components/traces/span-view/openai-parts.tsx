@@ -57,9 +57,9 @@ const PureTextContentPart = ({
   presetKey?: string;
 }) => {
   if (typeof part === "string") {
-    return <CodeHighlighter readOnly value={part} presetKey={presetKey} className="max-h-[400px] border-none" />;
+    return <CodeHighlighter readOnly value={part} presetKey={presetKey} className="max-h-[400px] border-0" />;
   }
-  return <CodeHighlighter readOnly value={part.text} presetKey={presetKey} className="max-h-[400px] border-none" />;
+  return <CodeHighlighter readOnly value={part.text} presetKey={presetKey} className="max-h-[400px] border-0" />;
 };
 
 const PureToolCallContentPart = ({
@@ -79,7 +79,7 @@ const PureToolCallContentPart = ({
       codeEditorClassName="rounded"
       value={JSON.stringify(part, null, 2)}
       presetKey={presetKey}
-      className="max-h-[400px] border-none"
+      className="max-h-[400px] border-0"
     />
   </div>
 );
@@ -139,7 +139,9 @@ const PureOpenAIContentParts = ({
       if (typeof message.content === "string") {
         return (
           <div className="flex flex-col">
-            {message.tool_call_id}
+            <Badge className="w-fit m-1 font-medium" variant="secondary">
+              ID: {message.tool_call_id}
+            </Badge>
             <TextContentPart part={message.content} presetKey={presetKey} />
           </div>
         );

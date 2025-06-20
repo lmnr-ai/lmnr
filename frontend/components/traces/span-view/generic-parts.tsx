@@ -39,7 +39,7 @@ const PureFileContentPart = ({ part }: { part: FilePart }) => {
 };
 
 const PureTextContentPart = ({ part, presetKey }: { part: TextPart; presetKey?: string }) => (
-  <CodeHighlighter readOnly value={part.text} presetKey={presetKey} className="max-h-[400px] border-none" />
+  <CodeHighlighter readOnly value={part.text} presetKey={presetKey} className="max-h-[400px] border-0" />
 );
 
 const PureToolCallContentPart = ({ part, presetKey }: { part: ToolCallPart; presetKey?: string }) => (
@@ -52,7 +52,7 @@ const PureToolCallContentPart = ({ part, presetKey }: { part: ToolCallPart; pres
       codeEditorClassName="rounded"
       value={JSON.stringify(omit(part, "type"), null, 2)}
       presetKey={presetKey}
-      className="max-h-[400px] border-none"
+      className="max-h-[400px] border-0"
     />
   </div>
 );
@@ -66,7 +66,7 @@ const PureToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; 
       readOnly
       value={JSON.stringify(omit(part, "type"), null, 2)}
       presetKey={presetKey}
-      className="max-h-[400px] border-none"
+      className="max-h-[400px] border-0"
     />
   </div>
 );
