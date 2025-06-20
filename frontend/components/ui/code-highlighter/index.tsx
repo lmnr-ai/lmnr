@@ -73,6 +73,9 @@ const PureCodeHighlighter = ({
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
@@ -147,26 +150,35 @@ const PureCodeHighlighter = ({
   }, [mode, lineWrapping, renderedValue.length, shouldRenderImages, hasImages, imageMap]);
 
   return (
-    <div className={cn("w-full h-full flex flex-col border", className)}>
+    <div
+      className={cn("w-full h-full flex flex-col border relative", className)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Config div - shown on hover, positioned above CodeMirror */}
       <div
-        className={cn("bg-background h-8 flex items-center pl-2 pr-1 w-full rounded-t", {
-          "border-b": !isCollapsed,
-        })}
+        className={cn(
+          "absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black via-black/60 to-transparent h-8 flex justify-end items-center pl-2 pr-1 w-full rounded-t transition-opacity duration-200",
+          {
+            "opacity-100": isHovered || isDropdownOpen || isSelectOpen,
+            "opacity-0 pointer-events-none": !isHovered && !isDropdownOpen && !isSelectOpen,
+          }
+        )}
       >
-        <Select value={mode} onValueChange={handleModeChange}>
-          <SelectTrigger className="h-5 [&>span]:mt-0.5 py-1 font-medium text-secondary-foreground w-fit bg-secondary text-xs border-gray-600">
+        <Select value={mode} onValueChange={handleModeChange} onOpenChange={setIsSelectOpen}>
+          <SelectTrigger className="h-4 px-1.5 [&>svg]:opacity-100 font-medium text-secondary-foreground border-secondary-foreground/60 w-fit text-[0.7rem] bg-black/50 outline-none focus:ring-0">
             <SelectValue className="w-fit" placeholder="Select mode" />
           </SelectTrigger>
           <SelectContent>
             {modes.map((mode) => (
-              <SelectItem key={mode} value={mode.toLowerCase()}>
+              <SelectItem key={mode} value={mode.toLowerCase()} className="text-xs">
                 {mode}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        {collapsible && (
+        {/* {collapsible && (
           <Button
             variant="ghost"
             className="flex items-center gap-1 text-secondary-foreground"
@@ -184,7 +196,7 @@ const PureCodeHighlighter = ({
               </>
             )}
           </Button>
-        )}
+        )} */}
         <CopyButton
           className="h-7 w-7 ml-auto"
           iconClassName="h-3.5 w-3.5"
@@ -200,7 +212,7 @@ const PureCodeHighlighter = ({
           placeholder={placeholder}
         />
         {/* Settings dropdown with image rendering toggle */}
-        <DropdownMenu>
+        <DropdownMenu onOpenChange={setIsDropdownOpen}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-6 w-6 text-secondary-foreground">
               <Settings size={16} />
@@ -215,9 +227,11 @@ const PureCodeHighlighter = ({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* CodeMirror container */}
       <div
         className={cn(
-          "flex-grow flex bg-muted/50 overflow-auto w-full h-fit",
+          "flex-grow flex bg-muted/50 overflow-auto w-full h-full",
           { "h-0": isCollapsed },
           codeEditorClassName
         )}
