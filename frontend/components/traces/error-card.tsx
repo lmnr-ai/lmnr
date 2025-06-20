@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight, CircleAlert } from "lucide-react";
-import { memo, useState } from "react";
+import { ChevronRight, CircleAlert } from "lucide-react";
+import React, { memo, useState } from "react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,7 +19,7 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
   const traceLines = errorTrace?.split("\n").filter((line) => line.trim()) || [];
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+    <Collapsible className="group" open={isOpen} onOpenChange={setIsOpen}>
       <ScrollArea className="bg-card rounded-md border">
         <div className="text-destructive max-h-48">
           <CollapsibleTrigger className="flex items-start gap-2 w-full p-2 text-left rounded-md">
@@ -33,9 +33,7 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
                   </p>
                 )}
               </div>
-              <div className="self-start mt-2.5 text-muted-foreground ml-2">
-                {isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-              </div>
+              <ChevronRight className="w-3 h-3 text-muted-foreground group-data-[state=open]:rotate-90 transition-transform duration-200" />
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent className="px-2 pb-2 ml-6">
