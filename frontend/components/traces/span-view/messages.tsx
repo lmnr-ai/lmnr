@@ -99,7 +99,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 
 type MessageRendererProps =
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
-  | { type: "generic"; messages: CoreMessage[] };
+  | { type: "generic"; messages: (Omit<CoreMessage, "role"> & { role?: CoreMessage["role"] })[] };
 
 const MessagesRenderer = ({
   messages,

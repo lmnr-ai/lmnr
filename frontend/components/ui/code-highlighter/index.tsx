@@ -38,7 +38,6 @@ interface CodeEditorProps {
   showSettingsOnHover?: boolean;
 }
 
-// Restore original value from placeholder text when user edits content
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
   let restoredText = newText;
 
@@ -68,7 +67,6 @@ const PureCodeHighlighter = ({
   showSettingsOnHover = true,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const [isHovered, setIsHovered] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [mode, setMode] = useState(() => {
@@ -99,7 +97,6 @@ const PureCodeHighlighter = ({
     [presetKey]
   );
 
-  // Toggle base64 image rendering
   const toggleImageRendering = useCallback(() => {
     setShouldRenderImages((prev) => !prev);
   }, []);
@@ -109,13 +106,11 @@ const PureCodeHighlighter = ({
     setShowLineNumbers((prev) => !prev);
   }, []);
 
-  // Handle changes, restoring original base64 values if needed
   const handleChange = useCallback(
     (editedText: string, viewUpdate: any) => {
       if (!onChange) return;
 
       if (shouldRenderImages && hasImages) {
-        // Restore original base64 strings from placeholders
         const restoredText = restoreOriginalFromPlaceholders(editedText, imageMap);
         onChange(restoredText, viewUpdate);
       } else {
@@ -137,7 +132,6 @@ const PureCodeHighlighter = ({
       extensions.push(languageExtension());
     }
 
-    // Add base64 image rendering plugin if enabled and images were found
     if (shouldRenderImages && hasImages) {
       extensions.push(createImageDecorationPlugin(imageMap));
     }
@@ -145,7 +139,6 @@ const PureCodeHighlighter = ({
     return extensions;
   }, [mode, lineWrapping, renderedValue.length, shouldRenderImages, hasImages, imageMap]);
 
-  // Header content component to avoid duplication
   const renderHeaderContent = () => (
     <>
       <Select value={mode} onValueChange={handleModeChange} onOpenChange={setIsSelectOpen}>
@@ -168,7 +161,6 @@ const PureCodeHighlighter = ({
         extensions={extensions}
         placeholder={placeholder}
       />
-      {/* Settings dropdown */}
       <Popover onOpenChange={setIsDropdownOpen}>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="icon" className="h-6 w-6 text-secondary-foreground">
@@ -190,32 +182,20 @@ const PureCodeHighlighter = ({
   );
 
   return (
-    <div
-      className={cn("w-full min-h-[1.8rem] h-full flex flex-col border relative", className)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Config div - always visible when showSettingsOnHover is false */}
-      {!showSettingsOnHover && (
-        <div className="bg-gradient-to-b from-black via-black/60 to-transparent h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t">
-          {renderHeaderContent()}
-        </div>
-      )}
-
-      {/* Config div - shown on hover when showSettingsOnHover is true */}
-      {showSettingsOnHover && (
-        <div
-          className={cn(
-            "absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black via-black/60 to-transparent h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t transition-opacity duration-200",
+    <div className={cn("w-full min-h-[1.8rem] h-full flex flex-col border relative group", className)}>
+      <div
+        className={cn(
+          "bg-gradient-to-b from-black via-black/60 to-transparent h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t",
+          showSettingsOnHover && [
+            "absolute top-0 left-0 right-0 z-10 transition-opacity duration-200 opacity-0 group-hover:opacity-100",
             {
-              "opacity-100": isHovered || isDropdownOpen || isSelectOpen,
-              "opacity-0 pointer-events-none": !isHovered && !isDropdownOpen && !isSelectOpen,
-            }
-          )}
-        >
-          {renderHeaderContent()}
-        </div>
-      )}
+              "opacity-100": isDropdownOpen || isSelectOpen,
+            },
+          ]
+        )}
+      >
+        {renderHeaderContent()}
+      </div>
 
       <div
         className={cn(
