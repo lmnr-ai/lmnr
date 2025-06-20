@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { Resizable } from "re-resizable";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import TraceViewNavigationProvider, { getTraceConfig } from "@/components/traces/trace-view/navigation-context";
 import { filterColumns } from "@/components/traces/trace-view/utils";
@@ -50,13 +50,19 @@ export default function Traces() {
   const [traceId, setTraceId] = useState<string | null>(searchParams.get("traceId") ?? null);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(traceId != null);
 
-  const traceViewWidth = useMemo(() => {
-    if (typeof window !== "undefined") {
-      const viewportWidth = window.innerWidth;
-      const seventyFivePercent = viewportWidth * 0.75;
-      return Math.min(seventyFivePercent, 1100);
-    }
-    return 1000;
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(1000);
+
+  useEffect(() => {
+    const calculateWidth = () => {
+      if (typeof window !== "undefined") {
+        const viewportWidth = window.innerWidth;
+        const seventyFivePercent = viewportWidth * 0.75;
+        return Math.min(seventyFivePercent, 1100);
+      }
+      return 1000;
+    };
+
+    setDefaultTraceViewWidth(calculateWidth());
   }, []);
 
   useEffect(() => {
@@ -93,7 +99,7 @@ export default function Traces() {
                 left: true,
               }}
               defaultSize={{
-                width: traceViewWidth,
+                width: defaultTraceViewWidth,
               }}
             >
               <FiltersContextProvider columns={filterColumns}>
