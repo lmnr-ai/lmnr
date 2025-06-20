@@ -1,8 +1,7 @@
-import { EditorView, lineNumbers } from "@codemirror/view";
-import { Compartment } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { ChevronDown, ChevronUp, Settings } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Settings } from "lucide-react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/code-highlighter/code-sheet";
@@ -18,12 +17,10 @@ import {
 } from "@/components/ui/code-highlighter/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -42,6 +39,7 @@ interface CodeEditorProps {
   collapsible?: boolean;
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
+  defaultShowLineNumbers?: boolean;
 }
 
 // Restore original value from placeholder text when user edits content
@@ -71,9 +69,9 @@ const PureCodeHighlighter = ({
   onLoad,
   codeEditorClassName,
   renderBase64Images = true,
+  defaultShowLineNumbers = false,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const lineNumbersCompartment = useRef(new Compartment());
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -90,7 +88,7 @@ const PureCodeHighlighter = ({
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
   // State for showing line numbers
-  const [showLineNumbers, setShowLineNumbers] = useState(true);
+  const [showLineNumbers, setShowLineNumbers] = useState(defaultShowLineNumbers);
 
   // Process the value using the enhanced renderText function
   const {
@@ -123,17 +121,6 @@ const PureCodeHighlighter = ({
     setShowLineNumbers((prev) => !prev);
   }, []);
 
-  // Update line numbers when showLineNumbers changes
-  useEffect(() => {
-    if (editorRef.current?.view) {
-      editorRef.current.view.dispatch({
-        effects: lineNumbersCompartment.current.reconfigure(
-          showLineNumbers ? lineNumbers() : []
-        ),
-      });
-    }
-  }, [showLineNumbers]);
-
   // Handle changes, restoring original base64 values if needed
   const handleChange = useCallback(
     (editedText: string, viewUpdate: any) => {
@@ -152,11 +139,6 @@ const PureCodeHighlighter = ({
 
   const extensions = useMemo(() => {
     const extensions = [...baseExtensions];
-
-    // Add line numbers compartment (initialize with default state - line numbers enabled)
-    extensions.push(
-      lineNumbersCompartment.current.of(lineNumbers())
-    );
 
     if (lineWrapping && renderedValue.length < MAX_LINE_WRAPPING_LENGTH) {
       extensions.push(EditorView.lineWrapping);
@@ -217,26 +199,24 @@ const PureCodeHighlighter = ({
           extensions={extensions}
           placeholder={placeholder}
         />
-        {/* Settings dropdown with image rendering toggle */}
-        <DropdownMenu onOpenChange={setIsDropdownOpen}>
-          <DropdownMenuTrigger asChild>
+        {/* Settings dropdown */}
+        <Popover onOpenChange={setIsDropdownOpen}>
+          <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="h-6 w-6 text-secondary-foreground">
               <Settings size={16} />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="flex items-center justify-between cursor-default">
-              <span>Show line numbers</span>
-              <Switch checked={showLineNumbers} onCheckedChange={toggleLineNumbers} className="ml-2" />
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="flex items-center justify-between cursor-default">
-              <span>Render base64 images</span>
-              <Switch checked={shouldRenderImages} onCheckedChange={toggleImageRendering} className="ml-2" />
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="p-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Show line numbers</span>
+              <Switch checked={showLineNumbers} onCheckedChange={toggleLineNumbers} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Render base64 images</span>
+              <Switch checked={shouldRenderImages} onCheckedChange={toggleImageRendering} />
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* CodeMirror container */}
@@ -244,6 +224,7 @@ const PureCodeHighlighter = ({
         className={cn(
           "flex-grow flex bg-muted/50 overflow-auto w-full h-full",
           { "h-0": isCollapsed },
+          !showLineNumbers && "pl-1",
           codeEditorClassName
         )}
       >
@@ -253,6 +234,10 @@ const PureCodeHighlighter = ({
           placeholder={placeholder}
           onChange={handleChange}
           theme={theme}
+          basicSetup={{
+            lineNumbers: showLineNumbers,
+            foldGutter: showLineNumbers,
+          }}
           extensions={extensions}
           value={renderedValue}
           readOnly={readOnly}

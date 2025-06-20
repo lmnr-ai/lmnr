@@ -48,12 +48,12 @@ export const baseExtensions = [
       left: 0,
       overflow: "auto",
     },
-    ".cm-gutters": {
-      fontSize: "0.7rem !important",
-    },
-    ".cm-lineNumbers .cm-gutterElement": {
-      fontSize: "0.7rem !important",
-    },
+    // ".cm-gutters": {
+    //   fontSize: "0.7rem !important",
+    // },
+    // ".cm-lineNumbers .cm-gutterElement": {
+    //   fontSize: "0.7rem !important",
+    // },
   }),
 ];
 
