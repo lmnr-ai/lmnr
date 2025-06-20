@@ -67,7 +67,7 @@ export const LangChainContentPartSchema = z.union([
 /** Tool Call Block **/
 export const LangChainToolCallPartSchema = z.object({
   name: z.string(),
-  args: z.record(z.string(), z.any()),
+  arguments: z.record(z.string(), z.any()),
   id: z.string().optional(),
   type: z.literal("tool_call").optional(),
 });
@@ -235,7 +235,7 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
                 type: "tool-call" as const,
                 toolCallId: id,
                 toolName: toolCall.name,
-                args: JSON.stringify(toolCall.args),
+                args: JSON.stringify(toolCall.arguments),
               };
             }),
           ],

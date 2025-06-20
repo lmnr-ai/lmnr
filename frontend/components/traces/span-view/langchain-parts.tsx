@@ -1,3 +1,4 @@
+import { Bolt } from "lucide-react";
 import React, { memo } from "react";
 import { z } from "zod";
 
@@ -34,7 +35,6 @@ const PureLangChainContentParts = ({
             <LangChainContentPart part={message.content} presetKey={presetKey} />
             <CodeHighlighter
               readOnly
-              collapsible
               value={JSON.stringify({ tool_call_id: message.tool_call_id })}
               presetKey={presetKey}
               className="max-h-[400px] border-none"
@@ -47,7 +47,12 @@ const PureLangChainContentParts = ({
           <>
             <LangChainContentPart part={message.content} presetKey={presetKey} />
             {(message?.tool_calls || []).map((part, index) => (
-              <ToolCallPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />
+              <div key={`${part.type}-${index}`} className="flex flex-col gap-2 p-2 bg-background">
+                <span className="flex items-center text-xs">
+                  <Bolt size={12} className="min-w-3 mr-2" /> {part.name}
+                </span>
+                <ToolCallPart part={part} presetKey={presetKey} />
+              </div>
             ))}
             {(message?.invalid_tool_calls || []).map((part, index) => (
               <ToolCallPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />
@@ -73,9 +78,7 @@ const PureLangChainContentPart = ({
   presetKey?: string;
 }) => {
   if (typeof part === "string") {
-    return (
-      <CodeHighlighter readOnly collapsible value={part} presetKey={presetKey} className="max-h-[400px] border-none" />
-    );
+    return <CodeHighlighter readOnly value={part} presetKey={presetKey} className="max-h-[400px] border-none" />;
   }
 
   return part.map((item, index) => {
@@ -85,8 +88,8 @@ const PureLangChainContentPart = ({
       case "text":
         return (
           <CodeHighlighter
+            key={`${item.type}-${index}`}
             readOnly
-            collapsible
             value={item.text}
             presetKey={presetKey}
             className="max-h-[400px] border-none"
@@ -96,6 +99,7 @@ const PureLangChainContentPart = ({
         if ("data" in item) {
           return (
             <ImageWithPreview
+              key={`${item.type}-${index}`}
               src={item.data}
               className="object-cover rounded-sm size-16 ml-2 mt-2 mb-1"
               alt="span image"
@@ -105,6 +109,7 @@ const PureLangChainContentPart = ({
         if ("url" in item) {
           return (
             <ImageWithPreview
+              key={`${item.type}-${index}`}
               src={item.url}
               className="object-cover rounded-sm size-16 ml-2 mt-2 mb-1"
               alt="span image"
@@ -114,8 +119,8 @@ const PureLangChainContentPart = ({
 
         return (
           <CodeHighlighter
+            key={`${item.type}-${index}`}
             readOnly
-            collapsible
             value={item.id}
             presetKey={presetKey}
             className="max-h-[400px] border-none"
@@ -125,20 +130,32 @@ const PureLangChainContentPart = ({
       case "file":
         if ("data" in item) {
           if (item.data.endsWith(".pdf")) {
-            return <PdfRenderer url={item.data} className="w-full h-[50vh]" />;
+            return <PdfRenderer key={`${item.type}-${index}`} url={item.data} className="w-full h-[50vh]" />;
           } else {
             return (
-              <DownloadButton uri={item.data} filenameFallback={item.data} supportedFormats={[]} variant="outline" />
+              <DownloadButton
+                key={`${item.type}-${index}`}
+                uri={item.data}
+                filenameFallback={item.data}
+                supportedFormats={[]}
+                variant="outline"
+              />
             );
           }
         }
 
         if ("url" in item) {
           if (item.url.endsWith(".pdf")) {
-            return <PdfRenderer url={item.url} className="w-full h-[50vh]" />;
+            return <PdfRenderer key={`${item.type}-${index}`} url={item.url} className="w-full h-[50vh]" />;
           } else {
             return (
-              <DownloadButton uri={item.url} filenameFallback={item.url} supportedFormats={[]} variant="outline" />
+              <DownloadButton
+                key={`${item.type}-${index}`}
+                uri={item.url}
+                filenameFallback={item.url}
+                supportedFormats={[]}
+                variant="outline"
+              />
             );
           }
         }
@@ -146,8 +163,8 @@ const PureLangChainContentPart = ({
         if ("text" in item) {
           return (
             <CodeHighlighter
+              key={`${item.type}-${index}`}
               readOnly
-              collapsible
               value={item.text}
               presetKey={presetKey}
               className="max-h-[400px] border-none"
@@ -158,7 +175,7 @@ const PureLangChainContentPart = ({
         return (
           <CodeHighlighter
             readOnly
-            collapsible
+            key={`${item.type}-${index}`}
             value={item.id}
             presetKey={presetKey}
             className="max-h-[400px] border-none"
@@ -168,8 +185,8 @@ const PureLangChainContentPart = ({
       case "audio":
         return (
           <CodeHighlighter
+            key={`${item.type}-${index}`}
             readOnly
-            collapsible
             value={JSON.stringify(item)}
             presetKey={presetKey}
             className="max-h-[400px] border-none"
@@ -199,9 +216,9 @@ const PureToolCallPart = ({
 }) => (
   <CodeHighlighter
     readOnly
-    collapsible
     value={JSON.stringify(part)}
     presetKey={presetKey}
+    codeEditorClassName="rounded"
     className="max-h-[400px] border-none"
   />
 );
