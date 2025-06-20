@@ -182,7 +182,7 @@ const PureCodeHighlighter = ({
   );
 
   return (
-    <div className={cn("w-full min-h-[1.8rem] h-full flex flex-col border relative group", className)}>
+    <div className={cn("w-full min-h-[1.75rem] h-full flex flex-col border relative group", className)}>
       <div
         className={cn(
           "bg-gradient-to-b from-black via-black/60 to-transparent h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t",
