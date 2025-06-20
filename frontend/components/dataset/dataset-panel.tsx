@@ -136,9 +136,10 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
           <div className="flex-grow flex overflow-auto">
             <div className="flex-grow flex flex-col space-y-4 p-4 h-full w-full">
               <div className="flex flex-col space-y-2">
-                <Label className="text-lg font-medium">Data</Label>
+                <Label className="font-medium">Data</Label>
                 <CodeHighlighter
-                  className="max-h-[400px]"
+                  showSettingsOnHover={false}
+                  className="max-h-[400px] rounded"
                   value={JSON.stringify(newData, null, 2)}
                   defaultMode="json"
                   readOnly={false}
@@ -166,9 +167,10 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
                 )}
               </div>
               <div className="flex flex-col space-y-2">
-                <Label className="text-lg font-medium">Target</Label>
+                <Label className="font-medium">Target</Label>
                 <CodeHighlighter
-                  className="max-h-[400px] w-full"
+                  showSettingsOnHover={false}
+                  className="max-h-[400px] rounded w-full"
                   value={JSON.stringify(newTarget, null, 2)}
                   defaultMode="json"
                   readOnly={false}
@@ -183,10 +185,11 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
                 />
                 {!isValidJsonTarget && <p className="text-sm text-red-500">Invalid JSON format</p>}
               </div>
-              <div className="flex flex-col space-y-2">
-                <Label className="text-lg font-medium">Metadata</Label>
+              <div className="flex flex-col space-y-2 pb-4">
+                <Label className="font-medium">Metadata</Label>
                 <CodeHighlighter
-                  className="max-h-[400px]"
+                  showSettingsOnHover={false}
+                  className="rounded max-h-[400px]"
                   value={JSON.stringify(newMetadata, null, 2)}
                   defaultMode="json"
                   readOnly={false}
