@@ -40,7 +40,7 @@ export const OpenAIToolCallPartSchema = z.object({
 /** Message Schemas**/
 export const OpenAISystemMessageSchema = z.object({
   role: z.literal("system"),
-  content: z.union([z.string(), OpenAITextPartSchema]),
+  content: z.union([z.string(), z.array(OpenAITextPartSchema)]),
   name: z.string().optional(),
 });
 
@@ -75,7 +75,8 @@ export const OpenAIAssistantMessageSchema = z.object({
 export const OpenAIToolMessageSchema = z.object({
   role: z.literal("tool"),
   content: z.union([z.string(), z.array(OpenAITextPartSchema)]),
-  tool_call_id: z.string(),
+  // FIXME: temporary patch
+  tool_call_id: z.string().optional(),
 });
 
 export const OpenAIMessageSchema = z.union([
@@ -162,7 +163,8 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
           content: [
             {
               type: "tool-result" as const,
-              toolCallId: message.tool_call_id,
+              // FIXME: temporary patch
+              toolCallId: String(message?.tool_call_id || "-"),
               toolName: store.get(message.tool_call_id) || message.tool_call_id,
               result: message.content,
             },

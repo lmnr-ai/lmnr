@@ -29,7 +29,7 @@ const SignUp = ({ callbackUrl, enableGoogle, enableGithub, enableCredentials }: 
   const handleSignUp = async (provider: Provider) => {
     try {
       setIsLoading(provider);
-      const result = await signIn(provider, { callbackUrl, redirect: false });
+      const result = await signIn(provider, { callbackUrl });
 
       if (result && !result.ok) {
         setError(result?.error || defaultErrorMessage);

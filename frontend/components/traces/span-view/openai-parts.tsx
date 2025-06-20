@@ -100,7 +100,13 @@ const PureOpenAIContentParts = ({
 }) => {
   switch (message.role) {
     case "system":
-      return <TextContentPart part={message.content} presetKey={presetKey} />;
+      return typeof message.content === "string" ? (
+        <TextContentPart part={message.content} presetKey={presetKey} />
+      ) : (
+        (message.content || []).map((part, index) => (
+          <TextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+        ))
+      );
     case "assistant":
       return (
         <>

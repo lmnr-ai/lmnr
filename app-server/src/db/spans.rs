@@ -20,6 +20,7 @@ pub enum SpanType {
     PIPELINE,
     EXECUTOR,
     EVALUATOR,
+    #[allow(non_camel_case_types)]
     HUMAN_EVALUATOR,
     EVALUATION,
     TOOL,

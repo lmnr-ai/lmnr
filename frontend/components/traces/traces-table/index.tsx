@@ -179,11 +179,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
           topSpanOutputPreview: span?.outputPreview ?? null,
         };
       } catch (error) {
-        toast({
-          title: "Failed to load span information",
-          variant: "destructive",
-        });
-
+        console.warn(error);
         return {
           topSpanName: null,
           topSpanType: null,
