@@ -75,11 +75,10 @@ export const downloadImages = async (
 
 export const convertToMessages = (
   messages: ChatMessage[] | Record<string, unknown> | string | undefined
-): CoreMessage[] => {
+): (Omit<CoreMessage, "role"> & { role?: CoreMessage["role"] })[] => {
   if (isString(messages) || isNumber(messages)) {
     return [
       {
-        role: "user",
         content: String(messages),
       },
     ];
@@ -89,14 +88,13 @@ export const convertToMessages = (
     return messages.map((message) => {
       if (isString(message) || isNumber(message)) {
         return {
-          role: "user",
           content: String(message),
         } as CoreMessage;
       }
 
       if (typeof message === "object" && message !== null) {
         if ("content" in message) {
-          const role = message.role || "user";
+          const role = message.role;
 
           if (typeof message.content === "string") {
             return {
@@ -160,13 +158,11 @@ export const convertToMessages = (
         }
 
         return {
-          role: "user",
           content: JSON.stringify(message),
         } as CoreMessage;
       }
 
       return {
-        role: "user",
         content: String(message),
       } as CoreMessage;
     });
@@ -174,7 +170,6 @@ export const convertToMessages = (
 
   return [
     {
-      role: "user",
       content: JSON.stringify(messages),
     },
   ];
