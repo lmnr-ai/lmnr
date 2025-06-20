@@ -1,7 +1,8 @@
-import { EditorView } from "@codemirror/view";
+import { EditorView, lineNumbers } from "@codemirror/view";
+import { Compartment } from "@codemirror/state";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { ChevronDown, ChevronUp, Settings } from "lucide-react";
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/code-highlighter/code-sheet";
@@ -72,6 +73,7 @@ const PureCodeHighlighter = ({
   renderBase64Images = true,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
+  const lineNumbersCompartment = useRef(new Compartment());
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -86,6 +88,9 @@ const PureCodeHighlighter = ({
 
   // State for rendering base64 images
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
+
+  // State for showing line numbers
+  const [showLineNumbers, setShowLineNumbers] = useState(true);
 
   // Process the value using the enhanced renderText function
   const {
@@ -113,6 +118,22 @@ const PureCodeHighlighter = ({
     setShouldRenderImages((prev) => !prev);
   }, []);
 
+  // Toggle line numbers
+  const toggleLineNumbers = useCallback(() => {
+    setShowLineNumbers((prev) => !prev);
+  }, []);
+
+  // Update line numbers when showLineNumbers changes
+  useEffect(() => {
+    if (editorRef.current?.view) {
+      editorRef.current.view.dispatch({
+        effects: lineNumbersCompartment.current.reconfigure(
+          showLineNumbers ? lineNumbers() : []
+        ),
+      });
+    }
+  }, [showLineNumbers]);
+
   // Handle changes, restoring original base64 values if needed
   const handleChange = useCallback(
     (editedText: string, viewUpdate: any) => {
@@ -131,6 +152,11 @@ const PureCodeHighlighter = ({
 
   const extensions = useMemo(() => {
     const extensions = [...baseExtensions];
+
+    // Add line numbers compartment (initialize with default state - line numbers enabled)
+    extensions.push(
+      lineNumbersCompartment.current.of(lineNumbers())
+    );
 
     if (lineWrapping && renderedValue.length < MAX_LINE_WRAPPING_LENGTH) {
       extensions.push(EditorView.lineWrapping);
@@ -158,7 +184,7 @@ const PureCodeHighlighter = ({
       {/* Config div - shown on hover, positioned above CodeMirror */}
       <div
         className={cn(
-          "absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black via-black/60 to-transparent h-8 flex justify-end items-center pl-2 pr-1 w-full rounded-t transition-opacity duration-200",
+          "absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black via-black/60 to-transparent h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t transition-opacity duration-200",
           {
             "opacity-100": isHovered || isDropdownOpen || isSelectOpen,
             "opacity-0 pointer-events-none": !isHovered && !isDropdownOpen && !isSelectOpen,
@@ -177,26 +203,6 @@ const PureCodeHighlighter = ({
             ))}
           </SelectContent>
         </Select>
-
-        {/* {collapsible && (
-          <Button
-            variant="ghost"
-            className="flex items-center gap-1 text-secondary-foreground"
-            onClick={toggleCollapsed}
-          >
-            {isCollapsed ? (
-              <>
-                show
-                <ChevronDown size={16} />
-              </>
-            ) : (
-              <>
-                hide
-                <ChevronUp size={16} />
-              </>
-            )}
-          </Button>
-        )} */}
         <CopyButton
           className="h-7 w-7 ml-auto"
           iconClassName="h-3.5 w-3.5"
@@ -219,6 +225,11 @@ const PureCodeHighlighter = ({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem className="flex items-center justify-between cursor-default">
+              <span>Show line numbers</span>
+              <Switch checked={showLineNumbers} onCheckedChange={toggleLineNumbers} className="ml-2" />
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem className="flex items-center justify-between cursor-default">
               <span>Render base64 images</span>
               <Switch checked={shouldRenderImages} onCheckedChange={toggleImageRendering} className="ml-2" />

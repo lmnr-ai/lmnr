@@ -13,7 +13,6 @@ import { inferImageType } from "@/lib/utils";
 export const theme = createTheme({
   theme: "dark",
   settings: {
-    fontSize: "11pt",
     background: "transparent",
     lineHighlight: "transparent",
     gutterBackground: "#18181A",
@@ -33,7 +32,7 @@ export const baseExtensions = [
       outline: "none !important",
     },
     "&": {
-      fontSize: "10pt !important",
+      fontSize: "0.75rem !important",
     },
     "&.cm-editor": {
       flex: 1,
@@ -49,8 +48,16 @@ export const baseExtensions = [
       left: 0,
       overflow: "auto",
     },
+    ".cm-gutters": {
+      fontSize: "0.7rem !important",
+    },
+    ".cm-lineNumbers .cm-gutterElement": {
+      fontSize: "0.7rem !important",
+    },
   }),
 ];
+
+
 
 export const languageExtensions = {
   python: () => python(),
