@@ -262,6 +262,7 @@ export async function GET(
       startTime: traces.startTime,
       endTime: traces.endTime,
       inputCost: traces.inputCost,
+      status: traces.status,
       outputCost: traces.outputCost,
       metadata: evaluationResults.metadata,
     })

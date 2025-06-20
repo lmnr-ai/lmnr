@@ -91,6 +91,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
           }}
           className="p-4 absolute top-0 left-0 w-full"
         >
+          {processedResult.type}
           <MessagesRenderer
             {...processedResult}
             ref={virtualizer.measureElement}
@@ -134,7 +135,7 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4">
+          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
             <OpenAIContentParts presetKey={presetKey} message={message} />
           </div>
         );
@@ -154,7 +155,7 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4">
+          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
             <ContentParts presetKey={presetKey} message={message} />
           </div>
         );

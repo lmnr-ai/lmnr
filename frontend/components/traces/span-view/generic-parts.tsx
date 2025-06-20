@@ -1,8 +1,10 @@
 import { CoreMessage, FilePart, ImagePart, TextPart, ToolCallPart, ToolResultPart } from "ai";
 import { omit } from "lodash";
-import { memo } from "react";
+import { Bolt } from "lucide-react";
+import React, { memo } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
+import { Badge } from "@/components/ui/badge";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
@@ -37,27 +39,36 @@ const PureFileContentPart = ({ part }: { part: FilePart }) => {
 };
 
 const PureTextContentPart = ({ part, presetKey }: { part: TextPart; presetKey?: string }) => (
-  <CodeHighlighter readOnly collapsible value={part.text} presetKey={presetKey} className="max-h-[400px] border-none" />
+  <CodeHighlighter readOnly value={part.text} presetKey={presetKey} className="max-h-[400px] border-0" />
 );
 
 const PureToolCallContentPart = ({ part, presetKey }: { part: ToolCallPart; presetKey?: string }) => (
-  <CodeHighlighter
-    readOnly
-    collapsible
-    value={JSON.stringify(omit(part, "type"), null, 2)}
-    presetKey={presetKey}
-    className="max-h-[400px] border-none"
-  />
+  <div className="flex flex-col gap-2 p-2 bg-background">
+    <span className="flex items-center text-xs">
+      <Bolt size={12} className="min-w-3 mr-2" /> {part.toolName}
+    </span>
+    <CodeHighlighter
+      readOnly
+      codeEditorClassName="rounded"
+      value={JSON.stringify(omit(part, "type"), null, 2)}
+      presetKey={presetKey}
+      className="max-h-[400px] border-none"
+    />
+  </div>
 );
 
 const PureToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey?: string }) => (
-  <CodeHighlighter
-    readOnly
-    collapsible
-    value={JSON.stringify(omit(part, "type"), null, 2)}
-    presetKey={presetKey}
-    className="max-h-[400px] border-none"
-  />
+  <div className="flex flex-col gap-2 p-2 bg-background">
+    <Badge className="w-fit m-1 font-medium" variant="secondary">
+      ID: {part.toolCallId}
+    </Badge>
+    <CodeHighlighter
+      readOnly
+      value={JSON.stringify(omit(part, "type"), null, 2)}
+      presetKey={presetKey}
+      className="max-h-[400px] border-none"
+    />
+  </div>
 );
 
 const ImageContentPart = memo(PureImageContentPart);
@@ -99,7 +110,7 @@ const PureContentParts = ({
   return (
     <>
       {message?.role && (
-        <div className="font-medium text-sm text-secondary-foreground p-2 border-b">{message.role.toUpperCase()}</div>
+        <div className="font-medium text-sm text-secondary-foreground p-2">{message.role.toUpperCase()}</div>
       )}
       {getParts()}
     </>

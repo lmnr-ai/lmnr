@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import useSWR from "swr";
 
+import { usePlaygroundOutput } from "@/components/playground/playground-output";
 import PlaygroundPanel from "@/components/playground/playground-panel";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import TraceView from "@/components/traces/trace-view";
@@ -47,7 +48,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   });
 
   const { reset, watch } = methods;
-
+  const { reset: resetOutput } = usePlaygroundOutput();
   const { data: apiKeys, isLoading: isApiKeysLoading } = useSWR<ProviderApiKey[]>(
     `/api/projects/${params?.projectId}/provider-api-keys`,
     swrFetcher
@@ -68,6 +69,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
         toolChoice: playground.toolChoice as PlaygroundForm["toolChoice"],
       });
     }
+    resetOutput();
   };
 
   const updatePlaygroundData = useCallback(
