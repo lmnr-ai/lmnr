@@ -15,7 +15,6 @@ export type OutputActions = {
   setText: (text: OutputState["text"]) => void;
   setReasoning: (reasoning: OutputState["reasoning"]) => void;
   setToolCalls: (toolCalls: OutputState["toolCalls"]) => void;
-  setToolResults: (toolCalls: OutputState["toolResults"]) => void;
   setUsage: (usage: OutputState["usage"]) => void;
   setIsLoading: (isLoading: OutputState["isLoading"]) => void;
   setReasoningOpen: (reasoning: OutputState["reasoningOpen"]) => void;
@@ -48,8 +47,6 @@ export const usePlaygroundOutput = create<PlaygroundOutputStore>()((set) => ({
   setReasoning: (reasoning) => set({ reasoning }, false),
 
   setToolCalls: (toolCalls) => set({ toolCalls }, false),
-
-  setToolResults: (toolResults) => set({ toolResults }, false),
 
   setUsage: (usage) => set({ usage }, false),
 

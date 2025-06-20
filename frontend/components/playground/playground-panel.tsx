@@ -46,7 +46,6 @@ export default function PlaygroundPanel({
     isLoading,
     text,
     toolCalls,
-    setToolResults,
     setReasoning,
     reasoning,
     history,
@@ -98,7 +97,6 @@ export default function PlaygroundPanel({
 
         setText(result.text);
         setToolCalls(result.toolCalls);
-        setToolResults(result.toolResults);
         setReasoning(result.reasoning);
 
         setUsage(result.usage);
@@ -111,7 +109,7 @@ export default function PlaygroundPanel({
         abortControllerRef.current = null;
       }
     },
-    [reset, setIsLoading, params?.projectId, id, setText, setToolCalls, setToolResults, setReasoning, setUsage, toast]
+    [reset, setIsLoading, params?.projectId, id, setText, setToolCalls, setReasoning, setUsage, toast]
   );
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {
