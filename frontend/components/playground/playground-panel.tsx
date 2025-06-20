@@ -1,9 +1,9 @@
 "use client";
 import { GenerateTextResult, ToolSet } from "ai";
 import { isEmpty } from "lodash";
-import { ChevronRight, History, Loader, PlayIcon, Square } from "lucide-react";
+import { Bolt, ChevronRight, History, Loader, PlayIcon, Square } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useRef } from "react";
 import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
 
@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
@@ -47,15 +46,12 @@ export default function PlaygroundPanel({
     isLoading,
     text,
     toolCalls,
-    toolResults,
     setToolResults,
     setReasoning,
     reasoning,
     history,
     setHistory,
     usage,
-    error,
-    setError,
   } = usePlaygroundOutput();
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
@@ -108,7 +104,6 @@ export default function PlaygroundPanel({
         setUsage(result.usage);
       } catch (e) {
         if (e instanceof Error && e.name !== "AbortError") {
-          setError(e);
           toast({ title: "Error", description: e.message, variant: "destructive" });
         }
       } finally {
@@ -116,19 +111,7 @@ export default function PlaygroundPanel({
         abortControllerRef.current = null;
       }
     },
-    [
-      reset,
-      setIsLoading,
-      params?.projectId,
-      id,
-      setText,
-      setToolCalls,
-      setToolResults,
-      setReasoning,
-      setUsage,
-      setError,
-      toast,
-    ]
+    [reset, setIsLoading, params?.projectId, id, setText, setToolCalls, setToolResults, setReasoning, setUsage, toast]
   );
 
   useHotkeys("meta+enter,ctrl+enter", () => handleSubmit(submit)(), {
@@ -144,15 +127,6 @@ export default function PlaygroundPanel({
       },
     [setValue]
   );
-
-  const structuredOutput = useMemo(() => {
-    const sections = [
-      toolCalls?.length > 0 && `<ToolCalls>\n\n${JSON.stringify(toolCalls)}\n\n</ToolCalls>`,
-      text,
-    ].filter(Boolean);
-
-    return sections.join("\n\n");
-  }, [text, toolCalls]);
 
   if (isEmpty(apiKeys)) {
     return (
@@ -206,29 +180,57 @@ export default function PlaygroundPanel({
             <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
             <ResizablePanel minSize={20} className="flex-1 flex flex-col gap-2 px-4">
               {reasoning && (
-                <Collapsible className="group">
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" className="focus-visible:ring-0 justify-start w-full rounded-b-none p-0">
-                      <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
-                      <span>Reasoning</span>
-                    </Button>
+                <Collapsible defaultOpen className="group flex overflow-hidden flex-col border rounded divide-y">
+                  <CollapsibleTrigger className="flex items-center">
+                    <span className="font-medium text-sm text-secondary-foreground p-2 rounded-t mr-auto">
+                      Reasoning
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="overflow-hidden p-1 pb-2">
-                    <ScrollArea className="border-l pl-2">
-                      <div className="max-h-40">
-                        <span className="font-mono text-xs">{reasoning}</span>
-                      </div>
-                    </ScrollArea>
+                  <CollapsibleContent className="flex flex-1 overflow-hidden max-h-40">
+                    <CodeHighlighter
+                      codeEditorClassName="rounded-b border-none"
+                      className="rounded-b border-none"
+                      value={reasoning}
+                      defaultMode="json"
+                    />
                   </CollapsibleContent>
                 </Collapsible>
               )}
-              <div className="flex flex-1 overflow-hidden">
-                <CodeHighlighter
-                  codeEditorClassName="rounded-b"
-                  className="rounded"
-                  value={structuredOutput}
-                  defaultMode="json"
-                />
+              <div className="flex flex-col flex-1 overflow-hidden border rounded divide-y">
+                <span className="font-medium text-sm text-secondary-foreground p-2 rounded-t">Output</span>
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  {!isEmpty(toolCalls) ? (
+                    text && (
+                      <CodeHighlighter
+                        codeEditorClassName="border-b"
+                        className="border-none h-fit border-b"
+                        value={text}
+                        defaultMode="json"
+                      />
+                    )
+                  ) : (
+                    <CodeHighlighter
+                      codeEditorClassName="rounded-b border-none"
+                      className="rounded-b border-none"
+                      value={text}
+                      defaultMode="json"
+                    />
+                  )}
+                  {!isEmpty(toolCalls) && (
+                    <>
+                      <span className="flex items-center font-medium text-sm text-secondary-foreground px-2 py-1.5">
+                        <Bolt size={12} className="min-w-3 mr-2" /> Tool Calls
+                      </span>
+                      <CodeHighlighter
+                        codeEditorClassName="rounded-b"
+                        className="rounded-b border-x-0 border-b-0"
+                        value={JSON.stringify(toolCalls)}
+                        defaultMode="json"
+                      />
+                    </>
+                  )}
+                </div>
               </div>
               <Usage usage={usage} />
             </ResizablePanel>

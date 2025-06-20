@@ -20,7 +20,6 @@ export type OutputActions = {
   setIsLoading: (isLoading: OutputState["isLoading"]) => void;
   setReasoningOpen: (reasoning: OutputState["reasoningOpen"]) => void;
   setHistory: (history: OutputState["history"]) => void;
-  setError: (error: OutputState["error"]) => void;
   reset: () => void;
 };
 
@@ -37,7 +36,6 @@ const initialState: OutputState = {
   history: false,
   isLoading: false,
   reasoningOpen: false,
-  error: undefined,
 };
 
 export type PlaygroundOutputStore = OutputState & OutputActions;
@@ -60,8 +58,6 @@ export const usePlaygroundOutput = create<PlaygroundOutputStore>()((set) => ({
   setReasoningOpen: (reasoningOpen) => set({ reasoningOpen }, false),
 
   setHistory: (history) => set({ history }, false),
-
-  setError: (error) => set({ error }, false),
 
   reset: () => set(initialState),
 }));

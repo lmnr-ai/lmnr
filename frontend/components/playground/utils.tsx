@@ -71,7 +71,7 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
         return {
           anthropic: {
             thinking: {
-              type: "enabled",
+              type: "disabled",
               budgetTokens: 1024,
             },
           },
@@ -81,7 +81,7 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
         return {
           google: {
             thinkingConfig: {
-              includeThoughts: true,
+              includeThoughts: false,
               thinkingBudget: config?.min,
             },
           },

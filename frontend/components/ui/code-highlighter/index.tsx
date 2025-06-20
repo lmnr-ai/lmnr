@@ -16,11 +16,7 @@ import {
   theme,
 } from "@/components/ui/code-highlighter/utils";
 import { CopyButton } from "@/components/ui/copy-button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -36,7 +32,6 @@ interface CodeEditorProps {
   lineWrapping?: boolean;
   onLoad?: () => void;
   presetKey?: string | null;
-  collapsible?: boolean;
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
@@ -65,14 +60,12 @@ const PureCodeHighlighter = ({
   placeholder,
   lineWrapping = true,
   presetKey = null,
-  collapsible = false,
   onLoad,
   codeEditorClassName,
   renderBase64Images = true,
   defaultShowLineNumbers = false,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
@@ -84,22 +77,15 @@ const PureCodeHighlighter = ({
     return defaultMode;
   });
 
-  // State for rendering base64 images
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
-  // State for showing line numbers
   const [showLineNumbers, setShowLineNumbers] = useState(defaultShowLineNumbers);
 
-  // Process the value using the enhanced renderText function
   const {
     text: renderedValue,
     imageMap,
     hasImages,
   } = useMemo(() => renderText(mode, value, shouldRenderImages), [mode, value, shouldRenderImages]);
-
-  const toggleCollapsed = useCallback(() => {
-    setIsCollapsed((prev) => !prev);
-  }, []);
 
   const handleModeChange = useCallback(
     (newMode: string) => {
@@ -185,13 +171,7 @@ const PureCodeHighlighter = ({
             ))}
           </SelectContent>
         </Select>
-        <CopyButton
-          className="h-7 w-7 ml-auto"
-          iconClassName="h-3.5 w-3.5"
-          size="icon"
-          variant="ghost"
-          text={value} // Use original value for copying
-        />
+        <CopyButton className="h-7 w-7 ml-auto" iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={value} />
         <CodeSheet
           renderedValue={value}
           mode={mode}
@@ -219,11 +199,9 @@ const PureCodeHighlighter = ({
         </Popover>
       </div>
 
-      {/* CodeMirror container */}
       <div
         className={cn(
           "flex-grow flex bg-muted/50 overflow-auto w-full h-full",
-          { "h-0": isCollapsed },
           !showLineNumbers && "pl-1",
           codeEditorClassName
         )}

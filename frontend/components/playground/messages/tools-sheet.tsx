@@ -21,7 +21,7 @@ enum ToolChoices {
 
 const exampleTools = {
   weather: {
-    description: "User profile information",
+    description: "Get weather information",
     parameters: {
       type: "object",
       properties: {
