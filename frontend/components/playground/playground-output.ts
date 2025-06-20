@@ -1,10 +1,7 @@
 import { GenerateTextResult, ToolSet } from "ai";
 import { create } from "zustand";
 
-export type OutputState = Pick<
-  GenerateTextResult<ToolSet, {}>,
-  "text" | "reasoning" | "toolResults" | "toolCalls" | "usage"
-> & {
+export type OutputState = Pick<GenerateTextResult<ToolSet, {}>, "text" | "reasoning" | "toolCalls" | "usage"> & {
   isLoading: boolean;
   history: boolean;
   reasoningOpen: boolean;
@@ -26,7 +23,6 @@ const initialState: OutputState = {
   text: "",
   reasoning: "",
   toolCalls: [],
-  toolResults: [],
   usage: {
     totalTokens: NaN,
     promptTokens: NaN,
