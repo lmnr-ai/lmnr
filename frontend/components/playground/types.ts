@@ -166,6 +166,11 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "gemini-2.5-pro-preview-06-05",
         label: "Gemini 2.5 Pro Preview (06-05)",
       },
+      {
+        id: "gemini:gemini-2.5-pro",
+        name: "gemini-2.5-pro",
+        label: "Gemini 2.5 Pro",
+      },
     ],
   },
   {

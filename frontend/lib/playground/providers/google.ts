@@ -5,6 +5,7 @@ export const googleThinkingModels = [
   "gemini:gemini-2.5-pro-exp-03-25",
   "gemini:gemini-2.5-pro-preview-05-06",
   "gemini:gemini-2.5-pro-preview-06-05",
+  "gemini:gemini-2.5-pro",
 ] as const;
 
 export const googleProviderOptionsSettings: Record<
@@ -33,6 +34,12 @@ export const googleProviderOptionsSettings: Record<
     thinkingConfig: {
       min: 0,
       max: 24576,
+    },
+  },
+  "gemini:gemini-2.5-pro": {
+    thinkingConfig: {
+      min: 128,
+      max: 32768,
     },
   },
 };
