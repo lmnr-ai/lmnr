@@ -1,5 +1,5 @@
 import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { pushQueueItems } from "@/lib/actions/queue";
 import { Datapoint } from "@/lib/dataset/types";

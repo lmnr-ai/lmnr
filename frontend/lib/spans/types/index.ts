@@ -85,6 +85,9 @@ export const convertToMessages = (
   }
 
   if (isArray(messages)) {
+    // Create a store for tool call ID to tool name mapping, similar to OpenAI conversion
+    const store = new Map<string, string>();
+
     return messages.map((message) => {
       if (isString(message) || isNumber(message)) {
         return {
@@ -92,78 +95,154 @@ export const convertToMessages = (
         } as CoreMessage;
       }
 
-      if (typeof message === "object" && message !== null) {
-        if ("content" in message) {
-          const role = message.role;
+      if (typeof message === "object" && message !== null && "content" in message) {
+        const role = message.role;
 
-          if (typeof message.content === "string") {
+        switch (role) {
+          case "system":
+            return {
+              role: message.role,
+              content: typeof message.content === "string" ? message.content : JSON.stringify(message.content),
+            };
+
+          case "user":
+            if (typeof message.content === "string") {
+              return {
+                role: message.role,
+                content: message.content,
+              };
+            }
+
+            return {
+              role: message.role,
+              content: (message.content as ChatMessageContentPart[]).map((part) => {
+                switch (part.type) {
+                  case "text":
+                    return {
+                      type: "text" as const,
+                      text: part.text,
+                    };
+                  case "image_url":
+                    if ("image_url" in part) {
+                      return {
+                        type: "image" as const,
+                        image: part.image_url.url,
+                      };
+                    }
+                    return {
+                      type: "image" as const,
+                      image: part.url,
+                    };
+                  case "image":
+                    const dataUrl = part.data.startsWith("data:")
+                      ? part.data
+                      : `data:${part.mediaType};base64,${part.data}`;
+                    return {
+                      type: "image" as const,
+                      image: dataUrl,
+                    };
+                  case "document_url":
+                    return {
+                      type: "file" as const,
+                      data: part.url,
+                      mimeType: part.mediaType,
+                    };
+                  default:
+                    return {
+                      type: "text" as const,
+                      text: JSON.stringify(part),
+                    };
+                }
+              }),
+            };
+
+          case "assistant":
+            if (typeof message.content === "string") {
+              return {
+                role: message.role,
+                content: message.content,
+              };
+            }
+
+            return {
+              role: message.role,
+              content: [
+                ...(message.content || [])
+                  .filter((part: any) => part.type === "text")
+                  .map((part: any) => ({
+                    type: "text" as const,
+                    text: part.text,
+                  })),
+                ...(message.content || [])
+                  .filter((part: any) => part.type === "tool_call")
+                  .map((part: any) => {
+                    const toolCallId = part.id;
+                    const toolName = part.name;
+                    if (toolCallId) {
+                      store.set(toolCallId, toolName);
+                    }
+
+                    return {
+                      type: "tool-call" as const,
+                      toolCallId: toolCallId || "",
+                      toolName,
+                      args: typeof part.arguments === "string" ? part.arguments : JSON.stringify(part.arguments || {}),
+                    };
+                  }),
+              ],
+            };
+
+          case "tool":
+            // Tool messages must always have content as an array of ToolResultPart
+            if (typeof message.content === "string") {
+              return {
+                role: message.role,
+                content: [
+                  {
+                    type: "tool-result" as const,
+                    toolCallId: (message as any).tool_call_id || "-",
+                    toolName: store.get((message as any).tool_call_id) || "-",
+                    result: message.content,
+                  },
+                ],
+              };
+            }
+
+            return {
+              role: message.role,
+              content: (message.content as ChatMessageContentPart[]).map((part) => {
+                const toolCallId = (part as any).toolCallId || (message as any).tool_call_id || "-";
+                const toolName = store.get(toolCallId) || (part as any).toolName || "-";
+
+                return {
+                  type: "tool-result" as const,
+                  toolCallId,
+                  toolName,
+                  result: part.type === "text" ? part.text : JSON.stringify(part),
+                };
+              }),
+            };
+
+          default:
+            if (typeof message.content === "string") {
+              return {
+                role,
+                content: message.content,
+              };
+            }
+
             return {
               role,
-              content: message.content,
-            } as CoreMessage;
-          }
-
-          const convertedContent = (message.content as ChatMessageContentPart[]).map((part) => {
-            switch (part.type) {
-              case "text":
-                return {
-                  type: "text" as const,
-                  text: part.text,
-                };
-              case "image_url":
-                if ("image_url" in part) {
-                  return {
-                    type: "image" as const,
-                    image: part.image_url.url,
-                  };
-                }
-                return {
-                  type: "image" as const,
-                  image: part.url,
-                };
-              case "image":
-                const dataUrl = part.data.startsWith("data:")
-                  ? part.data
-                  : `data:${part.mediaType};base64,${part.data}`;
-                return {
-                  type: "image" as const,
-                  image: dataUrl,
-                };
-              case "document_url":
-                return {
-                  type: "file" as const,
-                  data: part.url,
-                  mimeType: part.mediaType,
-                };
-              case "tool_call":
-                return {
-                  type: "tool-call" as const,
-                  toolCallId: part.id || "",
-                  toolName: part.name,
-                  args: part.arguments || {},
-                };
-              default:
-                // Fallback for unknown types
-                return {
-                  type: "text" as const,
-                  text: JSON.stringify(part),
-                };
-            }
-          });
-
-          return {
-            role,
-            content: convertedContent,
-          } as CoreMessage;
+              content: (message.content as ChatMessageContentPart[]).map((part) => ({
+                type: "text" as const,
+                text: JSON.stringify(part),
+              })),
+            };
         }
-
-        return {
-          content: JSON.stringify(message),
-        } as CoreMessage;
       }
 
       return {
-        content: String(message),
+        content: JSON.stringify(message),
       } as CoreMessage;
     });
   }

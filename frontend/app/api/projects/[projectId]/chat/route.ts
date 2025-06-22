@@ -123,7 +123,7 @@ export async function POST(req: Request) {
     const parsedTools = parseTools(tools);
 
     if (!parseResult.success) {
-      throw new Error(`Messages doesn't match structure: ${parseResult.error}`);
+      return new Response(JSON.stringify(parseResult.error), { status: 400 });
     }
 
     const provider = model.split(":")[0] as Provider;
