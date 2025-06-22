@@ -38,14 +38,14 @@ pub struct RunAgentParams {
     pub max_steps: Option<u64>,
     pub thinking_token_budget: Option<u64>,
     pub start_url: Option<String>,
+    pub disable_give_control: bool,
+    pub user_agent: Option<String>,
 }
 
 #[async_trait]
 #[enum_delegate::register]
 pub trait AgentManagerTrait {
-    type RunAgentStreamStream: futures_util::stream::Stream<
-        Item = Result<RunAgentResponseStreamChunk>,
-    >;
+    type RunAgentStreamStream: futures_util::stream::Stream<Item = Result<RunAgentResponseStreamChunk>>;
 
     async fn run_agent(&self, params: RunAgentParams) -> Result<AgentOutput>;
 

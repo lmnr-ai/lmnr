@@ -38,6 +38,10 @@ pub struct RunAgentRequest {
     pub thinking_token_budget: ::core::option::Option<u64>,
     #[prost(string, optional, tag = "18")]
     pub start_url: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "19")]
+    pub disable_give_control: ::core::option::Option<bool>,
+    #[prost(string, optional, tag = "20")]
+    pub user_agent: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ActionResult {

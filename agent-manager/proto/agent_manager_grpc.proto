@@ -29,6 +29,8 @@ message RunAgentRequest {
     optional uint64 max_steps = 16;
     optional uint64 thinking_token_budget = 17;
     optional string start_url = 18;
+    optional bool disable_give_control = 19;
+    optional string user_agent = 20;
 }
 
 message ActionResult {
