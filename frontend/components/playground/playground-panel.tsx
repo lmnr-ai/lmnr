@@ -172,7 +172,7 @@ export default function PlaygroundPanel({
       <ResizablePanelGroup autoSaveId={`playground:${id}`} direction="vertical" className="flex flex-1">
         <ResizablePanel minSize={30} className="flex flex-col pb-4">
           <ResizablePanelGroup autoSaveId={`playground-main:${id}`} direction="horizontal" className="flex flex-1">
-            <ResizablePanel minSize={30} className="flex flex-col flex-1 gap-2">
+            <ResizablePanel minSize={30} className="flex flex-col flex-1">
               <Messages />
             </ResizablePanel>
             <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />

@@ -39,7 +39,7 @@ const Messages = () => {
   return (
     <>
       <ScrollArea
-        className="overflow-y-auto flex-grow px-4 pb-4 [mask-image:linear-gradient(to_top,rgba(0,0,0,0)_0%,_rgba(0,0,0,1)_3%)]"
+        className="overflow-y-auto flex-grow px-4 [mask-image:linear-gradient(to_top,rgba(0,0,0,0)_0%,_rgba(0,0,0,1)_3%)]"
         style={{
           contain: "strict",
         }}
@@ -84,7 +84,7 @@ const Messages = () => {
           </div>
         </div>
       </ScrollArea>
-      <div className="mt-2 px-4">
+      <div className="px-4">
         <Button onClick={() => append(defaultMessage)} variant="outline" className="self-start h-8">
           <Plus className="mr-2" size={12} />
           Add message

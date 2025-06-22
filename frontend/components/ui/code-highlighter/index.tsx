@@ -35,9 +35,9 @@ interface CodeEditorProps {
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
+  showSettingsOnHover?: boolean;
 }
 
-// Restore original value from placeholder text when user edits content
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
   let restoredText = newText;
 
@@ -64,9 +64,9 @@ const PureCodeHighlighter = ({
   codeEditorClassName,
   renderBase64Images = true,
   defaultShowLineNumbers = false,
+  showSettingsOnHover = true,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const [isHovered, setIsHovered] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [mode, setMode] = useState(() => {
@@ -97,7 +97,6 @@ const PureCodeHighlighter = ({
     [presetKey]
   );
 
-  // Toggle base64 image rendering
   const toggleImageRendering = useCallback(() => {
     setShouldRenderImages((prev) => !prev);
   }, []);
@@ -107,13 +106,11 @@ const PureCodeHighlighter = ({
     setShowLineNumbers((prev) => !prev);
   }, []);
 
-  // Handle changes, restoring original base64 values if needed
   const handleChange = useCallback(
     (editedText: string, viewUpdate: any) => {
       if (!onChange) return;
 
       if (shouldRenderImages && hasImages) {
-        // Restore original base64 strings from placeholders
         const restoredText = restoreOriginalFromPlaceholders(editedText, imageMap);
         onChange(restoredText, viewUpdate);
       } else {
@@ -135,7 +132,6 @@ const PureCodeHighlighter = ({
       extensions.push(languageExtension());
     }
 
-    // Add base64 image rendering plugin if enabled and images were found
     if (shouldRenderImages && hasImages) {
       extensions.push(createImageDecorationPlugin(imageMap));
     }
@@ -143,65 +139,67 @@ const PureCodeHighlighter = ({
     return extensions;
   }, [mode, lineWrapping, renderedValue.length, shouldRenderImages, hasImages, imageMap]);
 
+  const renderHeaderContent = () => (
+    <>
+      <Select value={mode} onValueChange={handleModeChange} onOpenChange={setIsSelectOpen}>
+        <SelectTrigger className="h-4 px-1.5 [&>svg]:opacity-100 font-medium text-secondary-foreground border-secondary-foreground/60 w-fit text-[0.7rem] bg-black/50 outline-none focus:ring-0">
+          <SelectValue className="w-fit" placeholder="Select mode" />
+        </SelectTrigger>
+        <SelectContent>
+          {modes.map((mode) => (
+            <SelectItem key={mode} value={mode.toLowerCase()} className="text-xs">
+              {mode}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <CopyButton className="h-7 w-7 ml-auto" iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={value} />
+      <CodeSheet
+        renderedValue={value}
+        mode={mode}
+        onModeChange={handleModeChange}
+        extensions={extensions}
+        placeholder={placeholder}
+      />
+      <Popover onOpenChange={setIsDropdownOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-secondary-foreground">
+            <Settings size={16} />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="p-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Show line numbers</span>
+            <Switch checked={showLineNumbers} onCheckedChange={toggleLineNumbers} />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Render base64 images</span>
+            <Switch checked={shouldRenderImages} onCheckedChange={toggleImageRendering} />
+          </div>
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+
   return (
-    <div
-      className={cn("w-full h-full flex flex-col border relative", className)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Config div - shown on hover, positioned above CodeMirror */}
+    <div className={cn("w-full min-h-[1.75rem] h-full flex flex-col border relative group", className)}>
       <div
         className={cn(
-          "absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black via-black/60 to-transparent h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t transition-opacity duration-200",
-          {
-            "opacity-100": isHovered || isDropdownOpen || isSelectOpen,
-            "opacity-0 pointer-events-none": !isHovered && !isDropdownOpen && !isSelectOpen,
-          }
+          "bg-gradient-to-b from-black via-black/60 to-transparent h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t",
+          showSettingsOnHover && [
+            "absolute top-0 left-0 right-0 z-10 transition-opacity duration-200 opacity-0 group-hover:opacity-100",
+            {
+              "opacity-100": isDropdownOpen || isSelectOpen,
+            },
+          ]
         )}
       >
-        <Select value={mode} onValueChange={handleModeChange} onOpenChange={setIsSelectOpen}>
-          <SelectTrigger className="h-4 px-1.5 [&>svg]:opacity-100 font-medium text-secondary-foreground border-secondary-foreground/60 w-fit text-[0.7rem] bg-black/50 outline-none focus:ring-0">
-            <SelectValue className="w-fit" placeholder="Select mode" />
-          </SelectTrigger>
-          <SelectContent>
-            {modes.map((mode) => (
-              <SelectItem key={mode} value={mode.toLowerCase()} className="text-xs">
-                {mode}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <CopyButton className="h-7 w-7 ml-auto" iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={value} />
-        <CodeSheet
-          renderedValue={value}
-          mode={mode}
-          onModeChange={handleModeChange}
-          extensions={extensions}
-          placeholder={placeholder}
-        />
-        {/* Settings dropdown */}
-        <Popover onOpenChange={setIsDropdownOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-secondary-foreground">
-              <Settings size={16} />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="p-2 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Show line numbers</span>
-              <Switch checked={showLineNumbers} onCheckedChange={toggleLineNumbers} />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Render base64 images</span>
-              <Switch checked={shouldRenderImages} onCheckedChange={toggleImageRendering} />
-            </div>
-          </PopoverContent>
-        </Popover>
+        {renderHeaderContent()}
       </div>
 
       <div
         className={cn(
-          "flex-grow flex bg-muted/50 overflow-auto w-full h-full",
+          "flex-grow flex bg-muted/50 overflow-auto w-full h-full pt-0.5",
           !showLineNumbers && "pl-1",
           codeEditorClassName
         )}
