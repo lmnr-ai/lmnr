@@ -1,30 +1,41 @@
-import { getServerSession } from 'next-auth';
+import { NextRequest, NextResponse } from "next/server";
 
-import { authOptions } from '@/lib/auth';
+import { ExportSpanSchema, exportSpanToDataset } from "@/lib/actions/span";
 
 export async function POST(
-  req: Request,
+  req: NextRequest,
   props: { params: Promise<{ projectId: string; spanId: string }> }
 ): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const spanId = params.spanId;
+  try {
+    const params = await props.params;
+    const { projectId, spanId } = params;
 
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+    const body = await req.json();
 
-  const body = await req.json();
-  const res = await fetch(
-    `${process.env.BACKEND_URL}/api/v1/projects/${projectId}/spans/${spanId}/export`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${user.apiKey}`
-      },
-      body: JSON.stringify(body)
+    const result = ExportSpanSchema.safeParse({
+      ...body,
+      spanId,
+      projectId,
+    });
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid request body",
+          details: result.error.issues,
+        },
+        { status: 400 }
+      );
     }
-  );
 
-  return new Response(res.body, { status: res.status });
+    await exportSpanToDataset(result.data);
+
+    return NextResponse.json("Span exported to dataset successfully");
+  } catch (error) {
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ error: "Failed to export span" }, { status: 500 });
+  }
 }

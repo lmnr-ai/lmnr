@@ -482,7 +482,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     App::new()
-                        .wrap(Logger::default().exclude("/health"))
+                        .wrap(Logger::default().exclude("/health").exclude("/ready"))
                         .wrap(NormalizePath::trim())
                         .app_data(JsonConfig::default().limit(http_payload_limit))
                         .app_data(PayloadConfig::new(http_payload_limit))
@@ -522,6 +522,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
                                 .service(api::v1::evals::save_eval_datapoints)
+                                .service(api::v1::evals::update_eval_datapoint)
                                 .service(api::v1::tag::tag_trace)
                                 .service(api::v1::agent::run_agent_manager),
                         )

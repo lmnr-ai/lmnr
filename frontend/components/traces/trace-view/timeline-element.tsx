@@ -1,10 +1,9 @@
 import { VirtualItem } from "@tanstack/react-virtual";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { getDurationString } from "@/lib/flow/utils";
 import { Span } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
-import { cn } from "@/lib/utils";
+import { cn, getDurationString } from "@/lib/utils";
 
 interface Segment {
   left: number;

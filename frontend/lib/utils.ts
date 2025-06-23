@@ -264,9 +264,9 @@ export const pluralize = (count: number, singular: string, plural: string) => {
   const grammaticalNumber = pluralRules.select(count);
   switch (grammaticalNumber) {
     case "one":
-      return singular;
+      return `${count} ${singular}`;
     default:
-      return plural;
+      return `${count} ${plural}`;
   }
 };
 
@@ -295,4 +295,16 @@ export const inferImageType = (base64: string): `image/${string}` | null => {
     return "image/svg+xml";
   }
   return null;
+};
+export const getDurationString = (startTime: string, endTime: string) => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const duration = end.getTime() - start.getTime();
+
+  return `${(duration / 1000).toFixed(2)}s`;
+};
+export const getDuration = (startTime: string, endTime: string) => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  return end.getTime() - start.getTime();
 };

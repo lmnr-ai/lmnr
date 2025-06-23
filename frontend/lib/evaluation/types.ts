@@ -28,6 +28,7 @@ export type EvaluationDatapointPreview = {
   target: any;
   metadata?: Record<string, any>;
   executorOutput: any;
+  status: string | null;
   traceId: string;
   index: number;
   startTime: string;

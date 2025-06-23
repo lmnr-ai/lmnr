@@ -63,7 +63,7 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
   }
 };
 
-export default async function SignInPage(props: {
+export default async function InvitationsPage(props: {
   params: Promise<{}>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
@@ -72,7 +72,7 @@ export default async function SignInPage(props: {
   const user = session?.user;
 
   if (!user) {
-    return redirect(`/sign-in?callbackUrl=/invitations?token=${searchParams?.token}`);
+    return redirect(`/sign-up?callbackUrl=/invitations?token=${searchParams?.token}`);
   }
 
   const token = searchParams?.token as string;

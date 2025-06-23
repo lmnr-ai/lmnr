@@ -1,6 +1,6 @@
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { ChevronDown, ChevronUp, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -16,13 +16,7 @@ import {
   theme,
 } from "@/components/ui/code-highlighter/utils";
 import { CopyButton } from "@/components/ui/copy-button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -38,12 +32,12 @@ interface CodeEditorProps {
   lineWrapping?: boolean;
   onLoad?: () => void;
   presetKey?: string | null;
-  collapsible?: boolean;
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
+  defaultShowLineNumbers?: boolean;
+  showSettingsOnHover?: boolean;
 }
 
-// Restore original value from placeholder text when user edits content
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
   let restoredText = newText;
 
@@ -66,13 +60,15 @@ const PureCodeHighlighter = ({
   placeholder,
   lineWrapping = true,
   presetKey = null,
-  collapsible = false,
   onLoad,
   codeEditorClassName,
   renderBase64Images = true,
+  defaultShowLineNumbers = false,
+  showSettingsOnHover = true,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
@@ -81,18 +77,15 @@ const PureCodeHighlighter = ({
     return defaultMode;
   });
 
-  // State for rendering base64 images
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
-  // Process the value using the enhanced renderText function
-  const { text: renderedValue, imageMap, hasImages } = useMemo(() =>
-    renderText(mode, value, shouldRenderImages),
-  [mode, value, shouldRenderImages]
-  );
+  const [showLineNumbers, setShowLineNumbers] = useState(defaultShowLineNumbers);
 
-  const toggleCollapsed = useCallback(() => {
-    setIsCollapsed((prev) => !prev);
-  }, []);
+  const {
+    text: renderedValue,
+    imageMap,
+    hasImages,
+  } = useMemo(() => renderText(mode, value, shouldRenderImages), [mode, value, shouldRenderImages]);
 
   const handleModeChange = useCallback(
     (newMode: string) => {
@@ -104,18 +97,20 @@ const PureCodeHighlighter = ({
     [presetKey]
   );
 
-  // Toggle base64 image rendering
   const toggleImageRendering = useCallback(() => {
-    setShouldRenderImages(prev => !prev);
+    setShouldRenderImages((prev) => !prev);
   }, []);
 
-  // Handle changes, restoring original base64 values if needed
+  // Toggle line numbers
+  const toggleLineNumbers = useCallback(() => {
+    setShowLineNumbers((prev) => !prev);
+  }, []);
+
   const handleChange = useCallback(
     (editedText: string, viewUpdate: any) => {
       if (!onChange) return;
 
       if (shouldRenderImages && hasImages) {
-        // Restore original base64 strings from placeholders
         const restoredText = restoreOriginalFromPlaceholders(editedText, imageMap);
         onChange(restoredText, viewUpdate);
       } else {
@@ -137,7 +132,6 @@ const PureCodeHighlighter = ({
       extensions.push(languageExtension());
     }
 
-    // Add base64 image rendering plugin if enabled and images were found
     if (shouldRenderImages && hasImages) {
       extensions.push(createImageDecorationPlugin(imageMap));
     }
@@ -145,81 +139,74 @@ const PureCodeHighlighter = ({
     return extensions;
   }, [mode, lineWrapping, renderedValue.length, shouldRenderImages, hasImages, imageMap]);
 
-  return (
-    <div className={cn("w-full h-full flex flex-col border", className)}>
-      <div
-        className={cn("bg-background h-8 flex items-center pl-2 pr-1 w-full rounded-t", {
-          "border-b": !isCollapsed,
-        })}
-      >
-        <Select value={mode} onValueChange={handleModeChange}>
-          <SelectTrigger className="font-medium text-secondary-foreground h-5 w-fit bg-secondary text-xs border-gray-600">
-            <SelectValue className="w-fit" placeholder="Select mode" />
-          </SelectTrigger>
-          <SelectContent>
-            {modes.map((mode) => (
-              <SelectItem key={mode} value={mode.toLowerCase()}>
-                {mode}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {collapsible && (
-          <Button
-            variant="ghost"
-            className="flex items-center gap-1 text-secondary-foreground"
-            onClick={toggleCollapsed}
-          >
-            {isCollapsed ? (
-              <>
-                show
-                <ChevronDown size={16} />
-              </>
-            ) : (
-              <>
-                hide
-                <ChevronUp size={16} />
-              </>
-            )}
+  const renderHeaderContent = () => (
+    <>
+      <Select value={mode} onValueChange={handleModeChange} onOpenChange={setIsSelectOpen}>
+        <SelectTrigger className={
+          cn("h-4 px-1.5 [&>svg]:opacity-100 font-medium text-secondary-foreground border-secondary-foreground/60 w-fit text-[0.7rem] bg-black/50 outline-none focus:ring-0",
+            !showSettingsOnHover && "bg-muted/50"
+          )
+        }>
+          <SelectValue className="w-fit" placeholder="Select mode" />
+        </SelectTrigger>
+        <SelectContent>
+          {modes.map((mode) => (
+            <SelectItem key={mode} value={mode.toLowerCase()} className="text-xs">
+              {mode}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <CopyButton className="h-7 w-7 ml-auto text-muted-foreground" iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={value} />
+      <CodeSheet
+        renderedValue={value}
+        mode={mode}
+        onModeChange={handleModeChange}
+        extensions={extensions}
+        placeholder={placeholder}
+      />
+      <Popover onOpenChange={setIsDropdownOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
+            <Settings size={16} />
           </Button>
-        )}
-        <CopyButton
-          className="h-7 w-7 ml-auto"
-          iconClassName="h-3.5 w-3.5"
-          size="icon"
-          variant="ghost"
-          text={value} // Use original value for copying
-        />
-        <CodeSheet
-          renderedValue={value}
-          mode={mode}
-          onModeChange={handleModeChange}
-          extensions={extensions}
-          placeholder={placeholder}
-        />
-        {/* Settings dropdown with image rendering toggle */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-secondary-foreground">
-              <Settings size={16} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="flex items-center justify-between cursor-default">
-              <span>Render base64 images</span>
-              <Switch
-                checked={shouldRenderImages}
-                onCheckedChange={toggleImageRendering}
-                className="ml-2"
-              />
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="p-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Show line numbers</span>
+            <Switch checked={showLineNumbers} onCheckedChange={toggleLineNumbers} />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Render base64 images</span>
+            <Switch checked={shouldRenderImages} onCheckedChange={toggleImageRendering} />
+          </div>
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+
+  return (
+    <div className={cn("w-full min-h-[1.75rem] h-full flex flex-col border relative group", className)}>
       <div
-        className={cn("flex-grow flex bg-muted/50 overflow-auto w-full h-fit", { "h-0": isCollapsed }, codeEditorClassName)}
+        className={cn(
+          "h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t border-b",
+          showSettingsOnHover && [
+            "border-0 bg-gradient-to-b from-black/80 via-black/60 to-transparent absolute top-0 left-0 right-0 z-10 transition-opacity duration-200 opacity-0 group-hover:opacity-100",
+            {
+              "opacity-100": isDropdownOpen || isSelectOpen,
+            },
+          ]
+        )}
+      >
+        {renderHeaderContent()}
+      </div>
+
+      <div
+        className={cn(
+          "flex-grow flex bg-muted/50 overflow-auto w-full h-full pt-0.5",
+          !showLineNumbers && "pl-1",
+          codeEditorClassName
+        )}
       >
         <CodeMirror
           ref={editorRef}
@@ -227,6 +214,10 @@ const PureCodeHighlighter = ({
           placeholder={placeholder}
           onChange={handleChange}
           theme={theme}
+          basicSetup={{
+            lineNumbers: showLineNumbers,
+            foldGutter: showLineNumbers,
+          }}
           extensions={extensions}
           value={renderedValue}
           readOnly={readOnly}

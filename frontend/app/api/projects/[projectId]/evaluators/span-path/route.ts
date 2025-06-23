@@ -1,17 +1,17 @@
 import { and, eq, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { evaluators, evaluatorSpanPaths } from "@/lib/db/migrations/schema";
 
 const querySchema = z.object({
-  spanPath: z.string().min(1, "Span path is required"),
+  spanPath: z.string().min(1, { error: "Span path is required" }),
 });
 
 const spanPathArraySchema = z
-  .array(z.string().min(1, "Span path elements cannot be empty"))
-  .min(1, "Span path must contain at least one element");
+  .array(z.string().min(1, { error: "Span path elements cannot be empty" }))
+  .min(1, { error: "Span path must contain at least one element" });
 
 const parseSpanPath = (
   spanPathString: string
@@ -23,7 +23,7 @@ const parseSpanPath = (
     if (!result.success) {
       return {
         success: false,
-        error: `Invalid span path format: ${result.error.errors.map((e) => e.message).join(", ")}`,
+        error: `Invalid span path format: ${result.error.issues.map((e) => e.message).join(", ")}`,
       };
     }
 
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     return Response.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return Response.json({ error: "Validation error", details: error.errors }, { status: 400 });
+      return Response.json({ error: "Validation error", details: error.issues }, { status: 400 });
     }
 
     return Response.json({ error: "Internal server error" }, { status: 500 });

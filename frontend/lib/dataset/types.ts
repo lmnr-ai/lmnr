@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 export interface Dataset {
   id: string;
   createdAt?: string;
@@ -19,14 +17,3 @@ export interface Datapoint {
   metadata: Record<string, any> | null;
   indexedOn: string | null;
 }
-
-export const CreateDatapointsSchema = z.object({
-  datapoints: z.array(
-    z.object({
-      data: z.any(),
-      target: z.any().optional(),
-      metadata: z.any().optional(),
-    })
-  ),
-  sourceSpanId: z.string().optional(),
-});

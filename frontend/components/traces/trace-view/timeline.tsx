@@ -3,8 +3,8 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import TimelineElement from "@/components/traces/trace-view/timeline-element";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { getDuration } from "@/lib/flow/utils";
 import { Span } from "@/lib/traces/types";
+import { getDuration } from "@/lib/utils";
 
 interface TimelineProps {
   spans: Span[];

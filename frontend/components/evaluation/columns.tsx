@@ -1,6 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { flow } from "lodash";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check, X } from "lucide-react";
 
 import {
   calculateDuration,
@@ -18,7 +18,7 @@ import {
 } from "@/components/evaluation/utils";
 import { type ScoreRange } from "@/lib/colors";
 import { EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
-import { getDurationString } from "@/lib/flow/utils";
+import { getDurationString } from "@/lib/utils";
 
 const shouldShowComparisonIndicator = (originalValue?: number, comparisonValue?: number): boolean =>
   isValidScore(originalValue) &&
@@ -282,6 +282,21 @@ const createColumnSizeConfig = (heatmapEnabled: boolean, isComparison: boolean =
 });
 
 export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
+  {
+    cell: (row) => (
+      <div className="flex h-full justify-center items-center w-10">
+        {row.getValue() ? (
+          <X className="self-center text-destructive" size={18} />
+        ) : (
+          <Check className="text-success" size={18} />
+        )}
+      </div>
+    ),
+    accessorKey: "status",
+    header: "Status",
+    id: "status",
+    size: 70,
+  },
   {
     accessorKey: "index",
     header: "Index",

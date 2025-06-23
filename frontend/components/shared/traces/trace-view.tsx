@@ -13,7 +13,7 @@ import smallLogo from "@/assets/logo/icon.svg";
 import SessionPlayer, { SessionPlayerHandle } from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
-import StatsShields from "@/components/traces/stats-shields";
+import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import Timeline from "@/components/traces/trace-view/timeline";
 import Tree from "@/components/traces/trace-view/tree";
@@ -168,17 +168,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
           <Image alt="Laminar AI logo" src={smallLogo} width={20} height={20} />
         </Link>
         <span>Trace</span>
-        <StatsShields
-          className="bg-background z-50"
-          startTime={trace.startTime}
-          endTime={trace.endTime}
-          totalTokenCount={trace.totalTokenCount}
-          inputTokenCount={trace.inputTokenCount}
-          outputTokenCount={trace.outputTokenCount}
-          inputCost={trace.inputCost}
-          outputCost={trace.outputCost}
-          cost={trace.cost}
-        />
+        <TraceStatsShields className="bg-background z-50" trace={trace} />
         {trace?.hasBrowserSession && (
           <TooltipProvider>
             <Tooltip>

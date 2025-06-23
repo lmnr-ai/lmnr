@@ -439,7 +439,7 @@ export const evaluationScores = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     resultId: uuid("result_id").defaultRandom().notNull(),
     name: text().default("").notNull(),
-    score: doublePrecision().notNull(),
+    score: doublePrecision(),
     labelId: uuid("label_id"),
   },
   (table) => [

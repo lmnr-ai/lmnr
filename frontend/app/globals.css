@@ -59,6 +59,9 @@
     --destructive: 0 60% 50%;
     --destructive-foreground: 210 40% 98%;
 
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 355.7 100% 97.3%;
+
     --border: 240 6% 18%;
     --input: 240 6% 18%;
     --ring: 212 96% 78%;
@@ -79,6 +82,9 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
+    --tool: 42 93% 46%;
+    --llm: 262 83% 58%;
+    --llm-foreground: 272 100% 74%;
   }
 
   .dark {
@@ -105,6 +111,9 @@
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
+
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 355.7 100% 97.3%;
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;

@@ -130,7 +130,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
                 ))}
             </LineChart>
           </ChartContainer>
-          <div className="flex flex-row justify-center w-full mt-2 gap-2 items-center">
+          <div className="flex flex-wrap flex-row justify-center w-full mt-2 gap-2 items-center">
             {[...Array.from(keys), ADDITIONAL_NAME].map((key) => (
               <div
                 key={key}
