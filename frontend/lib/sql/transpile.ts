@@ -98,7 +98,6 @@ class SQLValidator {
       }
       // Transpile the query
       const transpiled = this.transpileQuery(ast, projectId);
-      console.log(transpiled.sql);
       return {
         valid: true,
         sql: transpiled.sql,
