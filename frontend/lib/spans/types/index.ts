@@ -93,7 +93,7 @@ export const convertToMessages = (
         } as CoreMessage;
       }
 
-      if (typeof message === "object" && message !== null && "content" in message && message?.content) {
+      if (typeof message === "object" && message !== null && "content" in message) {
         const role = message.role;
 
         switch (role) {
