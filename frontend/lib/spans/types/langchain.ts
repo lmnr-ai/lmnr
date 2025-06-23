@@ -88,7 +88,7 @@ export const LangChainSystemMessageSchema = z.object({
 
 export const LangChainToolMessageSchema = z.object({
   role: z.literal("tool"),
-  content: LangChainContentPartSchema,
+  content: LangChainContentPartSchema.nullable(),
   tool_call_id: z.string(),
 });
 
@@ -99,7 +99,7 @@ export const LangChainUserMessageSchema = z.object({
 
 export const LangChainAssistantMessageSchema = z.object({
   role: z.enum(["assistant", "ai"]),
-  content: LangChainContentPartSchema,
+  content: LangChainContentPartSchema.nullable(),
   tool_calls: z.array(LangChainToolCallPartSchema).optional(),
   invalid_tool_calls: z.array(LangChainInvalidToolCallPartSchema).optional(),
   usage_metadata: z.record(z.string(), z.unknown()).optional(),
@@ -248,7 +248,7 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
           content: [
             {
               type: "tool-result" as const,
-              toolCallId: toolCallId,
+              toolCallId: toolCallId || "-",
               toolName: store.get(toolCallId) || toolCallId,
               result: typeof message.content === "string" ? message.content : JSON.stringify(message.content),
             },

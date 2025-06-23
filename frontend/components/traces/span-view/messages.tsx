@@ -53,6 +53,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
       return { messages: langchainResult.data, type: "langchain" as const };
     }
 
+    console.log(langchainResult.error);
     return {
       messages: convertToMessages(messages),
       type: "generic" as const,
@@ -144,7 +145,7 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4">
+          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
             <LangChainContentParts presetKey={presetKey} message={message} />
           </div>
         );

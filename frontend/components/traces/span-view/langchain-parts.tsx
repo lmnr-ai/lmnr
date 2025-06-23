@@ -7,7 +7,14 @@ import {
   LangChainMessageSchema,
 } from "@/lib/spans/types/langchain";
 
-import { FileContentPart, ImageContentPart, RoleHeader, TextContentPart, ToolCallContentPart } from "./common";
+import {
+  FileContentPart,
+  ImageContentPart,
+  RoleHeader,
+  TextContentPart,
+  ToolCallContentPart,
+  ToolResultContentPart,
+} from "./common";
 
 const PureLangChainContentParts = ({
   message,
@@ -26,12 +33,13 @@ const PureLangChainContentParts = ({
       case "tool":
         return (
           <>
-            <LangChainContentPart part={message.content} presetKey={presetKey} />
-            <TextContentPart
-              content={JSON.stringify({ tool_call_id: message.tool_call_id })}
+            <ToolResultContentPart
+              toolCallId={message?.tool_call_id || "-"}
+              content={message.content}
               presetKey={presetKey}
-              className="max-h-[400px] border-none"
-            />
+            >
+              <LangChainContentPart part={message.content} presetKey={presetKey} />
+            </ToolResultContentPart>
           </>
         );
       case "assistant":
@@ -72,11 +80,17 @@ const PureLangChainContentPart = ({
   part,
   presetKey,
 }: {
-  part: z.infer<typeof LangChainContentPartSchema>;
+  part: z.infer<typeof LangChainContentPartSchema> | null;
   presetKey?: string;
 }) => {
-  if (typeof part === "string") {
-    return <TextContentPart content={part} presetKey={presetKey} className="max-h-[400px] border-none" />;
+  if (typeof part === "string" || !part) {
+    return (
+      <TextContentPart
+        content={part || JSON.stringify(part)}
+        presetKey={presetKey}
+        className="max-h-[400px] border-0"
+      />
+    );
   }
 
   return part.map((item, index) => {
@@ -89,7 +103,7 @@ const PureLangChainContentPart = ({
             key={`${item.type}-${index}`}
             content={item.text}
             presetKey={presetKey}
-            className="max-h-[400px] border-none"
+            className="max-h-[400px] border-0"
           />
         );
       case "image":
@@ -104,7 +118,7 @@ const PureLangChainContentPart = ({
             key={`${item.type}-${index}`}
             content={item.id}
             presetKey={presetKey}
-            className="max-h-[400px] border-none"
+            className="max-h-[400px] border-0"
           />
         );
 
@@ -121,7 +135,7 @@ const PureLangChainContentPart = ({
               key={`${item.type}-${index}`}
               content={item.text}
               presetKey={presetKey}
-              className="max-h-[400px] border-none"
+              className="max-h-[400px] border-0"
             />
           );
         }
@@ -130,7 +144,7 @@ const PureLangChainContentPart = ({
             key={`${item.type}-${index}`}
             content={item.id}
             presetKey={presetKey}
-            className="max-h-[400px] border-none"
+            className="max-h-[400px] border-0"
           />
         );
 
@@ -140,7 +154,7 @@ const PureLangChainContentPart = ({
             key={`${item.type}-${index}`}
             content={JSON.stringify(item)}
             presetKey={presetKey}
-            className="max-h-[400px] border-none"
+            className="max-h-[400px] border-0"
           />
         );
 

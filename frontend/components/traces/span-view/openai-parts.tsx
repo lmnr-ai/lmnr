@@ -119,7 +119,7 @@ const PureOpenAIContentParts = ({
           <ToolResultContentPart
             key={`${part.type}-${message.tool_call_id}`}
             toolCallId={message.tool_call_id || "-"}
-            content=""
+            content={part.text}
             presetKey={presetKey}
           >
             <OpenAITextContentPart key={`${message.role}-${part.type}-${index}`} part={part} presetKey={presetKey} />

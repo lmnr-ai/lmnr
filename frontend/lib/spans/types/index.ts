@@ -93,7 +93,7 @@ export const convertToMessages = (
       }
 
       if (typeof message === "object" && message !== null) {
-        if ("content" in message) {
+        if ("content" in message && message?.content) {
           const role = message.role;
 
           if (typeof message.content === "string") {
