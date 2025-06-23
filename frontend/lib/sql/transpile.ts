@@ -42,10 +42,12 @@ import { ADDITIONAL_WITH_CTES } from "./with";
 class SQLValidator {
   private parser: Parser;
   private allowedTables: Set<string>;
+  private withAliases: Set<string>;
 
   constructor(allowedTables: Set<string> = ALLOWED_TABLES) {
     this.parser = new Parser();
     this.allowedTables = allowedTables;
+    this.withAliases = new Set();
   }
 
   /**
@@ -68,11 +70,15 @@ class SQLValidator {
           error: 'Only SELECT queries are allowed'
         };
       }
+      const statements = Array.isArray(ast) ? ast : [ast];
+      const withAliases = statements
+        .filter(statement => statement.type === 'select')
+        .flatMap(statement => (statement as Select).with?.map(withItem => withItem.name.value));
+      this.withAliases = new Set(withAliases.filter(alias => alias !== undefined));
 
-      const allowedTables = [`(select)::(.*)::(${Array.from(this.allowedTables).join('|')})`];
       try {
         this.parser.whiteListCheck(sqlQuery,
-          allowedTables,
+          [`(select)::(.*)::(${Array.from(this.allowedTables.union(this.withAliases)).join('|')})`],
           {
             database: 'Postgresql',
             type: 'table',
@@ -92,6 +98,7 @@ class SQLValidator {
       }
       // Transpile the query
       const transpiled = this.transpileQuery(ast, projectId);
+      console.log(transpiled.sql);
       return {
         valid: true,
         sql: transpiled.sql,
@@ -292,7 +299,7 @@ class SQLValidator {
 
       // Now apply the project_id condition to this select statement
       const mainTable = findMainTable(node);
-      if (mainTable && this.allowedTables.has(mainTable)) {
+      if (mainTable && this.allowedTables.has(mainTable) && !this.withAliases.has(mainTable)) {
         applyProjectIdToStatement(node);
       }
       return node;
