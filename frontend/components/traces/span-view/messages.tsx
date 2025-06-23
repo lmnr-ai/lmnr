@@ -6,10 +6,13 @@ import { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
 import { z } from "zod/v4";
 
 import ContentParts from "@/components/traces/span-view/generic-parts";
+import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { convertToMessages, OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types";
+import { convertToMessages } from "@/lib/spans/types";
+import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
+import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 
 interface MessagesProps {
   messages: any;
@@ -23,9 +26,12 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
     const openAIMessageResult = OpenAIMessageSchema.safeParse(messages);
     const openAIResult = OpenAIMessagesSchema.safeParse(messages);
 
+    const langchainMessageResult = LangChainMessageSchema.safeParse(messages);
+    const langchainResult = LangChainMessagesSchema.safeParse(messages);
+
     if (openAIMessageResult.success) {
       return {
-        messages: [openAIMessageResult.data] as z.infer<typeof OpenAIMessagesSchema>,
+        messages: [openAIMessageResult.data],
         type: "openai" as const,
       };
     }
@@ -37,6 +43,18 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
       };
     }
 
+    if (langchainMessageResult.success) {
+      return {
+        messages: [langchainMessageResult.data],
+        type: "langchain" as const,
+      };
+    }
+
+    if (langchainResult.success) {
+      return { messages: langchainResult.data, type: "langchain" as const };
+    }
+
+    console.log(langchainResult.error);
     return {
       messages: convertToMessages(messages),
       type: "generic" as const,
@@ -98,6 +116,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 }
 
 type MessageRendererProps =
+  | { type: "langchain"; messages: z.infer<typeof LangChainMessagesSchema> }
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
   | { type: "generic"; messages: (Omit<CoreMessage, "role"> & { role?: CoreMessage["role"] })[] };
 
@@ -118,20 +137,27 @@ const MessagesRenderer = ({
         const message = messages[row.index];
         return (
           <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
-            <div className="font-medium text-sm text-secondary-foreground p-2">{message.role.toUpperCase()}</div>
             <OpenAIContentParts presetKey={presetKey} message={message} />
           </div>
         );
       });
+
+    case "langchain":
+      return virtualItems.map((row) => {
+        const message = messages[row.index];
+        return (
+          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
+            <LangChainContentParts presetKey={presetKey} message={message} />
+          </div>
+        );
+      });
+
     case "generic":
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
           <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
-            {message?.role && (
-              <div className="font-medium text-sm text-secondary-foreground p-2">{message.role.toUpperCase()}</div>
-            )}
-            <ContentParts presetKey={presetKey} content={message.content} />
+            <ContentParts presetKey={presetKey} message={message} />
           </div>
         );
       });
