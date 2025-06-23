@@ -10,8 +10,9 @@ import LangChainContentParts from "@/components/traces/span-view/langchain-parts
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { convertToMessages, OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types";
+import { convertToMessages } from "@/lib/spans/types";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
+import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 
 interface MessagesProps {
   messages: any;

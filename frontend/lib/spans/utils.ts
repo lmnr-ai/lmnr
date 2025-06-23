@@ -1,18 +1,17 @@
 import { Message } from "@/lib/playground/types";
-import {
-  convertOpenAIToPlaygroundMessages,
-  convertToPlaygroundMessages,
-  downloadImages,
-  downloadOpenAIImages,
-  OpenAIMessageSchema,
-  OpenAIMessagesSchema,
-} from "@/lib/spans/types";
+import { convertToPlaygroundMessages, downloadImages } from "@/lib/spans/types";
 import {
   convertLangChainToPlaygroundMessages,
   downloadLangChainImages,
   LangChainMessageSchema,
   LangChainMessagesSchema,
 } from "@/lib/spans/types/langchain";
+import {
+  convertOpenAIToPlaygroundMessages,
+  downloadOpenAIImages,
+  OpenAIMessageSchema,
+  OpenAIMessagesSchema,
+} from "@/lib/spans/types/openai";
 
 /**
  * This function essentially prepares span for export

@@ -7,7 +7,7 @@ import {
   OpenAIMessageSchema,
   OpenAITextPartSchema,
   OpenAIToolCallPartSchema,
-} from "@/lib/spans/types";
+} from "@/lib/spans/types/openai";
 
 import {
   FileContentPart,

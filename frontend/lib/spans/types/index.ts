@@ -5,8 +5,6 @@ import { Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
 import { ChatMessage, ChatMessageContentPart, ChatMessageImage } from "@/lib/types";
 
-export * from "./openai";
-
 /**
  * Downloads images of internal messages format
  */
