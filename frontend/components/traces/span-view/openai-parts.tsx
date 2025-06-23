@@ -1,6 +1,6 @@
 import { Bolt } from "lucide-react";
 import React, { memo } from "react";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Badge } from "@/components/ui/badge";

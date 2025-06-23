@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const requestBodySchema = z.object({
   input: z.any(),
   definition: z.object({
-    function_code: z.string().min(1, "Function code is required"),
+    function_code: z.string().min(1, { error: "Function code is required" }),
   }),
 });
 
@@ -14,8 +14,8 @@ const evaluatorResponseSchema = z.object({
 });
 
 const environmentSchema = z.object({
-  ONLINE_EVALUATORS_SECRET_KEY: z.string().min(1, "ONLINE_EVALUATORS_SECRET_KEY is required"),
-  PYTHON_ONLINE_EVALUATOR_URL: z.string().url("PYTHON_ONLINE_EVALUATOR_URL must be a valid URL"),
+  ONLINE_EVALUATORS_SECRET_KEY: z.string().min(1, { error: "ONLINE_EVALUATORS_SECRET_KEY is required" }),
+  PYTHON_ONLINE_EVALUATOR_URL: z.string().url({ error: "PYTHON_ONLINE_EVALUATOR_URL must be a valid URL" }),
 });
 
 type EvaluatorRequest = {
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     console.error("Failed to execute evaluator:", error);
 
     if (error instanceof z.ZodError) {
-      return Response.json({ error: "Validation error", details: error.errors }, { status: 400 });
+      return Response.json({ error: "Validation error", details: error.issues }, { status: 400 });
     }
 
     if (error instanceof SyntaxError) {

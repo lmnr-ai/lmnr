@@ -12,28 +12,5 @@ export const parseSystemMessages = (messages: Message[]): CoreMessage[] =>
       } as CoreSystemMessage;
     }
 
-    // Handle messages with tool-call content
-    if (Array.isArray(message.content)) {
-      const parsedContent = message.content.map((part) => {
-        if (part.type === "tool-call" && typeof part.args === "string") {
-          try {
-            return {
-              ...part,
-              args: JSON.parse(part.args),
-            };
-          } catch (error) {
-            console.error("Error parsing tool-call args:", error);
-            return part;
-          }
-        }
-        return part;
-      });
-
-      return {
-        ...message,
-        content: parsedContent,
-      } as CoreMessage;
-    }
-
     return message as CoreMessage;
   });

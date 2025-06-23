@@ -142,7 +142,11 @@ const PureCodeHighlighter = ({
   const renderHeaderContent = () => (
     <>
       <Select value={mode} onValueChange={handleModeChange} onOpenChange={setIsSelectOpen}>
-        <SelectTrigger className="h-4 px-1.5 [&>svg]:opacity-100 font-medium text-secondary-foreground border-secondary-foreground/60 w-fit text-[0.7rem] bg-black/50 outline-none focus:ring-0">
+        <SelectTrigger className={
+          cn("h-4 px-1.5 [&>svg]:opacity-100 font-medium text-secondary-foreground border-secondary-foreground/60 w-fit text-[0.7rem] bg-black/50 outline-none focus:ring-0",
+            !showSettingsOnHover && "bg-muted/50"
+          )
+        }>
           <SelectValue className="w-fit" placeholder="Select mode" />
         </SelectTrigger>
         <SelectContent>
@@ -153,7 +157,7 @@ const PureCodeHighlighter = ({
           ))}
         </SelectContent>
       </Select>
-      <CopyButton className="h-7 w-7 ml-auto" iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={value} />
+      <CopyButton className="h-7 w-7 ml-auto text-muted-foreground" iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={value} />
       <CodeSheet
         renderedValue={value}
         mode={mode}
@@ -163,7 +167,7 @@ const PureCodeHighlighter = ({
       />
       <Popover onOpenChange={setIsDropdownOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-secondary-foreground">
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
             <Settings size={16} />
           </Button>
         </PopoverTrigger>
@@ -185,9 +189,9 @@ const PureCodeHighlighter = ({
     <div className={cn("w-full min-h-[1.75rem] h-full flex flex-col border relative group", className)}>
       <div
         className={cn(
-          "bg-gradient-to-b from-black via-black/60 to-transparent h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t",
+          "h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t border-b",
           showSettingsOnHover && [
-            "absolute top-0 left-0 right-0 z-10 transition-opacity duration-200 opacity-0 group-hover:opacity-100",
+            "border-0 bg-gradient-to-b from-black/80 via-black/60 to-transparent absolute top-0 left-0 right-0 z-10 transition-opacity duration-200 opacity-0 group-hover:opacity-100",
             {
               "opacity-100": isDropdownOpen || isSelectOpen,
             },

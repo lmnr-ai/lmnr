@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import React, { useCallback, useRef } from "react";
 import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
+import { prettifyError } from "zod/v4";
 
 import Messages from "@/components/playground/messages";
 import LlmSelect from "@/components/playground/messages/llm-select";
@@ -90,7 +91,23 @@ export default function PlaygroundPanel({
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "Request failed");
+
+          if (errorData?.name === "ZodError") {
+            toast({
+              title: "Validation Error",
+              description: `Validation failed: ${prettifyError(errorData)}`,
+              variant: "destructive",
+            });
+          } else if (errorData instanceof Error) {
+            toast({
+              title: "Error",
+              description: errorData.message || "Request failed. Please try again.",
+              variant: "destructive",
+            });
+          } else {
+            throw new Error(errorData?.error || "Request failed. Please try again.");
+          }
+          return;
         }
 
         const result = (await response.json()) as GenerateTextResult<ToolSet, {}>;
