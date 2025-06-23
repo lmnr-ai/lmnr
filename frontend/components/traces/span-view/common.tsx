@@ -10,7 +10,7 @@ import { isStorageUrl } from "@/lib/s3";
 
 interface ToolCallContentPartProps {
   toolName: string;
-  content: any;
+  content: unknown;
   presetKey?: string;
 }
 
