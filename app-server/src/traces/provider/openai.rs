@@ -1,7 +1,26 @@
+//! Convert chat messages to OpenAI format.
+//!
+//! We try to be close to the OpenAI API, but slightly more permissive.
+//! This conversion is supposed to happen after checking for other indicators
+//! that this is an OpenAI span: not AI SDK, not LangChain, and provider is
+//! OpenAI.
+//!
+//! Things we log and silently skip:
+//! - Document URL content part
+//! - Image raw bytes content part (AI SDK outer span)
+//! - Tool call content part - this is because we parse any openllmetry attributes
+//!   to this format, which is closer to anthropic.
+//!
+//! Things we do not allow
+//! - A tool message without a `tool_call_id`
+//! - System or developer messages with non-text content parts
+//! - Tool calls in an assistant message that do not have an `id`
+
 use crate::{
     db::spans::Span,
     language_model::{ChatMessage, ChatMessageContent, ChatMessageContentPart},
 };
+use anyhow::Result;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -9,6 +28,12 @@ use serde_json::Value;
 #[serde(rename_all = "snake_case")]
 struct OpenAIChatMessageContentPartText {
     text: String,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "snake_case")]
+struct OpenAIChatMessageContentPartRefusal {
+    refusal: String,
 }
 
 // pub for langchain
@@ -70,11 +95,41 @@ enum OpenAIChatMessageContentPart {
     AudioInput(OpenAIChatMessageContentPartAudioInput),
 }
 
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "type")]
+enum OpenAIAssistantChatMessageContentPart {
+    Text(OpenAIChatMessageContentPartText),
+    #[allow(dead_code)]
+    Refusal(OpenAIChatMessageContentPartRefusal),
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "type")]
+enum OpenAIChatMessageContentPartTextOnly {
+    Text(OpenAIChatMessageContentPartText),
+}
+
 #[derive(Serialize)]
 #[serde(untagged)]
 enum OpenAIChatMessageContent {
     Text(String),
     ContentPartList(Vec<OpenAIChatMessageContentPart>),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum OpenAIChatMessageContentStringOrTextBlocks {
+    Text(String),
+    ContentPartList(Vec<OpenAIChatMessageContentPartTextOnly>),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum OpenAIAssistantChatMessageContent {
+    Text(String),
+    ContentPartList(Vec<OpenAIAssistantChatMessageContentPart>),
 }
 
 #[derive(Serialize)]
@@ -97,13 +152,41 @@ enum OpenAIChatMessageToolCall {
 }
 
 #[derive(Serialize)]
-struct OpenAIChatMessage {
-    role: String,
+struct OpenAIUserChatMessage {
     content: OpenAIChatMessageContent,
+}
+
+#[derive(Serialize)]
+struct OpenAIDeveloperChatMessage {
+    content: OpenAIChatMessageContentStringOrTextBlocks,
+}
+
+#[derive(Serialize)]
+struct OpenAISystemChatMessage {
+    content: OpenAIChatMessageContentStringOrTextBlocks,
+}
+
+#[derive(Serialize)]
+struct OpenAIAssistantChatMessage {
+    content: OpenAIAssistantChatMessageContent,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_calls: Option<Vec<OpenAIChatMessageToolCall>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_call_id: Option<String>,
+}
+
+#[derive(Serialize)]
+struct OpenAIToolChatMessage {
+    content: OpenAIChatMessageContentStringOrTextBlocks,
+    tool_call_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "role", rename_all = "snake_case")]
+enum OpenAIChatMessage {
+    Developer(OpenAIDeveloperChatMessage),
+    User(OpenAIUserChatMessage),
+    System(OpenAISystemChatMessage),
+    Assistant(OpenAIAssistantChatMessage),
+    Tool(OpenAIToolChatMessage),
 }
 
 pub fn convert_span_to_openai(span: &mut Span) {
@@ -115,36 +198,103 @@ pub fn convert_span_to_openai(span: &mut Span) {
         serde_json::from_value::<Vec<ChatMessage>>(span_output.clone()).ok()
     });
 
-    if let Some(input_messages) = span_input {
-        let input_messages = input_messages
+    let converted_input_messages = span_input.and_then(|input_messages| {
+        input_messages
             .into_iter()
             .map(|message| message_to_openai_format(message))
-            .collect::<Vec<Value>>();
-        span.input = Some(Value::Array(input_messages));
-    }
+            .collect::<Result<Vec<Value>>>()
+            .map_err(|e| log::warn!("Error converting chat message to OpenAI format: {}", e))
+            .ok()
+    });
 
-    if let Some(output_messages) = span_output {
-        let output_messages = output_messages
+    let converted_output_messages = span_output.and_then(|output_messages| {
+        output_messages
             .into_iter()
             .map(|message| message_to_openai_format(message))
-            .collect::<Vec<Value>>();
-        span.output = Some(Value::Array(output_messages));
+            .collect::<Result<Vec<Value>>>()
+            .map_err(|e| log::warn!("Error converting chat message to OpenAI format: {}", e))
+            .ok()
+    });
+
+    // only update the span if we are successful in parsing the messages in
+    // both input and output
+    if converted_input_messages.is_some() && converted_output_messages.is_some() {
+        span.input = Some(Value::Array(converted_input_messages.unwrap()));
+        span.output = Some(Value::Array(converted_output_messages.unwrap()));
     }
 }
 
-fn message_to_openai_format(message: ChatMessage) -> Value {
-    let role = message.role.clone();
-    let tool_calls = if let ChatMessageContent::ContentPartList(parts) = &message.content {
-        tool_calls_from_content_parts(parts)
+fn message_to_openai_format(message: ChatMessage) -> Result<Value> {
+    let openai_message = match message.role.trim().to_lowercase().as_str() {
+        "user" => convert_user_message(message)?,
+        "system" => convert_system_message(message)?,
+        "assistant" => convert_assistant_message(message)?,
+        "tool" => convert_tool_message(message)?,
+        "developer" => convert_developer_message(message)?,
+        _ => return Err(anyhow::anyhow!("Invalid role: {}", message.role)),
+    };
+
+    Ok(serde_json::to_value(openai_message)?)
+}
+
+fn convert_user_message(message: ChatMessage) -> Result<OpenAIChatMessage> {
+    let content = convert_to_openai_user_content(message.content)?;
+    Ok(OpenAIChatMessage::User(OpenAIUserChatMessage { content }))
+}
+
+fn convert_developer_message(message: ChatMessage) -> Result<OpenAIChatMessage> {
+    let content = convert_to_openai_content_text_only(message.content)?;
+    Ok(OpenAIChatMessage::Developer(OpenAIDeveloperChatMessage {
+        content,
+    }))
+}
+
+fn convert_system_message(message: ChatMessage) -> Result<OpenAIChatMessage> {
+    let content = convert_to_openai_content_text_only(message.content)?;
+    Ok(OpenAIChatMessage::System(OpenAISystemChatMessage {
+        content,
+    }))
+}
+
+fn convert_tool_message(message: ChatMessage) -> Result<OpenAIChatMessage> {
+    let content = convert_to_openai_content_text_only(message.content)?;
+    let tool_call_id = message
+        .tool_call_id
+        .ok_or(anyhow::anyhow!("Tool call ID is required"))?;
+    Ok(OpenAIChatMessage::Tool(OpenAIToolChatMessage {
+        content,
+        tool_call_id,
+    }))
+}
+
+fn convert_assistant_message(message: ChatMessage) -> Result<OpenAIChatMessage> {
+    let tool_calls = if let ChatMessageContent::ContentPartList(ref parts) = message.content {
+        tool_calls_from_content_parts(parts)?
     } else {
         Vec::new()
     };
-    let content = match message.content {
-        ChatMessageContent::Text(text) => OpenAIChatMessageContent::Text(text.clone()),
-        ChatMessageContent::ContentPartList(parts) => OpenAIChatMessageContent::ContentPartList(
-            parts
+
+    let content = convert_to_openai_assistant_content(message.content)?;
+
+    Ok(OpenAIChatMessage::Assistant(OpenAIAssistantChatMessage {
+        content,
+        tool_calls: if tool_calls.is_empty() {
+            None
+        } else {
+            Some(tool_calls)
+        },
+    }))
+}
+
+fn convert_to_openai_user_content(content: ChatMessageContent) -> Result<OpenAIChatMessageContent> {
+    match content {
+        ChatMessageContent::Text(text) => Ok(OpenAIChatMessageContent::Text(text)),
+        ChatMessageContent::ContentPartList(parts) => {
+            let converted_parts = parts
                 .into_iter()
                 .filter_map(|v| {
+                    // We try to be permissive (log and skip the invalid parts) in the user message,
+                    // unlike other places where we fail fast.
                     v.try_into()
                         .map_err(|e| {
                             log::warn!(
@@ -155,37 +305,85 @@ fn message_to_openai_format(message: ChatMessage) -> Value {
                         .ok()
                         .flatten()
                 })
-                .collect(),
-        ),
-    };
-    let openai_message = OpenAIChatMessage {
-        role,
-        content,
-        tool_calls: if tool_calls.is_empty() {
-            None
-        } else {
-            Some(tool_calls)
-        },
-        tool_call_id: message.tool_call_id,
-    };
-    serde_json::to_value(openai_message).unwrap()
+                .collect();
+            Ok(OpenAIChatMessageContent::ContentPartList(converted_parts))
+        }
+    }
+}
+
+fn convert_to_openai_content_text_only(
+    content: ChatMessageContent,
+) -> Result<OpenAIChatMessageContentStringOrTextBlocks> {
+    match content {
+        ChatMessageContent::Text(text) => {
+            Ok(OpenAIChatMessageContentStringOrTextBlocks::Text(text))
+        }
+        ChatMessageContent::ContentPartList(parts) => {
+            let text_only_parts = parts
+                .into_iter()
+                .filter_map(|part| match part {
+                    ChatMessageContentPart::Text(text) => {
+                        Some(Ok(OpenAIChatMessageContentPartTextOnly::Text(
+                            OpenAIChatMessageContentPartText { text: text.text },
+                        )))
+                    }
+                    _ => Some(Err(anyhow::anyhow!(
+                        "Non-text content part found in message role that only supports text"
+                    ))),
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(OpenAIChatMessageContentStringOrTextBlocks::ContentPartList(
+                text_only_parts,
+            ))
+        }
+    }
+}
+
+fn convert_to_openai_assistant_content(
+    content: ChatMessageContent,
+) -> Result<OpenAIAssistantChatMessageContent> {
+    match content {
+        ChatMessageContent::Text(text) => Ok(OpenAIAssistantChatMessageContent::Text(text)),
+        ChatMessageContent::ContentPartList(parts) => {
+            let converted_parts = parts
+                .into_iter()
+                .filter_map(|v| match v {
+                    ChatMessageContentPart::Text(text) => {
+                        Some(OpenAIAssistantChatMessageContentPart::Text(
+                            OpenAIChatMessageContentPartText { text: text.text },
+                        ))
+                    }
+                    _ => None,
+                })
+                .collect();
+            Ok(OpenAIAssistantChatMessageContent::ContentPartList(
+                converted_parts,
+            ))
+        }
+    }
 }
 
 fn tool_calls_from_content_parts(
     content_parts: &Vec<ChatMessageContentPart>,
-) -> Vec<OpenAIChatMessageToolCall> {
+) -> Result<Vec<OpenAIChatMessageToolCall>> {
     content_parts
         .into_iter()
         .filter_map(|v| match v {
-            ChatMessageContentPart::ToolCall(tool_call) => Some(
-                OpenAIChatMessageToolCall::Function(OpenAIChatMessageToolCallFunction {
-                    id: tool_call.id.clone().unwrap_or_default(),
-                    function: OpenAIChatMessageToolCallFunctionInner {
-                        name: tool_call.name.clone(),
-                        arguments: serde_json::to_string(&tool_call.arguments).unwrap(),
-                    },
-                }),
-            ),
+            ChatMessageContentPart::ToolCall(tool_call) => {
+                let id = tool_call
+                    .id
+                    .clone()
+                    .ok_or(anyhow::anyhow!("Tool call ID is required"));
+                Some(id.map(|id| {
+                    OpenAIChatMessageToolCall::Function(OpenAIChatMessageToolCallFunction {
+                        id,
+                        function: OpenAIChatMessageToolCallFunctionInner {
+                            name: tool_call.name.clone(),
+                            arguments: serde_json::to_string(&tool_call.arguments).unwrap(),
+                        },
+                    })
+                }))
+            }
             _ => None,
         })
         .collect()
@@ -257,7 +455,7 @@ mod tests {
             content: ChatMessageContent::Text("Hello, world!".to_string()),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         assert_eq!(openai_message["role"], "user");
         assert_eq!(openai_message["content"], "Hello, world!");
@@ -272,7 +470,7 @@ mod tests {
             content: ChatMessageContent::Text("Tool response".to_string()),
             tool_call_id: Some("call_123".to_string()),
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         assert_eq!(openai_message["role"], "tool");
         assert_eq!(openai_message["content"], "Tool response");
@@ -286,7 +484,7 @@ mod tests {
             content: ChatMessageContent::Text("How can I help you?".to_string()),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         assert_eq!(openai_message["role"], "assistant");
         assert_eq!(openai_message["content"], "How can I help you?");
@@ -299,7 +497,7 @@ mod tests {
             content: ChatMessageContent::Text("You are a helpful assistant.".to_string()),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         assert_eq!(openai_message["role"], "system");
         assert_eq!(openai_message["content"], "You are a helpful assistant.");
@@ -320,7 +518,7 @@ mod tests {
             ]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         assert_eq!(openai_message["role"], "user");
         assert!(openai_message["content"].is_array());
@@ -347,7 +545,7 @@ mod tests {
             ]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         assert_eq!(openai_message["role"], "user");
         let content_array = openai_message["content"].as_array().unwrap();
@@ -376,7 +574,7 @@ mod tests {
             )]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         let content_array = openai_message["content"].as_array().unwrap();
         assert_eq!(content_array[0]["type"], "image_url");
@@ -399,7 +597,7 @@ mod tests {
             ]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         let content_array = openai_message["content"].as_array().unwrap();
         assert_eq!(content_array[0]["type"], "image_url");
@@ -425,7 +623,7 @@ mod tests {
             )]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         let content_array = openai_message["content"].as_array().unwrap();
         assert_eq!(content_array[0]["type"], "file");
@@ -453,7 +651,7 @@ mod tests {
             ]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         assert_eq!(openai_message["role"], "assistant");
 
@@ -500,7 +698,7 @@ mod tests {
             ]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         // Check tool_calls
         let tool_calls = openai_message["tool_calls"].as_array().unwrap();
@@ -536,10 +734,16 @@ mod tests {
             )]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
 
-        let tool_calls = openai_message["tool_calls"].as_array().unwrap();
-        assert_eq!(tool_calls[0]["id"], ""); // Should default to empty string
+        // Should return an error because tool call ID is required
+        let result = message_to_openai_format(message);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Tool call ID is required")
+        );
     }
 
     #[test]
@@ -567,7 +771,7 @@ mod tests {
             )]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         let tool_calls = openai_message["tool_calls"].as_array().unwrap();
         let arguments_str = tool_calls[0]["function"]["arguments"].as_str().unwrap();
@@ -599,18 +803,50 @@ mod tests {
             tool_call_id: None,
         };
 
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
-        // Check content (should exclude tool calls)
+        // Check content (assistant messages only include text parts, not images)
         let content_array = openai_message["content"].as_array().unwrap();
-        assert_eq!(content_array.len(), 2);
+        assert_eq!(content_array.len(), 1); // Only text part, images are filtered out for assistant
         assert_eq!(content_array[0]["type"], "text");
-        assert_eq!(content_array[1]["type"], "image_url");
+        assert_eq!(content_array[0]["text"], "I'll analyze this image for you.");
 
         // Check tool_calls
         let tool_calls = openai_message["tool_calls"].as_array().unwrap();
         assert_eq!(tool_calls.len(), 1);
         assert_eq!(tool_calls[0]["function"]["name"], "analyze_image");
+    }
+
+    #[test]
+    fn test_mixed_content_user_message_with_text_and_image() {
+        // Test user message which should include both text and image content
+        let message = ChatMessage {
+            role: "user".to_string(),
+            content: ChatMessageContent::ContentPartList(vec![
+                ChatMessageContentPart::Text(ChatMessageText {
+                    text: "What's in this image?".to_string(),
+                }),
+                ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                    url: "https://example.com/image.jpg".to_string(),
+                    detail: Some("high".to_string()),
+                }),
+            ]),
+            tool_call_id: None,
+        };
+
+        let openai_message = message_to_openai_format(message).unwrap();
+
+        // Check content (user messages can include both text and images)
+        let content_array = openai_message["content"].as_array().unwrap();
+        assert_eq!(content_array.len(), 2);
+        assert_eq!(content_array[0]["type"], "text");
+        assert_eq!(content_array[0]["text"], "What's in this image?");
+        assert_eq!(content_array[1]["type"], "image_url");
+        assert_eq!(
+            content_array[1]["image_url"]["url"],
+            "https://example.com/image.jpg"
+        );
+        assert_eq!(content_array[1]["image_url"]["detail"], "high");
     }
 
     // Error handling and edge cases
@@ -621,7 +857,7 @@ mod tests {
             content: ChatMessageContent::ContentPartList(vec![]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         assert!(openai_message["content"].is_array());
         let content_array = openai_message["content"].as_array().unwrap();
@@ -636,7 +872,7 @@ mod tests {
             content: ChatMessageContent::Text("".to_string()),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         assert_eq!(openai_message["content"], "");
     }
@@ -875,7 +1111,7 @@ mod tests {
     #[test]
     fn test_openai_message_serialization_format() {
         let message = ChatMessage {
-            role: "user".to_string(),
+            role: "tool".to_string(),
             content: ChatMessageContent::ContentPartList(vec![ChatMessageContentPart::Text(
                 ChatMessageText {
                     text: "Hello".to_string(),
@@ -883,7 +1119,7 @@ mod tests {
             )]),
             tool_call_id: Some("call_123".to_string()),
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         // Verify the exact structure matches OpenAI API expectations
         assert!(openai_message.is_object());
@@ -908,7 +1144,7 @@ mod tests {
             )]),
             tool_call_id: None,
         };
-        let openai_message = message_to_openai_format(message);
+        let openai_message = message_to_openai_format(message).unwrap();
 
         let tool_calls = openai_message["tool_calls"].as_array().unwrap();
         let tool_call_obj = &tool_calls[0];
@@ -923,5 +1159,368 @@ mod tests {
         // Arguments should be JSON string, not object
         let args_str = tool_call_obj["function"]["arguments"].as_str().unwrap();
         let _: Value = serde_json::from_str(args_str).unwrap(); // Should parse as valid JSON
+    }
+
+    // Error path tests
+    #[test]
+    fn test_developer_message_with_non_text_content_error() {
+        let message = ChatMessage {
+            role: "developer".to_string(),
+            content: ChatMessageContent::ContentPartList(vec![
+                ChatMessageContentPart::Text(ChatMessageText {
+                    text: "Text part".to_string(),
+                }),
+                ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                    url: "https://example.com/image.jpg".to_string(),
+                    detail: None,
+                }),
+            ]),
+            tool_call_id: None,
+        };
+
+        let result = message_to_openai_format(message);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Non-text content part found")
+        );
+    }
+
+    #[test]
+    fn test_system_message_with_non_text_content_error() {
+        let message = ChatMessage {
+            role: "system".to_string(),
+            content: ChatMessageContent::ContentPartList(vec![
+                ChatMessageContentPart::Text(ChatMessageText {
+                    text: "System message".to_string(),
+                }),
+                ChatMessageContentPart::Document(ChatMessageDocument {
+                    source: ChatMessageDocumentSource {
+                        document_type: "base64".to_string(),
+                        data: "data".to_string(),
+                        media_type: "text/plain".to_string(),
+                    },
+                }),
+            ]),
+            tool_call_id: None,
+        };
+
+        let result = message_to_openai_format(message);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Non-text content part found")
+        );
+    }
+
+    #[test]
+    fn test_tool_message_without_tool_call_id_error() {
+        let message = ChatMessage {
+            role: "tool".to_string(),
+            content: ChatMessageContent::Text("Tool response".to_string()),
+            tool_call_id: None, // Missing required tool_call_id
+        };
+
+        let result = message_to_openai_format(message);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Tool call ID is required")
+        );
+    }
+
+    #[test]
+    fn test_assistant_tool_call_without_id_error() {
+        let tool_call = ChatMessageToolCall {
+            id: None, // Missing required ID
+            name: "test_function".to_string(),
+            arguments: Some(json!({})),
+        };
+
+        let message = ChatMessage {
+            role: "assistant".to_string(),
+            content: ChatMessageContent::ContentPartList(vec![ChatMessageContentPart::ToolCall(
+                tool_call,
+            )]),
+            tool_call_id: None,
+        };
+
+        let result = message_to_openai_format(message);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Tool call ID is required")
+        );
+    }
+
+    #[test]
+    fn test_invalid_role_error() {
+        let message = ChatMessage {
+            role: "invalid_role".to_string(),
+            content: ChatMessageContent::Text("Test".to_string()),
+            tool_call_id: None,
+        };
+
+        let result = message_to_openai_format(message);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid role: invalid_role")
+        );
+    }
+
+    // Span integrity tests - verify span remains unchanged when conversion fails
+    #[test]
+    fn test_span_remains_intact_on_input_conversion_error() {
+        // non-text content part in developer message
+        let invalid_input_messages = vec![ChatMessage {
+            role: "developer".to_string(),
+            content: ChatMessageContent::ContentPartList(vec![ChatMessageContentPart::ImageUrl(
+                ChatMessageImageUrl {
+                    url: "https://example.com/image.jpg".to_string(),
+                    detail: None,
+                },
+            )]),
+            tool_call_id: None,
+        }];
+
+        let valid_output_messages = vec![ChatMessage {
+            role: "assistant".to_string(),
+            content: ChatMessageContent::Text("Hello".to_string()),
+            tool_call_id: None,
+        }];
+
+        let original_input = serde_json::to_value(&invalid_input_messages).unwrap();
+        let original_output = serde_json::to_value(&valid_output_messages).unwrap();
+
+        let mut span = Span {
+            input: Some(original_input.clone()),
+            output: Some(original_output.clone()),
+            ..Default::default()
+        };
+
+        convert_span_to_openai(&mut span);
+
+        // Span should remain unchanged because input conversion failed
+        assert_eq!(span.input.as_ref().unwrap(), &original_input);
+        assert_eq!(span.output.as_ref().unwrap(), &original_output);
+    }
+
+    #[test]
+    fn test_span_remains_intact_on_output_conversion_error() {
+        let valid_input_messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: ChatMessageContent::Text("Hello".to_string()),
+            tool_call_id: None,
+        }];
+
+        let invalid_output_messages = vec![ChatMessage {
+            role: "tool".to_string(),
+            content: ChatMessageContent::Text("Tool response".to_string()),
+            tool_call_id: None, // Missing required tool_call_id
+        }];
+
+        let original_input = serde_json::to_value(&valid_input_messages).unwrap();
+        let original_output = serde_json::to_value(&invalid_output_messages).unwrap();
+
+        let mut span = Span {
+            input: Some(original_input.clone()),
+            output: Some(original_output.clone()),
+            ..Default::default()
+        };
+
+        convert_span_to_openai(&mut span);
+
+        // Span should remain unchanged because output conversion failed
+        assert_eq!(span.input.as_ref().unwrap(), &original_input);
+        assert_eq!(span.output.as_ref().unwrap(), &original_output);
+    }
+
+    #[test]
+    fn test_span_remains_intact_on_both_conversion_errors() {
+        let invalid_input_messages = vec![ChatMessage {
+            role: "system".to_string(),
+            content: ChatMessageContent::ContentPartList(vec![ChatMessageContentPart::Document(
+                ChatMessageDocument {
+                    source: ChatMessageDocumentSource {
+                        document_type: "base64".to_string(),
+                        data: "data".to_string(),
+                        media_type: "text/plain".to_string(),
+                    },
+                },
+            )]),
+            tool_call_id: None,
+        }];
+
+        let invalid_output_messages = vec![ChatMessage {
+            role: "invalid_role".to_string(),
+            content: ChatMessageContent::Text("Response".to_string()),
+            tool_call_id: None,
+        }];
+
+        let original_input = serde_json::to_value(&invalid_input_messages).unwrap();
+        let original_output = serde_json::to_value(&invalid_output_messages).unwrap();
+
+        let mut span = Span {
+            input: Some(original_input.clone()),
+            output: Some(original_output.clone()),
+            ..Default::default()
+        };
+
+        convert_span_to_openai(&mut span);
+
+        // Span should remain unchanged because both conversions failed
+        assert_eq!(span.input.as_ref().unwrap(), &original_input);
+        assert_eq!(span.output.as_ref().unwrap(), &original_output);
+    }
+
+    #[test]
+    fn test_span_partial_conversion_success_still_leaves_intact() {
+        // Test case where input conversion succeeds but output fails
+        let valid_input_messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: ChatMessageContent::Text("Valid input".to_string()),
+            tool_call_id: None,
+        }];
+
+        let invalid_output_messages = vec![ChatMessage {
+            role: "assistant".to_string(),
+            content: ChatMessageContent::ContentPartList(vec![ChatMessageContentPart::ToolCall(
+                ChatMessageToolCall {
+                    id: None, // Missing required ID
+                    name: "test".to_string(),
+                    arguments: Some(json!({})),
+                },
+            )]),
+            tool_call_id: None,
+        }];
+
+        let original_input = serde_json::to_value(&valid_input_messages).unwrap();
+        let original_output = serde_json::to_value(&invalid_output_messages).unwrap();
+
+        let mut span = Span {
+            input: Some(original_input.clone()),
+            output: Some(original_output.clone()),
+            ..Default::default()
+        };
+
+        convert_span_to_openai(&mut span);
+
+        // Even though input conversion would succeed, span should remain unchanged
+        // because output conversion failed
+        assert_eq!(span.input.as_ref().unwrap(), &original_input);
+        assert_eq!(span.output.as_ref().unwrap(), &original_output);
+    }
+
+    #[test]
+    fn test_span_with_mixed_valid_invalid_messages_in_array() {
+        // Test case where some messages in the array are valid but others are not
+        let mixed_input_messages = vec![
+            // valid user message
+            ChatMessage {
+                role: "user".to_string(),
+                content: ChatMessageContent::Text("Valid message".to_string()),
+                tool_call_id: None,
+            },
+            // developer message with non-text content part
+            ChatMessage {
+                role: "developer".to_string(),
+                content: ChatMessageContent::ContentPartList(vec![
+                    ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                        url: "https://example.com/image.jpg".to_string(),
+                        detail: None,
+                    }),
+                ]),
+                tool_call_id: None,
+            },
+        ];
+
+        let valid_output_messages = vec![ChatMessage {
+            role: "assistant".to_string(),
+            content: ChatMessageContent::Text("Response".to_string()),
+            tool_call_id: None,
+        }];
+
+        let original_input = serde_json::to_value(&mixed_input_messages).unwrap();
+        let original_output = serde_json::to_value(&valid_output_messages).unwrap();
+
+        let mut span = Span {
+            input: Some(original_input.clone()),
+            output: Some(original_output.clone()),
+            ..Default::default()
+        };
+
+        convert_span_to_openai(&mut span);
+
+        // Should remain unchanged because one message in input array failed conversion
+        assert_eq!(span.input.as_ref().unwrap(), &original_input);
+        assert_eq!(span.output.as_ref().unwrap(), &original_output);
+    }
+
+    #[test]
+    fn test_span_with_non_array_json_remains_intact() {
+        // Test case where span has non-array JSON that can't be parsed as Vec<ChatMessage>
+        let original_input = json!({"not": "an array"});
+        let original_output = json!("just a string");
+
+        let mut span = Span {
+            input: Some(original_input.clone()),
+            output: Some(original_output.clone()),
+            ..Default::default()
+        };
+
+        convert_span_to_openai(&mut span);
+
+        // Should remain unchanged because parsing failed
+        assert_eq!(span.input.as_ref().unwrap(), &original_input);
+        assert_eq!(span.output.as_ref().unwrap(), &original_output);
+    }
+
+    // Test permissive user message conversion (logs warnings but continues)
+    #[test]
+    fn test_user_message_with_unsupported_content_parts_logs_and_continues() {
+        let message = ChatMessage {
+            role: "user".to_string(),
+            content: ChatMessageContent::ContentPartList(vec![
+                ChatMessageContentPart::Text(ChatMessageText {
+                    text: "Valid text".to_string(),
+                }),
+                // unsupported content part
+                ChatMessageContentPart::DocumentUrl(ChatMessageDocumentUrl {
+                    url: "https://example.com/doc.pdf".to_string(),
+                    media_type: "application/pdf".to_string(),
+                }),
+                // unsupported content part
+                ChatMessageContentPart::ImageRawBytes(ChatMessageImageRawBytes {
+                    image: vec![1, 2, 3],
+                    mime_type: Some("image/png".to_string()),
+                }),
+                ChatMessageContentPart::Text(ChatMessageText {
+                    text: "Another valid text".to_string(),
+                }),
+            ]),
+            tool_call_id: None,
+        };
+
+        // Should succeed but filter out unsupported parts
+        let openai_message = message_to_openai_format(message).unwrap();
+        let content_array = openai_message["content"].as_array().unwrap();
+
+        // Should only contain the two text parts, unsupported parts should be filtered out
+        assert_eq!(content_array.len(), 2);
+        assert_eq!(content_array[0]["type"], "text");
+        assert_eq!(content_array[0]["text"], "Valid text");
+        assert_eq!(content_array[1]["type"], "text");
+        assert_eq!(content_array[1]["text"], "Another valid text");
     }
 }
