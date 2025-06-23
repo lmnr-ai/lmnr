@@ -1,14 +1,14 @@
 import { and, eq, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { evaluatorSpanPaths } from "@/lib/db/migrations/schema";
 
 const requestBodySchema = z.object({
   spanPath: z
-    .array(z.string().min(1, "Span path elements cannot be empty"))
-    .min(1, "Span path must contain at least one element"),
+    .array(z.string().min(1, { error: "Span path elements cannot be empty" }))
+    .min(1, { error: "Span path must contain at least one element" }),
 });
 
 export async function POST(
@@ -37,7 +37,7 @@ export async function POST(
     console.error("Error registering evaluator to span path:", error);
 
     if (error instanceof z.ZodError) {
-      return Response.json({ error: "Validation error", details: error.errors }, { status: 400 });
+      return Response.json({ error: "Validation error", details: error.issues }, { status: 400 });
     }
 
     if (error instanceof Error) {
@@ -74,7 +74,7 @@ export async function DELETE(
     return Response.json("Evaluator detached from span path successfully");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return Response.json({ error: "Validation error", details: error.errors }, { status: 400 });
+      return Response.json({ error: "Validation error", details: error.issues }, { status: 400 });
     }
 
     return Response.json({ error: "Internal server error" }, { status: 500 });

@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { datasetDatapoints } from "@/lib/db/migrations/schema";

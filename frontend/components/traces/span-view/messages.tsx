@@ -3,7 +3,7 @@ import { CoreMessage } from "ai";
 import { isEqual } from "lodash";
 import { ChevronDown } from "lucide-react";
 import { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";

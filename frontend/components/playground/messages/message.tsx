@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ImagePart, TextPart, ToolCallPart } from "ai";
+import { ImagePart, TextPart, ToolCallPart, ToolResultPart } from "ai";
 import { capitalize } from "lodash";
 import { Bolt, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
 import React from "react";
@@ -43,8 +43,15 @@ const defaultImagePart: ImagePart = {
 const defaultToolCallPart: ToolCallPart = {
   type: "tool-call",
   toolName: "",
-  toolCallId: "",
-  args: [],
+  toolCallId: "-",
+  args: "",
+};
+
+const defaultToolResultPart: ToolResultPart = {
+  type: "tool-result",
+  toolCallId: "-",
+  toolName: "",
+  result: "",
 };
 
 const buttonClassName =
@@ -125,10 +132,27 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
             </Tooltip>
           </>
         )}
+        {watch(`messages.${index}.role`) === "tool" && (
+          <Tooltip>
+            <TooltipPortal>
+              <TooltipContent>Add tool result part</TooltipContent>
+            </TooltipPortal>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => append(defaultToolResultPart)}
+                className={buttonClassName}
+                variant="outline"
+                size="icon"
+              >
+                <Bolt size={12} />
+              </Button>
+            </TooltipTrigger>
+          </Tooltip>
+        )}
         {watch(`messages.${index}.role`) === "assistant" && (
           <Tooltip>
             <TooltipPortal>
-              <TooltipContent>Add tool message part</TooltipContent>
+              <TooltipContent>Add tool call part</TooltipContent>
             </TooltipPortal>
             <TooltipTrigger asChild>
               <Button
