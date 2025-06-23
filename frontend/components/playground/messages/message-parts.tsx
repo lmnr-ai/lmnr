@@ -107,7 +107,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                           showSettingsOnHover={false}
                           value={String(value)}
                           onChange={onChange}
-                          className="bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit max-h-96"
+                          className="bg-transparent rounded-md p-0 focus-visible:ring-0 flex-1 h-fit max-h-96"
                         />
                       </div>
                     )}
@@ -154,7 +154,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                           showSettingsOnHover={false}
                           value={value}
                           onChange={onChange}
-                          className="bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit max-h-96"
+                          className="bg-transparent p-0 rounded-md focus-visible:ring-0 flex-1 h-fit max-h-96"
                         />
                       </div>
                     )}
