@@ -23,9 +23,7 @@ use crate::{
     language_model::{ChatMessage, ChatMessageContent, ChatMessageContentPart},
 };
 
-use super::openai::{
-    OpenAIChatMessageContentPartImageUrl, OpenAIChatMessageContentPartImageUrlInner,
-};
+use super::openai::OpenAIChatMessageContentPartImageUrl;
 
 #[derive(Serialize, Debug)]
 struct LangChainChatMessageContentPartText {
@@ -63,6 +61,10 @@ enum LangChainChatMessageContentPartFile {
 #[serde(tag = "source_type", rename_all = "snake_case")]
 enum LangChainChatMessageContentPartAudio {
     #[serde(rename = "base64")]
+    #[allow(
+        dead_code,
+        reason = "Indicates audio content parts. Not yet supported."
+    )]
     Base64(LangChainChatMessageContentPartImageOrFileBase64),
 }
 
@@ -114,7 +116,7 @@ struct LangChainChatMessageToolCall {
 
 #[derive(Serialize)]
 struct LangChainAssistantChatMessage {
-    content: LangChainChatMessageContent,
+    content: Option<LangChainChatMessageContent>,
     tool_calls: Vec<LangChainChatMessageToolCall>,
 }
 
@@ -212,7 +214,21 @@ fn convert_tool_message(message: ChatMessage) -> Result<LangChainChatMessage> {
         .tool_call_id
         .ok_or(anyhow::anyhow!("Tool call ID is required in tool message"))?;
     Ok(LangChainChatMessage::Tool(LangChainToolChatMessage {
-        content: Value::Null,
+        content: match message.content {
+            ChatMessageContent::Text(text) => Value::String(text),
+            ChatMessageContent::ContentPartList(parts) => Value::Array(
+                parts
+                    .into_iter()
+                    .map(|part| serde_json::to_value(part)
+                        .map_err(|e|
+                            anyhow::anyhow!(
+                                "Error converting tool chat message content part to LangChain format: {}", e
+                            )
+                        )
+                    )
+                    .collect::<Result<Vec<Value>>>()?,
+            ),
+        },
         tool_call_id,
     }))
 }
@@ -232,7 +248,7 @@ fn convert_assistant_message(message: ChatMessage) -> Result<LangChainChatMessag
 
     Ok(LangChainChatMessage::Assistant(
         LangChainAssistantChatMessage {
-            content,
+            content: Some(content),
             tool_calls,
         },
     ))
@@ -385,7 +401,7 @@ mod tests {
         let langchain_message = message_to_langchain_format(message).unwrap();
 
         assert_eq!(langchain_message["role"], "tool");
-        assert_eq!(langchain_message["content"], Value::Null); // LangChain tool messages have null content
+        assert_eq!(langchain_message["content"], "Tool response");
         assert_eq!(langchain_message["tool_call_id"], "call_123");
     }
 

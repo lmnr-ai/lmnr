@@ -26,7 +26,7 @@ pub fn convert_span_to_provider_format(span: &mut Span) {
     if is_langchain_span(span) {
         // TODO: uncomment this once the frontend is ready to parse
         // langchain spans
-        // langchain::convert_span_to_langchain(span);
+        langchain::convert_span_to_langchain(span);
         return;
     }
     match provider_name {
