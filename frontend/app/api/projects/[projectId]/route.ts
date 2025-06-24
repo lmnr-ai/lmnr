@@ -42,6 +42,7 @@ export async function DELETE(_req: Request, props: { params: Promise<{ projectId
       status: 200,
     });
   } catch (error) {
+    console.error("Error deleting project", error);
     const errorMessage = error instanceof Error ? error.message : "Internal server error";
 
     return new Response(
