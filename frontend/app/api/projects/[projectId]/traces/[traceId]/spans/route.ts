@@ -30,12 +30,25 @@ export async function GET(
 
   const [filters, statusFilters] = partition(urlParamFilters, (f) => f.column !== "status");
   const [otherFilters, tagsFilters] = partition(filters, (f) => f.column !== "tags");
+  const [regularFilters, modelFilters] = partition(otherFilters, (f) => f.column !== "model");
 
   const statusSqlFilters = statusFilters.map((filter) => {
     if (filter.value === "success") {
       return filter.operator === "eq" ? sql`status IS NULL` : sql`status IS NOT NULL`;
     } else if (filter.value === "error") {
       return filter.operator === "eq" ? sql`status = 'error'` : sql`status != 'error' OR status IS NULL`;
+    }
+    return sql`1=1`;
+  });
+
+  const modelSqlFilters = modelFilters.map((filter) => {
+    const requestModelColumn = sql`(attributes ->> 'gen_ai.request.model')::text`;
+    const responseModelColumn = sql`(attributes ->> 'gen_ai.response.model')::text`;
+
+    if (filter.operator === "eq") {
+      return sql`(${requestModelColumn} LIKE ${`%${filter.value}%`} OR ${responseModelColumn} LIKE ${`%${filter.value}%`})`;
+    } else if (filter.operator === "ne") {
+      return sql`((${requestModelColumn} NOT LIKE ${`%${filter.value}%`} OR ${requestModelColumn} IS NULL) AND (${responseModelColumn} NOT LIKE ${`%${filter.value}%`} OR ${responseModelColumn} IS NULL))`;
     }
     return sql`1=1`;
   });
@@ -54,15 +67,13 @@ export async function GET(
     return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
   });
 
-  const processedFilters = otherFilters.map((filter) => {
+  const processedFilters = regularFilters.map((filter) => {
     if (filter.column === "path") {
       filter.column = "(attributes ->> 'lmnr.span.path')";
     } else if (filter.column === "tokens") {
       filter.column = "(attributes ->> 'llm.usage.total_tokens')::int8";
     } else if (filter.column === "cost") {
       filter.column = "(attributes ->> 'gen_ai.usage.cost')::float8";
-    } else if (filter.column === "model") {
-      filter.column = "(attributes ->> 'gen_ai.request.model')";
     }
     return filter;
   });
@@ -146,6 +157,7 @@ export async function GET(
         eq(spans.projectId, projectId),
         ...sqlFilters,
         ...statusSqlFilters,
+        ...modelSqlFilters,
         ...tagsSqlFilters,
         ...(searchQuery !== null ? [inArray(spans.spanId, searchSpanIds)] : [])
       )

@@ -10,6 +10,88 @@ import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 import { getDateRangeFilters, paginatedGet } from "@/lib/db/utils";
 import { Span } from "@/lib/traces/types";
 
+const createModelFilter = (filter: FilterDef) => {
+  const requestModelColumn = sql`(attributes ->> 'gen_ai.request.model')::text`;
+  const responseModelColumn = sql`(attributes ->> 'gen_ai.response.model')::text`;
+
+  const operators = {
+    eq: (value: string) =>
+      sql`(${requestModelColumn} LIKE ${`%${value}%`} OR ${responseModelColumn} LIKE ${`%${value}%`})`,
+
+    ne: (value: string) =>
+      sql`((${requestModelColumn} NOT LIKE ${`%${value}%`} OR ${requestModelColumn} IS NULL) AND (${responseModelColumn} NOT LIKE ${`%${value}%`} OR ${responseModelColumn} IS NULL))`,
+  };
+
+  return operators[filter.operator as keyof typeof operators]?.(filter.value) ?? sql`1=1`;
+};
+
+const processAttributeFilter = (filter: FilterDef): FilterDef => {
+  switch (filter.column) {
+    case "span_id":
+      return {
+        ...filter,
+        value: filter.value.startsWith("00000000-0000-0000-") ? filter.value : `00000000-0000-0000-${filter.value}`,
+      };
+
+    case "path":
+      return { ...filter, column: "(attributes ->> 'lmnr.span.path')" };
+
+    case "input_token_count":
+      return { ...filter, column: "(attributes ->> 'gen_ai.usage.input_tokens')::int8" };
+
+    case "output_token_count":
+      return { ...filter, column: "(attributes ->> 'gen_ai.usage.output_tokens')::int8" };
+
+    case "total_token_count":
+      return { ...filter, column: "(attributes ->> 'llm.usage.total_tokens')::int8" };
+
+    case "input_cost":
+      return { ...filter, column: "(attributes ->> 'gen_ai.usage.input_cost')::float8" };
+
+    case "output_cost":
+      return { ...filter, column: "(attributes ->> 'gen_ai.usage.output_cost')::float8" };
+
+    case "cost":
+      return { ...filter, column: "(attributes ->> 'gen_ai.usage.cost')::float8" };
+
+    case "span_type": {
+      const uppercased = filter.value.toUpperCase().trim();
+      const newValue = uppercased === "SPAN" ? "'DEFAULT'" : `'${uppercased}'`;
+      return { ...filter, value: newValue, castType: "span_type" };
+    }
+
+    default:
+      return filter;
+  }
+};
+
+const createLabelFilters = (filters: FilterDef[]) =>
+  filters
+    .filter((filter) => filter.column === "tags" && ["eq", "ne"].includes(filter.operator))
+    .map((filter) => {
+      const inArrayFilter = inArray(
+        sql`span_id`,
+        db
+          .select({ span_id: spans.spanId })
+          .from(spans)
+          .innerJoin(labels, eq(spans.spanId, labels.spanId))
+          .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
+          .where(and(eq(labelClasses.name, filter.value)))
+      );
+      return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
+    });
+
+const partitionFilters = (filters: FilterDef[]) =>
+  filters.reduce(
+    (acc, filter) => {
+      if (filter.column === "tags") acc.tags.push(filter);
+      else if (filter.column === "model") acc.model.push(filter);
+      else acc.other.push(filter);
+      return acc;
+    },
+    { tags: [], model: [], other: [] } as Record<"tags" | "model" | "other", FilterDef[]>
+  );
+
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
@@ -30,21 +112,20 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     urlParamFilters = [];
   }
 
-  const labelFilters = urlParamFilters
-    .filter((filter) => filter.column === "tags" && ["eq", "ne"].includes(filter.operator))
-    .map((filter) => {
-      const labelName = filter.value;
-      const inArrayFilter = inArray(
-        sql`span_id`,
-        db
-          .select({ span_id: spans.spanId })
-          .from(spans)
-          .innerJoin(labels, eq(spans.spanId, labels.spanId))
-          .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-          .where(and(eq(labelClasses.name, labelName)))
-      );
-      return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
-    });
+  const { tags: tagFilters, model: modelFilters, other: otherFilters } = partitionFilters(urlParamFilters);
+
+  const labelSqlFilters = createLabelFilters(tagFilters);
+  const modelSqlFilters = modelFilters.map(createModelFilter);
+  const processedOtherFilters = otherFilters.map(processAttributeFilter);
+
+  const otherSqlFilters = filtersToSql(
+    processedOtherFilters,
+    [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)],
+    {
+      latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`,
+      path: sql<string>`attributes ->> 'lmnr.span.path'`,
+    }
+  );
 
   let searchSpanIds = null;
   if (req.nextUrl.searchParams.get("search")) {
@@ -61,66 +142,27 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   const textSearchFilters = searchSpanIds ? [inArray(sql`span_id`, searchSpanIds)] : [];
 
-  urlParamFilters = urlParamFilters
-    // labels are handled separately above
-    .filter((filter) => filter.column !== "tags")
-    .map((filter) => {
-      if (filter.column === "span_id") {
-        filter.value = filter.value.startsWith("00000000-0000-0000-")
-          ? filter.value
-          : `00000000-0000-0000-${filter.value}`;
-      } else if (filter.column == "path") {
-        filter.column = "(attributes ->> 'lmnr.span.path')";
-      } else if (filter.column === "input_token_count") {
-        filter.column = "(attributes ->> 'gen_ai.usage.input_tokens')::int8";
-      } else if (filter.column === "output_token_count") {
-        filter.column = "(attributes ->> 'gen_ai.usage.output_tokens')::int8";
-      } else if (filter.column === "total_token_count") {
-        filter.column = "(attributes ->> 'llm.usage.total_tokens')::int8";
-      } else if (filter.column === "input_cost") {
-        filter.column = "(attributes ->> 'gen_ai.usage.input_cost')::float8";
-      } else if (filter.column === "output_cost") {
-        filter.column = "(attributes ->> 'gen_ai.usage.output_cost')::float8";
-      } else if (filter.column === "cost") {
-        filter.column = "(attributes ->> 'gen_ai.usage.cost')::float8";
-      } else if (filter.column === "span_type") {
-        // cast to span_type
-        const uppercased = filter.value.toUpperCase().trim();
-        filter.value = uppercased === "SPAN" ? "'DEFAULT'" : `'${uppercased}'`;
-        filter.castType = "span_type";
-      } else if (filter.column === "model") {
-        filter.column = "COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')";
-      }
-      return filter;
-    });
-
-  const sqlFilters = filtersToSql(
-    urlParamFilters,
-    [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)],
-    {
-      latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`,
-      path: sql<string>`attributes ->> 'lmnr.span.path'`,
-    }
-  );
-
   const baseFilters = [
     inArray(sql`trace_id`, db.select({ id: traces.id }).from(traces).where(eq(traces.traceType, "DEFAULT"))),
     sql`project_id = ${projectId}`,
   ];
 
-  const filters = getDateRangeFilters(startTime, endTime, pastHours).concat(
-    sqlFilters,
-    labelFilters,
-    textSearchFilters
-  );
-  // don't query input and output, only query previews
+  // Combine all SQL filters
+  const allSqlFilters = [
+    ...getDateRangeFilters(startTime, endTime, pastHours),
+    ...otherSqlFilters,
+    ...modelSqlFilters,
+    ...labelSqlFilters,
+    ...textSearchFilters,
+  ];
+
   const { input, output, ...columns } = getTableColumns(spans);
 
   const spanData = await paginatedGet<any, Span>({
     table: spans,
     pageNumber,
     pageSize,
-    filters: baseFilters.concat(filters),
+    filters: [...baseFilters, ...allSqlFilters], // Now all are SQL filters
     orderBy: [desc(spans.startTime)],
     columns: {
       ...columns,
