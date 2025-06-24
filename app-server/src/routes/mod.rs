@@ -5,7 +5,6 @@ pub mod error;
 pub mod evaluations;
 pub mod labels;
 pub mod probes;
-pub mod projects;
 pub mod provider_api_keys;
 pub mod spans;
 pub mod traces;

@@ -7,7 +7,6 @@ pub mod evaluator_scores;
 pub mod events;
 pub mod labels;
 pub mod modifiers;
-pub mod projects;
 pub mod spans;
 pub mod utils;
 
