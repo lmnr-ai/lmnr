@@ -1,4 +1,7 @@
+import { sql } from "drizzle-orm";
+
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
+import { FilterDef } from "@/lib/db/modifiers";
 
 import { SpanMetricGroupBy } from "../clickhouse/types";
 import { SpanType } from "./types";
@@ -40,4 +43,19 @@ const MILLISECONDS_DATE_THRESHOLD = 1000 * 60 * 60; // 1 hour
 export const isStringDateOld = (date: string) => {
   const d = new Date(date);
   return d < new Date(Date.now() - MILLISECONDS_DATE_THRESHOLD);
+};
+
+export const createModelFilter = (filter: FilterDef) => {
+  const requestModelColumn = sql`(attributes ->> 'gen_ai.request.model')::text`;
+  const responseModelColumn = sql`(attributes ->> 'gen_ai.response.model')::text`;
+
+  const operators = {
+    eq: (value: string) =>
+      sql`(${requestModelColumn} LIKE ${`%${value}%`} OR ${responseModelColumn} LIKE ${`%${value}%`})`,
+
+    ne: (value: string) =>
+      sql`((${requestModelColumn} NOT LIKE ${`%${value}%`} OR ${requestModelColumn} IS NULL) AND (${responseModelColumn} NOT LIKE ${`%${value}%`} OR ${responseModelColumn} IS NULL))`,
+  };
+
+  return operators[filter.operator as keyof typeof operators]?.(filter.value) ?? sql`1=1`;
 };

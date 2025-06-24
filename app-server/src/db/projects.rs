@@ -48,12 +48,3 @@ pub async fn create_project(
 
     Ok(project)
 }
-
-pub async fn delete_project(pool: &PgPool, project_id: &Uuid) -> Result<()> {
-    sqlx::query("DELETE FROM projects WHERE id = $1")
-        .bind(project_id)
-        .execute(pool)
-        .await?;
-
-    Ok(())
-}

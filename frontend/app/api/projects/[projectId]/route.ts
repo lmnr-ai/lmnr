@@ -1,59 +1,58 @@
-import { eq } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
+import { deleteProject, updateProject, UpdateProjectSchema } from "@/lib/actions/project";
 
-import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db/drizzle';
-import { projects } from '@/lib/db/migrations/schema';
-import { fetcher } from '@/lib/utils';
-
-export async function POST(
-  req: Request,
-  props: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
+export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const { projectId } = params;
-  const { name } = await req.json();
-
-  if (!name) {
-    return new Response(JSON.stringify({ error: 'Project name is required.' }), {
-      status: 400,
-    });
-  }
 
   try {
-    const result = await db.update(projects).set({ name }).where(eq(projects.id, projectId));
+    const { name } = await req.json();
+    const result = UpdateProjectSchema.safeParse({ name, projectId });
 
-    if (result.count === 0) {
-      return new Response(JSON.stringify({ error: 'Project not found.' }), {
-        status: 404,
-      });
+    if (!result.success) {
+      return new Response("Invalid request body", { status: 400 });
     }
 
-    return new Response(JSON.stringify({ message: 'Project renamed successfully.' }), {
+    await updateProject({ projectId, name });
+
+    return new Response(JSON.stringify({ message: "Project renamed successfully." }), {
       status: 200,
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Internal server error.' }), {
-      status: 500,
-    });
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+    return new Response(
+      JSON.stringify({
+        error: errorMessage,
+        message: "Failed to update the project",
+      }),
+      {
+        status: 500,
+      }
+    );
   }
 }
 
-export async function DELETE(
-  req: Request,
-  props: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
+export async function DELETE(_req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
-  const projectId = params.projectId;
+  const { projectId } = params;
 
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+  try {
+    await deleteProject({ projectId });
 
-  return fetcher(`/projects/${projectId}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${user.apiKey}`
-    }
-  });
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+    });
+  } catch (error) {
+    console.error("Error deleting project", error);
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+
+    return new Response(
+      JSON.stringify({
+        error: errorMessage,
+        message: "Failed to delete the project",
+      }),
+      {
+        status: 500,
+      }
+    );
+  }
 }
-
