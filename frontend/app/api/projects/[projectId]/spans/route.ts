@@ -9,21 +9,7 @@ import { labelClasses, labels, spans, traces } from "@/lib/db/migrations/schema"
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 import { getDateRangeFilters, paginatedGet } from "@/lib/db/utils";
 import { Span } from "@/lib/traces/types";
-
-export const createModelFilter = (filter: FilterDef) => {
-  const requestModelColumn = sql`(attributes ->> 'gen_ai.request.model')::text`;
-  const responseModelColumn = sql`(attributes ->> 'gen_ai.response.model')::text`;
-
-  const operators = {
-    eq: (value: string) =>
-      sql`(${requestModelColumn} LIKE ${`%${value}%`} OR ${responseModelColumn} LIKE ${`%${value}%`})`,
-
-    ne: (value: string) =>
-      sql`((${requestModelColumn} NOT LIKE ${`%${value}%`} OR ${requestModelColumn} IS NULL) AND (${responseModelColumn} NOT LIKE ${`%${value}%`} OR ${responseModelColumn} IS NULL))`,
-  };
-
-  return operators[filter.operator as keyof typeof operators]?.(filter.value) ?? sql`1=1`;
-};
+import { createModelFilter } from "@/lib/traces/utils";
 
 const processAttributeFilter = (filter: FilterDef): FilterDef => {
   switch (filter.column) {

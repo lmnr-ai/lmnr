@@ -1,13 +1,13 @@
 import { and, asc, eq, inArray, not, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
-import { createModelFilter } from "@/app/api/projects/[projectId]/spans/route";
 import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { events, labelClasses, labels, spans } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
+import { createModelFilter } from "@/lib/traces/utils";
 
 export async function GET(
   req: NextRequest,
