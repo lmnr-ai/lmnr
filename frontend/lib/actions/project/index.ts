@@ -51,7 +51,7 @@ async function deleteProjectDataFromClickHouse(
 
   const deletionPromises = tables.map(async (table) => {
     try {
-      await clickhouseClient.exec({
+      await clickhouseClient.command({
         query: `ALTER TABLE ${table} DELETE WHERE project_id = {project_id: UUID}`,
         query_params: {
           project_id: projectId,
