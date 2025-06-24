@@ -10,7 +10,7 @@ import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 import { getDateRangeFilters, paginatedGet } from "@/lib/db/utils";
 import { Span } from "@/lib/traces/types";
 
-const createModelFilter = (filter: FilterDef) => {
+export const createModelFilter = (filter: FilterDef) => {
   const requestModelColumn = sql`(attributes ->> 'gen_ai.request.model')::text`;
   const responseModelColumn = sql`(attributes ->> 'gen_ai.response.model')::text`;
 

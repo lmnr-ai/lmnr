@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, not, sql } from "drizzle-orm";
-import { partition } from "lodash";
 import { NextRequest, NextResponse } from "next/server";
 
+import { createModelFilter } from "@/app/api/projects/[projectId]/spans/route";
 import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { TimeRange } from "@/lib/clickhouse/utils";
@@ -28,9 +28,10 @@ export async function GET(
     }
   })();
 
-  const [filters, statusFilters] = partition(urlParamFilters, (f) => f.column !== "status");
-  const [otherFilters, tagsFilters] = partition(filters, (f) => f.column !== "tags");
-  const [regularFilters, modelFilters] = partition(otherFilters, (f) => f.column !== "model");
+  const statusFilters = urlParamFilters.filter((f) => f.column === "status");
+  const tagsFilters = urlParamFilters.filter((f) => f.column === "tags");
+  const modelFilters = urlParamFilters.filter((f) => f.column === "model");
+  const regularFilters = urlParamFilters.filter((f) => !["status", "tags", "model"].includes(f.column));
 
   const statusSqlFilters = statusFilters.map((filter) => {
     if (filter.value === "success") {
@@ -41,17 +42,7 @@ export async function GET(
     return sql`1=1`;
   });
 
-  const modelSqlFilters = modelFilters.map((filter) => {
-    const requestModelColumn = sql`(attributes ->> 'gen_ai.request.model')::text`;
-    const responseModelColumn = sql`(attributes ->> 'gen_ai.response.model')::text`;
-
-    if (filter.operator === "eq") {
-      return sql`(${requestModelColumn} LIKE ${`%${filter.value}%`} OR ${responseModelColumn} LIKE ${`%${filter.value}%`})`;
-    } else if (filter.operator === "ne") {
-      return sql`((${requestModelColumn} NOT LIKE ${`%${filter.value}%`} OR ${requestModelColumn} IS NULL) AND (${responseModelColumn} NOT LIKE ${`%${filter.value}%`} OR ${responseModelColumn} IS NULL))`;
-    }
-    return sql`1=1`;
-  });
+  const modelSqlFilters = modelFilters.map(createModelFilter);
 
   const tagsSqlFilters = tagsFilters.map((filter) => {
     const name = filter.value;

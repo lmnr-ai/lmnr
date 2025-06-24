@@ -18,7 +18,11 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
   const { projectId } = DeleteProjectSchema.parse(input);
 
   await db.delete(projects).where(eq(projects.id, projectId));
-  await deleteProjectDataFromClickHouse(projectId);
+  const result = await deleteProjectDataFromClickHouse(projectId);
+
+  if (!result.success) {
+    throw new Error(`Failed to delete project data for ${result.tables.join(",")}`);
+  }
 }
 
 export async function updateProject(input: z.infer<typeof UpdateProjectSchema>) {
@@ -33,7 +37,9 @@ export async function updateProject(input: z.infer<typeof UpdateProjectSchema>) 
   return { success: true, message: "Project renamed successfully" };
 }
 
-async function deleteProjectDataFromClickHouse(projectId: string): Promise<void> {
+async function deleteProjectDataFromClickHouse(
+  projectId: string
+): Promise<{ success: true } | { success: false; tables: string[] }> {
   const tables = [
     "default.spans",
     "default.events",
@@ -43,16 +49,36 @@ async function deleteProjectDataFromClickHouse(projectId: string): Promise<void>
     "default.evaluator_scores",
   ];
 
-  for (const table of tables) {
+  const deletionPromises = tables.map(async (table) => {
     try {
-      await clickhouseClient.command({
+      await clickhouseClient.exec({
         query: `ALTER TABLE ${table} DELETE WHERE project_id = {project_id: UUID}`,
         query_params: {
           project_id: projectId,
         },
       });
+      return { table, success: true };
     } catch (error) {
-      throw new Error(`Failed to delete from ClickHouse table '${table}': ${error}`);
+      return { table, success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  }
+  });
+
+  const results = await Promise.allSettled(deletionPromises);
+
+  return results.reduce<{ success: true } | { success: false; tables: string[] }>(
+    (acc, curr, index) => {
+      const table = tables[index];
+
+      if (curr.status === "rejected" || (curr.status === "fulfilled" && !curr.value.success)) {
+        if ("tables" in acc) {
+          return { success: false, tables: [...acc.tables, table] };
+        } else {
+          return { success: false, tables: [table] };
+        }
+      }
+
+      return acc;
+    },
+    { success: true }
+  );
 }

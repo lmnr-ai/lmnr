@@ -22,7 +22,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     return new Response(
       JSON.stringify({
         error: errorMessage,
-        message: "Failed to delete the project",
+        message: "Failed to update the project",
       }),
       {
         status: 500,
