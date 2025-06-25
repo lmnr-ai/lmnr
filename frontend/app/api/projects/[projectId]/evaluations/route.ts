@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   });
 
   if (!parseResult.success) {
-    return new Response("Invalid request body", { status: 400 });
+    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
   try {
@@ -54,7 +54,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
   const parseResult = DeleteEvaluationsSchema.safeParse({ evaluationIds, projectId });
 
   if (!parseResult.success) {
-    return new Response("Invalid request body", { status: 400 });
+    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
   try {
