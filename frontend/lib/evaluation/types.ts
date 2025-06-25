@@ -6,6 +6,7 @@ export type Evaluation = {
   groupId: string;
   name: string;
   projectId: string;
+  metadata: Record<string, unknown> | null;
 };
 
 export type EvaluationDatapoint = {

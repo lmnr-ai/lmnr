@@ -1,12 +1,16 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
+import { flow } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import SearchEvaluationsInput from "@/components/evaluations/search-evaluations-input";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
+import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction } from "@/lib/clickhouse/utils";
@@ -41,9 +45,40 @@ const columns: ColumnDef<Evaluation>[] = [
     header: "Datapoints",
   },
   {
+    accessorKey: "metadata",
+    header: "Metadata",
+    accessorFn: flow(
+      (row: Evaluation) => row.metadata,
+      (metadata) => (metadata ? JSON.stringify(metadata) : "-")
+    ),
+  },
+  {
     header: "Created at",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+  },
+];
+
+const filters: ColumnFilter[] = [
+  {
+    name: "ID",
+    key: "id",
+    dataType: "string",
+  },
+  {
+    name: "Name",
+    key: "name",
+    dataType: "string",
+  },
+  {
+    name: "Datapoints Count",
+    key: "dataPointsCount",
+    dataType: "number",
+  },
+  {
+    name: "Metadata",
+    key: "metadata",
+    dataType: "json",
   },
 ];
 
@@ -66,6 +101,9 @@ export default function Evaluations() {
   const searchParams = useSearchParams();
   const posthog = usePostHog();
   const { email } = useUserContext();
+  const groupId = searchParams.get("groupId");
+  const filter = searchParams.getAll("filter");
+  const search = searchParams.get("search");
 
   const page = useMemo<{ number: number; size: number }>(() => {
     const size = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 25;
@@ -75,8 +113,26 @@ export default function Evaluations() {
     };
   }, [searchParams]);
 
-  const { data, mutate, isLoading } = useSWR<PaginatedResponse<Evaluation & { dataPointsCount: 0 }>>(
-    `/api/projects/${params?.projectId}/evaluations?groupId=${searchParams.get("groupId")}&pageNumber=${page.number}&pageSize=${page.size}`,
+  const evaluationsParams = useMemo(() => {
+    const sp = new URLSearchParams();
+    if (groupId) {
+      sp.set("groupId", groupId);
+    }
+
+    if (search && search.trim() !== "") {
+      sp.set("search", search);
+    }
+
+    filter.forEach((f) => sp.append("filter", f));
+
+    sp.append("pageNumber", String(page.number));
+    sp.append("pageSize", String(page.size));
+
+    return sp;
+  }, [filter, groupId, page.number, page.size, search]);
+
+  const { data, mutate } = useSWR<PaginatedResponse<Evaluation & { dataPointsCount: 0 }>>(
+    `/api/projects/${params?.projectId}/evaluations?${evaluationsParams.toString()}`,
     swrFetcher
   );
 
@@ -94,15 +150,14 @@ export default function Evaluations() {
 
   const handleDeleteEvaluations = async (selectedRowIds: string[]) => {
     try {
-      const response = await fetch(
-        `/api/projects/${params?.projectId}/evaluations?evaluationIds=${selectedRowIds.join(",")}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const sp = new URLSearchParams(selectedRowIds.map((id) => ["id", id]));
+
+      const response = await fetch(`/api/projects/${params?.projectId}/evaluations?${sp.toString()}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
       if (response.ok) {
         await mutate();
@@ -175,6 +230,7 @@ export default function Evaluations() {
                 paginated
                 manualPagination
                 pageSizeOptions={[10, 25]}
+                childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows
@@ -184,7 +240,13 @@ export default function Evaluations() {
                     />
                   </div>
                 )}
-              />
+              >
+                <div className="flex flex-1 w-full space-x-2">
+                  <DataTableFilter columns={filters} />
+                  <SearchEvaluationsInput />
+                </div>
+                <DataTableFilterList />
+              </DataTable>
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>

@@ -19,6 +19,7 @@ use uuid::Uuid;
 pub struct InitEvalRequest {
     pub name: Option<String>,
     pub group_name: Option<String>,
+    pub metadata: Option<Value>,
 }
 
 #[post("/evals")]
@@ -31,7 +32,7 @@ pub async fn init_eval(
     let req = req.into_inner();
     let group_name = req.group_name.unwrap_or("default".to_string());
     let project_id = project_api_key.project_id;
-
+    let metadata = req.metadata;
     let name = if let Some(name) = req.name {
         name
     } else {
@@ -39,7 +40,8 @@ pub async fn init_eval(
     };
 
     let evaluation =
-        db::evaluations::create_evaluation(&db.pool, &name, project_id, &group_name).await?;
+        db::evaluations::create_evaluation(&db.pool, &name, project_id, &group_name, &metadata)
+            .await?;
 
     Ok(HttpResponse::Ok().json(evaluation))
 }

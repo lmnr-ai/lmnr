@@ -139,19 +139,19 @@ export const labelingQueuesRelations = relations(labelingQueues, ({one, many}) =
   labelingQueueItems: many(labelingQueueItems),
 }));
 
-export const apiKeysRelations = relations(apiKeys, ({one}) => ({
-  user: one(users, {
-    fields: [apiKeys.userId],
-    references: [users.id]
-  }),
-}));
-
 export const evaluationsRelations = relations(evaluations, ({one, many}) => ({
   project: one(projects, {
     fields: [evaluations.projectId],
     references: [projects.id]
   }),
   evaluationResults: many(evaluationResults),
+}));
+
+export const apiKeysRelations = relations(apiKeys, ({one}) => ({
+  user: one(users, {
+    fields: [apiKeys.userId],
+    references: [users.id]
+  }),
 }));
 
 export const evaluationScoresRelations = relations(evaluationScores, ({one}) => ({
