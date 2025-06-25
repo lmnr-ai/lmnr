@@ -938,11 +938,26 @@ fn output_message_from_completion_content(
 
     if tool_calls.is_empty() {
         if let Some(Value::String(s)) = msg_content {
-            Some(ChatMessage {
-                role: msg_role,
-                content: ChatMessageContent::Text(s.clone()),
-                tool_call_id: None,
-            })
+            if let Ok(content) =
+                serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(&s)
+            {
+                Some(ChatMessage {
+                    role: msg_role,
+                    content: ChatMessageContent::ContentPartList(
+                        content
+                            .into_iter()
+                            .map(ChatMessageContentPart::from_instrumentation_content_part)
+                            .collect(),
+                    ),
+                    tool_call_id: None,
+                })
+            } else {
+                Some(ChatMessage {
+                    role: msg_role,
+                    content: ChatMessageContent::Text(s.clone()),
+                    tool_call_id: None,
+                })
+            }
         } else {
             None
         }
