@@ -18,6 +18,7 @@ pub struct Evaluation {
     ///
     /// Conceptually, evaluations with different group ids are used to test different features.
     pub group_id: String,
+    pub metadata: Option<Value>,
 }
 
 #[derive(Serialize, FromRow)]
@@ -52,20 +53,23 @@ pub async fn create_evaluation(
     name: &String,
     project_id: Uuid,
     group_id: &str,
+    metadata: &Option<Value>,
 ) -> Result<Evaluation> {
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "INSERT INTO evaluations (name, project_id, group_id)
-        VALUES ($1, $2, $3)
+        "INSERT INTO evaluations (name, project_id, group_id, metadata)
+        VALUES ($1, $2, $3, $4)
         RETURNING
             id,
             created_at,
             name,
             project_id,
-            group_id",
+            group_id,
+            metadata",
     )
     .bind(name)
     .bind(project_id)
     .bind(group_id)
+    .bind(metadata)
     .fetch_one(pool)
     .await?;
 

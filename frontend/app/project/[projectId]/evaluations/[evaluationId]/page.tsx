@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Evaluation from "@/components/evaluation/evaluation";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
+import { Evaluation as EvaluationType } from "@/lib/evaluation/types";
 
 export const metadata: Metadata = {
   title: "Evaluation results",
@@ -33,7 +34,7 @@ export default async function EvaluationPage(props: { params: Promise<{ projectI
   return (
     <Evaluation
       evaluationId={params.evaluationId}
-      evaluations={evaluationsByGroupId}
+      evaluations={evaluationsByGroupId as EvaluationType[]}
       evaluationName={evaluationInfo.name}
     />
   );
