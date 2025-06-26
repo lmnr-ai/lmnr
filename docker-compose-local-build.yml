@@ -25,10 +25,9 @@ services:
       - type: volume
         source: clickhouse-logs
         target: /var/log/clickhouse-server/
-      - type: bind
-        source: ./clickhouse/config/users.xml
-        target: /etc/clickhouse-server/users.d/users.xml
-        read_only: true
+    environment:
+        CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+        CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
     ulimits:
       nofile:
         soft: 262144
@@ -80,8 +79,6 @@ services:
       - "${APP_SERVER_GRPC_HOST_PORT:-8001}:8001"
     build:
       context: ./app-server
-      args:
-        DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     container_name: app-server
     depends_on:
       postgres:
@@ -103,6 +100,8 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       ENVIRONMENT: FULL
       AGENT_MANAGER_URL: http://agent-manager:8901
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+
   frontend:
     build:
       context: ./frontend
@@ -124,6 +123,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
 
 volumes:
   clickhouse-data:
