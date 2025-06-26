@@ -92,6 +92,9 @@ async fn inner_process_browser_events(
 
         match backoff::future::retry(exponential_backoff, insert_browser_events).await {
             Ok(recorded_bytes) => {
+                if let Err(e) = acker.ack().await {
+                    log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
+                }
                 if let Err(e) = increment_project_browser_events_bytes_ingested(
                     &db.pool,
                     &project_id,
@@ -103,9 +106,6 @@ async fn inner_process_browser_events(
                         "Failed to increment project browser events bytes ingested: {:?}",
                         e
                     );
-                }
-                if let Err(e) = acker.ack().await {
-                    log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
                 }
             }
             Err(e) => {
