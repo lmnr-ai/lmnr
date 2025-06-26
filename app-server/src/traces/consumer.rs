@@ -13,6 +13,8 @@ use crate::{
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
     storage::Storage,
+    traces::IngestedBytes,
+    utils::estimate_json_size,
 };
 
 pub async fn process_queue_spans(
@@ -100,8 +102,15 @@ async fn inner_process_queue_spans(
                 }
             }
         }
-
         let mut span: Span = rabbitmq_span_message.span;
+        let events = rabbitmq_span_message.events;
+
+        // Make sure we count the sizes before any processing, as soon as
+        // we pick up the span from the queue.
+        let span_bytes = estimate_json_size(
+            &serde_json::to_value(&span.get_attributes().attributes).unwrap_or_default(),
+        );
+        let events_bytes = estimate_json_size(&serde_json::to_value(&events).unwrap_or_default());
 
         // Parse and enrich span attributes for input/output extraction
         // This heavy processing is done on the consumer side
@@ -121,12 +130,14 @@ async fn inner_process_queue_spans(
             }
         }
 
-        let events = rabbitmq_span_message.events;
-
         process_spans_and_events(
             &mut span,
             events,
             &rabbitmq_span_message.project_id,
+            &IngestedBytes {
+                span_bytes,
+                events_bytes,
+            },
             db.clone(),
             clickhouse.clone(),
             cache.clone(),

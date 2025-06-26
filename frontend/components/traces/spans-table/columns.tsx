@@ -2,11 +2,11 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ArrowRight } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import SpanTypeIcon from "@/components/traces/span-type-icon";
+import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Span } from "@/lib/traces/types";
+import { Span, SpanType } from "@/lib/traces/types";
 
 const renderCost = (val: any) => {
   if (val === null || val === undefined) {
@@ -18,7 +18,7 @@ const renderCost = (val: any) => {
 
 export const filters: ColumnFilter[] = [
   {
-    key: "id",
+    key: "span_id",
     name: "ID",
     dataType: "string",
   },
@@ -28,9 +28,14 @@ export const filters: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    key: "span_type",
     name: "Type",
-    dataType: "string",
+    dataType: "enum",
+    key: "span_type",
+    options: Object.values(SpanType).map((v) => ({
+      label: v,
+      value: v,
+      icon: createSpanTypeIcon(v, "w-4 h-4", 14),
+    })),
   },
   {
     key: "name",

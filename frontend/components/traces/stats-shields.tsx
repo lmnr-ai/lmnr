@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { compact, sortBy, uniq } from "lodash";
+import { compact, get, sortBy, uniq } from "lodash";
 import { Bolt, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, PropsWithChildren } from "react";
 
@@ -209,7 +209,7 @@ const SpanStatsShields = ({
   const inputCost = attributes["gen_ai.usage.input_cost"] ?? 0;
   const outputCost = attributes["gen_ai.usage.output_cost"] ?? 0;
   const cost = attributes["gen_ai.usage.cost"] ?? 0;
-  const model = attributes["gen_ai.response.model"] ?? "";
+  const model = get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
   const tools = extractToolsFromAttributes(attributes);
 
   return (

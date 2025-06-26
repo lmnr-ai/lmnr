@@ -104,7 +104,7 @@ interface ImageContentPartProps {
 
 const PureImageContentPart = ({
   src,
-  className = "object-cover rounded-sm size-16 ml-2 mt-2 mb-1",
+  className = "object-cover rounded-sm size-16 m-2",
   alt = "span image",
 }: ImageContentPartProps) => {
   const imageUrl = isStorageUrl(src) ? `${src}?payloadType=image` : src;

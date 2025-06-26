@@ -73,6 +73,13 @@ export const manageWorkspaceSubscriptionEvent = async ({
     activated: true
   }).where(eq(userSubscriptionInfo.stripeCustomerId, stripeCustomerId));
 
+  const tierBeforeUpdate = await db.query.workspaces.findFirst({
+    where: eq(workspaces.id, workspaceId),
+    columns: {
+      tierId: true,
+    }
+  });
+
   // Add additional seats to the workspace
   if (isAdditionalSeats && newQuantity > 0) {
     await db.update(workspaces).set({
@@ -93,15 +100,12 @@ export const manageWorkspaceSubscriptionEvent = async ({
     }).where(eq(workspaces.id, workspaceId));
   }
 
-
-  const currentTier = (await db.select({
-    tierId: workspaces.tierId
-  }).from(workspaces).where(eq(workspaces.id, workspaceId)))[0];
-
   // If the workspace is upgrading from the free tier, reset the usage
-  if (currentTier.tierId === 1) {
+  if (tierBeforeUpdate?.tierId === 1) {
     await db.update(workspaceUsage).set({
-      spanCountSinceReset: 0,
+      spansBytesIngestedSinceReset: 0,
+      browserSessionEventsBytesIngestedSinceReset: 0,
+      stepCountSinceReset: 0,
       resetTime: sql`now()`,
       resetReason: 'subscription_change'
     }).where(eq(workspaceUsage.workspaceId, workspaceId));

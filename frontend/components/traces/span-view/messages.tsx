@@ -54,7 +54,6 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
       return { messages: langchainResult.data, type: "langchain" as const };
     }
 
-    console.log(langchainResult.error);
     return {
       messages: convertToMessages(messages),
       type: "generic" as const,
