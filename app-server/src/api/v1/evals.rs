@@ -14,11 +14,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct InitEvalRequest {
     pub name: Option<String>,
     pub group_name: Option<String>,
+    #[serde(default)]
     pub metadata: Option<Value>,
 }
 
