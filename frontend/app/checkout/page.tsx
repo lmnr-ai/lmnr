@@ -4,9 +4,12 @@ import { getServerSession } from "next-auth";
 import Stripe from "stripe";
 
 import { authOptions } from "@/lib/auth";
-import { getUserSubscriptionInfo } from "@/lib/checkout/utils";
+import { getIdFromStripeObject, getUserSubscriptionInfo } from "@/lib/checkout/utils";
 import { db } from "@/lib/db/drizzle";
 import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
+
+const bytesOverageLookupKeyEnding = "_monthly_2025_06_overage_bytes";
+const stepsOverageLookupKeyEnding = "_monthly_2025_06_overage_steps";
 
 export default async function CheckoutPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -73,6 +76,15 @@ export default async function CheckoutPage(props: {
     expand: ["data.product"],
   });
 
+  const product = prices.data[0].product;
+
+  const productPrices = await s.prices.list({
+    product: getIdFromStripeObject(product),
+  });
+
+  const bytesOveragePrice = productPrices.data.find((p) => p.lookup_key?.endsWith(bytesOverageLookupKeyEnding));
+  const stepsOveragePrice = productPrices.data.find((p) => p.lookup_key?.endsWith(stepsOverageLookupKeyEnding));
+
   const metadata =
     typeParam === "workspace"
       ? {
@@ -107,6 +119,12 @@ export default async function CheckoutPage(props: {
         price: prices.data.find((p) => p.lookup_key === lookupKey)?.id,
         quantity: 1,
       },
+      ...(bytesOveragePrice ? [{
+        price: bytesOveragePrice?.id,
+      }] : []),
+      ...(stepsOveragePrice ? [{
+        price: stepsOveragePrice?.id,
+      }] : []),
     ],
     mode: "subscription",
     subscription_data: {
