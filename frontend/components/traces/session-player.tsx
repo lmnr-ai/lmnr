@@ -456,7 +456,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           )}
           {!isLoading && events.length === 0 && hasBrowserSession && (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
-              No browser session was recorded. Either we're still processing the session or this might be due to an outdated SDK version.
+              No browser session was recorded. Either the session is still being processed or you have an outdated SDK version.
             </div>
           )}
           {!isLoading && events.length > 0 && <div ref={playerContainerRef} />}
