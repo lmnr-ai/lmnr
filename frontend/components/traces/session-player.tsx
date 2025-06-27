@@ -29,6 +29,11 @@ interface Event {
   type: number;
 }
 
+interface UrlChange {
+  timestamp: number;
+  url: string;
+}
+
 export interface SessionPlayerHandle {
   goto: (time: number) => void;
 }
@@ -45,6 +50,9 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [speed, setSpeed] = useState(1);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [startTime, setStartTime] = useState(0);
+    const [currentUrl, setCurrentUrl] = useState<string>("");
+    const [urlChanges, setUrlChanges] = useState<UrlChange[]>([]);
+    const currentUrlIndexRef = useRef<number>(0);
     const { projectId } = useProjectContext();
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +64,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       const resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
-          setDimensions({ width, height: height - 48 }); // Subtract header height (48px)
+          setDimensions({ width, height: height - 56 }); // Subtract header height (32px) + URL bar height (24px)
         }
       });
 
@@ -64,6 +72,46 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
       return () => resizeObserver.disconnect();
     }, []);
+
+    // Binary search to find current URL index - O(log n) complexity
+    const findUrlIndex = (timeMs: number): number => {
+      if (!urlChanges.length) return -1;
+
+      let left = 0;
+      let right = urlChanges.length - 1;
+      let result = 0;
+
+      while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+
+        if (urlChanges[mid].timestamp <= timeMs) {
+          result = mid;
+          left = mid + 1;
+        } else {
+          right = mid - 1;
+        }
+      }
+
+      return result;
+    };
+
+    // Efficiently find current URL using binary search
+    const updateCurrentUrl = (timeMs: number) => {
+      if (!urlChanges.length) return;
+
+      const newIndex = findUrlIndex(timeMs);
+      if (newIndex === -1) return;
+
+      // Only update if index changed (avoids unnecessary state updates)
+      if (newIndex !== currentUrlIndexRef.current) {
+        currentUrlIndexRef.current = newIndex;
+        const newUrl = urlChanges[newIndex].url;
+
+        if (newUrl !== currentUrl) {
+          setCurrentUrl(newUrl);
+        }
+      }
+    };
 
     const getEvents = async () => {
       setIsLoading(true);
@@ -98,8 +146,13 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           return;
         }
 
-        const events = batchEvents.flatMap((batch: any) =>
-          batch.map((data: any) => {
+        const events: Event[] = [];
+        const urlChangesList: UrlChange[] = [];
+        let lastUrl = "";
+
+        // Process events and extract URL changes in a single pass
+        batchEvents.forEach((batch: any) => {
+          batch.forEach((data: any) => {
             const parsedEvent = JSON.parse(data.text);
             const base64DecodedData = atob(parsedEvent.data);
             let decompressedData = null;
@@ -117,15 +170,46 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               data: JSON.parse(decompressedData),
             };
 
-            return {
+            const processedEvent = {
               data: event.data,
               timestamp: new Date(event.timestamp + "Z").getTime(),
               type: parseInt(event.event_type),
             };
-          })
-        );
+
+            events.push(processedEvent);
+
+            // Extract URL while we're already iterating
+            let url = "";
+            if (processedEvent.type === 4 && processedEvent.data?.href) {
+              // Meta events with href
+              url = processedEvent.data.href;
+            } else if (processedEvent.type === 2 && processedEvent.data?.href) {
+              // Full snapshot events with href
+              url = processedEvent.data.href;
+            } else if (processedEvent.type === 3 && processedEvent.data?.source === 0 && processedEvent.data?.href) {
+              // Incremental snapshot with navigation
+              url = processedEvent.data.href;
+            } else if (processedEvent.data?.type === "navigation" && processedEvent.data?.href) {
+              // Navigation events
+              url = processedEvent.data.href;
+            }
+
+            // Only add if URL changed
+            if (url && url !== lastUrl) {
+              urlChangesList.push({ timestamp: processedEvent.timestamp, url });
+              lastUrl = url;
+            }
+          });
+        });
 
         setEvents(events);
+        setUrlChanges(urlChangesList);
+        currentUrlIndexRef.current = 0;
+
+        // Set initial URL
+        if (urlChangesList.length > 0) {
+          setCurrentUrl(urlChangesList[0].url);
+        }
       } catch (e) {
         console.error("Error processing events:", e);
       } finally {
@@ -140,6 +224,9 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         setCurrentTime(0);
         setTotalDuration(0);
         setSpeed(1);
+        setCurrentUrl("");
+        setUrlChanges([]);
+        currentUrlIndexRef.current = 0;
         getEvents();
       }
     }, [hasBrowserSession, traceId]);
@@ -176,8 +263,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         });
 
         playerRef.current.addEventListener("ui-update-current-time", (event: any) => {
-          setCurrentTime(event.payload / 1000);
+          const newTime = event.payload / 1000;
+          setCurrentTime(newTime);
           onTimelineChange(startTime + event.payload);
+
+          // Update current URL based on the current time
+          updateCurrentUrl(startTime + event.payload);
         });
 
       } catch (e) {
@@ -234,6 +325,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       debounceTimerRef.current = setTimeout(() => {
         if (playerRef.current) {
           playerRef.current.goto(time * 1000);
+          // Update URL when seeking
+          updateCurrentUrl(startTime + (time * 1000));
           if (wasPlaying) {
             requestAnimationFrame(() => {
               playerRef.current.play();
@@ -254,10 +347,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           if (playerRef.current) {
             setCurrentTime(time);
             playerRef.current.goto(time * 1000);
+            // Update URL when programmatically seeking
+            updateCurrentUrl(startTime + (time * 1000));
           }
         },
       }),
-      []
+      [startTime, urlChanges, currentUrl]
     );
 
     return (
@@ -306,7 +401,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           }
         `}</style>
         <div className="relative w-full h-full" ref={containerRef}>
-          <div className="flex flex-row items-center justify-center gap-2 px-4 h-12 border-b">
+          <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b">
             <button onClick={handlePlayPause} className="text-white py-1 rounded">
               {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
             </button>
@@ -338,6 +433,22 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
             </span>
           </div>
+
+          {/* URL Display Bar */}
+          {currentUrl && (
+            <div className="flex items-center px-4 py-1 border-b">
+              <a
+                href={currentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground truncate transition-colors"
+                title={currentUrl}
+              >
+                {currentUrl}
+              </a>
+            </div>
+          )}
+
           {isLoading && (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
               <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
@@ -345,7 +456,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           )}
           {!isLoading && events.length === 0 && hasBrowserSession && (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
-              No browser session was recorded. This might be due to an outdated SDK version.
+              No browser session was recorded. Either the session is still being processed or you have an outdated SDK version.
             </div>
           )}
           {!isLoading && events.length > 0 && <div ref={playerContainerRef} />}
