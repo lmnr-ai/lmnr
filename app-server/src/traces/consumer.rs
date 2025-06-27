@@ -21,7 +21,6 @@ pub async fn process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
-    evaluators_queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
 ) {
@@ -30,7 +29,6 @@ pub async fn process_queue_spans(
             db.clone(),
             cache.clone(),
             queue.clone(),
-            evaluators_queue.clone(),
             clickhouse.clone(),
             storage.clone(),
         )
@@ -43,7 +41,6 @@ async fn inner_process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
-    evaluators_queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
 ) {
@@ -142,7 +139,7 @@ async fn inner_process_queue_spans(
             clickhouse.clone(),
             cache.clone(),
             acker,
-            evaluators_queue.clone(),
+            queue.clone(),
         )
         .await;
     }
