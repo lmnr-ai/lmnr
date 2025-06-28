@@ -129,7 +129,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const textSearchFilters = searchSpanIds ? [inArray(sql`span_id`, searchSpanIds)] : [];
 
   const baseFilters = [
-    inArray(sql`trace_id`, db.select({ id: traces.id }).from(traces).where(eq(traces.traceType, "DEFAULT"))),
+    inArray(
+      sql`trace_id`,
+      db
+        .select({ id: traces.id })
+        .from(traces)
+        .where(and(eq(traces.traceType, "DEFAULT"), eq(traces.projectId, projectId)))
+    ),
     sql`project_id = ${projectId}`,
   ];
 
