@@ -13,7 +13,8 @@ export default async function SignUpPage(props: {
   if (callbackUrl) {
     try {
       const url = new URL(callbackUrl);
-      if (url.pathname === "/" || url.pathname === "") {
+      const currentOrigin = process.env.NEXTAUTH_URL;
+      if (url.origin === currentOrigin && (url.pathname === "/" || url.pathname === "")) {
         callbackUrl = "/onboarding";
       }
     } catch {}

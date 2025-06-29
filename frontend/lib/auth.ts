@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { isEmpty, some } from "lodash";
 import type { NextAuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GithubProvider from "next-auth/providers/github";
@@ -59,6 +60,34 @@ const getProviders = () => {
   return providerConfigs.filter(({ feature }) => isFeatureEnabled(feature)).map(({ provider }) => provider());
 };
 
+const isRedirectDomainAllowed = (url: string, baseUrl: string): boolean => {
+  try {
+    const redirectUrl = new URL(url);
+    const base = new URL(baseUrl);
+
+    if (redirectUrl.origin === base.origin) {
+      return true;
+    }
+
+    const allowedDomains =
+      process.env.NEXTAUTH_ALLOWED_REDIRECT_DOMAINS?.split(",")
+        ?.map((domain) => domain.trim())
+        ?.filter((domain) => !isEmpty(domain)) || [];
+
+    if (isEmpty(allowedDomains)) {
+      return false;
+    }
+
+    return some(
+      allowedDomains,
+      (domain) => redirectUrl.hostname === domain || redirectUrl.hostname.endsWith(`.${domain}`)
+    );
+  } catch (error) {
+    console.warn(`Invalid redirect URL format: ${url}`, error);
+    return false;
+  }
+};
+
 export const authOptions: NextAuthOptions = {
   providers: getProviders(),
   session: {
@@ -71,6 +100,17 @@ export const authOptions: NextAuthOptions = {
         return list.includes(user.email);
       }
       return true;
+    },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+
+      if (isRedirectDomainAllowed(url, baseUrl)) {
+        return url;
+      }
+
+      if (new URL(url).origin === baseUrl) return url;
+
+      return baseUrl;
     },
     async jwt({ token, profile, trigger }) {
       if (trigger === "signIn") {
