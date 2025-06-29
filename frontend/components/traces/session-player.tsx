@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useProjectContext } from "@/contexts/project-context";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
@@ -38,6 +39,8 @@ export interface SessionPlayerHandle {
   goto: (time: number) => void;
 }
 
+
+
 const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
   ({ hasBrowserSession, traceId, onTimelineChange }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -47,7 +50,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [totalDuration, setTotalDuration] = useState(0);
-    const [speed, setSpeed] = useState(1);
+    const [speed, setSpeed] = useLocalStorage("session-player-speed", 1);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [startTime, setStartTime] = useState(0);
     const [currentUrl, setCurrentUrl] = useState<string>("");
@@ -223,7 +226,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         setIsPlaying(false);
         setCurrentTime(0);
         setTotalDuration(0);
-        setSpeed(1);
+        // Speed is maintained from localStorage, no need to reset
         setCurrentUrl("");
         setUrlChanges([]);
         currentUrlIndexRef.current = 0;

@@ -2,9 +2,10 @@ import { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { CoreMessage } from "ai";
 import { isEqual } from "lodash";
 import { ChevronDown } from "lucide-react";
-import { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
+import React, { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
 import { z } from "zod/v4";
 
+import { MessageWrapper } from "@/components/traces/span-view/common";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
@@ -103,7 +104,6 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
       </div>
       <Button
         aria-label="Scroll to bottom"
-        variant="outline"
         size="icon"
         className="absolute bottom-3 right-3 rounded-full"
         onClick={() => virtualizer.scrollToIndex(messages.length - 1, { align: "end" })}
@@ -135,9 +135,15 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
+          <MessageWrapper
+            role={message.role}
+            presetKey={`message-header-${row.index}-${presetKey}`}
+            key={row.key}
+            ref={ref}
+            data-index={row.index}
+          >
             <OpenAIContentParts presetKey={presetKey} message={message} />
-          </div>
+          </MessageWrapper>
         );
       });
 
@@ -145,9 +151,15 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
+          <MessageWrapper
+            role={message.role}
+            presetKey={`message-header-${row.index}-${presetKey}`}
+            key={row.key}
+            ref={ref}
+            data-index={row.index}
+          >
             <LangChainContentParts presetKey={presetKey} message={message} />
-          </div>
+          </MessageWrapper>
         );
       });
 
@@ -155,9 +167,15 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
+          <MessageWrapper
+            role={message.role}
+            presetKey={`message-header-${row.index}-${presetKey}`}
+            key={row.key}
+            ref={ref}
+            data-index={row.index}
+          >
             <ContentParts presetKey={presetKey} message={message} />
-          </div>
+          </MessageWrapper>
         );
       });
   }
