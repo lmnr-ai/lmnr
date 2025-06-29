@@ -2746,7 +2746,7 @@
         "model": "gemini-2.5-flash-preview",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": 0.375,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
@@ -2772,7 +2772,7 @@
         "model": "gemini-2.5-flash-preview-05-20",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": 0.375,
+        "input_cached_price_per_million": 0.0375,
         "additional_prices": {
           "output_thinking_price_per_million": 3.5
         }
