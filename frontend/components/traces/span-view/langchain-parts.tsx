@@ -10,7 +10,6 @@ import {
 import {
   FileContentPart,
   ImageContentPart,
-  RoleHeader,
   TextContentPart,
   ToolCallContentPart,
   ToolResultContentPart,
@@ -23,57 +22,48 @@ const PureLangChainContentParts = ({
   message: z.infer<typeof LangChainMessageSchema>;
   presetKey?: string;
 }) => {
-  const getParts = () => {
-    switch (message.role) {
-      case "system":
-      case "user":
-      case "human":
-        return <LangChainContentPart part={message.content} presetKey={presetKey} />;
+  switch (message.role) {
+    case "system":
+    case "user":
+    case "human":
+      return <LangChainContentPart part={message.content} presetKey={presetKey} />;
 
-      case "tool":
-        return (
-          <>
-            <ToolResultContentPart
-              toolCallId={message?.tool_call_id || "-"}
-              content={message.content}
-              presetKey={presetKey}
-            >
-              <LangChainContentPart part={message.content} presetKey={presetKey} />
-            </ToolResultContentPart>
-          </>
-        );
-      case "assistant":
-      case "ai":
-        return (
-          <>
+    case "tool":
+      return (
+        <>
+          <ToolResultContentPart
+            toolCallId={message?.tool_call_id || "-"}
+            content={message.content}
+            presetKey={presetKey}
+          >
             <LangChainContentPart part={message.content} presetKey={presetKey} />
-            {(message?.tool_calls || []).map((part, index) => (
-              <ToolCallContentPart
-                key={`${part.type}-${index}`}
-                toolName={part.name}
-                content={part}
-                presetKey={presetKey}
-              />
-            ))}
-            {(message?.invalid_tool_calls || []).map((part, index) => (
-              <ToolCallContentPart
-                key={`${part.type}-${index}`}
-                toolName="Invalid Tool Call"
-                content={part}
-                presetKey={presetKey}
-              />
-            ))}
-          </>
-        );
-    }
-  };
-
-  return (
-    <>
-      <RoleHeader role={message.role} />
-      {getParts()}
-    </>
-  );
+          </ToolResultContentPart>
+        </>
+      );
+    case "assistant":
+    case "ai":
+      return (
+        <>
+          <LangChainContentPart part={message.content} presetKey={presetKey} />
+          {(message?.tool_calls || []).map((part, index) => (
+            <ToolCallContentPart
+              key={`${part.type}-${index}`}
+              toolName={part.name}
+              content={part}
+              presetKey={presetKey}
+            />
+          ))}
+          {(message?.invalid_tool_calls || []).map((part, index) => (
+            <ToolCallContentPart
+              key={`${part.type}-${index}`}
+              toolName="Invalid Tool Call"
+              content={part}
+              presetKey={presetKey}
+            />
+          ))}
+        </>
+      );
+  }
 };
 
 const PureLangChainContentPart = ({
