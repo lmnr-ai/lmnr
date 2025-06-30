@@ -93,7 +93,7 @@ const Header = ({
         </Tooltip>
       </TooltipProvider>
       {trace && <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />}
-      <div className="flex gap-x-1 items-center ml-auto">
+      <div className="flex items-center ml-auto">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button onClick={navigateDown} className="hover:bg-secondary px-1.5" variant="ghost">

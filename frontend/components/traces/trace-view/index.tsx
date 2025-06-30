@@ -42,7 +42,7 @@ interface TraceViewProps {
 const MAX_ZOOM = 3;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
-const MIN_TREE_VIEW_WIDTH = 532;
+const MIN_TREE_VIEW_WIDTH = 500;
 
 export default function TraceView({
   traceId,
