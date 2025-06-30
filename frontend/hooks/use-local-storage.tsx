@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 
 export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T | ((prevValue: T) => T)) => void] {

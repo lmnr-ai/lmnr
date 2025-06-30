@@ -147,10 +147,10 @@ export const MessageWrapper = ({
   const [isOpen, setIsOpen] = useLocalStorage(presetKey, true);
 
   return (
-    <div ref={ref} className="flex flex-col border rounded mb-4">
+    <div ref={ref} className="border rounded mb-4">
       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="group/message-wrapper divide-y">
         <RoleHeader role={role} />
-        <CollapsibleContent>{children}</CollapsibleContent>
+        <CollapsibleContent className="flex flex-col divide-y">{children}</CollapsibleContent>
       </Collapsible>
     </div>
   );

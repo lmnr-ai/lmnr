@@ -2,12 +2,13 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import { Resizable } from "re-resizable";
+import { Resizable, ResizeCallback } from "re-resizable";
 import { useEffect, useState } from "react";
 
 import TraceViewNavigationProvider, { getTraceConfig } from "@/components/traces/trace-view/navigation-context";
-import { filterColumns } from "@/components/traces/trace-view/utils";
+import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useUserContext } from "@/contexts/user-context";
+import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import FiltersContextProvider from "../ui/datatable-filter/context";
@@ -23,7 +24,11 @@ enum SelectedTab {
   SPANS = "spans",
 }
 
-export default function Traces() {
+interface TracesProps {
+  initialTraceViewWidth?: number;
+}
+
+export default function Traces({ initialTraceViewWidth }: TracesProps) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
@@ -50,20 +55,15 @@ export default function Traces() {
   const [traceId, setTraceId] = useState<string | null>(searchParams.get("traceId") ?? null);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(traceId != null);
 
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(1000);
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(
+    initialTraceViewWidth || getDefaultTraceViewWidth()
+  );
 
-  useEffect(() => {
-    const calculateWidth = () => {
-      if (typeof window !== "undefined") {
-        const viewportWidth = window.innerWidth;
-        const seventyFivePercent = viewportWidth * 0.75;
-        return Math.min(seventyFivePercent, 1100);
-      }
-      return 1000;
-    };
-
-    setDefaultTraceViewWidth(calculateWidth());
-  }, []);
+  const handleResizeStop: ResizeCallback = (event, direction, elementRef, delta) => {
+    const newWidth = defaultTraceViewWidth + delta.width;
+    setDefaultTraceViewWidth(newWidth);
+    setTraceViewWidthCookie(newWidth);
+  };
 
   useEffect(() => {
     setIsSidePanelOpen(traceId != null);
@@ -95,6 +95,7 @@ export default function Traces() {
         {isSidePanelOpen && (
           <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
             <Resizable
+              onResizeStop={handleResizeStop}
               enable={{
                 left: true,
               }}

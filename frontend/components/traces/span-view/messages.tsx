@@ -93,6 +93,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
           }}
           className="p-4 absolute top-0 left-0 w-full"
         >
+          {processedResult.type}
           <MessagesRenderer
             {...processedResult}
             ref={virtualizer.measureElement}

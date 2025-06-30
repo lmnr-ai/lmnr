@@ -42,6 +42,7 @@ interface TraceViewProps {
 const MAX_ZOOM = 3;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
+const MIN_TREE_VIEW_WIDTH = 532;
 
 export default function TraceView({
   traceId,
@@ -418,11 +419,11 @@ export default function TraceView({
     try {
       if (typeof window !== "undefined") {
         const savedWidth = localStorage.getItem("trace-view:tree-view-width");
-        return savedWidth ? parseInt(savedWidth, 10) : 440;
+        return savedWidth ? Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)) : MIN_TREE_VIEW_WIDTH;
       }
-      return 440;
+      return MIN_TREE_VIEW_WIDTH;
     } catch (e) {
-      return 440;
+      return MIN_TREE_VIEW_WIDTH;
     }
   });
 
@@ -443,7 +444,7 @@ export default function TraceView({
       const startWidth = treeViewWidth;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(320, startWidth + moveEvent.clientX - startX);
+        const newWidth = Math.max(MIN_TREE_VIEW_WIDTH, startWidth + moveEvent.clientX - startX);
         setTreeViewWidth(newWidth);
       };
 
