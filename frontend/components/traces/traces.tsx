@@ -59,10 +59,10 @@ export default function Traces({ initialTraceViewWidth }: TracesProps) {
     initialTraceViewWidth || getDefaultTraceViewWidth()
   );
 
-  const handleResizeStop: ResizeCallback = (event, direction, elementRef, delta) => {
+  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
     const newWidth = defaultTraceViewWidth + delta.width;
     setDefaultTraceViewWidth(newWidth);
-    setTraceViewWidthCookie(newWidth);
+    setTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
   };
 
   useEffect(() => {
