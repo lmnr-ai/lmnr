@@ -81,7 +81,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
         if (maxScrollTop - currentScrollTop > 50) {
           scrollElement.scrollTo({
             top: scrollElement.scrollHeight,
-            behavior: "smooth",
+            behavior: "instant",
           });
         }
       });
