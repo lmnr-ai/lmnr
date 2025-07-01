@@ -24,7 +24,9 @@ const transformUrl = (url: string, projectId: string, direction: TraceVisibility
   const { pattern, replacement } = getTransformPatterns(projectId)[direction];
 
   const transformedUrl = url.replace(pattern, replacement);
-  const match = url.match(pattern);
+
+  const extractPattern = new RegExp(pattern.source);
+  const match = url.match(extractPattern);
 
   return {
     url: transformedUrl,
@@ -190,7 +192,6 @@ const transformOpenAIMessages = (
       const transformedContent = message.content.map((part) => {
         if (part.type === "image_url") {
           const { url, payloadId } = transformUrl(part.image_url.url, projectId, direction);
-          console.log("here are payloads brother", part, url, payloadId);
           if (payloadId) payloads.add(payloadId);
 
           return {

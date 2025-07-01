@@ -45,7 +45,6 @@ export async function updateTraceVisibility(params: UpdateTraceVisibilityParams)
 
   const payloadIds = parseResult.flatMap((p) => p.payloadIds);
 
-  console.log("payloadIds", payloadIds);
   /**
    * 2. Perform transaction
    */
