@@ -1,10 +1,11 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { uniq } from "lodash";
 import { z } from "zod/v4";
 
 import { transformMessages } from "@/lib/actions/trace/utils";
 import { db } from "@/lib/db/drizzle";
 import { sharedPayloads, spans, traces } from "@/lib/db/migrations/schema";
+import { SpanType } from "@/lib/traces/types";
 
 export const UpdateTraceVisibilitySchema = z.object({
   traceId: z.string(),
@@ -22,7 +23,13 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
       output: spans.output,
     })
     .from(spans)
-    .where(and(eq(spans.traceId, traceId), eq(spans.projectId, projectId)));
+    .where(
+      and(
+        eq(spans.traceId, traceId),
+        eq(spans.projectId, projectId),
+        or(eq(spans.spanType, SpanType.LLM), eq(spans.name, "ai.generateText"), eq(spans.name, "ai.generateObject"))
+      )
+    );
 
   /**
    * 1. Parse span image url's, and extract payload id's
