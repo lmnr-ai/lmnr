@@ -38,7 +38,7 @@ const ImageWithPreview = ({ src, className, alt }: ImageWithPreviewProps) => {
             </Button>
           </DialogClose>
         </DialogTitle>
-        <img className="w-auto h-auto rounded-sm max-w-[80vw] max-h-[80vh]" alt={alt} src={src} />
+        <img className="w-full h-full rounded-sm max-w-[80vw] max-h-[80vh]" alt={alt} src={src} />
       </DialogContent>
     </Dialog>
   );

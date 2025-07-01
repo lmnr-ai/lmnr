@@ -47,7 +47,9 @@ const ShareTraceButton = ({
         }
       } else {
         const text = await res.json();
-        toast({ variant: "destructive", title: "Error", description: text });
+        if ("error" in text) {
+          toast({ variant: "destructive", title: "Error", description: String(text.error) });
+        }
       }
     } catch (e) {
       toast({

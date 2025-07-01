@@ -316,52 +316,6 @@ export const userSubscriptionInfo = pgTable(
   ]
 );
 
-export const subscriptionTiers = pgTable("subscription_tiers", {
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" })
-    .primaryKey()
-    .generatedByDefaultAsIdentity({
-      name: "subscription_tiers_id_seq",
-      startWith: 1,
-      increment: 1,
-      minValue: 1,
-      maxValue: 9223372036854775807,
-      cache: 1,
-    }),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  name: text().notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  storageMib: bigint("storage_mib", { mode: "number" }).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  membersPerWorkspace: bigint("members_per_workspace", { mode: "number" })
-    .default(sql`'-1'`)
-    .notNull(),
-  stripeProductId: text("stripe_product_id").default("").notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  steps: bigint({ mode: "number" })
-    .default(sql`'0'`)
-    .notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  spans: bigint({ mode: "number" })
-    .default(sql`'0'`)
-    .notNull(),
-  extraSpanPrice: doublePrecision("extra_span_price")
-    .default(sql`'0'`)
-    .notNull(),
-  extraStepPrice: doublePrecision("extra_step_price")
-    .default(sql`'0'`)
-    .notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  bytesIngested: bigint("bytes_ingested", { mode: "number" })
-    .default(sql`'0'`)
-    .notNull(),
-  extraBytePrice: doublePrecision("extra_byte_price")
-    .default(sql`'0'`)
-    .notNull(),
-});
-
 export const labelingQueues = pgTable(
   "labeling_queues",
   {
@@ -375,28 +329,6 @@ export const labelingQueues = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "labeling_queues_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const evaluations = pgTable(
-  "evaluations",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
-    groupId: text("group_id").default("default").notNull(),
-    metadata: jsonb(),
-  },
-  (table) => [
-    index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "evaluations_project_id_fkey1",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
@@ -737,66 +669,6 @@ export const users = pgTable(
   ]
 );
 
-export const evaluatorScores = pgTable(
-  "evaluator_scores",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    evaluatorId: uuid("evaluator_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    spanId: uuid("span_id").notNull(),
-    score: doublePrecision().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "evaluator_scores_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const evaluators = pgTable(
-  "evaluators",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
-    evaluatorType: text("evaluator_type").notNull(),
-    definition: jsonb().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "evaluators_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const evaluatorSpanPaths = pgTable(
-  "evaluator_span_paths",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    evaluatorId: uuid("evaluator_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    spanPath: jsonb("span_path").default({}),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.evaluatorId],
-      foreignColumns: [evaluators.id],
-      name: "evaluator_span_paths_evaluator_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "evaluator_span_paths_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
 export const playgrounds = pgTable(
   "playgrounds",
   {
@@ -947,6 +819,112 @@ export const evaluationResults = pgTable(
   ]
 );
 
+export const evaluatorScores = pgTable(
+  "evaluator_scores",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    evaluatorId: uuid("evaluator_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    spanId: uuid("span_id").notNull(),
+    score: doublePrecision().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluator_scores_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const evaluators = pgTable(
+  "evaluators",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    evaluatorType: text("evaluator_type").notNull(),
+    definition: jsonb().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluators_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const evaluatorSpanPaths = pgTable(
+  "evaluator_span_paths",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    evaluatorId: uuid("evaluator_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    spanPath: jsonb("span_path").default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.evaluatorId],
+      foreignColumns: [evaluators.id],
+      name: "evaluator_span_paths_evaluator_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluator_span_paths_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const subscriptionTiers = pgTable("subscription_tiers", {
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  id: bigint({ mode: "number" })
+    .primaryKey()
+    .generatedByDefaultAsIdentity({
+      name: "subscription_tiers_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  name: text().notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  storageMib: bigint("storage_mib", { mode: "number" }).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  membersPerWorkspace: bigint("members_per_workspace", { mode: "number" })
+    .default(sql`'-1'`)
+    .notNull(),
+  stripeProductId: text("stripe_product_id").default("").notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  steps: bigint({ mode: "number" })
+    .default(sql`'0'`)
+    .notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  spans: bigint({ mode: "number" })
+    .default(sql`'0'`)
+    .notNull(),
+  extraSpanPrice: doublePrecision("extra_span_price")
+    .default(sql`'0'`)
+    .notNull(),
+  extraStepPrice: doublePrecision("extra_step_price")
+    .default(sql`'0'`)
+    .notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  bytesIngested: bigint("bytes_ingested", { mode: "number" })
+    .default(sql`'0'`)
+    .notNull(),
+  extraBytePrice: doublePrecision("extra_byte_price")
+    .default(sql`'0'`)
+    .notNull(),
+});
+
 export const workspaceUsage = pgTable(
   "workspace_usage",
   {
@@ -1017,6 +995,43 @@ export const workspaceUsage = pgTable(
       .onUpdate("cascade")
       .onDelete("cascade"),
     unique("user_usage_workspace_id_key").on(table.workspaceId),
+  ]
+);
+
+export const evaluations = pgTable(
+  "evaluations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    groupId: text("group_id").default("default").notNull(),
+    metadata: jsonb(),
+  },
+  (table) => [
+    index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluations_project_id_fkey1",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const sharedPayloads = pgTable(
+  "shared_payloads",
+  {
+    payloadId: uuid("payload_id").primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "shared_payloads_project_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 

@@ -1,11 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
+import { updateTraceVisibility } from "@/lib/actions/trace";
 import { db } from "@/lib/db/drizzle";
 import { traces } from "@/lib/db/migrations/schema";
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   props: { params: Promise<{ projectId: string; traceId: string }> }
 ): Promise<Response> {
   const params = await props.params;
@@ -30,21 +32,23 @@ export async function PUT(
   const params = await props.params;
 
   const projectId = params.projectId;
-
   const traceId = params.traceId;
 
-  const body = (await req.json()) as { visibility: string };
+  const body = (await req.json()) as { visibility: "private" | "public" };
 
   try {
-    await db
-      .update(traces)
-      .set({
-        visibility: body.visibility,
-      })
-      .where(and(eq(traces.projectId, projectId), eq(traces.id, traceId)));
+    await updateTraceVisibility({ projectId, visibility: body?.visibility, traceId });
 
     return new Response("Updated trace visibility successfully.");
-  } catch (e) {
-    return new Response("Error updating visibility. Please try again.", { status: 500 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 500 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Error updating visibility. Please try again." },
+      {
+        status: 500,
+      }
+    );
   }
 }
