@@ -7,25 +7,29 @@ import { ChatMessage, ChatMessageContentPart } from "@/lib/types";
 
 type TraceVisibility = "private" | "public";
 
-export const getTransformPatterns = (
-  projectId: string
-): Record<TraceVisibility, { pattern: RegExp; replacement: string }> => ({
+export const getTransformPatterns = (projectId: string): Record<TraceVisibility, { from: RegExp; to: string }> => ({
   public: {
-    pattern: new RegExp(`/api/projects/${projectId}/payloads/([^/\\s"]+)`, "g"),
-    replacement: "/api/shared/payloads/$1",
+    from: new RegExp(
+      `/api/projects/${projectId}/payloads/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})`,
+      "g"
+    ),
+    to: "/api/shared/payloads/$1",
   },
   private: {
-    pattern: new RegExp(`/api/shared/payloads/([^/\\s"]+)`, "g"),
-    replacement: `/api/projects/${projectId}/payloads/$1`,
+    from: new RegExp(
+      `/api/shared/payloads/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})`,
+      "g"
+    ),
+    to: `/api/projects/${projectId}/payloads/$1`,
   },
 });
 
 const transformUrl = (url: string, projectId: string, direction: TraceVisibility) => {
-  const { pattern, replacement } = getTransformPatterns(projectId)[direction];
+  const { from, to } = getTransformPatterns(projectId)[direction];
 
-  const transformedUrl = url.replace(pattern, replacement);
+  const transformedUrl = url.replace(from, to);
 
-  const extractPattern = new RegExp(pattern.source);
+  const extractPattern = new RegExp(from.source);
   const match = url.match(extractPattern);
 
   return {
