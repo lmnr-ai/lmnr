@@ -1,8 +1,8 @@
 "use client";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Globe, Link, Lock, Share } from "lucide-react";
+import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React from "react";
+import React, { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -26,9 +26,12 @@ const ShareTraceButton = ({
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/shared/traces/${traceId}` : "";
 
+  const [isLoading, setIsLoading] = useState(false);
+
   const { toast } = useToast();
   const handleChangeVisibility = async (value: "private" | "public") => {
     try {
+      setIsLoading(true);
       const res = await fetch(`/api/projects/${projectId}/traces/${traceId}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -47,7 +50,9 @@ const ShareTraceButton = ({
         }
       } else {
         const text = await res.json();
-        toast({ variant: "destructive", title: "Error", description: text });
+        if ("error" in text) {
+          toast({ variant: "destructive", title: "Error", description: String(text.error) });
+        }
       }
     } catch (e) {
       toast({
@@ -55,6 +60,8 @@ const ShareTraceButton = ({
         title: "Error",
         description: "Failed to update trace privacy. Please try again.",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -80,19 +87,30 @@ const ShareTraceButton = ({
           </div>
           <div className="flex items-center space-x-2">
             <Select value={trace.visibility || "private"} onValueChange={handleChangeVisibility}>
-              <SelectTrigger value={trace.visibility || "private"} className="text-sm min-w-4 h-8">
+              <SelectTrigger
+                disabled={isLoading}
+                value={trace.visibility || "private"}
+                className="text-sm min-w-4 h-8 focus:ring-0"
+              >
                 <SelectValue placeholder="Select access">
-                  {trace.visibility === "public" ? (
-                    <div className="flex items-center">
-                      <Globe className="text-secondary-foreground h-4 w-4 mr-2" />
-                      <span>Public</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center">
-                      <Lock className="text-secondary-foreground h-4 w-4 mr-2" />
-                      <span>Private</span>
-                    </div>
-                  )}
+                  <div className="flex items-center">
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="animate-spin w-4 h-4 mr-2" />
+                        <span>Loading...</span>
+                      </>
+                    ) : trace.visibility === "public" ? (
+                      <>
+                        <Globe className="text-secondary-foreground h-4 w-4 mr-2" />
+                        <span>Public</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="text-secondary-foreground h-4 w-4 mr-2" />
+                        <span>Private</span>
+                      </>
+                    )}
+                  </div>
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -119,10 +137,10 @@ const ShareTraceButton = ({
           </div>
           <div className="flex flex-row-reverse gap-2">
             <PopoverClose asChild>
-              <Button variant="lightSecondary">Done</Button>
+              <Button variant="outline">Done</Button>
             </PopoverClose>
             {trace.visibility === "public" && (
-              <CopyButton icon={<Link className="h-4 w-4 mr-2" />} text={url}>
+              <CopyButton variant="lightSecondary" icon={<Link className="h-4 w-4 mr-2" />} text={url}>
                 <span>Copy link</span>
               </CopyButton>
             )}

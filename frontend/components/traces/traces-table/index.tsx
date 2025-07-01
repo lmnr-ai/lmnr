@@ -130,7 +130,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     toast,
   ]);
 
-  const dbTraceRowToTrace = (row: Record<string, any>): Trace => ({
+  const mapPendingTraceFromRealTime = (row: Record<string, any>): Trace => ({
     startTime: row.start_time,
     endTime: row.end_time,
     id: row.id,
@@ -197,7 +197,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       if (eventType === "INSERT") {
         const insertIndex = currentTraces?.findIndex((trace) => trace.startTime <= newObj.start_time);
         const newTraces = currentTraces ? [...currentTraces] : [];
-        const rtEventTrace = dbTraceRowToTrace(newObj);
+        const rtEventTrace = mapPendingTraceFromRealTime(newObj);
         // Ignore eval traces
         if (rtEventTrace.traceType !== "DEFAULT") {
           return;
@@ -223,21 +223,20 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
         const updateIndex = currentTraces.findIndex((trace) => trace.id === newObj.id || trace.id === old.id);
         if (updateIndex !== -1) {
           const newTraces = [...currentTraces];
-          const existingTrace = currentTraces[updateIndex];
-          const rtEventTrace = dbTraceRowToTrace(newObj);
+          const rtEventTrace = mapPendingTraceFromRealTime(newObj);
           // Ignore eval traces
           if (rtEventTrace.traceType !== "DEFAULT") {
             return;
           }
           const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
-          if (existingTrace.topSpanType === null && rtEventTrace.topSpanId != null) {
+          if (rtEventTrace.topSpanId != null) {
             const newTrace = {
               ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
               ...rest,
             };
             newTraces[updateIndex] = newTrace;
           } else {
-            newTraces[updateIndex] = dbTraceRowToTrace(newObj);
+            newTraces[updateIndex] = mapPendingTraceFromRealTime(newObj);
           }
           setTraces(newTraces);
         }

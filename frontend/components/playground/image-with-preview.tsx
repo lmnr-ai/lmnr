@@ -14,7 +14,7 @@ const ImageWithPreview = ({ src, className, alt }: ImageWithPreviewProps) => {
   const [isLoading, setIsLoading] = useState(true);
   return (
     <Dialog>
-      <DialogTrigger>
+      <DialogTrigger className="focus:outline-0">
         <img
           onError={() => setIsLoading(false)}
           onLoad={() => setIsLoading(false)}
@@ -38,7 +38,7 @@ const ImageWithPreview = ({ src, className, alt }: ImageWithPreviewProps) => {
             </Button>
           </DialogClose>
         </DialogTitle>
-        <img className="w-auto h-auto rounded-sm max-w-[80vw] max-h-[80vh]" alt={alt} src={src} />
+        <img className="w-full h-full rounded-sm max-w-[80vw] max-h-[80vh]" alt={alt} src={src} />
       </DialogContent>
     </Dialog>
   );
