@@ -1,8 +1,8 @@
 "use client";
 import { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable } from "re-resizable";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Resizable, ResizeCallback } from "re-resizable";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import Chart from "@/components/evaluation/chart";
@@ -13,9 +13,11 @@ import ScoreCard from "@/components/evaluation/score-card";
 import TraceViewNavigationProvider, {
   getTraceWithDatapointConfig,
 } from "@/components/traces/trace-view/navigation-context";
+import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
+import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
 import {
   Evaluation as EvaluationType,
   EvaluationDatapointPreviewWithCompared,
@@ -31,9 +33,15 @@ interface EvaluationProps {
   evaluations: EvaluationType[];
   evaluationId: string;
   evaluationName: string;
+  initialTraceViewWidth?: number;
 }
 
-export default function Evaluation({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
+export default function Evaluation({
+  evaluations,
+  evaluationId,
+  evaluationName,
+  initialTraceViewWidth,
+}: EvaluationProps) {
   const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -202,13 +210,27 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     }
   }, []);
 
-  const traceViewWidth = useMemo(() => {
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(
+    initialTraceViewWidth || getDefaultTraceViewWidth()
+  );
+
+  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
+    const newWidth = defaultTraceViewWidth + delta.width;
+    setDefaultTraceViewWidth(newWidth);
+    setTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
+  };
+
+  const ref = useRef<Resizable>(null);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
-      const viewportWidth = window.innerWidth;
-      const seventyFivePercent = viewportWidth * 0.75;
-      return Math.min(seventyFivePercent, 1100);
+      if (defaultTraceViewWidth > window.innerWidth - 180) {
+        const newWidth = window.innerWidth - 240;
+        setDefaultTraceViewWidth(newWidth);
+        setTraceViewWidthCookie(newWidth);
+        ref?.current?.updateSize({ width: newWidth });
+      }
     }
-    return 1000;
   }, []);
 
   return (
@@ -277,11 +299,13 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
         {traceId && (
           <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
             <Resizable
+              ref={ref}
+              onResizeStop={handleResizeStop}
               enable={{
                 left: true,
               }}
               defaultSize={{
-                width: traceViewWidth,
+                width: defaultTraceViewWidth,
               }}
             >
               <div className="w-full h-full flex flex-col">

@@ -2,9 +2,10 @@ import { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { CoreMessage } from "ai";
 import { isEqual } from "lodash";
 import { ChevronDown } from "lucide-react";
-import { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
+import React, { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
 import { z } from "zod/v4";
 
+import { MessageWrapper } from "@/components/traces/span-view/common";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
@@ -70,6 +71,23 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 
   const items = virtualizer.getVirtualItems();
 
+  const scrollToFn = () => {
+    const scrollElement = parentRef.current;
+    if (scrollElement) {
+      requestAnimationFrame(() => {
+        const currentScrollTop = scrollElement.scrollTop;
+        const maxScrollTop = scrollElement.scrollHeight - scrollElement.clientHeight;
+
+        if (maxScrollTop - currentScrollTop > 50) {
+          scrollElement.scrollTo({
+            top: scrollElement.scrollHeight,
+            behavior: "instant",
+          });
+        }
+      });
+    }
+  };
+
   return (
     <ScrollArea
       ref={parentRef}
@@ -103,10 +121,9 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
       </div>
       <Button
         aria-label="Scroll to bottom"
-        variant="outline"
         size="icon"
         className="absolute bottom-3 right-3 rounded-full"
-        onClick={() => virtualizer.scrollToIndex(messages.length - 1, { align: "end" })}
+        onClick={scrollToFn}
       >
         <ChevronDown className="w-4 h-4" />
       </Button>
@@ -135,8 +152,10 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
-            <OpenAIContentParts presetKey={presetKey} message={message} />
+          <div key={row.key} data-index={row.index} ref={ref}>
+            <MessageWrapper role={message.role} presetKey={`message-header-${row.index}-${presetKey}`}>
+              <OpenAIContentParts presetKey={presetKey} message={message} />
+            </MessageWrapper>
           </div>
         );
       });
@@ -145,8 +164,10 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
-            <LangChainContentParts presetKey={presetKey} message={message} />
+          <div key={row.key} data-index={row.index} ref={ref}>
+            <MessageWrapper role={message.role} presetKey={`message-header-${row.index}-${presetKey}`}>
+              <LangChainContentParts presetKey={presetKey} message={message} />
+            </MessageWrapper>
           </div>
         );
       });
@@ -155,8 +176,10 @@ const MessagesRenderer = ({
       return virtualItems.map((row) => {
         const message = messages[row.index];
         return (
-          <div key={row.key} ref={ref} data-index={row.index} className="flex flex-col border rounded mb-4 divide-y">
-            <ContentParts presetKey={presetKey} message={message} />
+          <div key={row.key} data-index={row.index} ref={ref}>
+            <MessageWrapper role={message.role} presetKey={`message-header-${row.index}-${presetKey}`}>
+              <ContentParts presetKey={presetKey} message={message} />
+            </MessageWrapper>
           </div>
         );
       });

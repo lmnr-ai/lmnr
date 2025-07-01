@@ -164,7 +164,7 @@ function Timeline({
     count: segments.length,
     getScrollElement: () => ref.current,
     estimateSize: () => 32, // HEIGHT + margin
-    overscan: 50,
+    overscan: 100,
   });
 
   const items = virtualizer.getVirtualItems();
