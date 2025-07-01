@@ -1,5 +1,5 @@
 import { Bolt, ChevronRight } from "lucide-react";
-import React, { memo, PropsWithChildren, ReactNode, Ref } from "react";
+import React, { memo, PropsWithChildren, ReactNode } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Badge } from "@/components/ui/badge";
@@ -138,16 +138,14 @@ export const MessageWrapper = ({
   children,
   role,
   presetKey,
-  ref,
 }: PropsWithChildren<{
   role?: string;
   presetKey: string;
-  ref: Ref<HTMLDivElement>;
 }>) => {
   const [isOpen, setIsOpen] = useLocalStorage(presetKey, true);
 
   return (
-    <div ref={ref} className="border rounded mb-4">
+    <div className="border rounded mb-4">
       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="group/message-wrapper divide-y">
         <RoleHeader role={role} />
         <CollapsibleContent className="flex flex-col divide-y">{children}</CollapsibleContent>
