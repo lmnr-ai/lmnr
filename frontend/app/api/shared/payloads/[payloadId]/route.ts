@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/lib/db/drizzle";
 import { sharedPayloads } from "@/lib/db/migrations/schema";
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ payloadId
   });
 
   if (!result) {
-    return new Response(JSON.stringify({ error: "Shared Payload Not Found" }), { status: 404 });
+    return NextResponse.json({ error: "Shared Payload Not Found" }, { status: 404 });
   }
 
   const { bytes, headers } = await downloadS3ObjectHttp(result.projectId, payloadId, payloadType);

@@ -39,12 +39,12 @@ export async function PUT(
   try {
     await updateTraceVisibility({ projectId, visibility: body?.visibility, traceId });
 
-    return new Response("Updated trace visibility successfully.");
+    return NextResponse.json("Updated trace visibility successfully.");
   } catch (error) {
     if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 500 });
+      return NextResponse.json({ error: prettifyError(error) }, { status: 500 });
     }
-    return Response.json(
+    return NextResponse.json(
       { error: error instanceof Error ? error.message : "Error updating visibility. Please try again." },
       {
         status: 500,
