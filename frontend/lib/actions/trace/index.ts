@@ -1,5 +1,5 @@
-import { and, eq, inArray } from "drizzle-orm";
-import { map, uniq } from "lodash";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { uniq } from "lodash";
 import { z } from "zod/v4";
 
 import { transformMessages } from "@/lib/actions/trace/utils";
@@ -12,12 +12,7 @@ export const UpdateTraceVisibilitySchema = z.object({
   visibility: z.enum(["public", "private"]),
 });
 
-type UpdateTraceVisibilityParams = z.infer<typeof UpdateTraceVisibilitySchema>;
-
-/**
- * Update trace visibility and handle image URL transformations using parsing
- */
-export async function updateTraceVisibility(params: UpdateTraceVisibilityParams) {
+export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVisibilitySchema>) {
   const { traceId, projectId, visibility } = UpdateTraceVisibilitySchema.parse(params);
 
   const traceSpans = await db
@@ -33,13 +28,13 @@ export async function updateTraceVisibility(params: UpdateTraceVisibilityParams)
    * 1. Parse span image url's, and extract payload id's
    */
   const parseResult = traceSpans.map((span) => {
-    const transformedInput = transformMessages(span.input, projectId, visibility);
-    const transformedOutput = transformMessages(span.output, projectId, visibility);
+    const input = transformMessages(span.input, projectId, visibility);
+    const output = transformMessages(span.output, projectId, visibility);
     return {
       id: span.spanId,
-      input: transformedInput.messages,
-      output: transformedOutput.messages,
-      payloadIds: uniq([...Array.from(transformedInput.payloads), ...Array.from(transformedOutput.payloads)]),
+      input: input.messages,
+      output: output.messages,
+      payloadIds: uniq([...Array.from(input.payloads), ...Array.from(output.payloads)]),
     };
   });
 
@@ -56,19 +51,24 @@ export async function updateTraceVisibility(params: UpdateTraceVisibilityParams)
 
     if (parseResult.length > 0) {
       /**
-       * 3. Write into spans TODO: optimize as bulk write, rather than sigular updates
+       * 3. Write into spans
        */
-      await Promise.all(
-        map(parseResult, (data) =>
-          tx
-            .update(spans)
-            .set({
-              input: data.input,
-              output: data.output,
-            })
-            .where(and(eq(spans.spanId, data.id), eq(spans.projectId, projectId)))
-        )
+
+      const values = sql.join(
+        parseResult.map(
+          (item) => sql`(${item.id}::uuid, ${JSON.stringify(item.input)}::jsonb, ${JSON.stringify(item.output)}::jsonb)`
+        ),
+        sql`, `
       );
+
+      await tx
+        .update(spans)
+        .set({
+          input: sql`update_data.input`,
+          output: sql`update_data.output`,
+        })
+        .from(sql`(VALUES ${values}) AS update_data(span_id, input, output)`)
+        .where(and(eq(spans.spanId, sql`update_data.span_id`), eq(spans.projectId, projectId)));
 
       /**
        * 4. Update shared payloads table

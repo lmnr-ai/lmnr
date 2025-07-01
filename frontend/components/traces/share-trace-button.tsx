@@ -121,10 +121,10 @@ const ShareTraceButton = ({
           </div>
           <div className="flex flex-row-reverse gap-2">
             <PopoverClose asChild>
-              <Button variant="lightSecondary">Done</Button>
+              <Button variant="outline">Done</Button>
             </PopoverClose>
             {trace.visibility === "public" && (
-              <CopyButton icon={<Link className="h-4 w-4 mr-2" />} text={url}>
+              <CopyButton variant="lightSecondary" icon={<Link className="h-4 w-4 mr-2" />} text={url}>
                 <span>Copy link</span>
               </CopyButton>
             )}

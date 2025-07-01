@@ -3,7 +3,7 @@
 import { Check, CopyIcon } from "lucide-react";
 import { PropsWithChildren, ReactNode, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface CopyLinkButtonProps {
@@ -11,8 +11,8 @@ interface CopyLinkButtonProps {
   icon?: ReactNode;
   className?: string;
   iconClassName?: string;
-  variant?: "default" | "outline" | "ghost";
-  size?: "default" | "sm" | "lg" | "icon";
+  variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }
 
 export function CopyButton({
