@@ -2,7 +2,7 @@
 import { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, ResizeCallback } from "re-resizable";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import Chart from "@/components/evaluation/chart";
@@ -220,6 +220,19 @@ export default function Evaluation({
     setTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
   };
 
+  const ref = useRef<Resizable>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (defaultTraceViewWidth > window.innerWidth - 180) {
+        const newWidth = window.innerWidth - 240;
+        setDefaultTraceViewWidth(newWidth);
+        setTraceViewWidthCookie(newWidth);
+        ref?.current?.updateSize({ width: newWidth });
+      }
+    }
+  }, []);
+
   return (
     <TraceViewNavigationProvider<{ datapointId: string; traceId: string }>
       config={getTraceWithDatapointConfig()}
@@ -286,6 +299,7 @@ export default function Evaluation({
         {traceId && (
           <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
             <Resizable
+              ref={ref}
               onResizeStop={handleResizeStop}
               enable={{
                 left: true,
