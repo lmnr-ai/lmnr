@@ -87,13 +87,17 @@ const ShareTraceButton = ({
           </div>
           <div className="flex items-center space-x-2">
             <Select value={trace.visibility || "private"} onValueChange={handleChangeVisibility}>
-              <SelectTrigger disabled={isLoading} value={trace.visibility || "private"} className="text-sm min-w-4 h-8">
+              <SelectTrigger
+                disabled={isLoading}
+                value={trace.visibility || "private"}
+                className="text-sm min-w-4 h-8 focus:ring-0"
+              >
                 <SelectValue placeholder="Select access">
                   <div className="flex items-center">
                     {isLoading ? (
                       <>
                         <Loader2 className="animate-spin w-4 h-4 mr-2" />
-                        Loading...
+                        <span>Loading...</span>
                       </>
                     ) : trace.visibility === "public" ? (
                       <>

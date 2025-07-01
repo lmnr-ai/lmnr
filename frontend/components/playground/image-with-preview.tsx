@@ -14,7 +14,7 @@ const ImageWithPreview = ({ src, className, alt }: ImageWithPreviewProps) => {
   const [isLoading, setIsLoading] = useState(true);
   return (
     <Dialog>
-      <DialogTrigger>
+      <DialogTrigger className="focus:outline-0">
         <img
           onError={() => setIsLoading(false)}
           onLoad={() => setIsLoading(false)}
