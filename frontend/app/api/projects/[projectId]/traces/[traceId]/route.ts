@@ -42,7 +42,7 @@ export async function PUT(
     return NextResponse.json("Updated trace visibility successfully.");
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 500 });
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Error updating visibility. Please try again." },
