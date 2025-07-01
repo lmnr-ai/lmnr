@@ -1,8 +1,8 @@
 "use client";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Globe, Link, Lock, Share } from "lucide-react";
+import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React from "react";
+import React, { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -26,9 +26,12 @@ const ShareTraceButton = ({
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/shared/traces/${traceId}` : "";
 
+  const [isLoading, setIsLoading] = useState(false);
+
   const { toast } = useToast();
   const handleChangeVisibility = async (value: "private" | "public") => {
     try {
+      setIsLoading(true);
       const res = await fetch(`/api/projects/${projectId}/traces/${traceId}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -57,6 +60,8 @@ const ShareTraceButton = ({
         title: "Error",
         description: "Failed to update trace privacy. Please try again.",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -82,19 +87,26 @@ const ShareTraceButton = ({
           </div>
           <div className="flex items-center space-x-2">
             <Select value={trace.visibility || "private"} onValueChange={handleChangeVisibility}>
-              <SelectTrigger value={trace.visibility || "private"} className="text-sm min-w-4 h-8">
+              <SelectTrigger disabled={isLoading} value={trace.visibility || "private"} className="text-sm min-w-4 h-8">
                 <SelectValue placeholder="Select access">
-                  {trace.visibility === "public" ? (
-                    <div className="flex items-center">
-                      <Globe className="text-secondary-foreground h-4 w-4 mr-2" />
-                      <span>Public</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center">
-                      <Lock className="text-secondary-foreground h-4 w-4 mr-2" />
-                      <span>Private</span>
-                    </div>
-                  )}
+                  <div className="flex items-center">
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="animate-spin w-4 h-4 mr-2" />
+                        Loading...
+                      </>
+                    ) : trace.visibility === "public" ? (
+                      <>
+                        <Globe className="text-secondary-foreground h-4 w-4 mr-2" />
+                        <span>Public</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="text-secondary-foreground h-4 w-4 mr-2" />
+                        <span>Private</span>
+                      </>
+                    )}
+                  </div>
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
