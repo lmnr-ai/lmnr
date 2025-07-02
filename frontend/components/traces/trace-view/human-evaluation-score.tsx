@@ -184,7 +184,7 @@ const HumanEvaluationScore = ({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="border rounded-lg p-4 space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="border rounded-lg py-3 px-4 space-y-4">
       {hasOptions ? (
         <div className="space-y-2">
           <Label className="text-sm font-medium">Score Options</Label>
@@ -192,7 +192,14 @@ const HumanEvaluationScore = ({
             name="score"
             control={control}
             render={({ field: { value, onChange } }) => (
-              <RadioGroup value={value?.toString() || ""} onValueChange={onChange} disabled={isValidating}>
+              <RadioGroup
+                value={value?.toString() || ""}
+                onValueChange={(v) => {
+                  onChange(v);
+                  handleSubmit(onSubmit)();
+                }}
+                disabled={isValidating || isSubmitting}
+              >
                 {options.map((option) => (
                   <div key={`${option.label}-${option.value}`} className="flex items-center space-x-2">
                     <RadioGroupItem
@@ -208,40 +215,41 @@ const HumanEvaluationScore = ({
           />
         </div>
       ) : (
-        <div className="space-y-2">
-          <Label htmlFor="score" className="text-sm font-medium">
-            Score
-          </Label>
-          <Controller
-            name="score"
-            control={control}
-            render={({ field: { value, onChange, onBlur } }) => (
-              <Input
-                disabled={isValidating}
-                id="score"
-                type="number"
-                placeholder="Enter numeric score"
-                className="w-full hide-arrow"
-                value={value?.toString() || ""}
-                onChange={(e) => onChange(e.target.value)}
-                onBlur={onBlur}
-              />
-            )}
-          />
-        </div>
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="score" className="text-sm font-medium">
+              Score
+            </Label>
+            <Controller
+              name="score"
+              control={control}
+              render={({ field: { value, onChange, onBlur } }) => (
+                <Input
+                  disabled={isValidating}
+                  id="score"
+                  type="number"
+                  placeholder="Enter numeric score"
+                  className="w-full hide-arrow"
+                  value={value?.toString() || ""}
+                  onChange={(e) => onChange(e.target.value)}
+                  onBlur={onBlur}
+                />
+              )}
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            variant="outline"
+            className="text-pink-400/80 border-pink-400/80"
+            handleEnter
+          >
+            {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+            <span>Save Score</span>
+          </Button>
+        </>
       )}
       {errors.score && <p className="text-sm text-red-500">{errors.score.message}</p>}
-
-      <Button
-        type="submit"
-        disabled={isSubmitting}
-        variant="outline"
-        className="text-pink-400/80 border-pink-400/80"
-        handleEnter
-      >
-        {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Check className="w-4 h-4 mr-2" />}
-        <span>Save Score</span>
-      </Button>
     </form>
   );
 };
