@@ -14,7 +14,7 @@ export async function GET(
     const name = req.nextUrl.searchParams.get("name");
 
     if (!name) {
-      return new Response(JSON.stringify("Score name is required"), { status: 400 });
+      return new Response(JSON.stringify({ error: "Score name is required" }), { status: 400 });
     }
 
     const evaluationScore = await getEvaluationScore({
