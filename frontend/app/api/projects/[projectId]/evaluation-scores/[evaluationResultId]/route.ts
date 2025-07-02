@@ -19,7 +19,7 @@ export async function GET(
 
     const evaluationScore = await getEvaluationScore({
       evaluationResultId,
-      name: name,
+      name,
     });
 
     return new Response(JSON.stringify(evaluationScore), {
