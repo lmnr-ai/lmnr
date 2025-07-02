@@ -1,11 +1,7 @@
 import { NextRequest } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import {
-  getEvaluationScore,
-  GetEvaluationScoreSchema,
-  updateEvaluationScore,
-  UpdateEvaluationScoreSchema,
-} from "@/lib/actions/evaluation-score";
+import { getEvaluationScore, updateEvaluationScore } from "@/lib/actions/evaluation-score";
 
 export async function GET(
   req: NextRequest,
@@ -16,39 +12,25 @@ export async function GET(
 
   try {
     const name = req.nextUrl.searchParams.get("name");
-    const result = GetEvaluationScoreSchema.omit({ evaluationResultId: true }).safeParse({ name: name });
 
-    if (!result.success) {
-      return new Response(
-        JSON.stringify({
-          error: "Invalid request body",
-          details: result.error.issues,
-        }),
-        {
-          status: 400,
-        }
-      );
+    if (!name) {
+      return new Response(JSON.stringify({ error: "Score name is required" }), { status: 400 });
     }
-
-    const { name: scoreName } = result.data;
 
     const evaluationScore = await getEvaluationScore({
       evaluationResultId,
-      name: scoreName,
+      name,
     });
 
     return new Response(JSON.stringify(evaluationScore), {
       status: 200,
     });
   } catch (error) {
-    console.error("Error fetching evaluation score:", error);
-    if (error instanceof Error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: error.message === "Evaluation score not found" ? 404 : 500,
-      });
+    if (error instanceof ZodError) {
+      return new Response(JSON.stringify({ error: prettifyError(error) }), { status: 400 });
     }
 
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
+    return new Response(JSON.stringify({ error: "Failed to get evaluation score. Please try again." }), {
       status: 500,
     });
   }
@@ -62,40 +44,22 @@ export async function POST(
   const { evaluationResultId } = params;
 
   try {
-    const body = await req.json();
-    const result = UpdateEvaluationScoreSchema.omit({ evaluationResultId: true }).safeParse(body);
-    if (!result.success) {
-      return new Response(
-        JSON.stringify({
-          error: "Invalid request body",
-          details: result.error.issues,
-        }),
-        {
-          status: 400,
-        }
-      );
-    }
-
-    const { score, name } = result.data;
-
+    const body = (await req.json()) as { score: number; name: string };
     const updatedEvaluationScore = await updateEvaluationScore({
       evaluationResultId,
-      score,
-      name,
+      score: body.score,
+      name: body.name,
     });
 
     return new Response(JSON.stringify(updatedEvaluationScore), {
       status: 200,
     });
   } catch (error) {
-    console.error("Error updating evaluation score:", error);
-    if (error instanceof Error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: error.message === "Evaluation score not found" ? 404 : 500,
-      });
+    if (error instanceof ZodError) {
+      return new Response(JSON.stringify({ error: prettifyError(error) }), { status: 400 });
     }
 
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
+    return new Response(JSON.stringify({ error: "Failed to update evaluation score. Please try again." }), {
       status: 500,
     });
   }
