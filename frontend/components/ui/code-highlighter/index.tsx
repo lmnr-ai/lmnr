@@ -16,10 +16,10 @@ import {
   theme,
 } from "@/components/ui/code-highlighter/utils";
 import { CopyButton } from "@/components/ui/copy-button";
-import CustomRenderer from "@/components/ui/custom-renderer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import TemplateRenderer from "@/components/ui/template-renderer";
 import { cn } from "@/lib/utils";
 
 interface CodeEditorProps {
@@ -211,7 +211,7 @@ const PureCodeHighlighter = ({
         {renderHeaderContent()}
       </div>
       {mode === "custom" ? (
-        <CustomRenderer data={renderedValue} presetKey={presetKey} />
+        <TemplateRenderer data={renderedValue} presetKey={presetKey} />
       ) : (
         <div
           className={cn(

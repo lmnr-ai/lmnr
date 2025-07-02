@@ -28,7 +28,7 @@ export async function GET(
   }
 }
 
-export async function POST(request: Request, props: { params: Promise<{ projectId: string; templateId: string }> }) {
+export async function PUT(request: Request, props: { params: Promise<{ projectId: string; templateId: string }> }) {
   try {
     const params = await props.params;
     const { projectId, templateId } = params;
