@@ -47,6 +47,13 @@ export const transformMessages = (
 
   if (!content) return { messages: content, payloads };
 
+  if (typeof content === "string") {
+    const { url, payloadId } = transformUrl(content, projectId, direction);
+
+    if (payloadId) payloads.add(payloadId);
+    return { messages: url, payloads };
+  }
+
   if (isArray(content)) {
     const openAIParsed = OpenAIMessagesSchema.safeParse(content);
     if (openAIParsed.success) {
