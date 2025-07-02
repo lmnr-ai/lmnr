@@ -1,4 +1,4 @@
-import { omit } from "lodash";
+import { get, omit } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { useMemo } from "react";
 import useSWR from "swr";
@@ -25,6 +25,15 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
   const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
   const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
+
+  const humanEvaluatorOptions = useMemo(() => {
+    try {
+      const options = get(span?.attributes, "lmnr.span.human_evaluator_options");
+      if (options) {
+        return JSON.parse(options) as { value: number; label: string }[];
+      }
+    } catch {}
+  }, [span?.attributes]);
 
   if (isLoading || !span) {
     return (
@@ -65,6 +74,7 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
             <SpanInput key={`${datapointId}-${spanId}`} span={span}>
               {datapointId && evaluationId && (
                 <HumanEvaluationScore
+                  options={humanEvaluatorOptions}
                   key={`${datapointId}-${spanId}`}
                   evaluationId={evaluationId as string}
                   spanId={span.spanId}
