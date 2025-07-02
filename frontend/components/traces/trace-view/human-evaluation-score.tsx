@@ -33,6 +33,7 @@ interface HumanEvaluationScoreProps {
 }
 
 const evaluationScoreSchema = z.object({
+  // validate input
   score: z.union([z.string(), z.number()]).refine(
     (val) => {
       if (typeof val === "string") {
