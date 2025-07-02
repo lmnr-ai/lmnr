@@ -1,32 +1,22 @@
-import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { html } from "@codemirror/lang-html";
+import { json } from "@codemirror/lang-json";
+import { DialogTrigger } from "@radix-ui/react-dialog";
+import CodeMirror from "@uiw/react-codemirror";
+import { PencilIcon, Plus, TrashIcon } from "lucide-react";
+import { useParams } from "next/navigation";
+import { PropsWithChildren, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
-import CodeEditor from "@/components/ui/code-editor";
+import { theme } from "@/components/ui/code-highlighter/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useProjectContext } from "@/contexts/project-context";
 import { swrFetcher } from "@/lib/utils";
 
 import { Button } from "./button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
 import { Input } from "./input";
 import { Label } from "./label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
 interface Template {
   id: string;
@@ -45,24 +35,22 @@ interface TemplateDialogProps {
   onSave: (template: Template) => void;
   defaultTemplate: Template | null;
   defaultJsonData: string;
-  sandbox: string;
   projectId: string;
 }
 
-function TemplateDialog({
+const TemplateDialog = ({
   open,
   onOpenChange,
+  children,
   onSave,
   defaultTemplate,
   defaultJsonData,
-  sandbox,
   projectId,
-}: TemplateDialogProps) {
+}: PropsWithChildren<TemplateDialogProps>) => {
   const iFrameRef = useRef<HTMLIFrameElement>(null);
   const [isIframeReady, setIsIframeReady] = useState(false);
 
-  const [tab, setTab] = useState<'data' | 'editor'>('editor');
-  const [templateName, setTemplateName] = useState(defaultTemplate?.name ?? '');
+  const [templateName, setTemplateName] = useState(defaultTemplate?.name ?? "");
   const [htmlContent, setHtmlContent] = useState(defaultTemplate?.code ?? DEFAULT_HTML_TEMPLATE);
   const [jsonData, setJsonData] = useState(defaultJsonData);
   const [isSaving, setIsSaving] = useState(false);
@@ -78,7 +66,7 @@ function TemplateDialog({
     if (iFrameRef.current) {
       // Add a 100ms delay before sending the postMessage
       const timer = setTimeout(() => {
-        iFrameRef.current?.contentWindow?.postMessage(jsonData, '*');
+        iFrameRef.current?.contentWindow?.postMessage(jsonData, "*");
       }, 100); // Delay in milliseconds
 
       return () => clearTimeout(timer);
@@ -105,7 +93,7 @@ function TemplateDialog({
   useEffect(() => {
     if (!isIframeReady || !iFrameRef.current) return;
     const iframe = iFrameRef.current;
-    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const blob = new Blob([htmlContent], { type: "text/html" });
     const blobUrl = URL.createObjectURL(blob);
     iframe.src = blobUrl;
 
@@ -124,135 +112,115 @@ function TemplateDialog({
         : `/api/projects/${projectId}/render-templates`;
 
       const response = await fetch(url, {
-        method: 'POST',
-        body: JSON.stringify({ name: templateName, code: htmlContent })
+        method: "POST",
+        body: JSON.stringify({ name: templateName, code: htmlContent }),
       });
-
 
       const data = await response.json();
 
       onSave(data);
-      setTemplateName('');
-      setHtmlContent('');
+      setTemplateName("");
+      setHtmlContent("");
       setIsSaving(false);
     } catch (error) {
       // TODO: Show error message
-      console.error('Failed to save template:', error);
+      console.error("Failed to save template:", error);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger>{children}</DialogTrigger>
       <DialogContent
         aria-description="New render template"
         aria-describedby="New render template"
-        className="max-w-[90vw] w-[90vw] h-[90vh] flex flex-col p-0 gap-0"
+        className="max-w-[90vw] max-h-[90vh] w-[90vw] h-[90vh] flex flex-col p-0 gap-0"
       >
-        <DialogHeader className="flex-none border-b p-4">
+        <DialogHeader className="border-b p-4">
           <DialogTitle>New render template</DialogTitle>
-          <DialogDescription>
-            Create a new render template to customize data visualization.
-          </DialogDescription>
+          <DialogDescription>Create a new render template to customize data visualization.</DialogDescription>
         </DialogHeader>
-        <div className="flex gap-4 h-full p-4">
-          <div className="w-1/2 h-full flex-none">
+        <div className="grid grid-cols-2 gap-4 p-4 flex-1 overflow-hidden">
+          <div className="min-h-0">
             <iframe
               key={`iframe-${open}`}
               ref={iFrameRef}
-              className="w-full h-full border-0"
-              sandbox={sandbox}
+              className="w-full h-full border rounded-md"
+              sandbox="allow-scripts"
               title="Custom Visualization"
             />
           </div>
-          <div className="w-1/2 h-full flex flex-col">
-            <div className="flex gap-4 flex-none w-full">
-              <div className="flex gap-2 flex-col w-full">
-                <Label>Name</Label>
-                <Input
-                  className="w-full"
-                  placeholder="Template name"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                />
-              </div>
+          <div className="min-h-0 flex flex-col">
+            <div className="mb-4">
+              <Label htmlFor="template-name">Name</Label>
+              <Input
+                id="template-name"
+                className="w-full mt-1"
+                placeholder="Template name"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+              />
             </div>
-            <Tabs
-              defaultValue="data"
-              className="w-full h-full flex flex-col"
-              value={tab}
-              onValueChange={value => {
-                setTab(value as 'data' | 'editor');
-              }}
-            >
-              <TabsList className="flex-none">
+            <Tabs className="flex flex-col flex-1 min-h-0" defaultValue="data">
+              <TabsList>
                 <TabsTrigger value="data">Data</TabsTrigger>
                 <TabsTrigger value="editor">Code</TabsTrigger>
               </TabsList>
-              <div className="flex-grow flex h-0">
-                <TabsContent
-                  value="editor"
-                  forceMount={true}
-                  hidden={tab !== 'editor'}
-                  className="w-full h-full max-h-full"
-                >
-                  <CodeEditor
+
+              <TabsContent value="editor" className="flex-1 min-h-0 pt-2">
+                <div className="border rounded-md bg-muted/50 h-full overflow-hidden">
+                  <CodeMirror
                     value={htmlContent}
                     onChange={setHtmlContent}
-                    language="html"
+                    extensions={[html()]}
+                    theme={theme}
+                    height="100%"
                     className="h-full"
-                    lineWrapping={false}
                   />
-                </TabsContent>
-
-                <TabsContent
-                  value="data"
-                  forceMount={true}
-                  hidden={tab !== 'data'}
-                  className="w-full h-full"
-                >
-                  <CodeEditor
+                </div>
+              </TabsContent>
+              <TabsContent value="data" className="flex-1 min-h-0 pt-2">
+                <div className="border rounded-md bg-muted/50 h-full overflow-hidden">
+                  <CodeMirror
                     value={jsonData}
                     onChange={setJsonData}
-                    language="json"
+                    extensions={[json()]}
+                    theme={theme}
+                    height="100%"
+                    className="h-full"
                   />
-                </TabsContent>
-              </div>
+                </div>
+              </TabsContent>
             </Tabs>
           </div>
         </div>
-        <DialogFooter className="flex-none border-t p-4">
-          <Button
-            onClick={handleSaveTemplate}
-            disabled={!templateName || isSaving}
-          >
-            {isSaving ? 'Saving...' : 'Save Template'}
+        <DialogFooter className="border-t p-4">
+          <Button onClick={handleSaveTemplate} disabled={!templateName || isSaving}>
+            {isSaving ? "Saving..." : "Save Template"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-}
+};
 
 interface CustomRendererProps {
-  data: string,
-  permissions?: string,
-  presetKey?: string | null,
+  data: string;
+  presetKey?: string | null;
 }
 
-export default function CustomRenderer({
-  data,
-  permissions,
-  presetKey = null,
-}: CustomRendererProps) {
+export default function CustomRenderer({ data, presetKey = null }: CustomRendererProps) {
   const iFrameRef = useRef<HTMLIFrameElement>(null);
   const [htmlContent, setHtmlContent] = useState(DEFAULT_HTML_TEMPLATE);
-  const sandbox = permissions ?? 'allow-scripts';
-  const { projectId } = useProjectContext();
-  const { data: templates, mutate: mutateTemplates } = useSWR(`/api/projects/${projectId}/render-templates`, swrFetcher);
+  const { projectId } = useParams();
+  const { data: templates, mutate: mutateTemplates } = useSWR(
+    `/api/projects/${projectId}/render-templates`,
+    swrFetcher
+  );
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [templateDialogMode, setTemplateDialogMode] = useState<'create' | 'edit'>('create');
+  const [templateDialogMode, setTemplateDialogMode] = useState<"create" | "edit">("create");
 
   useEffect(() => {
     if (presetKey && templates) {
@@ -264,20 +232,19 @@ export default function CustomRenderer({
         if (template) {
           // Fetch and set the template
           fetch(`/api/projects/${projectId}/render-templates/${storedTemplateId}`)
-            .then(response => response.json())
-            .then(data => setSelectedTemplate(data))
-            .catch(error => console.error('Error fetching template:', error));
+            .then((response) => response.json())
+            .then((data) => setSelectedTemplate(data))
+            .catch((error) => console.error("Error fetching template:", error));
         }
       }
     }
   }, [presetKey, templates, projectId]);
 
-  // Then, handle the content updates
   useEffect(() => {
     if (!iFrameRef.current) return;
 
     const iframe = iFrameRef.current;
-    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const blob = new Blob([htmlContent], { type: "text/html" });
     const blobUrl = URL.createObjectURL(blob);
     iframe.src = blobUrl;
 
@@ -287,15 +254,10 @@ export default function CustomRenderer({
   }, [htmlContent]);
 
   useEffect(() => {
-    iFrameRef.current?.contentWindow?.postMessage(data, '*');
+    iFrameRef.current?.contentWindow?.postMessage(data, "*");
   }, [data, iFrameRef, htmlContent]);
 
   const handleTemplateSelect = (value: string) => {
-    if (value === 'create-new') {
-      setIsDialogOpen(true);
-      return;
-    }
-
     const template = templates?.find((t: TemplateInfo) => t.id === value);
     if (template) {
       // Store the template ID if we have a preset key
@@ -304,9 +266,9 @@ export default function CustomRenderer({
       }
 
       fetch(`/api/projects/${projectId}/render-templates/${value}`)
-        .then(response => response.json())
-        .then(data => setSelectedTemplate(data))
-        .catch(error => console.error('Error fetching template:', error));
+        .then((response) => response.json())
+        .then((data) => setSelectedTemplate(data))
+        .catch((error) => console.error("Error fetching template:", error));
     }
   };
 
@@ -318,7 +280,7 @@ export default function CustomRenderer({
 
   const handleEditTemplate = () => {
     if (selectedTemplate) {
-      setTemplateDialogMode('edit');
+      setTemplateDialogMode("edit");
       setHtmlContent(selectedTemplate.code);
       setIsDialogOpen(true);
     }
@@ -329,68 +291,53 @@ export default function CustomRenderer({
 
     try {
       await fetch(`/api/projects/${projectId}/render-templates/${selectedTemplate.id}`, {
-        method: 'DELETE'
+        method: "DELETE",
       });
 
-      mutateTemplates(templates.filter((t: TemplateInfo) => t.id !== selectedTemplate.id));
+      await mutateTemplates(templates.filter((t: TemplateInfo) => t.id !== selectedTemplate.id));
       setSelectedTemplate(null);
       setHtmlContent(DEFAULT_HTML_TEMPLATE);
     } catch (error) {
-      console.error('Failed to delete template:', error);
+      console.error("Failed to delete template:", error);
     } finally {
       setIsDeleteDialogOpen(false);
     }
   };
 
-  const handleSaveTemplate = (template: Template) => {
-    setTemplateDialogMode('create');
+  const handleSaveTemplate = async (template: Template) => {
+    setTemplateDialogMode("create");
     setSelectedTemplate(template);
     setIsDialogOpen(false);
-    mutateTemplates();
+    await mutateTemplates();
   };
 
   return (
     <div className="flex flex-col bg-background w-full">
       <div className="flex items-center gap-2 p-2">
-        <div className="min-w-[100px]">
-          <Select
-            key={selectedTemplate?.id} value={selectedTemplate?.id || undefined} onValueChange={handleTemplateSelect}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select template" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="create-new">
-                  <div className="flex items-center gap-2">
-                    <PlusIcon className="w-4 h-4" />
-                    <div>Create new template</div>
-                  </div>
-                </SelectItem>
-              </SelectGroup>
-              <SelectGroup>
-                {templates?.map((template: TemplateInfo) => (
-                  <SelectItem key={template.id} value={template.id}>
-                    {template.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
+        <Select key={selectedTemplate?.id} value={selectedTemplate?.id} onValueChange={handleTemplateSelect}>
+          <SelectTrigger className="w-fit">
+            <SelectValue placeholder="Select template" />
+          </SelectTrigger>
+          <SelectContent>
+            {templates?.map((template: TemplateInfo) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.name}
+              </SelectItem>
+            ))}
+            <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
+              <Plus className="w-3 h-3 mr-2" />
+              <span onClick={() => setIsDialogOpen(true)} className="text-xs">
+                Create new template
+              </span>
+            </div>
+          </SelectContent>
+        </Select>
         {selectedTemplate && (
           <>
-            <Button
-              variant="outline"
-              onClick={handleEditTemplate}
-              title="Edit template"
-            >
+            <Button variant="outline" onClick={handleEditTemplate} title="Edit template">
               <PencilIcon className="w-4 h-4" />
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteDialogOpen(true)}
-              title="Delete template"
-            >
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(true)} title="Delete template">
               <TrashIcon className="w-4 h-4" />
             </Button>
 
@@ -410,7 +357,7 @@ export default function CustomRenderer({
         <iframe
           ref={iFrameRef}
           className="w-full min-h-[400px] h-full border-0"
-          sandbox={sandbox}
+          sandbox="allow-scripts"
           title="Custom Visualization"
         />
         {/* </Resizable> */}
@@ -420,10 +367,9 @@ export default function CustomRenderer({
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         onSave={handleSaveTemplate}
-        defaultTemplate={templateDialogMode === 'edit' ? selectedTemplate : null}
+        defaultTemplate={templateDialogMode === "edit" ? selectedTemplate : null}
         defaultJsonData={data}
-        sandbox={sandbox}
-        projectId={projectId}
+        projectId={projectId as string}
       />
     </div>
   );

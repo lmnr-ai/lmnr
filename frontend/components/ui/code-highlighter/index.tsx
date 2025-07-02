@@ -1,7 +1,7 @@
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/code-highlighter/code-sheet";
@@ -16,6 +16,7 @@ import {
   theme,
 } from "@/components/ui/code-highlighter/utils";
 import { CopyButton } from "@/components/ui/copy-button";
+import CustomRenderer from "@/components/ui/custom-renderer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -209,29 +210,32 @@ const PureCodeHighlighter = ({
       >
         {renderHeaderContent()}
       </div>
-
-      <div
-        className={cn(
-          "flex-grow flex bg-muted/50 overflow-auto w-full h-full pt-0.5",
-          !showLineNumbers && "pl-1",
-          codeEditorClassName
-        )}
-      >
-        <CodeMirror
-          ref={editorRef}
-          className="w-full"
-          placeholder={placeholder}
-          onChange={handleChange}
-          theme={theme}
-          basicSetup={{
-            lineNumbers: showLineNumbers,
-            foldGutter: showLineNumbers,
-          }}
-          extensions={extensions}
-          value={renderedValue}
-          readOnly={readOnly}
-        />
-      </div>
+      {mode === "custom" ? (
+        <CustomRenderer data={renderedValue} presetKey={presetKey} />
+      ) : (
+        <div
+          className={cn(
+            "flex-grow flex bg-muted/50 overflow-auto w-full h-full pt-0.5",
+            !showLineNumbers && "pl-1",
+            codeEditorClassName
+          )}
+        >
+          <CodeMirror
+            ref={editorRef}
+            className="w-full"
+            placeholder={placeholder}
+            onChange={handleChange}
+            theme={theme}
+            basicSetup={{
+              lineNumbers: showLineNumbers,
+              foldGutter: showLineNumbers,
+            }}
+            extensions={extensions}
+            value={renderedValue}
+            readOnly={readOnly}
+          />
+        </div>
+      )}
     </div>
   );
 };
