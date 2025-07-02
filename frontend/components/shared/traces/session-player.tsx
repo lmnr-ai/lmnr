@@ -33,8 +33,6 @@ export interface SessionPlayerHandle {
   goto: (time: number) => void;
 }
 
-
-
 const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
   ({ hasBrowserSession, traceId, onTimelineChange }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -177,7 +175,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           setCurrentTime(event.payload / 1000);
           onTimelineChange(startTime + event.payload);
         });
-
       } catch (e) {
         console.error("Error initializing player:", e);
       }
@@ -315,7 +312,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
                 {speed}x
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                {[1, 2, 4, 8].map((speedOption) => (
+                {[1, 2, 4, 8, 16].map((speedOption) => (
                   <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
                     {speedOption}x
                   </DropdownMenuItem>
