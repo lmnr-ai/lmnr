@@ -5,7 +5,7 @@ import { db } from "@/lib/db/drizzle";
 import { renderTemplates } from "@/lib/db/migrations/schema";
 
 export const GetRenderTemplatesSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string(),
 });
 
 export async function getRenderTemplates(input: z.infer<typeof GetRenderTemplatesSchema>) {
