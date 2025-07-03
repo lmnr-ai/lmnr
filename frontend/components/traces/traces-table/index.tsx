@@ -1,11 +1,12 @@
 "use client";
 import { Row } from "@tanstack/react-table";
-import { isEmpty } from "lodash";
+import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import RefreshButton from "@/components/traces/refresh-button";
 import SearchTracesInput from "@/components/traces/search-traces-input";
+import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { columns, filters } from "@/components/traces/traces-table/columns";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
@@ -41,6 +42,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
   const searchIn = searchParams.getAll("searchIn");
 
   const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
+  const { setNavigationRefList } = useTraceViewNavigation();
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
   const [enableLiveUpdates, setEnableLiveUpdates] = useState<boolean>(true);
 
@@ -54,6 +56,10 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
   const tracesRef = useRef<Trace[] | undefined>(traces);
+
+  useEffect(() => {
+    setNavigationRefList(map(traces, "id"));
+  }, [setNavigationRefList, traces]);
 
   // Keep ref updated
   useEffect(() => {
@@ -124,7 +130,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
     toast,
   ]);
 
-  const dbTraceRowToTrace = (row: Record<string, any>): Trace => ({
+  const mapPendingTraceFromRealTime = (row: Record<string, any>): Trace => ({
     startTime: row.start_time,
     endTime: row.end_time,
     id: row.id,
@@ -173,11 +179,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
           topSpanOutputPreview: span?.outputPreview ?? null,
         };
       } catch (error) {
-        toast({
-          title: "Failed to load span information",
-          variant: "destructive",
-        });
-
+        console.warn(error);
         return {
           topSpanName: null,
           topSpanType: null,
@@ -195,7 +197,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       if (eventType === "INSERT") {
         const insertIndex = currentTraces?.findIndex((trace) => trace.startTime <= newObj.start_time);
         const newTraces = currentTraces ? [...currentTraces] : [];
-        const rtEventTrace = dbTraceRowToTrace(newObj);
+        const rtEventTrace = mapPendingTraceFromRealTime(newObj);
         // Ignore eval traces
         if (rtEventTrace.traceType !== "DEFAULT") {
           return;
@@ -221,21 +223,20 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
         const updateIndex = currentTraces.findIndex((trace) => trace.id === newObj.id || trace.id === old.id);
         if (updateIndex !== -1) {
           const newTraces = [...currentTraces];
-          const existingTrace = currentTraces[updateIndex];
-          const rtEventTrace = dbTraceRowToTrace(newObj);
+          const rtEventTrace = mapPendingTraceFromRealTime(newObj);
           // Ignore eval traces
           if (rtEventTrace.traceType !== "DEFAULT") {
             return;
           }
           const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
-          if (existingTrace.topSpanType === null && rtEventTrace.topSpanId != null) {
+          if (rtEventTrace.topSpanId != null) {
             const newTrace = {
               ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
               ...rest,
             };
             newTraces[updateIndex] = newTrace;
           } else {
-            newTraces[updateIndex] = dbTraceRowToTrace(newObj);
+            newTraces[updateIndex] = mapPendingTraceFromRealTime(newObj);
           }
           setTraces(newTraces);
         }

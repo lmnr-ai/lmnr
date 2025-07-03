@@ -33,7 +33,7 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" className="text-muted-foreground">
           <Maximize className="h-3.5 w-3.5" />
         </Button>
       </SheetTrigger>

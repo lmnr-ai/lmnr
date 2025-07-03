@@ -7,7 +7,6 @@ pub mod datasets;
 pub mod evaluations;
 pub mod evaluators;
 pub mod events;
-pub mod labeling_queues;
 pub mod labels;
 pub mod machine_manager;
 pub mod modifiers;

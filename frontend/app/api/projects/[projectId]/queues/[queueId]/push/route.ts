@@ -1,44 +1,27 @@
-import { z } from "zod";
-
-import { db } from "@/lib/db/drizzle";
-import { labelingQueueItems } from "@/lib/db/migrations/schema";
-
-const pushQueueItemSchema = z.array(
-  z.object({
-    createdAt: z.string().optional(),
-    payload: z.object({
-      data: z.any(),
-      target: z.any(),
-    }),
-    metadata: z.object({
-      source: z.enum(["span", "datapoint"]),
-      datasetId: z.string().optional(),
-      traceId: z.string().optional(),
-      id: z.string(),
-    }),
-  })
-);
+import { pushQueueItems, PushQueueItemsRequestSchema } from "@/lib/actions/queue";
 
 export async function POST(request: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
   const params = await props.params;
 
-  const body = await request.json();
-  const result = pushQueueItemSchema.safeParse(body);
+  try {
+    const body = await request.json();
+    const result = PushQueueItemsRequestSchema.safeParse(body);
 
-  if (!result.success) {
-    return Response.json({ error: "Invalid request body", details: result.error }, { status: 400 });
+    if (!result.success) {
+      return Response.json({ error: "Invalid request body", details: result.error }, { status: 400 });
+    }
+
+    const newQueueItems = await pushQueueItems({
+      queueId: params.queueId,
+      items: result.data,
+    });
+
+    return Response.json(newQueueItems);
+  } catch (error) {
+    console.error("Error pushing queue items:", error);
+    if (error instanceof Error && error.message === "Failed to push items to queue") {
+      return Response.json({ error: "Failed to push items to queue" }, { status: 500 });
+    }
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  const queueItems = result.data.map((item) => ({
-    ...item,
-    queueId: params.queueId,
-  }));
-
-  const newQueueItems = await db.insert(labelingQueueItems).values(queueItems).returning();
-
-  if (newQueueItems.length === 0) {
-    return Response.json({ error: "Failed to push items to queue" }, { status: 500 });
-  }
-
-  return Response.json(newQueueItems);
 }

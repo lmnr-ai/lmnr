@@ -6,6 +6,7 @@ export type Evaluation = {
   groupId: string;
   name: string;
   projectId: string;
+  metadata: Record<string, unknown> | null;
 };
 
 export type EvaluationDatapoint = {
@@ -28,6 +29,7 @@ export type EvaluationDatapointPreview = {
   target: any;
   metadata?: Record<string, any>;
   executorOutput: any;
+  status: string | null;
   traceId: string;
   index: number;
   startTime: string;

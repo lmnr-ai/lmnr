@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
@@ -41,7 +42,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [totalDuration, setTotalDuration] = useState(0);
-    const [speed, setSpeed] = useState(1);
+    const [speed, setSpeed] = useLocalStorage("session-player-speed", 1);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [, setStartTime] = useState(0);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -134,7 +135,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         setIsPlaying(false);
         setCurrentTime(0);
         setTotalDuration(0);
-        setSpeed(1);
+        // Speed is maintained from localStorage, no need to reset
         getEvents();
       }
     }, [hasBrowserSession, traceId]);
@@ -311,7 +312,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
                 {speed}x
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                {[1, 2, 4, 8].map((speedOption) => (
+                {[1, 2, 4, 8, 16].map((speedOption) => (
                   <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
                     {speedOption}x
                   </DropdownMenuItem>

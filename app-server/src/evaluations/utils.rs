@@ -1,17 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use anyhow::Result;
 use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
-
-use crate::db::{self, DB};
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HumanEvaluator {
-    pub queue_name: String,
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,17 +15,13 @@ pub struct EvaluationDatapointResult {
     #[serde(default)]
     pub target: Value,
     #[serde(default)]
-    pub metadata: HashMap<String, Value>,
+    pub metadata: Option<HashMap<String, Value>>,
     #[serde(default)]
     pub executor_output: Option<Value>,
     #[serde(default)]
     pub trace_id: Uuid,
     #[serde(default)]
-    pub scores: HashMap<String, f64>,
-    #[serde(default)]
-    pub human_evaluators: Vec<HumanEvaluator>,
-    #[serde(default)]
-    pub executor_span_id: Uuid,
+    pub scores: HashMap<String, Option<f64>>,
 }
 
 pub struct DatapointColumns {
@@ -44,7 +31,7 @@ pub struct DatapointColumns {
     pub metadatas: Vec<HashMap<String, Value>>,
     pub executor_outputs: Vec<Option<Value>>,
     pub trace_ids: Vec<Uuid>,
-    pub scores: Vec<HashMap<String, f64>>,
+    pub scores: Vec<HashMap<String, Option<f64>>>,
     pub indices: Vec<i32>,
 }
 
@@ -62,7 +49,7 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
 
     let metadatas = points
         .iter()
-        .map(|point| point.metadata.clone())
+        .map(|point| point.metadata.clone().unwrap_or_default())
         .collect::<Vec<_>>();
 
     let executor_outputs = points
@@ -92,54 +79,4 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
         scores,
         indices,
     }
-}
-
-pub struct LabelingQueueEntry {
-    pub span_id: Uuid,
-    pub action: Value,
-}
-
-/// Convert a list of datapoints to a map of queue IDs to a vec of labeling queue entries.
-/// Silently skips datapoints that reference a non-existent queue.
-pub async fn datapoints_to_labeling_queues(
-    db: Arc<DB>,
-    datapoints: &Vec<EvaluationDatapointResult>,
-    ids: &Vec<Uuid>,
-    project_id: &Uuid,
-) -> Result<HashMap<Uuid, Vec<LabelingQueueEntry>>> {
-    let mut queue_name_to_id = HashMap::new();
-    let mut res = HashMap::new();
-    for (datapoint, datapoint_id) in datapoints.iter().zip(ids.iter()) {
-        for evaluator in datapoint.human_evaluators.iter() {
-            let queue_name = evaluator.queue_name.clone();
-            let queue_id = match queue_name_to_id.get(&queue_name) {
-                Some(id) => *id,
-                None => {
-                    let queue = db::labeling_queues::get_labeling_queue_by_name(
-                        &db.pool,
-                        &queue_name,
-                        project_id,
-                    )
-                    .await?;
-                    if let Some(queue) = queue {
-                        queue_name_to_id.insert(queue_name, queue.id);
-                        queue.id
-                    } else {
-                        continue;
-                    }
-                }
-            };
-            let entry = res.entry(queue_id).or_insert(vec![]);
-
-            entry.push(LabelingQueueEntry {
-                span_id: datapoint.executor_span_id,
-                // For now, we use the datapoint id as the action.
-                // TODO: We should probably add the score name to the action.
-                action: serde_json::json!({
-                    "resultId": datapoint_id.to_string(),
-                }),
-            });
-        }
-    }
-    Ok(res)
 }

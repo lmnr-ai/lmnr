@@ -4,72 +4,6 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-function IconNextChat({ className, inverted, ...props }: React.ComponentProps<"svg"> & { inverted?: boolean }) {
-  const id = React.useId();
-
-  return (
-    <svg
-      viewBox="0 0 17 17"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <defs>
-        <linearGradient
-          id={`gradient-${id}-1`}
-          x1="10.6889"
-          y1="10.3556"
-          x2="13.8445"
-          y2="14.2667"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor={inverted ? "white" : "black"} />
-          <stop offset={1} stopColor={inverted ? "white" : "black"} stopOpacity={0} />
-        </linearGradient>
-        <linearGradient
-          id={`gradient-${id}-2`}
-          x1="11.7555"
-          y1="4.8"
-          x2="11.7376"
-          y2="9.50002"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor={inverted ? "white" : "black"} />
-          <stop offset={1} stopColor={inverted ? "white" : "black"} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <path
-        d="M1 16L2.58314 11.2506C1.83084 9.74642 1.63835 8.02363 2.04013 6.39052C2.4419 4.75741 3.41171 3.32057 4.776 2.33712C6.1403 1.35367 7.81003 0.887808 9.4864 1.02289C11.1628 1.15798 12.7364 1.8852 13.9256 3.07442C15.1148 4.26363 15.842 5.83723 15.9771 7.5136C16.1122 9.18997 15.6463 10.8597 14.6629 12.224C13.6794 13.5883 12.2426 14.5581 10.6095 14.9599C8.97637 15.3616 7.25358 15.1692 5.74942 14.4169L1 16Z"
-        fill={inverted ? "black" : "white"}
-        stroke={inverted ? "black" : "white"}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <mask
-        id="mask0_91_2047"
-        style={{ maskType: "alpha" }}
-        maskUnits="userSpaceOnUse"
-        x={1}
-        y={0}
-        width={16}
-        height={16}
-      >
-        <circle cx={9} cy={8} r={8} fill={inverted ? "black" : "white"} />
-      </mask>
-      <g mask="url(#mask0_91_2047)">
-        <circle cx={9} cy={8} r={8} fill={inverted ? "black" : "white"} />
-        <path
-          d="M14.2896 14.0018L7.146 4.8H5.80005V11.1973H6.87681V6.16743L13.4444 14.6529C13.7407 14.4545 14.0231 14.2369 14.2896 14.0018Z"
-          fill={`url(#gradient-${id}-1)`}
-        />
-        <rect x="11.2222" y="4.8" width="1.06667" height="6.4" fill={`url(#gradient-${id}-2)`} />
-      </g>
-    </svg>
-  );
-}
-
 function IconOpenAI({ className, ...props }: React.ComponentProps<"svg">) {
   return (
     <svg
@@ -236,95 +170,6 @@ function IconGoogle({ className, ...props }: React.ComponentProps<"svg">) {
   );
 }
 
-function IconSeparator({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      fill="none"
-      shapeRendering="geometricPrecision"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M16.88 3.549L7.12 20.451"></path>
-    </svg>
-  );
-}
-
-function IconArrowDown({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="m205.66 149.66-72 72a8 8 0 0 1-11.32 0l-72-72a8 8 0 0 1 11.32-11.32L120 196.69V40a8 8 0 0 1 16 0v156.69l58.34-58.35a8 8 0 0 1 11.32 11.32Z" />
-    </svg>
-  );
-}
-
-function IconArrowRight({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="m221.66 133.66-72 72a8 8 0 0 1-11.32-11.32L196.69 136H40a8 8 0 0 1 0-16h156.69l-58.35-58.34a8 8 0 0 1 11.32-11.32l72 72a8 8 0 0 1 0 11.32Z" />
-    </svg>
-  );
-}
-
-function IconUser({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M230.92 212c-15.23-26.33-38.7-45.21-66.09-54.16a72 72 0 1 0-73.66 0c-27.39 8.94-50.86 27.82-66.09 54.16a8 8 0 1 0 13.85 8c18.84-32.56 52.14-52 89.07-52s70.23 19.44 89.07 52a8 8 0 1 0 13.85-8ZM72 96a56 56 0 1 1 56 56 56.06 56.06 0 0 1-56-56Z" />
-    </svg>
-  );
-}
-
-function IconPlus({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z" />
-    </svg>
-  );
-}
-
-function IconArrowElbow({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M200 32v144a8 8 0 0 1-8 8H67.31l34.35 34.34a8 8 0 0 1-11.32 11.32l-48-48a8 8 0 0 1 0-11.32l48-48a8 8 0 0 1 11.32 11.32L67.31 168H184V32a8 8 0 0 1 16 0Z" />
-    </svg>
-  );
-}
-
 function IconSpinner({ className, ...props }: React.ComponentProps<"svg">) {
   return (
     <svg
@@ -353,255 +198,6 @@ function IconMessage({ className, ...props }: React.ComponentProps<"svg">) {
   );
 }
 
-function IconTrash({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16ZM96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Zm48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Z" />
-    </svg>
-  );
-}
-
-function IconRefresh({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M197.67 186.37a8 8 0 0 1 0 11.29C196.58 198.73 170.82 224 128 224c-37.39 0-64.53-22.4-80-39.85V208a8 8 0 0 1-16 0v-48a8 8 0 0 1 8-8h48a8 8 0 0 1 0 16H55.44C67.76 183.35 93 208 128 208c36 0 58.14-21.46 58.36-21.68a8 8 0 0 1 11.31.05ZM216 40a8 8 0 0 0-8 8v23.85C192.53 54.4 165.39 32 128 32c-42.82 0-68.58 25.27-69.66 26.34a8 8 0 0 0 11.3 11.34C69.86 69.46 92 48 128 48c35 0 60.24 24.65 72.56 40H168a8 8 0 0 0 0 16h48a8 8 0 0 0 8-8V48a8 8 0 0 0-8-8Z" />
-    </svg>
-  );
-}
-
-function IconStop({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M128 24a104 104 0 1 0 104 104A104.11 104.11 0 0 0 128 24Zm0 192a88 88 0 1 1 88-88 88.1 88.1 0 0 1-88 88Zm24-120h-48a8 8 0 0 0-8 8v48a8 8 0 0 0 8 8h48a8 8 0 0 0 8-8v-48a8 8 0 0 0-8-8Zm-8 48h-32v-32h32Z" />
-    </svg>
-  );
-}
-
-function IconSidebar({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M216 40H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V56a16 16 0 0 0-16-16ZM40 56h40v144H40Zm176 144H96V56h120v144Z" />
-    </svg>
-  );
-}
-
-function IconMoon({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M233.54 142.23a8 8 0 0 0-8-2 88.08 88.08 0 0 1-109.8-109.8 8 8 0 0 0-10-10 104.84 104.84 0 0 0-52.91 37A104 104 0 0 0 136 224a103.09 103.09 0 0 0 62.52-20.88 104.84 104.84 0 0 0 37-52.91 8 8 0 0 0-1.98-7.98Zm-44.64 48.11A88 88 0 0 1 65.66 67.11a89 89 0 0 1 31.4-26A106 106 0 0 0 96 56a104.11 104.11 0 0 0 104 104 106 106 0 0 0 14.92-1.06 89 89 0 0 1-26.02 31.4Z" />
-    </svg>
-  );
-}
-
-function IconSun({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M120 40V16a8 8 0 0 1 16 0v24a8 8 0 0 1-16 0Zm72 88a64 64 0 1 1-64-64 64.07 64.07 0 0 1 64 64Zm-16 0a48 48 0 1 0-48 48 48.05 48.05 0 0 0 48-48ZM58.34 69.66a8 8 0 0 0 11.32-11.32l-16-16a8 8 0 0 0-11.32 11.32Zm0 116.68-16 16a8 8 0 0 0 11.32 11.32l16-16a8 8 0 0 0-11.32-11.32ZM192 72a8 8 0 0 0 5.66-2.34l16-16a8 8 0 0 0-11.32-11.32l-16 16A8 8 0 0 0 192 72Zm5.66 114.34a8 8 0 0 0-11.32 11.32l16 16a8 8 0 0 0 11.32-11.32ZM48 128a8 8 0 0 0-8-8H16a8 8 0 0 0 0 16h24a8 8 0 0 0 8-8Zm80 80a8 8 0 0 0-8 8v24a8 8 0 0 0 16 0v-24a8 8 0 0 0-8-8Zm112-88h-24a8 8 0 0 0 0 16h24a8 8 0 0 0 0-16Z" />
-    </svg>
-  );
-}
-
-function IconCopy({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M216 32H88a8 8 0 0 0-8 8v40H40a8 8 0 0 0-8 8v128a8 8 0 0 0 8 8h128a8 8 0 0 0 8-8v-40h40a8 8 0 0 0 8-8V40a8 8 0 0 0-8-8Zm-56 176H48V96h112Zm48-48h-32V88a8 8 0 0 0-8-8H96V48h112Z" />
-    </svg>
-  );
-}
-
-function IconCheck({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="m229.66 77.66-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z" />
-    </svg>
-  );
-}
-
-function IconDownload({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M224 152v56a16 16 0 0 1-16 16H48a16 16 0 0 1-16-16v-56a8 8 0 0 1 16 0v56h160v-56a8 8 0 0 1 16 0Zm-101.66 5.66a8 8 0 0 0 11.32 0l40-40a8 8 0 0 0-11.32-11.32L136 132.69V40a8 8 0 0 0-16 0v92.69l-26.34-26.35a8 8 0 0 0-11.32 11.32Z" />
-    </svg>
-  );
-}
-
-function IconClose({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path d="M205.66 194.34a8 8 0 0 1-11.32 11.32L128 139.31l-66.34 66.35a8 8 0 0 1-11.32-11.32L116.69 128 50.34 61.66a8 8 0 0 1 11.32-11.32L128 116.69l66.34-66.35a8 8 0 0 1 11.32 11.32L139.31 128Z" />
-    </svg>
-  );
-}
-
-function IconEdit({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className={cn("h-4 w-4", className)}
-      {...props}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
-      />
-    </svg>
-  );
-}
-
-function IconShare({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      viewBox="0 0 256 256"
-      {...props}
-    >
-      <path d="m237.66 106.35-80-80A8 8 0 0 0 144 32v40.35c-25.94 2.22-54.59 14.92-78.16 34.91-28.38 24.08-46.05 55.11-49.76 87.37a12 12 0 0 0 20.68 9.58c11-11.71 50.14-48.74 107.24-52V192a8 8 0 0 0 13.66 5.65l80-80a8 8 0 0 0 0-11.3ZM160 172.69V144a8 8 0 0 0-8-8c-28.08 0-55.43 7.33-81.29 21.8a196.17 196.17 0 0 0-36.57 26.52c5.8-23.84 20.42-46.51 42.05-64.86C99.41 99.77 127.75 88 152 88a8 8 0 0 0 8-8V51.32L220.69 112Z" />
-    </svg>
-  );
-}
-
-function IconUsers({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      viewBox="0 0 256 256"
-      {...props}
-    >
-      <path d="M117.25 157.92a60 60 0 1 0-66.5 0 95.83 95.83 0 0 0-47.22 37.71 8 8 0 1 0 13.4 8.74 80 80 0 0 1 134.14 0 8 8 0 0 0 13.4-8.74 95.83 95.83 0 0 0-47.22-37.71ZM40 108a44 44 0 1 1 44 44 44.05 44.05 0 0 1-44-44Zm210.14 98.7a8 8 0 0 1-11.07-2.33A79.83 79.83 0 0 0 172 168a8 8 0 0 1 0-16 44 44 0 1 0-16.34-84.87 8 8 0 1 1-5.94-14.85 60 60 0 0 1 55.53 105.64 95.83 95.83 0 0 1 47.22 37.71 8 8 0 0 1-2.33 11.07Z" />
-    </svg>
-  );
-}
-
-function IconExternalLink({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      viewBox="0 0 256 256"
-      {...props}
-    >
-      <path d="M224 104a8 8 0 0 1-16 0V59.32l-66.33 66.34a8 8 0 0 1-11.32-11.32L196.68 48H152a8 8 0 0 1 0-16h64a8 8 0 0 1 8 8Zm-40 24a8 8 0 0 0-8 8v72H48V80h72a8 8 0 0 0 0-16H48a16 16 0 0 0-16 16v128a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16v-72a8 8 0 0 0-8-8Z" />
-    </svg>
-  );
-}
-
-function IconChevronUpDown({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      viewBox="0 0 256 256"
-      {...props}
-    >
-      <path d="M181.66 170.34a8 8 0 0 1 0 11.32l-48 48a8 8 0 0 1-11.32 0l-48-48a8 8 0 0 1 11.32-11.32L128 212.69l42.34-42.35a8 8 0 0 1 11.32 0Zm-96-84.68L128 43.31l42.34 42.35a8 8 0 0 0 11.32-11.32l-48-48a8 8 0 0 0-11.32 0l-48 48a8 8 0 0 0 11.32 11.32Z" />
-    </svg>
-  );
-}
-
-function IconMinusCircle({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="currentColor"
-      className={cn("h-4 w-4", className)}
-      viewBox="0 0 256 256"
-      {...props}
-    >
-      <path d="M117.25 157.92a60 60 0 1 0-66.5 0 95.83 95.83 0 0 0-47.22 37.71 8 8 0 1 0 13.4 8.74 80 80 0 0 1 134.14 0 8 8 0 0 0 13.4-8.74 95.83 95.83 0 0 0-47.22-37.71ZM40 108a44 44 0 1 1 44 44 44.05 44.05 0 0 1-44-44Zm210.14 98.7a8 8 0 0 1-11.07-2.33A79.83 79.83 0 0 0 172 168a8 8 0 0 1 0-16 44 44 0 1 0-16.34-84.87 8 8 0 1 1-5.94-14.85 60 60 0 0 1 55.53 105.64 95.83 95.83 0 0 1 47.22 37.71 8 8 0 0 1-2.33 11.07Z" />
-    </svg>
-  );
-}
-
-function IconZenguard({ className, ...props }: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="currentColor"
-      className={`h-4 w-4 ${className}`}
-      viewBox="0 0 21 24"
-      {...props}
-    >
-      <path
-        fill="#fff"
-        fillRule="evenodd"
-        d="M20.754 0H0v11.118h10.377v4.063h10.377zm0 19.243H10.377v-4.062H0v8.623h20.754z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
 function IconAnthropic({ className, ...props }: React.ComponentProps<"svg">) {
   return (
     <svg
@@ -612,7 +208,6 @@ function IconAnthropic({ className, ...props }: React.ComponentProps<"svg">) {
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
-      <title>Anthropic</title>
       <path d="M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z"></path>
     </svg>
   );
@@ -760,47 +355,36 @@ function IconPython({ className, ...props }: React.ComponentProps<"svg">) {
   );
 }
 
+function IconLangGraph({ className, ...props }: React.ComponentProps<"svg">) {
+  return (
+    <svg className={cn("w-4 h-4", className)} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <title>LangGraph</title>
+      <path
+        clipRule="evenodd"
+        d="M6.099 6H17.9C21.264 6 24 8.692 24 12s-2.736 6-6.099 6H6.1C2.736 18 0 15.308 0 12s2.736-6 6.099-6zm5.419 9.3c.148.154.367.146.561.106l.002.001c.09-.072-.038-.163-.16-.25-.074-.052-.145-.102-.166-.147.068-.08-.133-.265-.289-.408a1.52 1.52 0 01-.15-.148c-.11-.119-.155-.268-.2-.418-.03-.1-.06-.2-.11-.292-.304-.694-.653-1.383-1.143-1.97-.315-.39-.674-.74-1.033-1.09a19.384 19.384 0 01-.683-.688c-.226-.229-.362-.511-.499-.794-.114-.236-.228-.473-.396-.68-.507-.735-2.107-.936-2.342.104 0 .032-.01.052-.039.073-.13.094-.245.2-.342.327-.238.326-.274.877.022 1.17l.001-.019c.01-.147.02-.286.139-.391.228.193.576.262.841.117.32.45.422.995.525 1.54.085.456.17.912.382 1.316l.014.022c.124.203.25.41.41.587.059.089.178.184.297.279.157.125.314.25.329.359v.143c-.001.285-.002.58.184.813.103.205-.15.41-.352.385-.112.015-.233-.014-.354-.042-.165-.04-.329-.078-.462-.003-.038.04-.091.04-.145.042-.064.002-.129.004-.167.07-.008.019-.026.04-.045.063-.042.05-.087.105-.033.146l.015-.01c.082-.062.16-.12.27-.084-.014.08.039.102.092.123l.027.012a.344.344 0 01-.008.056c-.009.045-.017.088.018.127a.598.598 0 00.046-.054c.037-.046.073-.092.139-.11.144.19.289.111.471.013.206-.111.459-.248.81-.055-.135-.006-.255.01-.345.12-.023.024-.042.052-.002.084.207-.132.294-.085.375-.04.06.032.115.063.212.024l.07-.036c.155-.083.314-.166.499-.137-.139.039-.188.125-.242.218-.026.047-.054.095-.094.14-.021.021-.03.046-.007.08.29-.023.4-.095.548-.192.07-.046.15-.099.261-.154.124-.075.248-.027.368.02.13.05.255.098.371-.014.037-.033.083-.034.129-.034.016 0 .033 0 .05-.002-.037-.19-.24-.188-.448-.186-.24.003-.483.006-.475-.289.222-.149.224-.407.226-.651 0-.06 0-.117.005-.173.163.09.336.16.508.229.162.065.323.13.474.21.158.25.404.58.732.558.008-.026.016-.047.026-.073.019.004.039.008.059.014.086.02.178.044.223-.056zm6.429-2.829c.19.186.447.29.716.29.269 0 .526-.104.716-.29a.98.98 0 00.297-.7.98.98 0 00-.297-.7 1.024 1.024 0 00-1.08-.224l-.58-.831-.405.272.583.835a.978.978 0 00.05 1.348zm-1.817-2.69a1.03 1.03 0 001.056-.095.991.991 0 00.363-.507.97.97 0 00-.016-.62.994.994 0 00-.39-.488 1.028 1.028 0 00-1.298.14.987.987 0 00-.263.856.98.98 0 00.187.42c.095.125.218.225.36.294zm0 5.752a1.032 1.032 0 001.056-.095.991.991 0 00.363-.507.97.97 0 00-.016-.62.994.994 0 00-.39-.488 1.027 1.027 0 00-1.298.14.986.986 0 00-.263.856.98.98 0 00.187.42c.095.125.218.225.36.294zm.93-3.516v-.492h-1.55a.977.977 0 00-.217-.404l.584-.847-.425-.276-.583.847a1.023 1.023 0 00-1.047.23.973.973 0 00-.296.696c0 .261.107.512.296.696a1.023 1.023 0 001.047.23l.583.847.42-.276-.579-.847a.977.977 0 00.217-.404h1.55z"
+      ></path>
+    </svg>
+  );
+}
+
 export {
   IconAmazonBedrock,
   IconAnthropic,
-  IconArrowDown,
-  IconArrowElbow,
-  IconArrowRight,
   IconAzure,
   IconBrowserUse,
-  IconCheck,
-  IconChevronUpDown,
-  IconClose,
-  IconCopy,
   IconCrewAI,
-  IconDownload,
-  IconEdit,
-  IconExternalLink,
   IconGemini,
   IconGitHub,
   IconGoogle,
   IconGroq,
   IconLangchain,
+  IconLangGraph,
   IconMessage,
-  IconMinusCircle,
   IconMistral,
-  IconMoon,
-  IconNextChat,
   IconOpenAI,
   IconOpenTelemetry,
   IconPlaywright,
-  IconPlus,
   IconPython,
-  IconRefresh,
-  IconSeparator,
-  IconShare,
-  IconSidebar,
   IconSpinner,
-  IconStop,
-  IconSun,
-  IconTrash,
-  IconUser,
-  IconUsers,
   IconVercel,
-  IconZenguard,
 };

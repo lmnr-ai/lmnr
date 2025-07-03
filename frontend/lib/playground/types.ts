@@ -42,7 +42,7 @@ export interface Message {
   content: Array<ImagePart | TextPart | ToolResultPart | ToolCallPart>;
 }
 
-type OpenAIProviderOptions = {
+export type OpenAIProviderOptions = {
   openai: {
     reasoningEffort: "low" | "medium" | "high";
   };
@@ -65,24 +65,3 @@ export interface PlaygroundForm<T extends ToolSet = ToolSet> {
   tools?: string;
   toolChoice?: ToolChoice<T>;
 }
-
-export const openAIThinkingModels = [
-  "openai:o4-mini",
-  "openai:o3",
-  "openai:o3-mini",
-  "openai:o1",
-  "openai:o1-mini",
-  "openai:o1-preview",
-];
-
-export const anthropicThinkingModels = [
-  "anthropic:claude-3-7-sonnet-20250219:thinking",
-  "anthropic:claude-sonnet-4-20250514:thinking",
-  "anthropic:claude-opus-4-20250514:thinking",
-];
-
-export const googleThinkingModels = [
-  "gemini:gemini-2.5-flash-preview-05-20:thinking",
-  "gemini:gemini-2.5-pro-exp-03-25:thinking",
-  "gemini:gemini-2.5-pro-preview-05-06:thinking",
-];

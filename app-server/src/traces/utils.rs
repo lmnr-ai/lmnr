@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
+use indexmap::IndexMap;
 use regex::Regex;
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -133,10 +135,13 @@ pub async fn record_labels_to_db_and_ch(
     span: &Span,
     project_id: &Uuid,
 ) -> anyhow::Result<()> {
+    let labels = span.get_attributes().labels();
+    if labels.is_empty() {
+        return Ok(());
+    }
+
     let project_labels =
         db::labels::get_label_classes_by_project_id(&db.pool, *project_id, None).await?;
-
-    let labels = span.get_attributes().labels();
 
     for label_name in labels {
         let label_class = project_labels.iter().find(|l| l.name == label_name);
@@ -250,4 +255,18 @@ pub fn prepare_span_for_recording(
     span.set_attributes(&span_attributes);
 
     trace_attributes
+}
+
+pub fn serialize_indexmap<T>(index_map: IndexMap<String, T>) -> Option<Value>
+where
+    T: serde::Serialize,
+{
+    index_map
+        .into_iter()
+        .map(|(key, value)| {
+            Ok::<(String, Value), serde_json::Error>((key, serde_json::to_value(value)?))
+        })
+        .collect::<Result<serde_json::Map<String, Value>, _>>()
+        .ok()
+        .map(Value::Object)
 }

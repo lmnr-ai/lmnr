@@ -6,6 +6,7 @@ use std::{
 
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
+use indexmap::IndexMap;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -23,7 +24,10 @@ use crate::{
     },
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     storage::{Storage, StorageTrait},
-    traces::span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
+    traces::{
+        span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
+        utils::serialize_indexmap,
+    },
     utils::json_value_to_string,
 };
 
@@ -549,6 +553,7 @@ impl Span {
                         ChatMessage {
                             role: "system".to_string(),
                             content: ChatMessageContent::Text(system),
+                            tool_call_id: None,
                         },
                     );
                 }
@@ -762,7 +767,7 @@ fn input_chat_messages_from_prompt_content(
     for i in 0..=prompt_message_count {
         let tool_calls = parse_tool_calls(attributes, &format!("{prefix}.{i}"));
         let content = if let Some(serde_json::Value::String(s)) =
-            attributes.get(format!("{prefix}.{i}.content").as_str())
+            attributes.get(&format!("{prefix}.{i}.content"))
         {
             s.clone()
         } else {
@@ -770,7 +775,7 @@ fn input_chat_messages_from_prompt_content(
         };
 
         let role = if let Some(serde_json::Value::String(s)) =
-            attributes.get(format!("{prefix}.{i}.role").as_str())
+            attributes.get(&format!("{prefix}.{i}.role"))
         {
             s.clone()
         } else if tool_calls.is_empty() {
@@ -778,8 +783,13 @@ fn input_chat_messages_from_prompt_content(
         } else {
             "assistant".to_string()
         };
+        let tool_call_id = attributes
+            .get(&format!("{prefix}.{i}.tool_call_id"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
 
         input_messages.push(ChatMessage {
+            tool_call_id,
             role,
             content: match serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(
                 &content,
@@ -831,6 +841,10 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                 let Some(otel_content) = message.get("content") else {
                     return Err(anyhow::anyhow!("Can't find content in message"));
                 };
+                let tool_call_id = message
+                    .get("tool_call_id")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
                 let content = match serde_json::from_value::<
                     Vec<InstrumentationChatMessageContentPart>,
                 >(otel_content.clone())
@@ -849,6 +863,7 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                 Ok(ChatMessage {
                     role: role.to_string(),
                     content,
+                    tool_call_id,
                 })
             })
             .collect()
@@ -899,7 +914,7 @@ fn output_from_completion_content(
         if let Some(message_output) =
             output_message_from_completion_content(attributes, &format!("gen_ai.completion.{i}"))
         {
-            out_vec.push(message_output);
+            out_vec.push(serde_json::to_value(message_output).unwrap());
         }
     }
     if out_vec.is_empty() {
@@ -912,7 +927,7 @@ fn output_from_completion_content(
 fn output_message_from_completion_content(
     attributes: &serde_json::Map<String, serde_json::Value>,
     prefix: &str,
-) -> Option<serde_json::Value> {
+) -> Option<ChatMessage> {
     let msg_content = attributes.get(format!("{prefix}.content").as_str());
     let msg_role = attributes
         .get(format!("{prefix}.role").as_str())
@@ -923,13 +938,26 @@ fn output_message_from_completion_content(
 
     if tool_calls.is_empty() {
         if let Some(Value::String(s)) = msg_content {
-            Some(
-                serde_json::to_value(HashMap::from([
-                    ("role".to_string(), msg_role),
-                    ("content".to_string(), s.clone()),
-                ]))
-                .unwrap(),
-            )
+            if let Ok(content) =
+                serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(&s)
+            {
+                Some(ChatMessage {
+                    role: msg_role,
+                    content: ChatMessageContent::ContentPartList(
+                        content
+                            .into_iter()
+                            .map(ChatMessageContentPart::from_instrumentation_content_part)
+                            .collect(),
+                    ),
+                    tool_call_id: None,
+                })
+            } else {
+                Some(ChatMessage {
+                    role: msg_role,
+                    content: ChatMessageContent::Text(s.clone()),
+                    tool_call_id: None,
+                })
+            }
         } else {
             None
         }
@@ -939,7 +967,7 @@ fn output_message_from_completion_content(
                 vec![]
             } else {
                 let text_block = ChatMessageContentPart::Text(ChatMessageText { text: s.clone() });
-                vec![serde_json::to_value(text_block).unwrap()]
+                vec![text_block]
             }
         } else {
             vec![]
@@ -947,9 +975,13 @@ fn output_message_from_completion_content(
         out_vec.extend(
             tool_calls
                 .into_iter()
-                .map(|tool_call| serde_json::to_value(tool_call).unwrap()),
+                .map(|tool_call| ChatMessageContentPart::ToolCall(tool_call)),
         );
-        Some(Value::Array(out_vec))
+        Some(ChatMessage {
+            role: msg_role,
+            content: ChatMessageContent::ContentPartList(out_vec),
+            tool_call_id: None,
+        })
     }
 }
 
@@ -980,9 +1012,9 @@ fn parse_tool_calls(
             .or(attributes.get(&format!("{prefix}.function_call.arguments")));
         let tool_call_arguments: Option<Value> = match tool_call_arguments_raw {
             Some(serde_json::Value::String(s)) => {
-                let parsed = serde_json::from_str::<HashMap<String, Value>>(s);
+                let parsed = serde_json::from_str::<IndexMap<String, Value>>(s);
                 if let Ok(parsed) = parsed {
-                    serde_json::to_value(parsed).ok()
+                    serialize_indexmap(parsed)
                 } else {
                     Some(serde_json::Value::String(s.clone()))
                 }
@@ -1015,6 +1047,7 @@ fn try_parse_ai_sdk_output(
         messages.push(ChatMessage {
             role: "assistant".to_string(),
             content: ChatMessageContent::Text(s.clone()),
+            tool_call_id: None,
         });
     } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
         let content = serde_json::from_str::<serde_json::Value>(s)
@@ -1022,6 +1055,7 @@ fn try_parse_ai_sdk_output(
         messages.push(ChatMessage {
             role: "assistant".to_string(),
             content: ChatMessageContent::Text(json_value_to_string(&content)),
+            tool_call_id: None,
         });
     } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.toolCalls") {
         if let Ok(tool_call_values) =
@@ -1034,6 +1068,7 @@ fn try_parse_ai_sdk_output(
             messages.push(ChatMessage {
                 role: "assistant".to_string(),
                 content: ChatMessageContent::ContentPartList(tool_calls),
+                tool_call_id: None,
             });
         }
     }
@@ -1059,14 +1094,14 @@ fn parse_ai_sdk_tool_calls(
             tool_call.get("toolName").map(|tool_name| {
                 let args_value = tool_call.get("args").cloned().unwrap_or_default();
                 let args = if let serde_json::Value::String(s) = &args_value {
-                    serde_json::from_str::<HashMap<String, serde_json::Value>>(s).ok()
+                    serde_json::from_str::<IndexMap<String, serde_json::Value>>(s).ok()
                 } else {
-                    serde_json::from_value::<HashMap<String, serde_json::Value>>(args_value).ok()
+                    serde_json::from_value::<IndexMap<String, serde_json::Value>>(args_value).ok()
                 };
                 ChatMessageToolCall {
                     name: json_value_to_string(tool_name),
                     id: tool_call.get("toolCallId").map(json_value_to_string),
-                    arguments: args.map(|args| serde_json::to_value(args).unwrap()),
+                    arguments: args.and_then(serialize_indexmap),
                 }
             })
         })
@@ -1081,6 +1116,56 @@ fn rename_last_span_in_path(attributes: &mut Map<String, Value>, from: &str, to:
                     *last = serde_json::Value::String(to.to_string());
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_tool_calls_preserves_argument_order() {
+        // Create attributes with tool call arguments in specific order (z before a)
+        let mut attributes = serde_json::Map::new();
+        attributes.insert(
+            "gen_ai.completion.0.tool_calls.0.name".to_string(),
+            json!("test_function"),
+        );
+        attributes.insert(
+            "gen_ai.completion.0.tool_calls.0.id".to_string(),
+            json!("call_123"),
+        );
+        attributes.insert(
+            "gen_ai.completion.0.tool_calls.0.arguments".to_string(),
+            json!("{\"z\": 3, \"a\": 1}"),
+        );
+
+        let prefix = "gen_ai.completion.0";
+        let tool_calls = parse_tool_calls(&attributes, prefix);
+
+        assert_eq!(tool_calls.len(), 1);
+        let tool_call = &tool_calls[0];
+
+        assert_eq!(tool_call.name, "test_function");
+        assert_eq!(tool_call.id, Some("call_123".to_string()));
+
+        // Verify arguments preserve order
+        if let Some(arguments) = &tool_call.arguments {
+            let arguments_str = serde_json::to_string(arguments).unwrap();
+            // The serialized JSON should maintain the original order: z before a
+            assert!(
+                arguments_str.find("\"z\"").unwrap() < arguments_str.find("\"a\"").unwrap(),
+                "Expected 'z' to appear before 'a' in serialized arguments, got: {}",
+                arguments_str
+            );
+
+            // Also verify the actual values are correct
+            assert_eq!(arguments.get("z").unwrap(), &json!(3));
+            assert_eq!(arguments.get("a").unwrap(), &json!(1));
+        } else {
+            panic!("Expected arguments to be present");
         }
     }
 }

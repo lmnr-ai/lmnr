@@ -38,8 +38,7 @@ pub async fn insert_browser_events(
             );
             e
         })?
-        .with_option("async_insert", "1")
-        .with_option("wait_for_async_insert", "1");
+        .with_option("async_insert", "1");
 
     let mut total_size_bytes = 0;
 

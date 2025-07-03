@@ -246,23 +246,7 @@ function PricingCalculator() {
               className="w-full"
             />
           </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span>Index agent steps per month</span>
-              <span className="font-medium">{agentSteps.toLocaleString()}</span>
-            </div>
-            <Slider
-              value={[agentSteps]}
-              max={10000}
-              min={500}
-              step={100}
-              onValueChange={(value) => setAgentSteps(value[0])}
-              className="w-full"
-            />
-          </div>
         </div>
-
         {/* Pricing Breakdown */}
         {breakdown && (
           <div className="border-t pt-4 space-y-3">
@@ -327,11 +311,6 @@ export default function Pricing() {
       question: 'What is a span?',
       answer: 'A span represents a unit of work or operation in your application. In the context of tracing, single LLM call or function tool call is a span. In case of evaluations, executor run and evaluator run are spans.'
     },
-    {
-      id: 'agent-steps',
-      question: 'What is an agent step?',
-      answer: 'An agent step is a single step of an execution of the Index browser agent when it is called via API.'
-    },
   ];
 
   return (
@@ -346,7 +325,6 @@ export default function Pricing() {
               '1GB data / month',
               '15 day data retention',
               '1 team member',
-              '500 Index agent steps / month',
               'Community support',
             ]}
           />
@@ -365,14 +343,12 @@ export default function Pricing() {
               '2GB data / month included',
               '30 day data retention',
               '2 team members',
-              '2500 Index agent steps / month',
               'Priority email support',
             ]}
             subfeatures={[
               'then $2 per 1GB of additional data',
               null,
               null,
-              'then $10 per 1k steps'
             ]}
           />
           <Link href="/projects">
@@ -390,14 +366,12 @@ export default function Pricing() {
               '5GB data / month included',
               '90 day data retention',
               '3 team members included',
-              '5000 Index agent steps / month',
               'Private Slack channel',
             ]}
             subfeatures={[
               'then $2 per 1GB of additional data',
               null,
               'then $25 per additional team member',
-              'then $10 per 1k steps'
             ]}
           />
           <Link href="/projects" className="w-full z-20">

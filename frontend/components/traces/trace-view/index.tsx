@@ -1,8 +1,11 @@
+import { has } from "lodash";
 import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import Header from "@/components/traces/trace-view/header";
+import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
+import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
 import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
@@ -11,7 +14,8 @@ import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Span, Trace } from "@/lib/traces/types";
+import { SPAN_KEYS } from "@/lib/lang-graph/types";
+import { Span, SpanType, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../../ui/button";
@@ -23,6 +27,7 @@ import Tree from "./tree";
 
 export interface TraceViewHandle {
   toggleBrowserSession: () => void;
+  toggleLangGraph: () => void;
 }
 
 interface TraceViewProps {
@@ -31,13 +36,22 @@ interface TraceViewProps {
   onClose: () => void;
   fullScreen?: boolean;
   ref?: Ref<TraceViewHandle>;
+  onLangGraphDetected?: (detected: boolean) => void;
 }
 
 const MAX_ZOOM = 3;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
+const MIN_TREE_VIEW_WIDTH = 500;
 
-export default function TraceView({ traceId, onClose, propsTrace, fullScreen = false, ref }: TraceViewProps) {
+export default function TraceView({
+  traceId,
+  onClose,
+  onLangGraphDetected,
+  propsTrace,
+  fullScreen = false,
+  ref,
+}: TraceViewProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -49,16 +63,29 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
   const [isTraceLoading, setIsTraceLoading] = useState(false);
 
   const [showBrowserSession, setShowBrowserSession] = useState(false);
+  const [showLangGraph, setShowLangGraph] = useState(true);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
   const [trace, setTrace] = useState<Trace | null>(null);
 
   const [spans, setSpans] = useState<Span[]>([]);
 
+  const hasLangGraph = useMemo(
+    () => !!spans.find((s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)),
+    [spans]
+  );
+
+  useEffect(() => {
+    if (hasLangGraph) {
+      onLangGraphDetected?.(true);
+    }
+  }, [hasLangGraph, onLangGraphDetected]);
+
   useImperativeHandle(
     ref,
     () => ({
       toggleBrowserSession: () => setShowBrowserSession((prev) => !prev),
+      toggleLangGraph: () => setShowLangGraph((prev) => !prev),
     }),
     []
   );
@@ -122,6 +149,58 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     handleFetchTrace();
   }, [handleFetchTrace, projectId, traceId]);
 
+  // Add span path local storage functions
+  const saveSpanPathToStorage = useCallback((spanPath: string[]) => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("trace-view:span-path", JSON.stringify(spanPath));
+      }
+    } catch (e) {
+      console.error("Failed to save span path:", e);
+    }
+  }, []);
+
+  const loadSpanPathFromStorage = useCallback((): string[] | null => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("trace-view:span-path");
+        return saved ? JSON.parse(saved) : null;
+      }
+      return null;
+    } catch (e) {
+      console.error("Failed to load span path:", e);
+      return null;
+    }
+  }, []);
+
+  // Helper function to compare span paths (arrays)
+  const spanPathsEqual = useCallback((path1: string[] | null, path2: string[] | null): boolean => {
+    if (!path1 || !path2) return false;
+    if (path1.length !== path2.length) return false;
+    return path1.every((item, index) => item === path2[index]);
+  }, []);
+
+  // Create wrapper function for span selection that saves path
+  const handleSpanSelect = useCallback(
+    (span: Span | null) => {
+      if (!span) return;
+
+      setSelectedSpan(span);
+
+      // Save span path to local storage
+      const spanPath = span.attributes?.["lmnr.span.path"];
+      if (spanPath && Array.isArray(spanPath)) {
+        saveSpanPathToStorage(spanPath);
+      }
+
+      // Update URL with spanId
+      const params = new URLSearchParams(searchParams);
+      params.set("spanId", span.spanId);
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [saveSpanPathToStorage, searchParams, router, pathName]
+  );
+
   const fetchSpans = useCallback(
     async (search: string, searchIn: string[], filters: DatatableFilter[]) => {
       try {
@@ -147,18 +226,40 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
 
         setSpans(spans);
 
-        const spanIdFromUrl = searchParams.get("spanId");
-        const spanToSelect = spanIdFromUrl
-          ? (spans.find((span: Span) => span.spanId === spanIdFromUrl) ?? spans[0])
-          : spans[0];
-        setSelectedSpan(spanToSelect);
+        // Determine which span to select
+        const spanIdFromUrl = spans.find((span) => span.spanId === searchParams.get("spanId")) || null;
+        let spanToSelect: Span | null = null;
+
+        if (spanIdFromUrl) {
+          // First priority: span from URL
+          spanToSelect = spanIdFromUrl;
+        } else {
+          // Second priority: span matching saved path
+          const savedPath = loadSpanPathFromStorage();
+          if (savedPath) {
+            spanToSelect =
+              spans.find((span: Span) => {
+                const spanPath = span.attributes?.["lmnr.span.path"];
+                return spanPath && Array.isArray(spanPath) && spanPathsEqual(spanPath, savedPath);
+              }) || null;
+          }
+        }
+
+        // Fallback to first span
+        if (!spanToSelect && spans.length > 0) {
+          spanToSelect = spans[0];
+        }
+
+        if (spanToSelect) {
+          setSelectedSpan(spanToSelect);
+        }
       } catch (e) {
         console.error(e);
       } finally {
         setIsSpansLoading(false);
       }
     },
-    [projectId, traceId, setSpans, setSelectedSpan, searchParams]
+    [projectId, traceId, searchParams, loadSpanPathFromStorage, spanPathsEqual, router, pathName]
   );
 
   useEffect(() => {
@@ -219,13 +320,6 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     },
     [spans]
   );
-
-  useEffect(() => {
-    const selectedSpan = spans.find((span: Span) => span.spanId === searchParams.get("spanId"));
-    if (selectedSpan) {
-      setSelectedSpan(selectedSpan);
-    }
-  }, []);
 
   const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
 
@@ -325,11 +419,11 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
     try {
       if (typeof window !== "undefined") {
         const savedWidth = localStorage.getItem("trace-view:tree-view-width");
-        return savedWidth ? parseInt(savedWidth, 10) : 440;
+        return savedWidth ? Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)) : MIN_TREE_VIEW_WIDTH;
       }
-      return 440;
+      return MIN_TREE_VIEW_WIDTH;
     } catch (e) {
-      return 440;
+      return MIN_TREE_VIEW_WIDTH;
     }
   });
 
@@ -350,7 +444,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
       const startWidth = treeViewWidth;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(320, startWidth + moveEvent.clientX - startX);
+        const newWidth = Math.max(MIN_TREE_VIEW_WIDTH, startWidth + moveEvent.clientX - startX);
         setTreeViewWidth(newWidth);
       };
 
@@ -393,6 +487,9 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
               showBrowserSession={showBrowserSession}
               setShowBrowserSession={setShowBrowserSession}
               handleFetchTrace={handleFetchTrace}
+              hasLangGraph={hasLangGraph}
+              setShowLangGraph={setShowLangGraph}
+              showLangGraph={showLangGraph}
             />
             {searchEnabled ? (
               <SearchSpansInput
@@ -452,7 +549,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
             )}
             {showTimeline ? (
               <Timeline
-                setSelectedSpan={setSelectedSpan}
+                setSelectedSpan={handleSpanSelect}
                 selectedSpan={selectedSpan}
                 spans={spans}
                 childSpans={childSpans}
@@ -481,12 +578,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
                     return next;
                   });
                 }}
-                onSpanSelect={(span) => {
-                  setSelectedSpan(span);
-                  const params = new URLSearchParams(searchParams);
-                  params.set("spanId", span.spanId);
-                  router.push(`${pathName}?${params.toString()}`);
-                }}
+                onSpanSelect={handleSpanSelect}
                 onSelectTime={(time) => {
                   browserSessionRef.current?.goto(time);
                 }}
@@ -501,7 +593,11 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
           </div>
           <div className="flex-grow overflow-hidden flex-wrap">
             {selectedSpan ? (
-              <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+              selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+                <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+              ) : (
+                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+              )
             ) : (
               <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
                 <span className="text-xl font-medium mb-2">No span selected</span>
@@ -525,6 +621,7 @@ export default function TraceView({ traceId, onClose, propsTrace, fullScreen = f
             </ResizablePanel>
           </>
         )}
+        {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
       </ResizablePanelGroup>
     </div>
   );

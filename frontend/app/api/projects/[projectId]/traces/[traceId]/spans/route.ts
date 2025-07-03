@@ -1,5 +1,4 @@
 import { and, asc, eq, inArray, not, sql } from "drizzle-orm";
-import { partition } from "lodash";
 import { NextRequest, NextResponse } from "next/server";
 
 import { searchSpans } from "@/lib/clickhouse/spans";
@@ -8,6 +7,7 @@ import { TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { events, labelClasses, labels, spans } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
+import { createModelFilter } from "@/lib/traces/utils";
 
 export async function GET(
   req: NextRequest,
@@ -28,8 +28,10 @@ export async function GET(
     }
   })();
 
-  const [filters, statusFilters] = partition(urlParamFilters, (f) => f.column !== "status");
-  const [otherFilters, tagsFilters] = partition(filters, (f) => f.column !== "tags");
+  const statusFilters = urlParamFilters.filter((f) => f.column === "status");
+  const tagsFilters = urlParamFilters.filter((f) => f.column === "tags");
+  const modelFilters = urlParamFilters.filter((f) => f.column === "model");
+  const regularFilters = urlParamFilters.filter((f) => !["status", "tags", "model"].includes(f.column));
 
   const statusSqlFilters = statusFilters.map((filter) => {
     if (filter.value === "success") {
@@ -39,6 +41,8 @@ export async function GET(
     }
     return sql`1=1`;
   });
+
+  const modelSqlFilters = modelFilters.map(createModelFilter);
 
   const tagsSqlFilters = tagsFilters.map((filter) => {
     const name = filter.value;
@@ -54,15 +58,13 @@ export async function GET(
     return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
   });
 
-  const processedFilters = otherFilters.map((filter) => {
+  const processedFilters = regularFilters.map((filter) => {
     if (filter.column === "path") {
       filter.column = "(attributes ->> 'lmnr.span.path')";
     } else if (filter.column === "tokens") {
       filter.column = "(attributes ->> 'llm.usage.total_tokens')::int8";
     } else if (filter.column === "cost") {
       filter.column = "(attributes ->> 'gen_ai.usage.cost')::float8";
-    } else if (filter.column === "model") {
-      filter.column = "(attributes ->> 'gen_ai.request.model')";
     }
     return filter;
   });
@@ -146,6 +148,7 @@ export async function GET(
         eq(spans.projectId, projectId),
         ...sqlFilters,
         ...statusSqlFilters,
+        ...modelSqlFilters,
         ...tagsSqlFilters,
         ...(searchQuery !== null ? [inArray(spans.spanId, searchSpanIds)] : [])
       )

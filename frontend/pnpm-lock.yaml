@@ -10,31 +10,31 @@ importers:
     dependencies:
       '@ai-sdk/amazon-bedrock':
         specifier: ^2.2.8
-        version: 2.2.8(zod@3.24.3)
+        version: 2.2.8(zod@3.25.67)
       '@ai-sdk/anthropic':
         specifier: ^1.2.10
-        version: 1.2.10(zod@3.24.3)
+        version: 1.2.10(zod@3.25.67)
       '@ai-sdk/azure':
         specifier: ^1.3.17
-        version: 1.3.17(zod@3.24.3)
+        version: 1.3.17(zod@3.25.67)
       '@ai-sdk/google':
         specifier: ^1.2.18
-        version: 1.2.18(zod@3.24.3)
+        version: 1.2.18(zod@3.25.67)
       '@ai-sdk/groq':
         specifier: ^1.2.8
-        version: 1.2.8(zod@3.24.3)
+        version: 1.2.8(zod@3.25.67)
       '@ai-sdk/mistral':
         specifier: ^1.2.7
-        version: 1.2.7(zod@3.24.3)
+        version: 1.2.7(zod@3.25.67)
       '@ai-sdk/openai':
         specifier: ^1.3.16
-        version: 1.3.16(zod@3.24.3)
+        version: 1.3.16(zod@3.25.67)
       '@ai-sdk/provider':
         specifier: ^1.1.3
         version: 1.1.3
       '@ai-sdk/react':
         specifier: ^1.2.9
-        version: 1.2.9(react@19.1.0)(zod@3.24.3)
+        version: 1.2.9(react@19.1.0)(zod@3.25.67)
       '@aws-sdk/client-s3':
         specifier: ^3.787.0
         version: 3.787.0
@@ -170,9 +170,12 @@ importers:
       '@uiw/react-codemirror':
         specifier: ^4.23.10
         version: 4.23.10(@babel/runtime@7.27.0)(@codemirror/autocomplete@6.18.6)(@codemirror/language@6.11.0)(@codemirror/lint@6.8.5)(@codemirror/search@6.5.7)(@codemirror/state@6.5.2)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.36.5)(codemirror@6.0.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@xyflow/react':
+        specifier: ^12.6.4
+        version: 12.6.4(@types/react@19.1.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       ai:
         specifier: ^4.3.16
-        version: 4.3.16(react@19.1.0)(zod@3.24.3)
+        version: 4.3.16(react@19.1.0)(zod@3.25.67)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -182,6 +185,9 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.1.2(@types/react@19.1.2))(@types/react@19.1.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      dagre:
+        specifier: ^0.8.5
+        version: 0.8.5
       date-fns:
         specifier: ^3.6.0
         version: 3.6.0
@@ -309,8 +315,8 @@ importers:
         specifier: ^2.7.1
         version: 2.7.1
       zod:
-        specifier: ^3.24.3
-        version: 3.24.3
+        specifier: ^3.25.67
+        version: 3.25.67
       zustand:
         specifier: ^4.5.6
         version: 4.5.6(@types/react@19.1.2)(react@19.1.0)
@@ -318,6 +324,9 @@ importers:
       '@tailwindcss/typography':
         specifier: ^0.5.16
         version: 0.5.16(tailwindcss@3.4.17)
+      '@types/dagre':
+        specifier: ^0.7.52
+        version: 0.7.52
       '@types/jsonwebtoken':
         specifier: ^9.0.9
         version: 9.0.9
@@ -717,8 +726,8 @@ packages:
   '@codemirror/view@6.36.5':
     resolution: {integrity: sha512-cd+FZEUlu3GQCYnguYm3EkhJ8KJVisqqUsCOKedBoAt/d9c76JUUap6U0UrpElln5k6VyrEOYliMuDAKIeDQLg==}
 
-  '@codemirror/view@6.37.1':
-    resolution: {integrity: sha512-Qy4CAUwngy/VQkEz0XzMKVRcckQuqLYWKqVpDDDghBe5FSXSqfVrJn49nw3ePZHxRUz4nRmb05Lgi+9csWo4eg==}
+  '@codemirror/view@6.37.2':
+    resolution: {integrity: sha512-XD3LdgQpxQs5jhOOZ2HRVT+Rj59O4Suc7g2ULvZ+Yi8eCkickrkZ5JFuoDhs2ST1mNI5zSsNYgR3NGa4OUrbnw==}
 
   '@dnd-kit/accessibility@3.1.1':
     resolution: {integrity: sha512-2P+YgaXF+gRsIihwwY1gCsQSYnu9Zyj2py8kY5fFvUM1qm2WA2u639R6YNVfU4GWr+ZM5mqEsfHZZLoRONbemw==}
@@ -2460,6 +2469,9 @@ packages:
   '@types/d3-color@3.1.3':
     resolution: {integrity: sha512-iO90scth9WAbmgv7ogoq57O9YpKmFBbmoEoCHDB2xMBY0+/KVrqAaCDyCE16dUspeOvIxFFRI+0sEtqDqy2b4A==}
 
+  '@types/d3-drag@3.0.7':
+    resolution: {integrity: sha512-HE3jVKlzU9AaMazNufooRJ5ZpWmLIoc90A37WU2JMmeq28w1FQqCZswHZ3xR+SuxYftzHq6WU6KJHvqxKzTxxQ==}
+
   '@types/d3-ease@3.0.2':
     resolution: {integrity: sha512-NcV1JjO5oDzoK26oMzbILE6HW7uVXOHLQvHshBUW4UMdZGfiY6v5BeQwh9a9tCzv+CeefZQHJt5SRgK154RtiA==}
 
@@ -2472,6 +2484,9 @@ packages:
   '@types/d3-scale@4.0.9':
     resolution: {integrity: sha512-dLmtwB8zkAeO/juAMfnV+sItKjlsw2lKdZVVy6LRr0cBmegxSABiLEpGVmSJJ8O08i4+sGR6qQtb6WtuwJdvVw==}
 
+  '@types/d3-selection@3.0.11':
+    resolution: {integrity: sha512-bhAXu23DJWsrI45xafYpkQ4NtcKMwWnAC/vKrd2l+nxMFuvOT3XMYTIj2opv8vq8AO5Yh7Qac/nSeP/3zjTK0w==}
+
   '@types/d3-shape@3.1.7':
     resolution: {integrity: sha512-VLvUQ33C+3J+8p+Daf+nYSOsjB4GXp19/S/aGo60m9h1v6XaxjiT82lKVWJCfzhtuZ3yD7i/TPeC/fuKLLOSmg==}
 
@@ -2480,6 +2495,15 @@ packages:
 
   '@types/d3-timer@3.0.2':
     resolution: {integrity: sha512-Ps3T8E8dZDam6fUyNiMkekK3XUsaUEik+idO9/YjPtfj2qruF8tFBXS7XhtE4iIXBLxhmLjP3SXpLhVf21I9Lw==}
+
+  '@types/d3-transition@3.0.9':
+    resolution: {integrity: sha512-uZS5shfxzO3rGlu0cC3bjmMFKsXv+SmZZcgp0KD22ts4uGXp5EVYGzu/0YdwZeKmddhcAccYtREJKkPfXkZuCg==}
+
+  '@types/d3-zoom@3.0.8':
+    resolution: {integrity: sha512-iqMC4/YlFCSlO8+2Ii1GGGliCAY4XdeG748w5vQUbevlbDu0zSjH/+jojorQVBK/se0j6DUFNPBGSqD3YWYnDw==}
+
+  '@types/dagre@0.7.52':
+    resolution: {integrity: sha512-XKJdy+OClLk3hketHi9Qg6gTfe1F3y+UFnHxKA2rn9Dw+oXa4Gb378Ztz9HlMgZKSxpPmn4BNVh9wgkpvrK1uw==}
 
   '@types/debug@4.1.12':
     resolution: {integrity: sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ==}
@@ -2722,6 +2746,15 @@ packages:
 
   '@xstate/fsm@1.6.5':
     resolution: {integrity: sha512-b5o1I6aLNeYlU/3CPlj/Z91ybk1gUsKT+5NAJI+2W4UjvS5KLG28K9v5UvNoFVjHV8PajVZ00RH3vnjyQO7ZAw==}
+
+  '@xyflow/react@12.6.4':
+    resolution: {integrity: sha512-/dOQ43Nu217cwHzy7f8kNUrFMeJJENzftVgT2VdFFHi6fHlG83pF+gLmvkRW9Be7alCsR6G+LFxxCdsQQbazHg==}
+    peerDependencies:
+      react: '>=17'
+      react-dom: '>=17'
+
+  '@xyflow/system@0.0.61':
+    resolution: {integrity: sha512-TsZG/Ez8dzxX6/Ol44LvFqVZsYvyz6dpDlAQZZk6hTL7JLGO5vN3dboRJqMwU8/Qtr5IEv5YBzojjAwIqW1HCA==}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -2981,6 +3014,9 @@ packages:
   class-variance-authority@0.7.1:
     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
 
+  classcat@5.0.5:
+    resolution: {integrity: sha512-JhZUT7JFcQy/EzW605k/ktHtncoo9vnyW/2GspNYwFlN1C/WmjuV/xtS04e9SOkL2sTdw0VAZ2UGCcQ9lR6p6w==}
+
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
 
@@ -3065,6 +3101,14 @@ packages:
     resolution: {integrity: sha512-zg/chbXyeBtMQ1LbD/WSoW2DpC3I0mpmPdW+ynRTj/x2DAWYrIY7qeZIHidozwV24m4iavr15lNwIwLxRmOxhA==}
     engines: {node: '>=12'}
 
+  d3-dispatch@3.0.1:
+    resolution: {integrity: sha512-rzUyPU/S7rwUflMyLc1ETDeBj0NRuHKKAcvukozwhshr6g6c5d8zh4c2gQjY2bZ0dXeGLWc1PF174P2tVvKhfg==}
+    engines: {node: '>=12'}
+
+  d3-drag@3.0.0:
+    resolution: {integrity: sha512-pWbUJLdETVA8lQNJecMxoXfH6x+mO2UQo8rSmZ+QqxcbyA3hfeprFgIT//HW2nlHChWeIIMwS2Fq+gEARkhTkg==}
+    engines: {node: '>=12'}
+
   d3-ease@3.0.1:
     resolution: {integrity: sha512-wR/XK3D3XcLIZwpbvQwQ5fK+8Ykds1ip7A2Txe0yxncXSdq1L9skcG7blcedkOX+ZcgxGAmLX1FrRGbADwzi0w==}
     engines: {node: '>=12'}
@@ -3085,6 +3129,10 @@ packages:
     resolution: {integrity: sha512-GZW464g1SH7ag3Y7hXjf8RoUuAFIqklOAq3MRl4OaWabTFJY9PN/E1YklhXLh+OQ3fM9yS2nOkCoS+WLZ6kvxQ==}
     engines: {node: '>=12'}
 
+  d3-selection@3.0.0:
+    resolution: {integrity: sha512-fmTRWbNMmsmWq6xJV8D19U/gw/bwrHfNXxrIN+HfZgnzqTHp9jOmKMhsTUjXOJnZOdZY9Q28y4yebKzqDKlxlQ==}
+    engines: {node: '>=12'}
+
   d3-shape@3.2.0:
     resolution: {integrity: sha512-SaLBuwGm3MOViRq2ABk3eLoxwZELpH6zhl3FbAoJ7Vm1gofKx6El1Ib5z23NUEhF9AsGl7y+dzLe5Cw2AArGTA==}
     engines: {node: '>=12'}
@@ -3100,6 +3148,19 @@ packages:
   d3-timer@3.0.1:
     resolution: {integrity: sha512-ndfJ/JxxMd3nw31uyKoY2naivF+r29V+Lc0svZxe1JvvIRmi8hUsrMvdOwgS1o6uBHmiz91geQ0ylPP0aj1VUA==}
     engines: {node: '>=12'}
+
+  d3-transition@3.0.1:
+    resolution: {integrity: sha512-ApKvfjsSR6tg06xrL434C0WydLr7JewBB3V+/39RMHsaXTOG0zmt/OAXeng5M5LBm0ojmxJrpomQVZ1aPvBL4w==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      d3-selection: 2 - 3
+
+  d3-zoom@3.0.0:
+    resolution: {integrity: sha512-b8AmV3kfQaqWAuacbPuNbL6vahnOJflOhexLzMMNLga62+/nh0JzvJ0aO/5a5MVgUFGS7Hu1P9P03o3fJkDCyw==}
+    engines: {node: '>=12'}
+
+  dagre@0.8.5:
+    resolution: {integrity: sha512-/aTqmnRta7x7MCCpExk7HQL2O4owCT2h8NT//9I1OQ9vt29Pa0BzSAkR5lwFUcQ7491yVi/3CXU9jQ5o0Mn2Sw==}
 
   damerau-levenshtein@1.0.8:
     resolution: {integrity: sha512-sdQSFB7+llfUcQHUQO3+B8ERRj0Oa4w9POWMI/puGtuf7gFywGmkaLCElnudfTiKZV+NvHqL0ifzdrI8Ro7ESA==}
@@ -3858,6 +3919,9 @@ packages:
 
   graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
+
+  graphlib@2.1.8:
+    resolution: {integrity: sha512-jcLLfkpoVGmH7/InMC/1hIvOPSUh38oJtGhvrOFGzioE1DZ+0YW16RgmOJhHiuWTvGiJQ9Z1Ik43JvkRPRvE+A==}
 
   gray-matter@4.0.3:
     resolution: {integrity: sha512-5v6yZd4JK3eMI3FqqCouswVqwugaA9r4dNZB1wwcmrD02QkV5H0y7XBQW8QwQqEaZY1pM9aqORSORhJRdNK44Q==}
@@ -5629,8 +5693,8 @@ packages:
     peerDependencies:
       zod: ^3.24.1
 
-  zod@3.24.3:
-    resolution: {integrity: sha512-HhY1oqzWCQWuUqvBFnsyrtZRhyPeR7SUGv+C4+MsisMuVfSPx8HpwWqH8tRahSlt6M3PiFAcoeFhZAqIXTxoSg==}
+  zod@3.25.67:
+    resolution: {integrity: sha512-idA2YXwpCdqUSKRCACDE6ItZD9TZzy3OZMtpfLoh6oPR47lipysRrJfjzMqFxQ3uJuUPyUeWe1r9vLH33xO/Qw==}
 
   zustand@4.5.6:
     resolution: {integrity: sha512-ibr/n1hBzLLj5Y+yUcU7dYw8p6WnIVzdJbnX+1YpaScvZVF2ziugqHs+LAmHw4lWO9c/zRj+K1ncgWDQuthEdQ==}
@@ -5652,103 +5716,103 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/amazon-bedrock@2.2.8(zod@3.24.3)':
+  '@ai-sdk/amazon-bedrock@2.2.8(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.7(zod@3.24.3)
+      '@ai-sdk/provider-utils': 2.2.7(zod@3.25.67)
       '@smithy/eventstream-codec': 4.0.2
       '@smithy/util-utf8': 4.0.0
       aws4fetch: 1.0.20
-      zod: 3.24.3
+      zod: 3.25.67
 
-  '@ai-sdk/anthropic@1.2.10(zod@3.24.3)':
+  '@ai-sdk/anthropic@1.2.10(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.7(zod@3.24.3)
-      zod: 3.24.3
+      '@ai-sdk/provider-utils': 2.2.7(zod@3.25.67)
+      zod: 3.25.67
 
-  '@ai-sdk/azure@1.3.17(zod@3.24.3)':
+  '@ai-sdk/azure@1.3.17(zod@3.25.67)':
     dependencies:
-      '@ai-sdk/openai': 1.3.16(zod@3.24.3)
+      '@ai-sdk/openai': 1.3.16(zod@3.25.67)
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.7(zod@3.24.3)
-      zod: 3.24.3
+      '@ai-sdk/provider-utils': 2.2.7(zod@3.25.67)
+      zod: 3.25.67
 
-  '@ai-sdk/google@1.2.18(zod@3.24.3)':
-    dependencies:
-      '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.24.3)
-      zod: 3.24.3
-
-  '@ai-sdk/groq@1.2.8(zod@3.24.3)':
+  '@ai-sdk/google@1.2.18(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.7(zod@3.24.3)
-      zod: 3.24.3
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.67)
+      zod: 3.25.67
 
-  '@ai-sdk/mistral@1.2.7(zod@3.24.3)':
+  '@ai-sdk/groq@1.2.8(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.7(zod@3.24.3)
-      zod: 3.24.3
+      '@ai-sdk/provider-utils': 2.2.7(zod@3.25.67)
+      zod: 3.25.67
 
-  '@ai-sdk/openai@1.3.16(zod@3.24.3)':
+  '@ai-sdk/mistral@1.2.7(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.7(zod@3.24.3)
-      zod: 3.24.3
+      '@ai-sdk/provider-utils': 2.2.7(zod@3.25.67)
+      zod: 3.25.67
 
-  '@ai-sdk/provider-utils@2.2.7(zod@3.24.3)':
+  '@ai-sdk/openai@1.3.16(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      nanoid: 3.3.11
-      secure-json-parse: 2.7.0
-      zod: 3.24.3
+      '@ai-sdk/provider-utils': 2.2.7(zod@3.25.67)
+      zod: 3.25.67
 
-  '@ai-sdk/provider-utils@2.2.8(zod@3.24.3)':
+  '@ai-sdk/provider-utils@2.2.7(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
       nanoid: 3.3.11
       secure-json-parse: 2.7.0
-      zod: 3.24.3
+      zod: 3.25.67
+
+  '@ai-sdk/provider-utils@2.2.8(zod@3.25.67)':
+    dependencies:
+      '@ai-sdk/provider': 1.1.3
+      nanoid: 3.3.11
+      secure-json-parse: 2.7.0
+      zod: 3.25.67
 
   '@ai-sdk/provider@1.1.3':
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/react@1.2.12(react@19.1.0)(zod@3.24.3)':
+  '@ai-sdk/react@1.2.12(react@19.1.0)(zod@3.25.67)':
     dependencies:
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.24.3)
-      '@ai-sdk/ui-utils': 1.2.11(zod@3.24.3)
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.67)
+      '@ai-sdk/ui-utils': 1.2.11(zod@3.25.67)
       react: 19.1.0
       swr: 2.3.3(react@19.1.0)
       throttleit: 2.1.0
     optionalDependencies:
-      zod: 3.24.3
+      zod: 3.25.67
 
-  '@ai-sdk/react@1.2.9(react@19.1.0)(zod@3.24.3)':
+  '@ai-sdk/react@1.2.9(react@19.1.0)(zod@3.25.67)':
     dependencies:
-      '@ai-sdk/provider-utils': 2.2.7(zod@3.24.3)
-      '@ai-sdk/ui-utils': 1.2.8(zod@3.24.3)
+      '@ai-sdk/provider-utils': 2.2.7(zod@3.25.67)
+      '@ai-sdk/ui-utils': 1.2.8(zod@3.25.67)
       react: 19.1.0
       swr: 2.3.3(react@19.1.0)
       throttleit: 2.1.0
     optionalDependencies:
-      zod: 3.24.3
+      zod: 3.25.67
 
-  '@ai-sdk/ui-utils@1.2.11(zod@3.24.3)':
+  '@ai-sdk/ui-utils@1.2.11(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.24.3)
-      zod: 3.24.3
-      zod-to-json-schema: 3.24.5(zod@3.24.3)
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.67)
+      zod: 3.25.67
+      zod-to-json-schema: 3.24.5(zod@3.25.67)
 
-  '@ai-sdk/ui-utils@1.2.8(zod@3.24.3)':
+  '@ai-sdk/ui-utils@1.2.8(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.7(zod@3.24.3)
-      zod: 3.24.3
-      zod-to-json-schema: 3.24.5(zod@3.24.3)
+      '@ai-sdk/provider-utils': 2.2.7(zod@3.25.67)
+      zod: 3.25.67
+      zod-to-json-schema: 3.24.5(zod@3.25.67)
 
   '@alloc/quick-lru@5.2.0': {}
 
@@ -6316,7 +6380,7 @@ snapshots:
   '@codemirror/language@6.11.1':
     dependencies:
       '@codemirror/state': 6.5.2
-      '@codemirror/view': 6.37.1
+      '@codemirror/view': 6.37.2
       '@lezer/common': 1.2.3
       '@lezer/highlight': 1.2.1
       '@lezer/lr': 1.4.2
@@ -6331,7 +6395,7 @@ snapshots:
   '@codemirror/search@6.5.7':
     dependencies:
       '@codemirror/state': 6.5.2
-      '@codemirror/view': 6.37.1
+      '@codemirror/view': 6.37.2
       crelt: 1.0.6
 
   '@codemirror/state@6.5.2':
@@ -6342,7 +6406,7 @@ snapshots:
     dependencies:
       '@codemirror/language': 6.11.1
       '@codemirror/state': 6.5.2
-      '@codemirror/view': 6.37.1
+      '@codemirror/view': 6.37.2
       '@lezer/highlight': 1.2.1
 
   '@codemirror/view@6.36.5':
@@ -6351,7 +6415,7 @@ snapshots:
       style-mod: 4.1.2
       w3c-keyname: 2.2.8
 
-  '@codemirror/view@6.37.1':
+  '@codemirror/view@6.37.2':
     dependencies:
       '@codemirror/state': 6.5.2
       crelt: 1.0.6
@@ -8084,6 +8148,10 @@ snapshots:
 
   '@types/d3-color@3.1.3': {}
 
+  '@types/d3-drag@3.0.7':
+    dependencies:
+      '@types/d3-selection': 3.0.11
+
   '@types/d3-ease@3.0.2': {}
 
   '@types/d3-interpolate@3.0.4':
@@ -8096,6 +8164,8 @@ snapshots:
     dependencies:
       '@types/d3-time': 3.0.4
 
+  '@types/d3-selection@3.0.11': {}
+
   '@types/d3-shape@3.1.7':
     dependencies:
       '@types/d3-path': 3.1.1
@@ -8103,6 +8173,17 @@ snapshots:
   '@types/d3-time@3.0.4': {}
 
   '@types/d3-timer@3.0.2': {}
+
+  '@types/d3-transition@3.0.9':
+    dependencies:
+      '@types/d3-selection': 3.0.11
+
+  '@types/d3-zoom@3.0.8':
+    dependencies:
+      '@types/d3-interpolate': 3.0.4
+      '@types/d3-selection': 3.0.11
+
+  '@types/dagre@0.7.52': {}
 
   '@types/debug@4.1.12':
     dependencies:
@@ -8349,21 +8430,42 @@ snapshots:
 
   '@xstate/fsm@1.6.5': {}
 
+  '@xyflow/react@12.6.4(@types/react@19.1.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      '@xyflow/system': 0.0.61
+      classcat: 5.0.5
+      react: 19.1.0
+      react-dom: 19.1.0(react@19.1.0)
+      zustand: 4.5.6(@types/react@19.1.2)(react@19.1.0)
+    transitivePeerDependencies:
+      - '@types/react'
+      - immer
+
+  '@xyflow/system@0.0.61':
+    dependencies:
+      '@types/d3-drag': 3.0.7
+      '@types/d3-selection': 3.0.11
+      '@types/d3-transition': 3.0.9
+      '@types/d3-zoom': 3.0.8
+      d3-drag: 3.0.0
+      d3-selection: 3.0.0
+      d3-zoom: 3.0.0
+
   acorn-jsx@5.3.2(acorn@8.14.1):
     dependencies:
       acorn: 8.14.1
 
   acorn@8.14.1: {}
 
-  ai@4.3.16(react@19.1.0)(zod@3.24.3):
+  ai@4.3.16(react@19.1.0)(zod@3.25.67):
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.24.3)
-      '@ai-sdk/react': 1.2.12(react@19.1.0)(zod@3.24.3)
-      '@ai-sdk/ui-utils': 1.2.11(zod@3.24.3)
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.67)
+      '@ai-sdk/react': 1.2.12(react@19.1.0)(zod@3.25.67)
+      '@ai-sdk/ui-utils': 1.2.11(zod@3.25.67)
       '@opentelemetry/api': 1.9.0
       jsondiffpatch: 0.6.0
-      zod: 3.24.3
+      zod: 3.25.67
     optionalDependencies:
       react: 19.1.0
 
@@ -8633,6 +8735,8 @@ snapshots:
     dependencies:
       clsx: 2.1.1
 
+  classcat@5.0.5: {}
+
   client-only@0.0.1: {}
 
   clsx@2.1.1: {}
@@ -8659,7 +8763,7 @@ snapshots:
       '@codemirror/lint': 6.8.5
       '@codemirror/search': 6.5.7
       '@codemirror/state': 6.5.2
-      '@codemirror/view': 6.37.1
+      '@codemirror/view': 6.37.2
 
   collapse-white-space@2.1.0: {}
 
@@ -8713,6 +8817,13 @@ snapshots:
 
   d3-color@3.1.0: {}
 
+  d3-dispatch@3.0.1: {}
+
+  d3-drag@3.0.0:
+    dependencies:
+      d3-dispatch: 3.0.1
+      d3-selection: 3.0.0
+
   d3-ease@3.0.1: {}
 
   d3-format@3.1.0: {}
@@ -8731,6 +8842,8 @@ snapshots:
       d3-time: 3.1.0
       d3-time-format: 4.1.0
 
+  d3-selection@3.0.0: {}
+
   d3-shape@3.2.0:
     dependencies:
       d3-path: 3.1.0
@@ -8744,6 +8857,28 @@ snapshots:
       d3-array: 3.2.4
 
   d3-timer@3.0.1: {}
+
+  d3-transition@3.0.1(d3-selection@3.0.0):
+    dependencies:
+      d3-color: 3.1.0
+      d3-dispatch: 3.0.1
+      d3-ease: 3.0.1
+      d3-interpolate: 3.0.1
+      d3-selection: 3.0.0
+      d3-timer: 3.0.1
+
+  d3-zoom@3.0.0:
+    dependencies:
+      d3-dispatch: 3.0.1
+      d3-drag: 3.0.0
+      d3-interpolate: 3.0.1
+      d3-selection: 3.0.0
+      d3-transition: 3.0.1(d3-selection@3.0.0)
+
+  dagre@0.8.5:
+    dependencies:
+      graphlib: 2.1.8
+      lodash: 4.17.21
 
   damerau-levenshtein@1.0.8: {}
 
@@ -9619,6 +9754,10 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   graphemer@1.4.0: {}
+
+  graphlib@2.1.8:
+    dependencies:
+      lodash: 4.17.21
 
   gray-matter@4.0.3:
     dependencies:
@@ -11890,11 +12029,11 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod-to-json-schema@3.24.5(zod@3.24.3):
+  zod-to-json-schema@3.24.5(zod@3.25.67):
     dependencies:
-      zod: 3.24.3
+      zod: 3.25.67
 
-  zod@3.24.3: {}
+  zod@3.25.67: {}
 
   zustand@4.5.6(@types/react@19.1.2)(react@19.1.0):
     dependencies:

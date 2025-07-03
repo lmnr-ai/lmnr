@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { playgrounds } from "@/lib/db/migrations/schema";
@@ -11,7 +11,7 @@ const updatePlaygroundSchema = z.object({
   tools: z.string().optional(),
   temperature: z.number().optional(),
   maxTokens: z.number().optional(),
-  providerOptions: z.record(z.any()).optional(),
+  providerOptions: z.record(z.string(), z.any()).optional(),
   toolChoice: z
     .string()
     .or(z.object({ type: z.string(), toolName: z.string().optional() }).optional())
@@ -25,7 +25,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   const parsed = updatePlaygroundSchema.safeParse(body);
 
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: parsed.error.errors }), {
+    return new Response(JSON.stringify({ error: parsed.error.issues }), {
       status: 400,
     });
   }

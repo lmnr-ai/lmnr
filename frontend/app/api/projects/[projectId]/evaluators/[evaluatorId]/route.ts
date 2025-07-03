@@ -1,14 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { evaluators } from "@/lib/db/migrations/schema";
 
 const updateEvaluatorSchema = z.object({
-  name: z.string().min(1, "Name is required").max(255, "Name must be less than 255 characters"),
+  name: z.string().min(1, { error: "Name is required" }).max(255, { error: "Name must be less than 255 characters" }),
   definition: z.object({
-    function_code: z.string().min(1, "Function code is required"),
+    function_code: z.string().min(1, { error: "Function code is required" }),
   }),
 });
 
@@ -40,7 +40,7 @@ export async function PUT(
     return Response.json(updatedEvaluator);
   } catch (e) {
     if (e instanceof z.ZodError) {
-      return Response.json({ error: "Validation error", details: e.errors }, { status: 400 });
+      return Response.json({ error: "Validation error", details: e.issues }, { status: 400 });
     }
 
     return Response.json({ error: e instanceof Error ? e.message : "Internal server error" }, { status: 500 });

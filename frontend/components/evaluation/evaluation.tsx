@@ -1,25 +1,23 @@
 "use client";
+import { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable } from "re-resizable";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Resizable, ResizeCallback } from "re-resizable";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import Chart from "@/components/evaluation/chart";
-import {
-  comparedComplementaryColumns,
-  complementaryColumns,
-  defaultColumns,
-  getComparedScoreColumns,
-  getScoreColumns,
-} from "@/components/evaluation/columns";
 import CompareChart from "@/components/evaluation/compare-chart";
+import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
-import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
+import TraceViewNavigationProvider, {
+  getTraceWithDatapointConfig,
+} from "@/components/traces/trace-view/navigation-context";
+import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
-import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
+import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
 import {
   Evaluation as EvaluationType,
   EvaluationDatapointPreviewWithCompared,
@@ -28,8 +26,6 @@ import {
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
-import { DataTable } from "../ui/datatable";
-import DataTableFilter, { DataTableFilterList } from "../ui/datatable-filter";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
@@ -37,18 +33,15 @@ interface EvaluationProps {
   evaluations: EvaluationType[];
   evaluationId: string;
   evaluationName: string;
+  initialTraceViewWidth?: number;
 }
 
-const filters: ColumnFilter[] = [
-  { key: "index", name: "Index", dataType: "number" },
-  { key: "traceId", name: "Trace ID", dataType: "string" },
-  { key: "startTime", name: "Start Time", dataType: "string" },
-  { key: "duration", name: "Duration", dataType: "number" },
-  { key: "cost", name: "Cost", dataType: "number" },
-  { key: "metadata", name: "Metadata", dataType: "json" },
-];
-
-export default function Evaluation({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
+export default function Evaluation({
+  evaluations,
+  evaluationId,
+  evaluationName,
+  initialTraceViewWidth,
+}: EvaluationProps) {
   const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -60,6 +53,7 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
+  const [datapointId, setDatapointId] = useState<string | undefined>(undefined);
 
   const evaluationUrl = useMemo(() => {
     let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}`;
@@ -114,7 +108,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const onClose = useCallback(() => {
     setTraceId(undefined);
     const params = new URLSearchParams(searchParams.toString());
-    params.delete("datapointId");
     params.delete("traceId");
     params.delete("spanId");
     push(`${pathName}?${params}`);
@@ -123,18 +116,6 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
   const scores = useMemo(
     () => [...new Set(data?.results.flatMap((row) => Object.keys(row.scores ?? {})) || [])],
     [data?.results]
-  );
-
-  const columns = useMemo(() => {
-    if (targetId) {
-      return [...defaultColumns, ...comparedComplementaryColumns, ...getComparedScoreColumns(scores)];
-    }
-    return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores)];
-  }, [scores, targetId]);
-
-  const columnFilters = useMemo<ColumnFilter[]>(
-    () => [...filters, ...scores.map((score) => ({ key: `score:${score}`, name: score, dataType: "number" as const }))],
-    [scores]
   );
 
   const tableData = useMemo(() => {
@@ -163,12 +144,14 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
     [searchParams, tableData]
   );
 
-  const handleRowClick = (row: EvaluationDatapointPreviewWithCompared) => {
-    setTraceId(row.traceId);
+  const handleRowClick = (row: Row<EvaluationDatapointPreviewWithCompared>) => {
+    const original = row.original;
+    setTraceId(original.traceId);
+    setDatapointId(original.id);
     const params = new URLSearchParams(searchParams);
-    params.set("datapointId", row.id);
-    params.set("traceId", row.traceId);
-    push(`${pathName}?${params}`);
+    params.set("traceId", original.traceId);
+    params.set("datapointId", original.id);
+    push(`${pathName}?${params.toString()}`);
   };
 
   const handleTraceChange = (id: string) => {
@@ -218,129 +201,153 @@ export default function Evaluation({ evaluations, evaluationId, evaluationName }
 
   useEffect(() => {
     const traceId = searchParams.get("traceId");
+    const datapointId = searchParams.get("datapointId");
     if (traceId) {
       setTraceId(traceId);
+    }
+    if (datapointId) {
+      setDatapointId(datapointId);
+    }
+  }, []);
+
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(
+    initialTraceViewWidth || getDefaultTraceViewWidth()
+  );
+
+  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
+    const newWidth = defaultTraceViewWidth + delta.width;
+    setDefaultTraceViewWidth(newWidth);
+    setTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
+  };
+
+  const ref = useRef<Resizable>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (defaultTraceViewWidth > window.innerWidth - 180) {
+        const newWidth = window.innerWidth - 240;
+        setDefaultTraceViewWidth(newWidth);
+        setTraceViewWidthCookie(newWidth);
+        ref?.current?.updateSize({ width: newWidth });
+      }
     }
   }, []);
 
   return (
-    <div className="h-full flex flex-col relative">
-      <Header path={`evaluations/${data?.evaluation?.name || evaluationName}`} />
-      <EvaluationHeader name={data?.evaluation?.name} urlKey={evaluationUrl} evaluations={evaluations} />
-      <div className="flex flex-grow flex-col">
-        <div className="flex flex-col flex-grow">
-          <div className="flex flex-row space-x-4 p-4">
-            {isLoading || !selectedScore ? (
-              <>
-                <Skeleton className="w-72 h-48" />
-                <Skeleton className="w-full h-48" />
-              </>
-            ) : (
-              <>
-                <div className="flex-none w-72">
-                  <ScoreCard
-                    scores={scores}
-                    selectedScore={selectedScore}
-                    setSelectedScore={setSelectedScore}
-                    statistics={selectedScore ? (data?.allStatistics?.[selectedScore] ?? null) : null}
-                    comparedStatistics={selectedScore ? (targetData?.allStatistics?.[selectedScore] ?? null) : null}
-                    isLoading={isLoading}
-                  />
-                </div>
-                <div className="flex-grow">
-                  {targetId ? (
-                    <CompareChart
-                      evaluationId={evaluationId}
-                      comparedEvaluationId={targetId}
-                      scoreName={selectedScore}
-                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
-                      comparedDistribution={
-                        selectedScore ? (targetData?.allDistributions?.[selectedScore] ?? null) : null
-                      }
+    <TraceViewNavigationProvider<{ datapointId: string; traceId: string }>
+      config={getTraceWithDatapointConfig()}
+      onNavigate={(item) => {
+        setTraceId(item?.traceId);
+        setDatapointId(item?.datapointId);
+      }}
+    >
+      <div className="h-full flex flex-col relative">
+        <Header path={`evaluations/${data?.evaluation?.name || evaluationName}`} />
+        <EvaluationHeader name={data?.evaluation?.name} urlKey={evaluationUrl} evaluations={evaluations} />
+        <div className="flex flex-grow flex-col">
+          <div className="flex flex-col flex-grow">
+            <div className="flex flex-row space-x-4 p-4">
+              {isLoading || !selectedScore ? (
+                <>
+                  <Skeleton className="w-72 h-48" />
+                  <Skeleton className="w-full h-48" />
+                </>
+              ) : (
+                <>
+                  <div className="flex-none w-72">
+                    <ScoreCard
+                      scores={scores}
+                      selectedScore={selectedScore}
+                      setSelectedScore={setSelectedScore}
+                      statistics={selectedScore ? (data?.allStatistics?.[selectedScore] ?? null) : null}
+                      comparedStatistics={selectedScore ? (targetData?.allStatistics?.[selectedScore] ?? null) : null}
                       isLoading={isLoading}
                     />
-                  ) : (
-                    <Chart
-                      className="h-full"
-                      evaluationId={evaluationId}
-                      scoreName={selectedScore}
-                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
-                      isLoading={isLoading}
-                    />
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="flex-grow">
-            <DataTable
-              columns={columns}
-              data={tableData}
-              getRowId={(row) => row.id}
-              focusedRowId={searchParams?.get("datapointId")}
-              paginated
-              onRowClick={(row) => handleRowClick(row.original)}
-              childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
-            >
-              <div className="flex flex-1 w-full space-x-2">
-                <DataTableFilter columns={columnFilters} />
-                <SearchEvaluationInput />
-              </div>
-              <DataTableFilterList />
-            </DataTable>
-          </div>
-        </div>
-      </div>
-      {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-          <Resizable
-            enable={{
-              left: true,
-            }}
-            defaultSize={{
-              width: 1000,
-            }}
-          >
-            <div className="w-full h-full flex flex-col">
-              {targetId && (
-                <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
-                  <Select value={traceId} onValueChange={handleTraceChange}>
-                    <SelectTrigger className="flex font-medium text-secondary-foreground">
-                      <SelectValue placeholder="Select evaluation" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedRow?.traceId && (
-                        <SelectItem value={selectedRow.traceId}>
-                          <span>
-                            {data?.evaluation.name}
-                            <span className="text-secondary-foreground text-xs ml-2">
-                              {formatTimestamp(String(data?.evaluation.createdAt))}
-                            </span>
-                          </span>
-                        </SelectItem>
-                      )}
-                      {selectedRow?.comparedTraceId && (
-                        <SelectItem value={selectedRow?.comparedTraceId}>
-                          <span>
-                            {targetData?.evaluation.name}
-                            <span className="text-secondary-foreground text-xs ml-2">
-                              {formatTimestamp(String(targetData?.evaluation.createdAt))}
-                            </span>
-                          </span>
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  </div>
+                  <div className="flex-grow">
+                    {targetId ? (
+                      <CompareChart
+                        evaluationId={evaluationId}
+                        comparedEvaluationId={targetId}
+                        scoreName={selectedScore}
+                        distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
+                        comparedDistribution={
+                          selectedScore ? (targetData?.allDistributions?.[selectedScore] ?? null) : null
+                        }
+                        isLoading={isLoading}
+                      />
+                    ) : (
+                      <Chart
+                        evaluationId={evaluationId}
+                        scoreName={selectedScore}
+                        distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
+                        isLoading={isLoading}
+                      />
+                    )}
+                  </div>
+                </>
               )}
-              <FiltersContextProvider>
-                <TraceView onClose={onClose} traceId={traceId} />
-              </FiltersContextProvider>
             </div>
-          </Resizable>
+            <EvaluationDatapointsTable
+              datapointId={datapointId}
+              data={tableData}
+              scores={scores}
+              handleRowClick={handleRowClick}
+            />
+          </div>
         </div>
-      )}
-    </div>
+        {traceId && (
+          <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
+            <Resizable
+              ref={ref}
+              onResizeStop={handleResizeStop}
+              enable={{
+                left: true,
+              }}
+              defaultSize={{
+                width: defaultTraceViewWidth,
+              }}
+            >
+              <div className="w-full h-full flex flex-col">
+                {targetId && (
+                  <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+                    <Select value={traceId} onValueChange={handleTraceChange}>
+                      <SelectTrigger className="flex font-medium text-secondary-foreground">
+                        <SelectValue placeholder="Select evaluation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedRow?.traceId && (
+                          <SelectItem value={selectedRow.traceId}>
+                            <span>
+                              {data?.evaluation.name}
+                              <span className="text-secondary-foreground text-xs ml-2">
+                                {formatTimestamp(String(data?.evaluation.createdAt))}
+                              </span>
+                            </span>
+                          </SelectItem>
+                        )}
+                        {selectedRow?.comparedTraceId && (
+                          <SelectItem value={selectedRow?.comparedTraceId}>
+                            <span>
+                              {targetData?.evaluation.name}
+                              <span className="text-secondary-foreground text-xs ml-2">
+                                {formatTimestamp(String(targetData?.evaluation.createdAt))}
+                              </span>
+                            </span>
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <FiltersContextProvider>
+                  <TraceView key={traceId} onClose={onClose} traceId={traceId} />
+                </FiltersContextProvider>
+              </div>
+            </Resizable>
+          </div>
+        )}
+      </div>
+    </TraceViewNavigationProvider>
   );
 }

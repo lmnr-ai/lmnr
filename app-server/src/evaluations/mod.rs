@@ -8,7 +8,7 @@ use crate::{
     ch::evaluation_scores::{EvaluationScore, insert_evaluation_scores},
     db::{self, DB},
 };
-use utils::{EvaluationDatapointResult, datapoints_to_labeling_queues, get_columns_from_points};
+use utils::{EvaluationDatapointResult, get_columns_from_points};
 
 pub mod utils;
 
@@ -21,15 +21,11 @@ pub async fn save_evaluation_scores(
     group_name: &String,
 ) -> Result<()> {
     let columns = get_columns_from_points(&points);
-    let labeling_queues =
-        datapoints_to_labeling_queues(db.clone(), &points, &columns.ids, &project_id).await?;
-
-    for (queue_id, entries) in labeling_queues.iter() {
-        db::labeling_queues::push_to_labeling_queue(&db.pool, queue_id, &entries).await?;
-    }
 
     let pool = db.pool.clone();
     let ids_clone = columns.ids.clone();
+    let trace_ids_clone = columns.trace_ids.clone();
+
     let db_task = tokio::spawn(async move {
         db::evaluations::set_evaluation_results(
             &pool,
@@ -62,6 +58,17 @@ pub async fn save_evaluation_scores(
         clickhouse.clone(),
         ch_evaluation_scores,
     ));
+
+    // Update trace types synchronously (upsert eliminates race conditions)
+    for trace_id in trace_ids_clone {
+        crate::db::trace::update_trace_type(
+            &db.pool,
+            &project_id,
+            trace_id,
+            crate::db::trace::TraceType::EVALUATION,
+        )
+        .await?;
+    }
 
     let (db_result, ch_result) = tokio::join!(db_task, ch_task);
 

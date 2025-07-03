@@ -18,9 +18,9 @@ use crate::{
     mq::{MessageQueue, MessageQueueAcker},
     traces::{
         events::record_events,
+        provider::convert_span_to_provider_format,
         utils::{get_llm_usage_for_span, record_labels_to_db_and_ch, record_span_to_db},
     },
-    utils::estimate_json_size,
 };
 
 pub mod attributes;
@@ -28,8 +28,8 @@ pub mod consumer;
 pub mod events;
 pub mod grpc_service;
 pub mod limits;
-
 pub mod producer;
+pub mod provider;
 pub mod span_attributes;
 pub mod spans;
 pub mod utils;
@@ -38,10 +38,16 @@ pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
 pub const OBSERVATIONS_EXCHANGE: &str = "observations_exchange";
 pub const OBSERVATIONS_ROUTING_KEY: &str = "observations_routing_key";
 
+pub struct IngestedBytes {
+    pub span_bytes: usize,
+    pub events_bytes: usize,
+}
+
 pub async fn process_spans_and_events(
     span: &mut Span,
     events: Vec<Event>,
     project_id: &Uuid,
+    ingested_bytes: &IngestedBytes,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
@@ -111,15 +117,15 @@ pub async fn process_spans_and_events(
         }
     }
 
+    convert_span_to_provider_format(span);
+
     let recorded_span_bytes =
         match record_span_to_db(db.clone(), &project_id, span, &trace_attributes).await {
             Ok(_) => {
                 let _ = acker.ack().await.map_err(|e| {
                     log::error!("Failed to ack MQ delivery (span): {:?}", e);
                 });
-                estimate_json_size(
-                    &serde_json::to_value(&span.get_attributes().attributes).unwrap_or_default(),
-                )
+                ingested_bytes.span_bytes
             }
             Err(e) => {
                 log::error!(
@@ -144,7 +150,7 @@ pub async fn process_spans_and_events(
     }
 
     let recorded_events_bytes = match record_events(db.clone(), clickhouse.clone(), &events).await {
-        Ok(_) => estimate_json_size(&serde_json::to_value(&events).unwrap_or_default()),
+        Ok(_) => ingested_bytes.events_bytes,
         Err(e) => {
             log::error!("Failed to record events: {:?}", e);
             0
@@ -154,7 +160,7 @@ pub async fn process_spans_and_events(
     if let Err(e) = increment_project_spans_bytes_ingested(
         &db.pool,
         &project_id,
-        recorded_span_bytes + recorded_events_bytes,
+        recorded_events_bytes + recorded_span_bytes,
     )
     .await
     {

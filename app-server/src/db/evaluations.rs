@@ -18,6 +18,7 @@ pub struct Evaluation {
     ///
     /// Conceptually, evaluations with different group ids are used to test different features.
     pub group_id: String,
+    pub metadata: Option<Value>,
 }
 
 #[derive(Serialize, FromRow)]
@@ -42,25 +43,33 @@ pub struct EvaluationDatapointPreview {
     pub trace_id: Uuid,
 }
 
+#[derive(FromRow)]
+pub struct EvaluationInfo {
+    pub group_id: String,
+}
+
 pub async fn create_evaluation(
     pool: &PgPool,
     name: &String,
     project_id: Uuid,
     group_id: &str,
+    metadata: &Option<Value>,
 ) -> Result<Evaluation> {
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "INSERT INTO evaluations (name, project_id, group_id)
-        VALUES ($1, $2, $3)
+        "INSERT INTO evaluations (name, project_id, group_id, metadata)
+        VALUES ($1, $2, $3, $4)
         RETURNING
             id,
             created_at,
             name,
             project_id,
-            group_id",
+            group_id,
+            metadata",
     )
     .bind(name)
     .bind(project_id)
     .bind(group_id)
+    .bind(metadata)
     .fetch_one(pool)
     .await?;
 
@@ -74,7 +83,7 @@ pub async fn set_evaluation_results(
     pool: &PgPool,
     evaluation_id: Uuid,
     ids: &Vec<Uuid>,
-    scores: &Vec<HashMap<String, f64>>,
+    scores: &Vec<HashMap<String, Option<f64>>>,
     datas: &Vec<Value>,
     targets: &Vec<Value>,
     metadatas: &Vec<HashMap<String, Value>>,
@@ -127,16 +136,18 @@ pub async fn set_evaluation_results(
     .await?;
 
     // Each datapoint can have multiple scores, so unzip the scores and result ids.
-    let (score_result_ids, (score_names, score_values)): (Vec<Uuid>, (Vec<String>, Vec<f64>)) =
-        scores
-            .iter()
-            .zip(results.iter())
-            .flat_map(|(score, result)| {
-                score
-                    .iter()
-                    .map(|(name, value)| (result.id, (name.clone(), value)))
-            })
-            .unzip();
+    let (score_result_ids, (score_names, score_values)): (
+        Vec<Uuid>,
+        (Vec<String>, Vec<Option<f64>>),
+    ) = scores
+        .iter()
+        .zip(results.iter())
+        .flat_map(|(score, result)| {
+            score
+                .iter()
+                .map(|(name, value)| (result.id, (name.clone(), value)))
+        })
+        .unzip();
 
     sqlx::query(
         "INSERT INTO evaluation_scores (result_id, name, score)
@@ -152,6 +163,72 @@ pub async fn set_evaluation_results(
     .bind(&score_values)
     .execute(pool)
     .await?;
+
+    Ok(())
+}
+
+/// Get evaluation group_id for ClickHouse operations
+pub async fn get_evaluation_group_id(
+    pool: &PgPool,
+    evaluation_id: Uuid,
+    project_id: Uuid,
+) -> Result<String> {
+    let eval_info = sqlx::query_as::<_, EvaluationInfo>(
+        "SELECT group_id 
+         FROM evaluations
+         WHERE id = $1 AND project_id = $2 LIMIT 1",
+    )
+    .bind(evaluation_id)
+    .bind(project_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(eval_info.group_id)
+}
+
+/// Update executor output and scores for a single evaluation datapoint.
+pub async fn update_evaluation_datapoint(
+    pool: &PgPool,
+    evaluation_id: Uuid,
+    datapoint_id: Uuid,
+    executor_output: Option<Value>,
+    scores: HashMap<String, Option<f64>>,
+) -> Result<()> {
+    // Update the executor output in the evaluation_results table
+    sqlx::query(
+        r"UPDATE evaluation_results 
+        SET executor_output = $1
+        WHERE id = $2 AND evaluation_id = $3",
+    )
+    .bind(&executor_output)
+    .bind(datapoint_id)
+    .bind(evaluation_id)
+    .execute(pool)
+    .await?;
+
+    // Insert new scores into PostgreSQL
+    if !scores.is_empty() {
+        let (score_names, score_values): (Vec<String>, Vec<Option<f64>>) =
+            scores.into_iter().unzip();
+        let score_result_ids = vec![datapoint_id; score_names.len()];
+
+        sqlx::query(
+            "INSERT INTO evaluation_scores (result_id, name, score)
+            SELECT
+                result_id,
+                name,
+                score
+            FROM UNNEST ($1::uuid[], $2::text[], $3::float8[])
+            AS tmp_table(result_id, name, score)
+            ON CONFLICT (result_id, name) DO UPDATE
+                SET score = EXCLUDED.score",
+        )
+        .bind(&score_result_ids)
+        .bind(&score_names)
+        .bind(&score_values)
+        .execute(pool)
+        .await?;
+    }
 
     Ok(())
 }

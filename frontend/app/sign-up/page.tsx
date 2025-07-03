@@ -1,11 +1,4 @@
-import { eq, sql } from "drizzle-orm";
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-
 import SignUp from "@/components/auth/sign-up";
-import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export default async function SignUpPage(props: {
@@ -13,7 +6,6 @@ export default async function SignUpPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
-  const session = await getServerSession(authOptions);
   let callbackUrl: string | undefined = Array.isArray(searchParams?.callbackUrl)
     ? searchParams.callbackUrl[0]
     : (searchParams?.callbackUrl ?? "/onboarding");
@@ -25,18 +17,7 @@ export default async function SignUpPage(props: {
       if (url.origin === currentOrigin && (url.pathname === "/" || url.pathname === "")) {
         callbackUrl = "/onboarding";
       }
-    } catch {
-      callbackUrl = "/onboarding";
-    }
-  }
-
-  if (session?.user) {
-    const [{ count }] = await db
-      .select({ count: sql`count(*)`.mapWith(Number) })
-      .from(membersOfWorkspaces)
-      .where(eq(membersOfWorkspaces.userId, session.user.id));
-
-    return count === 0 ? redirect("/onboarding") : redirect(callbackUrl || "/onboarding");
+    } catch {}
   }
 
   return (

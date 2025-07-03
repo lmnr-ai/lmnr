@@ -60,6 +60,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
 
   agent-manager:
     image: ghcr.io/lmnr-ai/agent-manager
@@ -80,9 +81,8 @@ services:
       BACKEND_GRPC_PORT: 8001
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     healthcheck:
-      # naive sleep to ensure agent-manager is ready
-      test: ["CMD", "sleep", "3"]
-      interval: 3s
+      test: ["CMD", "sleep", "5"]
+      interval: 10s
       timeout: 6s
       retries: 1
 
