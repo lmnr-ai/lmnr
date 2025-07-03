@@ -17,7 +17,6 @@ import llmPlayground from "@/assets/landing/llm-playground.png";
 import playground from "@/assets/landing/playground.png";
 import traces from "@/assets/landing/traces.png";
 import yc from "@/assets/landing/yc.svg";
-import logo from "@/assets/logo/icon.svg";
 import { SpanType } from "@/lib/traces/types";
 
 import SpanTypeIcon from "../traces/span-type-icon";
@@ -189,7 +188,7 @@ export default function Landing() {
                     className={`border-[1.5px] border-white/80 h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${selectedSection.id === section.id
                       ? "bg-white/90 text-black/90 border-b-2"
                       : "text-white hover:bg-white/20 "
-                      }`}
+                    }`}
                   >
                     {section.title}
                     {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
@@ -695,14 +694,14 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
         <button
           onClick={() => setSelectedLang("typescript")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
-            }`}
+          }`}
         >
           TypeScript
         </button>
         <button
           onClick={() => setSelectedLang("python")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
-            }`}
+          }`}
         >
           Python
         </button>
