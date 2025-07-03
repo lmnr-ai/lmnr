@@ -189,7 +189,7 @@ export default function Landing() {
                     className={`border-[1.5px] border-white/80 h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${selectedSection.id === section.id
                       ? "bg-white/90 text-black/90 border-b-2"
                       : "text-white hover:bg-white/20 "
-                    }`}
+                      }`}
                   >
                     {section.title}
                     {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
@@ -504,9 +504,6 @@ Laminar automatically records high-quality browser sessions and syncs them with 
                   <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
                     <IconPlaywright className="w-5 h-5 text-white" />
                   </div>
-                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
-                    <Image src={logo} alt="Index" className="w-4 h-4 ml-1" />
-                  </div>
                 </div>
               </InfoCard>
               <div className="grid grid-cols-1 md:grid-cols-2">
@@ -698,14 +695,14 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
         <button
           onClick={() => setSelectedLang("typescript")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
-          }`}
+            }`}
         >
           TypeScript
         </button>
         <button
           onClick={() => setSelectedLang("python")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
-          }`}
+            }`}
         >
           Python
         </button>
