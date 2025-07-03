@@ -9,7 +9,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import HtmlRenderer from "@/components/ui/template-renderer/html-renderer";
+import JsxRenderer from "@/components/ui/template-renderer/jsx-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
@@ -43,7 +43,15 @@ export type ManageTemplateForm = z.infer<typeof manageTemplateSchema>;
 
 export const defaultTemplateValues: ManageTemplateForm = {
   name: "",
-  code: `<div style="color: black;">\n  Template example\n</div>`,
+  code: `function({ data }) {
+  // This template uses HTM syntax for data rendering
+  
+  return (
+    <div>
+      Data {JSON.stringify(data)}
+    </div>
+  );
+}`,
   testData: "",
 };
 
@@ -217,7 +225,7 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
           )}
         </div>
         <div className="flex-grow flex overflow-hidden rounded-b">
-          <HtmlRenderer code={currentTemplateCode} data={data} />
+          <JsxRenderer code={currentTemplateCode} data={data} />
         </div>
         <ManageTemplateDialog testData={data} open={isDialogOpen} onOpenChange={setIsDialogOpen} />
       </div>

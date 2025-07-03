@@ -1,4 +1,4 @@
-import { html } from "@codemirror/lang-html";
+import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import CodeMirror from "@uiw/react-codemirror";
@@ -24,8 +24,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import HtmlRenderer from "./html-renderer";
 import { defaultTemplateValues, ManageTemplateForm } from "./index";
+import JsxRenderer from "./jsx-renderer";
 
 const ManageTemplateDialog = ({
   testData,
@@ -126,13 +126,13 @@ const ManageTemplateDialog = ({
         <DialogHeader className="border-b p-4">
           <DialogTitle>{id ? getValues("name") : "Create new render template"}</DialogTitle>
           <DialogDescription>
-            {id ? "Edit the render template" : "Create a new render template to customize data visualization."}
+            {id ? "Edit the JSX render template" : "Create a new JSX render template to customize data visualization."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(submit)} className="flex flex-col flex-1 overflow-hidden">
           <div className="grid grid-cols-2 gap-4 p-4 flex-1 overflow-hidden">
             <div className="min-h-0">
-              <HtmlRenderer code={watch("code")} data={watch("testData")} />
+              <JsxRenderer code={watch("code")} data={watch("testData")} />
             </div>
             <div className="min-h-0 flex flex-col">
               <div className="mb-4">
@@ -156,7 +156,7 @@ const ManageTemplateDialog = ({
               <Tabs className="flex flex-col flex-1 min-h-0" defaultValue="data">
                 <TabsList>
                   <TabsTrigger value="data">Test Data</TabsTrigger>
-                  <TabsTrigger value="editor">Template Code</TabsTrigger>
+                  <TabsTrigger value="editor">JSX Template</TabsTrigger>
                 </TabsList>
                 <TabsContent value="editor" className="flex-1 min-h-0 pt-2">
                   <div className="border rounded-md bg-muted/50 h-full overflow-hidden">
@@ -168,7 +168,7 @@ const ManageTemplateDialog = ({
                         <CodeMirror
                           value={field.value}
                           onChange={field.onChange}
-                          extensions={[html()]}
+                          extensions={[javascript({ jsx: true })]}
                           theme={theme}
                           height="100%"
                           className="h-full"
