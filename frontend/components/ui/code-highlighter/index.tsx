@@ -144,10 +144,7 @@ const PureCodeHighlighter = ({
     <>
       <Select value={mode} onValueChange={handleModeChange} onOpenChange={setIsSelectOpen}>
         <SelectTrigger
-          className={cn(
-            "h-4 px-1.5 [&>svg]:opacity-100 font-medium text-secondary-foreground border-secondary-foreground/60 w-fit text-[0.7rem] bg-black/50 outline-none focus:ring-0",
-            !showSettingsOnHover && "bg-muted/50"
-          )}
+          className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-none focus:ring-0"
         >
           <SelectValue className="w-fit" placeholder="Select mode" />
         </SelectTrigger>
@@ -160,22 +157,24 @@ const PureCodeHighlighter = ({
         </SelectContent>
       </Select>
       <CopyButton
-        className="h-7 w-7 ml-auto text-muted-foreground"
+        className={cn("h-7 w-7 ml-auto text-foreground/80 transition-opacity", isDropdownOpen ? "opacity-100" : "opacity-0 group-hover/code-highlighter:opacity-100")}
         iconClassName="h-3.5 w-3.5"
         size="icon"
         variant="ghost"
         text={value}
       />
-      <CodeSheet
-        renderedValue={value}
-        mode={mode}
-        onModeChange={handleModeChange}
-        extensions={extensions}
-        placeholder={placeholder}
-      />
+      <div className={cn("transition-opacity", isDropdownOpen ? "opacity-100" : "opacity-0 group-hover/code-highlighter:opacity-100")}>
+        <CodeSheet
+          renderedValue={value}
+          mode={mode}
+          onModeChange={handleModeChange}
+          extensions={extensions}
+          placeholder={placeholder}
+        />
+      </div>
       <Popover onOpenChange={setIsDropdownOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
+          <Button variant="ghost" size="icon" className={cn("h-6 w-6 text-foreground/70 transition-opacity", isDropdownOpen ? "opacity-100" : "opacity-0 group-hover/code-highlighter:opacity-100")}>
             <Settings size={16} />
           </Button>
         </PopoverTrigger>
@@ -199,23 +198,19 @@ const PureCodeHighlighter = ({
     >
       <div
         className={cn(
-          "h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t border-b",
-          showSettingsOnHover && [
-            "border-0 bg-gradient-to-b from-black/80 via-black/60 to-transparent absolute top-0 left-0 right-0 z-10 transition-opacity duration-200 opacity-0 group-hover/code-highlighter:opacity-100",
-            {
-              "opacity-100": isDropdownOpen || isSelectOpen,
-            },
-          ]
+          "h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-muted/50",
         )}
       >
         {renderHeaderContent()}
       </div>
       {mode === "custom" ? (
-        <TemplateRenderer data={renderedValue} presetKey={presetKey} />
+        <div className="flex-grow flex bg-muted/50 overflow-auto w-full h-full">
+          <TemplateRenderer data={renderedValue} presetKey={presetKey} />
+        </div>
       ) : (
         <div
           className={cn(
-            "flex-grow flex bg-muted/50 overflow-auto w-full h-full pt-0.5",
+            "flex-grow flex bg-muted/50 overflow-auto w-full h-full",
             !showLineNumbers && "pl-1",
             codeEditorClassName
           )}
