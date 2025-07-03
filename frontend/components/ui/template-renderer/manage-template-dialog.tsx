@@ -158,26 +158,6 @@ const ManageTemplateDialog = ({
                   <TabsTrigger value="data">Test Data</TabsTrigger>
                   <TabsTrigger value="editor">JSX Template</TabsTrigger>
                 </TabsList>
-                <TabsContent value="editor" className="flex-1 min-h-0 pt-2">
-                  <div className="border rounded-md bg-muted/50 h-full overflow-hidden">
-                    <Controller
-                      rules={{ required: "Template code is required" }}
-                      name="code"
-                      control={control}
-                      render={({ field }) => (
-                        <CodeMirror
-                          value={field.value}
-                          onChange={field.onChange}
-                          extensions={[javascript({ jsx: true })]}
-                          theme={theme}
-                          height="100%"
-                          className="h-full"
-                        />
-                      )}
-                    />
-                  </div>
-                  {errors.code && <p className="text-sm text-red-500 mt-1">{errors.code.message}</p>}
-                </TabsContent>
                 <TabsContent value="data" className="flex-1 min-h-0 pt-2">
                   <div className="border rounded-md bg-muted/50 h-full overflow-hidden">
                     <Controller
@@ -197,6 +177,26 @@ const ManageTemplateDialog = ({
                     />
                   </div>
                   {errors.testData && <p className="text-sm text-red-500 mt-1">{errors.testData.message}</p>}
+                </TabsContent>
+                <TabsContent value="editor" className="flex-1 min-h-0 pt-2">
+                  <div className="border rounded-md bg-muted/50 h-full overflow-hidden">
+                    <Controller
+                      rules={{ required: "Template code is required" }}
+                      name="code"
+                      control={control}
+                      render={({ field }) => (
+                        <CodeMirror
+                          value={field.value}
+                          onChange={field.onChange}
+                          extensions={[javascript({ jsx: true })]}
+                          theme={theme}
+                          height="100%"
+                          className="h-full"
+                        />
+                      )}
+                    />
+                  </div>
+                  {errors.code && <p className="text-sm text-red-500 mt-1">{errors.code.message}</p>}
                 </TabsContent>
               </Tabs>
             </div>

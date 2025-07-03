@@ -125,7 +125,6 @@ const createIframeContent = (templateCode: string, data: any): string => {
           this.executeTemplate(compiledCode, preact);
           
         } catch (error) {
-          console.error('Template render error:', error);
           this.showError(
             error.message || 'Unknown error occurred',
             error.stack

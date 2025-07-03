@@ -44,7 +44,7 @@ export type ManageTemplateForm = z.infer<typeof manageTemplateSchema>;
 export const defaultTemplateValues: ManageTemplateForm = {
   name: "",
   code: `function({ data }) {
-  // This template uses HTM syntax for data rendering
+  // This template uses HTML syntax for data rendering
   
   return (
     <div>
