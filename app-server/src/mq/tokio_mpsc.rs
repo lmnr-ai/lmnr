@@ -5,8 +5,8 @@ use super::{
 use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
     Mutex,
+    mpsc::{self, Receiver, Sender},
 };
 
 const CHANNEL_CAPACITY: usize = 100;
@@ -52,6 +52,11 @@ impl TokioMpscQueue {
 
     fn key(&self, exchange: &str, routing_key: &str) -> String {
         format!("{}:-:{}", exchange, routing_key)
+    }
+
+    pub fn register_queue(&self, exchange: &str, routing_key: &str) {
+        let key = self.key(exchange, routing_key);
+        self.senders.entry(key).or_default();
     }
 }
 
