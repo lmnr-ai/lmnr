@@ -1,10 +1,13 @@
 import { and, desc, eq } from "drizzle-orm";
 import { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import Evaluation from "@/components/evaluation/evaluation";
+import { EVALUATION_TRACE_VIEW_WIDTH } from "@/lib/actions/evaluation";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
+import { Evaluation as EvaluationType } from "@/lib/evaluation/types";
 
 export const metadata: Metadata = {
   title: "Evaluation results",
@@ -30,11 +33,16 @@ export default async function EvaluationPage(props: { params: Promise<{ projectI
     orderBy: desc(evaluations.createdAt),
   });
 
+  const cookieStore = await cookies();
+  const traceViewWidthCookie = cookieStore.get(EVALUATION_TRACE_VIEW_WIDTH);
+  const initialTraceViewWidth = traceViewWidthCookie ? parseInt(traceViewWidthCookie.value, 10) : undefined;
+
   return (
     <Evaluation
       evaluationId={params.evaluationId}
-      evaluations={evaluationsByGroupId}
+      evaluations={evaluationsByGroupId as EvaluationType[]}
       evaluationName={evaluationInfo.name}
+      initialTraceViewWidth={initialTraceViewWidth}
     />
   );
 }

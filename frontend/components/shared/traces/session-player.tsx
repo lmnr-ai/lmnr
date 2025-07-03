@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createSessionPlayerCorsPlugin, SessionPlayerCorsPlugin } from "@/lib/traces/session-player-cors";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
@@ -42,12 +42,11 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [totalDuration, setTotalDuration] = useState(0);
-    const [speed, setSpeed] = useState(1);
+    const [speed, setSpeed] = useLocalStorage("session-player-speed", 1);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [, setStartTime] = useState(0);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const corsPluginRef = useRef<SessionPlayerCorsPlugin | null>(null);
 
     // Add resize observer effect
     useEffect(() => {
@@ -63,13 +62,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       resizeObserver.observe(containerRef.current);
 
       return () => resizeObserver.disconnect();
-    }, []);
-
-    // Cleanup effect for CORS plugin
-    useEffect(() => () => {
-      if (corsPluginRef.current) {
-        corsPluginRef.current.cleanup();
-      }
     }, []);
 
     const getEvents = async () => {
@@ -143,19 +135,13 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         setIsPlaying(false);
         setCurrentTime(0);
         setTotalDuration(0);
-        setSpeed(1);
+        // Speed is maintained from localStorage, no need to reset
         getEvents();
       }
     }, [hasBrowserSession, traceId]);
 
     useEffect(() => {
       if (!events?.length || !playerContainerRef.current) return;
-
-      // Cleanup previous plugin if it exists
-      if (corsPluginRef.current) {
-        corsPluginRef.current.cleanup();
-        corsPluginRef.current = null;
-      }
 
       try {
         playerRef.current = new rrwebPlayer({
@@ -189,9 +175,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           setCurrentTime(event.payload / 1000);
           onTimelineChange(startTime + event.payload);
         });
-
-        // Set up CORS plugin
-        corsPluginRef.current = createSessionPlayerCorsPlugin(playerRef, playerContainerRef);
       } catch (e) {
         console.error("Error initializing player:", e);
       }
@@ -329,7 +312,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
                 {speed}x
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                {[1, 2, 4, 8].map((speedOption) => (
+                {[1, 2, 4, 8, 16].map((speedOption) => (
                   <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
                     {speedOption}x
                   </DropdownMenuItem>

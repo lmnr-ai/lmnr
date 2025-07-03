@@ -12,7 +12,6 @@ import {
 import {
   FileContentPart,
   ImageContentPart,
-  RoleHeader,
   TextContentPart,
   ToolCallContentPart,
   ToolResultContentPart,
@@ -60,83 +59,70 @@ const PureOpenAIContentParts = ({
   message: z.infer<typeof OpenAIMessageSchema>;
   presetKey?: string;
 }) => {
-  const getParts = () => {
-    switch (message.role) {
-      case "system":
-        return typeof message.content === "string" ? (
-          <OpenAITextContentPart part={message.content} presetKey={presetKey} />
-        ) : (
-          (message.content || []).map((part, index) => (
-            <OpenAITextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
-          ))
-        );
-      case "assistant":
+  switch (message.role) {
+    case "system":
+      return typeof message.content === "string" ? (
+        <OpenAITextContentPart part={message.content} presetKey={presetKey} />
+      ) : (
+        (message.content || []).map((part, index) => (
+          <OpenAITextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+        ))
+      );
+    case "assistant":
+      return (
+        <>
+          {typeof message.content === "string" ? (
+            <OpenAITextContentPart part={message.content} presetKey={presetKey} />
+          ) : (
+            (message.content || []).map((part, index) => (
+              <OpenAITextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+            ))
+          )}
+          {(message?.tool_calls || []).map((part) => (
+            <OpenAIToolCallContentPart key={part.id} part={part} presetKey={presetKey} />
+          ))}
+        </>
+      );
+    case "user":
+      if (typeof message.content === "string") {
+        return <OpenAITextContentPart part={message.content} presetKey={presetKey} />;
+      }
+
+      return message.content.map((part, index) => {
+        switch (part.type) {
+          case "text":
+            return <OpenAITextContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
+          case "file":
+            return <OpenAIFileContentPart key={`${part.type}-${index}`} part={part} />;
+          case "image_url":
+            return <OpenAIImageContentPart key={`${part.type}-${index}`} part={part} />;
+        }
+      });
+    case "tool":
+      if (typeof message.content === "string") {
         return (
-          <>
-            {typeof message.content === "string" ? (
-              <OpenAITextContentPart part={message.content} presetKey={presetKey} />
-            ) : (
-              (message.content || []).map((part, index) => (
-                <OpenAITextContentPart
-                  key={`${message.role}-${part.type}=${index}`}
-                  part={part}
-                  presetKey={presetKey}
-                />
-              ))
-            )}
-            {(message?.tool_calls || []).map((part) => (
-              <OpenAIToolCallContentPart key={part.id} part={part} presetKey={presetKey} />
-            ))}
-          </>
-        );
-      case "user":
-        if (typeof message.content === "string") {
-          return <OpenAITextContentPart part={message.content} presetKey={presetKey} />;
-        }
-
-        return message.content.map((part, index) => {
-          switch (part.type) {
-            case "text":
-              return <OpenAITextContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
-            case "file":
-              return <OpenAIFileContentPart key={`${part.type}-${index}`} part={part} />;
-            case "image_url":
-              return <OpenAIImageContentPart key={`${part.type}-${index}`} part={part} />;
-          }
-        });
-      case "tool":
-        if (typeof message.content === "string") {
-          return (
-            <ToolResultContentPart
-              toolCallId={message.tool_call_id || "-"}
-              content={message.content}
-              presetKey={presetKey}
-            />
-          );
-        }
-
-        return message.content.map((part, index) => (
           <ToolResultContentPart
-            key={`${part.type}-${message.tool_call_id}`}
             toolCallId={message.tool_call_id || "-"}
-            content={part.text}
+            content={message.content}
             presetKey={presetKey}
-          >
-            <OpenAITextContentPart key={`${message.role}-${part.type}-${index}`} part={part} presetKey={presetKey} />
-          </ToolResultContentPart>
-        ));
+          />
+        );
+      }
 
-      default:
-        return null;
-    }
-  };
+      return message.content.map((part, index) => (
+        <ToolResultContentPart
+          key={`${part.type}-${message.tool_call_id}`}
+          toolCallId={message.tool_call_id || "-"}
+          content={part.text}
+          presetKey={presetKey}
+        >
+          <OpenAITextContentPart key={`${message.role}-${part.type}-${index}`} part={part} presetKey={presetKey} />
+        </ToolResultContentPart>
+      ));
 
-  return (
-    <>
-      <RoleHeader role={message.role} />
-      {getParts()}
-    </>
-  );
+    default:
+      return null;
+  }
 };
 
 const OpenAIContentParts = memo(PureOpenAIContentParts);

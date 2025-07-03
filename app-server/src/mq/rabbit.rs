@@ -1,10 +1,10 @@
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
+    BasicProperties, Channel, Connection, Consumer,
     acker::Acker,
     options::{BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
     types::FieldTable,
-    BasicProperties, Channel, Connection, Consumer,
 };
 use std::sync::Arc;
 

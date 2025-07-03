@@ -359,7 +359,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
                 {speed}x
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                {[1, 2, 4, 8].map((speedOption) => (
+                {[1, 2, 4, 8, 16].map((speedOption) => (
                   <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
                     {speedOption}x
                   </DropdownMenuItem>
