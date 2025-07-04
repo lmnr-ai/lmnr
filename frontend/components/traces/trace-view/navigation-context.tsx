@@ -64,7 +64,6 @@ const TraceViewNavigationProvider = <T,>({
 
   const navigateToItem = useCallback(
     (targetItem: T) => {
-      console.log(targetItem);
       debouncedRouterPush.cancel();
 
       currentItemRef.current = targetItem;
@@ -93,7 +92,6 @@ const TraceViewNavigationProvider = <T,>({
   }, [refList, navigateToItem, config]);
 
   const navigateDown = useCallback(() => {
-    console.log("navigating down", refList, currentItemRef.current);
     if (refList.length === 0) return;
 
     const currentItem = currentItemRef.current;

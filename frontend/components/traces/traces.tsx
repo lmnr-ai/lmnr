@@ -67,7 +67,6 @@ function TracesContent() {
 
   const handleNavigate = useCallback(
     (item: NavigationItem | null) => {
-      console.log("navigating...", item);
       if (item) {
         if (typeof item === "string") {
           setTraceId(item);
