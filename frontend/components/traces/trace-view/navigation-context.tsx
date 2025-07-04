@@ -3,7 +3,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, PropsWithChildren, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-type NavigationConfig<T> = {
+export type NavigationConfig<T> = {
   getItemId: (item: T) => string;
   updateSearchParams: (item: T, params: URLSearchParams) => void;
   getCurrentItem: (list: T[], searchParams: URLSearchParams) => T | null;
@@ -127,15 +127,33 @@ const TraceViewNavigationProvider = <T,>({
 
 export default TraceViewNavigationProvider;
 
-export const getTraceConfig = (): NavigationConfig<string> => ({
-  getItemId: (traceId) => traceId,
-  updateSearchParams: (traceId, params) => {
-    params.delete("spanId");
-    params.set("traceId", traceId);
+export const getTracesConfig = (): NavigationConfig<string | { spanId: string; traceId: string }> => ({
+  getItemId: (item) => {
+    if (typeof item === "string") {
+      return item;
+    }
+    return item.spanId;
+  },
+  updateSearchParams: (item, params) => {
+    if (typeof item === "string") {
+      params.delete("spanId");
+      params.set("traceId", item);
+    } else {
+      params.set("traceId", item.traceId);
+      params.set("spanId", item.spanId);
+    }
   },
   getCurrentItem: (list, searchParams) => {
+    const spanId = searchParams.get("spanId");
     const traceId = searchParams.get("traceId");
-    return list.find((id) => id === traceId) || null;
+
+    if (!traceId) return null;
+
+    if (!spanId) {
+      return list.find((item) => typeof item === "string" && item === traceId) || null;
+    }
+
+    return list.find((item) => typeof item === "object" && item.spanId === spanId && item.traceId === traceId) || null;
   },
 });
 

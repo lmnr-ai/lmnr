@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RefreshButton from "@/components/traces/refresh-button";
 import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
+import { useTracesStore } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
@@ -18,19 +19,19 @@ import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
 
-interface TracesTableProps {
-  traceId: string | null;
-  onRowClick?: (rowId: string) => void;
-}
-
 const LIVE_UPDATES_STORAGE_KEY = "traces-live-updates";
 
-export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
+export default function TracesTable() {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
+
+  const { traceId, setTraceId: onRowClick } = useTracesStore((state) => ({
+    traceId: state.traceId,
+    setTraceId: state.setTraceId,
+  }));
 
   const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
   const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
@@ -206,9 +207,9 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
         const newTrace =
           rtEventTrace.topSpanType === null && rtEventTrace.topSpanId != null
             ? {
-              ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
-              ...rest,
-            }
+                ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
+                ...rest,
+              }
             : rtEventTrace;
         newTraces.splice(Math.max(insertIndex ?? 0, 0), 0, newTrace);
         if (newTraces.length > pageSize) {
@@ -379,7 +380,7 @@ export default function TracesTable({ traceId, onRowClick }: TracesTableProps) {
       getRowId={(trace) => trace.id}
       onRowClick={handleRowClick}
       paginated
-      focusedRowId={traceId}
+      focusedRowId={traceId || searchParams.get("traceId")}
       manualPagination
       pageCount={pageCount}
       defaultPageSize={pageSize}
