@@ -7,8 +7,8 @@ import { usePostHog } from "posthog-js/react";
 import React, { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 
+import SearchInput from "@/components/common/search-input";
 import ProgressionChart from "@/components/evaluations/progression-chart";
-import SearchEvaluationsInput from "@/components/evaluations/search-evaluations-input";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
@@ -243,7 +243,7 @@ export default function Evaluations() {
               >
                 <div className="flex flex-1 w-full space-x-2">
                   <DataTableFilter columns={filters} />
-                  <SearchEvaluationsInput />
+                  <SearchInput placeholder="Search evaluations by name..." />
                 </div>
                 <DataTableFilterList />
               </DataTable>

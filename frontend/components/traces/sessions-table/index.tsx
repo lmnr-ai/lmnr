@@ -2,10 +2,15 @@
 
 import { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePostHog } from "posthog-js/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import SearchInput from "@/components/common/search-input";
 import RefreshButton from "@/components/traces/refresh-button";
 import { columns, filters } from "@/components/traces/sessions-table/columns";
+import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
+import { useTracesStoreContext } from "@/components/traces/traces-store";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SessionPreview, Trace } from "@/lib/traces/types";
 import { PaginatedResponse } from "@/lib/types";
@@ -13,26 +18,25 @@ import { PaginatedResponse } from "@/lib/types";
 import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
-import TextSearchFilter from "../../ui/text-search-filter";
 
-type SessionRow = {
+export type SessionRow = {
   type: string;
   data: SessionPreview | Trace;
-  subRows: SessionRow[];
+  subRows: Omit<SessionRow, "subRows">[];
 };
 
-interface SessionsTableProps {
-  onRowClick?: (rowId: string) => void;
-}
-
-export default function SessionsTable({ onRowClick }: SessionsTableProps) {
+export default function SessionsTable() {
   const { projectId } = useParams();
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [focusedRowId, setFocusedRowId] = useState<string | undefined>(undefined);
+  const { setTraceId, traceId } = useTracesStoreContext((state) => ({
+    setTraceId: state.setTraceId,
+    traceId: state.traceId,
+  }));
+
   const [sessions, setSessions] = useState<SessionRow[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0);
 
@@ -45,6 +49,12 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
   const textSearchFilter = searchParams.get("search");
 
   const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
+
+  const { setNavigationRefList } = useTraceViewNavigation();
+
+  useEffect(() => {
+    setNavigationRefList((sessions || [])?.flatMap((s) => s?.subRows)?.map((t) => t.data.id));
+  }, [setNavigationRefList, sessions]);
 
   const getSessions = useCallback(async () => {
     try {
@@ -122,13 +132,22 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
     [pathName, router, searchParams]
   );
 
+  const posthog = usePostHog();
+
+  const onSearch = () => {
+    if (isFeatureEnabled(Feature.POSTHOG)) {
+      posthog.capture("traces_list_searched", {
+        searchParams: searchParams.toString(),
+      });
+    }
+  };
+
   const handleRowClick = useCallback(
     async (row: Row<SessionRow>) => {
       if (row.original.type === "trace") {
         const params = new URLSearchParams(searchParams);
-        setFocusedRowId(row.original.data.id);
-        onRowClick?.(row.original.data.id);
-        params.set("selectedId", row.original.data.id);
+        setTraceId(row.original.data.id);
+        params.set("traceId", row.original.data.id);
         router.push(`${pathName}?${params.toString()}`);
         return;
       }
@@ -178,7 +197,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
         row.toggleExpanded();
       }
     },
-    [onRowClick, pathName, projectId, router, searchParams]
+    [setTraceId, pathName, projectId, router, searchParams]
   );
 
   useEffect(() => {
@@ -199,7 +218,7 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       getRowId={(row) => row.data.id}
       onRowClick={handleRowClick}
       paginated
-      focusedRowId={focusedRowId}
+      focusedRowId={traceId || searchParams.get("traceId")}
       pageCount={pageCount}
       defaultPageSize={pageSize}
       defaultPageNumber={pageNumber}
@@ -210,10 +229,10 @@ export default function SessionsTable({ onRowClick }: SessionsTableProps) {
       childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
     >
       <div className="flex flex-1 w-full space-x-2">
-        <TextSearchFilter />
         <DataTableFilter columns={filters} />
         <DateRangeFilter />
         <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getSessions} variant="outline" className="text-xs" />
+        <SearchInput placeholder="Search in sessions..." onSearch={onSearch} />
       </div>
       <DataTableFilterList />
     </DataTable>

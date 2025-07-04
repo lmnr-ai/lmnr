@@ -1,7 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { db } from "@/lib/db/drizzle";
-import { labelClasses, labels, spans, users } from "@/lib/db/migrations/schema";
+import { getSharedSpanLabels } from "@/lib/actions/shared/span";
 
 export async function GET(
   _req: Request,
@@ -11,34 +11,13 @@ export async function GET(
   const spanId = params.spanId;
   const traceId = params.traceId;
 
-  const span = await db.query.spans.findFirst({
-    where: and(eq(spans.spanId, spanId), eq(spans.traceId, traceId)),
-    columns: {
-      spanId: true,
-    },
-  });
-
-  if (!span) {
-    return new Response(JSON.stringify({ error: "Span not found or does not belong to the given trace" }), {
-      status: 404,
-    });
+  try {
+    const labels = await getSharedSpanLabels({ traceId, spanId });
+    return NextResponse.json(labels);
+  } catch (e) {
+    if (e instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(e) }, { status: 400 });
+    }
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to get shared span labels." }, { status: 500 });
   }
-
-  const res = await db
-    .select({
-      id: labels.id,
-      createdAt: labels.createdAt,
-      classId: labels.classId,
-      spanId: labels.spanId,
-      name: labelClasses.name,
-      email: users.email,
-      color: labelClasses.color,
-    })
-    .from(labels)
-    .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-    .leftJoin(users, eq(labels.userId, users.id))
-    .where(eq(labels.spanId, spanId))
-    .orderBy(desc(labels.createdAt));
-
-  return new Response(JSON.stringify(res));
 }

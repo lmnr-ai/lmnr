@@ -1,19 +1,21 @@
 import { isNil } from "lodash";
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { usePostHog } from "posthog-js/react";
 import React, { KeyboardEventHandler, memo, useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
-const SearchEvaluationsInput = ({ className }: { className?: string }) => {
+interface SearchInputProps {
+  onSearch?: (query: string) => void;
+  placeholder?: string;
+  className?: string;
+}
+const SearchInput = ({ onSearch, placeholder, className }: SearchInputProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
-  const posthog = usePostHog();
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
@@ -30,12 +32,10 @@ const SearchEvaluationsInput = ({ className }: { className?: string }) => {
 
     router.push(`${pathName}?${params.toString()}`);
     inputRef.current?.blur();
-    if (isFeatureEnabled(Feature.POSTHOG)) {
-      posthog.capture("evaluations_searched", {
-        searchQuery: inputRef?.current?.value,
-      });
+    if (onSearch) {
+      onSearch(params.toString());
     }
-  }, [pathName, posthog, router, searchParams]);
+  }, [onSearch, pathName, router, searchParams]);
 
   const handleKeyPress: KeyboardEventHandler<HTMLInputElement> = useCallback(
     (e) => {
@@ -64,7 +64,7 @@ const SearchEvaluationsInput = ({ className }: { className?: string }) => {
           defaultValue={searchParams.get("search") ?? ""}
           className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs"
           type="text"
-          placeholder="Search evaluations by name..."
+          placeholder={placeholder}
           onKeyDown={handleKeyPress}
           ref={inputRef}
           onBlur={submit}
@@ -80,4 +80,4 @@ const SearchEvaluationsInput = ({ className }: { className?: string }) => {
   );
 };
 
-export default memo(SearchEvaluationsInput);
+export default memo(SearchInput);

@@ -24,10 +24,7 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
   return (
     <>
       <Header path={`traces/${trace.id}`} childrenContainerClassName="flex-1 mr-2">
-        <TraceStatsShields
-          className="box-border sticky top-0 bg-background"
-          trace={trace}
-        />
+        <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />
         <div className="flex flex-1 gap-2 justify-end mr-2">
           {trace?.hasBrowserSession && (
             <Tooltip>
@@ -76,11 +73,12 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
       </Header>
       <FiltersContextProvider>
         <TraceView
+          spanId={null}
           onLangGraphDetected={() => setHasLangGraph(true)}
           ref={traceViewRef}
           propsTrace={trace}
           fullScreen
-          onClose={() => { }}
+          onClose={() => {}}
           traceId={trace.id}
         />
       </FiltersContextProvider>

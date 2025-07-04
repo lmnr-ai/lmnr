@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowRight, Check, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
@@ -61,9 +61,7 @@ export const columns: ColumnDef<Trace, any>[] = [
           )}
         </div>
         {row.row.original.topSpanName ? (
-          <div className="flex text-sm text-ellipsis overflow-hidden whitespace-nowrap">
-            {row.row.original.topSpanName}
-          </div>
+          <div className="text-sm truncate">{row.row.original.topSpanName}</div>
         ) : isStringDateOld(row.row.original.endTime) ? (
           <NoSpanTooltip>
             <div className="flex text-muted-foreground">None</div>
@@ -154,9 +152,9 @@ export const columns: ColumnDef<Trace, any>[] = [
     header: "Tokens",
     id: "total_token_count",
     cell: (row) => (
-      <div className="flex items-center">
+      <div className="truncate">
         {`${row.row.original.inputTokenCount ?? "-"}`}
-        <ArrowRight size={12} className="mx-1 min-w-[12px]" />
+        {" → "}
         {`${row.row.original.outputTokenCount ?? "-"}`}
         {` (${row.row.original.totalTokenCount ?? "-"})`}
       </div>

@@ -1,14 +1,7 @@
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
 import { GroupByInterval, truncateTimeMap } from "./modifiers";
-import {
-  MetricTimeValue,
-  SpanMetric,
-  SpanMetricGroupBy,
-  SpanMetricType,
-  SpanSearchType,
-  SpanType,
-} from "./types";
+import { MetricTimeValue, SpanMetric, SpanMetricGroupBy, SpanMetricType, SpanSearchType, SpanType } from "./types";
 import {
   addTimeRangeToQuery,
   AggregationFunction,
@@ -18,7 +11,6 @@ import {
   groupByTimeRelativeStatement,
   TimeRange,
 } from "./utils";
-
 
 const NULL_VALUE = "<null>";
 
@@ -153,11 +145,11 @@ export const searchSpans = async ({
   searchType,
   traceId,
 }: {
-  projectId?: string,
-  searchQuery: string,
-  timeRange: TimeRange,
-  searchType?: SpanSearchType[],
-  traceId?: string,
+  projectId?: string;
+  searchQuery: string;
+  timeRange: TimeRange;
+  searchType?: SpanSearchType[];
+  traceId?: string;
 }): Promise<{
   spanIds: Set<string>;
   traceIds: Set<string>;
@@ -176,7 +168,9 @@ export const searchSpans = async ({
   const query = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
 
   const response = await clickhouseClient.query({
-    query: `${query} LIMIT ${DEFAULT_LIMIT}`,
+    query: `${query}
+     ORDER BY spans.start_time DESC
+     LIMIT ${DEFAULT_LIMIT}`,
     format: "JSONEachRow",
     query_params: {
       projectId,
