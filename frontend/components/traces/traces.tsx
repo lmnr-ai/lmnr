@@ -41,7 +41,7 @@ function TracesContent() {
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
   const ref = useRef<Resizable>(null);
-  const { traceId, defaultTraceViewWidth } = useTraceViewState();
+  const { traceId, spanId, defaultTraceViewWidth } = useTraceViewState();
   const { setTraceId, setSpanId, setDefaultTraceViewWidth } = useTraceViewActions();
 
   if (isFeatureEnabled(Feature.POSTHOG)) {
@@ -67,6 +67,7 @@ function TracesContent() {
 
   const handleNavigate = useCallback(
     (item: NavigationItem | null) => {
+      console.log("navigating...", item);
       if (item) {
         if (typeof item === "string") {
           setTraceId(item);
@@ -127,6 +128,7 @@ function TracesContent() {
             >
               <FiltersContextProvider columns={filterColumns}>
                 <TraceView
+                  spanId={spanId}
                   key={traceId}
                   onClose={() => {
                     const params = new URLSearchParams(searchParams);

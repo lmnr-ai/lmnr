@@ -65,6 +65,7 @@ export const useTracesStoreContext = <T,>(selector: (state: TracesStore) => T): 
 export const useTraceViewState = () =>
   useTracesStoreContext((state) => ({
     traceId: state.traceId,
+    spanId: state.spanId,
     defaultTraceViewWidth: state.defaultTraceViewWidth,
   }));
 

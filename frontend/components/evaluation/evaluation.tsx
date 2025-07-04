@@ -341,7 +341,7 @@ export default function Evaluation({
                   </div>
                 )}
                 <FiltersContextProvider>
-                  <TraceView key={traceId} onClose={onClose} traceId={traceId} />
+                  <TraceView spanId={null} key={traceId} onClose={onClose} traceId={traceId} />
                 </FiltersContextProvider>
               </div>
             </Resizable>

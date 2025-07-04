@@ -64,6 +64,7 @@ const TraceViewNavigationProvider = <T,>({
 
   const navigateToItem = useCallback(
     (targetItem: T) => {
+      console.log(targetItem);
       debouncedRouterPush.cancel();
 
       currentItemRef.current = targetItem;
@@ -92,6 +93,7 @@ const TraceViewNavigationProvider = <T,>({
   }, [refList, navigateToItem, config]);
 
   const navigateDown = useCallback(() => {
+    console.log("navigating down", refList, currentItemRef.current);
     if (refList.length === 0) return;
 
     const currentItem = currentItemRef.current;
@@ -149,11 +151,14 @@ export const getTracesConfig = (): NavigationConfig<string | { spanId: string; t
 
     if (!traceId) return null;
 
-    if (!spanId) {
-      return list.find((item) => typeof item === "string" && item === traceId) || null;
-    }
-
-    return list.find((item) => typeof item === "object" && item.spanId === spanId && item.traceId === traceId) || null;
+    return (
+      list.find((item) => {
+        if (typeof item === "string") {
+          return item === traceId;
+        }
+        return item.spanId === spanId && item.traceId === traceId;
+      }) || null
+    );
   },
 });
 
