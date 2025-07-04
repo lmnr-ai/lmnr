@@ -65,7 +65,11 @@ const PureOpenAIContentParts = ({
         <OpenAITextContentPart part={message.content} presetKey={presetKey} />
       ) : (
         (message.content || []).map((part, index) => (
-          <OpenAITextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+          <OpenAITextContentPart
+            key={`${message.role}-${part.type}=${index}`}
+            part={part}
+            presetKey={`${presetKey}-${index}`}
+          />
         ))
       );
     case "assistant":
@@ -75,11 +79,15 @@ const PureOpenAIContentParts = ({
             <OpenAITextContentPart part={message.content} presetKey={presetKey} />
           ) : (
             (message.content || []).map((part, index) => (
-              <OpenAITextContentPart key={`${message.role}-${part.type}=${index}`} part={part} presetKey={presetKey} />
+              <OpenAITextContentPart
+                key={`${message.role}-${part.type}=${index}`}
+                part={part}
+                presetKey={`${presetKey}-${index}`}
+              />
             ))
           )}
-          {(message?.tool_calls || []).map((part) => (
-            <OpenAIToolCallContentPart key={part.id} part={part} presetKey={presetKey} />
+          {(message?.tool_calls || []).map((part, index) => (
+            <OpenAIToolCallContentPart key={part.id} part={part} presetKey={`${presetKey}-${index}`} />
           ))}
         </>
       );
@@ -91,7 +99,9 @@ const PureOpenAIContentParts = ({
       return message.content.map((part, index) => {
         switch (part.type) {
           case "text":
-            return <OpenAITextContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
+            return (
+              <OpenAITextContentPart key={`${part.type}-${index}`} part={part} presetKey={`${presetKey}-${index}`} />
+            );
           case "file":
             return <OpenAIFileContentPart key={`${part.type}-${index}`} part={part} />;
           case "image_url":
@@ -114,7 +124,7 @@ const PureOpenAIContentParts = ({
           key={`${part.type}-${message.tool_call_id}`}
           toolCallId={message.tool_call_id || "-"}
           content={part.text}
-          presetKey={presetKey}
+          presetKey={`${presetKey}-${index}`}
         >
           <OpenAITextContentPart key={`${message.role}-${part.type}-${index}`} part={part} presetKey={presetKey} />
         </ToolResultContentPart>

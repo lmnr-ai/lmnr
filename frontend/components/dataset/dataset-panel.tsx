@@ -138,7 +138,6 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
               <div className="flex flex-col space-y-2">
                 <Label className="font-medium">Data</Label>
                 <CodeHighlighter
-                  showSettingsOnHover={false}
                   className="max-h-[400px] rounded"
                   value={JSON.stringify(newData, null, 2)}
                   defaultMode="json"
@@ -169,7 +168,6 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
               <div className="flex flex-col space-y-2">
                 <Label className="font-medium">Target</Label>
                 <CodeHighlighter
-                  showSettingsOnHover={false}
                   className="max-h-[400px] rounded w-full"
                   value={JSON.stringify(newTarget, null, 2)}
                   defaultMode="json"
@@ -188,7 +186,6 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
               <div className="flex flex-col space-y-2 pb-4">
                 <Label className="font-medium">Metadata</Label>
                 <CodeHighlighter
-                  showSettingsOnHover={false}
                   className="rounded max-h-[400px]"
                   value={JSON.stringify(newMetadata, null, 2)}
                   defaultMode="json"

@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 500 });
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
     return Response.json(
       { error: error instanceof Error ? error.message : "Failed to fetch evaluations." },
@@ -62,7 +62,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
     return new Response("Evaluations deleted successfully", { status: 200 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 500 });
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
     return new Response(error instanceof Error ? error.message : "Error deleting evaluations.", { status: 500 });
   }

@@ -1,45 +1,49 @@
-import { eq } from 'drizzle-orm';
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { db } from '@/lib/db/drizzle';
-import { renderTemplates } from '@/lib/db/migrations/schema';
+import { createRenderTemplate } from "@/lib/actions/render-template";
+import { getRenderTemplates } from "@/lib/actions/render-templates";
 
-export async function GET(
-  req: Request,
-  props: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export async function GET(_req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  try {
+    const params = await props.params;
+    const { projectId } = params;
 
-  const templates = await db.query.renderTemplates.findMany({
-    where: eq(renderTemplates.projectId, projectId),
-    columns: {
-      id: true,
-      name: true,
+    const templates = await getRenderTemplates({ projectId });
+
+    return NextResponse.json(templates);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
-  });
 
-  return NextResponse.json(templates);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to get templates. Please try again." },
+      { status: 500 }
+    );
+  }
 }
 
+export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
+  try {
+    const params = await props.params;
+    const { projectId } = params;
+    const body = await req.json();
 
-export async function POST(
-  req: Request,
-  props: { params: Promise<{ projectId: string }> }
-) {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const body = await req.json();
+    const result = await createRenderTemplate({
+      projectId,
+      name: body.name,
+      code: body.code,
+    });
 
-  const result = await db.insert(renderTemplates).values({
-    projectId,
-    name: body.name,
-    code: body.code
-  }).returning();
-
-  if (!result) {
-    return new Response('Failed to create template', { status: 500 });
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to create template. Please try again." },
+      { status: 500 }
+    );
   }
-
-  return new Response(JSON.stringify(result[0]));
 }

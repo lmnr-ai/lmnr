@@ -33,16 +33,18 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
+        <Button variant="ghost" size="icon" className="text-foreground/80">
           <Maximize className="h-3.5 w-3.5" />
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
         <DialogTitle className="hidden"></DialogTitle>
-        <div className="flex-none border-b items-center flex px-2 justify-between">
+        <div className="flex-none items-center flex px-2 justify-between bg-muted/50">
           <div className="flex justify-start">
             <Select value={mode} onValueChange={onModeChange}>
-              <SelectTrigger className="font-medium text-secondary-foreground bg-secondary text-xs border-gray-600 h-6">
+              <SelectTrigger
+                className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-none focus:ring-0"
+              >
                 <SelectValue placeholder="Select tag type" />
               </SelectTrigger>
               <SelectContent>
@@ -54,7 +56,7 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center">
             <CopyButton iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={renderedValue} />
             <SheetClose asChild>
               <Button variant="ghost" size="icon">
@@ -64,7 +66,7 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
           </div>
         </div>
         <ScrollArea className="flex-grow">
-          <div className="flex flex-col bg-card">
+          <div className="flex flex-col bg-muted/50">
             <CodeMirror
               placeholder={placeholder}
               theme={theme}
