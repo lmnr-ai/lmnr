@@ -28,9 +28,9 @@ enum TracesTab {
 type NavigationItem =
   | string
   | {
-      traceId: string;
-      spanId: string;
-    };
+    traceId: string;
+    spanId: string;
+  };
 
 interface TracesProps {
   initialTraceViewWidth?: number;

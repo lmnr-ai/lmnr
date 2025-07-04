@@ -191,7 +191,7 @@ export default function SpansTable() {
         <DataTableFilter columns={filters} />
         <DateRangeFilter />
         <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getSpans} variant="outline" className="text-xs" />
-        <SearchInput placeholder="Search spans..." />
+        <SearchInput placeholder="Search in spans..." />
       </div>
       <DataTableFilterList />
     </DataTable>

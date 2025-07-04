@@ -232,7 +232,7 @@ export default function SessionsTable() {
         <DataTableFilter columns={filters} />
         <DateRangeFilter />
         <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getSessions} variant="outline" className="text-xs" />
-        <SearchInput placeholder="Search sessions..." onSearch={onSearch} />
+        <SearchInput placeholder="Search in sessions..." onSearch={onSearch} />
       </div>
       <DataTableFilterList />
     </DataTable>

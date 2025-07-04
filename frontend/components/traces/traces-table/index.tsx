@@ -207,9 +207,9 @@ export default function TracesTable() {
         const newTrace =
           rtEventTrace.topSpanType === null && rtEventTrace.topSpanId != null
             ? {
-                ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
-                ...rest,
-              }
+              ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
+              ...rest,
+            }
             : rtEventTrace;
         newTraces.splice(Math.max(insertIndex ?? 0, 0), 0, newTrace);
         if (newTraces.length > pageSize) {
