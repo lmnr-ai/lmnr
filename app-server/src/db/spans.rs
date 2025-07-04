@@ -232,6 +232,6 @@ fn generate_preview(value: &Option<Value>) -> Option<String> {
                 .take(PREVIEW_CHARACTERS)
                 .collect::<String>(),
         ),
-        &None => None,
+        None => None,
     }
 }
