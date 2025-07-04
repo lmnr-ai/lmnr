@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ payloadId
       return NextResponse.json({ error: prettifyError(e) }, { status: 400 });
     }
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Failed to get shared span events." },
+      { error: e instanceof Error ? e.message : "Failed to get shared payload." },
       { status: 500 }
     );
   }

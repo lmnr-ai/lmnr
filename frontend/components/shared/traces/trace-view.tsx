@@ -100,17 +100,18 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
     };
   }, [spans]);
 
-  const [treeViewWidth, setTreeViewWidth] = useState(() => {
+  const [treeViewWidth, setTreeViewWidth] = useState(MIN_TREE_VIEW_WIDTH);
+
+  useEffect(() => {
     try {
       if (typeof window !== "undefined") {
         const savedWidth = localStorage.getItem("trace-view:tree-view-width");
-        return savedWidth ? Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)) : MIN_TREE_VIEW_WIDTH;
+        if (savedWidth) {
+          setTreeViewWidth(Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)));
+        }
       }
-      return MIN_TREE_VIEW_WIDTH;
-    } catch (e) {
-      return MIN_TREE_VIEW_WIDTH;
-    }
-  });
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     try {
