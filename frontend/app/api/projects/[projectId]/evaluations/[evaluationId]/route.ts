@@ -1,7 +1,8 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { split } from "lodash";
 import { NextRequest } from "next/server";
 
-import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
+import { castToDataType, DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { db } from "@/lib/db/drizzle";
@@ -137,8 +138,11 @@ export async function GET(
   const metadataFilters = urlParamFilters
     .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
     .map((filter) => {
-      const [key, value] = filter.value.split(/=(.*)/);
-      return sql`${evaluationResults.metadata} @> ${JSON.stringify({ [key]: value })}`;
+      const [key, valueWithType] = split(filter.value, "=");
+      const [value, dataType] = split(valueWithType, ":");
+      const castedValue = castToDataType(value, dataType);
+
+      return sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: castedValue })}`;
     });
 
   whereConditions.push(...metadataFilters);

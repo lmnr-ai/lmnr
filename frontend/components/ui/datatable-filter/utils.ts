@@ -24,6 +24,24 @@ export const NUMBER_OPERATIONS = [
   { key: "gte", label: ">=" },
   { key: "ne", label: "!=" },
 ];
+
+export const dataTypes = [
+  { label: "Boolean", value: "boolean" },
+  { label: "Number", value: "number" },
+  { label: "String", value: "string" },
+];
+
+export const castToDataType = (value: string, dataType: string) => {
+  switch (dataType) {
+    case "boolean":
+      return value === "true";
+    case "number":
+      return parseInt(value, 10);
+    default:
+      return value;
+  }
+};
+
 export const JSON_OPERATIONS = [{ key: "eq", label: "=" }];
 
 export const dataTypeOperationsMap: Record<ColumnFilter["dataType"], { key: string; label: string }[]> = {

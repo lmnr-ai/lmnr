@@ -1,7 +1,8 @@
 import { and, desc, eq, getTableColumns, inArray, SQL, sql } from "drizzle-orm";
-import { compact } from "lodash";
+import { compact, split } from "lodash";
 import { z } from "zod/v4";
 
+import { castToDataType } from "@/components/ui/datatable-filter/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
@@ -69,8 +70,12 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   const metadataFilters = urlParamFilters
     .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
     .map((filter) => {
-      const [key, value] = filter.value.split(/=(.*)/);
-      return sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: value })}`;
+      const [key, valueWithType] = split(filter.value, "=");
+
+      const [value, dataType] = split(valueWithType, ":");
+      const castedValue = castToDataType(value, dataType);
+
+      return sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: castedValue })}`;
     });
 
   const otherFilters = urlParamFilters.filter((filter) => filter.column !== "metadata");

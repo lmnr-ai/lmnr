@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { find, get, head, isEqual } from "lodash";
+import { capitalize, find, get, head, isEmpty, isEqual } from "lodash";
 import { ListFilter, X } from "lucide-react";
 import { memo, PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -9,6 +9,7 @@ import {
   ColumnFilter,
   DatatableFilter,
   dataTypeOperationsMap,
+  dataTypes,
   JSON_OPERATIONS,
   NUMBER_OPERATIONS,
   STRING_OPERATIONS,
@@ -30,7 +31,7 @@ const FilterPopover = ({ columns, className, onAddFilter, filters, children }: P
   const [filter, setFilter] = useState<DatatableFilter>({ operator: "", column: "", value: "" });
 
   const handleApplyFilters = useCallback(() => {
-    if (!filters.some((f) => isEqual(f, filter))) {
+    if (!filters.some((f) => isEqual(f, filter)) && filter.value && filter.column && filter.operator) {
       onAddFilter(filter);
     }
   }, [filter, filters, onAddFilter]);
@@ -71,7 +72,7 @@ const FilterPopover = ({ columns, className, onAddFilter, filters, children }: P
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent className="z-30 p-0 w-96" side="bottom" align="start">
+      <PopoverContent className="z-30 p-0 w-[412px]" side="bottom" align="start">
         <div className="flex gap-2 p-2">
           <Select value={filter.column} onValueChange={(value) => handleValueChange({ field: "column", value })}>
             <SelectTrigger className="flex truncate font-medium max-w-32">
@@ -90,7 +91,7 @@ const FilterPopover = ({ columns, className, onAddFilter, filters, children }: P
         <div className="flex flex-row-reverse border-t p-2">
           <PopoverClose asChild>
             <Button
-              disabled={!filter.column || !filter.value || !filter.operator}
+              disabled={isEmpty(filter.column) || isEmpty(filter.value) || isEmpty(filter.operator)}
               onClick={handleApplyFilters}
               variant="secondary"
               handleEnter
@@ -115,14 +116,28 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
   const column = useMemo(() => find(columns, ["key", filter.column]), [columns, filter.column]);
   const dataType = column?.dataType || "string";
 
-  const { currentKey, currentValue } = useMemo(() => {
+  const { currentKey, currentValue, currentDataType } = useMemo(() => {
     const equalIndex = filter.value.indexOf("=");
     if (equalIndex === -1) {
-      return { currentKey: filter.value, currentValue: "" };
+      return { currentKey: filter.value, currentValue: "", currentDataType: "string" };
     }
+
+    const key = filter.value.substring(0, equalIndex);
+    const valueAndType = filter.value.substring(equalIndex + 1);
+
+    const colonIndex = valueAndType.indexOf(":");
+    if (colonIndex === -1) {
+      return {
+        currentKey: key,
+        currentValue: valueAndType,
+        currentDataType: "string",
+      };
+    }
+
     return {
-      currentKey: filter.value.substring(0, equalIndex),
-      currentValue: filter.value.substring(equalIndex + 1),
+      currentKey: key,
+      currentValue: valueAndType.substring(0, colonIndex),
+      currentDataType: valueAndType.substring(colonIndex + 1),
     };
   }, [filter.value]);
 
@@ -154,20 +169,60 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
             placeholder="key"
             value={currentKey}
             onChange={(e) => {
-              const newValue = `${e.target.value}=${currentValue}`;
+              const newValue = `${e.target.value}=${currentValue}:${currentDataType}`;
               onValueChange({ field: "value", value: newValue });
             }}
           />
-          <Input
-            type="text"
-            className="h-7 hide-arrow"
-            placeholder="value"
-            value={currentValue}
-            onChange={(e) => {
-              const newValue = `${currentKey}=${e.target.value}`;
+          {currentDataType === "boolean" ? (
+            <Select
+              value={currentValue}
+              onValueChange={(value) => {
+                const newValue = `${currentKey}=${value}:${currentDataType}`;
+                onValueChange({ field: "value", value: newValue });
+              }}
+            >
+              <SelectTrigger className="font-medium flex-1 min-w-20">
+                <SelectValue className="truncate" placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                {["true", "false"].map((item) => (
+                  <SelectItem value={item} key={item}>
+                    <span className="text-xs">{capitalize(item)}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              type="text"
+              className="h-7 hide-arrow"
+              placeholder="value"
+              value={currentValue}
+              onChange={(e) => {
+                const newValue = `${currentKey}=${e.target.value}:${currentDataType}`;
+                onValueChange({ field: "value", value: newValue });
+              }}
+            />
+          )}
+
+          <Select
+            value={currentDataType}
+            onValueChange={(value) => {
+              const newValue = `${currentKey}=${currentValue}:${value}`;
               onValueChange({ field: "value", value: newValue });
             }}
-          />
+          >
+            <SelectTrigger className="font-medium flex-1 min-w-20">
+              <SelectValue className="truncate" placeholder="Select type" />
+            </SelectTrigger>
+            <SelectContent>
+              {dataTypes.map((item) => (
+                <SelectItem value={item.value} key={item.value}>
+                  <span className="text-xs">{item.label}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </>
       );
 
