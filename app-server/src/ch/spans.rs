@@ -77,7 +77,9 @@ impl CHSpan {
         project_id: Uuid,
         size_bytes: usize,
     ) -> Self {
-        let span_attributes = span.get_attributes();
+        let session_id = span.attributes.session_id();
+        let user_id = span.attributes.user_id();
+        let path = span.attributes.flat_path();
 
         let span_input_string = json_value_to_string(
             span.input
@@ -107,16 +109,12 @@ impl CHSpan {
                 .response_model
                 .or(usage.request_model)
                 .unwrap_or(String::from("<null>")),
-            session_id: span_attributes
-                .session_id()
-                .unwrap_or(String::from("<null>")),
+            session_id: session_id.unwrap_or(String::from("<null>")),
             project_id: project_id,
             trace_id: span.trace_id,
             provider: usage.provider_name.unwrap_or(String::from("<null>")),
-            user_id: span_attributes.user_id().unwrap_or(String::from("<null>")),
-            path: span_attributes
-                .flat_path()
-                .unwrap_or(String::from("<null>")),
+            user_id: user_id.unwrap_or(String::from("<null>")),
+            path: path.unwrap_or(String::from("<null>")),
             input: span_input_string,
             output: span_output_string,
             status: span.status.clone().unwrap_or(String::from("<null>")),

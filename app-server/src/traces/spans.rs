@@ -8,8 +8,8 @@ use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use indexmap::IndexMap;
 use regex::Regex;
-use serde::Deserialize;
-use serde_json::{Map, Value, json};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
@@ -90,21 +90,24 @@ impl InputTokens {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SpanAttributes {
-    pub attributes: HashMap<String, Value>,
+    pub raw_attributes: HashMap<String, Value>,
 }
 
 impl SpanAttributes {
     pub fn new(attributes: HashMap<String, Value>) -> Self {
-        Self { attributes }
+        Self {
+            raw_attributes: attributes,
+        }
     }
 
     pub fn session_id(&self) -> Option<String> {
         let session_id_val = self
-            .attributes
+            .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id"))
-            .or(self.attributes.get("ai.telemetry.metadata.session_id"))
-            .or(self.attributes.get("ai.telemetry.metadata.sessionId"));
+            .or(self.raw_attributes.get("ai.telemetry.metadata.session_id"))
+            .or(self.raw_attributes.get("ai.telemetry.metadata.sessionId"));
         match session_id_val {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -113,10 +116,10 @@ impl SpanAttributes {
 
     pub fn user_id(&self) -> Option<String> {
         let user_id_val = self
-            .attributes
+            .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.user_id"))
-            .or(self.attributes.get("ai.telemetry.metadata.userId"))
-            .or(self.attributes.get("ai.telemetry.metadata.user_id"));
+            .or(self.raw_attributes.get("ai.telemetry.metadata.userId"))
+            .or(self.raw_attributes.get("ai.telemetry.metadata.user_id"));
         match user_id_val {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -124,19 +127,19 @@ impl SpanAttributes {
     }
 
     pub fn trace_type(&self) -> Option<TraceType> {
-        self.attributes
+        self.raw_attributes
             .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type").as_str())
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
     pub fn input_tokens(&mut self) -> InputTokens {
         let total_input_tokens =
-            if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_INPUT_TOKENS) {
+            if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_INPUT_TOKENS) {
                 n.as_i64().unwrap_or(0)
-            } else if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_PROMPT_TOKENS) {
+            } else if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_PROMPT_TOKENS) {
                 // updating to the new convention
                 let n = n.as_i64().unwrap_or(0);
-                self.attributes
+                self.raw_attributes
                     .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(n));
                 n
             } else {
@@ -144,12 +147,12 @@ impl SpanAttributes {
             };
 
         let cache_write_tokens = self
-            .attributes
+            .raw_attributes
             .get(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
         let cache_read_tokens = self
-            .attributes
+            .raw_attributes
             .get(GEN_AI_CACHE_READ_INPUT_TOKENS)
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
@@ -165,12 +168,12 @@ impl SpanAttributes {
     }
 
     pub fn completion_tokens(&mut self) -> i64 {
-        if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_OUTPUT_TOKENS) {
+        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_OUTPUT_TOKENS) {
             n.as_i64().unwrap_or(0)
-        } else if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_COMPLETION_TOKENS) {
+        } else if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_COMPLETION_TOKENS) {
             // updating to the new convention
             let n = n.as_i64().unwrap_or(0);
-            self.attributes
+            self.raw_attributes
                 .insert(GEN_AI_OUTPUT_TOKENS.to_string(), json!(n));
             n
         } else {
@@ -179,26 +182,26 @@ impl SpanAttributes {
     }
 
     pub fn request_model(&self) -> Option<String> {
-        match self.attributes.get(GEN_AI_REQUEST_MODEL) {
+        match self.raw_attributes.get(GEN_AI_REQUEST_MODEL) {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
     }
 
     pub fn response_model(&self) -> Option<String> {
-        match self.attributes.get(GEN_AI_RESPONSE_MODEL) {
+        match self.raw_attributes.get(GEN_AI_RESPONSE_MODEL) {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
     }
 
     pub fn provider_name(&self) -> Option<String> {
-        let name = if let Some(Value::String(provider)) = self.attributes.get(GEN_AI_SYSTEM) {
+        let name = if let Some(Value::String(provider)) = self.raw_attributes.get(GEN_AI_SYSTEM) {
             // Traceloop's auto-instrumentation sends the provider name as "Langchain" and the actual provider
             // name as an attribute `association_properties.ls_provider`.
             if provider == "Langchain" {
                 let ls_provider = self
-                    .attributes
+                    .raw_attributes
                     .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.ls_provider").as_str())
                     .and_then(|s| serde_json::from_value(s.clone()).ok());
                 if let Some(ls_provider) = ls_provider {
@@ -218,13 +221,13 @@ impl SpanAttributes {
     }
 
     pub fn span_type(&self) -> SpanType {
-        if let Some(span_type) = self.attributes.get(SPAN_TYPE) {
+        if let Some(span_type) = self.raw_attributes.get(SPAN_TYPE) {
             serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default()
         } else {
             // quick hack until we figure how to set span type on auto-instrumentation
-            if self.attributes.contains_key(GEN_AI_SYSTEM)
+            if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
                 || self
-                    .attributes
+                    .raw_attributes
                     .iter()
                     .any(|(k, _)| k.starts_with("gen_ai.") || k.starts_with("llm."))
             {
@@ -245,7 +248,7 @@ impl SpanAttributes {
     }
 
     fn raw_path(&self) -> Option<Vec<String>> {
-        match self.attributes.get(SPAN_PATH) {
+        match self.raw_attributes.get(SPAN_PATH) {
             Some(Value::Array(arr)) => Some(arr.iter().map(|v| json_value_to_string(v)).collect()),
             Some(Value::String(s)) => Some(vec![s.clone()]),
             _ => None,
@@ -257,7 +260,7 @@ impl SpanAttributes {
     }
 
     pub fn ids_path(&self) -> Option<Vec<String>> {
-        let attributes_ids_path = match self.attributes.get(SPAN_IDS_PATH) {
+        let attributes_ids_path = match self.raw_attributes.get(SPAN_IDS_PATH) {
             Some(Value::Array(arr)) => Some(
                 arr.iter()
                     .map(|v| json_value_to_string(v))
@@ -287,27 +290,27 @@ impl SpanAttributes {
     }
 
     pub fn set_usage(&mut self, usage: &SpanUsage) {
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(usage.input_tokens));
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_OUTPUT_TOKENS.to_string(), json!(usage.output_tokens));
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_TOTAL_COST.to_string(), json!(usage.total_cost));
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_INPUT_COST.to_string(), json!(usage.input_cost));
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_OUTPUT_COST.to_string(), json!(usage.output_cost));
 
         if let Some(request_model) = &usage.request_model {
-            self.attributes
+            self.raw_attributes
                 .insert(GEN_AI_REQUEST_MODEL.to_string(), json!(request_model));
         }
         if let Some(response_model) = &usage.response_model {
-            self.attributes
+            self.raw_attributes
                 .insert(GEN_AI_RESPONSE_MODEL.to_string(), json!(response_model));
         }
         if let Some(provider_name) = &usage.provider_name {
-            self.attributes
+            self.raw_attributes
                 .insert(GEN_AI_SYSTEM.to_string(), json!(provider_name));
         }
     }
@@ -320,17 +323,17 @@ impl SpanAttributes {
     /// NOTE: Nested spans generated by Langchain auto-instrumentation may have the same path
     /// because we don't have a way to set the span name/path in the auto-instrumentation code.
     pub fn extend_span_path(&mut self, span_name: &str) {
-        if let Some(serde_json::Value::Array(path)) = self.attributes.get(SPAN_PATH) {
+        if let Some(serde_json::Value::Array(path)) = self.raw_attributes.get(SPAN_PATH) {
             if path.len() > 0
                 && !matches!(path.last().unwrap(), serde_json::Value::String(s) if s == span_name)
             {
                 let mut new_path = path.clone();
                 new_path.push(serde_json::Value::String(span_name.to_string()));
-                self.attributes
+                self.raw_attributes
                     .insert(SPAN_PATH.to_string(), Value::Array(new_path));
             }
         } else {
-            self.attributes.insert(
+            self.raw_attributes.insert(
                 SPAN_PATH.to_string(),
                 Value::Array(vec![serde_json::Value::String(span_name.to_string())]),
             );
@@ -338,7 +341,7 @@ impl SpanAttributes {
     }
 
     pub fn update_path(&mut self) {
-        self.attributes.insert(
+        self.raw_attributes.insert(
             SPAN_IDS_PATH.to_string(),
             Value::Array(
                 self.ids_path()
@@ -348,7 +351,7 @@ impl SpanAttributes {
                     .collect(),
             ),
         );
-        self.attributes.insert(
+        self.raw_attributes.insert(
             SPAN_PATH.to_string(),
             Value::Array(
                 self.path()
@@ -362,10 +365,10 @@ impl SpanAttributes {
 
     pub fn labels(&self) -> Vec<String> {
         let attr_tags = self
-            .attributes
+            .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.tags"));
         let attr_labels = self
-            .attributes
+            .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels"));
         match attr_tags.or(attr_labels) {
             Some(Value::Array(arr)) => arr.iter().map(|v| json_value_to_string(v)).collect(),
@@ -400,7 +403,7 @@ impl SpanAttributes {
     ) -> HashMap<String, Value> {
         let mut res = HashMap::new();
         let prefix = format!("{attribute_prefix}.{entity}.");
-        for (key, value) in self.attributes.iter() {
+        for (key, value) in self.raw_attributes.iter() {
             if key.starts_with(&prefix) {
                 res.insert(
                     key.strip_prefix(&prefix).unwrap().to_string(),
@@ -412,33 +415,21 @@ impl SpanAttributes {
     }
 
     fn tracing_level(&self) -> Option<TracingLevel> {
-        self.attributes
+        self.raw_attributes
             .get(TRACING_LEVEL_ATTRIBUTE_NAME)
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
     pub fn has_browser_session(&self) -> Option<bool> {
-        self.attributes
+        self.raw_attributes
             .get(HAS_BROWSER_SESSION_ATTRIBUTE_NAME)
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 }
 
 impl Span {
-    pub fn get_attributes(&self) -> SpanAttributes {
-        let attributes =
-            serde_json::from_value::<HashMap<String, Value>>(self.attributes.clone()).unwrap();
-
-        SpanAttributes::new(attributes)
-    }
-
-    pub fn set_attributes(&mut self, attributes: &SpanAttributes) {
-        self.attributes = serde_json::to_value(&attributes.attributes).unwrap();
-    }
-
     pub fn should_save(&self) -> bool {
-        self.get_attributes().tracing_level() != Some(TracingLevel::Off)
-            && !skip_span_name(&self.name)
+        self.attributes.tracing_level() != Some(TracingLevel::Off) && !skip_span_name(&self.name)
     }
 
     /// Create a span from an OpenTelemetry span.
@@ -460,25 +451,27 @@ impl Span {
             .attributes
             .into_iter()
             .map(|k| (k.key, convert_any_value_to_json_value(k.value)))
-            .collect::<serde_json::Map<String, serde_json::Value>>();
+            .collect::<HashMap<String, Value>>();
+
+        let override_parent_span = attributes.get(OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME).cloned();
 
         let mut span = Span {
             span_id,
             trace_id,
             parent_span_id,
             name: otel_span.name,
-            attributes: serde_json::Value::Object(attributes.clone()),
+            attributes: SpanAttributes::new(attributes),
             start_time: Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64),
             end_time: Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64),
             ..Default::default()
         };
 
         // Only set span type and handle basic attribute overrides - keep this lightweight
-        span.span_type = span.get_attributes().span_type();
+        span.span_type = span.attributes.span_type();
 
         // Spans with this attribute are wrapped in a NonRecordingSpan that, and we only
         // do that when we add a new span to a trace as a root span.
-        if let Some(Value::Bool(true)) = attributes.get(OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME) {
+        if let Some(Value::Bool(true)) = override_parent_span {
             span.parent_span_id = None;
         }
 
@@ -489,20 +482,27 @@ impl Span {
     /// This is called on the consumer side where we can afford heavier processing.
     pub fn parse_and_enrich_attributes(&mut self) {
         // Get the raw attributes map for parsing
-        let mut attributes = if let serde_json::Value::Object(ref attrs) = self.attributes {
-            attrs.clone()
-        } else {
+        if self.attributes.raw_attributes.is_empty() {
             return;
-        };
+        }
 
         if self.span_type == SpanType::LLM {
-            if attributes.get("gen_ai.prompt.0.content").is_some() {
-                let input_messages =
-                    input_chat_messages_from_prompt_content(&attributes, "gen_ai.prompt");
+            if self
+                .attributes
+                .raw_attributes
+                .get("gen_ai.prompt.0.content")
+                .is_some()
+            {
+                let input_messages = input_chat_messages_from_prompt_content(
+                    &self.attributes.raw_attributes,
+                    "gen_ai.prompt",
+                );
 
                 self.input = Some(json!(input_messages));
-                self.output = output_from_completion_content(&attributes);
-            } else if let Some(stringified_value) = attributes
+                self.output = output_from_completion_content(&self.attributes.raw_attributes);
+            } else if let Some(stringified_value) = self
+                .attributes
+                .raw_attributes
                 .get("ai.prompt.messages")
                 .and_then(|v| v.as_str())
             {
@@ -513,7 +513,7 @@ impl Span {
                     }
                 }
 
-                if let Some(output) = try_parse_ai_sdk_output(&attributes) {
+                if let Some(output) = try_parse_ai_sdk_output(&self.attributes.raw_attributes) {
                     self.output = Some(output);
                 }
             }
@@ -524,20 +524,37 @@ impl Span {
             self.input = self
                 .input
                 .take()
-                .or(attributes.get("llm.openai.messages").cloned())
-                .or(attributes.get("llm.anthropic.messages").cloned());
+                .or(self
+                    .attributes
+                    .raw_attributes
+                    .get("llm.openai.messages")
+                    .cloned())
+                .or(self
+                    .attributes
+                    .raw_attributes
+                    .get("llm.anthropic.messages")
+                    .cloned());
 
             self.output = self
                 .output
                 .take()
-                .or(attributes.get("llm.openai.choices").cloned())
-                .or(attributes.get("llm.anthropic.content").cloned());
+                .or(self
+                    .attributes
+                    .raw_attributes
+                    .get("llm.openai.choices")
+                    .cloned())
+                .or(self
+                    .attributes
+                    .raw_attributes
+                    .get("llm.anthropic.content")
+                    .cloned());
         }
 
         // Vercel AI SDK wraps "raw" LLM spans in an additional `ai.generateText` span.
         // Which is not really an LLM span, but it has the prompt in its attributes.
         // Set the input to the prompt and the output to the response.
-        if let Some(serde_json::Value::String(s)) = attributes.get("ai.prompt") {
+        if let Some(serde_json::Value::String(s)) = self.attributes.raw_attributes.get("ai.prompt")
+        {
             let ai_prompt =
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
             if let Some(messages_value) = ai_prompt.get("messages") {
@@ -559,15 +576,22 @@ impl Span {
                 }
                 self.input = Some(serde_json::to_value(messages).unwrap());
             }
-            self.output = self.output.take().or(try_parse_ai_sdk_output(&attributes));
+            self.output = self
+                .output
+                .take()
+                .or(try_parse_ai_sdk_output(&self.attributes.raw_attributes));
             // Rename AI SDK spans to what's set by telemetry.functionId
-            if let Some(Value::String(s)) = attributes.get("operation.name") {
+            if let Some(Value::String(s)) = self.attributes.raw_attributes.get("operation.name") {
                 if s.starts_with(&format!("{} ", self.name)) {
                     let new_name = s
                         .strip_prefix(&format!("{} ", self.name))
                         .unwrap_or(&self.name)
                         .to_string();
-                    rename_last_span_in_path(&mut attributes, &self.name, &new_name);
+                    rename_last_span_in_path(
+                        &mut self.attributes.raw_attributes,
+                        &self.name,
+                        &new_name,
+                    );
                     self.name = new_name;
                 }
             }
@@ -575,18 +599,22 @@ impl Span {
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
         // Take their values if input/output are not already set.
-        self.input = self
-            .input
-            .take()
-            .or(attributes.get("traceloop.entity.input").cloned());
-        self.output = self
-            .output
-            .take()
-            .or(attributes.get("traceloop.entity.output").cloned());
+        self.input = self.input.take().or(self
+            .attributes
+            .raw_attributes
+            .get("traceloop.entity.input")
+            .cloned());
+        self.output = self.output.take().or(self
+            .attributes
+            .raw_attributes
+            .get("traceloop.entity.output")
+            .cloned());
 
         // Ignore inputs for Traceloop Langchain RunnableSequence spans
         if self.name.starts_with("RunnableSequence")
-            && attributes
+            && self
+                .attributes
+                .raw_attributes
                 .get("traceloop.entity.name")
                 .map(|s| json_value_to_string(s) == "RunnableSequence")
                 .unwrap_or(false)
@@ -597,7 +625,9 @@ impl Span {
         // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
         // attributes over gen_ai/vercel/LiteLLM attributes.
         // Therefore this block is outside and after the LLM span type check.
-        if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
+        if let Some(serde_json::Value::String(s)) =
+            self.attributes.raw_attributes.get(INPUT_ATTRIBUTE_NAME)
+        {
             let input =
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
             if self.span_type == SpanType::LLM {
@@ -611,30 +641,19 @@ impl Span {
                 self.input = Some(input);
             }
         }
-        if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
+        if let Some(serde_json::Value::String(s)) =
+            self.attributes.raw_attributes.get(OUTPUT_ATTRIBUTE_NAME)
+        {
             // TODO: try parse output as ChatMessage with tool calls
             self.output = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
         }
 
-        if let Some(TracingLevel::MetaOnly) = self.get_attributes().tracing_level() {
+        if let Some(TracingLevel::MetaOnly) = self.attributes.tracing_level() {
             self.input = None;
             self.output = None;
         }
-        self.attributes = serde_json::Value::Object(
-            attributes
-                .into_iter()
-                .filter_map(|(k, v)| {
-                    if should_keep_attribute(&k) {
-                        let converted_val = convert_attribute(&k, v);
-                        Some((k, converted_val))
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-        );
     }
 
     pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
@@ -695,7 +714,7 @@ impl Span {
     }
 }
 
-fn should_keep_attribute(attribute: &str) -> bool {
+pub fn should_keep_attribute(attribute: &str) -> bool {
     // do not duplicate function input/output as they are stored in DEFAULT span's input/output
     if attribute == INPUT_ATTRIBUTE_NAME || attribute == OUTPUT_ATTRIBUTE_NAME {
         return false;
@@ -749,7 +768,7 @@ pub struct SpanUsage {
 }
 
 fn input_chat_messages_from_prompt_content(
-    attributes: &serde_json::Map<String, serde_json::Value>,
+    attributes: &HashMap<String, Value>,
     prefix: &str,
 ) -> Vec<ChatMessage> {
     let mut input_messages: Vec<ChatMessage> = vec![];
@@ -872,7 +891,8 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
     }
 }
 
-fn convert_attribute(key: &str, value: serde_json::Value) -> serde_json::Value {
+// TODO: move this to a separate funciton, e.g. parse_ai_sdk_tool_calls_outer
+pub fn convert_attribute(key: &str, value: serde_json::Value) -> serde_json::Value {
     if key == "ai.prompt.tools" {
         if let Some(tools) = value.as_array() {
             serde_json::Value::Array(
@@ -897,7 +917,7 @@ fn convert_attribute(key: &str, value: serde_json::Value) -> serde_json::Value {
 }
 
 fn output_from_completion_content(
-    attributes: &serde_json::Map<String, serde_json::Value>,
+    attributes: &HashMap<String, Value>,
 ) -> Option<serde_json::Value> {
     let mut out_vec = Vec::new();
     let completion_message_count = attributes
@@ -925,7 +945,7 @@ fn output_from_completion_content(
 }
 
 fn output_message_from_completion_content(
-    attributes: &serde_json::Map<String, serde_json::Value>,
+    attributes: &HashMap<String, Value>,
     prefix: &str,
 ) -> Option<ChatMessage> {
     let msg_content = attributes.get(format!("{prefix}.content").as_str());
@@ -985,10 +1005,7 @@ fn output_message_from_completion_content(
     }
 }
 
-fn parse_tool_calls(
-    attributes: &serde_json::Map<String, serde_json::Value>,
-    prefix: &str,
-) -> Vec<ChatMessageToolCall> {
+fn parse_tool_calls(attributes: &HashMap<String, Value>, prefix: &str) -> Vec<ChatMessageToolCall> {
     let mut tool_calls = Vec::new();
     let mut i = 0;
 
@@ -1038,9 +1055,7 @@ fn parse_tool_calls(
     tool_calls
 }
 
-fn try_parse_ai_sdk_output(
-    attributes: &serde_json::Map<String, serde_json::Value>,
-) -> Option<serde_json::Value> {
+fn try_parse_ai_sdk_output(attributes: &HashMap<String, Value>) -> Option<serde_json::Value> {
     let mut messages = Vec::new();
     // let mut out_vals: Vec<serde_json::Value> = Vec::new();
     if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
@@ -1108,7 +1123,7 @@ fn parse_ai_sdk_tool_calls(
         .collect::<Vec<_>>()
 }
 
-fn rename_last_span_in_path(attributes: &mut Map<String, Value>, from: &str, to: &str) {
+fn rename_last_span_in_path(attributes: &mut HashMap<String, Value>, from: &str, to: &str) {
     if let Some(path_value) = attributes.get_mut(SPAN_PATH) {
         if let Some(path_array) = path_value.as_array_mut() {
             if let Some(last) = path_array.last_mut() {
@@ -1143,7 +1158,7 @@ mod tests {
         );
 
         let prefix = "gen_ai.completion.0";
-        let tool_calls = parse_tool_calls(&attributes, prefix);
+        let tool_calls = parse_tool_calls(&attributes.into_iter().collect(), prefix);
 
         assert_eq!(tool_calls.len(), 1);
         let tool_call = &tool_calls[0];

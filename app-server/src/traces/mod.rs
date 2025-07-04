@@ -54,8 +54,7 @@ pub async fn process_spans_and_events(
     acker: MessageQueueAcker,
     evaluators_queue: Arc<MessageQueue>,
 ) {
-    let span_usage =
-        get_llm_usage_for_span(&mut span.get_attributes(), db.clone(), cache.clone()).await;
+    let span_usage = get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone()).await;
 
     let mut has_seen_first_token = false;
 
@@ -81,7 +80,7 @@ pub async fn process_spans_and_events(
 
     let trace_attributes = prepare_span_for_recording(span, &span_usage, &events);
 
-    if let Some(span_path) = span.get_attributes().path() {
+    if let Some(span_path) = span.attributes.path() {
         match get_evaluators_by_path(&db, *project_id, span_path.clone()).await {
             Ok(evaluators) => {
                 if !evaluators.is_empty() {

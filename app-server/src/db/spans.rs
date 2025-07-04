@@ -7,6 +7,8 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
+use crate::traces::spans::{SpanAttributes, convert_attribute, should_keep_attribute};
+
 use super::utils::sanitize_value;
 
 const PREVIEW_CHARACTERS: usize = 50;
@@ -51,7 +53,7 @@ pub struct Span {
     pub trace_id: Uuid,
     pub parent_span_id: Option<Uuid>,
     pub name: String,
-    pub attributes: Value,
+    pub attributes: SpanAttributes,
     pub input: Option<Value>,
     pub output: Option<Value>,
     pub span_type: SpanType,
@@ -95,6 +97,22 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
         ),
         &None => None,
     };
+
+    let attributes_value = serde_json::Value::Object(
+        span.attributes
+            .raw_attributes
+            .clone()
+            .into_iter()
+            .filter_map(|(k, v)| {
+                if should_keep_attribute(&k) {
+                    let converted_val = convert_attribute(&k, v);
+                    Some((k, converted_val))
+                } else {
+                    None
+                }
+            })
+            .collect::<serde_json::Map<String, Value>>(),
+    );
 
     sqlx::query(
         "INSERT INTO spans
@@ -155,7 +173,7 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
     .bind(&span.start_time)
     .bind(&span.end_time)
     .bind(&span.name)
-    .bind(&span.attributes)
+    .bind(&attributes_value)
     .bind(&sanitized_input as &Option<Value>)
     .bind(&sanitized_output as &Option<Value>)
     .bind(&span.span_type as &SpanType)
