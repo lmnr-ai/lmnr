@@ -135,7 +135,7 @@ pub async fn record_labels_to_db_and_ch(
     span: &Span,
     project_id: &Uuid,
 ) -> anyhow::Result<()> {
-    let labels = span.get_attributes().labels();
+    let labels = span.attributes.labels();
     if labels.is_empty() {
         return Ok(());
     }
@@ -201,8 +201,6 @@ pub fn prepare_span_for_recording(
     trace_attributes.update_start_time(span.start_time);
     trace_attributes.update_end_time(span.end_time);
 
-    let mut span_attributes = span.get_attributes();
-
     events.iter().for_each(|event| {
         // Check if it's an exception event
         if event.name == "exception" {
@@ -211,11 +209,11 @@ pub fn prepare_span_for_recording(
         }
     });
 
-    trace_attributes.update_session_id(span_attributes.session_id());
-    trace_attributes.update_user_id(span_attributes.user_id());
-    trace_attributes.update_trace_type(span_attributes.trace_type());
-    trace_attributes.set_metadata(span_attributes.metadata());
-    if let Some(has_browser_session) = span_attributes.has_browser_session() {
+    trace_attributes.update_session_id(span.attributes.session_id());
+    trace_attributes.update_user_id(span.attributes.user_id());
+    trace_attributes.update_trace_type(span.attributes.trace_type());
+    trace_attributes.set_metadata(span.attributes.metadata());
+    if let Some(has_browser_session) = span.attributes.has_browser_session() {
         trace_attributes.set_has_browser_session(has_browser_session);
     }
 
@@ -227,11 +225,11 @@ pub fn prepare_span_for_recording(
         trace_attributes.add_input_tokens(span_usage.input_tokens);
         trace_attributes.add_output_tokens(span_usage.output_tokens);
         trace_attributes.add_total_tokens(span_usage.total_tokens);
-        span_attributes.set_usage(&span_usage);
+        span.attributes.set_usage(&span_usage);
     }
 
-    span_attributes.extend_span_path(&span.name);
-    span_attributes.ids_path().map(|path| {
+    span.attributes.extend_span_path(&span.name);
+    span.attributes.ids_path().map(|path| {
         // set the parent to the second last id in the path
         if path.len() > 1 {
             let parent_id = path
@@ -243,7 +241,7 @@ pub fn prepare_span_for_recording(
         }
     });
 
-    if is_top_span(&span, &span_attributes) {
+    if is_top_span(&span, &span.attributes) {
         span.parent_span_id = None;
     }
 
@@ -251,8 +249,7 @@ pub fn prepare_span_for_recording(
     if span.parent_span_id.is_none() {
         trace_attributes.set_top_span_id(span.span_id);
     }
-    span_attributes.update_path();
-    span.set_attributes(&span_attributes);
+    span.attributes.update_path();
 
     trace_attributes
 }

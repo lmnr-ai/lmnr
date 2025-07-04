@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::{events::Event, spans::Span},
+    db::{events::Event, spans::Span, utils::span_id_to_uuid},
     mq::{MessageQueue, MessageQueueTrait},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
@@ -26,13 +26,16 @@ pub async fn push_spans_to_queue(
     for resource_span in request.resource_spans {
         for scope_span in resource_span.scope_spans {
             for otel_span in scope_span.spans {
-                let span = Span::from_otel_span(otel_span.clone());
+                let span_id = span_id_to_uuid(&otel_span.span_id);
 
                 let events = otel_span
                     .events
+                    .clone()
                     .into_iter()
-                    .map(|event| Event::from_otel(event, span.span_id, project_id))
+                    .map(|event| Event::from_otel(event, span_id, project_id))
                     .collect::<Vec<Event>>();
+
+                let span = Span::from_otel_span(otel_span);
 
                 if !span.should_save() {
                     continue;
