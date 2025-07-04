@@ -66,53 +66,16 @@ pub struct Span {
     pub output_url: Option<String>,
 }
 
+struct SpanDBValues {
+    sanitized_input: Option<Value>,
+    sanitized_output: Option<Value>,
+    input_preview: Option<String>,
+    output_preview: Option<String>,
+    attributes_value: Value,
+}
+
 pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
-    let sanitized_input = match &span.input {
-        Some(v) => Some(sanitize_value(v)),
-        None => None,
-    };
-
-    let sanitized_output = match &span.output {
-        Some(v) => Some(sanitize_value(v)),
-        None => None,
-    };
-
-    let input_preview = match &sanitized_input {
-        &Some(Value::String(ref s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
-        &Some(ref v) => Some(
-            v.to_string()
-                .chars()
-                .take(PREVIEW_CHARACTERS)
-                .collect::<String>(),
-        ),
-        &None => None,
-    };
-    let output_preview = match &sanitized_output {
-        &Some(Value::String(ref s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
-        &Some(ref v) => Some(
-            v.to_string()
-                .chars()
-                .take(PREVIEW_CHARACTERS)
-                .collect::<String>(),
-        ),
-        &None => None,
-    };
-
-    let attributes_value = serde_json::Value::Object(
-        span.attributes
-            .raw_attributes
-            .clone()
-            .into_iter()
-            .filter_map(|(k, v)| {
-                if should_keep_attribute(&k) {
-                    let converted_val = convert_attribute(&k, v);
-                    Some((k, converted_val))
-                } else {
-                    None
-                }
-            })
-            .collect::<serde_json::Map<String, Value>>(),
-    );
+    let values = prepare_span_db_values(span);
 
     sqlx::query(
         "INSERT INTO spans
@@ -173,12 +136,12 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
     .bind(&span.start_time)
     .bind(&span.end_time)
     .bind(&span.name)
-    .bind(&attributes_value)
-    .bind(&sanitized_input as &Option<Value>)
-    .bind(&sanitized_output as &Option<Value>)
+    .bind(&values.attributes_value)
+    .bind(&values.sanitized_input as &Option<Value>)
+    .bind(&values.sanitized_output as &Option<Value>)
     .bind(&span.span_type as &SpanType)
-    .bind(&input_preview)
-    .bind(&output_preview)
+    .bind(&values.input_preview)
+    .bind(&values.output_preview)
     .bind(&span.input_url as &Option<String>)
     .bind(&span.output_url as &Option<String>)
     .bind(&span.status)
@@ -220,4 +183,55 @@ pub async fn is_span_in_project(pool: &PgPool, span_id: &Uuid, project_id: &Uuid
     .await?;
 
     Ok(exists)
+}
+
+fn prepare_span_db_values(span: &Span) -> SpanDBValues {
+    let sanitized_input = match &span.input {
+        Some(v) => Some(sanitize_value(v)),
+        None => None,
+    };
+
+    let sanitized_output = match &span.output {
+        Some(v) => Some(sanitize_value(v)),
+        None => None,
+    };
+
+    let input_preview = generate_preview(&sanitized_input);
+    let output_preview = generate_preview(&sanitized_output);
+
+    let attributes_value = serde_json::Value::Object(
+        span.attributes
+            .raw_attributes
+            .iter()
+            .filter_map(|(k, v)| {
+                if should_keep_attribute(&k) {
+                    let converted_val = convert_attribute(&k, v.clone());
+                    Some((k.clone(), converted_val))
+                } else {
+                    None
+                }
+            })
+            .collect::<serde_json::Map<String, Value>>(),
+    );
+
+    SpanDBValues {
+        sanitized_input,
+        sanitized_output,
+        input_preview,
+        output_preview,
+        attributes_value,
+    }
+}
+
+fn generate_preview(value: &Option<Value>) -> Option<String> {
+    match &value {
+        Some(Value::String(s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
+        Some(v) => Some(
+            v.to_string()
+                .chars()
+                .take(PREVIEW_CHARACTERS)
+                .collect::<String>(),
+        ),
+        &None => None,
+    }
 }
