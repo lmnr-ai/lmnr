@@ -1,5 +1,4 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowRight } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
@@ -145,9 +144,9 @@ export const columns: ColumnDef<Span, any>[] = [
     cell: (row) => {
       if (row.getValue()) {
         return (
-          <div className="flex items-center">
+          <div className="truncate">
             {`${row.row.original.attributes["gen_ai.usage.input_tokens"] ?? "-"}`}
-            <ArrowRight size={12} className="mx-1 min-w-[12px]" />
+            {" → "}
             {`${row.row.original.attributes["gen_ai.usage.output_tokens"] ?? "-"}`}
             {` (${row.getValue() ?? "-"})`}
           </div>
