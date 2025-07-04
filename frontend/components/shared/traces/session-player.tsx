@@ -33,6 +33,8 @@ export interface SessionPlayerHandle {
   goto: (time: number) => void;
 }
 
+const speedOptions = [1, 2, 4, 8, 16];
+
 const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
   ({ hasBrowserSession, traceId, onTimelineChange }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -147,6 +149,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         playerRef.current = new rrwebPlayer({
           target: playerContainerRef.current,
           props: {
+            speedOption: speedOptions,
             autoPlay: false,
             skipInactive: false,
             events,
@@ -312,7 +315,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
                 {speed}x
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                {[1, 2, 4, 8, 16].map((speedOption) => (
+                {speedOptions.map((speedOption) => (
                   <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
                     {speedOption}x
                   </DropdownMenuItem>
