@@ -7,7 +7,7 @@ import SearchInput from "@/components/common/search-input";
 import RefreshButton from "@/components/traces/refresh-button";
 import { columns, filters } from "@/components/traces/spans-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
-import { useTracesStore } from "@/components/traces/traces-store";
+import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span } from "@/lib/traces/types";
@@ -23,7 +23,7 @@ export default function SpansTable() {
   const pathName = usePathname();
   const router = useRouter();
   const { toast } = useToast();
-  const { setTraceId, setSpanId, spanId } = useTracesStore((state) => ({
+  const { setTraceId, setSpanId, spanId } = useTracesStoreContext((state) => ({
     setTraceId: state.setTraceId,
     spanId: state.spanId,
     setSpanId: state.setSpanId,

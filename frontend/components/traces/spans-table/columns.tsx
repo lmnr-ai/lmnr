@@ -89,21 +89,14 @@ export const columns: ColumnDef<Span, any>[] = [
   },
   {
     accessorKey: "spanType",
-    header: "Type",
-    id: "span_type",
+    header: "Span",
+    id: "span",
     cell: (row) => (
-      <div className="cursor-pointer flex space-x-2 items-center hover:underline">
+      <div className="cursor-pointer flex gap-2 items-center">
         <SpanTypeIcon className="z-10" spanType={row.getValue()} />
-        <div className="flex text-sm">{row.getValue() === "DEFAULT" ? "SPAN" : row.getValue()}</div>
+        <div className="text-sm truncate">{row.row.original.name}</div>
       </div>
     ),
-    size: 120,
-  },
-  {
-    cell: (row) => <div className="cursor-pointer hover:underline">{row.getValue()}</div>,
-    accessorKey: "name",
-    header: "Name",
-    id: "name",
     size: 150,
   },
   {

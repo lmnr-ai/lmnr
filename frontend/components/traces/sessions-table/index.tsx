@@ -9,7 +9,7 @@ import SearchInput from "@/components/common/search-input";
 import RefreshButton from "@/components/traces/refresh-button";
 import { columns, filters } from "@/components/traces/sessions-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
-import { useTracesStore } from "@/components/traces/traces-store";
+import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SessionPreview, Trace } from "@/lib/traces/types";
@@ -32,8 +32,8 @@ export default function SessionsTable() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const { onRowClick, traceId } = useTracesStore((state) => ({
-    onRowClick: state.setTraceId,
+  const { setTraceId, traceId } = useTracesStoreContext((state) => ({
+    setTraceId: state.setTraceId,
     traceId: state.traceId,
   }));
 
@@ -146,7 +146,7 @@ export default function SessionsTable() {
     async (row: Row<SessionRow>) => {
       if (row.original.type === "trace") {
         const params = new URLSearchParams(searchParams);
-        onRowClick?.(row.original.data.id);
+        setTraceId(row.original.data.id);
         params.set("traceId", row.original.data.id);
         router.push(`${pathName}?${params.toString()}`);
         return;
@@ -197,7 +197,7 @@ export default function SessionsTable() {
         row.toggleExpanded();
       }
     },
-    [onRowClick, pathName, projectId, router, searchParams]
+    [setTraceId, pathName, projectId, router, searchParams]
   );
 
   useEffect(() => {

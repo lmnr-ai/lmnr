@@ -6,7 +6,7 @@ import { Resizable, ResizeCallback } from "re-resizable";
 import { useCallback, useEffect, useRef } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
-import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
+import { filterColumns } from "@/components/traces/trace-view/utils";
 import { useUserContext } from "@/contexts/user-context";
 import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
 import TraceView from "./trace-view";
-import { useTraceViewActions, useTraceViewState } from "./traces-store";
+import { TracesStoreProvider, useTraceViewActions, useTraceViewState } from "./traces-store";
 import TracesTable from "./traces-table";
 
 enum TracesTab {
@@ -28,15 +28,11 @@ enum TracesTab {
 type NavigationItem =
   | string
   | {
-    traceId: string;
-    spanId: string;
-  };
+      traceId: string;
+      spanId: string;
+    };
 
-interface TracesProps {
-  initialTraceViewWidth?: number;
-}
-
-export default function Traces({ initialTraceViewWidth }: TracesProps) {
+function TracesContent() {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
@@ -45,7 +41,6 @@ export default function Traces({ initialTraceViewWidth }: TracesProps) {
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
   const ref = useRef<Resizable>(null);
-
   const { traceId, defaultTraceViewWidth } = useTraceViewState();
   const { setTraceId, setSpanId, setDefaultTraceViewWidth } = useTraceViewActions();
 
@@ -83,11 +78,6 @@ export default function Traces({ initialTraceViewWidth }: TracesProps) {
     },
     [setSpanId, setTraceId]
   );
-
-  useEffect(() => {
-    const width = initialTraceViewWidth || getDefaultTraceViewWidth();
-    setDefaultTraceViewWidth(width);
-  }, [initialTraceViewWidth, setDefaultTraceViewWidth]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -153,5 +143,18 @@ export default function Traces({ initialTraceViewWidth }: TracesProps) {
         )}
       </div>
     </TraceViewNavigationProvider>
+  );
+}
+
+export default function Traces({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
+  const searchParams = useSearchParams();
+
+  const traceId = searchParams.get("traceId");
+  const spanId = searchParams.get("spanId");
+
+  return (
+    <TracesStoreProvider traceId={traceId} spanId={spanId} defaultTraceViewWidth={initialTraceViewWidth}>
+      <TracesContent />
+    </TracesStoreProvider>
   );
 }

@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RefreshButton from "@/components/traces/refresh-button";
 import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
-import { useTracesStore } from "@/components/traces/traces-store";
+import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
@@ -28,7 +28,7 @@ export default function TracesTable() {
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { traceId, setTraceId: onRowClick } = useTracesStore((state) => ({
+  const { traceId, setTraceId: onRowClick } = useTracesStoreContext((state) => ({
     traceId: state.traceId,
     setTraceId: state.setTraceId,
   }));
