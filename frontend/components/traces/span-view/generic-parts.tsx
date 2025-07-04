@@ -47,11 +47,15 @@ const PureContentParts = ({
       case "image":
         return <GenericImageContentPart key={`${part.type}-${index}`} part={part} />;
       case "text":
-        return <GenericTextContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
+        return <GenericTextContentPart key={`${part.type}-${index}`} part={part} presetKey={`${presetKey}-${index}`} />;
       case "tool-call":
-        return <GenericToolCallContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
+        return (
+          <GenericToolCallContentPart key={`${part.type}-${index}`} part={part} presetKey={`${presetKey}-${index}`} />
+        );
       case "tool-result":
-        return <GenericToolResultContentPart key={`${part.type}-${index}`} part={part} presetKey={presetKey} />;
+        return (
+          <GenericToolResultContentPart key={`${part.type}-${index}`} part={part} presetKey={`${presetKey}-${index}`} />
+        );
       case "file":
         return <GenericFileContentPart key={`${part.type}-${index}`} part={part} />;
       default:

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PencilIcon, Plus, TrashIcon } from "lucide-react";
+import { MoreHorizontal, PencilIcon, Plus, TrashIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 import { FormProvider, useForm } from "react-hook-form";
@@ -8,6 +8,12 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import JsxRenderer from "@/components/ui/template-renderer/jsx-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
@@ -185,7 +191,7 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
   return (
     <FormProvider {...methods}>
       <div className="flex flex-col bg-background w-full">
-        <div className="flex items-center gap-2 p-2">
+        <div className="flex items-center gap-2 p-2 group/renderer-header bg-muted/50">
           <Select value={selectedTemplate?.id} onValueChange={handleTemplateSelect}>
             <SelectTrigger className="w-fit">
               <SelectValue placeholder="Select template" />
@@ -204,30 +210,49 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
               </div>
             </SelectContent>
           </Select>
+
           {selectedTemplate && (
-            <>
-              <Button variant="outline" onClick={handleEditTemplate}>
-                <PencilIcon className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(true)}>
-                <TrashIcon className="w-4 h-4" />
-              </Button>
-              <ConfirmDialog
-                open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
-                title="Delete Template"
-                description={`Are you sure you want to delete "${selectedTemplate.name}"?`}
-                confirmText="Delete"
-                cancelText="Cancel"
-                onConfirm={handleDeleteTemplate}
-              />
-            </>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-7 w-7 opacity-0 data-[state=open]:opacity-100 group-hover/renderer-header:opacity-100 transition-opacity"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleEditTemplate}>
+                  <PencilIcon className="w-4 h-4 mr-2" />
+                  Edit template
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)}>
+                  <TrashIcon className="w-4 h-4 mr-2" />
+                  Delete template
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
+
         <div className="flex-grow flex overflow-hidden rounded-b">
           <JsxRenderer code={currentTemplateCode} data={data} />
         </div>
+
         <ManageTemplateDialog testData={data} open={isDialogOpen} onOpenChange={setIsDialogOpen} />
+
+        {selectedTemplate && (
+          <ConfirmDialog
+            open={isDeleteDialogOpen}
+            onOpenChange={setIsDeleteDialogOpen}
+            title="Delete Template"
+            description={`Are you sure you want to delete "${selectedTemplate.name}"?`}
+            confirmText="Delete"
+            cancelText="Cancel"
+            onConfirm={handleDeleteTemplate}
+          />
+        )}
       </div>
     </FormProvider>
   );
