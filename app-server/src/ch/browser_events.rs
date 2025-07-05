@@ -2,10 +2,10 @@ use clickhouse::Row;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{api::v1::browser_sessions::EventBatch, utils::estimate_json_size};
+use crate::api::v1::browser_sessions::EventBatch;
 
 #[derive(Row, Serialize)]
-pub struct BrowserEventCHRow {
+pub struct BrowserEventCHRow<'a> {
     #[serde(with = "clickhouse::serde::uuid")]
     pub event_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
@@ -14,7 +14,7 @@ pub struct BrowserEventCHRow {
     pub trace_id: Uuid,
     pub timestamp: i64,
     pub event_type: u8,
-    pub data: Vec<u8>,
+    pub data: &'a [u8],
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
     #[serde(default)]
@@ -43,7 +43,7 @@ pub async fn insert_browser_events(
     let mut total_size_bytes = 0;
 
     for event in event_batch.events.iter() {
-        let size_bytes = estimate_json_size(&serde_json::to_value(event).unwrap());
+        let size_bytes = event.estimate_size_bytes();
         insert
             .write(&BrowserEventCHRow {
                 event_id: Uuid::new_v4(),
@@ -51,7 +51,7 @@ pub async fn insert_browser_events(
                 trace_id: event_batch.trace_id,
                 timestamp: event.timestamp,
                 event_type: event.event_type,
-                data: event.data.clone(),
+                data: &event.data,
                 project_id: project_id,
                 size_bytes: size_bytes as u64,
             })

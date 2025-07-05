@@ -14,7 +14,6 @@ use crate::{
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
     storage::Storage,
     traces::IngestedBytes,
-    utils::estimate_json_size,
 };
 
 pub async fn process_queue_spans(
@@ -105,13 +104,8 @@ async fn inner_process_queue_spans(
 
         // Make sure we count the sizes before any processing, as soon as
         // we pick up the span from the queue.
-
-        // TODO: do not convert to serde_json::Value, iterate over HashMap, and call
-        // estimate_json_size on each value
-        let span_bytes = estimate_json_size(
-            &serde_json::to_value(&span.attributes.raw_attributes).unwrap_or_default(),
-        );
-        let events_bytes = estimate_json_size(&serde_json::to_value(&events).unwrap_or_default());
+        let span_bytes = span.estimate_size_bytes();
+        let events_bytes = events.iter().map(|e| e.estimate_size_bytes()).sum();
 
         // Parse and enrich span attributes for input/output extraction
         // This heavy processing is done on the consumer side

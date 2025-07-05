@@ -28,7 +28,7 @@ use crate::{
         span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
         utils::serialize_indexmap,
     },
-    utils::json_value_to_string,
+    utils::{estimate_json_size, json_value_to_string},
 };
 
 use super::{
@@ -490,16 +490,21 @@ impl Span {
             if self
                 .attributes
                 .raw_attributes
-                .get("gen_ai.prompt.0.content")
+                .get("gen_ai.prompt.0.role")
                 .is_some()
+                || self
+                    .attributes
+                    .raw_attributes
+                    .get("gen_ai.prompt.0.content")
+                    .is_some()
             {
-                let input_messages = input_chat_messages_from_prompt_content(
-                    &self.attributes.raw_attributes,
+                let input_messages = input_chat_messages_from_genai_attributes(
+                    &mut self.attributes.raw_attributes,
                     "gen_ai.prompt",
                 );
 
                 self.input = Some(json!(input_messages));
-                self.output = output_from_completion_content(&self.attributes.raw_attributes);
+                self.output = output_from_genai_attributes(&mut self.attributes.raw_attributes);
             } else if let Some(stringified_value) = self
                 .attributes
                 .raw_attributes
@@ -516,6 +521,7 @@ impl Span {
                 if let Some(output) = try_parse_ai_sdk_output(&self.attributes.raw_attributes) {
                     self.output = Some(output);
                 }
+                convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
             }
         }
 
@@ -595,6 +601,7 @@ impl Span {
                     self.name = new_name;
                 }
             }
+            convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
         }
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
@@ -712,6 +719,30 @@ impl Span {
         }
         Ok(())
     }
+
+    pub fn estimate_size_bytes(&self) -> usize {
+        // events size is estimated separately, so ignored here
+
+        // 16 bytes for span_id,
+        // 16 bytes for trace_id,
+        // 16 bytes for parent_span_id,
+        // 8 bytes for start_time,
+        // 8 bytes for end_time,
+
+        // everything else is in attributes
+        return 16
+            + 16
+            + 16
+            + 8
+            + 8
+            + self.name.len()
+            + self
+                .attributes
+                .raw_attributes
+                .iter()
+                .map(|(k, v)| k.len() + estimate_json_size(v))
+                .sum::<usize>();
+    }
 }
 
 pub fn should_keep_attribute(attribute: &str) -> bool {
@@ -767,8 +798,8 @@ pub struct SpanUsage {
     pub provider_name: Option<String>,
 }
 
-fn input_chat_messages_from_prompt_content(
-    attributes: &HashMap<String, Value>,
+fn input_chat_messages_from_genai_attributes(
+    attributes: &mut HashMap<String, Value>,
     prefix: &str,
 ) -> Vec<ChatMessage> {
     let mut input_messages: Vec<ChatMessage> = vec![];
@@ -786,17 +817,17 @@ fn input_chat_messages_from_prompt_content(
     for i in 0..=prompt_message_count {
         let tool_calls = parse_tool_calls(attributes, &format!("{prefix}.{i}"));
         let content = if let Some(serde_json::Value::String(s)) =
-            attributes.get(&format!("{prefix}.{i}.content"))
+            attributes.remove(&format!("{prefix}.{i}.content"))
         {
-            s.clone()
+            s
         } else {
             "".to_string()
         };
 
         let role = if let Some(serde_json::Value::String(s)) =
-            attributes.get(&format!("{prefix}.{i}.role"))
+            attributes.remove(&format!("{prefix}.{i}.role"))
         {
-            s.clone()
+            s
         } else if tool_calls.is_empty() {
             "user".to_string()
         } else {
@@ -831,7 +862,7 @@ fn input_chat_messages_from_prompt_content(
                         let mut parts = Vec::new();
                         if !content.is_empty() {
                             parts.push(ChatMessageContentPart::Text(ChatMessageText {
-                                text: content.clone(),
+                                text: content,
                             }));
                         }
                         for tool_call in tool_calls {
@@ -839,7 +870,7 @@ fn input_chat_messages_from_prompt_content(
                         }
                         ChatMessageContent::ContentPartList(parts)
                     } else {
-                        ChatMessageContent::Text(content.clone())
+                        ChatMessageContent::Text(content)
                     }
                 }
             },
@@ -891,33 +922,31 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
     }
 }
 
-// TODO: move this to a separate funciton, e.g. parse_ai_sdk_tool_calls_outer
-pub fn convert_attribute(key: &str, value: serde_json::Value) -> serde_json::Value {
-    if key == "ai.prompt.tools" {
-        if let Some(tools) = value.as_array() {
-            serde_json::Value::Array(
-                tools
-                    .into_iter()
-                    .map(|tool| match tool {
-                        serde_json::Value::String(s) => {
-                            serde_json::from_str::<HashMap<String, serde_json::Value>>(s)
-                                .map(|m| serde_json::to_value(m).unwrap())
-                                .unwrap_or(tool.clone())
-                        }
-                        _ => tool.clone(),
-                    })
-                    .collect(),
-            )
-        } else {
-            value
+fn convert_ai_sdk_tool_calls(attributes: &mut HashMap<String, Value>) {
+    if let Some(aisdk_tools) = attributes.get("ai.prompt.tools") {
+        if let Some(tools) = aisdk_tools.as_array() {
+            attributes.insert(
+                "ai.prompt.tools".to_string(),
+                serde_json::Value::Array(
+                    tools
+                        .into_iter()
+                        .map(|tool| match tool {
+                            serde_json::Value::String(s) => {
+                                serde_json::from_str::<HashMap<String, serde_json::Value>>(s)
+                                    .map(|m| serde_json::to_value(m).unwrap())
+                                    .unwrap_or(tool.clone())
+                            }
+                            _ => tool.clone(),
+                        })
+                        .collect(),
+                ),
+            );
         }
-    } else {
-        value
     }
 }
 
-fn output_from_completion_content(
-    attributes: &HashMap<String, Value>,
+fn output_from_genai_attributes(
+    attributes: &mut HashMap<String, Value>,
 ) -> Option<serde_json::Value> {
     let mut out_vec = Vec::new();
     let completion_message_count = attributes
@@ -932,7 +961,7 @@ fn output_from_completion_content(
 
     for i in 0..=completion_message_count {
         if let Some(message_output) =
-            output_message_from_completion_content(attributes, &format!("gen_ai.completion.{i}"))
+            output_message_from_genai_attributes(attributes, &format!("gen_ai.completion.{i}"))
         {
             out_vec.push(serde_json::to_value(message_output).unwrap());
         }
@@ -944,14 +973,17 @@ fn output_from_completion_content(
     }
 }
 
-fn output_message_from_completion_content(
-    attributes: &HashMap<String, Value>,
+fn output_message_from_genai_attributes(
+    attributes: &mut HashMap<String, Value>,
     prefix: &str,
 ) -> Option<ChatMessage> {
-    let msg_content = attributes.get(format!("{prefix}.content").as_str());
+    let msg_content = attributes.remove(&format!("{prefix}.content"));
     let msg_role = attributes
-        .get(format!("{prefix}.role").as_str())
-        .map(|v| json_value_to_string(v))
+        .remove(&format!("{prefix}.role"))
+        .map(|v| match v {
+            Value::String(s) => s,
+            _ => v.to_string(),
+        })
         .unwrap_or("assistant".to_string());
 
     let tool_calls = parse_tool_calls(attributes, prefix);
@@ -974,7 +1006,7 @@ fn output_message_from_completion_content(
             } else {
                 Some(ChatMessage {
                     role: msg_role,
-                    content: ChatMessageContent::Text(s.clone()),
+                    content: ChatMessageContent::Text(s),
                     tool_call_id: None,
                 })
             }
@@ -986,7 +1018,7 @@ fn output_message_from_completion_content(
             if s.is_empty() {
                 vec![]
             } else {
-                let text_block = ChatMessageContentPart::Text(ChatMessageText { text: s.clone() });
+                let text_block = ChatMessageContentPart::Text(ChatMessageText { text: s });
                 vec![text_block]
             }
         } else {
@@ -2116,6 +2148,31 @@ mod tests {
                 }
             }
             _ => panic!("Expected content part list for child output"),
+        }
+
+        // Verify that AI SDK tool definitions are CONVERTED from strings to objects
+        assert!(
+            child_span
+                .attributes
+                .raw_attributes
+                .contains_key("ai.prompt.tools")
+        );
+        let tools = child_span
+            .attributes
+            .raw_attributes
+            .get("ai.prompt.tools")
+            .unwrap();
+        if let serde_json::Value::Array(tools_array) = tools {
+            assert_eq!(tools_array.len(), 2);
+            // First tool should be parsed as object, not string
+            assert!(tools_array[0].is_object());
+            assert_eq!(tools_array[0].get("name").unwrap(), &json!("get_weather"));
+            assert_eq!(tools_array[0].get("type").unwrap(), &json!("function"));
+            assert!(tools_array[1].is_object());
+            assert_eq!(tools_array[1].get("name").unwrap(), &json!("get_time"));
+            assert_eq!(tools_array[1].get("type").unwrap(), &json!("function"));
+        } else {
+            panic!("Expected tools to be an array");
         }
 
         // Note: AI SDK tool conversion from strings to objects happens in prepare_span_db_values, not here
