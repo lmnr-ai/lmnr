@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actix_web::{options, post, web, HttpResponse};
+use actix_web::{HttpResponse, options, post, web};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -21,6 +21,13 @@ pub struct RRWebEvent {
     pub event_type: u8,
     pub timestamp: i64,
     pub data: Vec<u8>,
+}
+
+impl RRWebEvent {
+    pub fn estimate_size_bytes(&self) -> usize {
+        // 1 byte for event_type, 8 bytes for timestamp
+        return 9 + self.data.len();
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

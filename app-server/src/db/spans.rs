@@ -7,7 +7,7 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use crate::traces::spans::{SpanAttributes, convert_attribute, should_keep_attribute};
+use crate::traces::spans::{SpanAttributes, should_keep_attribute};
 
 use super::utils::sanitize_value;
 
@@ -75,6 +75,11 @@ struct SpanDBValues {
 }
 
 pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
+    // Possible further optimization:
+    // clone all small values from the span, e.g. trace_id, parent_span_id, etc.
+    // into local variables here, and then move the `span` into `prepare_span_db_values`
+    // so that inside `prepare_span_db_values` we don't have to clone the attributes,
+    // which are slightly (after filtering) larger.
     let values = prepare_span_db_values(span);
 
     sqlx::query(
@@ -205,8 +210,7 @@ fn prepare_span_db_values(span: &Span) -> SpanDBValues {
             .iter()
             .filter_map(|(k, v)| {
                 if should_keep_attribute(&k) {
-                    let converted_val = convert_attribute(&k, v.clone());
-                    Some((k.clone(), converted_val))
+                    Some((k.clone(), v.clone()))
                 } else {
                     None
                 }
@@ -808,25 +812,6 @@ mod tests {
         // Verify that Laminar internal attributes are REMOVED
         assert!(!attrs.contains_key("lmnr.span.input"));
         assert!(!attrs.contains_key("lmnr.span.output"));
-
-        // Verify that AI SDK tool definitions are CONVERTED from strings to objects
-
-        // This is done in `convert_attributes`. TODO: move this to a separate test, once
-        // this is moved to a separate step inside `parse_and_enrich_attributes`
-        assert!(attrs.contains_key("ai.prompt.tools"));
-        let tools = attrs.get("ai.prompt.tools").unwrap();
-        if let serde_json::Value::Array(tools_array) = tools {
-            assert_eq!(tools_array.len(), 2);
-            // First tool should be parsed as object, not string
-            assert!(tools_array[0].is_object());
-            assert_eq!(tools_array[0].get("name").unwrap(), &json!("get_weather"));
-            assert_eq!(tools_array[0].get("type").unwrap(), &json!("function"));
-            assert!(tools_array[1].is_object());
-            assert_eq!(tools_array[1].get("name").unwrap(), &json!("get_time"));
-            assert_eq!(tools_array[1].get("type").unwrap(), &json!("function"));
-        } else {
-            panic!("Expected tools to be an array");
-        }
 
         // Verify that other AI SDK attributes are PRESERVED
         assert_eq!(
