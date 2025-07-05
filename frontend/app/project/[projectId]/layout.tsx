@@ -70,7 +70,6 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
   const tierResult = await db
     .select({
       name: subscriptionTiers.name,
-      spansLimit: subscriptionTiers.spans,
       stepsLimit: subscriptionTiers.steps,
       bytesLimit: subscriptionTiers.bytesIngested,
     })
@@ -95,7 +94,6 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
     workspaceId: project.workspaceId,
     // Legacy span fields (for backward compatibility)
     spansThisMonth: Number(usage.spanCountSinceReset),
-    spansLimit: Number(tier.spansLimit),
     // New GB-based usage fields
     gbUsedThisMonth,
     gbLimit,

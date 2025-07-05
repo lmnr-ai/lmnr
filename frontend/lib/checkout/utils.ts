@@ -176,7 +176,6 @@ const updateUsageCacheForWorkspace = async (workspaceId: string) => {
   const baseQuery = db.$with('workspace_stats').as(
     db.select({
       tierName: subscriptionTiers.name,
-      spansLimit: subscriptionTiers.spans,
       stepsLimit: subscriptionTiers.steps,
       spansThisMonth: workspaceUsage.spanCount,
       stepsThisMonth: workspaceUsage.stepCount

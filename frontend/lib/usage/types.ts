@@ -3,9 +3,6 @@ export type WorkspaceStats = {
   seatsIncludedInTier: number;
   totalSpans: number;
   spansThisMonth: number;
-  spansLimit: number;
-  spansOverLimit: number;
-  spansOverLimitCost: number;
   members: number;
   membersLimit: number;
   resetTime: string;

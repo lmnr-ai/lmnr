@@ -1,10 +1,8 @@
 import { and, eq } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
 
-import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { labelClasses } from '@/lib/db/migrations/schema';
-import { fetcher } from '@/lib/utils';
+
 
 export async function POST(
   req: Request,
@@ -13,19 +11,21 @@ export async function POST(
   const params = await props.params;
   const projectId = params.projectId;
   const labelClassId = params.labelClassId;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
 
   const body = await req.json();
 
-  return await fetcher(`/projects/${projectId}/label-classes/${labelClassId}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
-    },
-    body: JSON.stringify(body)
-  });
+  const result = await db.update(labelClasses).set({
+    name: body.name,
+    color: body.color,
+  }).where(
+    and(eq(labelClasses.id, labelClassId), eq(labelClasses.projectId, projectId))
+  ).returning();
+
+  if (result.length === 0) {
+    return new Response('Label class not found', { status: 404 });
+  }
+
+  return new Response(null, { status: 200 });
 }
 
 export async function DELETE(
@@ -35,8 +35,6 @@ export async function DELETE(
   const params = await props.params;
   const projectId = params.projectId;
   const labelClassId = params.labelClassId;
-
-
 
   const affectedRows = await db.delete(labelClasses).where(
     and(

@@ -156,7 +156,6 @@ pub async fn record_labels_to_db_and_ch(
             None,
             label_name,
             LabelSource::CODE,
-            None,
         )
         .await?;
     }

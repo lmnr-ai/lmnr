@@ -44,7 +44,6 @@ export type GetProjectResponse = {
   workspaceId: string;
   // Legacy span fields (deprecated but kept for compatibility)
   spansThisMonth: number;
-  spansLimit: number;
   eventsThisMonth: number;
   eventsLimit: number;
   // New GB-based usage fields

@@ -68,8 +68,6 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
         method: "POST",
         body: JSON.stringify({
           name,
-          description: "",
-          evaluatorRunnableGraph: "",
           color,
         }),
       });
@@ -90,12 +88,11 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
         body: JSON.stringify({
           classId: data.id,
           name: data.name,
-          reasoning: "",
         }),
       });
 
       if (!res.ok) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to attach label." });
+        toast({ variant: "destructive", title: "Error", description: "Failed to attach tag." });
         return;
       }
       const label = (await res.json()) as SpanLabel;

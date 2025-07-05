@@ -14,7 +14,6 @@ pub async fn insert_or_update_label(
     user_email: Option<String>,
     label_name: String,
     label_source: LabelSource,
-    reasoning: Option<String>,
 ) -> Result<DBSpanLabel> {
     let label = crate::db::labels::update_span_label(
         pool,
@@ -23,7 +22,6 @@ pub async fn insert_or_update_label(
         user_email,
         class_id,
         &label_source,
-        reasoning,
         project_id,
         &label_name,
     )
