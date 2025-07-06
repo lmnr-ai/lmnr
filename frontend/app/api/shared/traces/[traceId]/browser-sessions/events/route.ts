@@ -1,27 +1,14 @@
 import { NextRequest } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { clickhouseClient } from "@/lib/clickhouse/client";
+import { getSharedBrowserSessionEvents } from "@/lib/actions/shared/browser-session-events";
 
 export async function GET(_request: NextRequest, props: { params: Promise<{ traceId: string }> }) {
   const params = await props.params;
   const traceId = params.traceId;
 
   try {
-    const res = await clickhouseClient.query({
-      query: `
-      SELECT 
-        trace_id,
-        timestamp,
-        event_type,
-        base64Encode(data) as data
-      FROM browser_session_events
-      WHERE trace_id = {traceId: UUID}
-      ORDER BY timestamp ASC`,
-      format: "JSONEachRow",
-      query_params: {
-        traceId: traceId,
-      },
-    });
+    const res = await getSharedBrowserSessionEvents({ traceId });
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -52,8 +39,11 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ trac
         "Content-Type": "application/json",
       },
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: "Failed to fetch events." }), {
+  } catch (e) {
+    if (e instanceof ZodError) {
+      return new Response(JSON.stringify({ error: prettifyError(e) }), { status: 400 });
+    }
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Failed to fetch browser session events." }), {
       status: 500,
     });
   }

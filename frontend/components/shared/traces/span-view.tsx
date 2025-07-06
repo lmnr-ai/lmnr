@@ -10,6 +10,7 @@ import SpanStatsShields from "@/components/traces/stats-shields";
 import { Badge } from "@/components/ui/badge";
 import Formatter from "@/components/ui/formatter";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Event } from "@/lib/events/types";
 import { Span, SpanLabel } from "@/lib/traces/types";
@@ -17,19 +18,14 @@ import { ErrorEventAttributes } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface SpanViewProps {
-  span: Span;
+  spanId: string;
   traceId: string;
 }
 
-export function SpanView({ span, traceId }: SpanViewProps) {
-  const { data: events = [] } = useSWR<Event[]>(
-    `/api/shared/traces/${traceId}/spans/${span.spanId}/events`,
-    swrFetcher
-  );
-  const { data: labels = [] } = useSWR<SpanLabel[]>(
-    `/api/shared/traces/${traceId}/spans/${span.spanId}/labels`,
-    swrFetcher
-  );
+export function SpanView({ spanId, traceId }: SpanViewProps) {
+  const { data: span, isLoading } = useSWR<Span>(`/api/shared/traces/${traceId}/spans/${spanId}`, swrFetcher);
+  const { data: events = [] } = useSWR<Event[]>(`/api/shared/traces/${traceId}/spans/${spanId}/events`, swrFetcher);
+  const { data: labels = [] } = useSWR<SpanLabel[]>(`/api/shared/traces/${traceId}/spans/${spanId}/labels`, swrFetcher);
 
   const cleanedEvents = useMemo(
     () =>
@@ -44,6 +40,16 @@ export function SpanView({ span, traceId }: SpanViewProps) {
     () => cleanedEvents?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
     [cleanedEvents]
   );
+
+  if (isLoading || !span) {
+    return (
+      <div className="flex flex-col space-y-2 p-4">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
 
   return (
     <>

@@ -1,9 +1,13 @@
 "use client";
+import { map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import SearchInput from "@/components/common/search-input";
 import RefreshButton from "@/components/traces/refresh-button";
 import { columns, filters } from "@/components/traces/spans-table/columns";
+import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
+import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span } from "@/lib/traces/types";
@@ -13,16 +17,18 @@ import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
 
-interface SpansTableProps {
-  onRowClick?: (traceId: string) => void;
-}
-
-export default function SpansTable({ onRowClick }: SpansTableProps) {
+export default function SpansTable() {
   const { projectId } = useParams();
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
   const { toast } = useToast();
+  const { setTraceId, setSpanId, spanId } = useTracesStoreContext((state) => ({
+    setTraceId: state.setTraceId,
+    spanId: state.spanId,
+    setSpanId: state.setSpanId,
+  }));
+
   const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
   const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
   const filter = searchParams.getAll("filter");
@@ -33,8 +39,13 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
 
   const [spans, setSpans] = useState<Span[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
-  const [spanId, setSpanId] = useState<string | null>(searchParams.get("spanId") ?? null);
   const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
+
+  const { setNavigationRefList } = useTraceViewNavigation();
+
+  useEffect(() => {
+    setNavigationRefList(map(spans, (s) => ({ spanId: s.spanId, traceId: s.traceId })));
+  }, [setNavigationRefList, spans]);
 
   const getSpans = useCallback(async () => {
     try {
@@ -128,12 +139,13 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
   const handleRowClick = useCallback(
     (row: Span) => {
       const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.traceId!);
+      params.set("traceId", row.traceId);
       params.set("spanId", row.spanId);
       router.push(`${pathName}?${params.toString()}`);
-      onRowClick?.(row.traceId);
+      setTraceId(row.traceId);
+      setSpanId(row.spanId);
     },
-    [onRowClick, pathName, router, searchParams]
+    [pathName, router, searchParams, setSpanId, setTraceId]
   );
 
   const onPageChange = useCallback(
@@ -160,7 +172,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
         handleRowClick(row.original);
       }}
       paginated
-      focusedRowId={spanId}
+      focusedRowId={spanId || searchParams.get("spanId")}
       manualPagination
       pageCount={pageCount}
       defaultPageSize={pageSize}
@@ -179,6 +191,7 @@ export default function SpansTable({ onRowClick }: SpansTableProps) {
         <DataTableFilter columns={filters} />
         <DateRangeFilter />
         <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getSpans} variant="outline" className="text-xs" />
+        <SearchInput placeholder="Search in spans..." />
       </div>
       <DataTableFilterList />
     </DataTable>
