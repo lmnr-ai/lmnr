@@ -1,18 +1,14 @@
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
-import { getDefaultTraceViewWidth } from "./trace-view/utils";
-
 export type TracesState = {
   traceId: string | null;
   spanId: string | null;
-  defaultTraceViewWidth: number;
 };
 
 export type TracesActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
-  setDefaultTraceViewWidth: (width: number) => void;
   reset: () => void;
 };
 
@@ -30,7 +26,6 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
   const DEFAULT_PROPS: TracesState = {
     traceId: null,
     spanId: null,
-    defaultTraceViewWidth: 1000,
   };
 
   return createStore<TracesStore>()((set, get) => ({
@@ -44,13 +39,7 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
 
     setSpanId: (spanId: string | null) => set({ spanId }),
 
-    setDefaultTraceViewWidth: (defaultTraceViewWidth) => set({ defaultTraceViewWidth }),
-
-    reset: () =>
-      set({
-        ...DEFAULT_PROPS,
-        defaultTraceViewWidth: getDefaultTraceViewWidth(),
-      }),
+    reset: () => set(DEFAULT_PROPS),
   }));
 };
 
@@ -66,14 +55,12 @@ export const useTraceViewState = () =>
   useTracesStoreContext((state) => ({
     traceId: state.traceId,
     spanId: state.spanId,
-    defaultTraceViewWidth: state.defaultTraceViewWidth,
   }));
 
 export const useTraceViewActions = () =>
   useTracesStoreContext((state) => ({
     setSpanId: state.setSpanId,
     setTraceId: state.setTraceId,
-    setDefaultTraceViewWidth: state.setDefaultTraceViewWidth,
     reset: state.reset,
   }));
 

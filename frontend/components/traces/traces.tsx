@@ -3,10 +3,10 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { Resizable, ResizeCallback } from "re-resizable";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
-import { filterColumns } from "@/components/traces/trace-view/utils";
+import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useUserContext } from "@/contexts/user-context";
 import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -32,7 +32,7 @@ type NavigationItem =
       spanId: string;
     };
 
-function TracesContent() {
+function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
@@ -41,8 +41,16 @@ function TracesContent() {
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
   const ref = useRef<Resizable>(null);
-  const { traceId, spanId, defaultTraceViewWidth } = useTraceViewState();
-  const { setTraceId, setSpanId, setDefaultTraceViewWidth } = useTraceViewActions();
+  const { traceId, spanId } = useTraceViewState();
+  const { setTraceId, setSpanId } = useTraceViewActions();
+
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
+
+  useEffect(() => {
+    if (!initialTraceViewWidth) {
+      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
+    }
+  }, []);
 
   if (isFeatureEnabled(Feature.POSTHOG)) {
     posthog.identify(email);
@@ -154,8 +162,8 @@ export default function Traces({ initialTraceViewWidth }: { initialTraceViewWidt
   const spanId = searchParams.get("spanId");
 
   return (
-    <TracesStoreProvider traceId={traceId} spanId={spanId} defaultTraceViewWidth={initialTraceViewWidth}>
-      <TracesContent />
+    <TracesStoreProvider traceId={traceId} spanId={spanId}>
+      <TracesContent initialTraceViewWidth={initialTraceViewWidth} />
     </TracesStoreProvider>
   );
 }
