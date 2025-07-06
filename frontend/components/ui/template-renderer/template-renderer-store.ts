@@ -1,17 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { Template } from "./index";
-
 export type TemplateRendererState = {
-  selectedTemplate: Template | null;
   isDialogOpen: boolean;
   isDeleteDialogOpen: boolean;
   presetTemplates: Record<string, string>; // presetKey -> templateId mapping
 };
 
 export type TemplateRendererActions = {
-  setSelectedTemplate: (template: Template | null) => void;
   setIsDialogOpen: (open: boolean) => void;
   setIsDeleteDialogOpen: (open: boolean) => void;
   setPresetTemplate: (presetKey: string, templateId: string) => void;
@@ -20,7 +16,6 @@ export type TemplateRendererActions = {
 };
 
 const initialState: TemplateRendererState = {
-  selectedTemplate: null,
   isDialogOpen: false,
   isDeleteDialogOpen: false,
   presetTemplates: {},
@@ -32,8 +27,6 @@ export const useTemplateRenderer = create<TemplateRendererStore>()(
   persist(
     (set, get) => ({
       ...initialState,
-
-      setSelectedTemplate: (template) => set({ selectedTemplate: template }),
 
       setIsDialogOpen: (open) => set({ isDialogOpen: open }),
 

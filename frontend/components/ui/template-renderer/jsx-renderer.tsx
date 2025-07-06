@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 
+import { cn } from "@/lib/utils";
+
 const createIframeContent = (templateCode: string, data: any): string => {
   const serializedData = JSON.stringify(data);
   const escapedTemplateCode = templateCode.replace(/`/g, "\\`").replace(/\$/g, "\\$");
@@ -192,7 +194,7 @@ const parseData = (data: any): any => {
   }
 };
 
-const JsxRenderer = ({ code, data }: { code: string; data: any }) => {
+const JsxRenderer = ({ code, data, className }: { code: string; data: any; className?: string }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -213,7 +215,7 @@ const JsxRenderer = ({ code, data }: { code: string; data: any }) => {
   return (
     <iframe
       ref={iframeRef}
-      className="w-full min-h-[400px] h-full border bg-white rounded-md"
+      className={cn("w-full min-h-[400px] h-full border bg-white rounded-md", className)}
       style={{
         contain: "layout style",
         isolation: "isolate",

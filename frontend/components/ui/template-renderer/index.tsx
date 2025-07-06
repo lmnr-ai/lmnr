@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MoreHorizontal, PencilIcon, Plus, TrashIcon } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
-import { FormProvider, useForm } from "react-hook-form";
+import { useCallback, useEffect, useState } from "react";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import useSWR from "swr";
 import { z } from "zod";
 
@@ -42,7 +42,7 @@ const manageTemplateSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "Template name is required"),
   code: z.string().min(1, "Template code is required"),
-  testData: z.string(),
+  testData: z.string().optional(),
 });
 
 export type ManageTemplateForm = z.infer<typeof manageTemplateSchema>;
@@ -70,10 +70,8 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
   );
 
   const {
-    selectedTemplate,
     isDialogOpen,
     isDeleteDialogOpen,
-    setSelectedTemplate,
     setIsDialogOpen,
     setIsDeleteDialogOpen,
     setPresetTemplate,
@@ -85,7 +83,11 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
     defaultValues: defaultTemplateValues,
   });
 
-  const { reset } = methods;
+  const { reset, control } = methods;
+
+  const template = useWatch({
+    control,
+  });
 
   const fetchTemplate = useCallback(
     async (templateId: string): Promise<Template | null> => {
@@ -118,7 +120,7 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
           if (templates.find((t) => t.id === storedTemplateId)) {
             const result = await fetchTemplate(storedTemplateId);
             if (result) {
-              setSelectedTemplate(result);
+              reset({ ...result, testData: data });
             }
           }
         }
@@ -126,7 +128,7 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
     };
 
     loadTemplateFromPreset();
-  }, [presetKey, templates, projectId, getPresetTemplate, setSelectedTemplate, toast, fetchTemplate]);
+  }, [presetKey, templates, projectId, getPresetTemplate, reset, toast, fetchTemplate]);
 
   const handleTemplateSelect = async (value: string) => {
     const template = templates?.find((t) => t.id === value);
@@ -135,21 +137,21 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
         setPresetTemplate(presetKey, value);
       }
       const result = await fetchTemplate(value);
-      if (result) setSelectedTemplate(result);
+      if (result) reset({ ...result, testData: data });
     }
   };
 
   const handleDeleteTemplate = async () => {
-    if (!selectedTemplate) return;
+    if (!template || !template?.id) return;
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/render-templates/${selectedTemplate.id}`, {
+      const response = await fetch(`/api/projects/${projectId}/render-templates/${template.id}`, {
         method: "DELETE",
       });
 
       if (response.ok) {
-        await mutateTemplates((prev) => prev?.filter((t) => t.id !== selectedTemplate.id));
-        setSelectedTemplate(null);
+        await mutateTemplates((prev) => prev?.filter((t) => t.id !== template.id));
+        reset(defaultTemplateValues);
         toast({
           title: "Success",
           description: "Template deleted successfully",
@@ -157,12 +159,11 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
       } else {
         throw new Error("Failed to delete template");
       }
-    } catch (error) {
-      console.error("Failed to delete template:", error);
+    } catch (e) {
       toast({
-        variant: "destructive",
         title: "Error",
-        description: "Failed to delete template",
+        description: e instanceof Error ? e.message : "Failed to delete template",
+        variant: "destructive",
       });
     } finally {
       setIsDeleteDialogOpen(false);
@@ -170,30 +171,30 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
   };
 
   const handleEditTemplate = useCallback(() => {
-    if (selectedTemplate) {
-      reset({
-        id: selectedTemplate.id,
-        name: selectedTemplate.name,
-        code: selectedTemplate.code,
-        testData: data,
-      });
-      setIsDialogOpen(true);
-    }
-  }, [selectedTemplate, reset, data, setIsDialogOpen]);
+    setIsDialogOpen(true);
+  }, [setIsDialogOpen]);
 
   const handleCreateTemplate = useCallback(() => {
     reset({ ...defaultTemplateValues, testData: data });
     setIsDialogOpen(true);
   }, [data, reset, setIsDialogOpen]);
 
-  const currentTemplateCode = selectedTemplate?.code ?? defaultTemplateValues.code;
+  const currentTemplateCode = template?.code ?? defaultTemplateValues.code;
+
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const isAnyDropdownOpen = isSelectOpen || isDropdownOpen;
 
   return (
     <FormProvider {...methods}>
-      <div className="flex flex-col bg-background w-full">
-        <div className="flex items-center gap-2 p-2 group/renderer-header bg-muted/50">
-          <Select value={selectedTemplate?.id} onValueChange={handleTemplateSelect}>
-            <SelectTrigger className="w-fit">
+      <div className="flex flex-col bg-background w-full group/renderer relative">
+        <div className="flex items-center gap-2 p-2 absolute top-2 right-0 z-30">
+          <Select value={template?.id} onValueChange={handleTemplateSelect} onOpenChange={setIsSelectOpen}>
+            <SelectTrigger
+              className={`w-fit transition-opacity bg-muted ${
+                isAnyDropdownOpen ? "opacity-100" : "opacity-0 group-hover/renderer:opacity-100"
+              }`}
+            >
               <SelectValue placeholder="Select template" />
             </SelectTrigger>
             <SelectContent>
@@ -211,13 +212,15 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
             </SelectContent>
           </Select>
 
-          {selectedTemplate && (
-            <DropdownMenu>
+          {template && (
+            <DropdownMenu onOpenChange={setIsDropdownOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="icon"
                   variant="outline"
-                  className="h-7 w-7 opacity-0 data-[state=open]:opacity-100 group-hover/renderer-header:opacity-100 transition-opacity"
+                  className={`h-7 w-7 transition-opacity bg-muted ${
+                    isAnyDropdownOpen ? "opacity-100" : "opacity-0 group-hover/renderer:opacity-100"
+                  }`}
                 >
                   <MoreHorizontal className="w-4 h-4" />
                 </Button>
@@ -237,17 +240,17 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
         </div>
 
         <div className="flex-grow flex overflow-hidden rounded-b">
-          <JsxRenderer code={currentTemplateCode} data={data} />
+          <JsxRenderer className="rounded-none" code={currentTemplateCode} data={data} />
         </div>
 
         <ManageTemplateDialog testData={data} open={isDialogOpen} onOpenChange={setIsDialogOpen} />
 
-        {selectedTemplate && (
+        {template && (
           <ConfirmDialog
             open={isDeleteDialogOpen}
             onOpenChange={setIsDeleteDialogOpen}
             title="Delete Template"
-            description={`Are you sure you want to delete "${selectedTemplate.name}"?`}
+            description={`Are you sure you want to delete "${template.name}"?`}
             confirmText="Delete"
             cancelText="Cancel"
             onConfirm={handleDeleteTemplate}

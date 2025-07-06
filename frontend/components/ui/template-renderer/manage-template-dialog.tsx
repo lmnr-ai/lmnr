@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import { defaultTemplateValues, ManageTemplateForm } from "./index";
+import { ManageTemplateForm, Template } from "./index";
 import JsxRenderer from "./jsx-renderer";
 
 const ManageTemplateDialog = ({
@@ -45,10 +45,10 @@ const ManageTemplateDialog = ({
   const {
     control,
     handleSubmit,
-    reset,
     getValues,
     watch,
-    formState: { errors, isValid },
+    reset,
+    formState: { errors },
   } = useFormContext<ManageTemplateForm>();
 
   const id = useWatch({
@@ -90,11 +90,13 @@ const ManageTemplateDialog = ({
           return;
         }
 
+        const result = (await res.json()) as Template;
+
         await mutate(`/api/projects/${projectId}/render-templates`);
 
         toast({ title: `Successfully ${isUpdate ? "updated" : "created"} template` });
         onOpenChange(false);
-        reset({ ...defaultTemplateValues, testData });
+        reset(result);
       } catch (e) {
         toast({
           variant: "destructive",
@@ -108,19 +110,11 @@ const ManageTemplateDialog = ({
         setIsLoading(false);
       }
     },
-    [projectId, mutate, toast, onOpenChange, reset, testData]
+    [projectId, mutate, toast, onOpenChange]
   );
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(openState) => {
-        onOpenChange(openState);
-        if (!openState) {
-          reset({ ...defaultTemplateValues, testData });
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="max-w-[90vw] max-h-[90vh] w-[90vw] h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="border-b p-4">
@@ -181,7 +175,6 @@ const ManageTemplateDialog = ({
                 <TabsContent value="editor" className="flex-1 min-h-0 pt-2">
                   <div className="border rounded-md bg-muted/50 h-full overflow-hidden">
                     <Controller
-                      rules={{ required: "Template code is required" }}
                       name="code"
                       control={control}
                       render={({ field }) => (
@@ -202,7 +195,7 @@ const ManageTemplateDialog = ({
             </div>
           </div>
           <DialogFooter className="border-t p-4">
-            <Button type="submit" disabled={isLoading || !isValid}>
+            <Button type="submit" disabled={isLoading}>
               <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
               {id ? "Save" : "Create"}
             </Button>
