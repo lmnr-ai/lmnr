@@ -923,20 +923,20 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
 }
 
 fn convert_ai_sdk_tool_calls(attributes: &mut HashMap<String, Value>) {
-    if let Some(aisdk_tools) = attributes.get("ai.prompt.tools") {
-        if let Some(tools) = aisdk_tools.as_array() {
+    if let Some(aisdk_tools) = attributes.remove("ai.prompt.tools") {
+        if let Value::Array(tools) = aisdk_tools {
             attributes.insert(
                 "ai.prompt.tools".to_string(),
                 serde_json::Value::Array(
                     tools
                         .into_iter()
-                        .map(|tool| match tool {
+                        .map(|tool| match &tool {
                             serde_json::Value::String(s) => {
                                 serde_json::from_str::<HashMap<String, serde_json::Value>>(s)
                                     .map(|m| serde_json::to_value(m).unwrap())
-                                    .unwrap_or(tool.clone())
+                                    .unwrap_or(tool)
                             }
-                            _ => tool.clone(),
+                            _ => tool,
                         })
                         .collect(),
                 ),
