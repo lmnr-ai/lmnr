@@ -210,9 +210,7 @@ export default function Evaluation({
     }
   }, []);
 
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(
-    initialTraceViewWidth || getDefaultTraceViewWidth()
-  );
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
 
   const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
     const newWidth = defaultTraceViewWidth + delta.width;
@@ -221,6 +219,12 @@ export default function Evaluation({
   };
 
   const ref = useRef<Resizable>(null);
+
+  useEffect(() => {
+    if (!initialTraceViewWidth) {
+      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -341,7 +345,7 @@ export default function Evaluation({
                   </div>
                 )}
                 <FiltersContextProvider>
-                  <TraceView key={traceId} onClose={onClose} traceId={traceId} />
+                  <TraceView spanId={null} key={traceId} onClose={onClose} traceId={traceId} />
                 </FiltersContextProvider>
               </div>
             </Resizable>

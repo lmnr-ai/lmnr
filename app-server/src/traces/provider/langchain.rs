@@ -144,6 +144,7 @@ pub fn is_langchain_span(span: &Span) -> bool {
     span.span_type == SpanType::LLM
         && (span
             .attributes
+            .raw_attributes
             .get("lmnr.association.properties.ls_provider")
             .is_some())
 }
@@ -369,11 +370,16 @@ impl TryInto<Option<LangChainChatMessageContentPart>> for ChatMessageContentPart
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
-    use crate::language_model::{
-        ChatMessageContentPart, ChatMessageDocument, ChatMessageDocumentSource,
-        ChatMessageDocumentUrl, ChatMessageImage, ChatMessageImageRawBytes, ChatMessageImageUrl,
-        ChatMessageText, ChatMessageToolCall,
+    use crate::{
+        language_model::{
+            ChatMessageContentPart, ChatMessageDocument, ChatMessageDocumentSource,
+            ChatMessageDocumentUrl, ChatMessageImage, ChatMessageImageRawBytes,
+            ChatMessageImageUrl, ChatMessageText, ChatMessageToolCall,
+        },
+        traces::spans::SpanAttributes,
     };
     use serde_json::json;
 
@@ -1132,18 +1138,17 @@ mod tests {
     #[test]
     fn test_is_langchain_span() {
         use crate::db::spans::SpanType;
-        use indexmap::IndexMap;
 
         // Test with ls_provider attribute
         let span_with_provider = Span {
             span_type: SpanType::LLM,
             attributes: {
-                let mut attrs = IndexMap::new();
+                let mut attrs = HashMap::new();
                 attrs.insert(
                     "lmnr.association.properties.ls_provider".to_string(),
                     serde_json::Value::String("openai".to_string()),
                 );
-                serde_json::to_value(attrs).unwrap()
+                SpanAttributes::new(attrs)
             },
             ..Default::default()
         };
@@ -1153,12 +1158,12 @@ mod tests {
         let non_llm_span = Span {
             span_type: SpanType::DEFAULT,
             attributes: {
-                let mut attrs = IndexMap::new();
+                let mut attrs = HashMap::new();
                 attrs.insert(
                     "lmnr.association.properties.ls_provider".to_string(),
                     serde_json::Value::String("openai".to_string()),
                 );
-                serde_json::to_value(attrs).unwrap()
+                SpanAttributes::new(attrs)
             },
             ..Default::default()
         };

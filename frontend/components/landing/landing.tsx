@@ -17,7 +17,6 @@ import llmPlayground from "@/assets/landing/llm-playground.png";
 import playground from "@/assets/landing/playground.png";
 import traces from "@/assets/landing/traces.png";
 import yc from "@/assets/landing/yc.svg";
-import logo from "@/assets/logo/icon.svg";
 import { SpanType } from "@/lib/traces/types";
 
 import SpanTypeIcon from "../traces/span-type-icon";
@@ -503,9 +502,6 @@ Laminar automatically records high-quality browser sessions and syncs them with 
                   </div>
                   <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
                     <IconPlaywright className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
-                    <Image src={logo} alt="Index" className="w-4 h-4 ml-1" />
                   </div>
                 </div>
               </InfoCard>

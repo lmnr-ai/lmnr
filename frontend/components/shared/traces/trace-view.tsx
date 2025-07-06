@@ -36,6 +36,7 @@ interface TraceViewProps {
 const MAX_ZOOM = 3;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
+const MIN_TREE_VIEW_WIDTH = 500;
 
 export default function TraceView({ trace, spans }: TraceViewProps) {
   const searchParams = useSearchParams();
@@ -63,7 +64,9 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
   );
 
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(
-    searchParams.get("spanId") ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null : null
+    searchParams.get("spanId")
+      ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null
+      : spans?.[0] || null
   );
 
   const [activeSpans, setActiveSpans] = useState<string[]>([]);
@@ -97,29 +100,14 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
     };
   }, [spans]);
 
-  useEffect(() => {
-    const handleSetSpan = () => {
-      const firstSpan = spans?.[0] || null;
-
-      if (firstSpan) {
-        setSelectedSpan(firstSpan);
-        const params = new URLSearchParams(searchParams);
-        params.set("spanId", firstSpan.spanId);
-        router.push(`${pathName}?${params.toString()}`);
-      }
-    };
-
-    handleSetSpan();
-  }, []);
-
-  const [treeViewWidth, setTreeViewWidth] = useState(384);
+  const [treeViewWidth, setTreeViewWidth] = useState(MIN_TREE_VIEW_WIDTH);
 
   useEffect(() => {
     try {
       if (typeof window !== "undefined") {
         const savedWidth = localStorage.getItem("trace-view:tree-view-width");
         if (savedWidth) {
-          setTreeViewWidth(parseInt(savedWidth, 10));
+          setTreeViewWidth(Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)));
         }
       }
     } catch (e) {}
@@ -146,7 +134,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       const startWidth = treeViewWidth;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(320, startWidth + moveEvent.clientX - startX);
+        const newWidth = Math.max(MIN_TREE_VIEW_WIDTH, startWidth + moveEvent.clientX - startX);
         setTreeViewWidth(newWidth);
       };
 
@@ -285,7 +273,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
             </div>
             {selectedSpan && (
               <div className="flex-grow overflow-hidden flex-wrap">
-                <SpanView key={selectedSpan.spanId} span={selectedSpan} traceId={trace.id} />
+                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={trace.id} />
               </div>
             )}
           </ResizablePanel>

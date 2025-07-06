@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
     },
     mq::{MessageQueue, MessageQueueTrait},
     routes::types::ResponseResult,
-    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY},
+    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
 #[derive(Deserialize)]
@@ -24,7 +24,7 @@ pub struct CreateSpanRequest {
     pub span_type: Option<SpanType>,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
-    pub attributes: Option<Value>,
+    pub attributes: Option<HashMap<String, Value>>,
     pub trace_id: Option<Uuid>,
     pub parent_span_id: Option<Uuid>,
 }
@@ -53,7 +53,7 @@ pub async fn create_span(
         trace_id,
         parent_span_id: request.parent_span_id,
         name: request.name,
-        attributes: request.attributes.unwrap_or(json!({})),
+        attributes: SpanAttributes::new(request.attributes.unwrap_or_default()),
         input: None,
         output: None,
         span_type: request.span_type.unwrap_or(SpanType::LLM),

@@ -1,11 +1,13 @@
 "use client";
 
 import "rrweb-player/dist/style.css";
+import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { Loader2 } from "lucide-react";
 import pako from "pako";
 import React, { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
 import {
@@ -39,8 +41,7 @@ export interface SessionPlayerHandle {
   goto: (time: number) => void;
 }
 
-
-
+const speedOptions = [1, 2, 4, 8, 16];
 const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
   ({ hasBrowserSession, traceId, onTimelineChange }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -241,6 +242,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         playerRef.current = new rrwebPlayer({
           target: playerContainerRef.current,
           props: {
+            speedOption: speedOptions,
             autoPlay: false,
             skipInactive: false,
             events,
@@ -273,7 +275,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           // Update current URL based on the current time
           updateCurrentUrl(startTime + event.payload);
         });
-
       } catch (e) {
         console.error("Error initializing player:", e);
       }
@@ -329,7 +330,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         if (playerRef.current) {
           playerRef.current.goto(time * 1000);
           // Update URL when seeking
-          updateCurrentUrl(startTime + (time * 1000));
+          updateCurrentUrl(startTime + time * 1000);
           if (wasPlaying) {
             requestAnimationFrame(() => {
               playerRef.current.play();
@@ -351,58 +352,17 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             setCurrentTime(time);
             playerRef.current.goto(time * 1000);
             // Update URL when programmatically seeking
-            updateCurrentUrl(startTime + (time * 1000));
+            updateCurrentUrl(startTime + time * 1000);
           }
         },
       }),
       [startTime, urlChanges, currentUrl]
     );
 
+    useHotkeys("space", handlePlayPause);
+
     return (
       <>
-        <style jsx global>{`
-          .rr-player {
-            background-color: transparent !important;
-            border-radius: 6px;
-          }
-
-          .replayer-wrapper {
-            background-color: transparent !important;
-            border: 1px solid gray !important;
-          }
-
-          .rr-controller {
-            background-color: transparent !important;
-            color: white !important;
-          }
-
-          /* Using the provided cursor SVG with white outline */
-          .replayer-mouse {
-            width: 30px !important;
-            height: 42px !important;
-            background-image: url("data:image/svg+xml,%3Csvg width='15' height='21' viewBox='0 0 15 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.21818 14.9087L5.05222 14.9637L4.92773 15.0865L0.75 19.2069V1.84143L13.2192 14.6096H6.24066H6.11948L6.00446 14.6477L5.21818 14.9087Z' fill='black' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") !important;
-            background-size: contain !important;
-            background-repeat: no-repeat !important;
-            background-color: transparent !important;
-            margin-left: -1px !important;
-            margin-top: -1px !important;
-            transition: all 0.2s ease-in-out !important;
-          }
-
-          @keyframes bounce {
-            0%,
-            100% {
-              transform: scale(1);
-            }
-            50% {
-              transform: scale(1.4);
-            }
-          }
-
-          .replayer-mouse.active {
-            animation: bounce 0.3s ease-in-out !important;
-          }
-        `}</style>
         <div className="relative w-full h-full" ref={containerRef}>
           <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b">
             <button onClick={handlePlayPause} className="text-white py-1 rounded">
@@ -414,7 +374,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
                 {speed}x
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                {[1, 2, 4, 8].map((speedOption) => (
+                {speedOptions.map((speedOption) => (
                   <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
                     {speedOption}x
                   </DropdownMenuItem>
@@ -459,7 +419,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           )}
           {!isLoading && events.length === 0 && hasBrowserSession && (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
-              No browser session was recorded. Either the session is still being processed or you have an outdated SDK version.
+              No browser session was recorded. Either the session is still being processed or you have an outdated SDK
+              version.
             </div>
           )}
           {!isLoading && events.length > 0 && <div ref={playerContainerRef} />}

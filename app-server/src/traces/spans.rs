@@ -8,8 +8,8 @@ use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use indexmap::IndexMap;
 use regex::Regex;
-use serde::Deserialize;
-use serde_json::{Map, Value, json};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
@@ -90,21 +90,24 @@ impl InputTokens {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SpanAttributes {
-    pub attributes: HashMap<String, Value>,
+    pub raw_attributes: HashMap<String, Value>,
 }
 
 impl SpanAttributes {
     pub fn new(attributes: HashMap<String, Value>) -> Self {
-        Self { attributes }
+        Self {
+            raw_attributes: attributes,
+        }
     }
 
     pub fn session_id(&self) -> Option<String> {
         let session_id_val = self
-            .attributes
+            .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id"))
-            .or(self.attributes.get("ai.telemetry.metadata.session_id"))
-            .or(self.attributes.get("ai.telemetry.metadata.sessionId"));
+            .or(self.raw_attributes.get("ai.telemetry.metadata.session_id"))
+            .or(self.raw_attributes.get("ai.telemetry.metadata.sessionId"));
         match session_id_val {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -113,10 +116,10 @@ impl SpanAttributes {
 
     pub fn user_id(&self) -> Option<String> {
         let user_id_val = self
-            .attributes
+            .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.user_id"))
-            .or(self.attributes.get("ai.telemetry.metadata.userId"))
-            .or(self.attributes.get("ai.telemetry.metadata.user_id"));
+            .or(self.raw_attributes.get("ai.telemetry.metadata.userId"))
+            .or(self.raw_attributes.get("ai.telemetry.metadata.user_id"));
         match user_id_val {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -124,19 +127,19 @@ impl SpanAttributes {
     }
 
     pub fn trace_type(&self) -> Option<TraceType> {
-        self.attributes
+        self.raw_attributes
             .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type").as_str())
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
     pub fn input_tokens(&mut self) -> InputTokens {
         let total_input_tokens =
-            if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_INPUT_TOKENS) {
+            if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_INPUT_TOKENS) {
                 n.as_i64().unwrap_or(0)
-            } else if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_PROMPT_TOKENS) {
+            } else if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_PROMPT_TOKENS) {
                 // updating to the new convention
                 let n = n.as_i64().unwrap_or(0);
-                self.attributes
+                self.raw_attributes
                     .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(n));
                 n
             } else {
@@ -144,12 +147,12 @@ impl SpanAttributes {
             };
 
         let cache_write_tokens = self
-            .attributes
+            .raw_attributes
             .get(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
         let cache_read_tokens = self
-            .attributes
+            .raw_attributes
             .get(GEN_AI_CACHE_READ_INPUT_TOKENS)
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
@@ -165,12 +168,12 @@ impl SpanAttributes {
     }
 
     pub fn completion_tokens(&mut self) -> i64 {
-        if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_OUTPUT_TOKENS) {
+        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_OUTPUT_TOKENS) {
             n.as_i64().unwrap_or(0)
-        } else if let Some(Value::Number(n)) = self.attributes.get(GEN_AI_COMPLETION_TOKENS) {
+        } else if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_COMPLETION_TOKENS) {
             // updating to the new convention
             let n = n.as_i64().unwrap_or(0);
-            self.attributes
+            self.raw_attributes
                 .insert(GEN_AI_OUTPUT_TOKENS.to_string(), json!(n));
             n
         } else {
@@ -179,26 +182,26 @@ impl SpanAttributes {
     }
 
     pub fn request_model(&self) -> Option<String> {
-        match self.attributes.get(GEN_AI_REQUEST_MODEL) {
+        match self.raw_attributes.get(GEN_AI_REQUEST_MODEL) {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
     }
 
     pub fn response_model(&self) -> Option<String> {
-        match self.attributes.get(GEN_AI_RESPONSE_MODEL) {
+        match self.raw_attributes.get(GEN_AI_RESPONSE_MODEL) {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
     }
 
     pub fn provider_name(&self) -> Option<String> {
-        let name = if let Some(Value::String(provider)) = self.attributes.get(GEN_AI_SYSTEM) {
+        let name = if let Some(Value::String(provider)) = self.raw_attributes.get(GEN_AI_SYSTEM) {
             // Traceloop's auto-instrumentation sends the provider name as "Langchain" and the actual provider
             // name as an attribute `association_properties.ls_provider`.
             if provider == "Langchain" {
                 let ls_provider = self
-                    .attributes
+                    .raw_attributes
                     .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.ls_provider").as_str())
                     .and_then(|s| serde_json::from_value(s.clone()).ok());
                 if let Some(ls_provider) = ls_provider {
@@ -218,13 +221,13 @@ impl SpanAttributes {
     }
 
     pub fn span_type(&self) -> SpanType {
-        if let Some(span_type) = self.attributes.get(SPAN_TYPE) {
+        if let Some(span_type) = self.raw_attributes.get(SPAN_TYPE) {
             serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default()
         } else {
             // quick hack until we figure how to set span type on auto-instrumentation
-            if self.attributes.contains_key(GEN_AI_SYSTEM)
+            if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
                 || self
-                    .attributes
+                    .raw_attributes
                     .iter()
                     .any(|(k, _)| k.starts_with("gen_ai.") || k.starts_with("llm."))
             {
@@ -245,7 +248,7 @@ impl SpanAttributes {
     }
 
     fn raw_path(&self) -> Option<Vec<String>> {
-        match self.attributes.get(SPAN_PATH) {
+        match self.raw_attributes.get(SPAN_PATH) {
             Some(Value::Array(arr)) => Some(arr.iter().map(|v| json_value_to_string(v)).collect()),
             Some(Value::String(s)) => Some(vec![s.clone()]),
             _ => None,
@@ -257,7 +260,7 @@ impl SpanAttributes {
     }
 
     pub fn ids_path(&self) -> Option<Vec<String>> {
-        let attributes_ids_path = match self.attributes.get(SPAN_IDS_PATH) {
+        let attributes_ids_path = match self.raw_attributes.get(SPAN_IDS_PATH) {
             Some(Value::Array(arr)) => Some(
                 arr.iter()
                     .map(|v| json_value_to_string(v))
@@ -287,27 +290,27 @@ impl SpanAttributes {
     }
 
     pub fn set_usage(&mut self, usage: &SpanUsage) {
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(usage.input_tokens));
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_OUTPUT_TOKENS.to_string(), json!(usage.output_tokens));
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_TOTAL_COST.to_string(), json!(usage.total_cost));
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_INPUT_COST.to_string(), json!(usage.input_cost));
-        self.attributes
+        self.raw_attributes
             .insert(GEN_AI_OUTPUT_COST.to_string(), json!(usage.output_cost));
 
         if let Some(request_model) = &usage.request_model {
-            self.attributes
+            self.raw_attributes
                 .insert(GEN_AI_REQUEST_MODEL.to_string(), json!(request_model));
         }
         if let Some(response_model) = &usage.response_model {
-            self.attributes
+            self.raw_attributes
                 .insert(GEN_AI_RESPONSE_MODEL.to_string(), json!(response_model));
         }
         if let Some(provider_name) = &usage.provider_name {
-            self.attributes
+            self.raw_attributes
                 .insert(GEN_AI_SYSTEM.to_string(), json!(provider_name));
         }
     }
@@ -320,17 +323,17 @@ impl SpanAttributes {
     /// NOTE: Nested spans generated by Langchain auto-instrumentation may have the same path
     /// because we don't have a way to set the span name/path in the auto-instrumentation code.
     pub fn extend_span_path(&mut self, span_name: &str) {
-        if let Some(serde_json::Value::Array(path)) = self.attributes.get(SPAN_PATH) {
+        if let Some(serde_json::Value::Array(path)) = self.raw_attributes.get(SPAN_PATH) {
             if path.len() > 0
                 && !matches!(path.last().unwrap(), serde_json::Value::String(s) if s == span_name)
             {
                 let mut new_path = path.clone();
                 new_path.push(serde_json::Value::String(span_name.to_string()));
-                self.attributes
+                self.raw_attributes
                     .insert(SPAN_PATH.to_string(), Value::Array(new_path));
             }
         } else {
-            self.attributes.insert(
+            self.raw_attributes.insert(
                 SPAN_PATH.to_string(),
                 Value::Array(vec![serde_json::Value::String(span_name.to_string())]),
             );
@@ -338,7 +341,7 @@ impl SpanAttributes {
     }
 
     pub fn update_path(&mut self) {
-        self.attributes.insert(
+        self.raw_attributes.insert(
             SPAN_IDS_PATH.to_string(),
             Value::Array(
                 self.ids_path()
@@ -348,7 +351,7 @@ impl SpanAttributes {
                     .collect(),
             ),
         );
-        self.attributes.insert(
+        self.raw_attributes.insert(
             SPAN_PATH.to_string(),
             Value::Array(
                 self.path()
@@ -362,10 +365,10 @@ impl SpanAttributes {
 
     pub fn labels(&self) -> Vec<String> {
         let attr_tags = self
-            .attributes
+            .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.tags"));
         let attr_labels = self
-            .attributes
+            .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels"));
         match attr_tags.or(attr_labels) {
             Some(Value::Array(arr)) => arr.iter().map(|v| json_value_to_string(v)).collect(),
@@ -400,7 +403,7 @@ impl SpanAttributes {
     ) -> HashMap<String, Value> {
         let mut res = HashMap::new();
         let prefix = format!("{attribute_prefix}.{entity}.");
-        for (key, value) in self.attributes.iter() {
+        for (key, value) in self.raw_attributes.iter() {
             if key.starts_with(&prefix) {
                 res.insert(
                     key.strip_prefix(&prefix).unwrap().to_string(),
@@ -412,33 +415,21 @@ impl SpanAttributes {
     }
 
     fn tracing_level(&self) -> Option<TracingLevel> {
-        self.attributes
+        self.raw_attributes
             .get(TRACING_LEVEL_ATTRIBUTE_NAME)
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
     pub fn has_browser_session(&self) -> Option<bool> {
-        self.attributes
+        self.raw_attributes
             .get(HAS_BROWSER_SESSION_ATTRIBUTE_NAME)
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 }
 
 impl Span {
-    pub fn get_attributes(&self) -> SpanAttributes {
-        let attributes =
-            serde_json::from_value::<HashMap<String, Value>>(self.attributes.clone()).unwrap();
-
-        SpanAttributes::new(attributes)
-    }
-
-    pub fn set_attributes(&mut self, attributes: &SpanAttributes) {
-        self.attributes = serde_json::to_value(&attributes.attributes).unwrap();
-    }
-
     pub fn should_save(&self) -> bool {
-        self.get_attributes().tracing_level() != Some(TracingLevel::Off)
-            && !skip_span_name(&self.name)
+        self.attributes.tracing_level() != Some(TracingLevel::Off) && !skip_span_name(&self.name)
     }
 
     /// Create a span from an OpenTelemetry span.
@@ -460,25 +451,27 @@ impl Span {
             .attributes
             .into_iter()
             .map(|k| (k.key, convert_any_value_to_json_value(k.value)))
-            .collect::<serde_json::Map<String, serde_json::Value>>();
+            .collect::<HashMap<String, Value>>();
+
+        let override_parent_span = attributes.get(OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME).cloned();
 
         let mut span = Span {
             span_id,
             trace_id,
             parent_span_id,
             name: otel_span.name,
-            attributes: serde_json::Value::Object(attributes.clone()),
+            attributes: SpanAttributes::new(attributes),
             start_time: Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64),
             end_time: Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64),
             ..Default::default()
         };
 
         // Only set span type and handle basic attribute overrides - keep this lightweight
-        span.span_type = span.get_attributes().span_type();
+        span.span_type = span.attributes.span_type();
 
         // Spans with this attribute are wrapped in a NonRecordingSpan that, and we only
         // do that when we add a new span to a trace as a root span.
-        if let Some(Value::Bool(true)) = attributes.get(OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME) {
+        if let Some(Value::Bool(true)) = override_parent_span {
             span.parent_span_id = None;
         }
 
@@ -489,20 +482,27 @@ impl Span {
     /// This is called on the consumer side where we can afford heavier processing.
     pub fn parse_and_enrich_attributes(&mut self) {
         // Get the raw attributes map for parsing
-        let mut attributes = if let serde_json::Value::Object(ref attrs) = self.attributes {
-            attrs.clone()
-        } else {
+        if self.attributes.raw_attributes.is_empty() {
             return;
-        };
+        }
 
         if self.span_type == SpanType::LLM {
-            if attributes.get("gen_ai.prompt.0.content").is_some() {
-                let input_messages =
-                    input_chat_messages_from_prompt_content(&attributes, "gen_ai.prompt");
+            if self
+                .attributes
+                .raw_attributes
+                .get("gen_ai.prompt.0.content")
+                .is_some()
+            {
+                let input_messages = input_chat_messages_from_prompt_content(
+                    &self.attributes.raw_attributes,
+                    "gen_ai.prompt",
+                );
 
                 self.input = Some(json!(input_messages));
-                self.output = output_from_completion_content(&attributes);
-            } else if let Some(stringified_value) = attributes
+                self.output = output_from_completion_content(&self.attributes.raw_attributes);
+            } else if let Some(stringified_value) = self
+                .attributes
+                .raw_attributes
                 .get("ai.prompt.messages")
                 .and_then(|v| v.as_str())
             {
@@ -513,7 +513,7 @@ impl Span {
                     }
                 }
 
-                if let Some(output) = try_parse_ai_sdk_output(&attributes) {
+                if let Some(output) = try_parse_ai_sdk_output(&self.attributes.raw_attributes) {
                     self.output = Some(output);
                 }
             }
@@ -524,20 +524,37 @@ impl Span {
             self.input = self
                 .input
                 .take()
-                .or(attributes.get("llm.openai.messages").cloned())
-                .or(attributes.get("llm.anthropic.messages").cloned());
+                .or(self
+                    .attributes
+                    .raw_attributes
+                    .get("llm.openai.messages")
+                    .cloned())
+                .or(self
+                    .attributes
+                    .raw_attributes
+                    .get("llm.anthropic.messages")
+                    .cloned());
 
             self.output = self
                 .output
                 .take()
-                .or(attributes.get("llm.openai.choices").cloned())
-                .or(attributes.get("llm.anthropic.content").cloned());
+                .or(self
+                    .attributes
+                    .raw_attributes
+                    .get("llm.openai.choices")
+                    .cloned())
+                .or(self
+                    .attributes
+                    .raw_attributes
+                    .get("llm.anthropic.content")
+                    .cloned());
         }
 
         // Vercel AI SDK wraps "raw" LLM spans in an additional `ai.generateText` span.
         // Which is not really an LLM span, but it has the prompt in its attributes.
         // Set the input to the prompt and the output to the response.
-        if let Some(serde_json::Value::String(s)) = attributes.get("ai.prompt") {
+        if let Some(serde_json::Value::String(s)) = self.attributes.raw_attributes.get("ai.prompt")
+        {
             let ai_prompt =
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
             if let Some(messages_value) = ai_prompt.get("messages") {
@@ -559,15 +576,22 @@ impl Span {
                 }
                 self.input = Some(serde_json::to_value(messages).unwrap());
             }
-            self.output = self.output.take().or(try_parse_ai_sdk_output(&attributes));
+            self.output = self
+                .output
+                .take()
+                .or(try_parse_ai_sdk_output(&self.attributes.raw_attributes));
             // Rename AI SDK spans to what's set by telemetry.functionId
-            if let Some(Value::String(s)) = attributes.get("operation.name") {
+            if let Some(Value::String(s)) = self.attributes.raw_attributes.get("operation.name") {
                 if s.starts_with(&format!("{} ", self.name)) {
                     let new_name = s
                         .strip_prefix(&format!("{} ", self.name))
                         .unwrap_or(&self.name)
                         .to_string();
-                    rename_last_span_in_path(&mut attributes, &self.name, &new_name);
+                    rename_last_span_in_path(
+                        &mut self.attributes.raw_attributes,
+                        &self.name,
+                        &new_name,
+                    );
                     self.name = new_name;
                 }
             }
@@ -575,18 +599,22 @@ impl Span {
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
         // Take their values if input/output are not already set.
-        self.input = self
-            .input
-            .take()
-            .or(attributes.get("traceloop.entity.input").cloned());
-        self.output = self
-            .output
-            .take()
-            .or(attributes.get("traceloop.entity.output").cloned());
+        self.input = self.input.take().or(self
+            .attributes
+            .raw_attributes
+            .get("traceloop.entity.input")
+            .cloned());
+        self.output = self.output.take().or(self
+            .attributes
+            .raw_attributes
+            .get("traceloop.entity.output")
+            .cloned());
 
         // Ignore inputs for Traceloop Langchain RunnableSequence spans
         if self.name.starts_with("RunnableSequence")
-            && attributes
+            && self
+                .attributes
+                .raw_attributes
                 .get("traceloop.entity.name")
                 .map(|s| json_value_to_string(s) == "RunnableSequence")
                 .unwrap_or(false)
@@ -597,7 +625,9 @@ impl Span {
         // If an LLM span is sent manually, we prefer `lmnr.span.input` and `lmnr.span.output`
         // attributes over gen_ai/vercel/LiteLLM attributes.
         // Therefore this block is outside and after the LLM span type check.
-        if let Some(serde_json::Value::String(s)) = attributes.get(INPUT_ATTRIBUTE_NAME) {
+        if let Some(serde_json::Value::String(s)) =
+            self.attributes.raw_attributes.get(INPUT_ATTRIBUTE_NAME)
+        {
             let input =
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
             if self.span_type == SpanType::LLM {
@@ -611,30 +641,19 @@ impl Span {
                 self.input = Some(input);
             }
         }
-        if let Some(serde_json::Value::String(s)) = attributes.get(OUTPUT_ATTRIBUTE_NAME) {
+        if let Some(serde_json::Value::String(s)) =
+            self.attributes.raw_attributes.get(OUTPUT_ATTRIBUTE_NAME)
+        {
             // TODO: try parse output as ChatMessage with tool calls
             self.output = Some(
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone())),
             );
         }
 
-        if let Some(TracingLevel::MetaOnly) = self.get_attributes().tracing_level() {
+        if let Some(TracingLevel::MetaOnly) = self.attributes.tracing_level() {
             self.input = None;
             self.output = None;
         }
-        self.attributes = serde_json::Value::Object(
-            attributes
-                .into_iter()
-                .filter_map(|(k, v)| {
-                    if should_keep_attribute(&k) {
-                        let converted_val = convert_attribute(&k, v);
-                        Some((k, converted_val))
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-        );
     }
 
     pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
@@ -695,7 +714,7 @@ impl Span {
     }
 }
 
-fn should_keep_attribute(attribute: &str) -> bool {
+pub fn should_keep_attribute(attribute: &str) -> bool {
     // do not duplicate function input/output as they are stored in DEFAULT span's input/output
     if attribute == INPUT_ATTRIBUTE_NAME || attribute == OUTPUT_ATTRIBUTE_NAME {
         return false;
@@ -749,7 +768,7 @@ pub struct SpanUsage {
 }
 
 fn input_chat_messages_from_prompt_content(
-    attributes: &serde_json::Map<String, serde_json::Value>,
+    attributes: &HashMap<String, Value>,
     prefix: &str,
 ) -> Vec<ChatMessage> {
     let mut input_messages: Vec<ChatMessage> = vec![];
@@ -872,7 +891,8 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
     }
 }
 
-fn convert_attribute(key: &str, value: serde_json::Value) -> serde_json::Value {
+// TODO: move this to a separate funciton, e.g. parse_ai_sdk_tool_calls_outer
+pub fn convert_attribute(key: &str, value: serde_json::Value) -> serde_json::Value {
     if key == "ai.prompt.tools" {
         if let Some(tools) = value.as_array() {
             serde_json::Value::Array(
@@ -897,7 +917,7 @@ fn convert_attribute(key: &str, value: serde_json::Value) -> serde_json::Value {
 }
 
 fn output_from_completion_content(
-    attributes: &serde_json::Map<String, serde_json::Value>,
+    attributes: &HashMap<String, Value>,
 ) -> Option<serde_json::Value> {
     let mut out_vec = Vec::new();
     let completion_message_count = attributes
@@ -925,7 +945,7 @@ fn output_from_completion_content(
 }
 
 fn output_message_from_completion_content(
-    attributes: &serde_json::Map<String, serde_json::Value>,
+    attributes: &HashMap<String, Value>,
     prefix: &str,
 ) -> Option<ChatMessage> {
     let msg_content = attributes.get(format!("{prefix}.content").as_str());
@@ -985,10 +1005,7 @@ fn output_message_from_completion_content(
     }
 }
 
-fn parse_tool_calls(
-    attributes: &serde_json::Map<String, serde_json::Value>,
-    prefix: &str,
-) -> Vec<ChatMessageToolCall> {
+fn parse_tool_calls(attributes: &HashMap<String, Value>, prefix: &str) -> Vec<ChatMessageToolCall> {
     let mut tool_calls = Vec::new();
     let mut i = 0;
 
@@ -1038,9 +1055,7 @@ fn parse_tool_calls(
     tool_calls
 }
 
-fn try_parse_ai_sdk_output(
-    attributes: &serde_json::Map<String, serde_json::Value>,
-) -> Option<serde_json::Value> {
+fn try_parse_ai_sdk_output(attributes: &HashMap<String, Value>) -> Option<serde_json::Value> {
     let mut messages = Vec::new();
     // let mut out_vals: Vec<serde_json::Value> = Vec::new();
     if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
@@ -1108,7 +1123,7 @@ fn parse_ai_sdk_tool_calls(
         .collect::<Vec<_>>()
 }
 
-fn rename_last_span_in_path(attributes: &mut Map<String, Value>, from: &str, to: &str) {
+fn rename_last_span_in_path(attributes: &mut HashMap<String, Value>, from: &str, to: &str) {
     if let Some(path_value) = attributes.get_mut(SPAN_PATH) {
         if let Some(path_array) = path_value.as_array_mut() {
             if let Some(last) = path_array.last_mut() {
@@ -1126,9 +1141,1194 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn test_parse_and_enrich_attributes_openai() {
+        // Create a span with OpenAI-style attributes with conversation history and tool calls
+        let attributes = HashMap::from([
+            ("gen_ai.system".to_string(), json!("OpenAI")),
+            ("gen_ai.request.model".to_string(), json!("gpt-4.1-nano")),
+            (
+                "gen_ai.response.model".to_string(),
+                json!("gpt-4.1-nano-2025-04-14"),
+            ),
+            // First message - user question
+            ("gen_ai.prompt.0.role".to_string(), json!("user")),
+            (
+                "gen_ai.prompt.0.content".to_string(),
+                json!("What is the weather and current time in San Francisco?"),
+            ),
+            // Second message - assistant with tool call
+            ("gen_ai.prompt.1.role".to_string(), json!("assistant")),
+            (
+                "gen_ai.prompt.1.tool_calls.0.id".to_string(),
+                json!("call_1"),
+            ),
+            (
+                "gen_ai.prompt.1.tool_calls.0.name".to_string(),
+                json!("get_weather"),
+            ),
+            (
+                "gen_ai.prompt.1.tool_calls.0.arguments".to_string(),
+                json!("{\"location\": \"San Francisco, CA\"}"),
+            ),
+            // Third message - tool response
+            ("gen_ai.prompt.2.role".to_string(), json!("tool")),
+            (
+                "gen_ai.prompt.2.content".to_string(),
+                json!("Sunny and 65 degrees Fahrenheit"),
+            ),
+            ("gen_ai.prompt.2.tool_call_id".to_string(), json!("call_1")),
+            // Completion - assistant with another tool call
+            ("gen_ai.completion.0.role".to_string(), json!("assistant")),
+            (
+                "gen_ai.completion.0.finish_reason".to_string(),
+                json!("tool_calls"),
+            ),
+            (
+                "gen_ai.completion.0.tool_calls.0.id".to_string(),
+                json!("call_vqQRzJX8Csv19WyJucQnOUJH"),
+            ),
+            (
+                "gen_ai.completion.0.tool_calls.0.name".to_string(),
+                json!("get_time"),
+            ),
+            (
+                "gen_ai.completion.0.tool_calls.0.arguments".to_string(),
+                json!("{\"location\":\"San Francisco, CA\"}"),
+            ),
+            // Token usage
+            ("gen_ai.usage.prompt_tokens".to_string(), json!(173)),
+            ("gen_ai.usage.completion_tokens".to_string(), json!(17)),
+        ]);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "openai.chat".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::LLM,
+            input: None,
+            output: None,
+            events: None,
+            status: None,
+            labels: None,
+            input_url: None,
+            output_url: None,
+        };
+
+        // Verify initial state
+        assert!(span.input.is_none());
+        assert!(span.output.is_none());
+        assert!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.0.content")
+                .is_some()
+        );
+        assert!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.1.tool_calls.0.name")
+                .is_some()
+        );
+        assert!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.name")
+                .is_some()
+        );
+
+        // Apply transformations
+        span.parse_and_enrich_attributes();
+
+        // Verify input is correctly parsed - should have 3 messages
+        assert!(span.input.is_some());
+        let input = span.input.as_ref().unwrap();
+        let input_messages: Vec<ChatMessage> = serde_json::from_value(input.clone()).unwrap();
+        assert_eq!(input_messages.len(), 3);
+
+        // First message: user question
+        assert_eq!(input_messages[0].role, "user");
+        match &input_messages[0].content {
+            ChatMessageContent::Text(text) => {
+                assert_eq!(
+                    text,
+                    "What is the weather and current time in San Francisco?"
+                );
+            }
+            _ => panic!("Expected text content for user message"),
+        }
+
+        // Second message: assistant with tool call
+        assert_eq!(input_messages[1].role, "assistant");
+        match &input_messages[1].content {
+            ChatMessageContent::ContentPartList(parts) => {
+                assert_eq!(parts.len(), 1);
+                match &parts[0] {
+                    ChatMessageContentPart::ToolCall(tool_call) => {
+                        assert_eq!(tool_call.name, "get_weather");
+                        assert_eq!(tool_call.id, Some("call_1".to_string()));
+                        assert!(tool_call.arguments.is_some());
+                        let args = tool_call.arguments.as_ref().unwrap();
+                        assert_eq!(args.get("location").unwrap(), &json!("San Francisco, CA"));
+                    }
+                    _ => panic!("Expected tool call"),
+                }
+            }
+            _ => panic!("Expected content part list for assistant message"),
+        }
+
+        // Third message: tool response
+        assert_eq!(input_messages[2].role, "tool");
+        assert_eq!(input_messages[2].tool_call_id, Some("call_1".to_string()));
+        match &input_messages[2].content {
+            ChatMessageContent::Text(text) => {
+                assert_eq!(text, "Sunny and 65 degrees Fahrenheit");
+            }
+            _ => panic!("Expected text content for tool message"),
+        }
+
+        // Verify output is correctly parsed - should have 1 message
+        assert!(span.output.is_some());
+        let output = span.output.as_ref().unwrap();
+        let output_messages: Vec<ChatMessage> = serde_json::from_value(output.clone()).unwrap();
+        assert_eq!(output_messages.len(), 1);
+
+        // Output message: assistant with tool call
+        assert_eq!(output_messages[0].role, "assistant");
+        match &output_messages[0].content {
+            ChatMessageContent::ContentPartList(parts) => {
+                assert_eq!(parts.len(), 1);
+                match &parts[0] {
+                    ChatMessageContentPart::ToolCall(tool_call) => {
+                        assert_eq!(tool_call.name, "get_time");
+                        assert_eq!(
+                            tool_call.id,
+                            Some("call_vqQRzJX8Csv19WyJucQnOUJH".to_string())
+                        );
+                        assert!(tool_call.arguments.is_some());
+                        let args = tool_call.arguments.as_ref().unwrap();
+                        assert_eq!(args.get("location").unwrap(), &json!("San Francisco, CA"));
+                    }
+                    _ => panic!("Expected tool call"),
+                }
+            }
+            _ => panic!("Expected content part list for assistant output"),
+        }
+
+        // Verify that tool call attributes are preserved
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.1.tool_calls.0.name"),
+            Some(&json!("get_weather"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.1.tool_calls.0.id"),
+            Some(&json!("call_1"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.1.tool_calls.0.arguments"),
+            Some(&json!("{\"location\": \"San Francisco, CA\"}"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.name"),
+            Some(&json!("get_time"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.id"),
+            Some(&json!("call_vqQRzJX8Csv19WyJucQnOUJH"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.arguments"),
+            Some(&json!("{\"location\":\"San Francisco, CA\"}"))
+        );
+
+        // Verify that other attributes are preserved
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.system"),
+            Some(&json!("OpenAI"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.request.model"),
+            Some(&json!("gpt-4.1-nano"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.response.model"),
+            Some(&json!("gpt-4.1-nano-2025-04-14"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.finish_reason"),
+            Some(&json!("tool_calls"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.usage.prompt_tokens"),
+            Some(&json!(173))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.usage.completion_tokens"),
+            Some(&json!(17))
+        );
+    }
+
+    #[test]
+    fn test_parse_and_enrich_attributes_langchain() {
+        // Create a span with LangChain-style attributes with conversation history and tool calls
+        // This is based on real span data from the logs
+        let attributes = HashMap::from([
+            (
+                "lmnr.span.path".to_string(),
+                json!([
+                    "integration/0150_langchain_tool_calls_with_history",
+                    "ChatOpenAI.chat"
+                ]),
+            ),
+            (
+                "lmnr.span.ids_path".to_string(),
+                json!([
+                    "00000000-0000-0000-f961-aebceb94f98a",
+                    "00000000-0000-0000-46eb-a5ee110c65db"
+                ]),
+            ),
+            (
+                "lmnr.span.instrumentation_source".to_string(),
+                json!("python"),
+            ),
+            ("lmnr.span.sdk_version".to_string(), json!("0.6.16")),
+            (
+                "lmnr.span.language_version".to_string(),
+                json!("python@3.13"),
+            ),
+            (
+                "lmnr.association.properties.ls_provider".to_string(),
+                json!("openai"),
+            ),
+            (
+                "lmnr.association.properties.ls_model_name".to_string(),
+                json!("gpt-4.1-nano"),
+            ),
+            (
+                "lmnr.association.properties.ls_model_type".to_string(),
+                json!("chat"),
+            ),
+            ("gen_ai.system".to_string(), json!("Langchain")),
+            ("llm.request.type".to_string(), json!("chat")),
+            ("gen_ai.request.model".to_string(), json!("gpt-4.1-nano")),
+            (
+                "llm.request.functions.0.name".to_string(),
+                json!("get_weather"),
+            ),
+            (
+                "llm.request.functions.0.parameters".to_string(),
+                json!(
+                    "{\"properties\": {\"location\": {\"type\": \"string\"}}, \"required\": [\"location\"], \"type\": \"object\"}"
+                ),
+            ),
+            (
+                "llm.request.functions.1.name".to_string(),
+                json!("get_time"),
+            ),
+            (
+                "llm.request.functions.1.parameters".to_string(),
+                json!(
+                    "{\"properties\": {\"location\": {\"type\": \"string\"}}, \"required\": [\"location\"], \"type\": \"object\"}"
+                ),
+            ),
+            (
+                "llm.request.functions.2.name".to_string(),
+                json!("get_city_population"),
+            ),
+            (
+                "llm.request.functions.2.parameters".to_string(),
+                json!(
+                    "{\"properties\": {\"location\": {\"type\": \"string\"}}, \"required\": [\"location\"], \"type\": \"object\"}"
+                ),
+            ),
+            // First message - user question
+            ("gen_ai.prompt.0.role".to_string(), json!("user")),
+            (
+                "gen_ai.prompt.0.content".to_string(),
+                json!("What is the weather and current time in San Francisco?"),
+            ),
+            // Second message - assistant with tool call
+            ("gen_ai.prompt.1.role".to_string(), json!("assistant")),
+            (
+                "gen_ai.prompt.1.tool_calls.0.id".to_string(),
+                json!("call_1"),
+            ),
+            (
+                "gen_ai.prompt.1.tool_calls.0.name".to_string(),
+                json!("get_weather"),
+            ),
+            (
+                "gen_ai.prompt.1.tool_calls.0.arguments".to_string(),
+                json!("{\"location\": \"San Francisco, CA\"}"),
+            ),
+            // Third message - tool response
+            ("gen_ai.prompt.2.role".to_string(), json!("tool")),
+            (
+                "gen_ai.prompt.2.content".to_string(),
+                json!("Sunny and 65 degrees Fahrenheit"),
+            ),
+            ("gen_ai.prompt.2.tool_call_id".to_string(), json!("call_1")),
+            // Response metadata
+            (
+                "gen_ai.response.model".to_string(),
+                json!("gpt-4.1-nano-2025-04-14"),
+            ),
+            (
+                "gen_ai.response.id".to_string(),
+                json!("chatcmpl-BpaSv7Z7XDi3F3egHJXBxKPJIVxqg"),
+            ),
+            // Completion - assistant with another tool call
+            ("gen_ai.completion.0.content".to_string(), json!("")),
+            (
+                "gen_ai.completion.0.finish_reason".to_string(),
+                json!("tool_calls"),
+            ),
+            ("gen_ai.completion.0.role".to_string(), json!("assistant")),
+            (
+                "gen_ai.completion.0.tool_calls.0.id".to_string(),
+                json!("call_TCZXJQAoVZoeGRcTwN6I7rh1"),
+            ),
+            (
+                "gen_ai.completion.0.tool_calls.0.name".to_string(),
+                json!("get_time"),
+            ),
+            (
+                "gen_ai.completion.0.tool_calls.0.arguments".to_string(),
+                json!("{\"location\": \"San Francisco, CA\"}"),
+            ),
+            // Token usage
+            ("gen_ai.usage.prompt_tokens".to_string(), json!(108)),
+            ("gen_ai.usage.completion_tokens".to_string(), json!(17)),
+            ("llm.usage.total_tokens".to_string(), json!(125)),
+            ("gen_ai.usage.cache_read_input_tokens".to_string(), json!(0)),
+        ]);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: Some(Uuid::new_v4()),
+            name: "ChatOpenAI.chat".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::LLM,
+            input: None,
+            output: None,
+            events: None,
+            status: None,
+            labels: None,
+            input_url: None,
+            output_url: None,
+        };
+
+        // Verify initial state
+        assert!(span.input.is_none());
+        assert!(span.output.is_none());
+        assert!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.0.content")
+                .is_some()
+        );
+        assert!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.1.tool_calls.0.name")
+                .is_some()
+        );
+        assert!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.name")
+                .is_some()
+        );
+
+        // Apply transformations
+        span.parse_and_enrich_attributes();
+
+        // Verify input is correctly parsed - should have 3 messages
+        assert!(span.input.is_some());
+        let input = span.input.as_ref().unwrap();
+        let input_messages: Vec<ChatMessage> = serde_json::from_value(input.clone()).unwrap();
+        assert_eq!(input_messages.len(), 3);
+
+        // First message: user question
+        assert_eq!(input_messages[0].role, "user");
+        match &input_messages[0].content {
+            ChatMessageContent::Text(text) => {
+                assert_eq!(
+                    text,
+                    "What is the weather and current time in San Francisco?"
+                );
+            }
+            _ => panic!("Expected text content for user message"),
+        }
+
+        // Second message: assistant with tool call
+        assert_eq!(input_messages[1].role, "assistant");
+        match &input_messages[1].content {
+            ChatMessageContent::ContentPartList(parts) => {
+                assert_eq!(parts.len(), 1);
+                match &parts[0] {
+                    ChatMessageContentPart::ToolCall(tool_call) => {
+                        assert_eq!(tool_call.name, "get_weather");
+                        assert_eq!(tool_call.id, Some("call_1".to_string()));
+                        assert!(tool_call.arguments.is_some());
+                        let args = tool_call.arguments.as_ref().unwrap();
+                        assert_eq!(args.get("location").unwrap(), &json!("San Francisco, CA"));
+                    }
+                    _ => panic!("Expected tool call"),
+                }
+            }
+            _ => panic!("Expected content part list for assistant message"),
+        }
+
+        // Third message: tool response
+        assert_eq!(input_messages[2].role, "tool");
+        assert_eq!(input_messages[2].tool_call_id, Some("call_1".to_string()));
+        match &input_messages[2].content {
+            ChatMessageContent::Text(text) => {
+                assert_eq!(text, "Sunny and 65 degrees Fahrenheit");
+            }
+            _ => panic!("Expected text content for tool message"),
+        }
+
+        // Verify output is correctly parsed - should have 1 message
+        assert!(span.output.is_some());
+        let output = span.output.as_ref().unwrap();
+        let output_messages: Vec<ChatMessage> = serde_json::from_value(output.clone()).unwrap();
+        assert_eq!(output_messages.len(), 1);
+
+        // Output message: assistant with tool call
+        assert_eq!(output_messages[0].role, "assistant");
+        match &output_messages[0].content {
+            ChatMessageContent::ContentPartList(parts) => {
+                assert_eq!(parts.len(), 1);
+                match &parts[0] {
+                    ChatMessageContentPart::ToolCall(tool_call) => {
+                        assert_eq!(tool_call.name, "get_time");
+                        assert_eq!(
+                            tool_call.id,
+                            Some("call_TCZXJQAoVZoeGRcTwN6I7rh1".to_string())
+                        );
+                        assert!(tool_call.arguments.is_some());
+                        let args = tool_call.arguments.as_ref().unwrap();
+                        assert_eq!(args.get("location").unwrap(), &json!("San Francisco, CA"));
+                    }
+                    _ => panic!("Expected tool call"),
+                }
+            }
+            _ => panic!("Expected content part list for assistant output"),
+        }
+
+        // Verify that tool call attributes are preserved
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.1.tool_calls.0.name"),
+            Some(&json!("get_weather"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.1.tool_calls.0.id"),
+            Some(&json!("call_1"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.1.tool_calls.0.arguments"),
+            Some(&json!("{\"location\": \"San Francisco, CA\"}"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.name"),
+            Some(&json!("get_time"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.id"),
+            Some(&json!("call_TCZXJQAoVZoeGRcTwN6I7rh1"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.arguments"),
+            Some(&json!("{\"location\": \"San Francisco, CA\"}"))
+        );
+
+        // Verify that LangChain-specific attributes are preserved
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.system"),
+            Some(&json!("Langchain"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.request.model"),
+            Some(&json!("gpt-4.1-nano"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.response.model"),
+            Some(&json!("gpt-4.1-nano-2025-04-14"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.response.id"),
+            Some(&json!("chatcmpl-BpaSv7Z7XDi3F3egHJXBxKPJIVxqg"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.finish_reason"),
+            Some(&json!("tool_calls"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.usage.prompt_tokens"),
+            Some(&json!(108))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.usage.completion_tokens"),
+            Some(&json!(17))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("llm.usage.total_tokens"),
+            Some(&json!(125))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.usage.cache_read_input_tokens"),
+            Some(&json!(0))
+        );
+
+        // Verify LangChain-specific attributes are preserved
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("lmnr.association.properties.ls_provider"),
+            Some(&json!("openai"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("lmnr.association.properties.ls_model_name"),
+            Some(&json!("gpt-4.1-nano"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("lmnr.association.properties.ls_model_type"),
+            Some(&json!("chat"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("llm.request.type"),
+            Some(&json!("chat"))
+        );
+
+        // Verify function metadata is preserved
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("llm.request.functions.0.name"),
+            Some(&json!("get_weather"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("llm.request.functions.1.name"),
+            Some(&json!("get_time"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("llm.request.functions.2.name"),
+            Some(&json!("get_city_population"))
+        );
+
+        // Verify path and ids_path are preserved
+        assert_eq!(
+            span.attributes.raw_attributes.get("lmnr.span.path"),
+            Some(&json!([
+                "integration/0150_langchain_tool_calls_with_history",
+                "ChatOpenAI.chat"
+            ]))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("lmnr.span.ids_path"),
+            Some(&json!([
+                "00000000-0000-0000-f961-aebceb94f98a",
+                "00000000-0000-0000-46eb-a5ee110c65db"
+            ]))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("lmnr.span.instrumentation_source"),
+            Some(&json!("python"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("lmnr.span.sdk_version"),
+            Some(&json!("0.6.16"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("lmnr.span.language_version"),
+            Some(&json!("python@3.13"))
+        );
+    }
+
+    #[test]
+    fn test_parse_and_enrich_attributes_ai_sdk() {
+        // AI SDK creates two spans: parent (ai.generateText) and child (ai.generateText.doGenerate)
+        // This test verifies both spans and their parent-child relationship
+
+        let parent_span_id = Uuid::new_v4();
+        let child_span_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+
+        // Create parent span (ai.generateText) - has DEFAULT span type
+        let parent_attributes = HashMap::from([
+            ("operation.name".to_string(), json!("ai.generateText")),
+            ("ai.operationId".to_string(), json!("ai.generateText")),
+            ("ai.model.provider".to_string(), json!("openai.chat")),
+            ("ai.model.id".to_string(), json!("gpt-4.1-nano")),
+            ("ai.settings.maxRetries".to_string(), json!(2)),
+            (
+                "ai.prompt".to_string(),
+                json!(
+                    "{\"system\":\"You are a helpful assistant.\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What is the weather in SF?\"}]}]}"
+                ),
+            ),
+            ("ai.settings.maxSteps".to_string(), json!(1)),
+            (
+                "lmnr.span.ids_path".to_string(),
+                json!([parent_span_id.to_string()]),
+            ),
+            ("lmnr.span.path".to_string(), json!(["ai.generateText"])),
+            (
+                "lmnr.span.instrumentation_source".to_string(),
+                json!("javascript"),
+            ),
+            ("lmnr.span.sdk_version".to_string(), json!("0.6.13")),
+            (
+                "lmnr.span.language_version".to_string(),
+                json!("node@23.3.0"),
+            ),
+            ("ai.response.finishReason".to_string(), json!("tool-calls")),
+            (
+                "ai.response.toolCalls".to_string(),
+                json!(
+                    "[{\"toolCallType\":\"function\",\"toolCallId\":\"call_akUJWoAUcWDcvNJzcZx3MzPg\",\"toolName\":\"get_weather\",\"args\":\"{\\\"location\\\":\\\"San Francisco, CA\\\"}\"}]"
+                ),
+            ),
+            ("ai.usage.promptTokens".to_string(), json!(108)),
+            ("ai.usage.completionTokens".to_string(), json!(17)),
+        ]);
+
+        let mut parent_span = Span {
+            span_id: parent_span_id,
+            trace_id,
+            parent_span_id: None,
+            name: "ai.generateText".to_string(),
+            attributes: SpanAttributes::new(parent_attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::DEFAULT,
+            input: None,
+            output: None,
+            events: None,
+            status: None,
+            labels: None,
+            input_url: None,
+            output_url: None,
+        };
+
+        // Create child span (ai.generateText.doGenerate) - has LLM span type
+        let child_attributes = HashMap::from([
+            (
+                "operation.name".to_string(),
+                json!("ai.generateText.doGenerate"),
+            ),
+            (
+                "ai.operationId".to_string(),
+                json!("ai.generateText.doGenerate"),
+            ),
+            ("ai.model.provider".to_string(), json!("openai.chat")),
+            ("ai.model.id".to_string(), json!("gpt-4.1-nano")),
+            ("ai.settings.maxRetries".to_string(), json!(2)),
+            ("ai.prompt.format".to_string(), json!("messages")),
+            (
+                "ai.prompt.messages".to_string(),
+                json!(
+                    "[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What is the weather in SF?\"}]}]"
+                ),
+            ),
+            (
+                "ai.prompt.tools".to_string(),
+                json!([
+                    "{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the weather in a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city and state, e.g. San Francisco, CA\"}},\"required\":[\"location\"],\"additionalProperties\":false,\"$schema\":\"http://json-schema.org/draft-07/schema#\"}}",
+                    "{\"type\":\"function\",\"name\":\"get_time\",\"description\":\"Get the time in a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city and state, e.g. San Francisco, CA\"}},\"required\":[\"location\"],\"additionalProperties\":false,\"$schema\":\"http://json-schema.org/draft-07/schema#\"}}"
+                ]),
+            ),
+            (
+                "ai.prompt.toolChoice".to_string(),
+                json!("{\"type\":\"auto\"}"),
+            ),
+            ("gen_ai.system".to_string(), json!("openai.chat")),
+            ("gen_ai.request.model".to_string(), json!("gpt-4.1-nano")),
+            (
+                "lmnr.span.ids_path".to_string(),
+                json!([parent_span_id.to_string(), child_span_id.to_string()]),
+            ),
+            (
+                "lmnr.span.path".to_string(),
+                json!(["ai.generateText", "ai.generateText.doGenerate"]),
+            ),
+            (
+                "lmnr.span.instrumentation_source".to_string(),
+                json!("javascript"),
+            ),
+            ("lmnr.span.sdk_version".to_string(), json!("0.6.13")),
+            (
+                "lmnr.span.language_version".to_string(),
+                json!("node@23.3.0"),
+            ),
+            ("ai.response.finishReason".to_string(), json!("tool-calls")),
+            (
+                "ai.response.toolCalls".to_string(),
+                json!(
+                    "[{\"toolCallType\":\"function\",\"toolCallId\":\"call_akUJWoAUcWDcvNJzcZx3MzPg\",\"toolName\":\"get_weather\",\"args\":\"{\\\"location\\\":\\\"San Francisco, CA\\\"}\"}]"
+                ),
+            ),
+            (
+                "ai.response.id".to_string(),
+                json!("chatcmpl-BpafAvtYoJBBUQpui72D8vHSt8CDp"),
+            ),
+            (
+                "ai.response.model".to_string(),
+                json!("gpt-4.1-nano-2025-04-14"),
+            ),
+            (
+                "ai.response.timestamp".to_string(),
+                json!("2025-07-04T13:22:40.000Z"),
+            ),
+            ("ai.usage.promptTokens".to_string(), json!(108)),
+            ("ai.usage.completionTokens".to_string(), json!(17)),
+            (
+                "gen_ai.response.finish_reasons".to_string(),
+                json!(["tool-calls"]),
+            ),
+            (
+                "gen_ai.response.id".to_string(),
+                json!("chatcmpl-BpafAvtYoJBBUQpui72D8vHSt8CDp"),
+            ),
+            (
+                "gen_ai.response.model".to_string(),
+                json!("gpt-4.1-nano-2025-04-14"),
+            ),
+            ("gen_ai.usage.input_tokens".to_string(), json!(108)),
+            ("gen_ai.usage.output_tokens".to_string(), json!(17)),
+        ]);
+
+        let mut child_span = Span {
+            span_id: child_span_id,
+            trace_id,
+            parent_span_id: Some(parent_span_id),
+            name: "ai.generateText.doGenerate".to_string(),
+            attributes: SpanAttributes::new(child_attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::LLM,
+            input: None,
+            output: None,
+            events: None,
+            status: None,
+            labels: None,
+            input_url: None,
+            output_url: None,
+        };
+
+        // Verify initial span relationships and structure
+        assert_eq!(parent_span.parent_span_id, None);
+        assert_eq!(child_span.parent_span_id, Some(parent_span_id));
+        assert_eq!(parent_span.trace_id, child_span.trace_id);
+        assert_eq!(parent_span.span_type, SpanType::DEFAULT);
+        assert_eq!(child_span.span_type, SpanType::LLM);
+
+        // Verify initial path and ids_path
+        assert_eq!(
+            parent_span.attributes.raw_attributes.get("lmnr.span.path"),
+            Some(&json!(["ai.generateText"]))
+        );
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.ids_path"),
+            Some(&json!([parent_span_id.to_string()]))
+        );
+        assert_eq!(
+            child_span.attributes.raw_attributes.get("lmnr.span.path"),
+            Some(&json!(["ai.generateText", "ai.generateText.doGenerate"]))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.ids_path"),
+            Some(&json!([
+                parent_span_id.to_string(),
+                child_span_id.to_string()
+            ]))
+        );
+
+        // Verify initial state - no input/output yet
+        assert!(parent_span.input.is_none());
+        assert!(parent_span.output.is_none());
+        assert!(child_span.input.is_none());
+        assert!(child_span.output.is_none());
+
+        // Apply transformations to both spans
+        parent_span.parse_and_enrich_attributes();
+        child_span.parse_and_enrich_attributes();
+
+        // Verify parent span parsing (ai.generateText)
+        assert!(parent_span.input.is_some());
+        assert!(parent_span.output.is_some());
+
+        let parent_input = parent_span.input.as_ref().unwrap();
+        let parent_input_messages: Vec<ChatMessage> =
+            serde_json::from_value(parent_input.clone()).unwrap();
+        assert_eq!(parent_input_messages.len(), 2);
+
+        // First message: system
+        assert_eq!(parent_input_messages[0].role, "system");
+        match &parent_input_messages[0].content {
+            ChatMessageContent::Text(text) => {
+                assert_eq!(text, "You are a helpful assistant.");
+            }
+            _ => panic!("Expected text content for system message"),
+        }
+
+        // Second message: user
+        assert_eq!(parent_input_messages[1].role, "user");
+        match &parent_input_messages[1].content {
+            ChatMessageContent::ContentPartList(parts) => {
+                assert_eq!(parts.len(), 1);
+                match &parts[0] {
+                    ChatMessageContentPart::Text(text) => {
+                        assert_eq!(text.text, "What is the weather in SF?");
+                    }
+                    _ => panic!("Expected text content part"),
+                }
+            }
+            _ => panic!("Expected content part list for user message"),
+        }
+
+        // Verify parent span output (tool call)
+        let parent_output = parent_span.output.as_ref().unwrap();
+        let parent_output_messages: Vec<ChatMessage> =
+            serde_json::from_value(parent_output.clone()).unwrap();
+        assert_eq!(parent_output_messages.len(), 1);
+
+        assert_eq!(parent_output_messages[0].role, "assistant");
+        match &parent_output_messages[0].content {
+            ChatMessageContent::ContentPartList(parts) => {
+                assert_eq!(parts.len(), 1);
+                match &parts[0] {
+                    ChatMessageContentPart::ToolCall(tool_call) => {
+                        assert_eq!(tool_call.name, "get_weather");
+                        assert_eq!(
+                            tool_call.id,
+                            Some("call_akUJWoAUcWDcvNJzcZx3MzPg".to_string())
+                        );
+                        assert!(tool_call.arguments.is_some());
+                        let args = tool_call.arguments.as_ref().unwrap();
+                        assert_eq!(args.get("location").unwrap(), &json!("San Francisco, CA"));
+                    }
+                    _ => panic!("Expected tool call"),
+                }
+            }
+            _ => panic!("Expected content part list for parent output"),
+        }
+
+        // Verify child span parsing (ai.generateText.doGenerate)
+        assert!(child_span.input.is_some());
+        assert!(child_span.output.is_some());
+
+        let child_input = child_span.input.as_ref().unwrap();
+        let child_input_messages: Vec<ChatMessage> =
+            serde_json::from_value(child_input.clone()).unwrap();
+        assert_eq!(child_input_messages.len(), 2);
+
+        // Child input should match parent input
+        assert_eq!(child_input_messages[0].role, "system");
+        assert_eq!(child_input_messages[1].role, "user");
+
+        // Verify child span output (tool call)
+        let child_output = child_span.output.as_ref().unwrap();
+        let child_output_messages: Vec<ChatMessage> =
+            serde_json::from_value(child_output.clone()).unwrap();
+        assert_eq!(child_output_messages.len(), 1);
+
+        assert_eq!(child_output_messages[0].role, "assistant");
+        match &child_output_messages[0].content {
+            ChatMessageContent::ContentPartList(parts) => {
+                assert_eq!(parts.len(), 1);
+                match &parts[0] {
+                    ChatMessageContentPart::ToolCall(tool_call) => {
+                        assert_eq!(tool_call.name, "get_weather");
+                        assert_eq!(
+                            tool_call.id,
+                            Some("call_akUJWoAUcWDcvNJzcZx3MzPg".to_string())
+                        );
+                        assert!(tool_call.arguments.is_some());
+                        let args = tool_call.arguments.as_ref().unwrap();
+                        assert_eq!(args.get("location").unwrap(), &json!("San Francisco, CA"));
+                    }
+                    _ => panic!("Expected tool call"),
+                }
+            }
+            _ => panic!("Expected content part list for child output"),
+        }
+
+        // Note: AI SDK tool conversion from strings to objects happens in prepare_span_db_values, not here
+
+        // Verify that important attributes are preserved
+        assert_eq!(
+            parent_span.attributes.raw_attributes.get("operation.name"),
+            Some(&json!("ai.generateText"))
+        );
+        assert_eq!(
+            child_span.attributes.raw_attributes.get("operation.name"),
+            Some(&json!("ai.generateText.doGenerate"))
+        );
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("ai.model.provider"),
+            Some(&json!("openai.chat"))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("ai.model.provider"),
+            Some(&json!("openai.chat"))
+        );
+        assert_eq!(
+            parent_span.attributes.raw_attributes.get("ai.model.id"),
+            Some(&json!("gpt-4.1-nano"))
+        );
+        assert_eq!(
+            child_span.attributes.raw_attributes.get("ai.model.id"),
+            Some(&json!("gpt-4.1-nano"))
+        );
+
+        // Verify path and ids_path are preserved
+        assert_eq!(
+            parent_span.attributes.raw_attributes.get("lmnr.span.path"),
+            Some(&json!(["ai.generateText"]))
+        );
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.ids_path"),
+            Some(&json!([parent_span_id.to_string()]))
+        );
+        assert_eq!(
+            child_span.attributes.raw_attributes.get("lmnr.span.path"),
+            Some(&json!(["ai.generateText", "ai.generateText.doGenerate"]))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.ids_path"),
+            Some(&json!([
+                parent_span_id.to_string(),
+                child_span_id.to_string()
+            ]))
+        );
+
+        // Verify token usage attributes
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("ai.usage.promptTokens"),
+            Some(&json!(108))
+        );
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("ai.usage.completionTokens"),
+            Some(&json!(17))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("ai.usage.promptTokens"),
+            Some(&json!(108))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("ai.usage.completionTokens"),
+            Some(&json!(17))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("gen_ai.usage.input_tokens"),
+            Some(&json!(108))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("gen_ai.usage.output_tokens"),
+            Some(&json!(17))
+        );
+
+        // Verify response attributes
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("ai.response.finishReason"),
+            Some(&json!("tool-calls"))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("ai.response.finishReason"),
+            Some(&json!("tool-calls"))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("gen_ai.response.id"),
+            Some(&json!("chatcmpl-BpafAvtYoJBBUQpui72D8vHSt8CDp"))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("gen_ai.response.model"),
+            Some(&json!("gpt-4.1-nano-2025-04-14"))
+        );
+
+        // Verify instrumentation metadata
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.instrumentation_source"),
+            Some(&json!("javascript"))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.instrumentation_source"),
+            Some(&json!("javascript"))
+        );
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.sdk_version"),
+            Some(&json!("0.6.13"))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.sdk_version"),
+            Some(&json!("0.6.13"))
+        );
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.language_version"),
+            Some(&json!("node@23.3.0"))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.language_version"),
+            Some(&json!("node@23.3.0"))
+        );
+
+        // Verify GenAI attributes are only on the LLM span
+        assert!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("gen_ai.system")
+                .is_none()
+        );
+        assert_eq!(
+            child_span.attributes.raw_attributes.get("gen_ai.system"),
+            Some(&json!("openai.chat"))
+        );
+        assert!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("gen_ai.request.model")
+                .is_none()
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("gen_ai.request.model"),
+            Some(&json!("gpt-4.1-nano"))
+        );
+    }
+
+    #[test]
     fn test_parse_tool_calls_preserves_argument_order() {
         // Create attributes with tool call arguments in specific order (z before a)
-        let mut attributes = serde_json::Map::new();
+        let mut attributes = HashMap::new();
         attributes.insert(
             "gen_ai.completion.0.tool_calls.0.name".to_string(),
             json!("test_function"),

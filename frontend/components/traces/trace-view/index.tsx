@@ -32,6 +32,7 @@ export interface TraceViewHandle {
 
 interface TraceViewProps {
   traceId: string;
+  spanId: string | null;
   propsTrace?: Trace;
   onClose: () => void;
   fullScreen?: boolean;
@@ -46,6 +47,7 @@ const MIN_TREE_VIEW_WIDTH = 500;
 
 export default function TraceView({
   traceId,
+  spanId,
   onClose,
   onLangGraphDetected,
   propsTrace,
@@ -93,9 +95,7 @@ export default function TraceView({
   const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({});
   const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
 
-  const [selectedSpan, setSelectedSpan] = useState<Span | null>(
-    searchParams.get("spanId") ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null : null
-  );
+  const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
 
   const [activeSpans, setActiveSpans] = useState<string[]>([]);
 
@@ -226,8 +226,7 @@ export default function TraceView({
 
         setSpans(spans);
 
-        // Determine which span to select
-        const spanIdFromUrl = spans.find((span) => span.spanId === searchParams.get("spanId")) || null;
+        const spanIdFromUrl = spans.find((span) => span.spanId === spanId || searchParams.get("spanId")) || null;
         let spanToSelect: Span | null = null;
 
         if (spanIdFromUrl) {
@@ -261,6 +260,13 @@ export default function TraceView({
     },
     [projectId, traceId, searchParams, loadSpanPathFromStorage, spanPathsEqual, router, pathName]
   );
+
+  useEffect(() => {
+    const span = spans?.find((s) => s.spanId === spanId);
+    if (spanId && span) {
+      setSelectedSpan(span);
+    }
+  }, [spanId, spans]);
 
   useEffect(() => {
     const search = searchParams.get("search") || "";

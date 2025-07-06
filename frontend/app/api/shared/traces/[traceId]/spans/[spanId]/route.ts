@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getSharedSpanEvents } from "@/lib/actions/shared/span";
+import { getSharedSpan } from "@/lib/actions/shared/span";
 
 export async function GET(
-  _req: Request,
+  _req: NextRequest,
   props: { params: Promise<{ traceId: string; spanId: string }> }
 ): Promise<Response> {
   const params = await props.params;
@@ -12,12 +12,12 @@ export async function GET(
   const spanId = params.spanId;
 
   try {
-    const events = await getSharedSpanEvents({ traceId, spanId });
-    return NextResponse.json(events);
+    const span = await getSharedSpan({ traceId, spanId });
+    return NextResponse.json(span);
   } catch (e) {
     if (e instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(e) }, { status: 400 });
     }
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to get shared span events." }, { status: 500 });
+    return NextResponse.json(e instanceof Error ? e.message : "Failed to get shared span.", { status: 500 });
   }
 }
