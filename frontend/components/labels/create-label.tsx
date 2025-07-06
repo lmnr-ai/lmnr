@@ -73,7 +73,7 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
       });
 
       if (!response.ok) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to create label." });
+        toast({ variant: "destructive", title: "Error", description: "Failed to create tag." });
         return;
       }
 
