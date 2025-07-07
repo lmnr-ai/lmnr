@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import JsxRenderer from "@/components/ui/template-renderer/jsx-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 import { useTemplateRenderer } from "./template-renderer-store";
 
@@ -128,7 +128,7 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
     };
 
     loadTemplateFromPreset();
-  }, [presetKey, templates, projectId, getPresetTemplate, reset, toast, fetchTemplate]);
+  }, [presetKey, templates, projectId, getPresetTemplate, reset, toast, fetchTemplate, data]);
 
   const handleTemplateSelect = async (value: string) => {
     const template = templates?.find((t) => t.id === value);
@@ -191,9 +191,10 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
         <div className="flex items-center gap-2 p-2 absolute top-2 right-0 z-30">
           <Select value={template?.id} onValueChange={handleTemplateSelect} onOpenChange={setIsSelectOpen}>
             <SelectTrigger
-              className={`w-fit transition-opacity bg-muted ${
+              className={cn(
+                "w-fit transition-opacity bg-muted",
                 isAnyDropdownOpen ? "opacity-100" : "opacity-0 group-hover/renderer:opacity-100"
-              }`}
+              )}
             >
               <SelectValue placeholder="Select template" />
             </SelectTrigger>
@@ -218,9 +219,10 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
                 <Button
                   size="icon"
                   variant="outline"
-                  className={`h-7 w-7 transition-opacity bg-muted ${
+                  className={cn(
+                    `h-7 w-7 transition-opacity bg-muted`,
                     isAnyDropdownOpen ? "opacity-100" : "opacity-0 group-hover/renderer:opacity-100"
-                  }`}
+                  )}
                 >
                   <MoreHorizontal className="w-4 h-4" />
                 </Button>
