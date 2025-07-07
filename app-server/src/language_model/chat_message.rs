@@ -318,6 +318,7 @@ impl ChatMessageContentPart {
                     })
                 }
             },
+            // TODO: remove clones as much as possible
             InstrumentationChatMessageContentPart::File(ChatMessageFile::AiSdk(file)) => {
                 let media_type = match &file {
                     ChatMessageAISDKFile::V1(file) => &file.mime_type,
