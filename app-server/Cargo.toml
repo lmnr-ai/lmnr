@@ -32,6 +32,9 @@ enum_delegate = "0.2.0"
 enum_dispatch = "0.3.13"
 env_logger = "0.11"
 futures-util = "0.3"
+indexmap = { version = "2.9.0", features = ["serde"] }
+itertools = "0.14.0"
+tikv-jemallocator = "0.6"
 lapin = "2.5.1"
 log = "0.4.27"
 moka = {version = "0.12.10", features = ["sync", "future"]}
@@ -40,6 +43,7 @@ prost = "0.13"
 rand = "0.9.0"
 redis = {version = "0.29.2", features = ["tokio-comp"]}
 regex = "1.11.1"
+reqwest = { version = "0.12.15", features = ["json"] }
 rustls = {version = "0.23", features = ["ring"]}
 serde = "1.0"
 serde-jsonlines = "0.7.0"
@@ -55,9 +59,6 @@ tokio-tungstenite = "0.26"
 tonic = {version = "0.13", features = ["gzip"]}
 url = "2.5.4"
 uuid = {version = "1.16.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"]}
-reqwest = { version = "0.12.15", features = ["json"] }
-itertools = "0.14.0"
-indexmap = { version = "2.9.0", features = ["serde"] }
 
 [build-dependencies]
 tonic-build = "0.13"
