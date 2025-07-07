@@ -2,16 +2,11 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { SessionRow } from "@/components/traces/sessions-table/index";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { SessionPreview, Trace } from "@/lib/traces/types";
 import { getDurationString } from "@/lib/utils";
-
-type SessionRow = {
-  type: string;
-  data: SessionPreview | Trace;
-  subRows: SessionRow[];
-};
 
 export const columns: ColumnDef<SessionRow, any>[] = [
   {
