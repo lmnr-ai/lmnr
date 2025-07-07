@@ -57,8 +57,6 @@ export const baseExtensions = [
   }),
 ];
 
-
-
 export const languageExtensions = {
   python: () => python(),
   json: () => json(),
@@ -66,7 +64,7 @@ export const languageExtensions = {
   html: () => html(),
 };
 
-export const modes = ["TEXT", "YAML", "JSON"];
+export const modes = ["TEXT", "YAML", "JSON", "CUSTOM"];
 
 // Interface for image data
 export interface ImageData {
@@ -77,7 +75,10 @@ export interface ImageData {
 
 // Image widget for displaying base64 images
 export class ImageWidget extends WidgetType {
-  constructor(readonly src: string, readonly maxHeight: number = 100) {
+  constructor(
+    readonly src: string,
+    readonly maxHeight: number = 100
+  ) {
     super();
   }
 
@@ -140,13 +141,12 @@ export function createImageDecorationPlugin(imageMap: Record<string, ImageData>)
         }
 
         this.decorations = Decoration.set(decorations);
-
       }
     },
     {
       decorations: (v) => v.decorations,
       // Make decorations persist by using atomic ranges
-      provide: plugin => EditorView.atomicRanges.of(view => view.plugin(plugin)?.decorations || Decoration.none)
+      provide: (plugin) => EditorView.atomicRanges.of((view) => view.plugin(plugin)?.decorations || Decoration.none),
     }
   );
 }
@@ -162,14 +162,14 @@ function extractBase64Images(text: string): { processedText: string; imageMap: R
   let match;
 
   // Collect matches first to avoid issues with string replacements changing positions
-  const matches: Array<{ fullMatch: string, dataUri: string, type: string, base64: string }> = [];
+  const matches: Array<{ fullMatch: string; dataUri: string; type: string; base64: string }> = [];
 
   while ((match = dataUriRegex.exec(text)) !== null) {
     matches.push({
       fullMatch: match[0],
       dataUri: match[1],
       type: match[2],
-      base64: match[3]
+      base64: match[3],
     });
   }
 
@@ -179,19 +179,19 @@ function extractBase64Images(text: string): { processedText: string; imageMap: R
     imageMap[id] = {
       src: dataUri,
       type,
-      original: fullMatch
+      original: fullMatch,
     };
     processedText = processedText.replace(fullMatch, `"[IMG:${id}]"`);
   }
 
   // Pattern 2: Raw base64 patterns
   const rawBase64Regex = /"([A-Za-z0-9+/]{20,}={0,2})"/g;
-  const rawMatches: Array<{ fullMatch: string, base64Data: string }> = [];
+  const rawMatches: Array<{ fullMatch: string; base64Data: string }> = [];
 
   while ((match = rawBase64Regex.exec(text)) !== null) {
     rawMatches.push({
       fullMatch: match[0],
-      base64Data: match[1]
+      base64Data: match[1],
     });
   }
 
@@ -212,7 +212,7 @@ function extractBase64Images(text: string): { processedText: string; imageMap: R
     imageMap[id] = {
       src: dataUri,
       type: imageType,
-      original: fullMatch
+      original: fullMatch,
     };
 
     processedText = processedText.replace(fullMatch, `"[IMG:${id}]"`);
@@ -257,6 +257,6 @@ export const renderText = (mode: string, value: string, shouldProcessImages = fa
   return {
     text: formattedText,
     imageMap: imageMap,
-    hasImages: Object.keys(imageMap).length > 0
+    hasImages: Object.keys(imageMap).length > 0,
   };
 };

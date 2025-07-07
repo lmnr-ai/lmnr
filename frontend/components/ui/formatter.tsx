@@ -3,11 +3,11 @@ import React, { useEffect, useState } from "react";
 import YAML from "yaml";
 
 import { CopyButton } from "@/components/ui/copy-button";
+import TemplateRenderer from "@/components/ui/template-renderer";
 import { cn } from "@/lib/utils";
 
 import { Button } from "./button";
 import CodeEditor from "./code-editor";
-import CustomRenderer from "./custom-renderer";
 import { DialogTitle } from "./dialog";
 import { ScrollArea } from "./scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
@@ -165,7 +165,7 @@ export default function Formatter({
                 <ScrollArea className="flex-grow">
                   <div className="flex flex-col">
                     {mode === "custom" ? (
-                      <CustomRenderer data={renderText(expandedValue)} presetKey={presetKey} />
+                      <TemplateRenderer data={renderText(expandedValue)} presetKey={presetKey} />
                     ) : (
                       <CodeEditor
                         value={renderText(expandedValue)}
@@ -196,7 +196,7 @@ export default function Formatter({
       {!isCollapsed && (
         <div className="flex-grow flex overflow-auto w-full">
           {mode === "custom" ? (
-            <CustomRenderer data={renderedValue} presetKey={presetKey} />
+            <TemplateRenderer data={renderedValue} presetKey={presetKey} />
           ) : (
             <CodeEditor
               value={renderedValue}
