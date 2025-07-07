@@ -25,7 +25,7 @@ export async function POST(
     return new Response('Label class not found', { status: 404 });
   }
 
-  return new Response(null, { status: 200 });
+  return new Response(JSON.stringify(result[0]), { status: 200 });
 }
 
 export async function DELETE(
