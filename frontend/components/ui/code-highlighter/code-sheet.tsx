@@ -38,45 +38,47 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="flex flex-col gap-0 min-w-[50vw]">
-        <DialogTitle className="hidden"></DialogTitle>
-        <div className="flex-none items-center flex px-2 justify-between bg-muted/50">
-          <div className="flex justify-start">
-            <Select value={mode} onValueChange={onModeChange}>
-              <SelectTrigger
-                className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-none focus:ring-0"
-              >
-                <SelectValue placeholder="Select tag type" />
-              </SelectTrigger>
-              <SelectContent>
-                {modes.map((mode) => (
-                  <SelectItem key={mode} value={mode.toLowerCase()}>
-                    {mode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="flex flex-col h-full bg-muted/50">
+          <DialogTitle className="hidden"></DialogTitle>
+          <div className="flex-none items-center flex px-2 justify-between">
+            <div className="flex justify-start">
+              <Select value={mode} onValueChange={onModeChange}>
+                <SelectTrigger
+                  className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-none focus:ring-0"
+                >
+                  <SelectValue placeholder="Select tag type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {modes.map((mode) => (
+                    <SelectItem key={mode} value={mode.toLowerCase()}>
+                      {mode}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center">
+              <CopyButton iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={renderedValue} />
+              <SheetClose asChild>
+                <Button variant="ghost" size="icon">
+                  <Minimize className="h-4 w-4" />
+                </Button>
+              </SheetClose>
+            </div>
           </div>
-          <div className="flex items-center">
-            <CopyButton iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={renderedValue} />
-            <SheetClose asChild>
-              <Button variant="ghost" size="icon">
-                <Minimize className="h-4 w-4" />
-              </Button>
-            </SheetClose>
-          </div>
+          <ScrollArea className="flex-grow">
+            <div className="flex flex-col">
+              <CodeMirror
+                placeholder={placeholder}
+                theme={theme}
+                className="h-full"
+                extensions={combinedExtensions}
+                value={processedText}
+                readOnly={true}
+              />
+            </div>
+          </ScrollArea>
         </div>
-        <ScrollArea className="flex-grow">
-          <div className="flex flex-col bg-muted/50">
-            <CodeMirror
-              placeholder={placeholder}
-              theme={theme}
-              className="h-full"
-              extensions={combinedExtensions}
-              value={processedText}
-              readOnly={true}
-            />
-          </div>
-        </ScrollArea>
       </SheetContent>
     </Sheet>
   );

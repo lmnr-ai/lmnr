@@ -66,7 +66,6 @@ const PureCodeHighlighter = ({
   defaultShowLineNumbers = false,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
@@ -78,6 +77,7 @@ const PureCodeHighlighter = ({
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
   const [showLineNumbers, setShowLineNumbers] = useState(defaultShowLineNumbers);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const {
     text: renderedValue,
@@ -152,13 +152,19 @@ const PureCodeHighlighter = ({
         </SelectContent>
       </Select>
       <CopyButton
-        className="h-7 w-7 ml-auto text-foreground/80 transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100"
+        className={cn(
+          "h-7 w-7 ml-auto text-foreground/80 transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
+          isSettingsOpen && "opacity-100"
+        )}
         iconClassName="h-3.5 w-3.5"
         size="icon"
         variant="ghost"
         text={value}
       />
-      <div className="transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100">
+      <div className={cn(
+        "transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
+        isSettingsOpen && "opacity-100"
+      )}>
         <CodeSheet
           renderedValue={value}
           mode={mode}
@@ -167,7 +173,7 @@ const PureCodeHighlighter = ({
           placeholder={placeholder}
         />
       </div>
-      <Popover>
+      <Popover onOpenChange={setIsSettingsOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
