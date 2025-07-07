@@ -7,7 +7,9 @@ import { registerOTel } from "@vercel/otel";
 const INITIAL_CH_SCHEMA_FILE = "0000-initial.sql";
 
 export async function register() {
-  registerOTel({ serviceName: "lmnr-web" });
+  if (process.env.ENVIRONMENT === "PRODUCTION") {
+    registerOTel({ serviceName: "lmnr-web" });
+  }
   // prevent this from running in the edge runtime for the second time
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { Feature, isFeatureEnabled } = await import("lib/features/features");
