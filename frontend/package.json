@@ -70,6 +70,7 @@
     "@uiw/codemirror-theme-github": "^4.23.10",
     "@uiw/codemirror-themes": "^4.23.10",
     "@uiw/react-codemirror": "^4.23.10",
+    "@vercel/otel": "^1.13.0",
     "@xyflow/react": "^12.6.4",
     "ai": "^4.3.16",
     "class-variance-authority": "^0.7.1",
