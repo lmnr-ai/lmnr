@@ -5,11 +5,11 @@ import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { Loader2 } from "lucide-react";
-import pako from "pako";
-import React, { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
+import { fetchBrowserSessionEvents, UrlChange } from "@/components/session-player/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,11 +30,6 @@ interface Event {
   data: any;
   timestamp: number;
   type: number;
-}
-
-interface UrlChange {
-  timestamp: number;
-  url: string;
 }
 
 export interface SessionPlayerHandle {
@@ -117,109 +112,33 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       }
     };
 
-    const getEvents = async () => {
+    const getEvents = useCallback(async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+        const result = await fetchBrowserSessionEvents(
+          `/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`
+        );
 
-        const reader = res.body?.getReader();
-        if (!reader) throw new Error("No reader available");
-
-        const chunks: Uint8Array[] = [];
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-        }
-
-        const blob = new Blob(chunks, { type: "application/json" });
-        const text = await blob.text();
-
-        let batchEvents = [];
-        try {
-          batchEvents = JSON.parse(text);
-        } catch (e) {
-          console.error("Error parsing events:", e);
-          setIsLoading(false);
-          setEvents([]);
-          return;
-        }
-
-        const events: Event[] = [];
-        const urlChangesList: UrlChange[] = [];
-        let lastUrl = "";
-
-        // Process events and extract URL changes in a single pass
-        batchEvents.forEach((batch: any) => {
-          batch.forEach((data: any) => {
-            const parsedEvent = JSON.parse(data.text);
-            const base64DecodedData = atob(parsedEvent.data);
-            let decompressedData = null;
-
-            try {
-              const encodedData = new Uint8Array(base64DecodedData.split("").map((c: any) => c.charCodeAt(0)));
-              decompressedData = pako.ungzip(encodedData, { to: "string" });
-            } catch (e) {
-              // old non-compressed events
-              decompressedData = base64DecodedData;
-            }
-
-            const event = {
-              ...parsedEvent,
-              data: JSON.parse(decompressedData),
-            };
-
-            const processedEvent = {
-              data: event.data,
-              timestamp: new Date(event.timestamp + "Z").getTime(),
-              type: parseInt(event.event_type),
-            };
-
-            events.push(processedEvent);
-
-            // Extract URL while we're already iterating
-            let url = "";
-            if (processedEvent.type === 4 && processedEvent.data?.href) {
-              // Meta events with href
-              url = processedEvent.data.href;
-            } else if (processedEvent.type === 2 && processedEvent.data?.href) {
-              // Full snapshot events with href
-              url = processedEvent.data.href;
-            } else if (processedEvent.type === 3 && processedEvent.data?.source === 0 && processedEvent.data?.href) {
-              // Incremental snapshot with navigation
-              url = processedEvent.data.href;
-            } else if (processedEvent.data?.type === "navigation" && processedEvent.data?.href) {
-              // Navigation events
-              url = processedEvent.data.href;
-            }
-
-            // Only add if URL changed
-            if (url && url !== lastUrl) {
-              urlChangesList.push({ timestamp: processedEvent.timestamp, url });
-              lastUrl = url;
-            }
-          });
-        });
-
-        setEvents(events);
-        setUrlChanges(urlChangesList);
+        setEvents(result.events);
+        setUrlChanges(result.urlChanges);
+        setTotalDuration(result.duration);
+        setStartTime(result.startTime);
         currentUrlIndexRef.current = 0;
 
         // Set initial URL
-        if (urlChangesList.length > 0) {
-          setCurrentUrl(urlChangesList[0].url);
+        if (result.urlChanges.length > 0) {
+          setCurrentUrl(result.urlChanges[0].url);
         }
       } catch (e) {
         console.error("Error processing events:", e);
+        setEvents([]);
+        setUrlChanges([]);
+        setTotalDuration(0);
+        setStartTime(0);
       } finally {
         setIsLoading(false);
       }
-    };
+    }, [projectId, traceId]);
 
     useEffect(() => {
       if (hasBrowserSession) {
@@ -297,7 +216,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       }
     }, [speed]);
 
-    const handlePlayPause = () => {
+    const handlePlayPause = useCallback(() => {
       if (playerRef.current) {
         try {
           if (isPlaying) {
@@ -311,38 +230,42 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           console.error("Error in play/pause:", e);
         }
       }
-    };
+    }, [isPlaying]);
 
-    const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const time = parseFloat(e.target.value);
-      setCurrentTime(time);
+    const handleSpeedChange = useCallback(
+      (newSpeed: number) => {
+        setSpeed(newSpeed);
+      },
+      [setSpeed]
+    );
 
-      const wasPlaying = isPlaying;
-      if (wasPlaying && playerRef.current) {
-        playerRef.current.pause();
-      }
+    const handleTimelineChange = useCallback(
+      (e: React.ChangeEvent<HTMLInputElement>) => {
+        const time = parseFloat(e.target.value);
+        setCurrentTime(time);
 
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      debounceTimerRef.current = setTimeout(() => {
-        if (playerRef.current) {
-          playerRef.current.goto(time * 1000);
-          // Update URL when seeking
-          updateCurrentUrl(startTime + time * 1000);
-          if (wasPlaying) {
-            requestAnimationFrame(() => {
-              playerRef.current.play();
-            });
-          }
+        const wasPlaying = isPlaying;
+        if (wasPlaying && playerRef.current) {
+          playerRef.current.pause();
         }
-      }, 50);
-    };
 
-    const handleSpeedChange = (newSpeed: number) => {
-      setSpeed(newSpeed);
-    };
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+
+        debounceTimerRef.current = setTimeout(() => {
+          if (playerRef.current) {
+            playerRef.current.goto(time * 1000);
+            if (wasPlaying) {
+              requestAnimationFrame(() => {
+                playerRef.current.play();
+              });
+            }
+          }
+        }, 50);
+      },
+      [isPlaying]
+    );
 
     useImperativeHandle(
       ref,
@@ -397,7 +320,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             </span>
           </div>
 
-          {/* URL Display Bar */}
           {currentUrl && (
             <div className="flex items-center px-4 py-1 border-b">
               <a
