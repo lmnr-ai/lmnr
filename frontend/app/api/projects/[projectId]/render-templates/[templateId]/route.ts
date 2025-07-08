@@ -1,68 +1,74 @@
-import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { db } from "@/lib/db/drizzle";
-import { renderTemplates } from "@/lib/db/migrations/schema";
+import { deleteRenderTemplate, getRenderTemplate, updateRenderTemplate } from "@/lib/actions/render-template";
 
 export async function GET(
-  request: Request,
+  _request: Request,
   props: {
-    params: Promise<{ projectId: string, templateId: string }>
-  }) {
-  const params = await props.params;
-  const { projectId, templateId } = params;
-  const template = await db.query.renderTemplates.findFirst({
-    where: and(
-      eq(renderTemplates.id, templateId),
-      eq(renderTemplates.projectId, projectId)
-    )
-  });
-
-  if (!template) {
-    return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    params: Promise<{ projectId: string; templateId: string }>;
   }
+) {
+  try {
+    const params = await props.params;
+    const { projectId, templateId } = params;
 
-  return NextResponse.json(template);
+    const template = await getRenderTemplate({ projectId, templateId });
+
+    return NextResponse.json(template);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to get template. Please try again." },
+      { status: 500 }
+    );
+  }
 }
 
-export async function POST(
-  request: Request,
-  props: { params: Promise<{ projectId: string, templateId: string }> }
-) {
-  const params = await props.params;
-  const { projectId, templateId } = params;
-  const body = await request.json();
+export async function PUT(request: Request, props: { params: Promise<{ projectId: string; templateId: string }> }) {
+  try {
+    const params = await props.params;
+    const { projectId, templateId } = params;
+    const body = await request.json();
 
-  const template = await db.update(renderTemplates).set({
-    name: body.name,
-    code: body.code
-  })
-    .where(and(eq(renderTemplates.id, templateId), eq(renderTemplates.projectId, projectId)))
-    .returning();
+    const result = await updateRenderTemplate({
+      projectId,
+      templateId,
+      name: body.name,
+      code: body.code,
+    });
 
-  if (!template.length) {
-    return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update template" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(template[0]);
 }
 
-export async function DELETE(
-  request: Request,
-  props: { params: Promise<{ projectId: string, templateId: string }> }
-) {
-  const params = await props.params;
-  const { projectId, templateId } = params;
-  const template = await db.delete(renderTemplates)
-    .where(and(
-      eq(renderTemplates.id, templateId),
-      eq(renderTemplates.projectId, projectId)
-    ))
-    .returning();
+export async function DELETE(_request: Request, props: { params: Promise<{ projectId: string; templateId: string }> }) {
+  try {
+    const params = await props.params;
+    const { projectId, templateId } = params;
 
-  if (!template) {
-    return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    const result = await deleteRenderTemplate({ projectId, templateId });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete template" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(template);
 }

@@ -3,9 +3,9 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { Resizable, ResizeCallback } from "re-resizable";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import TraceViewNavigationProvider, { getTraceConfig } from "@/components/traces/trace-view/navigation-context";
+import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useUserContext } from "@/contexts/user-context";
 import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
@@ -16,27 +16,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
 import TraceView from "./trace-view";
+import { TracesStoreProvider, useTraceViewActions, useTraceViewState } from "./traces-store";
 import TracesTable from "./traces-table";
 
-enum SelectedTab {
+enum TracesTab {
   TRACES = "traces",
   SESSIONS = "sessions",
   SPANS = "spans",
 }
 
-interface TracesProps {
-  initialTraceViewWidth?: number;
-}
+type NavigationItem =
+  | string
+  | {
+      traceId: string;
+      spanId: string;
+    };
 
-export default function Traces({ initialTraceViewWidth }: TracesProps) {
+function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
   const { email } = useUserContext();
   const posthog = usePostHog();
-  const selectedView = searchParams.get("view") ?? SelectedTab.TRACES;
+  const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
   const ref = useRef<Resizable>(null);
+  const { traceId, spanId } = useTraceViewState();
+  const { setTraceId, setSpanId } = useTraceViewActions();
+
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
+
+  useEffect(() => {
+    if (!initialTraceViewWidth) {
+      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
+    }
+  }, []);
+
+  if (isFeatureEnabled(Feature.POSTHOG)) {
+    posthog.identify(email);
+  }
 
   const resetUrlParams = (newView: string) => {
     const params = new URLSearchParams(searchParams);
@@ -45,27 +63,29 @@ export default function Traces({ initialTraceViewWidth }: TracesProps) {
     params.delete("traceId");
     params.delete("spanId");
     params.set("view", newView);
-    setIsSidePanelOpen(false);
     setTraceId(null);
     router.push(`${pathName}?${params.toString()}`);
   };
-
-  if (isFeatureEnabled(Feature.POSTHOG)) {
-    posthog.identify(email);
-  }
-
-  const [traceId, setTraceId] = useState<string | null>(searchParams.get("traceId") ?? null);
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(traceId != null);
-
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(
-    initialTraceViewWidth || getDefaultTraceViewWidth()
-  );
 
   const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
     const newWidth = defaultTraceViewWidth + delta.width;
     setDefaultTraceViewWidth(newWidth);
     setTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
   };
+
+  const handleNavigate = useCallback(
+    (item: NavigationItem | null) => {
+      if (item) {
+        if (typeof item === "string") {
+          setTraceId(item);
+        } else {
+          setSpanId(item.spanId);
+          setTraceId(item.traceId);
+        }
+      }
+    },
+    [setSpanId, setTraceId]
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -76,17 +96,13 @@ export default function Traces({ initialTraceViewWidth }: TracesProps) {
         ref?.current?.updateSize({ width: newWidth });
       }
     }
-  }, []);
-
-  useEffect(() => {
-    setIsSidePanelOpen(traceId != null);
-  }, [traceId]);
+  }, [defaultTraceViewWidth, setDefaultTraceViewWidth]);
 
   return (
-    <TraceViewNavigationProvider config={getTraceConfig()} onNavigate={setTraceId}>
+    <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
       <div className="flex flex-col flex-1">
         <Tabs
-          value={selectedView}
+          value={tracesTab}
           className="flex flex-col h-full w-full"
           onValueChange={(value) => resetUrlParams(value)}
         >
@@ -96,16 +112,16 @@ export default function Traces({ initialTraceViewWidth }: TracesProps) {
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
           </TabsList>
           <TabsContent value="traces" asChild>
-            <TracesTable traceId={traceId} onRowClick={setTraceId} />
-          </TabsContent>
-          <TabsContent value="sessions" asChild>
-            <SessionsTable onRowClick={setTraceId} />
+            <TracesTable />
           </TabsContent>
           <TabsContent value="spans" asChild>
-            <SpansTable onRowClick={setTraceId} />
+            <SpansTable />
+          </TabsContent>
+          <TabsContent value="sessions" asChild>
+            <SessionsTable />
           </TabsContent>
         </Tabs>
-        {isSidePanelOpen && (
+        {traceId && (
           <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
             <Resizable
               ref={ref}
@@ -119,16 +135,16 @@ export default function Traces({ initialTraceViewWidth }: TracesProps) {
             >
               <FiltersContextProvider columns={filterColumns}>
                 <TraceView
+                  spanId={spanId}
                   key={traceId}
                   onClose={() => {
                     const params = new URLSearchParams(searchParams);
                     params.delete("traceId");
                     params.delete("spanId");
                     router.push(`${pathName}?${params.toString()}`);
-                    setIsSidePanelOpen(false);
                     setTraceId(null);
                   }}
-                  traceId={traceId!}
+                  traceId={traceId}
                 />
               </FiltersContextProvider>
             </Resizable>
@@ -136,5 +152,18 @@ export default function Traces({ initialTraceViewWidth }: TracesProps) {
         )}
       </div>
     </TraceViewNavigationProvider>
+  );
+}
+
+export default function Traces({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
+  const searchParams = useSearchParams();
+
+  const traceId = searchParams.get("traceId");
+  const spanId = searchParams.get("spanId");
+
+  return (
+    <TracesStoreProvider traceId={traceId} spanId={spanId}>
+      <TracesContent initialTraceViewWidth={initialTraceViewWidth} />
+    </TracesStoreProvider>
   );
 }

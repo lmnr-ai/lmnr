@@ -27,8 +27,6 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     .values({
       projectId,
       name: body.name,
-      description: body.description,
-      evaluatorRunnableGraph: body.evaluatorRunnableGraph,
       color: body.color,
     })
     .returning();

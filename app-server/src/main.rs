@@ -1,3 +1,11 @@
+#[cfg(not(target_env = "msvc"))]
+use tikv_jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
+
 use actix_web::{
     App, HttpServer,
     middleware::{Logger, NormalizePath},
@@ -169,11 +177,11 @@ fn main() -> anyhow::Result<()> {
 
     let connection_for_health = connection.clone(); // Clone before moving into HttpServer
 
-    // ==== 3.1 Spans message queue ====
-    let spans_message_queue: Arc<MessageQueue> = if let Some(connection) = connection.as_ref() {
+    let queue: Arc<MessageQueue> = if let Some(connection) = connection.as_ref() {
         runtime_handle.block_on(async {
             let channel = connection.create_channel().await.unwrap();
-
+            // Register queues
+            // ==== 3.1 Spans message queue ====
             channel
                 .exchange_declare(
                     OBSERVATIONS_EXCHANGE,
@@ -193,28 +201,7 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(64);
-
-            log::info!("RabbitMQ span channels: {}", max_channel_pool_size);
-
-            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
-            Arc::new(rabbit_mq.into())
-        })
-    } else {
-        log::info!("Using tokio mpsc span queue");
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
-    };
-
-    // ==== 3.2 Browser events message queue ====
-    let browser_events_message_queue: Arc<MessageQueue> = if let Some(connection) =
-        connection.as_ref()
-    {
-        runtime_handle.block_on(async {
-            let channel = connection.create_channel().await.unwrap();
-
+            // ==== 3.2 Browser events message queue ====
             channel
                 .exchange_declare(
                     BROWSER_SESSIONS_EXCHANGE,
@@ -234,30 +221,7 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(64);
-
-            log::info!(
-                "RabbitMQ browser events channels: {}",
-                max_channel_pool_size
-            );
-
-            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
-            Arc::new(rabbit_mq.into())
-        })
-    } else {
-        log::info!("Using tokio mpsc browser events queue");
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
-    };
-
-    // ==== 3.3 Evaluators message queue ====
-    let evaluators_message_queue: Arc<MessageQueue> = if let Some(connection) = connection.as_ref()
-    {
-        runtime_handle.block_on(async {
-            let channel = connection.create_channel().await.unwrap();
-
+            // ==== 3.3 Evaluators message queue ====
             channel
                 .exchange_declare(
                     EVALUATORS_EXCHANGE,
@@ -282,14 +246,22 @@ fn main() -> anyhow::Result<()> {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(64);
 
-            log::info!("RabbitMQ evaluators channels: {}", max_channel_pool_size);
+            log::info!("RabbitMQ channels: {}", max_channel_pool_size);
 
             let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
             Arc::new(rabbit_mq.into())
         })
     } else {
-        log::info!("Using tokio mpsc evaluators queue");
-        Arc::new(mq::tokio_mpsc::TokioMpscQueue::new().into())
+        let queue = mq::tokio_mpsc::TokioMpscQueue::new();
+        // register queues
+        // ==== 3.1 Spans message queue ====
+        queue.register_queue(OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE);
+        // ==== 3.2 Browser events message queue ====
+        queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
+        // ==== 3.3 Evaluators message queue ====
+        queue.register_queue(EVALUATORS_EXCHANGE, EVALUATORS_QUEUE);
+        log::info!("Using tokio mpsc queue");
+        Arc::new(queue.into())
     };
 
     // ==== 3.4 Agent worker message queue ====
@@ -298,7 +270,7 @@ fn main() -> anyhow::Result<()> {
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
-    let spans_mq_for_http = spans_message_queue.clone();
+    let mq_for_http = queue.clone();
 
     // == HTTP server and listener workers ==
     let http_server_handle = thread::Builder::new()
@@ -456,8 +428,7 @@ fn main() -> anyhow::Result<()> {
                         tokio::spawn(process_queue_spans(
                             db_for_http.clone(),
                             cache_for_http.clone(),
-                            spans_mq_for_http.clone(),
-                            evaluators_message_queue.clone(),
+                            mq_for_http.clone(),
                             clickhouse.clone(),
                             storage.clone(),
                         ));
@@ -467,7 +438,7 @@ fn main() -> anyhow::Result<()> {
                         tokio::spawn(process_browser_events(
                             db_for_http.clone(),
                             clickhouse.clone(),
-                            browser_events_message_queue.clone(),
+                            mq_for_http.clone(),
                         ));
                     }
 
@@ -475,7 +446,7 @@ fn main() -> anyhow::Result<()> {
                         tokio::spawn(process_evaluators(
                             db_for_http.clone(),
                             clickhouse.clone(),
-                            evaluators_message_queue.clone(),
+                            mq_for_http.clone(),
                             evaluator_client.clone(),
                             python_online_evaluator_url.clone(),
                         ));
@@ -488,13 +459,11 @@ fn main() -> anyhow::Result<()> {
                         .app_data(PayloadConfig::new(http_payload_limit))
                         .app_data(web::Data::from(cache_for_http.clone()))
                         .app_data(web::Data::from(db_for_http.clone()))
-                        .app_data(web::Data::new(spans_mq_for_http.clone()))
+                        .app_data(web::Data::new(mq_for_http.clone()))
                         .app_data(web::Data::new(clickhouse.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(machine_manager.clone()))
-                        .app_data(web::Data::new(browser_events_message_queue.clone()))
-                        .app_data(web::Data::new(evaluators_message_queue.clone()))
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
@@ -543,11 +512,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::evaluations::get_evaluation_score_stats)
                                 .service(routes::evaluations::get_evaluation_score_distribution)
                                 .service(routes::datasets::upload_datapoint_file)
-                                .service(routes::labels::get_label_classes)
-                                .service(routes::labels::register_label_class_for_path)
-                                .service(routes::labels::remove_label_class_from_path)
-                                .service(routes::labels::get_registered_label_classes_for_path)
-                                .service(routes::labels::update_label_class)
                                 .service(routes::traces::get_traces_metrics)
                                 .service(routes::provider_api_keys::save_api_key)
                                 .service(routes::spans::create_span)
@@ -570,7 +534,7 @@ fn main() -> anyhow::Result<()> {
                 let process_traces_service = ProcessTracesService::new(
                     db.clone(),
                     cache.clone(),
-                    spans_message_queue.clone(),
+                    queue.clone(),
                 );
 
                 Server::builder()

@@ -50,7 +50,7 @@ const PureLangChainContentParts = ({
               key={`${part.type}-${index}`}
               toolName={part.name}
               content={part}
-              presetKey={presetKey}
+              presetKey={`${presetKey}-${index}`}
             />
           ))}
           {(message?.invalid_tool_calls || []).map((part, index) => (
@@ -58,7 +58,7 @@ const PureLangChainContentParts = ({
               key={`${part.type}-${index}`}
               toolName="Invalid Tool Call"
               content={part}
-              presetKey={presetKey}
+              presetKey={`${presetKey}-${index}`}
             />
           ))}
         </>

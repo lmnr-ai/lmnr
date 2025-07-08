@@ -1,7 +1,7 @@
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/code-highlighter/code-sheet";
@@ -19,6 +19,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import TemplateRenderer from "@/components/ui/template-renderer";
 import { cn } from "@/lib/utils";
 
 interface CodeEditorProps {
@@ -35,7 +36,6 @@ interface CodeEditorProps {
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
-  showSettingsOnHover?: boolean;
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -64,11 +64,8 @@ const PureCodeHighlighter = ({
   codeEditorClassName,
   renderBase64Images = true,
   defaultShowLineNumbers = false,
-  showSettingsOnHover = true,
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
@@ -80,6 +77,7 @@ const PureCodeHighlighter = ({
   const [shouldRenderImages, setShouldRenderImages] = useState(renderBase64Images);
 
   const [showLineNumbers, setShowLineNumbers] = useState(defaultShowLineNumbers);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const {
     text: renderedValue,
@@ -141,13 +139,8 @@ const PureCodeHighlighter = ({
 
   const renderHeaderContent = () => (
     <>
-      <Select value={mode} onValueChange={handleModeChange} onOpenChange={setIsSelectOpen}>
-        <SelectTrigger
-          className={cn(
-            "h-4 px-1.5 [&>svg]:opacity-100 font-medium text-secondary-foreground border-secondary-foreground/60 w-fit text-[0.7rem] bg-black/50 outline-none focus:ring-0",
-            !showSettingsOnHover && "bg-muted/50"
-          )}
-        >
+      <Select value={mode} onValueChange={handleModeChange}>
+        <SelectTrigger className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-none focus:ring-0">
           <SelectValue className="w-fit" placeholder="Select mode" />
         </SelectTrigger>
         <SelectContent>
@@ -159,22 +152,34 @@ const PureCodeHighlighter = ({
         </SelectContent>
       </Select>
       <CopyButton
-        className="h-7 w-7 ml-auto text-muted-foreground"
+        className={cn(
+          "h-7 w-7 ml-auto text-foreground/80 transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
+          isSettingsOpen && "opacity-100"
+        )}
         iconClassName="h-3.5 w-3.5"
         size="icon"
         variant="ghost"
         text={value}
       />
-      <CodeSheet
-        renderedValue={value}
-        mode={mode}
-        onModeChange={handleModeChange}
-        extensions={extensions}
-        placeholder={placeholder}
-      />
-      <Popover onOpenChange={setIsDropdownOpen}>
+      <div className={cn(
+        "transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
+        isSettingsOpen && "opacity-100"
+      )}>
+        <CodeSheet
+          renderedValue={value}
+          mode={mode}
+          onModeChange={handleModeChange}
+          extensions={extensions}
+          placeholder={placeholder}
+        />
+      </div>
+      <Popover onOpenChange={setIsSettingsOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-foreground/70 transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100"
+          >
             <Settings size={16} />
           </Button>
         </PopoverTrigger>
@@ -196,42 +201,37 @@ const PureCodeHighlighter = ({
     <div
       className={cn("w-full min-h-[1.75rem] h-full flex flex-col border relative group/code-highlighter", className)}
     >
-      <div
-        className={cn(
-          "h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t border-b",
-          showSettingsOnHover && [
-            "border-0 bg-gradient-to-b from-black/80 via-black/60 to-transparent absolute top-0 left-0 right-0 z-10 transition-opacity duration-200 opacity-0 group-hover/code-highlighter:opacity-100",
-            {
-              "opacity-100": isDropdownOpen || isSelectOpen,
-            },
-          ]
-        )}
-      >
+      <div className={cn("h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-muted/50")}>
         {renderHeaderContent()}
       </div>
-
-      <div
-        className={cn(
-          "flex-grow flex bg-muted/50 overflow-auto w-full h-full pt-0.5",
-          !showLineNumbers && "pl-1",
-          codeEditorClassName
-        )}
-      >
-        <CodeMirror
-          ref={editorRef}
-          className="w-full"
-          placeholder={placeholder}
-          onChange={handleChange}
-          theme={theme}
-          basicSetup={{
-            lineNumbers: showLineNumbers,
-            foldGutter: showLineNumbers,
-          }}
-          extensions={extensions}
-          value={renderedValue}
-          readOnly={readOnly}
-        />
-      </div>
+      {mode === "custom" ? (
+        <div className="flex-grow flex bg-muted/50 overflow-auto w-full h-full">
+          <TemplateRenderer data={renderedValue} presetKey={presetKey} />
+        </div>
+      ) : (
+        <div
+          className={cn(
+            "flex-grow flex bg-muted/50 overflow-auto w-full h-full",
+            !showLineNumbers && "pl-1",
+            codeEditorClassName
+          )}
+        >
+          <CodeMirror
+            ref={editorRef}
+            className="w-full"
+            placeholder={placeholder}
+            onChange={handleChange}
+            theme={theme}
+            basicSetup={{
+              lineNumbers: showLineNumbers,
+              foldGutter: showLineNumbers,
+            }}
+            extensions={extensions}
+            value={renderedValue}
+            readOnly={readOnly}
+          />
+        </div>
+      )}
     </div>
   );
 };

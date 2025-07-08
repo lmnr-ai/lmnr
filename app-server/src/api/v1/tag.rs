@@ -83,7 +83,6 @@ pub async fn tag_trace(
                 None,
                 name.clone(),
                 LabelSource::CODE,
-                None,
             )
         })
         .collect::<Vec<_>>();

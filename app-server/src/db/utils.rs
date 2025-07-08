@@ -55,7 +55,7 @@ pub fn convert_any_value_to_json_value(
             json!(map)
         }
         opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => {
-            serde_json::Value::from_str(String::from_utf8(val).unwrap().as_str()).unwrap()
+            serde_json::Value::from_str(&String::from_utf8(val).unwrap()).unwrap()
         }
     }
 }

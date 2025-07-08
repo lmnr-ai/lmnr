@@ -1,8 +1,7 @@
-import { and, asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { db } from "@/lib/db/drizzle";
-import { events, spans } from "@/lib/db/migrations/schema";
+import { getSharedSpanEvents } from "@/lib/actions/shared/span";
 
 export async function GET(
   _req: Request,
@@ -12,23 +11,13 @@ export async function GET(
   const traceId = params.traceId;
   const spanId = params.spanId;
 
-  const span = await db.query.spans.findFirst({
-    where: and(eq(spans.spanId, spanId), eq(spans.traceId, traceId)),
-    columns: {
-      spanId: true,
-    },
-  });
-
-  if (!span) {
-    return new Response(JSON.stringify({ error: "Span not found or does not belong to the given trace" }), {
-      status: 404,
-    });
+  try {
+    const events = await getSharedSpanEvents({ traceId, spanId });
+    return NextResponse.json(events);
+  } catch (e) {
+    if (e instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(e) }, { status: 400 });
+    }
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to get shared span events." }, { status: 500 });
   }
-
-  const rows = await db.query.events.findMany({
-    where: and(eq(events.spanId, spanId)),
-    orderBy: asc(events.timestamp),
-  });
-
-  return NextResponse.json(rows);
 }

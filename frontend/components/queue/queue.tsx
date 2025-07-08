@@ -267,7 +267,6 @@ export default function Queue({ queue }: QueueProps) {
               </span>
               <div className="flex flex-1 overflow-hidden">
                 <CodeHighlighter
-                  showSettingsOnHover={false}
                   codeEditorClassName="rounded-b"
                   className={cn("rounded", {
                     "border border-destructive/75": !isValid,
