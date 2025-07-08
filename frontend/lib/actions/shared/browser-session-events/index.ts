@@ -12,9 +12,8 @@ export const getSharedBrowserSessionEvents = async (input: z.infer<typeof GetSha
   const res = await clickhouseClient.query({
     query: `
       SELECT 
-        trace_id,
         timestamp,
-        event_type,
+        event_type as type,
         base64Encode(data) as data
       FROM browser_session_events
       WHERE trace_id = {traceId: UUID}

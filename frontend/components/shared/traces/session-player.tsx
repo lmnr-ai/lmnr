@@ -5,11 +5,11 @@ import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { Loader2 } from "lucide-react";
-import pako from "pako";
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
+import { fetchBrowserSessionEvents, UrlChange } from "@/components/session-player/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +46,10 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [totalDuration, setTotalDuration] = useState(0);
+    const [currentUrl, setCurrentUrl] = useState<string>("");
+    const [urlChanges, setUrlChanges] = useState<UrlChange[]>([]);
+    const currentUrlIndexRef = useRef<number>(0);
+
     const [speed, setSpeed] = useLocalStorage("session-player-speed", 1);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [, setStartTime] = useState(0);
@@ -67,66 +71,65 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       return () => resizeObserver.disconnect();
     }, []);
 
+    const findUrlIndex = (timeMs: number): number => {
+      if (!urlChanges.length) return -1;
+
+      let left = 0;
+      let right = urlChanges.length - 1;
+      let result = 0;
+
+      while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+
+        if (urlChanges[mid].timestamp <= timeMs) {
+          result = mid;
+          left = mid + 1;
+        } else {
+          right = mid - 1;
+        }
+      }
+
+      return result;
+    };
+
+    const updateCurrentUrl = (timeMs: number) => {
+      if (!urlChanges.length) return;
+
+      const newIndex = findUrlIndex(timeMs);
+      if (newIndex === -1) return;
+
+      // Only update if index changed (avoids unnecessary state updates)
+      if (newIndex !== currentUrlIndexRef.current) {
+        currentUrlIndexRef.current = newIndex;
+        const newUrl = urlChanges[newIndex].url;
+
+        if (newUrl !== currentUrl) {
+          setCurrentUrl(newUrl);
+        }
+      }
+    };
+
     const getEvents = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/shared/traces/${traceId}/browser-sessions/events`, {
-          method: "GET",
-        });
+        const result = await fetchBrowserSessionEvents(`/api/shared/traces/${traceId}/browser-sessions/events`);
 
-        const reader = res.body?.getReader();
-        if (!reader) throw new Error("No reader available");
+        setEvents(result.events);
+        setUrlChanges(result.urlChanges);
+        setTotalDuration(result.duration);
+        setStartTime(result.startTime);
+        currentUrlIndexRef.current = 0;
 
-        const chunks: Uint8Array[] = [];
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
+        // Set initial URL
+        if (result.urlChanges.length > 0) {
+          setCurrentUrl(result.urlChanges[0].url);
         }
-
-        const blob = new Blob(chunks, { type: "application/json" });
-        const text = await blob.text();
-
-        let batchEvents = [];
-        try {
-          batchEvents = JSON.parse(text);
-        } catch (e) {
-          console.error("Error parsing events:", e);
-          setIsLoading(false);
-          setEvents([]);
-          return;
-        }
-
-        const events = batchEvents.flatMap((batch: any) =>
-          batch.map((data: any) => {
-            const parsedEvent = JSON.parse(data.text);
-            const base64DecodedData = atob(parsedEvent.data);
-            let decompressedData = null;
-
-            try {
-              const encodedData = new Uint8Array(base64DecodedData.split("").map((c: any) => c.charCodeAt(0)));
-              decompressedData = pako.ungzip(encodedData, { to: "string" });
-            } catch (e) {
-              // old non-compressed events
-              decompressedData = base64DecodedData;
-            }
-
-            const event = {
-              ...parsedEvent,
-              data: JSON.parse(decompressedData),
-            };
-
-            return {
-              data: event.data,
-              timestamp: new Date(event.timestamp + "Z").getTime(),
-              type: parseInt(event.event_type),
-            };
-          })
-        );
-
-        setEvents(events);
       } catch (e) {
         console.error("Error processing events:", e);
+        setEvents([]);
+        setUrlChanges([]);
+        setTotalDuration(0);
+        setStartTime(0);
       } finally {
         setIsLoading(false);
       }
@@ -176,8 +179,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         });
 
         playerRef.current.addEventListener("ui-update-current-time", (event: any) => {
-          setCurrentTime(event.payload / 1000);
+          const newTime = event.payload / 1000;
+          setCurrentTime(newTime);
           onTimelineChange(startTime + event.payload);
+
+          // Update current URL based on the current time
+          updateCurrentUrl(startTime + event.payload);
         });
       } catch (e) {
         console.error("Error initializing player:", e);
@@ -201,7 +208,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       }
     }, [speed]);
 
-    const handlePlayPause = () => {
+    const handlePlayPause = useCallback(() => {
       if (playerRef.current) {
         try {
           if (isPlaying) {
@@ -215,36 +222,42 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           console.error("Error in play/pause:", e);
         }
       }
-    };
+    }, [isPlaying]);
 
-    const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const time = parseFloat(e.target.value);
-      setCurrentTime(time);
+    const handleSpeedChange = useCallback(
+      (newSpeed: number) => {
+        setSpeed(newSpeed);
+      },
+      [setSpeed]
+    );
 
-      const wasPlaying = isPlaying;
-      if (wasPlaying && playerRef.current) {
-        playerRef.current.pause();
-      }
+    const handleTimelineChange = useCallback(
+      (e: React.ChangeEvent<HTMLInputElement>) => {
+        const time = parseFloat(e.target.value);
+        setCurrentTime(time);
 
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      debounceTimerRef.current = setTimeout(() => {
-        if (playerRef.current) {
-          playerRef.current.goto(time * 1000);
-          if (wasPlaying) {
-            requestAnimationFrame(() => {
-              playerRef.current.play();
-            });
-          }
+        const wasPlaying = isPlaying;
+        if (wasPlaying && playerRef.current) {
+          playerRef.current.pause();
         }
-      }, 50);
-    };
 
-    const handleSpeedChange = (newSpeed: number) => {
-      setSpeed(newSpeed);
-    };
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+
+        debounceTimerRef.current = setTimeout(() => {
+          if (playerRef.current) {
+            playerRef.current.goto(time * 1000);
+            if (wasPlaying) {
+              requestAnimationFrame(() => {
+                playerRef.current.play();
+              });
+            }
+          }
+        }, 50);
+      },
+      [isPlaying]
+    );
 
     useImperativeHandle(
       ref,
@@ -296,6 +309,20 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
             </span>
           </div>
+
+          {currentUrl && (
+            <div className="flex items-center px-4 py-1 border-b">
+              <a
+                href={currentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground truncate transition-colors"
+                title={currentUrl}
+              >
+                {currentUrl}
+              </a>
+            </div>
+          )}
           {isLoading && (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
               <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
