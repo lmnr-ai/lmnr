@@ -102,15 +102,9 @@ export default async function CheckoutPage(props: {
 
   const urlEncodedWorkspaceName = encodeURIComponent(workspaceName ?? "");
 
-  const successUrl =
-    typeParam === "workspace"
-      ? `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${urlEncodedWorkspaceName}&lookupKey=${lookupKey}`
-      : `${process.env.NEXT_PUBLIC_URL}/chat?sessionId={CHECKOUT_SESSION_ID}&userId=${userId}&lookupKey=${lookupKey}`;
+  const successUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${urlEncodedWorkspaceName}&lookupKey=${lookupKey}`;
 
-  const cancelUrl =
-    typeParam === "workspace"
-      ? `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}`
-      : `${process.env.NEXT_PUBLIC_URL}/chat`;
+  const cancelUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}`;
 
   const session = await s.checkout.sessions.create({
     customer: customerId,
@@ -119,12 +113,20 @@ export default async function CheckoutPage(props: {
         price: prices.data.find((p) => p.lookup_key === lookupKey)?.id,
         quantity: 1,
       },
-      ...(bytesOveragePrice ? [{
-        price: bytesOveragePrice?.id,
-      }] : []),
-      ...(stepsOveragePrice ? [{
-        price: stepsOveragePrice?.id,
-      }] : []),
+      ...(bytesOveragePrice
+        ? [
+          {
+            price: bytesOveragePrice?.id,
+          },
+        ]
+        : []),
+      ...(stepsOveragePrice
+        ? [
+          {
+            price: stepsOveragePrice?.id,
+          },
+        ]
+        : []),
     ],
     mode: "subscription",
     subscription_data: {

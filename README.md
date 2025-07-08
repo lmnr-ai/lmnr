@@ -64,27 +64,6 @@ For production environment, we recommend using our [managed platform](https://ww
 - postgres – Postgres database for all the application data
 - clickhouse – columnar OLAP database for more efficient trace and label analytics
 
-## Index - SOTA browser agent
-
-<img alt="index" src="./images/index.png">
-
-Index is a state-of-the-art open-source browser agent. It can autonomously perform complex tasks on the web.
-
-You can use Index:
-- As an [open-source package](https://github.com/lmnr-ai/index)
-- As a cloud API at lmnr.ai. Read the [API reference](https://docs.lmnr.ai/api-reference/agent/agent_run) to get started.
-- It powers the Chat UI behind [lmnr.ai/chat](https://lmnr.ai/chat)
-    - Chat UI is also self-hostable. Read the self-hosting guide below and access the UI at `<YOUR-SELF-HOST-URL>:5667/chat`
-
-### Spinning up Index UI locally
-
-Currently local version of Laminar Index connects to browsers hosted on Scrapybara, and its reasoning is powered by Anthropic's Claude models. You will need API keys for both of these services.
-
-1. Get an [Anthropic API key](https://console.anthropic.com/settings/keys)
-1. Get a [Scrapybara API key](https://scrapybara.com/dashboard)
-1. Update both `ANTHROPIC_API_KEY` and `SCRAPYBARA_API_KEY` values in `.env` in the root of `lmnr`
-1. Laminar index agent manager will spin up as part of the default `docker-compose up`.
-
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,
