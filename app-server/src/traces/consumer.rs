@@ -14,7 +14,6 @@ use crate::{
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
     storage::Storage,
     traces::IngestedBytes,
-    utils::estimate_json_size,
 };
 
 pub async fn process_queue_spans(
@@ -100,14 +99,13 @@ async fn inner_process_queue_spans(
             }
         }
         let mut span: Span = rabbitmq_span_message.span;
+        let span_id = span.span_id;
         let events = rabbitmq_span_message.events;
 
         // Make sure we count the sizes before any processing, as soon as
         // we pick up the span from the queue.
-        let span_bytes = estimate_json_size(
-            &serde_json::to_value(&span.get_attributes().attributes).unwrap_or_default(),
-        );
-        let events_bytes = estimate_json_size(&serde_json::to_value(&events).unwrap_or_default());
+        let span_bytes = span.estimate_size_bytes();
+        let events_bytes = events.iter().map(|e| e.estimate_size_bytes()).sum();
 
         // Parse and enrich span attributes for input/output extraction
         // This heavy processing is done on the consumer side
@@ -120,7 +118,7 @@ async fn inner_process_queue_spans(
             {
                 log::error!(
                     "Failed to store input images. span_id [{}], project_id [{}]: {:?}",
-                    span.span_id,
+                    span_id,
                     rabbitmq_span_message.project_id,
                     e
                 );

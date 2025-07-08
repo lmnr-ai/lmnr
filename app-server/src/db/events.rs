@@ -5,7 +5,10 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use crate::opentelemetry::opentelemetry_proto_trace_v1::span::Event as OtelEvent;
+use crate::{
+    opentelemetry::opentelemetry_proto_trace_v1::span::Event as OtelEvent,
+    utils::estimate_json_size,
+};
 
 use super::utils::convert_any_value_to_json_value;
 
@@ -19,6 +22,17 @@ pub struct Event {
     pub timestamp: DateTime<Utc>,
     pub name: String,
     pub attributes: Value,
+}
+
+impl Event {
+    pub fn estimate_size_bytes(&self) -> usize {
+        // 16 bytes for id,
+        // 16 bytes for span_id,
+        // 16 bytes for project_id,
+        // 8 bytes for created_at,
+        // 8 bytes for timestamp,
+        return 16 + 16 + 16 + 8 + 8 + self.name.len() + estimate_json_size(&self.attributes);
+    }
 }
 
 impl Event {

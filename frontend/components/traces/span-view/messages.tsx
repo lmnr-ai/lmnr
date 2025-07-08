@@ -154,7 +154,7 @@ const MessagesRenderer = ({
         return (
           <div key={row.key} data-index={row.index} ref={ref}>
             <MessageWrapper role={message.role} presetKey={`message-header-${row.index}-${presetKey}`}>
-              <OpenAIContentParts presetKey={presetKey} message={message} />
+              <OpenAIContentParts presetKey={`${presetKey}-${row.index}`} message={message} />
             </MessageWrapper>
           </div>
         );
@@ -166,7 +166,7 @@ const MessagesRenderer = ({
         return (
           <div key={row.key} data-index={row.index} ref={ref}>
             <MessageWrapper role={message.role} presetKey={`message-header-${row.index}-${presetKey}`}>
-              <LangChainContentParts presetKey={presetKey} message={message} />
+              <LangChainContentParts presetKey={`${presetKey}-${row.index}`} message={message} />
             </MessageWrapper>
           </div>
         );
@@ -178,7 +178,7 @@ const MessagesRenderer = ({
         return (
           <div key={row.key} data-index={row.index} ref={ref}>
             <MessageWrapper role={message.role} presetKey={`message-header-${row.index}-${presetKey}`}>
-              <ContentParts presetKey={presetKey} message={message} />
+              <ContentParts presetKey={`${presetKey}-${row.index}`} message={message} />
             </MessageWrapper>
           </div>
         );

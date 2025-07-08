@@ -175,11 +175,12 @@ const updateUsageCacheForWorkspace = async (workspaceId: string) => {
   const cacheKey = `${WORKSPACE_LIMITS_CACHE_KEY}:${workspaceId}`;
   const baseQuery = db.$with('workspace_stats').as(
     db.select({
-      tierName: subscriptionTiers.name,
-      spansLimit: subscriptionTiers.spans,
-      stepsLimit: subscriptionTiers.steps,
-      spansThisMonth: workspaceUsage.spanCount,
-      stepsThisMonth: workspaceUsage.stepCount
+      name: subscriptionTiers.name,
+      steps: subscriptionTiers.steps,
+      bytesIngested: subscriptionTiers.bytesIngested,
+      spansBytesIngestedSinceReset: workspaceUsage.spansBytesIngestedSinceReset,
+      browserSessionEventsBytesIngestedSinceReset: workspaceUsage.browserSessionEventsBytesIngestedSinceReset,
+      stepCountSinceReset: workspaceUsage.stepCountSinceReset
     }).from(workspaces)
       .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
       .innerJoin(workspaceUsage, eq(workspaces.id, workspaceUsage.workspaceId))
@@ -187,12 +188,13 @@ const updateUsageCacheForWorkspace = async (workspaceId: string) => {
   );
 
   const limitExceededRows = await db.with(baseQuery).select({
-    spans: sql`span_count >= spans AND LOWER(TRIM(name)) = 'free'`,
-    steps: sql`step_count >= steps AND LOWER(TRIM(name)) = 'free'`
+    bytesIngested: sql`spans_bytes_ingested_since_reset + browser_session_events_bytes_ingested_since_reset >= bytes_ingested AND LOWER(TRIM(name)) = 'free'`.as('bytesIngested'),
+    steps: sql`step_count_since_reset >= steps AND LOWER(TRIM(name)) = 'free'`.as('steps')
   }).from(baseQuery);
 
   const limitExceeded = {
-    spans: limitExceededRows.length > 0 && !!limitExceededRows[0].spans,
+    // snake_case because the cache key is snake_case
+    bytes_ingested: limitExceededRows.length > 0 && !!limitExceededRows[0].bytesIngested,
     steps: limitExceededRows.length > 0 && !!limitExceededRows[0].steps
   };
 

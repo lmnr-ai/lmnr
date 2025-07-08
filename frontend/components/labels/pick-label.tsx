@@ -47,12 +47,11 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
           body: JSON.stringify({
             classId: labelClass.id,
             name: labelClass.name,
-            reasoning: "",
           }),
         });
 
         if (!res.ok) {
-          toast({ variant: "destructive", title: "Error", description: "Failed to attach label." });
+          toast({ variant: "destructive", title: "Error", description: "Failed to attach tag." });
           return;
         }
 

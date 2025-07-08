@@ -1338,19 +1338,6 @@
         }
       },
       {
-        "id": "c87f92c3-53a5-4a84-949a-f980142476d5",
-        "created_at": "2025-06-11 20:17:03.094028+00",
-        "updated_at": "2025-06-11 20:17:03.094028+00",
-        "provider": "gemini",
-        "model": "gemini-2.5-flash-preview-05-20",
-        "input_price_per_million": 0.15,
-        "output_price_per_million": 0.6,
-        "input_cached_price_per_million": 0.0375,
-        "additional_prices": {
-          "output_thinking_price_per_million": 3.5
-        }
-      },
-      {
         "id": "5a291382-25a8-4696-bd7e-d5fde02d32dc",
         "created_at": "2025-06-26 13:08:00.674092+00",
         "updated_at": "2025-06-26 13:08:00.674092+00",
