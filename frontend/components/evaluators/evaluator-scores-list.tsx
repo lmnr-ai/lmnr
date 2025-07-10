@@ -28,15 +28,15 @@ const EvaluatorScoresList = ({ spanId }: EvaluatorScoresListProps) => {
       {scores.map((score) => (
         <Tooltip key={score.id}>
           <TooltipTrigger>
-            <Badge className="flex gap-1 items-center rounded-3xl" variant="outline">
-              <SquareFunction className="w-3 h-3" />
-              <span className="text-secondary-foreground">{score.name}</span>
-              <span>{score.score}</span>
+            <Badge className="flex gap-1 items-center rounded-3xl overflow-hidden" variant="outline">
+              <SquareFunction className="w-3 h-3 min-w-3 min-h-3" />
+              <span className="text-secondary-foreground max-w-10 truncate">{score.name}</span>
+              <span className="truncate min-w-0">{score.score.toFixed(2)}</span>
             </Badge>
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent>
-              Score is {score.score} recorded by <b>{score.name}</b>
+              Score <b>{score.score}</b> - <b>{score.name}</b>
             </TooltipContent>
           </TooltipPortal>
         </Tooltip>
