@@ -45,7 +45,7 @@ const callEvaluatorService = async (
 
   if (!response.ok) {
     const errorResponse = await response.json();
-    throw new Error(errorResponse);
+    throw new Error(errorResponse.error || JSON.stringify(errorResponse));
   }
 
   const responseData = await response.json();
