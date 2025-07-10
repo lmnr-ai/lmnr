@@ -1,9 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    ch::evaluator_scores::insert_evaluator_score_ch, db::{
-        evaluators::{get_evaluator, insert_evaluator_score}, DB
-    }, mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait}
+    ch::evaluator_scores::insert_evaluator_score_ch,
+    db::{
+        DB,
+        evaluators::{EvaluatorScoreSource, get_evaluator, insert_evaluator_score},
+    },
+    mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
 };
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -24,7 +27,7 @@ pub struct EvaluatorsQueueMessage {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct EvaluatorRequest {
-    pub definition: HashMap<String,Value>,
+    pub definition: HashMap<String, Value>,
     pub input: Value,
 }
 
@@ -101,7 +104,11 @@ pub async fn inner_process_evaluators(
         };
 
         // For now we call only python, later check for evaluator_type and call corresponing url
-        let response = client.post(python_online_evaluator_url).json(&body).send().await;
+        let response = client
+            .post(python_online_evaluator_url)
+            .json(&body)
+            .send()
+            .await;
 
         match response {
             Ok(resp) => {
@@ -123,9 +130,12 @@ pub async fn inner_process_evaluators(
                                         &db,
                                         score_id,
                                         message.project_id,
+                                        &evaluator.name,
+                                        EvaluatorScoreSource::Evaluator,
                                         message.span_id,
-                                        message.id,
+                                        Some(message.id),
                                         score,
+                                        None,
                                     )
                                     .await
                                     {
@@ -141,8 +151,10 @@ pub async fn inner_process_evaluators(
                                         clickhouse.clone(),
                                         score_id,
                                         message.project_id,
+                                        &evaluator.name,
+                                        EvaluatorScoreSource::Evaluator,
                                         message.span_id,
-                                        message.id,
+                                        Some(message.id),
                                         score,
                                     )
                                     .await
@@ -156,7 +168,6 @@ pub async fn inner_process_evaluators(
                                     }
 
                                     let _ = acker.ack().await;
-
                                 }
                                 None => {
                                     log::info!(
@@ -173,10 +184,7 @@ pub async fn inner_process_evaluators(
                         }
                     }
                 } else if status.is_server_error() {
-                    log::error!(
-                        "Evaluator service returned server error {}",
-                        status
-                    );
+                    log::error!("Evaluator service returned server error {}", status);
                     let _ = acker.reject(false).await;
                 } else if status.is_client_error() {
                     log::error!(
@@ -200,7 +208,6 @@ pub async fn inner_process_evaluators(
         }
     }
 }
-
 
 pub async fn push_to_evaluators_queue(
     span_id: Uuid,

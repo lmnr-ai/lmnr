@@ -41,3 +41,9 @@ impl From<clickhouse::error::Error> for Error {
         Error::InternalAnyhowError(anyhow::anyhow!(err))
     }
 }
+
+impl From<sqlx::Error> for Error {
+    fn from(err: sqlx::Error) -> Self {
+        Error::InternalAnyhowError(anyhow::anyhow!(err))
+    }
+}

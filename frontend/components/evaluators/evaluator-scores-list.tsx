@@ -16,9 +16,9 @@ interface EvaluatorScoresListProps {
 const EvaluatorScoresList = ({ spanId }: EvaluatorScoresListProps) => {
   const { projectId } = useParams();
 
-  const { data: scores } = useSWR<(EvaluatorScore & { evaluatorName: string })[]>(
+  const { data: scores } = useSWR<EvaluatorScore[]>(
     `/api/projects/${projectId}/spans/${spanId}/evaluator-scores`,
-  swrFetcher
+    swrFetcher
   );
 
   if (!scores?.length) return null;
@@ -30,13 +30,13 @@ const EvaluatorScoresList = ({ spanId }: EvaluatorScoresListProps) => {
           <TooltipTrigger>
             <Badge className="flex gap-1 items-center rounded-3xl" variant="outline">
               <SquareFunction className="w-3 h-3" />
-              <span className="text-secondary-foreground">{score.evaluatorName}</span>
+              <span className="text-secondary-foreground">{score.name}</span>
               <span>{score.score}</span>
             </Badge>
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent>
-              Score is {score.score} recorded by <b>{score.evaluatorName}</b>
+              Score is {score.score} recorded by <b>{score.name}</b>
             </TooltipContent>
           </TooltipPortal>
         </Tooltip>
