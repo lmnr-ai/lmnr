@@ -50,7 +50,7 @@ pub enum CreateEvaluatorScoreRequest {
     WithSpanId(CreateEvaluatorScoreRequestWithSpanId),
 }
 
-#[post("/evaluator-scores")]
+#[post("/evaluators/score")]
 pub async fn create_evaluator_score(
     req: Json<CreateEvaluatorScoreRequest>,
     db: Data<DB>,
