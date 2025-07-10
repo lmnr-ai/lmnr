@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::DB;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::QueryBuilder;
+use sqlx::{PgPool, QueryBuilder};
 use uuid::Uuid;
 
 #[derive(sqlx::FromRow, Debug)]
@@ -24,11 +24,11 @@ pub struct Evaluator {
 #[derive(Deserialize, Serialize, PartialEq, Clone, Debug)]
 pub enum EvaluatorScoreSource {
     Evaluator,
-    SDK,
+    Code,
 }
 
 pub async fn insert_evaluator_score(
-    db: &DB,
+    pool: &PgPool,
     id: Uuid,
     project_id: Uuid,
     name: &str,
@@ -47,12 +47,12 @@ pub async fn insert_evaluator_score(
     .bind(id)
     .bind(project_id)
     .bind(name)
-    .bind(Into::<i16>::into(source))
+    .bind(source.to_string())
     .bind(span_id)
     .bind(evaluator_id)
     .bind(score)
     .bind(metadata)
-    .execute(&db.pool)
+    .execute(pool)
     .await?;
 
     Ok(())
@@ -104,11 +104,11 @@ pub async fn get_evaluators_by_path(
         .await
 }
 
-impl Into<i16> for EvaluatorScoreSource {
-    fn into(self) -> i16 {
+impl ToString for EvaluatorScoreSource {
+    fn to_string(&self) -> String {
         match self {
-            EvaluatorScoreSource::Evaluator => 0,
-            EvaluatorScoreSource::SDK => 1,
+            EvaluatorScoreSource::Evaluator => "evaluator".to_string(),
+            EvaluatorScoreSource::Code => "code".to_string(),
         }
     }
 }

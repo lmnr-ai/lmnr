@@ -1,5 +1,5 @@
 {
-  "id": "3d24f4b9-aa5a-4ebc-a19c-9f01493fdc37",
+  "id": "793b66c2-be94-4a1a-a4f8-016481ca94be",
   "prevId": "aa530891-5e11-49fb-be4e-f3c31d9e3097",
   "version": "7",
   "dialect": "postgresql",
@@ -967,7 +967,7 @@
         },
         "source": {
           "name": "source",
-          "type": "smallint",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },

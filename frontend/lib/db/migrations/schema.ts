@@ -11,7 +11,6 @@ import {
   pgTable,
   primaryKey,
   real,
-  smallint,
   text,
   timestamp,
   unique,
@@ -659,7 +658,7 @@ export const evaluatorScores = pgTable(
     score: doublePrecision().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     name: text().notNull(),
-    source: smallint().notNull(),
+    source: text().notNull(),
     metadata: jsonb().default({}),
   },
   (table) => [

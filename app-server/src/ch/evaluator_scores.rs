@@ -91,7 +91,7 @@ impl Into<u8> for EvaluatorScoreSource {
     fn into(self) -> u8 {
         match self {
             EvaluatorScoreSource::Evaluator => 0,
-            EvaluatorScoreSource::SDK => 1,
+            EvaluatorScoreSource::Code => 1,
         }
     }
 }

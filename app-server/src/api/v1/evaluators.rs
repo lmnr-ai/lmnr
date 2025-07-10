@@ -50,7 +50,7 @@ pub enum CreateEvaluatorScoreRequest {
     WithSpanId(CreateEvaluatorScoreRequestWithSpanId),
 }
 
-#[post("/evaluators/score")]
+#[post("/evaluator-scores")]
 pub async fn create_evaluator_score(
     req: Json<CreateEvaluatorScoreRequest>,
     db: Data<DB>,
@@ -105,7 +105,7 @@ pub async fn create_evaluator_score(
     let score_id = Uuid::new_v4();
 
     let _ = insert_evaluator_score(
-        &db,
+        &db.pool,
         score_id,
         project_id,
         name,

@@ -127,7 +127,7 @@ pub async fn inner_process_evaluators(
                                     let score_id = Uuid::new_v4();
 
                                     if let Err(e) = insert_evaluator_score(
-                                        &db,
+                                        &db.pool,
                                         score_id,
                                         message.project_id,
                                         &evaluator.name,
