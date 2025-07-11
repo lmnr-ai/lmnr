@@ -330,6 +330,13 @@
       "when": 1751751483417,
       "tag": "0046_talented_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1752153201338,
+      "tag": "0047_mixed_wolf_cub",
+      "breakpoints": true
     }
   ]
 }
