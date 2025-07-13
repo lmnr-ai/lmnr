@@ -25,9 +25,6 @@ use lapin::{
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::FieldTable,
 };
-use machine_manager::{
-    MachineManager, MachineManagerImpl, machine_manager_service_client::MachineManagerServiceClient,
-};
 use mq::MessageQueue;
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
@@ -62,7 +59,6 @@ mod evaluators;
 mod features;
 mod labels;
 mod language_model;
-mod machine_manager;
 mod mq;
 mod names;
 mod opentelemetry;
@@ -331,23 +327,6 @@ fn main() -> anyhow::Result<()> {
                     }
                 };
 
-                // == Machine manager ==
-                let machine_manager: Arc<MachineManager> =
-                    if is_feature_enabled(Feature::MachineManager) {
-                        let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
-                            .expect("MACHINE_MANAGER_URL_GRPC must be set");
-                        log::info!("Machine manager URL: {}", machine_manager_url_grpc);
-                        let machine_manager_client = Arc::new(
-                            MachineManagerServiceClient::connect(machine_manager_url_grpc)
-                                .await
-                                .unwrap(),
-                        );
-                        Arc::new(MachineManagerImpl::new(machine_manager_client).into())
-                    } else {
-                        log::info!("Using mock machine manager");
-                        Arc::new(machine_manager::MockMachineManager {}.into())
-                    };
-
                 // == Browser agent ==
                 let browser_agent: Arc<AgentManager> = if is_feature_enabled(Feature::AgentManager)
                 {
@@ -473,11 +452,9 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(clickhouse.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
                         .app_data(web::Data::new(storage.clone()))
-                        .app_data(web::Data::new(machine_manager.clone()))
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
-                        .service(api::v1::machine_manager::vnc_stream) // vnc stream does not need auth
                         .service(
                             web::scope("/v1/browser-sessions")
                                 .service(api::v1::browser_sessions::options_handler)
