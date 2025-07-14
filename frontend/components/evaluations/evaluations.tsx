@@ -13,7 +13,7 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
-import { AggregationFunction } from "@/lib/clickhouse/utils";
+import { AggregationFunction } from "@/lib/clickhouse/types";
 import { Evaluation } from "@/lib/evaluation/types";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";

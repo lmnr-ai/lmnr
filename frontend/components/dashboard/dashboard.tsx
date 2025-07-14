@@ -1,24 +1,20 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
-import { useProjectContext } from "@/contexts/project-context";
+import SpanStatChart from "@/components/dashboard/span-stat-chart";
+import SpanSummaryChart from "@/components/dashboard/span-summary-chart";
+import TraceStatChart from "@/components/dashboard/trace-stat-chart";
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
-import { SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/types";
-import { AggregationFunction } from "@/lib/clickhouse/utils";
+import { AggregationFunction, SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/types";
 import { getGroupByInterval } from "@/lib/utils";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
 import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
-import { LabelStatChart } from "./labels-stat-chart";
-import { SpanStatChart } from "./span-stat-chart";
-import SpanSummaryChart from "./span-summary-chart";
-import { TraceStatChart } from "./trace-stat-chart";
-
-const AGGREGATIONS: AggregationFunction[] = ["AVG", "MEDIAN", "SUM", "MIN", "MAX", "p90", "p95", "p99"];
+import { TraceStatusChart } from "./trace-status-chart";
 
 const SPAN_SUMMARY_CHARTS = [
   {
@@ -44,12 +40,13 @@ const SPAN_SUMMARY_CHARTS = [
 ];
 
 export default function Dashboard() {
-  const { projectId } = useProjectContext();
+  const params = useParams();
+  const projectId = params?.projectId as string;
 
   const searchParams = new URLSearchParams(useSearchParams().toString());
-  const pastHours = searchParams.get("pastHours") as string | undefined;
-  const startDate = searchParams.get("startDate") as string | undefined;
-  const endDate = searchParams.get("endDate") as string | undefined;
+  const pastHours = searchParams.get("pastHours") || undefined;
+  const startDate = searchParams.get("startDate") || undefined;
+  const endDate = searchParams.get("endDate") || undefined;
   const groupByInterval =
     searchParams.get("groupByInterval") ?? getGroupByInterval(pastHours, startDate, endDate, undefined);
 
@@ -93,8 +90,7 @@ export default function Dashboard() {
                 projectId={projectId}
                 className="w-full"
                 metric={SpanMetric.Latency}
-                defaultAggregation="p90"
-                aggregations={AGGREGATIONS}
+                defaultAggregation={AggregationFunction.p90}
                 groupBy={SpanMetricGroupBy.Model}
                 pastHours={pastHours ?? ""}
                 startDate={startDate ?? ""}
@@ -108,8 +104,7 @@ export default function Dashboard() {
                 projectId={projectId}
                 className="w-full"
                 metric={SpanMetric.TotalTokens}
-                aggregations={AGGREGATIONS}
-                defaultAggregation="SUM"
+                defaultAggregation={AggregationFunction.SUM}
                 groupBy={SpanMetricGroupBy.Model}
                 pastHours={pastHours ?? ""}
                 startDate={startDate ?? ""}
@@ -123,8 +118,7 @@ export default function Dashboard() {
                 projectId={projectId}
                 className="w-full"
                 metric={SpanMetric.TotalCost}
-                aggregations={AGGREGATIONS}
-                defaultAggregation="SUM"
+                defaultAggregation={AggregationFunction.SUM}
                 groupBy={SpanMetricGroupBy.Model}
                 pastHours={pastHours ?? ""}
                 startDate={startDate ?? ""}
@@ -133,71 +127,51 @@ export default function Dashboard() {
               />
             </div>
             <div className="col-span-2 h-72">
-              <TraceStatChart
+              <TraceStatusChart
                 projectId={projectId}
-                metric="traceCount"
-                aggregation="Total"
-                title="Traces"
-                xAxisKey="time"
-                yAxisKey="value"
                 pastHours={pastHours}
                 startDate={startDate}
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
+                title="Trace Status"
               />
             </div>
             <div className="col-span-1 h-72">
               <TraceStatChart
                 projectId={projectId}
                 metric="traceLatencySeconds"
-                aggregation="P90"
+                aggregation={AggregationFunction.p90}
                 title="Trace latency (p90)"
-                xAxisKey="time"
-                yAxisKey="value"
                 pastHours={pastHours}
                 startDate={startDate}
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
-                showTotal={false}
               />
             </div>
             <div className="col-span-1 h-72">
               <TraceStatChart
                 projectId={projectId}
                 metric="totalTokenCount"
-                aggregation="Total"
+                aggregation={AggregationFunction.SUM}
                 title="Tokens"
-                xAxisKey="time"
-                yAxisKey="value"
                 pastHours={pastHours}
                 startDate={startDate}
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
+                showTotal
               />
             </div>
             <div className="col-span-1 h-72">
               <TraceStatChart
                 projectId={projectId}
                 metric="costUsd"
-                aggregation="Total"
+                aggregation={AggregationFunction.SUM}
                 title="Total cost"
-                xAxisKey="time"
-                yAxisKey="value"
                 pastHours={pastHours}
                 startDate={startDate}
                 endDate={endDate}
                 defaultGroupByInterval={groupByInterval}
                 addDollarSign={true}
-              />
-            </div>
-            <div className="col-span-3 h-72">
-              <LabelStatChart
-                title="Labels Frequency"
-                projectId={projectId}
-                pastHours={pastHours}
-                startDate={startDate}
-                endDate={endDate}
-                defaultGroupByInterval={groupByInterval}
                 showTotal
               />
             </div>

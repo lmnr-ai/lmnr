@@ -28,9 +28,24 @@ export enum SpanMetric {
   TotalTokens = "total_tokens",
 }
 
+export enum TraceMetric {
+  TraceCount = "traceCount",
+  TraceLatencySeconds = "traceLatencySeconds",
+  TotalTokenCount = "totalTokenCount",
+  CostUsd = "costUsd",
+  TraceSuccessCount = "traceSuccessCount",
+  TraceErrorCount = "traceErrorCount",
+  TraceStatus = "traceStatus",
+}
+
 export type MetricTimeValue<T> = {
   time: string;
   value: T;
+};
+
+export type TraceStatusValue = {
+  success: number;
+  error: number;
 };
 
 export type SpanMetricType = {
@@ -41,4 +56,15 @@ export type SpanMetricType = {
 export enum SpanSearchType {
   Input = "input",
   Output = "output",
+}
+
+export enum AggregationFunction {
+  AVG = "AVG",
+  "SUM" = "SUM",
+  "MIN" = "MIN",
+  "MAX" = "MAX",
+  "MEDIAN" = "MEDIAN",
+  "p90" = "p90",
+  "p95" = "p95",
+  "p99" = "p99",
 }

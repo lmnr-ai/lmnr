@@ -485,7 +485,6 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
-                                .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::browser_sessions::create_session_event)
@@ -513,7 +512,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::evaluations::get_evaluation_score_stats)
                                 .service(routes::evaluations::get_evaluation_score_distribution)
                                 .service(routes::datasets::upload_datapoint_file)
-                                .service(routes::traces::get_traces_metrics)
                                 .service(routes::provider_api_keys::save_api_key)
                                 .service(routes::spans::create_span)
                         )
