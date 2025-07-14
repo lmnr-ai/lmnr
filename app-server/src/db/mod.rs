@@ -8,7 +8,6 @@ pub mod evaluations;
 pub mod evaluators;
 pub mod events;
 pub mod labels;
-pub mod machine_manager;
 pub mod modifiers;
 pub mod prices;
 pub mod project_api_keys;

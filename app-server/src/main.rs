@@ -61,7 +61,6 @@ mod evaluators;
 mod features;
 mod labels;
 mod language_model;
-mod machine_manager;
 mod mq;
 mod names;
 mod opentelemetry;
@@ -520,7 +519,6 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
-                        .service(api::v1::machine_manager::vnc_stream) // vnc stream does not need auth
                         .service(
                             web::scope("/v1/browser-sessions")
                                 .service(api::v1::browser_sessions::options_handler)
