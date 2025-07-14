@@ -284,151 +284,145 @@ fn main() -> anyhow::Result<()> {
     let mq_for_http = queue.clone();
     let worker_tracker_for_http = worker_tracker.clone();
 
-    // == HTTP server and listener workers ==
-    let http_server_handle = thread::Builder::new()
-        .name("http".to_string())
-        .spawn(move || {
-            runtime_handle_for_http.block_on(async {
-                // == AWS config for S3 and Bedrock ==
-                let aws_sdk_config = aws_config::defaults(BehaviorVersion::latest())
-                    .region(aws_config::Region::new(
-                        env::var("AWS_REGION").unwrap_or("us-east-1".to_string()),
-                    ))
-                    .load()
-                    .await;
+    // == AWS config for S3 and Bedrock ==
+    let aws_sdk_config = runtime_handle.block_on(async {
+        aws_config::defaults(BehaviorVersion::latest())
+            .region(aws_config::Region::new(
+                env::var("AWS_REGION").unwrap_or("us-east-1".to_string()),
+            ))
+            .load()
+            .await
+    });
 
-                // == Storage ==
-                let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
-                    log::info!("using S3 storage");
-                    let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
-                    let s3_storage = storage::s3::S3Storage::new(
-                        s3_client,
-                        env::var("S3_TRACE_PAYLOADS_BUCKET")
-                            .expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
-                    );
-                    Arc::new(s3_storage.into())
-                } else {
-                    log::info!("using mock storage");
-                    Arc::new(MockStorage {}.into())
-                };
+    // == Storage ==
+    let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
+        log::info!("using S3 storage");
+        let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
+        let s3_storage = storage::s3::S3Storage::new(
+            s3_client,
+            env::var("S3_TRACE_PAYLOADS_BUCKET").expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
+        );
+        Arc::new(s3_storage.into())
+    } else {
+        log::info!("using mock storage");
+        Arc::new(MockStorage {}.into())
+    };
 
-                // == Clickhouse ==
-                let clickhouse_url =
-                    env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-                let clickhouse_user =
-                    env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-                let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-                let clickhouse_client = clickhouse::Client::default()
-                    .with_url(clickhouse_url)
-                    .with_user(clickhouse_user)
-                    .with_database("default")
-                    .with_option("async_insert", "1")
-                    .with_option("wait_for_async_insert", "0");
+    // == Clickhouse ==
+    let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+    let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+    let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+    let clickhouse_client = clickhouse::Client::default()
+        .with_url(clickhouse_url)
+        .with_user(clickhouse_user)
+        .with_database("default")
+        .with_option("async_insert", "1")
+        .with_option("wait_for_async_insert", "0");
 
-                let clickhouse = match clickhouse_password {
-                    Ok(password) => clickhouse_client.with_password(password),
-                    _ => {
-                        log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
-                        clickhouse_client
-                    }
-                };
+    let clickhouse = match clickhouse_password {
+        Ok(password) => clickhouse_client.with_password(password),
+        _ => {
+            log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+            clickhouse_client
+        }
+    };
 
-                // == Browser agent ==
-                let browser_agent: Arc<AgentManager> = if is_feature_enabled(Feature::AgentManager)
-                {
-                    let agent_manager_url =
-                        env::var("AGENT_MANAGER_URL").expect("AGENT_MANAGER_URL must be set");
-                    log::info!("Agent manager URL: {}", agent_manager_url);
-                    let agent_manager_client = Arc::new(
-                        AgentManagerServiceClient::connect(agent_manager_url)
-                            .await
-                            .unwrap(),
-                    );
-                    Arc::new(AgentManagerImpl::new(agent_manager_client).into())
-                } else {
-                    log::info!("Using mock agent manager");
-                    Arc::new(agent_manager::mock::MockAgentManager {}.into())
-                };
+    if enable_consumer() {
+        log::info!("Enabling consumer mode, spinning up queue workers");
+        // == Evaluator client ==
+        let evaluator_client = if is_feature_enabled(Feature::Evaluators) {
+            let online_evaluators_secret_key = env::var("ONLINE_EVALUATORS_SECRET_KEY")
+                .expect("ONLINE_EVALUATORS_SECRET_KEY must be set");
+            let mut headers = reqwest::header::HeaderMap::new();
 
-                // == Name generator ==
-                let name_generator = Arc::new(NameGenerator::new());
+            headers.insert(
+                reqwest::header::AUTHORIZATION,
+                reqwest::header::HeaderValue::from_str(&format!(
+                    "Bearer {}",
+                    online_evaluators_secret_key
+                ))
+                .expect("Invalid ONLINE_EVALUATORS_SECRET_KEY format"),
+            );
+            headers.insert(
+                reqwest::header::CONTENT_TYPE,
+                reqwest::header::HeaderValue::from_static("application/json"),
+            );
 
-                if enable_consumer() {
-                    log::info!("Enabling consumer mode, spinning up queue workers");
-                    // == Evaluator client ==
-                    let evaluator_client = if is_feature_enabled(Feature::Evaluators) {
-                        let online_evaluators_secret_key = env::var("ONLINE_EVALUATORS_SECRET_KEY")
-                            .expect("ONLINE_EVALUATORS_SECRET_KEY must be set");
-                        let mut headers = reqwest::header::HeaderMap::new();
+            Arc::new(
+                reqwest::Client::builder()
+                    .user_agent("lmnr-evaluator/1.0")
+                    .default_headers(headers)
+                    .build()
+                    .expect("Failed to create evaluator HTTP client"),
+            )
+        } else {
+            log::info!("Using mock evaluator client");
+            Arc::new(
+                reqwest::Client::builder()
+                    .user_agent("lmnr-evaluator-mock/1.0")
+                    .build()
+                    .expect("Failed to create mock evaluator HTTP client"),
+            )
+        };
 
-                        headers.insert(
-                            reqwest::header::AUTHORIZATION,
-                            reqwest::header::HeaderValue::from_str(&format!(
-                                "Bearer {}",
-                                online_evaluators_secret_key
-                            ))
-                            .expect("Invalid ONLINE_EVALUATORS_SECRET_KEY format"),
-                        );
-                        headers.insert(
-                            reqwest::header::CONTENT_TYPE,
-                            reqwest::header::HeaderValue::from_static("application/json"),
-                        );
+        let python_online_evaluator_url: String = if is_feature_enabled(Feature::Evaluators) {
+            env::var("PYTHON_ONLINE_EVALUATOR_URL")
+                .expect("PYTHON_ONLINE_EVALUATOR_URL must be set")
+        } else {
+            String::new()
+        };
 
-                        Arc::new(
-                            reqwest::Client::builder()
-                                .user_agent("lmnr-evaluator/1.0")
-                                .default_headers(headers)
-                                .build()
-                                .expect("Failed to create evaluator HTTP client"),
-                        )
-                    } else {
-                        log::info!("Using mock evaluator client");
-                        Arc::new(
-                            reqwest::Client::builder()
-                                .user_agent("lmnr-evaluator-mock/1.0")
-                                .build()
-                                .expect("Failed to create mock evaluator HTTP client"),
-                        )
-                    };
+        let num_spans_workers = env::var("NUM_SPANS_WORKERS")
+            .unwrap_or(String::from("4"))
+            .parse::<u8>()
+            .unwrap_or(4);
 
-                    let python_online_evaluator_url: String =
-                        if is_feature_enabled(Feature::Evaluators) {
-                            env::var("PYTHON_ONLINE_EVALUATOR_URL")
-                                .expect("PYTHON_ONLINE_EVALUATOR_URL must be set")
-                        } else {
-                            String::new()
-                        };
+        let num_browser_events_workers = env::var("NUM_BROWSER_EVENTS_WORKERS")
+            .unwrap_or(String::from("4"))
+            .parse::<u8>()
+            .unwrap_or(4);
 
-                    let num_spans_workers = env::var("NUM_SPANS_WORKERS")
-                        .unwrap_or(String::from("4"))
-                        .parse::<u8>()
-                        .unwrap_or(4);
+        let num_evaluators_workers = env::var("NUM_EVALUATORS_WORKERS")
+            .unwrap_or(String::from("2"))
+            .parse::<u8>()
+            .unwrap_or(2);
 
-                    let num_browser_events_workers = env::var("NUM_BROWSER_EVENTS_WORKERS")
-                        .unwrap_or(String::from("4"))
-                        .parse::<u8>()
-                        .unwrap_or(4);
+        log::info!(
+            "Spans workers: {}, Browser events workers: {}, Evaluators workers: {}",
+            num_spans_workers,
+            num_browser_events_workers,
+            num_evaluators_workers
+        );
 
-                    let num_evaluators_workers = env::var("NUM_EVALUATORS_WORKERS")
-                        .unwrap_or(String::from("2"))
-                        .parse::<u8>()
-                        .unwrap_or(2);
-
+        let connection_for_health_clone = connection_for_health.clone();
+        let worker_tracker_clone = worker_tracker_for_http.clone();
+        let runtime_handle_for_consumer = runtime_handle_for_http.clone();
+        let db_for_consumer = db_for_http.clone();
+        let cache_for_consumer = cache_for_http.clone();
+        let mq_for_consumer = mq_for_http.clone();
+        let clickhouse_for_consumer = clickhouse.clone();
+        let storage_for_consumer = storage.clone();
+        let consumer_handle = thread::Builder::new()
+            .name("consumer".to_string())
+            .spawn(move || {
+                runtime_handle_for_consumer.block_on(async {
                     log::info!(
-                        "Spans workers: {}, Browser events workers: {}, Evaluators workers: {}",
-                        num_spans_workers,
-                        num_browser_events_workers,
-                        num_evaluators_workers
+                        "Running in consumer-only mode, only serving health and ready probes"
+                    );
+                    // On the consumer side, we only need to serve health and ready probes
+                    let expected_counts = ExpectedWorkerCounts::new(
+                        num_spans_workers as usize,
+                        num_browser_events_workers as usize,
+                        num_evaluators_workers as usize,
                     );
 
                     for _ in 0..num_spans_workers {
-                        let worker_handle =
-                            worker_tracker_for_http.register_worker(WorkerType::Spans);
-                        let db_clone = db_for_http.clone();
-                        let cache_clone = cache_for_http.clone();
-                        let mq_clone = mq_for_http.clone();
-                        let ch_clone = clickhouse.clone();
-                        let storage_clone = storage.clone();
+                        let worker_handle = worker_tracker_clone.register_worker(WorkerType::Spans);
+                        let db_clone = db_for_consumer.clone();
+                        let cache_clone = cache_for_consumer.clone();
+                        let mq_clone = mq_for_consumer.clone();
+                        let ch_clone = clickhouse_for_consumer.clone();
+                        let storage_clone = storage_for_consumer.clone();
                         tokio::spawn(async move {
                             let _handle = worker_handle; // Keep handle alive for the worker's lifetime
                             process_queue_spans(
@@ -444,10 +438,10 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_browser_events_workers {
                         let worker_handle =
-                            worker_tracker_for_http.register_worker(WorkerType::BrowserEvents);
-                        let db_clone = db_for_http.clone();
-                        let ch_clone = clickhouse.clone();
-                        let mq_clone = mq_for_http.clone();
+                            worker_tracker_clone.register_worker(WorkerType::BrowserEvents);
+                        let db_clone = db_for_consumer.clone();
+                        let ch_clone = clickhouse_for_consumer.clone();
+                        let mq_clone = mq_for_consumer.clone();
                         tokio::spawn(async move {
                             let _handle = worker_handle; // Keep handle alive for the worker's lifetime
                             process_browser_events(db_clone, ch_clone, mq_clone).await;
@@ -456,10 +450,10 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_evaluators_workers {
                         let worker_handle =
-                            worker_tracker_for_http.register_worker(WorkerType::Evaluators);
-                        let db_clone = db_for_http.clone();
-                        let ch_clone = clickhouse.clone();
-                        let mq_clone = mq_for_http.clone();
+                            worker_tracker_clone.register_worker(WorkerType::Evaluators);
+                        let db_clone = db_for_consumer.clone();
+                        let ch_clone = clickhouse_for_consumer.clone();
+                        let mq_clone = mq_for_consumer.clone();
                         let evaluator_client_clone = evaluator_client.clone();
                         let python_url_clone = python_online_evaluator_url.clone();
                         tokio::spawn(async move {
@@ -476,141 +470,160 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     if !enable_producer() {
-                        log::info!(
-                            "Running in consumer-only mode, only serving health and ready probes"
-                        );
-                        // On the consumer side, we only need to serve health and ready probes
-                        let worker_tracker_clone = worker_tracker_for_http.clone();
-                        let expected_counts = ExpectedWorkerCounts::new(
-                            num_spans_workers as usize,
-                            num_browser_events_workers as usize,
-                            num_evaluators_workers as usize,
-                        );
-
-                        return HttpServer::new(move || {
+                        HttpServer::new(move || {
                             App::new()
                                 .wrap(NormalizePath::trim())
-                                .app_data(web::Data::new(connection_for_health.clone()))
+                                .app_data(web::Data::new(connection_for_health_clone.clone()))
                                 .app_data(web::Data::new(worker_tracker_clone.clone()))
                                 .app_data(web::Data::new(expected_counts.clone()))
                                 .service(routes::probes::check_ready)
-                                .service(routes::probes::check_health)
+                                .service(routes::probes::check_health_consumer)
                         })
                         .bind(("0.0.0.0", consumer_healthcheck_port))?
                         .run()
-                        .await;
+                        .await
+                    } else {
+                        // If producer is enabled, we'll run the full HTTP server
+                        Ok(())
                     }
-                }
-
-                log::info!("Enabling producer mode, spinning up full HTTP server");
-                HttpServer::new(move || {
-                    let auth = HttpAuthentication::bearer(auth::validator);
-                    let project_auth = HttpAuthentication::bearer(auth::project_validator);
-
-                    App::new()
-                        .wrap(Logger::default().exclude("/health").exclude("/ready"))
-                        .wrap(NormalizePath::trim())
-                        .app_data(JsonConfig::default().limit(http_payload_limit))
-                        .app_data(PayloadConfig::new(http_payload_limit))
-                        .app_data(web::Data::from(cache_for_http.clone()))
-                        .app_data(web::Data::from(db_for_http.clone()))
-                        .app_data(web::Data::new(mq_for_http.clone()))
-                        .app_data(web::Data::new(clickhouse.clone()))
-                        .app_data(web::Data::new(name_generator.clone()))
-                        .app_data(web::Data::new(storage.clone()))
-                        .app_data(web::Data::new(agent_manager_workers.clone()))
-                        .app_data(web::Data::new(connection_for_health.clone()))
-                        .app_data(web::Data::new(browser_agent.clone()))
-                        .service(
-                            web::scope("/v1/browser-sessions")
-                                .service(api::v1::browser_sessions::options_handler)
-                                .service(
-                                    web::scope("")
-                                        .wrap(project_auth.clone())
-                                        .service(api::v1::browser_sessions::create_session_event),
-                                ),
-                        )
-                        .service(
-                            web::scope("api/v1/agent")
-                                .service(routes::agent::run_agent_manager)
-                                .service(routes::agent::stop_agent_manager),
-                        )
-                        .service(
-                            web::scope("/v1")
-                                .wrap(project_auth.clone())
-                                .service(api::v1::traces::process_traces)
-                                .service(api::v1::datasets::get_datapoints)
-                                .service(api::v1::metrics::process_metrics)
-                                .service(api::v1::browser_sessions::create_session_event)
-                                .service(api::v1::evals::init_eval)
-                                .service(api::v1::evals::save_eval_datapoints)
-                                .service(api::v1::evals::update_eval_datapoint)
-                                .service(api::v1::evaluators::create_evaluator_score)
-                                .service(api::v1::tag::tag_trace)
-                                .service(api::v1::agent::run_agent_manager),
-                        )
-                        // Scopes with generic auth
-                        .service(
-                            web::scope("/api/v1/workspaces")
-                                .wrap(auth.clone())
-                                .service(routes::workspace::get_all_workspaces_of_user)
-                                .service(routes::workspace::get_workspace)
-                                .service(routes::workspace::create_workspace),
-                        )
-                        .service(
-                            // auth on path projects/{project_id} is handled by middleware on Next.js
-                            web::scope("/api/v1/projects/{project_id}")
-                                .service(routes::api_keys::create_project_api_key)
-                                .service(routes::api_keys::get_api_keys_for_project)
-                                .service(routes::api_keys::revoke_project_api_key)
-                                .service(routes::evaluations::get_evaluation_score_stats)
-                                .service(routes::evaluations::get_evaluation_score_distribution)
-                                .service(routes::datasets::upload_datapoint_file)
-                                .service(routes::traces::get_traces_metrics)
-                                .service(routes::provider_api_keys::save_api_key)
-                                .service(routes::spans::create_span),
-                        )
-                        .service(routes::probes::check_health)
-                        .service(routes::probes::check_ready)
                 })
-                .bind(("0.0.0.0", port))?
-                .run()
-                .await
             })
-        })
-        .unwrap();
-    handles.push(http_server_handle);
+            .unwrap();
+        handles.push(consumer_handle);
+    }
 
-    let grpc_server_handle = thread::Builder::new()
-        .name("grpc".to_string())
-        .spawn(move || {
-            runtime_handle.block_on(async {
-                if !enable_producer() {
-                    log::info!("Running in consumer-only mode, NOT spinning up gRPC server");
-                    return Ok(());
-                }
+    if enable_producer() {
+        log::info!("Enabling producer mode, spinning up full HTTP and gRPC servers");
+        // == HTTP server and listener workers ==
+        let http_server_handle = thread::Builder::new()
+            .name("http".to_string())
+            .spawn(move || {
+                runtime_handle_for_http.block_on(async {
+                    // == Browser agent ==
+                    let browser_agent: Arc<AgentManager> =
+                        if is_feature_enabled(Feature::AgentManager) {
+                            let agent_manager_url = env::var("AGENT_MANAGER_URL")
+                                .expect("AGENT_MANAGER_URL must be set");
+                            log::info!("Agent manager URL: {}", agent_manager_url);
+                            let agent_manager_client = Arc::new(
+                                AgentManagerServiceClient::connect(agent_manager_url)
+                                    .await
+                                    .unwrap(),
+                            );
+                            Arc::new(AgentManagerImpl::new(agent_manager_client).into())
+                        } else {
+                            log::info!("Using mock agent manager");
+                            Arc::new(agent_manager::mock::MockAgentManager {}.into())
+                        };
 
-                log::info!("Enabling producer mode, spinning up gRPC server");
+                    // == Name generator ==
+                    let name_generator = Arc::new(NameGenerator::new());
 
-                let process_traces_service =
-                    ProcessTracesService::new(db.clone(), cache.clone(), queue.clone());
+                    log::info!("Enabling producer mode, spinning up full HTTP server");
+                    HttpServer::new(move || {
+                        let auth = HttpAuthentication::bearer(auth::validator);
+                        let project_auth = HttpAuthentication::bearer(auth::project_validator);
 
-                Server::builder()
-                    .add_service(
-                        TraceServiceServer::new(process_traces_service)
-                            .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
-                            .send_compressed(tonic::codec::CompressionEncoding::Gzip)
-                            .max_decoding_message_size(grpc_payload_limit),
-                    )
-                    .serve_with_shutdown(grpc_address, async {
-                        wait_stop_signal("gRPC service").await;
+                        App::new()
+                            .wrap(Logger::default().exclude("/health").exclude("/ready"))
+                            .wrap(NormalizePath::trim())
+                            .app_data(JsonConfig::default().limit(http_payload_limit))
+                            .app_data(PayloadConfig::new(http_payload_limit))
+                            .app_data(web::Data::from(cache_for_http.clone()))
+                            .app_data(web::Data::from(db_for_http.clone()))
+                            .app_data(web::Data::new(mq_for_http.clone()))
+                            .app_data(web::Data::new(clickhouse.clone()))
+                            .app_data(web::Data::new(name_generator.clone()))
+                            .app_data(web::Data::new(storage.clone()))
+                            .app_data(web::Data::new(agent_manager_workers.clone()))
+                            .app_data(web::Data::new(connection_for_health.clone()))
+                            .app_data(web::Data::new(browser_agent.clone()))
+                            .service(
+                                web::scope("/v1/browser-sessions")
+                                    .service(api::v1::browser_sessions::options_handler)
+                                    .service(
+                                        web::scope("").wrap(project_auth.clone()).service(
+                                            api::v1::browser_sessions::create_session_event,
+                                        ),
+                                    ),
+                            )
+                            .service(
+                                web::scope("api/v1/agent")
+                                    .service(routes::agent::run_agent_manager)
+                                    .service(routes::agent::stop_agent_manager),
+                            )
+                            .service(
+                                web::scope("/v1")
+                                    .wrap(project_auth.clone())
+                                    .service(api::v1::traces::process_traces)
+                                    .service(api::v1::datasets::get_datapoints)
+                                    .service(api::v1::metrics::process_metrics)
+                                    .service(api::v1::browser_sessions::create_session_event)
+                                    .service(api::v1::evals::init_eval)
+                                    .service(api::v1::evals::save_eval_datapoints)
+                                    .service(api::v1::evals::update_eval_datapoint)
+                                    .service(api::v1::evaluators::create_evaluator_score)
+                                    .service(api::v1::tag::tag_trace)
+                                    .service(api::v1::agent::run_agent_manager),
+                            )
+                            // Scopes with generic auth
+                            .service(
+                                web::scope("/api/v1/workspaces")
+                                    .wrap(auth.clone())
+                                    .service(routes::workspace::get_all_workspaces_of_user)
+                                    .service(routes::workspace::get_workspace)
+                                    .service(routes::workspace::create_workspace),
+                            )
+                            .service(
+                                // auth on path projects/{project_id} is handled by middleware on Next.js
+                                web::scope("/api/v1/projects/{project_id}")
+                                    .service(routes::api_keys::create_project_api_key)
+                                    .service(routes::api_keys::get_api_keys_for_project)
+                                    .service(routes::api_keys::revoke_project_api_key)
+                                    .service(routes::evaluations::get_evaluation_score_stats)
+                                    .service(routes::evaluations::get_evaluation_score_distribution)
+                                    .service(routes::datasets::upload_datapoint_file)
+                                    .service(routes::traces::get_traces_metrics)
+                                    .service(routes::provider_api_keys::save_api_key)
+                                    .service(routes::spans::create_span),
+                            )
+                            .service(routes::probes::check_health)
+                            .service(routes::probes::check_ready)
                     })
+                    .bind(("0.0.0.0", port))?
+                    .run()
                     .await
-                    .map_err(tonic_error_to_io_error)
+                })
             })
-        })
-        .unwrap();
-    handles.push(grpc_server_handle);
+            .unwrap();
+        handles.push(http_server_handle);
+
+        let grpc_server_handle = thread::Builder::new()
+            .name("grpc".to_string())
+            .spawn(move || {
+                runtime_handle.block_on(async {
+                    log::info!("Enabling producer mode, spinning up gRPC server");
+
+                    let process_traces_service =
+                        ProcessTracesService::new(db.clone(), cache.clone(), queue.clone());
+
+                    Server::builder()
+                        .add_service(
+                            TraceServiceServer::new(process_traces_service)
+                                .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
+                                .send_compressed(tonic::codec::CompressionEncoding::Gzip)
+                                .max_decoding_message_size(grpc_payload_limit),
+                        )
+                        .serve_with_shutdown(grpc_address, async {
+                            wait_stop_signal("gRPC service").await;
+                        })
+                        .await
+                        .map_err(tonic_error_to_io_error)
+                })
+            })
+            .unwrap();
+        handles.push(grpc_server_handle);
+    }
 
     for handle in handles {
         log::debug!(
