@@ -183,7 +183,7 @@ fn main() -> anyhow::Result<()> {
 
     let connection_for_health = publisher_connection.clone(); // Clone before moving into HttpServer
 
-    let queue: Arc<MessageQueue> = if let Some(publisher_conn) = publisher_connection.as_ref() {
+    let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) = (publisher_connection.as_ref(), consumer_connection.as_ref()) {
         runtime_handle.block_on(async {
             let channel = publisher_conn.create_channel().await.unwrap();
             // Register queues
@@ -256,7 +256,7 @@ fn main() -> anyhow::Result<()> {
 
             let rabbit_mq = mq::rabbit::RabbitMQ::new(
                 publisher_conn.clone(),
-                consumer_connection.as_ref().unwrap().clone(),
+                consumer_conn.clone(),
                 max_channel_pool_size,
             );
             Arc::new(rabbit_mq.into())
