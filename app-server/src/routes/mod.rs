@@ -8,13 +8,9 @@ pub mod provider_api_keys;
 pub mod spans;
 pub mod types;
 pub mod workspace;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use types::*;
 
-use crate::{
-    ch::{Aggregation, modifiers::GroupByInterval},
-    db::modifiers::DateRange,
-};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
