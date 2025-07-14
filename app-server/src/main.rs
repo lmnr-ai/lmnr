@@ -46,6 +46,7 @@ use std::{
 };
 
 use crate::features::{enable_consumer, enable_producer};
+use crate::worker_tracking::{ExpectedWorkerCounts, WorkerTracker, WorkerType};
 
 mod agent_manager;
 mod api;
@@ -71,6 +72,7 @@ mod runtime;
 mod storage;
 mod traces;
 mod utils;
+mod worker_tracking;
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -272,10 +274,14 @@ fn main() -> anyhow::Result<()> {
     // ==== 3.4 Agent worker message queue ====
     let agent_manager_workers = Arc::new(AgentManagerWorkers::new());
 
+    // ==== 3.5 Worker tracker ====
+    let worker_tracker = Arc::new(WorkerTracker::new());
+
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
     let mq_for_http = queue.clone();
+    let worker_tracker_for_http = worker_tracker.clone();
 
     // == HTTP server and listener workers ==
     let http_server_handle = thread::Builder::new()
@@ -415,31 +421,57 @@ fn main() -> anyhow::Result<()> {
                     );
 
                     for _ in 0..num_spans_workers {
-                        tokio::spawn(process_queue_spans(
-                            db_for_http.clone(),
-                            cache_for_http.clone(),
-                            mq_for_http.clone(),
-                            clickhouse.clone(),
-                            storage.clone(),
-                        ));
+                        let worker_handle =
+                            worker_tracker_for_http.register_worker(WorkerType::Spans);
+                        let db_clone = db_for_http.clone();
+                        let cache_clone = cache_for_http.clone();
+                        let mq_clone = mq_for_http.clone();
+                        let ch_clone = clickhouse.clone();
+                        let storage_clone = storage.clone();
+                        tokio::spawn(async move {
+                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
+                            process_queue_spans(
+                                db_clone,
+                                cache_clone,
+                                mq_clone,
+                                ch_clone,
+                                storage_clone,
+                            )
+                            .await;
+                        });
                     }
 
                     for _ in 0..num_browser_events_workers {
-                        tokio::spawn(process_browser_events(
-                            db_for_http.clone(),
-                            clickhouse.clone(),
-                            mq_for_http.clone(),
-                        ));
+                        let worker_handle =
+                            worker_tracker_for_http.register_worker(WorkerType::BrowserEvents);
+                        let db_clone = db_for_http.clone();
+                        let ch_clone = clickhouse.clone();
+                        let mq_clone = mq_for_http.clone();
+                        tokio::spawn(async move {
+                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
+                            process_browser_events(db_clone, ch_clone, mq_clone).await;
+                        });
                     }
 
                     for _ in 0..num_evaluators_workers {
-                        tokio::spawn(process_evaluators(
-                            db_for_http.clone(),
-                            clickhouse.clone(),
-                            mq_for_http.clone(),
-                            evaluator_client.clone(),
-                            python_online_evaluator_url.clone(),
-                        ));
+                        let worker_handle =
+                            worker_tracker_for_http.register_worker(WorkerType::Evaluators);
+                        let db_clone = db_for_http.clone();
+                        let ch_clone = clickhouse.clone();
+                        let mq_clone = mq_for_http.clone();
+                        let evaluator_client_clone = evaluator_client.clone();
+                        let python_url_clone = python_online_evaluator_url.clone();
+                        tokio::spawn(async move {
+                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
+                            process_evaluators(
+                                db_clone,
+                                ch_clone,
+                                mq_clone,
+                                evaluator_client_clone,
+                                python_url_clone,
+                            )
+                            .await;
+                        });
                     }
 
                     if !enable_producer() {
@@ -447,14 +479,21 @@ fn main() -> anyhow::Result<()> {
                             "Running in consumer-only mode, only serving health and ready probes"
                         );
                         // On the consumer side, we only need to serve health and ready probes
+                        let worker_tracker_clone = worker_tracker_for_http.clone();
+                        let expected_counts = ExpectedWorkerCounts::new(
+                            num_spans_workers as usize,
+                            num_browser_events_workers as usize,
+                            num_evaluators_workers as usize,
+                        );
+
                         return HttpServer::new(move || {
                             App::new()
                                 .wrap(NormalizePath::trim())
                                 .app_data(web::Data::new(connection_for_health.clone()))
-                                // TODO: add a way to get the number of alive workers for each queue
-                                // and fail the healthcheck if the number of alive workers is less than some threshold
-                                .service(routes::probes::check_health)
+                                .app_data(web::Data::new(worker_tracker_clone.clone()))
+                                .app_data(web::Data::new(expected_counts.clone()))
                                 .service(routes::probes::check_ready)
+                                .service(routes::probes::check_worker_health)
                         })
                         .bind(("0.0.0.0", consumer_healthcheck_port))?
                         .run()
