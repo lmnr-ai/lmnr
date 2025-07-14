@@ -72,10 +72,11 @@ const partitionFilters = (filters: FilterDef[]) =>
     (acc, filter) => {
       if (filter.column === "tags") acc.tags.push(filter);
       else if (filter.column === "model") acc.model.push(filter);
+      else if (filter.column === "status") acc.status.push(filter);
       else acc.other.push(filter);
       return acc;
     },
-    { tags: [], model: [], other: [] } as Record<"tags" | "model" | "other", FilterDef[]>
+    { tags: [], model: [], status: [], other: [] } as Record<"tags" | "model" | "status" | "other", FilterDef[]>
   );
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -98,10 +99,18 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     urlParamFilters = [];
   }
 
-  const { tags: tagFilters, model: modelFilters, other: otherFilters } = partitionFilters(urlParamFilters);
+  const { tags: tagFilters, model: modelFilters, status: statusFilters, other: otherFilters } = partitionFilters(urlParamFilters);
 
   const labelSqlFilters = createLabelFilters(tagFilters);
   const modelSqlFilters = modelFilters.map(createModelFilter);
+  const statusSqlFilters = statusFilters.map((filter) => {
+    if (filter.value === "success") {
+      return filter.operator === "eq" ? sql`status IS NULL` : sql`status IS NOT NULL`;
+    } else if (filter.value === "error") {
+      return filter.operator === "eq" ? sql`status = 'error'` : sql`status != 'error' OR status IS NULL`;
+    }
+    return sql`1=1`;
+  });
   const processedOtherFilters = otherFilters.map(processAttributeFilter);
 
   const otherSqlFilters = filtersToSql(
@@ -145,6 +154,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     ...otherSqlFilters,
     ...modelSqlFilters,
     ...labelSqlFilters,
+    ...statusSqlFilters,
     ...textSearchFilters,
   ];
 

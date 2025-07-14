@@ -160,6 +160,16 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       );
       return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
     });
+  const statusFilters = urlParamFilters
+    .filter((filter) => filter.column === "status")
+    .map((filter) => {
+      if (filter.value === "success") {
+        return filter.operator === "eq" ? sql`status IS NULL` : sql`status IS NOT NULL`;
+      } else if (filter.value === "error") {
+        return filter.operator === "eq" ? sql`status = 'error'` : sql`status != 'error' OR status IS NULL`;
+      }
+      return sql`1=1`;
+    });
   const metadataFilters = urlParamFilters
     .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
     .map((filter) => {
@@ -167,7 +177,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       return sql`metadata @> ${JSON.stringify({ [key]: value })}`;
     });
   const otherFilters = urlParamFilters
-    .filter((filter) => filter.column !== "tags" && filter.column !== "metadata")
+    .filter((filter) => filter.column !== "tags" && filter.column !== "metadata" && filter.column !== "status")
     .map((filter) => {
       if (filter.column === "traceType") {
         filter.castType = "trace_type";
@@ -182,11 +192,11 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const sqlFilters = filtersToSql(otherFilters, [], {});
 
   const traceQuery = query
-    .where(and(...filters.concat(labelFilters, metadataFilters, sqlFilters)))
+    .where(and(...filters.concat(labelFilters, statusFilters, metadataFilters, sqlFilters)))
     .orderBy(desc(baseQuery.startTime))
     .limit(pageSize)
     .offset(pageNumber * pageSize);
-  const countQuery = baseCountQuery.where(and(...filters.concat(labelFilters, metadataFilters, sqlFilters)));
+  const countQuery = baseCountQuery.where(and(...filters.concat(labelFilters, statusFilters, metadataFilters, sqlFilters)));
 
   const [items, totalCount] = await Promise.all([traceQuery, countQuery]);
 
