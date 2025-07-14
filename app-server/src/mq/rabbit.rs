@@ -1,3 +1,4 @@
+use backoff::ExponentialBackoffBuilder;
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
@@ -22,7 +23,32 @@ impl Manager for RabbitChannelManager {
     type Error = anyhow::Error;
 
     async fn create(&self) -> Result<Channel, Self::Error> {
-        Ok(self.connection.create_channel().await?)
+        let create_channel = || async {
+            self.connection.create_channel().await.map_err(|e| {
+                log::warn!("Failed to create channel: {:?}", e);
+                backoff::Error::transient(anyhow::Error::from(e))
+            })
+        };
+
+        let backoff = ExponentialBackoffBuilder::new()
+            .with_initial_interval(std::time::Duration::from_millis(100))
+            .with_max_interval(std::time::Duration::from_secs(5))
+            .with_max_elapsed_time(Some(std::time::Duration::from_secs(30)))
+            .build();
+
+        match backoff::future::retry(backoff, create_channel).await {
+            Ok(channel) => {
+                log::debug!("Successfully created channel");
+                Ok(channel)
+            }
+            Err(e) => {
+                log::error!("Failed to create channel after retries: {:?}", e);
+                Err(anyhow::anyhow!(
+                    "Failed to create channel after retries: {:?}",
+                    e
+                ))
+            }
+        }
     }
 
     async fn recycle(
