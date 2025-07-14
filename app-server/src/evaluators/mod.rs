@@ -64,14 +64,52 @@ pub async fn inner_process_evaluators(
     client: Arc<reqwest::Client>,
     python_online_evaluator_url: &str,
 ) {
-    let mut receiver = queue
-        .get_receiver(
-            EVALUATORS_QUEUE,
-            EVALUATORS_EXCHANGE,
-            EVALUATORS_ROUTING_KEY,
-        )
-        .await
-        .unwrap();
+    // Add retry logic with exponential backoff for connection failures
+    let mut receiver = {
+        let mut retry_count = 0;
+        let mut delay = 1; // Start with 1 second delay
+
+        loop {
+            match queue
+                .get_receiver(
+                    EVALUATORS_QUEUE,
+                    EVALUATORS_EXCHANGE,
+                    EVALUATORS_ROUTING_KEY,
+                )
+                .await
+            {
+                Ok(receiver) => {
+                    if retry_count > 0 {
+                        log::info!(
+                            "Successfully reconnected to evaluators queue after {} retries",
+                            retry_count
+                        );
+                    }
+                    break receiver;
+                }
+                Err(e) => {
+                    retry_count += 1;
+                    log::error!(
+                        "Failed to get receiver from evaluators queue (attempt {}): {:?}",
+                        retry_count,
+                        e
+                    );
+
+                    // Cap the delay at 60 seconds to prevent excessive wait times
+                    let sleep_duration = std::cmp::min(delay, 60);
+                    log::warn!(
+                        "Retrying evaluators connection in {} seconds...",
+                        sleep_duration
+                    );
+                    tokio::time::sleep(tokio::time::Duration::from_secs(sleep_duration)).await;
+
+                    // Exponential backoff: double the delay, up to 60 seconds
+                    delay = std::cmp::min(delay * 2, 60);
+                    continue;
+                }
+            }
+        }
+    };
 
     while let Some(delivery) = receiver.receive().await {
         if let Err(e) = delivery {

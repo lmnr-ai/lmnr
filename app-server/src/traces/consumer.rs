@@ -43,15 +43,49 @@ async fn inner_process_queue_spans(
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
 ) {
-    // Safe to unwrap because we checked is_feature_enabled above
-    let mut receiver = queue
-        .get_receiver(
-            OBSERVATIONS_QUEUE,
-            OBSERVATIONS_EXCHANGE,
-            OBSERVATIONS_ROUTING_KEY,
-        )
-        .await
-        .unwrap();
+    // Add retry logic with exponential backoff for connection failures
+    let mut receiver = {
+        let mut retry_count = 0;
+        let mut delay = 1; // Start with 1 second delay
+
+        loop {
+            match queue
+                .get_receiver(
+                    OBSERVATIONS_QUEUE,
+                    OBSERVATIONS_EXCHANGE,
+                    OBSERVATIONS_ROUTING_KEY,
+                )
+                .await
+            {
+                Ok(receiver) => {
+                    if retry_count > 0 {
+                        log::info!(
+                            "Successfully reconnected to queue after {} retries",
+                            retry_count
+                        );
+                    }
+                    break receiver;
+                }
+                Err(e) => {
+                    retry_count += 1;
+                    log::error!(
+                        "Failed to get receiver from queue (attempt {}): {:?}",
+                        retry_count,
+                        e
+                    );
+
+                    // Cap the delay at 60 seconds to prevent excessive wait times
+                    let sleep_duration = std::cmp::min(delay, 60);
+                    log::warn!("Retrying connection in {} seconds...", sleep_duration);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(sleep_duration)).await;
+
+                    // Exponential backoff: double the delay, up to 60 seconds
+                    delay = std::cmp::min(delay * 2, 60);
+                    continue;
+                }
+            }
+        }
+    };
 
     log::info!("Started processing spans from queue");
 
