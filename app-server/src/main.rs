@@ -126,10 +126,12 @@ fn main() -> anyhow::Result<()> {
         .parse()
         .unwrap_or(8001);
 
+    // Default to the same port as the HTTP server. Should only be overriden for testing,
+    // when producer and consumer-only are run on the same machine.
     let consumer_healthcheck_port: u16 = env::var("CONSUMER_HEALTHCHECK_PORT")
-        .unwrap_or(String::from("8002"))
+        .unwrap_or(port.to_string())
         .parse()
-        .unwrap_or(8002);
+        .unwrap_or(port);
 
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
@@ -492,7 +494,7 @@ fn main() -> anyhow::Result<()> {
                                 .app_data(web::Data::new(worker_tracker_clone.clone()))
                                 .app_data(web::Data::new(expected_counts.clone()))
                                 .service(routes::probes::check_ready)
-                                .service(routes::probes::check_worker_health)
+                                .service(routes::probes::check_health)
                         })
                         .bind(("0.0.0.0", consumer_healthcheck_port))?
                         .run()
