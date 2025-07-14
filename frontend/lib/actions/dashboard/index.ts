@@ -50,7 +50,6 @@ export async function getSpanMetricsOverTimeAction(input: z.infer<typeof GetSpan
   const { projectId, metric, aggregation, groupByInterval, groupBy, pastHours, startDate, endDate } =
     GetSpanMetricsTimeSchema.parse(input);
 
-  console.log("span metrics over time", input);
   const timeRange = getTimeRange(pastHours || undefined, startDate || undefined, endDate || undefined);
   const metrics = await getSpanMetricsOverTime(projectId, metric, groupByInterval, timeRange, groupBy, aggregation);
 
@@ -79,8 +78,6 @@ export async function getLabelMetricsAction(input: z.infer<typeof GetLabelMetric
 export async function getTraceMetricsAction(input: z.infer<typeof GetTraceMetricsSchema>) {
   const { projectId, metric, aggregation, groupByInterval, pastHours, startDate, endDate } =
     GetTraceMetricsSchema.parse(input);
-
-  console.log("trace metrics over time", input);
 
   const timeRange = getTimeRange(pastHours || undefined, startDate || undefined, endDate || undefined);
   const metrics = await getTraceMetricsOverTime(projectId, metric, groupByInterval, timeRange, aggregation);

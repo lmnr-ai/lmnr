@@ -284,15 +284,13 @@ export const getTraceMetricsOverTime = async (
       ${metricColumn} as value
     FROM spans
     WHERE span_type in {types: Array(UInt8)}
-    GROUP BY project_id, trace_id
-  )
-  SELECT
-    time,
-    ${metric === TraceMetric.TraceCount ? "COUNT(*)" : `toFloat64(COALESCE(${chAggregation}(value), 0))`} as value
-  FROM traces
-  WHERE project_id = {projectId: UUID}`;
+    `;
 
-  const query = addTimeRangeToQuery(baseQuery, timeRange, "time");
+  const queryWithTimeRange = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+
+  const cteQuery = `${queryWithTimeRange}
+    GROUP BY project_id, trace_id
+  )`;
 
   let groupByStatement: string;
 
@@ -307,7 +305,13 @@ export const getTraceMetricsOverTime = async (
     groupByStatement = groupByTimeAbsoluteStatement(timeRange.start, timeRange.end, groupByInterval, "time");
   }
 
-  const finalQuery = `${query} ${groupByStatement}`;
+  const finalQuery = `${cteQuery}
+  SELECT
+    time,
+    ${metric === TraceMetric.TraceCount ? "COUNT(*)" : `toFloat64(COALESCE(${chAggregation}(value), 0))`} as value
+  FROM traces
+  WHERE project_id = {projectId: UUID}
+  ${groupByStatement}`;
 
   const result = await clickhouseClient.query({
     query: finalQuery,

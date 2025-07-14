@@ -23,17 +23,17 @@ const SPAN_SUMMARY_CHARTS = [
     groupBy: SpanMetricGroupBy.Name,
   },
   {
-    title: "Cost",
+    title: "Top Model Cost",
     metric: SpanMetric.TotalCost,
     groupBy: SpanMetricGroupBy.Model,
   },
   {
-    title: "Tokens",
+    title: "Top Model Tokens",
     metric: SpanMetric.TotalTokens,
     groupBy: SpanMetricGroupBy.Model,
   },
   {
-    title: "Spans by model",
+    title: "Top LLM Spans",
     metric: SpanMetric.Count,
     groupBy: SpanMetricGroupBy.Model,
   },
@@ -153,7 +153,7 @@ export default function Dashboard() {
                 projectId={projectId}
                 metric="totalTokenCount"
                 aggregation={AggregationFunction.SUM}
-                title="Tokens"
+                title="Total Tokens"
                 pastHours={pastHours}
                 startDate={startDate}
                 endDate={endDate}

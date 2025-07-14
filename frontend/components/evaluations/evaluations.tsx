@@ -82,16 +82,16 @@ const filters: ColumnFilter[] = [
   },
 ];
 
-enum AggregationOptions {
-  AVG = "Average",
-  SUM = "Sum",
-  MIN = "Minimum",
-  MAX = "Maximum",
-  MEDIAN = "Median",
-  p90 = "p90",
-  p95 = "p95",
-  p99 = "p99",
-}
+const aggregationLabelMap: Record<AggregationFunction, string> = {
+  [AggregationFunction.AVG]: "Average",
+  [AggregationFunction.SUM]: "Sum",
+  [AggregationFunction.MIN]: "Minimum",
+  [AggregationFunction.MAX]: "Maximum",
+  [AggregationFunction.MEDIAN]: "Median",
+  [AggregationFunction.p90]: "p99",
+  [AggregationFunction.p95]: "p95",
+  [AggregationFunction.p99]: "p99",
+};
 
 export default function Evaluations() {
   const params = useParams();
@@ -136,7 +136,7 @@ export default function Evaluations() {
     swrFetcher
   );
 
-  const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>("AVG");
+  const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
 
   const handlePageChange = useCallback(
     (pageNumber: number, pageSize: number) => {
@@ -198,9 +198,9 @@ export default function Evaluations() {
                 <SelectValue placeholder="Aggregate" />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(AggregationOptions) as (keyof typeof AggregationOptions)[]).map((option) => (
+                {(Object.values(AggregationFunction) as AggregationFunction[]).map((option) => (
                   <SelectItem key={option} value={option}>
-                    {AggregationOptions[option]}
+                    {aggregationLabelMap[option]}
                   </SelectItem>
                 ))}
               </SelectContent>
