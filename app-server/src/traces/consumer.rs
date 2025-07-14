@@ -3,6 +3,8 @@
 
 use std::sync::Arc;
 
+use backoff::ExponentialBackoffBuilder;
+
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, process_spans_and_events,
 };
@@ -44,46 +46,34 @@ async fn inner_process_queue_spans(
     storage: Arc<Storage>,
 ) {
     // Add retry logic with exponential backoff for connection failures
-    let mut receiver = {
-        let mut retry_count = 0;
-        let mut delay = 1; // Start with 1 second delay
+    let get_receiver = || async {
+        queue
+            .get_receiver(
+                OBSERVATIONS_QUEUE,
+                OBSERVATIONS_EXCHANGE,
+                OBSERVATIONS_ROUTING_KEY,
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Failed to get receiver from queue: {:?}", e);
+                backoff::Error::transient(e)
+            })
+    };
 
-        loop {
-            match queue
-                .get_receiver(
-                    OBSERVATIONS_QUEUE,
-                    OBSERVATIONS_EXCHANGE,
-                    OBSERVATIONS_ROUTING_KEY,
-                )
-                .await
-            {
-                Ok(receiver) => {
-                    if retry_count > 0 {
-                        log::info!(
-                            "Successfully reconnected to queue after {} retries",
-                            retry_count
-                        );
-                    }
-                    break receiver;
-                }
-                Err(e) => {
-                    retry_count += 1;
-                    log::error!(
-                        "Failed to get receiver from queue (attempt {}): {:?}",
-                        retry_count,
-                        e
-                    );
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(std::time::Duration::from_secs(1))
+        .with_max_interval(std::time::Duration::from_secs(60))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
+        .build();
 
-                    // Cap the delay at 60 seconds to prevent excessive wait times
-                    let sleep_duration = std::cmp::min(delay, 60);
-                    log::warn!("Retrying connection in {} seconds...", sleep_duration);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(sleep_duration)).await;
-
-                    // Exponential backoff: double the delay, up to 60 seconds
-                    delay = std::cmp::min(delay * 2, 60);
-                    continue;
-                }
-            }
+    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
+        Ok(receiver) => {
+            log::info!("Successfully connected to spans queue");
+            receiver
+        }
+        Err(e) => {
+            log::error!("Failed to connect to spans queue after retries: {:?}", e);
+            return;
         }
     };
 

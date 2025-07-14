@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
+use backoff::ExponentialBackoffBuilder;
+
 use crate::{
     ch::evaluator_scores::insert_evaluator_score_ch,
     db::{
@@ -65,49 +67,37 @@ pub async fn inner_process_evaluators(
     python_online_evaluator_url: &str,
 ) {
     // Add retry logic with exponential backoff for connection failures
-    let mut receiver = {
-        let mut retry_count = 0;
-        let mut delay = 1; // Start with 1 second delay
+    let get_receiver = || async {
+        queue
+            .get_receiver(
+                EVALUATORS_QUEUE,
+                EVALUATORS_EXCHANGE,
+                EVALUATORS_ROUTING_KEY,
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Failed to get receiver from evaluators queue: {:?}", e);
+                backoff::Error::transient(e)
+            })
+    };
 
-        loop {
-            match queue
-                .get_receiver(
-                    EVALUATORS_QUEUE,
-                    EVALUATORS_EXCHANGE,
-                    EVALUATORS_ROUTING_KEY,
-                )
-                .await
-            {
-                Ok(receiver) => {
-                    if retry_count > 0 {
-                        log::info!(
-                            "Successfully reconnected to evaluators queue after {} retries",
-                            retry_count
-                        );
-                    }
-                    break receiver;
-                }
-                Err(e) => {
-                    retry_count += 1;
-                    log::error!(
-                        "Failed to get receiver from evaluators queue (attempt {}): {:?}",
-                        retry_count,
-                        e
-                    );
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(std::time::Duration::from_secs(1))
+        .with_max_interval(std::time::Duration::from_secs(60))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
+        .build();
 
-                    // Cap the delay at 60 seconds to prevent excessive wait times
-                    let sleep_duration = std::cmp::min(delay, 60);
-                    log::warn!(
-                        "Retrying evaluators connection in {} seconds...",
-                        sleep_duration
-                    );
-                    tokio::time::sleep(tokio::time::Duration::from_secs(sleep_duration)).await;
-
-                    // Exponential backoff: double the delay, up to 60 seconds
-                    delay = std::cmp::min(delay * 2, 60);
-                    continue;
-                }
-            }
+    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
+        Ok(receiver) => {
+            log::info!("Successfully connected to evaluators queue");
+            receiver
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to connect to evaluators queue after retries: {:?}",
+                e
+            );
+            return;
         }
     };
 
