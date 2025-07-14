@@ -5,7 +5,6 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-
 use actix_web::{
     App, HttpServer,
     middleware::{Logger, NormalizePath},
@@ -24,9 +23,6 @@ use lapin::{
     Connection, ConnectionProperties, ExchangeKind,
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::FieldTable,
-};
-use machine_manager::{
-    MachineManager, MachineManagerImpl, machine_manager_service_client::MachineManagerServiceClient,
 };
 use mq::MessageQueue;
 use names::NameGenerator;
@@ -48,6 +44,8 @@ use std::{
     sync::Arc,
     thread::{self, JoinHandle},
 };
+
+use crate::features::{enable_consumer, enable_producer};
 
 mod agent_manager;
 mod api;
@@ -120,11 +118,18 @@ fn main() -> anyhow::Result<()> {
     let port = env::var("PORT")
         .unwrap_or(String::from("8000"))
         .parse()
-        .unwrap();
+        .unwrap_or(8000);
+
     let grpc_port: u16 = env::var("GRPC_PORT")
         .unwrap_or(String::from("8001"))
         .parse()
-        .unwrap();
+        .unwrap_or(8001);
+
+    let consumer_healthcheck_port: u16 = env::var("CONSUMER_HEALTHCHECK_PORT")
+        .unwrap_or(String::from("8002"))
+        .parse()
+        .unwrap_or(8002);
+
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
     // == Stuff that is needed both for HTTP and gRPC servers ==
@@ -321,23 +326,6 @@ fn main() -> anyhow::Result<()> {
                     }
                 };
 
-                // == Machine manager ==
-                let machine_manager: Arc<MachineManager> =
-                    if is_feature_enabled(Feature::MachineManager) {
-                        let machine_manager_url_grpc = env::var("MACHINE_MANAGER_URL_GRPC")
-                            .expect("MACHINE_MANAGER_URL_GRPC must be set");
-                        log::info!("Machine manager URL: {}", machine_manager_url_grpc);
-                        let machine_manager_client = Arc::new(
-                            MachineManagerServiceClient::connect(machine_manager_url_grpc)
-                                .await
-                                .unwrap(),
-                        );
-                        Arc::new(MachineManagerImpl::new(machine_manager_client).into())
-                    } else {
-                        log::info!("Using mock machine manager");
-                        Arc::new(machine_manager::MockMachineManager {}.into())
-                    };
-
                 // == Browser agent ==
                 let browser_agent: Arc<AgentManager> = if is_feature_enabled(Feature::AgentManager)
                 {
@@ -358,73 +346,75 @@ fn main() -> anyhow::Result<()> {
                 // == Name generator ==
                 let name_generator = Arc::new(NameGenerator::new());
 
-                // == Evaluator client ==
-                let evaluator_client = if is_feature_enabled(Feature::Evaluators) {
-                    let online_evaluators_secret_key = env::var("ONLINE_EVALUATORS_SECRET_KEY").expect("ONLINE_EVALUATORS_SECRET_KEY must be set");
-                    let mut headers = reqwest::header::HeaderMap::new();
+                if enable_consumer() {
+                    log::info!("Enabling consumer mode, spinning up queue workers");
+                    // == Evaluator client ==
+                    let evaluator_client = if is_feature_enabled(Feature::Evaluators) {
+                        let online_evaluators_secret_key = env::var("ONLINE_EVALUATORS_SECRET_KEY")
+                            .expect("ONLINE_EVALUATORS_SECRET_KEY must be set");
+                        let mut headers = reqwest::header::HeaderMap::new();
 
-                    headers.insert(
-                        reqwest::header::AUTHORIZATION,
-                        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", online_evaluators_secret_key))
-                            .expect("Invalid ONLINE_EVALUATORS_SECRET_KEY format")
-                    );
-                    headers.insert(
-                        reqwest::header::CONTENT_TYPE,
-                        reqwest::header::HeaderValue::from_static("application/json")
-                    );
+                        headers.insert(
+                            reqwest::header::AUTHORIZATION,
+                            reqwest::header::HeaderValue::from_str(&format!(
+                                "Bearer {}",
+                                online_evaluators_secret_key
+                            ))
+                            .expect("Invalid ONLINE_EVALUATORS_SECRET_KEY format"),
+                        );
+                        headers.insert(
+                            reqwest::header::CONTENT_TYPE,
+                            reqwest::header::HeaderValue::from_static("application/json"),
+                        );
 
-                    Arc::new(
-                        reqwest::Client::builder()
-                            .user_agent("lmnr-evaluator/1.0")
-                            .default_headers(headers)
-                            .build()
-                            .expect("Failed to create evaluator HTTP client")
-                    )
-                } else {
-                    log::info!("Using mock evaluator client");
-                    Arc::new(
-                        reqwest::Client::builder()
-                        .user_agent("lmnr-evaluator-mock/1.0")
-                        .build()
-                        .expect("Failed to create mock evaluator HTTP client")
-                    )
-                };
-    
-                let python_online_evaluator_url: String = if is_feature_enabled(Feature::Evaluators) {
-                    env::var("PYTHON_ONLINE_EVALUATOR_URL").expect("PYTHON_ONLINE_EVALUATOR_URL must be set")
-                } else {
-                    String::new()
-                };
+                        Arc::new(
+                            reqwest::Client::builder()
+                                .user_agent("lmnr-evaluator/1.0")
+                                .default_headers(headers)
+                                .build()
+                                .expect("Failed to create evaluator HTTP client"),
+                        )
+                    } else {
+                        log::info!("Using mock evaluator client");
+                        Arc::new(
+                            reqwest::Client::builder()
+                                .user_agent("lmnr-evaluator-mock/1.0")
+                                .build()
+                                .expect("Failed to create mock evaluator HTTP client"),
+                        )
+                    };
 
-                let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
-                    .unwrap_or(String::from("4"))
-                    .parse::<u8>()
-                    .unwrap_or(4);
+                    let python_online_evaluator_url: String =
+                        if is_feature_enabled(Feature::Evaluators) {
+                            env::var("PYTHON_ONLINE_EVALUATOR_URL")
+                                .expect("PYTHON_ONLINE_EVALUATOR_URL must be set")
+                        } else {
+                            String::new()
+                        };
 
-                let num_browser_events_workers_per_thread =
-                    env::var("NUM_BROWSER_EVENTS_WORKERS_PER_THREAD")
+                    let num_spans_workers = env::var("NUM_SPANS_WORKERS")
                         .unwrap_or(String::from("4"))
                         .parse::<u8>()
                         .unwrap_or(4);
 
-                let num_evaluators_workers_per_thread =
-                    env::var("NUM_EVALUATORS_WORKERS_PER_THREAD")
+                    let num_browser_events_workers = env::var("NUM_BROWSER_EVENTS_WORKERS")
                         .unwrap_or(String::from("4"))
                         .parse::<u8>()
                         .unwrap_or(4);
 
-                log::info!(
-                    "Spans workers per thread: {}, Browser events workers per thread: {}, Evaluators workers per thread: {}",
-                    num_spans_workers_per_thread,
-                    num_browser_events_workers_per_thread,
-                    num_evaluators_workers_per_thread
-                );
+                    let num_evaluators_workers = env::var("NUM_EVALUATORS_WORKERS")
+                        .unwrap_or(String::from("2"))
+                        .parse::<u8>()
+                        .unwrap_or(2);
 
-                HttpServer::new(move || {
-                    let auth = HttpAuthentication::bearer(auth::validator);
-                    let project_auth = HttpAuthentication::bearer(auth::project_validator);
+                    log::info!(
+                        "Spans workers: {}, Browser events workers: {}, Evaluators workers: {}",
+                        num_spans_workers,
+                        num_browser_events_workers,
+                        num_evaluators_workers
+                    );
 
-                    for _ in 0..num_spans_workers_per_thread {
+                    for _ in 0..num_spans_workers {
                         tokio::spawn(process_queue_spans(
                             db_for_http.clone(),
                             cache_for_http.clone(),
@@ -434,7 +424,7 @@ fn main() -> anyhow::Result<()> {
                         ));
                     }
 
-                    for _ in 0..num_browser_events_workers_per_thread {
+                    for _ in 0..num_browser_events_workers {
                         tokio::spawn(process_browser_events(
                             db_for_http.clone(),
                             clickhouse.clone(),
@@ -442,7 +432,7 @@ fn main() -> anyhow::Result<()> {
                         ));
                     }
 
-                    for _ in 0..num_evaluators_workers_per_thread {
+                    for _ in 0..num_evaluators_workers {
                         tokio::spawn(process_evaluators(
                             db_for_http.clone(),
                             clickhouse.clone(),
@@ -451,6 +441,31 @@ fn main() -> anyhow::Result<()> {
                             python_online_evaluator_url.clone(),
                         ));
                     }
+
+                    if !enable_producer() {
+                        log::info!(
+                            "Running in consumer-only mode, only serving health and ready probes"
+                        );
+                        // On the consumer side, we only need to serve health and ready probes
+                        return HttpServer::new(move || {
+                            App::new()
+                                .wrap(NormalizePath::trim())
+                                .app_data(web::Data::new(connection_for_health.clone()))
+                                // TODO: add a way to get the number of alive workers for each queue
+                                // and fail the healthcheck if the number of alive workers is less than some threshold
+                                .service(routes::probes::check_health)
+                                .service(routes::probes::check_ready)
+                        })
+                        .bind(("0.0.0.0", consumer_healthcheck_port))?
+                        .run()
+                        .await;
+                    }
+                }
+
+                log::info!("Enabling producer mode, spinning up full HTTP server");
+                HttpServer::new(move || {
+                    let auth = HttpAuthentication::bearer(auth::validator);
+                    let project_auth = HttpAuthentication::bearer(auth::project_validator);
 
                     App::new()
                         .wrap(Logger::default().exclude("/health").exclude("/ready"))
@@ -463,7 +478,6 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(clickhouse.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
                         .app_data(web::Data::new(storage.clone()))
-                        .app_data(web::Data::new(machine_manager.clone()))
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
@@ -515,7 +529,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::datasets::upload_datapoint_file)
                                 .service(routes::traces::get_traces_metrics)
                                 .service(routes::provider_api_keys::save_api_key)
-                                .service(routes::spans::create_span)
+                                .service(routes::spans::create_span),
                         )
                         .service(routes::probes::check_health)
                         .service(routes::probes::check_ready)
@@ -532,11 +546,15 @@ fn main() -> anyhow::Result<()> {
         .name("grpc".to_string())
         .spawn(move || {
             runtime_handle.block_on(async {
-                let process_traces_service = ProcessTracesService::new(
-                    db.clone(),
-                    cache.clone(),
-                    queue.clone(),
-                );
+                if !enable_producer() {
+                    log::info!("Running in consumer-only mode, NOT spinning up gRPC server");
+                    return Ok(());
+                }
+
+                log::info!("Enabling producer mode, spinning up gRPC server");
+
+                let process_traces_service =
+                    ProcessTracesService::new(db.clone(), cache.clone(), queue.clone());
 
                 Server::builder()
                     .add_service(

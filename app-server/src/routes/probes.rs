@@ -1,5 +1,5 @@
 use actix_web::web::Data;
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get};
 use lapin::Connection;
 use std::sync::Arc;
 
