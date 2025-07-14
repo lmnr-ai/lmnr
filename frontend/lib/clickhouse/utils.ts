@@ -1,4 +1,5 @@
 import { clickhouseClient } from "@/lib/clickhouse/client";
+import { AggregationFunction } from "@/lib/clickhouse/types";
 
 import { chStepMap, GroupByInterval, intervalMap, truncateTimeMap } from "./modifiers";
 
@@ -16,8 +17,6 @@ type AbsoluteTimeRange = {
 type RelativeTimeRange = {
   pastHours: number | "all";
 };
-
-export type AggregationFunction = "AVG" | "SUM" | "MIN" | "MAX" | "MEDIAN" | "p90" | "p95" | "p99";
 
 export const aggregationFunctionToCh = (f: AggregationFunction) => {
   switch (f) {

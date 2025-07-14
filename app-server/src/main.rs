@@ -513,7 +513,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::evaluations::get_evaluation_score_stats)
                                 .service(routes::evaluations::get_evaluation_score_distribution)
                                 .service(routes::datasets::upload_datapoint_file)
-                                .service(routes::traces::get_traces_metrics)
                                 .service(routes::provider_api_keys::save_api_key)
                                 .service(routes::spans::create_span)
                         )

@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import useSWR from "swr";
 
+import LineChart from "@/components/dashboard/line-chart";
 import { ChartConfig } from "@/components/ui/chart";
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { cn, swrFetcher, toFixedIfFloat } from "@/lib/utils";
 
 import { Skeleton } from "../ui/skeleton";
-import { DefaultLineChart } from "./span-stat-chart";
 
 interface LabelMetricDatapoint {
   time: string;
@@ -21,7 +21,6 @@ interface LabelStatChartProps {
   startDate?: string;
   endDate?: string;
   defaultGroupByInterval?: string;
-  showTotal?: boolean;
 }
 
 export function LabelStatChart({
@@ -31,7 +30,6 @@ export function LabelStatChart({
   startDate,
   endDate,
   defaultGroupByInterval = "hour",
-  showTotal = true,
   projectId,
 }: LabelStatChartProps) {
   const chartConfig = {
@@ -65,12 +63,12 @@ export function LabelStatChart({
           </div>
         </div>
       </div>
-      {showTotal && <div className="text-2xl font-medium">{toFixedIfFloat(totalCount)}</div>}
+      <div className="text-2xl font-medium">{toFixedIfFloat(totalCount)}</div>
       <div className="flex-1">
         {isLoading ? (
           <Skeleton className="h-full w-full" />
         ) : (
-          <DefaultLineChart
+          <LineChart
             data={
               data?.map((d) => ({
                 value: d.value,

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
+import { getLabelMetricsAction } from "@/lib/actions/dashboard";
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
-import { getLabelMetricsOverTime } from "@/lib/clickhouse/spans";
-import { getTimeRange } from "@/lib/clickhouse/utils";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   try {
@@ -10,17 +10,24 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     const { projectId } = params;
     const searchParams = req.nextUrl.searchParams;
 
-    const groupByInterval = (searchParams.get("groupByInterval") as GroupByInterval) || "hour";
-    const pastHours = searchParams.get("pastHours") as string | undefined;
-    const startDate = searchParams.get("startDate") as string | undefined;
-    const endDate = searchParams.get("endDate") as string | undefined;
+    const groupByInterval: GroupByInterval | null = (searchParams.get("groupByInterval") as GroupByInterval) || "hour";
+    const pastHours = searchParams.get("pastHours");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
 
-    const timeRange = getTimeRange(pastHours, startDate, endDate);
-
-    const metrics = await getLabelMetricsOverTime(projectId, groupByInterval, timeRange);
+    const metrics = await getLabelMetricsAction({
+      projectId,
+      groupByInterval,
+      pastHours,
+      startDate,
+      endDate,
+    });
 
     return NextResponse.json(metrics);
   } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
     return NextResponse.json({ error: "Failed to calculate label metrics" }, { status: 500 });
   }
 }

@@ -32,9 +32,21 @@ export const buildSpansUrl = (
   startDate?: string,
   endDate?: string
 ): string => {
+  const params = new URLSearchParams();
+
+  params.set("view", "spans");
+
   const filters = buildFilters(aggregation, value);
-  const timeRangeParam = pastHours ? `&pastHours=${pastHours}` : `&startDate=${startDate}&endDate=${endDate}`;
-  return `/project/${projectId}/traces?view=spans&filter=${JSON.stringify(filters)}${timeRangeParam}`;
+  filters.forEach((filter) => params.append("filter", JSON.stringify(filter)));
+
+  if (pastHours) {
+    params.set("pastHours", pastHours);
+  } else if (startDate && endDate) {
+    params.set("startDate", startDate);
+    params.set("endDate", endDate);
+  }
+
+  return `/project/${projectId}/traces?${params.toString()}`;
 };
 
 // If the span hadn't arrived in one hour, it's probably not going to arrive.

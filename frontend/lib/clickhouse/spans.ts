@@ -1,10 +1,19 @@
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
 import { GroupByInterval, truncateTimeMap } from "./modifiers";
-import { MetricTimeValue, SpanMetric, SpanMetricGroupBy, SpanMetricType, SpanSearchType, SpanType } from "./types";
+import {
+  AggregationFunction,
+  MetricTimeValue,
+  SpanMetric,
+  SpanMetricGroupBy,
+  SpanMetricType,
+  SpanSearchType,
+  SpanType,
+  TraceMetric,
+  TraceStatusValue,
+} from "./types";
 import {
   addTimeRangeToQuery,
-  AggregationFunction,
   aggregationFunctionToCh,
   getTimeBounds,
   groupByTimeAbsoluteStatement,
@@ -37,17 +46,17 @@ export const getSpanMetricsOverTime = async (
   const chRoundTime = truncateTimeMap[groupByInterval];
 
   const baseQuery = `WITH base AS (
-  SELECT
-    map(
-      ${groupBy},
-      ${getMetricColumn(metric, aggregation)}
-    ) as value,
-    ${chRoundTime}(start_time) as time
-  FROM spans
-  WHERE
-    project_id = {projectId: UUID}
-    AND ${groupBy} != {nullValue: String}
-    AND span_type in {types: Array(UInt8)}`;
+    SELECT
+      map(
+          ${groupBy},
+          ${getMetricColumn(metric, aggregation)}
+      ) as value,
+                       ${chRoundTime}(start_time) as time
+                     FROM spans
+                     WHERE
+                       project_id = {projectId: UUID}
+                       AND ${groupBy} != {nullValue: String}
+                       AND span_type in {types: Array(UInt8)}`;
   const query = addTimeRangeToQuery(baseQuery, timeRange, "time");
 
   let groupByStatement: string;
@@ -93,14 +102,14 @@ export const getSpanMetricsSummary = async (
   aggregation: AggregationFunction
 ): Promise<SpanMetricSummary[]> => {
   const baseQuery = `
-  SELECT
+    SELECT
       ${groupBy},
       ${getMetricColumn(metric, aggregation)} AS value
-  FROM spans
-  WHERE
-    project_id = {projectId: UUID}
-    AND ${groupBy} != {nullValue: String}
-    AND span_type in {types: Array(UInt8)}`;
+    FROM spans
+    WHERE
+      project_id = {projectId: UUID}
+      AND ${groupBy} != {nullValue: String}
+      AND span_type in {types: Array(UInt8)}`;
   const query = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
 
   const finalQuery = `${query} GROUP BY ${groupBy} ORDER BY value DESC`;
@@ -160,7 +169,7 @@ export const searchSpans = async ({
       1 = 1
       ${projectId ? `AND project_id = {projectId: UUID}` : ""}
       AND (
-        ${searchTypeToQueryFilter(searchType, "query")}
+      ${searchTypeToQueryFilter(searchType, "query")}
       )
       ${traceId ? `AND trace_id = {traceId: String}` : ""}
   `;
@@ -235,6 +244,144 @@ export const getLabelMetricsOverTime = async (
   });
 
   return await result.json();
+};
+
+const getTraceMetricColumn = (metric: TraceMetric, aggregation: AggregationFunction) => {
+  switch (metric) {
+    case TraceMetric.TraceCount:
+      return "1";
+    case TraceMetric.TraceLatencySeconds:
+      return "toFloat64(COALESCE((toUnixTimestamp64Nano(MAX(end_time)) - toUnixTimestamp64Nano(MIN(start_time))) / 1e9, 0))";
+    case TraceMetric.TotalTokenCount:
+      return "toUInt64(COALESCE(SUM(total_tokens), 0))";
+    case TraceMetric.CostUsd:
+      return "toFloat64(COALESCE(SUM(total_cost), 0))";
+    case TraceMetric.TraceSuccessCount:
+      return "CASE WHEN countIf(status = 'error') = 0 THEN 1 ELSE 0 END";
+    case TraceMetric.TraceErrorCount:
+      return "CASE WHEN countIf(status = 'error') > 0 THEN 1 ELSE 0 END";
+    default:
+      throw new Error(`Invalid trace metric: ${metric}`);
+  }
+};
+
+export const getTraceMetricsOverTime = async (
+  projectId: string,
+  metric: TraceMetric,
+  groupByInterval: GroupByInterval,
+  timeRange: TimeRange,
+  aggregation: AggregationFunction
+): Promise<MetricTimeValue<number>[]> => {
+  const chRoundTime = truncateTimeMap[groupByInterval];
+  const chAggregation = aggregationFunctionToCh(aggregation);
+  const metricColumn = getTraceMetricColumn(metric, aggregation);
+
+  const baseQuery = `WITH traces AS (
+    SELECT
+      trace_id,
+      project_id,
+      ${chRoundTime}(MIN(start_time)) as time,
+      ${metricColumn} as value
+    FROM spans
+    WHERE span_type in {types: Array(UInt8)}
+    `;
+
+  const queryWithTimeRange = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+
+  const cteQuery = `${queryWithTimeRange}
+    GROUP BY project_id, trace_id
+  )`;
+
+  let groupByStatement: string;
+
+  if ("pastHours" in timeRange) {
+    if (timeRange.pastHours !== "all") {
+      groupByStatement = groupByTimeRelativeStatement(timeRange.pastHours, groupByInterval, "time");
+    } else {
+      const bounds = await getTimeBounds(projectId, "spans", "start_time");
+      groupByStatement = groupByTimeAbsoluteStatement(bounds[0], bounds[1], groupByInterval, "time");
+    }
+  } else {
+    groupByStatement = groupByTimeAbsoluteStatement(timeRange.start, timeRange.end, groupByInterval, "time");
+  }
+
+  const finalQuery = `${cteQuery}
+  SELECT
+    time,
+    ${metric === TraceMetric.TraceCount ? "COUNT(*)" : `toFloat64(COALESCE(${chAggregation}(value), 0))`} as value
+  FROM traces
+  WHERE project_id = {projectId: UUID}
+  ${groupByStatement}`;
+
+  const result = await clickhouseClient.query({
+    query: finalQuery,
+    format: "JSONEachRow",
+    query_params: {
+      projectId,
+      types: [SpanType.DEFAULT, SpanType.LLM],
+    },
+  });
+
+  return await result.json();
+};
+
+export const getTraceStatusMetricsOverTime = async (
+  projectId: string,
+  groupByInterval: GroupByInterval,
+  timeRange: TimeRange
+): Promise<MetricTimeValue<TraceStatusValue>[]> => {
+  const chRoundTime = truncateTimeMap[groupByInterval];
+
+  const baseQuery = `WITH traces AS (
+    SELECT
+      trace_id,
+      project_id,
+      ${chRoundTime}(MIN(start_time)) as time,
+      CASE WHEN countIf(status = 'error') = 0 THEN 1 ELSE 0 END as success_count,
+      CASE WHEN countIf(status = 'error') > 0 THEN 1 ELSE 0 END as error_count
+    FROM spans
+    WHERE span_type in {types: Array(UInt8)}
+    GROUP BY project_id, trace_id
+  )
+  SELECT
+    time,
+    SUM(success_count) as success,
+    SUM(error_count) as error
+  FROM traces
+  WHERE project_id = {projectId: UUID}`;
+
+  const query = addTimeRangeToQuery(baseQuery, timeRange, "time");
+
+  let groupByStatement: string;
+
+  if ("pastHours" in timeRange) {
+    if (timeRange.pastHours !== "all") {
+      groupByStatement = groupByTimeRelativeStatement(timeRange.pastHours, groupByInterval, "time");
+    } else {
+      const bounds = await getTimeBounds(projectId, "spans", "start_time");
+      groupByStatement = groupByTimeAbsoluteStatement(bounds[0], bounds[1], groupByInterval, "time");
+    }
+  } else {
+    groupByStatement = groupByTimeAbsoluteStatement(timeRange.start, timeRange.end, groupByInterval, "time");
+  }
+
+  const finalQuery = `${query} ${groupByStatement}`;
+
+  const result = await clickhouseClient.query({
+    query: finalQuery,
+    format: "JSONEachRow",
+    query_params: {
+      projectId,
+      types: [SpanType.DEFAULT, SpanType.LLM],
+    },
+  });
+
+  const data = (await result.json()) as { time: string; success: number; error: number }[];
+
+  return data.map(({ time, success, error }) => ({
+    time,
+    value: { success: Number(success), error: Number(error) },
+  }));
 };
 
 const searchTypeToQueryFilter = (searchType?: SpanSearchType[], queryParamName: string = "query"): string => {
