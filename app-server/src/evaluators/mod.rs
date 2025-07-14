@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
+use backoff::ExponentialBackoffBuilder;
+
 use crate::{
     ch::evaluator_scores::insert_evaluator_score_ch,
     db::{
@@ -64,14 +66,40 @@ pub async fn inner_process_evaluators(
     client: Arc<reqwest::Client>,
     python_online_evaluator_url: &str,
 ) {
-    let mut receiver = queue
-        .get_receiver(
-            EVALUATORS_QUEUE,
-            EVALUATORS_EXCHANGE,
-            EVALUATORS_ROUTING_KEY,
-        )
-        .await
-        .unwrap();
+    // Add retry logic with exponential backoff for connection failures
+    let get_receiver = || async {
+        queue
+            .get_receiver(
+                EVALUATORS_QUEUE,
+                EVALUATORS_EXCHANGE,
+                EVALUATORS_ROUTING_KEY,
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Failed to get receiver from evaluators queue: {:?}", e);
+                backoff::Error::transient(e)
+            })
+    };
+
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(std::time::Duration::from_secs(1))
+        .with_max_interval(std::time::Duration::from_secs(60))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
+        .build();
+
+    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
+        Ok(receiver) => {
+            log::info!("Successfully connected to evaluators queue");
+            receiver
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to connect to evaluators queue after retries: {:?}",
+                e
+            );
+            return;
+        }
+    };
 
     while let Some(delivery) = receiver.receive().await {
         if let Err(e) = delivery {

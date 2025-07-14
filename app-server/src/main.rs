@@ -162,24 +162,30 @@ fn main() -> anyhow::Result<()> {
     let db = Arc::new(db::DB::new(pool));
 
     // === 3. Message queues ===
-    let connection = if is_feature_enabled(Feature::FullBuild) {
+    let (publisher_connection, consumer_connection) = if is_feature_enabled(Feature::FullBuild) {
         let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
         runtime_handle.block_on(async {
-            Some(Arc::new(
+            let publisher_conn = Arc::new(
                 Connection::connect(&rabbitmq_url, ConnectionProperties::default())
                     .await
                     .unwrap(),
-            ))
+            );
+            let consumer_conn = Arc::new(
+                Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+                    .await
+                    .unwrap(),
+            );
+            (Some(publisher_conn), Some(consumer_conn))
         })
     } else {
-        None
+        (None, None)
     };
 
-    let connection_for_health = connection.clone(); // Clone before moving into HttpServer
+    let connection_for_health = publisher_connection.clone(); // Clone before moving into HttpServer
 
-    let queue: Arc<MessageQueue> = if let Some(connection) = connection.as_ref() {
+    let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) = (publisher_connection.as_ref(), consumer_connection.as_ref()) {
         runtime_handle.block_on(async {
-            let channel = connection.create_channel().await.unwrap();
+            let channel = publisher_conn.create_channel().await.unwrap();
             // Register queues
             // ==== 3.1 Spans message queue ====
             channel
@@ -248,7 +254,11 @@ fn main() -> anyhow::Result<()> {
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
 
-            let rabbit_mq = mq::rabbit::RabbitMQ::new(connection.clone(), max_channel_pool_size);
+            let rabbit_mq = mq::rabbit::RabbitMQ::new(
+                publisher_conn.clone(),
+                consumer_conn.clone(),
+                max_channel_pool_size,
+            );
             Arc::new(rabbit_mq.into())
         })
     } else {
