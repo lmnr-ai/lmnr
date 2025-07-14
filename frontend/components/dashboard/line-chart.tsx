@@ -27,28 +27,22 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
 const LineChart = memo<ChartProps>(({ data, keys, xAxisKey, chartConfig, groupByInterval, numericTimestamp }) => {
   const dataMax = useMemo(
     () =>
-      Math.max(
-        ...data.map((d) =>
-          Object.entries(d)
-            .filter(([key]) => key !== xAxisKey)
-            .map(([_, value]) => value)
-            .reduce((a, b) => Math.max(a, b), 0)
-        )
-      ),
+      data.reduce((max, d) => {
+        const values = Object.entries(d)
+          .filter(([key]) => key !== xAxisKey)
+          .map(([_, value]) => Number(value))
+          .filter((value) => !isNaN(value));
+        return Math.max(max, ...values);
+      }, 0),
     [data, xAxisKey]
   );
-
-  const leftMargin = useMemo(() => {
-    const formattedMaxLength = numberFormatter.format(dataMax).length;
-    return formattedMaxLength * 8;
-  }, [dataMax]);
 
   return (
     <ChartContainer config={chartConfig} className="aspect-auto w-full h-full">
       <RechartsLineChart
         data={data}
         margin={{
-          left: -47 + leftMargin,
+          left: 8,
           right: 8,
           top: 8,
           bottom: 8,
@@ -75,6 +69,7 @@ const LineChart = memo<ChartProps>(({ data, keys, xAxisKey, chartConfig, groupBy
           tickMargin={8}
           tickCount={5}
           domain={["auto", dataMax]}
+          width={32}
           tickFormatter={(value) => numberFormatter.format(value)}
         />
         <ChartTooltip

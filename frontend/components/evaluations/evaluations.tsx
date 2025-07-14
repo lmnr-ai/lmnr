@@ -13,7 +13,7 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
-import { AggregationFunction } from "@/lib/clickhouse/types";
+import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { Evaluation } from "@/lib/evaluation/types";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -81,17 +81,6 @@ const filters: ColumnFilter[] = [
     dataType: "json",
   },
 ];
-
-const aggregationLabelMap: Record<AggregationFunction, string> = {
-  [AggregationFunction.AVG]: "Average",
-  [AggregationFunction.SUM]: "Sum",
-  [AggregationFunction.MIN]: "Minimum",
-  [AggregationFunction.MAX]: "Maximum",
-  [AggregationFunction.MEDIAN]: "Median",
-  [AggregationFunction.p90]: "p99",
-  [AggregationFunction.p95]: "p95",
-  [AggregationFunction.p99]: "p99",
-};
 
 export default function Evaluations() {
   const params = useParams();

@@ -6,6 +6,7 @@ import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
 import {
   AggregationFunction,
+  aggregationLabelMap,
   MetricTimeValue,
   SpanMetric,
   SpanMetricGroupBy,
@@ -120,7 +121,7 @@ const SpanStatChart = memo<SpanStatChartProps>(
                 <SelectContent>
                   {(Object.values(AggregationFunction) as AggregationFunction[]).map((agg) => (
                     <SelectItem key={agg} value={agg} className="text-xs">
-                      {agg.toLocaleLowerCase()}
+                      {aggregationLabelMap[agg]}
                     </SelectItem>
                   ))}
                 </SelectContent>
