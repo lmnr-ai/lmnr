@@ -41,7 +41,7 @@ impl Manager for RabbitChannelManager {
 }
 
 pub struct RabbitMQ {
-    connection: Arc<Connection>,
+    consumer_connection: Arc<Connection>,
     publisher_channel_pool: Pool<RabbitChannelManager>,
 }
 
@@ -84,9 +84,13 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
 }
 
 impl RabbitMQ {
-    pub fn new(connection: Arc<Connection>, max_channel_pool_size: usize) -> Self {
+    pub fn new(
+        publisher_connection: Arc<Connection>,
+        consumer_connection: Arc<Connection>,
+        max_channel_pool_size: usize,
+    ) -> Self {
         let manager = RabbitChannelManager {
-            connection: Arc::clone(&connection),
+            connection: Arc::clone(&publisher_connection),
         };
 
         let pool = Pool::builder(manager)
@@ -95,7 +99,7 @@ impl RabbitMQ {
             .unwrap();
 
         Self {
-            connection,
+            consumer_connection,
             publisher_channel_pool: pool,
         }
     }
@@ -143,7 +147,7 @@ impl MessageQueueTrait for RabbitMQ {
         exchange: &str,
         routing_key: &str,
     ) -> anyhow::Result<MessageQueueReceiver> {
-        let channel = self.connection.create_channel().await?;
+        let channel = self.consumer_connection.create_channel().await?;
 
         channel
             .queue_bind(
