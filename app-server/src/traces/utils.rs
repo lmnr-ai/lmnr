@@ -103,8 +103,7 @@ pub async fn record_span_to_db(
         .with_initial_interval(std::time::Duration::from_millis(500))
         .with_multiplier(1.5)
         .with_randomization_factor(0.5)
-        .with_max_interval(std::time::Duration::from_secs(1 * 60))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(5 * 60)))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(10)))
         .build();
     backoff::future::retry(exponential_backoff, insert_span)
         .await
