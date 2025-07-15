@@ -25,7 +25,7 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
   } catch (error) {
     // In order to avoid blocking backend requests, we fail this operation
     // and don't proceed with project deletion.
-    throw new Error("Failed to delete project api keys from cache");
+    throw new Error("Failed to delete project api keys from cache: " + (error instanceof Error ? error.message : String(error)));
   }
 
   await db.delete(projects).where(eq(projects.id, projectId));
