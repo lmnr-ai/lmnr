@@ -23,9 +23,7 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
     // cascade deleted from db once we delete the project.
     await deleteProjectApiKeysFromCache(projectId);
   } catch (error) {
-    // In order to avoid blocking backend requests, we fail this operation
-    // and don't proceed with project deletion.
-    throw new Error("Failed to delete project api keys from cache: " + (error instanceof Error ? error.message : String(error)));
+    console.error("Failed to delete project api keys from cache", error);
   }
 
   await db.delete(projects).where(eq(projects.id, projectId));
@@ -99,8 +97,10 @@ async function deleteProjectApiKeysFromCache(projectId: string) {
     where: eq(projectApiKeys.projectId, projectId),
   });
 
-  for (const apiKey of apiKeys) {
-    const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKey.hash}`;
-    await cache.remove(cacheKey);
-  }
+  await Promise.allSettled(
+    apiKeys.map(apiKey => {
+      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKey.hash}`;
+      return cache.remove(cacheKey);
+    })
+  );
 }
