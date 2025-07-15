@@ -43,7 +43,7 @@ const processAttributeFilter = (filter: FilterDef): FilterDef => {
     case "span_type": {
       const uppercased = filter.value.toUpperCase().trim();
       const newValue = uppercased === "SPAN" ? "'DEFAULT'" : `'${uppercased}'`;
-      return { ...filter, value: newValue, castType: "span_type" };
+      return { ...filter, value: newValue, castType: AllowedCastType.SpanType };
     }
 
     default:
@@ -94,14 +94,12 @@ export const processSpanFilters = (filters: FilterDef[]) => {
     ]),
     defaultProcessor: (filter) => {
       const processed = processAttributeFilter(filter);
-      return filtersToSql(
-        [processed],
-        [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)],
-        {
+      return (
+        filtersToSql([processed], [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)], {
           latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`,
           path: sql<string>`attributes ->> 'lmnr.span.path'`,
-        }
-      )[0] || null;
+        })[0] || null
+      );
     },
   });
 
@@ -147,13 +145,11 @@ export const processTraceSpanFilters = (filters: FilterDef[]) => {
     ]),
     defaultProcessor: (filter) => {
       const processed = processTraceSpanAttributeFilter(filter);
-      return filtersToSql(
-        [processed],
-        [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)],
-        {
+      return (
+        filtersToSql([processed], [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)], {
           latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`,
-        }
-      )[0] || null;
+        })[0] || null
+      );
     },
   });
 

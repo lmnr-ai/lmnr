@@ -30,8 +30,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     baseFilters.push(eq(evaluations.groupId, groupId));
   }
 
-  const searchFilter =
-    search && search.trim() !== "" ? sql`${evaluations.name} ILIKE ${"%" + search.trim() + "%"}` : null;
+  const searchFilter = search && search.trim() !== "" ? sql`${evaluations.name} ILIKE ${`%${search.trim()}%`}` : null;
 
   const metadataFilters = urlParamFilters
     .filter((filter) => filter.column === "metadata" && filter.operator === "eq")

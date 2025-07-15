@@ -89,7 +89,6 @@ export default function SessionsTable() {
 
       const data = (await res.json()) as PaginatedResponse<SessionPreview>;
 
-      console.log(data);
       setSessions(
         data.items.map((s) => ({
           type: "session",

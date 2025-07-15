@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
-import { compact } from "lodash";
+import { compact, isNil } from "lodash";
 import { z } from "zod/v4";
 
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
@@ -185,7 +185,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
         eq(spans.traceId, traceId),
         eq(spans.projectId, projectId),
         ...processedFilters,
-        ...(search !== null ? [inArray(spans.spanId, searchSpanIds)] : [])
+        ...(!isNil(search) ? [inArray(spans.spanId, searchSpanIds)] : [])
       )
     )
     .orderBy(asc(spans.startTime));

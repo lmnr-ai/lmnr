@@ -19,23 +19,20 @@ export class FilterBuilder<TFilter extends DatatableFilter = DatatableFilter, TR
     this.defaultProcessor = config.defaultProcessor;
   }
 
-  private findProcessor = (filter: TFilter) =>
-    this.processors.get(`${filter.column}:${filter.operator}`) ||
-    this.processors.get(filter.column) ||
-    this.defaultProcessor;
+  processFilters = (filters: TFilter[]): TResult[] =>
+    filters.flatMap((filter) => {
+      const processor =
+        this.processors.get(`${filter.column}:${filter.operator}`) ||
+        this.processors.get(filter.column) ||
+        this.defaultProcessor;
 
-  private processFilter = (filter: TFilter) => {
-    const processor = this.findProcessor(filter);
-    return processor ? processor(filter) : null;
-  };
+      if (!processor) return [];
 
-  private flattenResults = (result: TResult | TResult[]): TResult[] => (Array.isArray(result) ? result : [result]);
+      const result = processor(filter);
+      if (isNil(result)) return [];
 
-  processFilters = (filters: TFilter[]) =>
-    filters.reduce((acc, filter) => {
-      const result = this.processFilter(filter);
-      return !isNil(result) ? [...acc, ...this.flattenResults(result)] : acc;
-    }, [] as TResult[]);
+      return Array.isArray(result) ? result : [result];
+    });
 }
 
 export const processors = <TFilter extends DatatableFilter, TResult>(
@@ -45,17 +42,11 @@ export const processors = <TFilter extends DatatableFilter, TResult>(
     process: FilterProcessor<TFilter, TResult>;
   }>
 ): Map<string, FilterProcessor<TFilter, TResult>> => {
-  const map = new Map<string, FilterProcessor<TFilter, TResult>>();
+  const entries = configs.flatMap(({ column, operators, process }) =>
+    operators ? operators.map((op) => [`${column}:${op}`, process] as const) : [[column, process] as const]
+  );
 
-  configs.forEach(({ column, operators, process }) => {
-    if (operators) {
-      operators.forEach((op) => map.set(`${column}:${op}`, process));
-    } else {
-      map.set(column, process);
-    }
-  });
-
-  return map;
+  return new Map(entries);
 };
 
 export const parseUrlParams = <T>(
@@ -63,12 +54,12 @@ export const parseUrlParams = <T>(
   schema: z.ZodSchema<T>,
   arrayParams: string[] = ["filter", "searchIn"]
 ) => {
-  const obj: Record<string, any> = {};
-
-  for (const key of searchParams.keys()) {
-    const values = searchParams.getAll(key);
-    obj[key] = arrayParams.includes(key) ? values : values[0];
-  }
+  const obj = Object.fromEntries(
+    Array.from(searchParams.keys()).map((key) => {
+      const values = searchParams.getAll(key);
+      return [key, arrayParams.includes(key) ? values : values[0]];
+    })
+  );
 
   return schema.safeParse(obj);
 };
