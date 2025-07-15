@@ -100,3 +100,5 @@ class CacheManager {
 }
 
 export const cache = new CacheManager();
+
+export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
