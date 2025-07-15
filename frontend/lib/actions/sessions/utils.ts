@@ -2,7 +2,7 @@ import { and, eq, inArray, not, SQL, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { Operator } from "@/components/ui/datatable-filter/utils";
+import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
 import { FilterBuilder, processors } from "@/lib/actions/common/utils";
 import { getTraceSpans, GetTraceSpansSchema } from "@/lib/actions/spans";
 import { db } from "@/lib/db/drizzle";
@@ -128,16 +128,7 @@ export const processSessionFilters = (filters: FilterDef[]) => {
       const aggregateColumn = aggregateColumnMap[filter.column];
       if (!aggregateColumn) return null;
 
-      const operatorMap: Record<string, string> = {
-        eq: "=",
-        ne: "!=",
-        gt: ">",
-        gte: ">=",
-        lt: "<",
-        lte: "<=",
-      };
-
-      const sqlOperator = operatorMap[filter.operator];
+      const sqlOperator = OperatorLabelMap[filter.operator];
       if (!sqlOperator) return null;
 
       return sql`${aggregateColumn} ${sql.raw(sqlOperator)} ${filter.value}`;
